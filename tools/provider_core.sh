@@ -73,7 +73,11 @@ case "$action" in
         ;;
     build)
         if "$printing"; then printf '%s\n' 'Package build captures clean committed HEAD before dispatch; use make package/build WHEELHOUSE=... .'; exit; fi
-        if [[ -n $(git -C "$root" status --porcelain) ]]; then
+        if checkout_status=$(git -C "$root" status --porcelain); then :; else
+            printf '%s\n' 'Cannot build a release: Git checkout status could not be inspected; no clean-source claim was established.' >&2
+            exit 2
+        fi
+        if [[ -n $checkout_status ]]; then
             printf '%s\n' 'Cannot build a release: commit or remove pending checkout changes before capturing HEAD.' >&2
             exit 2
         fi

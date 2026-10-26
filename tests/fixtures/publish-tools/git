@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -euo pipefail
+printf 'git %s\n' "$*" >> "$PUBLISH_TEST_TRACE"
+while [[ $1 == -c ]]; do shift 2; done
+case "$1" in
+    status)
+        if [[ $PUBLISH_TEST_MODE == status-error ]]; then exit 3; fi
+        exit 0 ;;
+    rev-parse) printf '%040d\n' 1 ;;
+    remote) printf 'https://github.com/numpde/nmr-provider-tools.git\n' ;;
+    config)
+        case "$PUBLISH_TEST_MODE" in
+            matching) printf 'url.elsewhere.pushinsteadof\nhttps://github.com/numpde/\0' ;;
+            config-error) exit 3 ;;
+            *) exit 1 ;;
+        esac ;;
+    show-ref) exit 1 ;;
+    tag|push) exit 0 ;;
+    *) exit 97 ;;
+esac

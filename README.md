@@ -169,3 +169,23 @@ For stopped delivery, `delivery/deployment/held` takes explicit `API_ORIGIN` and
 requires the exact `EXECUTION_ATTEMPT_REF` and `BODY_SHA256`. Discard removes only a
 matching held payload; it proves no API acceptance. Running delivery must be
 stopped before either command opens its single-writer queue.
+
+Authored release notes live in `notes/NNN_release_vX.Y.Z.md`, with one source line
+per paragraph or list item. Commit the package version and its release note,
+then prepare a reviewable release directory:
+
+```sh
+mkdir -m 700 /private/release-inputs
+make publish/prepare TAG=vX.Y.Z WHEELHOUSE=/path/to/shared/cache OUTPUT=/private/release-inputs
+make publish/release TAG=vX.Y.Z ARTIFACTS=/private/release-inputs
+```
+
+Preparation captures committed source, qualifies the exact five artifacts, and
+retains build/test logs plus the authored note. Inspect those public inputs
+before publication. The release target captures those same bytes, requires their
+successful qualification hashes and unchanged source/note, checks the canonical
+GitHub destination, and refuses an existing release. It pushes the tag, uploads a
+draft, downloads and compares every artifact and both logs, then makes the draft
+public. GitHub credentials remain in host orchestration. Failed or uncertain
+publication retains its private receipts; inspect them before retrying. Published
+assets are never replaced.

@@ -1,0 +1,9 @@
+#!/usr/local/bin/python3
+"""Parse the fixture release record; the real host owns its jq prerequisite."""
+import json
+import sys
+
+if sys.argv[1:3] != ["-er", ".source_revision"] or len(sys.argv) != 4:
+    raise SystemExit(97)
+with open(sys.argv[3]) as stream:
+    print(json.load(stream)["source_revision"])
