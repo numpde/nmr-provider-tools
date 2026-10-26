@@ -37,9 +37,73 @@ override ARTIFACTS_INPUT := $(value ARTIFACTS)
 export ARTIFACTS_INPUT
 endif
 
+unexport DELIVERY_ROOT
+unexport DELIVERY_ROOT_INPUT
+unexport DELIVERY_ROOT_INPUT_ORIGIN
+override export DELIVERY_ROOT_INPUT_ORIGIN := $(origin DELIVERY_ROOT)
+ifeq ($(origin DELIVERY_ROOT),command line)
+override DELIVERY_ROOT_INPUT := $(value DELIVERY_ROOT)
+export DELIVERY_ROOT_INPUT
+endif
+
+unexport DELIVERY_BINDINGS
+unexport DELIVERY_BINDINGS_INPUT
+unexport DELIVERY_BINDINGS_INPUT_ORIGIN
+override export DELIVERY_BINDINGS_INPUT_ORIGIN := $(origin DELIVERY_BINDINGS)
+ifeq ($(origin DELIVERY_BINDINGS),command line)
+override DELIVERY_BINDINGS_INPUT := $(value DELIVERY_BINDINGS)
+export DELIVERY_BINDINGS_INPUT
+endif
+
+unexport SHARED_RUNTIME_IMAGE
+unexport SHARED_RUNTIME_IMAGE_INPUT
+unexport SHARED_RUNTIME_IMAGE_INPUT_ORIGIN
+override export SHARED_RUNTIME_IMAGE_INPUT_ORIGIN := $(origin SHARED_RUNTIME_IMAGE)
+ifeq ($(origin SHARED_RUNTIME_IMAGE),command line)
+override SHARED_RUNTIME_IMAGE_INPUT := $(value SHARED_RUNTIME_IMAGE)
+export SHARED_RUNTIME_IMAGE_INPUT
+endif
+
+unexport API_ORIGIN
+unexport API_ORIGIN_INPUT
+unexport API_ORIGIN_INPUT_ORIGIN
+override export API_ORIGIN_INPUT_ORIGIN := $(origin API_ORIGIN)
+ifeq ($(origin API_ORIGIN),command line)
+override API_ORIGIN_INPUT := $(value API_ORIGIN)
+export API_ORIGIN_INPUT
+endif
+
+unexport PROVIDER_REF
+unexport PROVIDER_REF_INPUT
+unexport PROVIDER_REF_INPUT_ORIGIN
+override export PROVIDER_REF_INPUT_ORIGIN := $(origin PROVIDER_REF)
+ifeq ($(origin PROVIDER_REF),command line)
+override PROVIDER_REF_INPUT := $(value PROVIDER_REF)
+export PROVIDER_REF_INPUT
+endif
+
+unexport EXECUTION_ATTEMPT_REF
+unexport EXECUTION_ATTEMPT_REF_INPUT
+unexport EXECUTION_ATTEMPT_REF_INPUT_ORIGIN
+override export EXECUTION_ATTEMPT_REF_INPUT_ORIGIN := $(origin EXECUTION_ATTEMPT_REF)
+ifeq ($(origin EXECUTION_ATTEMPT_REF),command line)
+override EXECUTION_ATTEMPT_REF_INPUT := $(value EXECUTION_ATTEMPT_REF)
+export EXECUTION_ATTEMPT_REF_INPUT
+endif
+
+unexport BODY_SHA256
+unexport BODY_SHA256_INPUT
+unexport BODY_SHA256_INPUT_ORIGIN
+override export BODY_SHA256_INPUT_ORIGIN := $(origin BODY_SHA256)
+ifeq ($(origin BODY_SHA256),command line)
+override BODY_SHA256_INPUT := $(value BODY_SHA256)
+export BODY_SHA256_INPUT
+endif
+
 .PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
-.PHONY: tests/package
+.PHONY: delivery/deployment/install delivery/deployment/up delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard
+.PHONY: tests/deployment delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
 
 help:
@@ -64,13 +128,28 @@ help:
 	  'make tests/integration/provider-core WHEELHOUSE=... Run contained package integrations.' \
 	  'make tests/integration/provider-core/delivery WHEELHOUSE=... Qualify real delivery IPC and recovery.' \
 	  'make package/build WHEELHOUSE=... OUTPUT=... Build clean committed source into an empty owned directory.' \
-	  'make tests/package WHEELHOUSE=... ARTIFACTS=... Qualify exact release files and the source rebuild.'
+	  'make tests/package WHEELHOUSE=... ARTIFACTS=... Qualify exact release files and the source rebuild.' \
+	  'make delivery/image/build WHEELHOUSE=... ARTIFACTS=... Build shared delivery from qualified wheel inputs.' \
+	  'make tests/deployment SHARED_RUNTIME_IMAGE=sha256:... Qualify the installed shared deployment freezer.' \
+	  'make delivery/deployment/install DELIVERY_ROOT=... DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... Freeze a host definition.' \
+	  'make delivery/deployment/up DELIVERY_ROOT=... Start the installed shared delivery project.' \
+	  'make delivery/deployment/down DELIVERY_ROOT=... Stop shared delivery and preserve all volumes.' \
+	  'make delivery/deployment/status DELIVERY_ROOT=... Inspect installed service state.' \
+	  'make delivery/deployment/logs DELIVERY_ROOT=... Show bounded recent service logs.' \
+	  'make delivery/deployment/held DELIVERY_ROOT=... API_ORIGIN=... PROVIDER_REF=... List held metadata while stopped.' \
+	  'make delivery/deployment/discard DELIVERY_ROOT=... API_ORIGIN=... PROVIDER_REF=... EXECUTION_ATTEMPT_REF=... BODY_SHA256=... Discard exactly one stopped held item.'
 
 packages/provider-core/download:
 	bash tools/provider_core.sh download
 
 packages/provider-core/check:
 	bash tools/provider_core.sh check
+
+tests/deployment:
+	bash tools/delivery_tests.sh
+
+delivery/image/build:
+	bash tools/delivery_image.sh
 
 package/build:
 	bash tools/provider_core.sh build
@@ -105,7 +184,7 @@ checks/image/build:
 checks/prepare:
 	bash tools/checker.sh prepare
 
-tests: tests/repository tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core
+tests: tests/repository tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/deployment
 
 tests/repository:
 	bash tools/repository.sh tests/repository
@@ -121,3 +200,24 @@ tests/repository/runtime:
 
 tests/repository/command:
 	bash tools/repository.sh --print tests/repository
+
+delivery/deployment/install:
+	bash tools/delivery.sh install
+
+delivery/deployment/up:
+	bash tools/delivery.sh up
+
+delivery/deployment/down:
+	bash tools/delivery.sh down
+
+delivery/deployment/status:
+	bash tools/delivery.sh status
+
+delivery/deployment/logs:
+	bash tools/delivery.sh logs
+
+delivery/deployment/held:
+	bash tools/delivery.sh held
+
+delivery/deployment/discard:
+	bash tools/delivery.sh discard

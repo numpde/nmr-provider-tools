@@ -5,10 +5,9 @@ This repository will own model-independent provider infrastructure: the shared
 Providers retain scientific input preparation, inference, model runners,
 offerings and model configuration.
 
-The checkout owns its repository checks, the shared package and its offline build
-and installed-package qualification. Shared delivery deployment is the next
-implementation slice. Package releases go to GitHub Releases; this project does
-not publish to a Python package index.
+The checkout owns the shared package, delivery runtime and host lifecycle, plus
+repository checks and offline qualification. Package releases go to GitHub
+Releases; this project does not publish to a Python package index.
 
 Run `make help` to discover commands. `make tests` runs every current check;
 `make tests/repository/quality` narrows the run to convention detectors and their
@@ -23,7 +22,7 @@ and Docker with BuildKit at `unix:///var/run/docker.sock`. Initialize a host wit
 ```sh
 make checks/base-image/download
 make checks/prepare WHEELHOUSE=/path/to/shared/cache NETWORK_INTERFACE=your-interface
-make tests
+make tests/repository
 ```
 
 The first command pulls the digest-pinned official Python base using Docker
@@ -103,8 +102,8 @@ make packages/provider-core/download WHEELHOUSE=/path/to/shared/cache NETWORK_IN
 make tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core WHEELHOUSE=/path/to/shared/cache
 ```
 
-`make tests WHEELHOUSE=...` includes the repository and all three installed-core
-lanes. Package tests run from copied test files against a private installed wheel,
+`make tests WHEELHOUSE=... SHARED_RUNTIME_IMAGE=sha256:...` includes repository
+checks, all three installed-core lanes and the prepared shared-image tests. Package tests run from copied test files against a private installed wheel,
 with no consumer checkout or scientific environment on the import path.
 
 `make package/build WHEELHOUSE=... OUTPUT=...` captures clean committed HEAD and
@@ -116,3 +115,57 @@ and tests both installed wheels. Only successful qualification emits the exact
 artifact hashes. Candidate artifacts are separate from the additive shared cache.
 Consumers acquire the versioned wheel from GitHub Releases with its SHA-256,
 then install its complete dependency lock offline.
+
+Build the shared runtime from a qualified five-file release directory:
+
+```sh
+make delivery/image/build WHEELHOUSE=/path/to/shared/cache ARTIFACTS=/private/release
+make tests/deployment SHARED_RUNTIME_IMAGE=sha256:the-built-image-id
+```
+
+The build installs the issued wheel and its complete lock offline. It includes
+shared delivery and API/acquisition proxies, with no scientific provider source.
+Both roles use `/opt/provider-core/environment/bin/python`. The build prints the
+immutable image ID; provider deployments receive that ID explicitly.
+
+Copy [the binding example](config/delivery.example.toml) to a private mode 0600
+file. Set the installing UID, shared socket GID, API identity/trust, route and
+queue allowances explicitly. One through sixteen bindings may share the host
+service; providers select their own named binding. Each producer mounts only its
+binding's IPC volume read-only and adds the configured socket GID. Providers own
+scientific configuration, checkpoint initialization and handover retry pacing.
+
+The host lifecycle requires `jq`, the existing Docker/Compose prerequisites and
+one canonical private state root per daemon-global project:
+
+```sh
+mkdir -m 700 /private/delivery-state
+make delivery/deployment/install DELIVERY_ROOT=/private/delivery-state DELIVERY_BINDINGS=/private/bindings.toml SHARED_RUNTIME_IMAGE=sha256:the-built-image-id
+make delivery/deployment/up DELIVERY_ROOT=/private/delivery-state
+make delivery/deployment/status DELIVERY_ROOT=/private/delivery-state
+make delivery/deployment/logs DELIVERY_ROOT=/private/delivery-state
+make delivery/deployment/down DELIVERY_ROOT=/private/delivery-state
+```
+
+Install freezes one bounded definition snapshot and grants only the selected API
+credential, optional CA and external resolver files. It writes a sealed recipe
+under the selected state root. Status and down use that recipe. Local API routes
+attach the specified immutable network ID; mapped and external API proxies use
+host networking and bind traffic to the explicit interface. The daemon has no
+network and reaches the API only through its private proxy socket. These are the
+shared publisher's routing grants; each provider owns its producer transport.
+
+Before adopting an existing shared queue, inspect and drain it with its current
+owner where possible, stop that owner's project, and retain its queue/IPC volumes.
+Keep its project name, daemon UID/GID, API/provider identities and socket leaves.
+Then install the complete binding definition here. This owner refuses existing
+project containers; it does not stop another owner automatically. Queue startup
+refuses omitted outstanding bindings. No result importer or science rerun is part
+of this handoff. Ordinary down preserves all durable state. Per-root locking does
+not serialize aliases selecting the same global project; use one state root.
+
+For stopped delivery, `delivery/deployment/held` takes explicit `API_ORIGIN` and
+`PROVIDER_REF` and lists retained metadata. `delivery/deployment/discard` additionally
+requires the exact `EXECUTION_ATTEMPT_REF` and `BODY_SHA256`. Discard removes only a
+matching held payload; it proves no API acceptance. Running delivery must be
+stopped before either command opens its single-writer queue.

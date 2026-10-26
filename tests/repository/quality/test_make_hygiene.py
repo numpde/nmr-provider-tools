@@ -108,7 +108,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         # The public aggregate covers repository checks and every installed-core lane.
         makefile = read_text(repo_path("Makefile"))
         self.assertEqual(
-            ("tests/repository", "tests/unit/provider-core", "tests/contract/provider-core", "tests/integration/provider-core"),
+            ("tests/repository", "tests/unit/provider-core", "tests/contract/provider-core", "tests/integration/provider-core", "tests/deployment"),
             self.make_target_prereqs(makefile, "tests"),
         )
         self.assertEqual("", self.make_target_recipe(makefile, "tests").strip())

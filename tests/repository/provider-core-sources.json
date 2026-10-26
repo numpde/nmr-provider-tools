@@ -2668,6 +2668,42 @@
       "test_methods": [
         "ActualServiceProxyTests.test_frozen_local_destination_keeps_original_tls_name_headers_and_body"
       ]
+    },
+    {
+      "path": "tests/deployment/test_proxy_posture.py",
+      "source_path": "repository_checks/test_proxy_posture.py",
+      "mode": "100644",
+      "git_blob": "a0673426bfdb869b73e4eafa2ba5bcffdd8e8128",
+      "sha256": "74f620e0d35a3f6e28feb2193e7f4cd6209c8074f092e0d27e5769fcd64eacfe",
+      "test_methods": [
+        "ImageBuildProxyInputTests.test_complete_headers_preserve_the_received_remainder",
+        "ImageBuildProxyInputTests.test_connect_ports_are_admitted_before_socket_use",
+        "ImageBuildProxyInputTests.test_generic_interface_admission_uses_native_lookup",
+        "ImageBuildProxyInputTests.test_header_drip_and_late_complete_fragment_do_not_reset_deadline",
+        "ImageBuildProxyInputTests.test_header_limit_accepts_exact_boundary_and_rejects_one_byte_more",
+        "ImageBuildProxyInputTests.test_header_limit_excludes_a_coalesced_body_remainder",
+        "ImageBuildProxyTransportTests.test_client_half_close_preserves_the_returning_response",
+        "ImageBuildProxyTransportTests.test_dns_binds_device_and_shares_one_query_budget",
+        "ImageBuildProxyTransportTests.test_dns_groups_only_received_a_records_by_owner",
+        "ImageBuildProxyTransportTests.test_dns_late_success_rejects_the_reply_and_closes_the_socket",
+        "ImageBuildProxyTransportTests.test_dns_query_deadline_caps_wait_at_three_seconds",
+        "ImageBuildProxyTransportTests.test_dns_rejects_a_reply_for_another_question",
+        "ImageBuildProxyTransportTests.test_expired_dns_budget_does_not_start_the_next_server",
+        "ImageBuildProxyTransportTests.test_relay_late_success_cannot_renew_the_inactivity_budget",
+        "ImageBuildProxyTransportTests.test_relay_resets_inactivity_only_after_a_completed_bounded_write",
+        "ImageBuildProxyTransportTests.test_tcp_binds_device_and_expiry_closes_before_the_next_address",
+        "ImageBuildProxyTransportTests.test_tcp_late_success_closes_the_socket_instead_of_returning_it",
+        "ImageBuildProxyTransportTests.test_tcp_tries_next_bound_address_after_an_ordinary_failure",
+        "ImageBuildProxyWorkerTests.test_forwarding_error_does_not_append_http_failure_to_a_tunnel",
+        "ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure",
+        "ImageBuildProxyWorkerTests.test_overload_does_not_start_a_thread",
+        "ImageBuildProxyWorkerTests.test_private_pre_forwarding_error_has_fixed_http_and_safe_log",
+        "ImageBuildProxyWorkerTests.test_readiness_is_private_and_cannot_overwrite_a_file_or_symlink",
+        "ImageBuildProxyWorkerTests.test_readiness_publication_exposes_only_complete_bytes",
+        "ImageBuildProxyWorkerTests.test_readiness_publication_failure_survives_temporary_cleanup_failure",
+        "ImageBuildProxyWorkerTests.test_readiness_published_receipt_still_serves_when_temporary_cleanup_fails",
+        "ImageBuildProxyWorkerTests.test_startup_failure_and_thread_completion_restore_capacity"
+      ]
     }
   ]
 }

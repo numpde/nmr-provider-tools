@@ -1,0 +1,55 @@
+Shared delivery image and host owner, 2026-10-26
+
+Ported from nmrnet-repro d09b77b951551c977e36bc87b5822315a4d1e944:
+  nmrnet_provider/delivery_deployment.py: freeze, exclusive writes, queue/IPC init.
+  nmrnet_provider/deployment.py: fixed service/bind/volume and Compose encoding.
+  tools/compose_deployment.sh: installed recipe selection, private Docker client,
+    explicit project lifecycle and state-preserving down.
+  containers/delivery/{Dockerfile,check_runtime.py}: installed runtime proof.
+  repository_checks/test_proxy_posture.py: all 27 current methods, including the
+    original 21 Magnet methods, now test the installed package in tests/deployment.
+
+Deliberate adaptations:
+  Build/install the issued GitHub wheel and closed install lock, never a copied
+  package source or another provider image. Retain the existing offline capture,
+  input fingerprint, immutable image ID/label admission and operation cleanup.
+  The image owns one standalone finite deployment program. It imports no provider
+  scientific package and initializes no producer checkpoint or control volume.
+  Binding TOML is the sole operator authority. Inspect/paths/prepare consume the
+  same bounded private snapshot. Grant selected trust/resolver files below the
+  separate /grants prefix, so their original names cannot mask image software or
+  helper inputs. Admit derived daemon socket lengths before those grants.
+  Exact credential/CA files enter the daemon; only its API proxy gets resolver
+  bytes. The daemon has network none and connects over private proxy sockets.
+  Root initialization receives only queue/IPC volumes plus CHOWN. Queue name,
+  IPC volume digest, daemon UID/GID and socket leaf preserve the existing grant.
+  Frozen recipe and API inputs are sealed; separate API proxy runtime leaves
+  remain writable by their installing UID. Status/down use the installed recipe
+  and do not require original binding or credential files.
+
+The supported lifecycle is one canonical DELIVERY_ROOT per daemon-global project.
+A root lock serializes its cooperating commands; typed project/root labels refuse
+another installation's containers. This is not project-wide serialization across
+aliases or non-cooperating Engine users. Existing containers must be retired by
+that owner's down command before a replacement definition is installed. Ordinary
+shared down never removes volumes. No migration/importer or automatic rollback
+claims are added. Keep one project namespace for an existing queue.
+
+Contained qualification:
+  The installed-image lane passed 32 tests: five freezer/grant/init/diagnostic
+  cases and all 27 preserved proxy protocol/resource cases. This is an offline
+  image proof, not a live external-network claim.
+  A unique private Compose project with a synthetic credential and empty queue
+  exercised install/up, actual offline/read-only daemon posture, a different UID
+  65532 borrower connected through a read-only IPC volume plus the configured
+  supplementary group, state-preserving down and stopped held-item inspection.
+  No API request, science job, existing provider or live project was touched.
+  Both volumes were observed after down. The stopped test borrower initially
+  prevented removing its IPC volume; the operation owner retired that borrower,
+  then the exact empty qualification volume and sealed private inputs were
+  removed. No global prune was used. Evidence:
+    /tmp/nmr-provider-installed-deployment-final.log
+    /tmp/nmr-provider-host-lifecycle-probe.log
+  Actual API publication, receipt-safe deletion, provider isolation, backpressure
+  and outage/recovery remain covered by the installed core's 147 integrations.
+  Consumer repositories own their composed provider qualification and cutover.

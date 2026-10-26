@@ -1,0 +1,34 @@
+# Copy to a private operator-owned file and replace every host/provider choice.
+# Keep the existing project, UID/GID and socket leaf when adopting an old queue.
+project = "nmr-api-delivery"
+uid = 1000
+gid = 1000
+request_seconds = 30
+retry_initial_seconds = 1
+retry_max_seconds = 30
+
+[limits]
+provider_items = 8
+provider_bytes = 16777216
+total_items = 8
+total_bytes = 16777216
+
+[[bindings]]
+name = "your-provider"
+socket_path = "/run/delivery/http.sock"
+
+[bindings.api]
+origin = "https://api.example.invalid"
+profile = "dev-local"
+topology = "dev-local"
+provider_ref = "provider:your-provider"
+credential_file = "/private/api/provider-signing.json"
+exchange_seconds = 30
+retirement_seconds = 5
+# ca_file = "/private/api/ca.pem"
+
+[bindings.route]
+mode = "external"
+interface = "your-interface"
+log_level = "INFO"
+resolver_file = "/private/api/resolv.conf"

@@ -32,8 +32,12 @@ YAML_ENV_MAPPING_BLANK_RE = re.compile(r"^\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*):\s
 YAML_ENVIRONMENT_BLOCK_RE = re.compile(r"^(?P<indent>\s*)environment:\s*$")
 WORKFLOW_DEFAULT_FIELD_RE = re.compile(r"^\s*default:\s*(?P<value>.*)$")
 ALLOWED_MAKE_DEFAULTS = {}
-# No local Dockerfile or inherited image ENV waiver exists in this port.
-ALLOWED_DOCKER_DEFAULTS = set()
+# The installed runtime supplies its operational guard marker and forbids
+# bytecode writes on its read-only filesystem. Neither selects operator input.
+ALLOWED_DOCKER_DEFAULTS = {
+    ("ENV", "containers/delivery/Dockerfile", "PROVIDER_CORE_IN_CONTAINER", "1"),
+    ("ENV", "containers/delivery/Dockerfile", "PYTHONDONTWRITEBYTECODE", "1"),
+}
 ALLOWED_SHELL_DEFAULTS = set()
 
 
@@ -304,7 +308,7 @@ class OpsSilentDefaultsTest(unittest.TestCase):
     def test_runtime_docker_environment_contracts_reject_value_path_and_instruction_changes(self):
         """Reviewing an image ENV value grants no changed value, path or build ARG."""
         # Synthetic positive ownership keeps this detector exercised before
-        # this repository owns a Dockerfile. It grants no production default.
+        # selecting a production value. It grants no additional image default.
         allowed = {("ENV", "containers/checker/Dockerfile", "MARKER", "1")}
         self.assertEqual([], docker_default_findings_for_source("ENV MARKER=1\n", "containers/checker/Dockerfile", allowed))
         changes = (
