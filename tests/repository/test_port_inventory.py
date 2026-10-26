@@ -36,7 +36,9 @@ class PortInventoryTests(unittest.TestCase):
                 excluded = {item["method"] for item in dispositions if item["target"] == entry["target"]}
                 expected = set(entry["test_methods"])
                 missing = {name for name in expected if name.split(".")[-1] in excluded}
-                self.assertEqual(expected, present | missing)
+                # New owner tests may extend a port; original coverage still
+                # requires preservation or its exact explicit disposition.
+                self.assertLessEqual(expected, present | missing)
                 self.assertEqual(set(), present & missing, msg="A disposition cannot silently hide a still-present test.")
                 self.assertEqual(excluded, {name.split(".")[-1] for name in missing})
 

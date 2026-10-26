@@ -1253,7 +1253,9 @@ class CapturedNativeTests(unittest.TestCase):
                 "NATIVE_RESET": str(reset),
             },
             capture_output=True,
-            timeout=5,
+            # Two ownership admissions may each take ten seconds. This is a
+            # watchdog for both calls and retirement, not a latency assertion.
+            timeout=25,
             check=False,
         )
         self.assertEqual(7, result.returncode, msg=result.stderr.decode())

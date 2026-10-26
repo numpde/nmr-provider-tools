@@ -67,6 +67,17 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
 def unguarded_sources(root):
     """Include new production files automatically, without scanning upstream or fixtures."""
     sources = {path for name in ("tools", "tests/repository", "src") for path in (root / name).rglob("*.py")}
+    core_root = root / "packages/provider-core/src/provider_core"
+    portable_sources = {
+        path for directory in (core_root, root / "containers/delivery", root / "tests/deployment")
+        for path in directory.rglob("*.py")
+    }
+    # This finite tool is installed into the shared image, which deliberately
+    # has no repository tools package. Its guard belongs to the installed core.
+    installed_entrypoint = root / "tools/delivery_deployment.py"
+    if installed_entrypoint.is_file():
+        portable_sources.add(installed_entrypoint)
+    sources.difference_update(portable_sources)
     # The shared guard must be importable before its caller checks the marker.
     sources.discard(root / "tools" / "container_guard.py")
     failures = [
@@ -74,10 +85,9 @@ def unguarded_sources(root):
         for path in sorted(sources)
         if not has_early_guard(path.read_text(), package_marker=path.name == "__init__.py")
     ]
-    core_root = root / "packages/provider-core/src/provider_core"
     failures.extend(
         str(path.relative_to(root))
-        for path in sorted(core_root.rglob("*.py"))
+        for path in sorted(portable_sources)
         if path != core_root / "container_guard.py"
         and not has_early_guard(
             path.read_text(), package_marker=path.name == "__init__.py", guard_module="provider_core.container_guard"
@@ -123,6 +133,24 @@ class ConventionDetectionTests(unittest.TestCase):
             worker.write_text(self.GUARD + "import json\n")
             self.assertEqual([str(worker.relative_to(root))], unguarded_sources(root))
             worker.write_text("from provider_core.container_guard import require_container\nrequire_container()\nimport json\n")
+            self.assertEqual([], unguarded_sources(root))
+
+    def test_installed_delivery_sources_keep_exact_guard_ownership(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            portable = ("tools/delivery_deployment.py", "containers/delivery/check_runtime.py", "tests/deployment/test_freezer.py")
+            for name in portable:
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(self.GUARD)
+            ordinary = root / "tools/nested/worker.py"
+            ordinary.parent.mkdir()
+            core_guard = "from provider_core.container_guard import require_container\nrequire_container()\n"
+            ordinary.write_text(core_guard)
+            self.assertEqual(set(portable) | {str(ordinary.relative_to(root))}, set(unguarded_sources(root)))
+            for name in portable:
+                (root / name).write_text(core_guard)
+            ordinary.write_text(self.GUARD)
             self.assertEqual([], unguarded_sources(root))
 
     def test_missing_late_conditional_and_rebound_guards_fail(self):

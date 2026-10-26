@@ -15,7 +15,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, "/test-support")
 from tests.fakes.credential import document, encoded
 from tests.unit.normative.test_deployment_binding import definition
 

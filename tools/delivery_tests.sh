@@ -18,4 +18,10 @@ checker_run untimed --pull never --network none --init --read-only --user "$uid:
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --env PROVIDER_CORE_IN_CONTAINER=1 \
     --mount "type=bind,src=$root/packages/provider-core/tests,dst=/test-support/tests,readonly" \
     --mount "type=bind,src=$root/tests/deployment,dst=/qualification,readonly" \
-    --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B -m unittest discover -s /qualification -p 'test*.py' -v
+    --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B -c '
+import runpy
+import sys
+sys.path.insert(0, "/test-support")
+sys.argv = ["unittest", "discover", "-s", "/qualification", "-p", "test*.py", "-v"]
+runpy.run_module("unittest", run_name="__main__")
+'
