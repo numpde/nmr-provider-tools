@@ -7,6 +7,8 @@ import fcntl
 from pathlib import Path
 import signal
 import socket
+import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -18,6 +20,21 @@ from tests.fakes.runner import RunningSupervisor, worker_pid
 
 
 class RunnerRefusalTests(unittest.TestCase):
+    def test_cli_requires_exactly_one_explicit_operation_lifetime(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for lifetime in ([], ["--operation-seconds", "1", "--owner-session-lifetime"]):
+                with self.subTest(lifetime=lifetime):
+                    result = subprocess.run([
+                        sys.executable, "-m", "provider_core.runner", "--role", "fixture",
+                        "--socket", str(root / "absent" / "runner.sock"), "--scratch", str(root / "scratch"),
+                        "--status-directory", str(root / "status"), "--startup-seconds", "1",
+                        "--terminate-seconds", "0.1", "--kill-seconds", "1", "--cleanup-seconds", "1",
+                        *lifetime, "--", sys.executable, "-c", "raise SystemExit(77)",
+                    ], capture_output=True, timeout=2)
+                    self.assertEqual(2, result.returncode)
+                    self.assertEqual([], list(root.iterdir()))
+
     def test_failed_greeting_cannot_admit_a_retirement_with_null_operation_identity(self):
         with tempfile.TemporaryDirectory() as temporary, socket.socket(socket.AF_UNIX) as listener:
             path = str(Path(temporary) / "runner.sock")

@@ -15,6 +15,21 @@ The host and provider deployment select the same operator-owned neutral binding
 definition for API identity, credential and CA paths, API routing and socket
 grant. Scientific configuration and producer recovery state remain provider-owned.
 
+The native supervisor requires one explicit lifetime: `--operation-seconds N`
+caps one child session, while `--owner-session-lifetime` allows a loaded child
+to serve repeated scientific requests. Child exit, control-owner stop or
+disconnect, and supervisor shutdown still trigger bounded retirement and scratch
+cleanup. Startup, TERM, KILL and cleanup budgets remain mandatory. The provider
+owns scientific readiness, request deadlines and cleanup between requests; the
+control greeting does not prove that a model is ready.
+
+`RunnerSession.request_stop()` retains a stop requested before connection and
+wakes endpoint retries. Once connected, the original greeting reader retains
+its startup deadline; join that setup operation before retirement or close.
+Use one absolute provider startup deadline across control setup and scientific
+readiness. A failed greeting prevents another control read, and closing the
+session does not prove child or scratch retirement.
+
 Releases are GitHub assets from `numpde/nmr-provider-tools`, with an exact wheel
 hash, closed installation lock, source distribution and qualification evidence.
 Third-party dependency wheels are acquired separately. Install offline from the

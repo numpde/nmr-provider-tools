@@ -99,7 +99,10 @@ def _watch(worker, control, shutdown, deadline, status):
             events.register(shutdown, select.EPOLLIN)
             while True:
                 status.refresh("working")
-                observed = dict(events.poll(min(5, max(0, deadline - time.monotonic()))))
+                wait = 5
+                if deadline is not None:
+                    wait = min(wait, max(0, deadline - time.monotonic()))
+                observed = dict(events.poll(wait))
                 if shutdown in observed:
                     return "shutdown"
                 if pidfd in observed:
@@ -107,7 +110,7 @@ def _watch(worker, control, shutdown, deadline, status):
                     return "exited"
                 if control.fileno() in observed:
                     return "owner_lost"
-                if time.monotonic() >= deadline:
+                if deadline is not None and time.monotonic() >= deadline:
                     return "deadline"
     finally:
         os.close(pidfd)
@@ -140,6 +143,11 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
     shutdown_requested = False
     try:
         started = time.monotonic()
+        operation_deadline = None
+        greeting_deadline = started + options.startup_seconds
+        if options.operation_seconds is not None:
+            operation_deadline = started + options.operation_seconds
+            greeting_deadline = min(greeting_deadline, operation_deadline)
         os.mkdir(operation, mode=0o700, dir_fd=scratch_fd)
         created = True
         science, child = socket.socketpair()
@@ -154,13 +162,12 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
         )
         child.close()
         LOGGER.info("event=child_started operation=%s pid=%d", operation, worker.pid)
-        control.settimeout(min(options.startup_seconds, options.operation_seconds))
         send_greeting(control, {"kind": "opened", "role": options.role, "generation": generation, "operation": operation,
                                 "lock": list(lock_identity)}, science,
-                      deadline=min(started + options.startup_seconds, started + options.operation_seconds))
+                      deadline=greeting_deadline)
         greeting_delivered = True
         science.close()
-        event = _watch(worker, control, shutdown, started + options.operation_seconds, status)
+        event = _watch(worker, control, shutdown, operation_deadline, status)
         shutdown_requested = event == "shutdown"
         returncode = _terminate(worker, options.terminate_seconds, options.kill_seconds)
         try:
@@ -274,11 +281,19 @@ def main(arguments=None):
     parser.add_argument("--socket", type=Path, required=True)
     parser.add_argument("--scratch", type=Path, required=True)
     parser.add_argument("--status-directory", type=Path, required=True)
-    for name in ("operation", "startup", "terminate", "kill", "cleanup"):
+    lifetime = parser.add_mutually_exclusive_group(required=True)
+    lifetime.add_argument("--operation-seconds", type=float)
+    lifetime.add_argument(
+        "--owner-session-lifetime", action="store_true",
+        help="Use control-owner lifetime instead of an elapsed operation cap.",
+    )
+    for name in ("startup", "terminate", "kill", "cleanup"):
         parser.add_argument(f"--{name}-seconds", type=float, required=True)
     parser.add_argument("worker", nargs=argparse.REMAINDER)
     options = parser.parse_args(arguments)
-    for seconds in (options.operation_seconds, options.startup_seconds, options.terminate_seconds, options.kill_seconds, options.cleanup_seconds):
+    if options.operation_seconds is not None:
+        positive_seconds(options.operation_seconds)
+    for seconds in (options.startup_seconds, options.terminate_seconds, options.kill_seconds, options.cleanup_seconds):
         positive_seconds(seconds)
     if not options.worker or options.worker[0] != "--" or len(options.worker) < 2:
         parser.error("Supply one fixed worker command after --.")

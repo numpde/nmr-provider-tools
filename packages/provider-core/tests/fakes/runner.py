@@ -25,6 +25,9 @@ with socket.socket(fileno=args.session_fd) as channel:
     if command == b'C':
         os.chmod('.', 0)
     channel.sendall(str(os.getpid()).encode() + b'\\n')
+    if command == b'R':
+        while channel.recv(1):
+            channel.sendall(str(os.getpid()).encode() + b'\\n')
     if command == b'D':
         sockets = []
         for leaf in os.listdir('/proc/self/fd'):
@@ -45,7 +48,7 @@ with socket.socket(fileno=args.session_fd) as channel:
 class RunningSupervisor:
     """Own one disposable supervisor and its private filesystem grant."""
 
-    # silent-defaults: allow-contract -- The ordinary disposable supervisor is bounded; fault scenarios supply their explicit budgets.
+    # silent-defaults: allow-contract -- The ordinary disposable supervisor is bounded; explicit None selects control-owner lifetime.
     def __init__(self, *, operation_seconds=5, role="fixture", worker_argv=None):
         self.role = role
         self._closed = False
@@ -59,9 +62,11 @@ class RunningSupervisor:
         self.status.mkdir(mode=0o700)
         (self.endpoint / ".owner-session.lock").touch(mode=0o600)
         self.path = self.endpoint / "runner.sock"
+        # silent-defaults: allow-contract -- This fixture's explicit None selects owner-session lifetime; numeric budgets select the finite CLI.
+        lifetime = ["--owner-session-lifetime"] if operation_seconds is None else ["--operation-seconds", str(operation_seconds)]
         # silent-defaults: allow-contract -- Absent synthetic worker argv selects this fixture worker; nonempty argv injects an explicit fault.
         self.command = [sys.executable, "-m", "provider_core.runner", "--role", self.role, "--socket", str(self.path),
-             "--scratch", str(self.scratch), "--status-directory", str(self.status), "--operation-seconds", str(operation_seconds),
+             "--scratch", str(self.scratch), "--status-directory", str(self.status), *lifetime,
              "--startup-seconds", "1", "--terminate-seconds", "0.1", "--kill-seconds", "1", "--cleanup-seconds", "1",
              "--", *(worker_argv or [sys.executable, "-c", WORKER])]
         self._start()

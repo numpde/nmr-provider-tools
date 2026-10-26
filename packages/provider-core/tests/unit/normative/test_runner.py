@@ -2,6 +2,7 @@
 
 import os
 import json
+import time
 import unittest
 
 from tests.fakes.runner import RunningSupervisor, worker_pid
@@ -74,3 +75,62 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(observed["sockets"], [observed["science"]])
         self.assertEqual(tuple(observed["lock"]), session.lock_identity)
         session.observe_retirement()
+
+
+class OwnerSessionLifetimeTests(unittest.TestCase):
+    def setUp(self):
+        self.runner = RunningSupervisor(operation_seconds=None)
+        self.addCleanup(self.runner.close)
+        self.session = self.runner.session(startup_seconds=2, retirement_seconds=2)
+        self.addCleanup(self.session.close)
+        self.session.connect()
+
+    def test_same_loaded_child_serves_repeated_requests_until_explicit_retirement(self):
+        pid = worker_pid(self.session.science, b"R")
+        operation = self.session.operation
+        time.sleep(0.3)
+        self.assertEqual(pid, worker_pid(self.session.science))
+        self.assertEqual(operation, self.session.operation)
+        self.assertIsNone(self.session.retirement)
+        self.session.retire()
+        self.assertEqual(-15, self.session.retirement.returncode)
+        self.assertTrue(self.session.retirement.scratch_released)
+        self.assertEqual([], list(self.runner.scratch.iterdir()))
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
+        self.assertIsNone(self.runner.process.poll())
+
+    def test_native_child_exit_retires_its_owner_session_without_a_stop_request(self):
+        pid = worker_pid(self.session.science)
+        self.session.observe_retirement()
+        self.assertEqual(0, self.session.retirement.returncode)
+        self.assertTrue(self.session.retirement.scratch_released)
+        self.assertEqual([], list(self.runner.scratch.iterdir()))
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
+
+    def test_control_hangup_reaps_child_before_successor_while_science_is_still_open(self):
+        pid = worker_pid(self.session.science, b"H")
+        self.session.control.close()
+        successor = self.runner.session(startup_seconds=2, retirement_seconds=2)
+        self.addCleanup(successor.close)
+        successor.connect()
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
+        self.assertFalse((self.runner.scratch / self.session.operation).exists())
+        self.assertNotEqual(self.session.operation, successor.operation)
+        self.assertGreaterEqual(self.session.science.fileno(), 0)
+        worker_pid(successor.science)
+        successor.observe_retirement()
+        self.assertEqual([], list(self.runner.scratch.iterdir()))
+
+    def test_supervisor_shutdown_retires_a_term_ignoring_child_and_releases_scratch(self):
+        pid = worker_pid(self.session.science, b"H")
+        self.runner.process.terminate()
+        self.session.observe_retirement()
+        self.assertEqual(-9, self.session.retirement.returncode)
+        self.assertTrue(self.session.retirement.scratch_released)
+        self.assertEqual(0, self.runner.process.wait(timeout=2))
+        self.assertEqual([], list(self.runner.scratch.iterdir()))
+        with self.assertRaises(ProcessLookupError):
+            os.kill(pid, 0)
