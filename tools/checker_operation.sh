@@ -14,6 +14,7 @@ checker_begin() {
     create_pending=false
     retain_operation=false
     container_sequence=0
+    operation_container=
     operation_diagnostic=
     operation_success=
     trap checker_finish EXIT
@@ -52,9 +53,9 @@ checker_metadata() {
     [[ -f $receipt && ! -L $receipt && $(stat -c %s -- "$receipt") -lt 4096 ]]
 }
 
-checker_run() {
-    local budget=$1 identifier receipt cid
-    shift
+checker_create() {
+    local identifier receipt cid
+    operation_container=
     container_sequence=$((container_sequence + 1))
     receipt=$operation_directory/create-$container_sequence
     cid=$operation_directory/container-$container_sequence.cid
@@ -68,7 +69,14 @@ checker_run() {
         return 2
     fi
     create_pending=false
-    checker_call 'checker container attachment' "$budget" stdio "${engine[@]}" start --attach "$identifier"
+    operation_container=$identifier
+}
+
+checker_run() {
+    local budget=$1
+    shift
+    checker_create "$@" || return "$?"
+    checker_call 'checker container attachment' "$budget" stdio "${engine[@]}" start --attach "$operation_container"
 }
 
 checker_teardown() {

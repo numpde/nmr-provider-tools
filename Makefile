@@ -37,15 +37,6 @@ override ARTIFACTS_INPUT := $(value ARTIFACTS)
 export ARTIFACTS_INPUT
 endif
 
-unexport DELIVERY_ROOT
-unexport DELIVERY_ROOT_INPUT
-unexport DELIVERY_ROOT_INPUT_ORIGIN
-override export DELIVERY_ROOT_INPUT_ORIGIN := $(origin DELIVERY_ROOT)
-ifeq ($(origin DELIVERY_ROOT),command line)
-override DELIVERY_ROOT_INPUT := $(value DELIVERY_ROOT)
-export DELIVERY_ROOT_INPUT
-endif
-
 unexport DELIVERY_BINDINGS
 unexport DELIVERY_BINDINGS_INPUT
 unexport DELIVERY_BINDINGS_INPUT_ORIGIN
@@ -109,9 +100,18 @@ override TAG_INPUT := $(value TAG)
 export TAG_INPUT
 endif
 
+unexport PROJECT
+unexport PROJECT_INPUT
+unexport PROJECT_INPUT_ORIGIN
+override export PROJECT_INPUT_ORIGIN := $(origin PROJECT)
+ifeq ($(origin PROJECT),command line)
+override PROJECT_INPUT := $(value PROJECT)
+export PROJECT_INPUT
+endif
+
 .PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
-.PHONY: delivery/deployment/install delivery/deployment/up delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard
+.PHONY: delivery/deployment/up delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard
 .PHONY: publish/prepare publish/release tests/deployment delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
 
@@ -139,14 +139,13 @@ help:
 	  'make package/build WHEELHOUSE=... OUTPUT=... Build clean committed source into an empty owned directory.' \
 	  'make tests/package WHEELHOUSE=... ARTIFACTS=... Qualify exact release files and the source rebuild.' \
 	  'make delivery/image/build WHEELHOUSE=... ARTIFACTS=... Build shared delivery from qualified wheel inputs.' \
-	  'make tests/deployment SHARED_RUNTIME_IMAGE=sha256:... Qualify the installed shared deployment freezer.' \
-	  'make delivery/deployment/install DELIVERY_ROOT=... DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... Freeze a host definition.' \
-	  'make delivery/deployment/up DELIVERY_ROOT=... Start the installed shared delivery project.' \
-	  'make delivery/deployment/down DELIVERY_ROOT=... Stop shared delivery and preserve all volumes.' \
-	  'make delivery/deployment/status DELIVERY_ROOT=... Inspect installed service state.' \
-	  'make delivery/deployment/logs DELIVERY_ROOT=... Show bounded recent service logs.' \
-	  'make delivery/deployment/held DELIVERY_ROOT=... API_ORIGIN=... PROVIDER_REF=... List held metadata while stopped.' \
-	  'make delivery/deployment/discard DELIVERY_ROOT=... API_ORIGIN=... PROVIDER_REF=... EXECUTION_ATTEMPT_REF=... BODY_SHA256=... Discard exactly one stopped held item.' \
+	  'make tests/deployment SHARED_RUNTIME_IMAGE=sha256:... Qualify installed deployment rendering and proxy boundaries.' \
+	  'make delivery/deployment/up DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... Start directly from operator config and secrets.' \
+	  'make delivery/deployment/down PROJECT=... Stop shared delivery and preserve all volumes.' \
+	  'make delivery/deployment/status PROJECT=... Inspect installed service state.' \
+	  'make delivery/deployment/logs PROJECT=... Show bounded recent service logs.' \
+	  'make delivery/deployment/held DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... List held metadata while stopped.' \
+	  'make delivery/deployment/discard DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... EXECUTION_ATTEMPT_REF=... BODY_SHA256=... Discard exactly one stopped held item.' \
 	  'make publish/prepare TAG=vX.Y.Z WHEELHOUSE=... OUTPUT=... Prepare exact artifacts, logs and authored release notes.' \
 	  'make publish/release TAG=vX.Y.Z ARTIFACTS=... Publish reviewed inputs through a verified GitHub draft.'
 
@@ -211,9 +210,6 @@ tests/repository/runtime:
 
 tests/repository/command:
 	bash tools/repository.sh --print tests/repository
-
-delivery/deployment/install:
-	bash tools/delivery.sh install
 
 delivery/deployment/up:
 	bash tools/delivery.sh up

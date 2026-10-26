@@ -2,6 +2,9 @@
 .aws/
 .codex/
 .vscode/
+/secrets/**
+!/secrets/
+!/secrets/README.md
 __pycache__/
 *.py[cod]
 .pytest_cache/

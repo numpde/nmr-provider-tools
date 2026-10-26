@@ -1,55 +1,77 @@
 Shared delivery image and host owner, 2026-10-26
 
 Ported from nmrnet-repro d09b77b951551c977e36bc87b5822315a4d1e944:
-  nmrnet_provider/delivery_deployment.py: freeze, exclusive writes, queue/IPC init.
+  nmrnet_provider/delivery_deployment.py: queue/IPC initialization and grants.
   nmrnet_provider/deployment.py: fixed service/bind/volume and Compose encoding.
-  tools/compose_deployment.sh: installed recipe selection, private Docker client,
-    explicit project lifecycle and state-preserving down.
+  tools/compose_deployment.sh: private Docker client, explicit project lifecycle
+    and state-preserving down.
   containers/delivery/{Dockerfile,check_runtime.py}: installed runtime proof.
   repository_checks/test_proxy_posture.py: all 27 current methods, including the
     original 21 Magnet methods, now test the installed package in tests/deployment.
 
+The config/secrets split follows these existing Compose owners:
+  nmr-api-v1 compose/run.secrets.yml at
+    4e27fd8a44452f319f461a08dd88cd9ac63cb873
+  magnet-deploy compose/provider.yml at
+    baacff8eb02e0d8a5cac1f828596378f337a08cc
+Operator files remain original read-only inputs. No persistent host deployment
+folder, generation, symlink, copied configuration snapshot or saved recipe is
+created. Compose rendering belongs only to an operation's temporary directory.
+The standalone image adapter derives the unchanged SDK daemon configuration in
+container /run tmpfs and execs provider_core.delivery_main.
+
 Deliberate adaptations:
   Build/install the issued GitHub wheel and closed install lock, never a copied
-  package source or another provider image. Retain the existing offline capture,
-  input fingerprint, immutable image ID/label admission and operation cleanup.
-  The image owns one standalone finite deployment program. It imports no provider
-  scientific package and initializes no producer checkpoint or control volume.
-  Binding TOML is the sole operator authority. Inspect/paths/prepare consume the
-  same bounded private snapshot. Grant selected trust/resolver files below the
-  separate /grants prefix, so their original names cannot mask image software or
-  helper inputs. Admit derived daemon socket lengths before those grants.
-  Exact credential/CA files enter the daemon; only its API proxy gets resolver
-  bytes. The daemon has network none and connects over private proxy sockets.
-  Root initialization receives only queue/IPC volumes plus CHOWN. Queue name,
-  IPC volume digest, daemon UID/GID and socket leaf preserve the existing grant.
-  Frozen recipe and API inputs are sealed; separate API proxy runtime leaves
-  remain writable by their installing UID. Status/down use the installed recipe
-  and do not require original binding or credential files.
+  package source or another provider image. Retain offline capture, immutable
+  image ID/label admission and bounded operation-owned cleanup.
+  Neutral binding TOML is the sole operator authority. Bounded rendering reads
+  that definition without opening credentials. It admits derived socket lengths
+  before granting private files. Startup verifies the selected definition hash.
+  Grant only exact credential/CA paths below /grants; deduplicate shared trust
+  inputs. Only an external API proxy receives its resolver file. These original
+  files must remain available for restarts. No science package is imported.
+  The daemon has network none, reaches API proxies through private socket volumes
+  mounted read-only, and owns queue and producer IPC writes. Each producer gets
+  only its binding's IPC volume read-only plus the configured supplementary GID.
+  Queue, producer IPC and API-proxy socket state are Docker named volumes.
+  Root initialization receives only those volumes plus CHOWN. It preserves
+  correctly owned nonempty roots and refuses unexpected ownership or modes.
+  Queue name, IPC digest, daemon UID/GID and socket leaf preserve existing grants.
+  Proxy startup waits for initialization; daemon readiness checks every local
+  intake with bounded status requests, without listing the queue or calling API.
 
-The supported lifecycle is one canonical DELIVERY_ROOT per daemon-global project.
-A root lock serializes its cooperating commands; typed project/root labels refuse
-another installation's containers. This is not project-wide serialization across
-aliases or non-cooperating Engine users. Existing containers must be retired by
-that owner's down command before a replacement definition is installed. Ordinary
-shared down never removes volumes. No migration/importer or automatic rollback
-claims are added. Keep one project namespace for an existing queue.
+Lifecycle:
+  up selects the complete DELIVERY_BINDINGS and immutable SHARED_RUNTIME_IMAGE.
+  status/logs/down select PROJECT from actual typed container ownership, without
+  requiring a host recipe or the original inputs. A never-started, mount-free
+  operation container atomically reserves the project for cooperating mutations;
+  existing CID admission and operation cleanup own it. An unresolved reservation
+  requires inspection; it is not automatically treated as stale.
+  Existing project containers must be retired by their owner before up. Down
+  settles the daemon before its API proxies, removes exact owned container IDs
+  and retains every volume. Held/discard require the project stopped, an existing
+  project-owned queue, the definition and exact API/provider selectors. Their
+  finite helper receives no credential or trust grants.
+  Existing queues are adopted in place; no importer or automatic rollback is
+  claimed. Consumer repositories own producer quiescence and coordinated cutover.
 
-Contained qualification:
-  The installed-image lane passed 32 tests: five freezer/grant/init/diagnostic
-  cases and all 27 preserved proxy protocol/resource cases. This is an offline
-  image proof, not a live external-network claim.
-  A unique private Compose project with a synthetic credential and empty queue
-  exercised install/up, actual offline/read-only daemon posture, a different UID
-  65532 borrower connected through a read-only IPC volume plus the configured
-  supplementary group, state-preserving down and stopped held-item inspection.
-  No API request, science job, existing provider or live project was touched.
-  Both volumes were observed after down. The stopped test borrower initially
-  prevented removing its IPC volume; the operation owner retired that borrower,
-  then the exact empty qualification volume and sealed private inputs were
-  removed. No global prune was used. Evidence:
-    /tmp/nmr-provider-installed-deployment-final.log
-    /tmp/nmr-provider-host-lifecycle-probe.log
-  Actual API publication, receipt-safe deletion, provider isolation, backpressure
-  and outage/recovery remain covered by the installed core's 147 integrations.
-  Consumer repositories own their composed provider qualification and cutover.
+Contained qualification of the replacement:
+  Installed-image lane: 34 tests, comprising seven rendering/grant/init/input
+  cases and all 27 preserved proxy protocol/resource cases.
+  Existing operation-owner/provisioning lane: 22 tests. Source quality: 198.
+  A unique private Docker project with a synthetic credential and empty queue
+  exercised maintained up, actual healthy nonroot/read-only/network-none daemon
+  posture, exact original file binds including a literal-dollar definition name,
+  different-UID borrower access through read-only IPC and the configured GID,
+  daemon restart after temporary-render cleanup, maintained down and stopped
+  held inspection without credential grants. All three exact named volumes were
+  present after down. The empty fixture containers, volumes and temporary inputs
+  were then retired by their owners. No global prune, API request, science job,
+  live incumbent change or live publication claim was involved. Evidence:
+    /tmp/nmr-provider-stateless-installed-tests.log
+    /tmp/nmr-provider-stateless-operation-owner.log
+    /tmp/nmr-provider-stateless-final-quality.log
+    /tmp/nmr-provider-stateless-lifecycle-probe.log
+  SDK 0.2.0 wheel and source remain unchanged. Its 147 contained integrations
+  cover publication, receipt-safe deletion, provider isolation, backpressure and
+  outage/recovery. Consumer deployments still require their own composed proof.

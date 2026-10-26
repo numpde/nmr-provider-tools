@@ -50,7 +50,8 @@ outbox or rerun inference to recover publication.
 
 The maintained commands require Linux/amd64, Bash, GNU Make, GNU coreutils and GNU
 find, a non-root caller, and Docker with BuildKit at `unix:///var/run/docker.sock`.
-Delivery lifecycle commands also require Docker Compose and `jq`.
+Delivery commands require `jq`; `delivery/deployment/up` also requires Docker
+Compose.
 Run `make help` for the full command list.
 
 Acquisition and offline work are separate operations. Bootstrap the pinned
@@ -103,52 +104,63 @@ source. It prints an immutable image ID; pass that ID explicitly to deployment
 commands and provider deployments that use this runtime.
 
 The operator-owned [binding definition](config/delivery.example.toml) is the
-common authority for host delivery and provider configuration. Copy it to a
-private, caller-owned mode 0600 file and set the project, installing UID, socket
-GID, queue allowances, and each binding's API identity, credential/trust paths,
-route and socket path. The host installs the complete definition; each provider
-selects its named binding from the same definition. One through sixteen bindings
-may share the service. Each per-provider limit must fit within its corresponding
-host total; the totals bound the shared queue.
+common authority for host delivery and provider configuration. Keep deployment
+settings under `config/` and credentials under the Git-ignored `secrets/`
+directory, or use equivalent operator-owned locations. Copy the example to your
+delivery configuration and set the project, runtime UID matching the caller,
+socket GID, queue allowances, and each binding's API identity, credential/trust paths, route and
+socket path. Use canonical absolute file paths for the definition and its file
+inputs. The host reads the complete definition; each provider selects its named
+binding from the same definition. One through sixteen bindings may share the
+service. Each host total must cover the sum of all bindings' per-provider
+allowances; the totals bound the shared queue.
 
 Each producer mounts only its binding's IPC volume read-only and adds the
 configured socket GID. This socket grants local handover; the shared publisher's
 API route and credentials belong to delivery. Scientific configuration and the
 provider's own transport remain provider-owned.
 
-Use one canonical private state root for each daemon-global Compose project:
+Start from the binding definition and immutable runtime image. For the example
+below, the definition selects `project = "nmr-api-delivery"`:
 
 ```sh
-mkdir -m 700 /private/delivery-state
-make delivery/deployment/install DELIVERY_ROOT=/private/delivery-state DELIVERY_BINDINGS=/private/bindings.toml SHARED_RUNTIME_IMAGE=sha256:the-built-image-id
-make delivery/deployment/up DELIVERY_ROOT=/private/delivery-state
-make delivery/deployment/status DELIVERY_ROOT=/private/delivery-state
-make delivery/deployment/logs DELIVERY_ROOT=/private/delivery-state
-make delivery/deployment/down DELIVERY_ROOT=/private/delivery-state
+make delivery/deployment/up DELIVERY_BINDINGS=/absolute/path/config/delivery.toml SHARED_RUNTIME_IMAGE=sha256:the-built-image-id
+make delivery/deployment/status PROJECT=nmr-api-delivery
+make delivery/deployment/logs PROJECT=nmr-api-delivery
+make delivery/deployment/down PROJECT=nmr-api-delivery
 ```
 
-Install captures the binding definition and selected credential, optional CA and
-resolver files into a sealed recipe. Subsequent lifecycle commands use that
-recipe. Local API routes attach the specified immutable Docker network ID;
-mapped and external routes use proxies with host networking and an explicit
-interface. The delivery daemon has no network and reaches the API through its
-private proxy socket.
+`up` renders a temporary Compose definition and mounts only the exact operator
+configuration, credential, optional CA and resolver files read-only. Keep those
+original files available and readable by the configured UID for container
+restarts. The daemon checks the binding definition against the bytes selected by
+`up`; to change it, run `down`, edit the inputs and run `up` again. The derived
+daemon configuration lives in container `/run` tmpfs. Docker volumes hold the
+SQLite queue, producer IPC sockets and private API-proxy socket state.
 
-Ordinary `down` preserves all volumes and installed state. To adopt an existing
-queue, inspect and drain it with its current owner where possible, then use that
-owner's down/removal command to retire its project containers without removing
+Local API routes attach the specified immutable Docker network ID; mapped and
+external routes use proxies with host networking and an explicit interface. The
+delivery daemon has no network and reaches the API through its private proxy
+socket. `status`, `logs` and `down` select existing containers by `PROJECT` and
+check their delivery ownership; they do not require a saved host recipe.
+
+Ordinary `down` stops and removes project containers while preserving all
+volumes. `up` requires previous project containers to have been removed, including
+stopped containers. To adopt an existing queue, inspect and drain it with its
+current owner where possible, then use that owner's down/removal command to
+retire its project containers without removing
 queue or IPC volumes. Preserve the project name, daemon UID/GID, API/provider
-identities and socket leaves, then install the
-complete binding definition here. Installation refuses existing project
-containers; it does not retire another owner's service. Queue startup refuses a
+identities and socket leaves, then run `up` with the complete binding definition.
+This launcher does not retire another owner's service. Queue startup refuses a
 definition that omits outstanding bindings. Adoption uses the existing queue;
-it does not import results or rerun science. Per-root locking does not serialize
-two roots selecting the same project.
+it does not import results or rerun science.
 
-For held results, stop delivery before inspecting its single-writer queue:
+For held results, use `down` to remove delivery containers before opening its
+single-writer queue. Supply the binding definition, runtime image and exact
+API/provider selectors:
 
 ```sh
-make delivery/deployment/held DELIVERY_ROOT=/private/delivery-state API_ORIGIN=https://api.example.invalid PROVIDER_REF=provider:your-provider
+make delivery/deployment/held DELIVERY_BINDINGS=/absolute/path/config/delivery.toml SHARED_RUNTIME_IMAGE=sha256:the-built-image-id API_ORIGIN=https://api.example.invalid PROVIDER_REF=provider:your-provider
 ```
 
 To remove one held payload, use `make delivery/deployment/discard` with the same
@@ -171,7 +183,7 @@ Choose the maintained lane for the change:
 | `make tests/contract/provider-core WHEELHOUSE=...` | Installed-package contracts |
 | `make tests/integration/provider-core WHEELHOUSE=...` | Contained package integrations |
 | `make tests/integration/provider-core/delivery WHEELHOUSE=...` | Delivery IPC and recovery |
-| `make tests/deployment SHARED_RUNTIME_IMAGE=sha256:...` | Shared deployment freezer |
+| `make tests/deployment SHARED_RUNTIME_IMAGE=sha256:...` | Delivery rendering and proxy boundaries |
 
 `make tests WHEELHOUSE=... SHARED_RUNTIME_IMAGE=sha256:...` runs repository,
 unit, contract, integration and deployment lanes. Core tests install a private
