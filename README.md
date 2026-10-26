@@ -1,142 +1,122 @@
 # NMR provider tools
 
-This repository will own model-independent provider infrastructure: the shared
-`provider_core` package, durable result delivery, and delivery deployment tooling.
-Providers retain scientific input preparation, inference, model runners,
-offerings and model configuration.
+Shared infrastructure for NMR API providers: the `provider_core` Python package,
+durable terminal-result delivery, and tools to build and operate the delivery
+service. Core supplies model-independent signed API requests, protocol handling,
+clients and lifecycle/recovery helpers. Providers own scientific input
+preparation, inference, model runners, offerings and model configuration.
 
-The checkout owns the shared package, delivery runtime and host lifecycle, plus
-repository checks and offline qualification. Package releases go to GitHub
-Releases; this project does not publish to a Python package index.
+Source is public at [numpde/nmr-provider-tools](https://github.com/numpde/nmr-provider-tools).
+Packages are distributed through [GitHub Releases](https://github.com/numpde/nmr-provider-tools/releases),
+including [v0.2.0](https://github.com/numpde/nmr-provider-tools/releases/tag/v0.2.0),
+rather than a Python package index. See the [package documentation](packages/provider-core/README.md)
+for API boundaries and provenance.
 
-Run `make help` to discover commands. `make tests` runs every current check;
-`make tests/repository/quality` narrows the run to convention detectors and their
-fixtures. `make tests/repository/runtime` verifies the actual checker container.
-`make tests/repository/provisioning` runs preparation and cleanup fixtures.
-`make tests/repository/command` prints a launch preview without contacting Docker;
-the real launcher resolves the printed fingerprint tag to an admitted image ID.
+## Use core in a provider
 
-The lane requires Linux/amd64, Bash, GNU coreutils and find, a non-root caller,
-and Docker with BuildKit at `unix:///var/run/docker.sock`. Initialize a host with:
+Pin the released wheel by version and SHA-256 together with its complete
+installation lock. The lock includes core and every runtime dependency. Acquire
+the wheel, lock and locked third-party wheels explicitly, then install from the
+local cache in a fresh Python 3.12 or newer environment inside the provider's
+container build or runtime:
+
+```sh
+python -m pip install --no-index --no-deps --only-binary=:all: \
+  --find-links /path/to/cache --require-hashes \
+  -r /path/to/provider_core-0.2.0-install.lock
+```
+
+The [v0.2.0 release note](notes/005_release_v0.2.0.md) records the exact wheel
+hash and asset links. Consumer builds install those issued bytes offline;
+they do not rebuild core or import a sibling checkout. Operational modules run
+through container launchers that supply the package's container marker.
+
+A provider hands exact complete/fail request bytes to `DeliveryClient` over its
+configured Unix socket. A matching acknowledgement (ACK) means **durable local
+enqueue**. Shared delivery then owns the pending payload, API publication and
+retries. The ACK is not a remote API acceptance receipt.
+
+While handover is unresolved, keep the exact request bytes available. Retire the
+prior exchange and follow the client's retry disposition; a lost ACK can permit
+replaying the identical request after retryable I/O has settled. Queue
+backpressure pauses new work admissions until space is available; already-started
+work can finish. A missing queue row alone does not prove that an earlier request
+was never delivered. Providers own handover retry pacing
+and compact control checkpoints; shared delivery owns durable pending result
+storage. Provider integration should not add a second durable scientific-output
+outbox or rerun inference to recover publication.
+
+## Prepare a build host
+
+The maintained commands require Linux/amd64, Bash, GNU Make, GNU coreutils and GNU
+find, a non-root caller, and Docker with BuildKit at `unix:///var/run/docker.sock`.
+Delivery lifecycle commands also require Docker Compose and `jq`.
+Run `make help` for the full command list.
+
+Acquisition and offline work are separate operations. Bootstrap the pinned
+Python base image, acquire repository-checker artifacts, and acquire the closed
+core runtime/build wheel sets:
 
 ```sh
 make checks/base-image/download
-make checks/prepare WHEELHOUSE=/path/to/shared/cache NETWORK_INTERFACE=your-interface
-make tests/repository
+make checks/dependencies/download WHEELHOUSE=/path/to/shared/cache NETWORK_INTERFACE=your-interface
+make packages/provider-core/download WHEELHOUSE=/path/to/shared/cache NETWORK_INTERFACE=your-interface
 ```
 
-The first command pulls the digest-pinned official Python base using Docker
-daemon routing. This bootstrap is an explicit exception: the daemon pull cannot
-bind to `NETWORK_INTERFACE`. The shared base also runs the acquisition proxy.
-Subsequent artifact downloads bind both DNS and TCP to the selected interface.
-When omitted interactively, the interface chooser shows adapters, virtual links
-and link state without choosing a default. Noninteractive calls must select it
-on the Make command line; an unavailable or explicitly empty value fails.
+The base-image pull uses Docker daemon routing and cannot bind to
+`NETWORK_INTERFACE`. Later artifact acquisition binds DNS and TCP to the selected
+interface. Pass `NETWORK_INTERFACE` and `WHEELHOUSE` on the Make command line;
+interactive calls can prompt for omitted values. Environment values do not
+select either. The wheelhouse is an additive shared cache with no default
+location. Acquisition verifies declared sizes and SHA-256 hashes, preserves
+identical cached files and rejects conflicting bytes.
 
-`WHEELHOUSE` selects an additive shared artifact cache, with no default location.
-Absolute and relative paths are accepted; an omitted interactive value prompts
-for a path. Ambient environment values do not authorize either selection.
-The checker currently requires no Python wheels: its separately declared OS
-artifact is GNU Make. Acquisition verifies pinned size and SHA-256 before
-publication, preserves identical existing files and rejects conflicting bytes.
-Unrelated cache files remain untouched. Failed download staging is retained
-under the selected cache and its path is printed.
-
-To reuse cached artifacts offline:
+With the base image and artifacts already present, prepare the checker offline:
 
 ```sh
 make checks/dependencies/check WHEELHOUSE=/path/to/shared/cache
 make checks/image/build WHEELHOUSE=/path/to/shared/cache
+make packages/provider-core/check WHEELHOUSE=/path/to/shared/cache
 ```
 
-The build captures source and verified dependency bytes in a private `/tmp`
-directory, then builds with networking disabled. Prepared images live in Docker
-under a tag derived from construction inputs, including their bytes and modes.
-Checks verify the image label and execute its immutable ID. No checkout image
-record is maintained. A missing or stale image fails with preparation guidance;
-normal test targets never acquire dependencies or rebuild automatically.
-Dependency verification and capture have 60-second client budgets; image builds
-have a 900-second budget. Repository test execution has no imposed deadline.
+`make checks/prepare WHEELHOUSE=... NETWORK_INTERFACE=...` combines checker
+artifact acquisition and the offline checker build when both are needed.
 
-Checks run without networking, credentials, an engine socket or writable source.
-Public root entries are mounted read-only; private control and state directories
-are excluded and represented only by names and types in a temporary inventory.
-The checker receives a non-root UID/GID, a read-only root filesystem, no Linux
-capabilities, no-new-privileges, two CPUs, 512 MiB memory, no swap, 64 PIDs and a
-64 MiB non-executable temporary filesystem. An init process reaps terminated
-test children. Containers share the host kernel;
-these restrictions do not establish a hostile-code sandbox.
+Offline builds use captured inputs and disabled networking. Normal test commands
+require prepared inputs; they do not download dependencies or rebuild the checker
+automatically. Shared caches and prepared images survive operation cleanup.
+If a command retains temporary inputs or receipts, inspect the reported paths
+before removing them or retrying an uncertain operation.
 
-Offline checks and builds use private temporary inputs, isolated Docker client
-settings and an operation label. Cleanup removes only their owned containers, verifies
-their absence, and then deletes mounted inputs and client configuration.
-Repeated signals do not interrupt bounded teardown; cleanup failure preserves
-the original failure status. Unconfirmed creation/retirement or an unsuccessful
-dispatched build retains inputs and reports recovery paths. Inspect the reported
-label and retained files before removing them manually. Shared cache files and
-prepared images survive cleanup. SIGKILL and host crashes cannot run exit traps.
-Acquisition uses the imported transport's separate owner: exact create-output
-and CID receipts identify its proxy and worker for removal. Unconfirmed client
-or container retirement retains that transport's private state for inspection.
+## Build and run shared delivery
 
-Repository findings may remain red. A missing tool, failed import or failed
-container launch is a failed proof prerequisite, not a passing check or a
-convention finding. Preserve detector rejection cases when correcting a port.
-The [source manifest](tests/repository/port-sources.json) identifies donor bytes;
-the [dispositions](tests/repository/port-dispositions.json) explain donor-specific
-test methods replaced at the local boundary.
-
-Ruff formatting is owned by the separate `ruffer` checkout. This repository
-keeps its custom convention and import-order checks and does not install or
-invoke Ruff. Ruffer currently provides single-file formatting lanes; this
-separation does not claim repository-wide Ruff lint coverage.
-
-The [initialization record](notes/002_checker_initialization_20261026.txt)
-records the preparation precedents, dependency review and qualification.
-
-The package lane uses separately closed runtime and build wheel locks. Acquire
-those third-party dependencies, then test the installed core without networking:
+Build the runtime from a release artifact directory containing the issued wheel,
+source distribution, complete installation lock, source record and hash manifest:
 
 ```sh
-make packages/provider-core/download WHEELHOUSE=/path/to/shared/cache NETWORK_INTERFACE=your-interface
-make tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core WHEELHOUSE=/path/to/shared/cache
+make delivery/image/build WHEELHOUSE=/path/to/shared/cache ARTIFACTS=/private/release/artifacts
 ```
 
-`make tests WHEELHOUSE=... SHARED_RUNTIME_IMAGE=sha256:...` includes repository
-checks, all three installed-core lanes and the prepared shared-image tests. Package tests run from copied test files against a private installed wheel,
-with no consumer checkout or scientific environment on the import path.
+The image build installs the issued wheel and closed runtime lock offline. It
+contains shared delivery and API/acquisition proxies, with no scientific provider
+source. It prints an immutable image ID; pass that ID explicitly to deployment
+commands and provider deployments that use this runtime.
 
-`make package/build WHEELHOUSE=... OUTPUT=...` captures clean committed HEAD and
-writes the wheel, source distribution, complete hash installation lock, source
-record and hash manifest into an existing empty caller-owned mode 0700 directory.
-`make tests/package WHEELHOUSE=... ARTIFACTS=...` verifies those exact five files,
-checks source and wheel completeness, rebuilds offline from the source archive,
-and tests both installed wheels. Only successful qualification emits the exact
-artifact hashes. Candidate artifacts are separate from the additive shared cache.
-Consumers acquire the versioned wheel from GitHub Releases with its SHA-256,
-then install its complete dependency lock offline.
+The operator-owned [binding definition](config/delivery.example.toml) is the
+common authority for host delivery and provider configuration. Copy it to a
+private, caller-owned mode 0600 file and set the project, installing UID, socket
+GID, queue allowances, and each binding's API identity, credential/trust paths,
+route and socket path. The host installs the complete definition; each provider
+selects its named binding from the same definition. One through sixteen bindings
+may share the service. Each per-provider limit must fit within its corresponding
+host total; the totals bound the shared queue.
 
-Build the shared runtime from a qualified five-file release directory:
+Each producer mounts only its binding's IPC volume read-only and adds the
+configured socket GID. This socket grants local handover; the shared publisher's
+API route and credentials belong to delivery. Scientific configuration and the
+provider's own transport remain provider-owned.
 
-```sh
-make delivery/image/build WHEELHOUSE=/path/to/shared/cache ARTIFACTS=/private/release
-make tests/deployment SHARED_RUNTIME_IMAGE=sha256:the-built-image-id
-```
-
-The build installs the issued wheel and its complete lock offline. It includes
-shared delivery and API/acquisition proxies, with no scientific provider source.
-Both roles use `/opt/provider-core/environment/bin/python`. The build prints the
-immutable image ID; provider deployments receive that ID explicitly.
-
-Copy [the binding example](config/delivery.example.toml) to a private mode 0600
-file. Set the installing UID, shared socket GID, API identity/trust, route and
-queue allowances explicitly. One through sixteen bindings may share the host
-service; providers select their own named binding. Each producer mounts only its
-binding's IPC volume read-only and adds the configured socket GID. Providers own
-scientific configuration, checkpoint initialization and handover retry pacing.
-
-The host lifecycle requires `jq`, the existing Docker/Compose prerequisites and
-one canonical private state root per daemon-global project:
+Use one canonical private state root for each daemon-global Compose project:
 
 ```sh
 mkdir -m 700 /private/delivery-state
@@ -147,45 +127,97 @@ make delivery/deployment/logs DELIVERY_ROOT=/private/delivery-state
 make delivery/deployment/down DELIVERY_ROOT=/private/delivery-state
 ```
 
-Install freezes one bounded definition snapshot and grants only the selected API
-credential, optional CA and external resolver files. It writes a sealed recipe
-under the selected state root. Status and down use that recipe. Local API routes
-attach the specified immutable network ID; mapped and external API proxies use
-host networking and bind traffic to the explicit interface. The daemon has no
-network and reaches the API only through its private proxy socket. These are the
-shared publisher's routing grants; each provider owns its producer transport.
+Install captures the binding definition and selected credential, optional CA and
+resolver files into a sealed recipe. Subsequent lifecycle commands use that
+recipe. Local API routes attach the specified immutable Docker network ID;
+mapped and external routes use proxies with host networking and an explicit
+interface. The delivery daemon has no network and reaches the API through its
+private proxy socket.
 
-Before adopting an existing shared queue, inspect and drain it with its current
-owner where possible, stop that owner's project, and retain its queue/IPC volumes.
-Keep its project name, daemon UID/GID, API/provider identities and socket leaves.
-Then install the complete binding definition here. This owner refuses existing
-project containers; it does not stop another owner automatically. Queue startup
-refuses omitted outstanding bindings. No result importer or science rerun is part
-of this handoff. Ordinary down preserves all durable state. Per-root locking does
-not serialize aliases selecting the same global project; use one state root.
+Ordinary `down` preserves all volumes and installed state. To adopt an existing
+queue, inspect and drain it with its current owner where possible, then use that
+owner's down/removal command to retire its project containers without removing
+queue or IPC volumes. Preserve the project name, daemon UID/GID, API/provider
+identities and socket leaves, then install the
+complete binding definition here. Installation refuses existing project
+containers; it does not retire another owner's service. Queue startup refuses a
+definition that omits outstanding bindings. Adoption uses the existing queue;
+it does not import results or rerun science. Per-root locking does not serialize
+two roots selecting the same project.
 
-For stopped delivery, `delivery/deployment/held` takes explicit `API_ORIGIN` and
-`PROVIDER_REF` and lists retained metadata. `delivery/deployment/discard` additionally
-requires the exact `EXECUTION_ATTEMPT_REF` and `BODY_SHA256`. Discard removes only a
-matching held payload; it proves no API acceptance. Running delivery must be
-stopped before either command opens its single-writer queue.
+For held results, stop delivery before inspecting its single-writer queue:
 
-Authored release notes live in `notes/NNN_release_vX.Y.Z.md`, with one source line
-per paragraph or list item. Commit the package version and its release note,
-then prepare a reviewable release directory:
+```sh
+make delivery/deployment/held DELIVERY_ROOT=/private/delivery-state API_ORIGIN=https://api.example.invalid PROVIDER_REF=provider:your-provider
+```
+
+To remove one held payload, use `make delivery/deployment/discard` with the same
+selectors plus its exact `EXECUTION_ATTEMPT_REF` and `BODY_SHA256` from the held
+metadata. Discard removes only that matching held payload; it does not establish
+API acceptance or resolve the remote Attempt.
+
+## Work on this repository
+
+Choose the maintained lane for the change:
+
+| Command | Scope |
+| --- | --- |
+| `make tests/repository` | Repository conventions and detector fixtures |
+| `make tests/repository/quality` | Code and operator conventions |
+| `make tests/repository/provisioning` | Checker preparation and cleanup fixtures |
+| `make tests/repository/runtime` | Checker container grants |
+| `make tests/repository/command` | Launch preview without contacting Docker |
+| `make tests/unit/provider-core WHEELHOUSE=...` | Installed-core unit tests |
+| `make tests/contract/provider-core WHEELHOUSE=...` | Installed-package contracts |
+| `make tests/integration/provider-core WHEELHOUSE=...` | Contained package integrations |
+| `make tests/integration/provider-core/delivery WHEELHOUSE=...` | Delivery IPC and recovery |
+| `make tests/deployment SHARED_RUNTIME_IMAGE=sha256:...` | Shared deployment freezer |
+
+`make tests WHEELHOUSE=... SHARED_RUNTIME_IMAGE=sha256:...` runs repository,
+unit, contract, integration and deployment lanes. Core tests install a private
+wheel and use copied test files, without consumer checkouts or scientific
+environments on the import path. Repository checks run offline with read-only
+source, without credentials or an engine socket. These checks establish their
+contained behavior; consumer integration, deployed-host cutover and scientific
+correctness need evidence from the owning providers.
+
+Ruff formatting is owned by the separate `ruffer` checkout. This repository
+maintains its custom conventions and import-order checks.
+
+## Build and publish a release
+
+Release publication requires Git, an authenticated GitHub CLI (`gh`) and `jq` on
+the host.
+
+For a local artifact build, `make package/build WHEELHOUSE=... OUTPUT=...`
+captures clean committed HEAD and writes five files: wheel, source distribution,
+complete hash installation lock, source record and hash manifest. `OUTPUT` must
+be an existing empty caller-owned mode 0700 directory. Use
+`make tests/package WHEELHOUSE=... ARTIFACTS=...` on that directory to check the
+exact files, rebuild offline from the source archive and test both installed
+wheels. Keep release artifacts separate from the shared dependency cache.
+
+For publication, author exactly one `notes/NNN_release_vX.Y.Z.md`, with one source
+line per paragraph or list item. Commit it together with the matching package
+version and source changes, then prepare the public inputs:
 
 ```sh
 mkdir -m 700 /private/release-inputs
 make publish/prepare TAG=vX.Y.Z WHEELHOUSE=/path/to/shared/cache OUTPUT=/private/release-inputs
+```
+
+Preparation builds and qualifies the five files under `artifacts/`, and retains
+`release-build.log`, `release-test.log` and the authored `release-notes.md` beside
+them. Review those exact public inputs, then publish from the unchanged clean
+source:
+
+```sh
 make publish/release TAG=vX.Y.Z ARTIFACTS=/private/release-inputs
 ```
 
-Preparation captures committed source, qualifies the exact five artifacts, and
-retains build/test logs plus the authored note. Inspect those public inputs
-before publication. The release target captures those same bytes, requires their
-successful qualification hashes and unchanged source/note, checks the canonical
-GitHub destination, and refuses an existing release. It pushes the tag, uploads a
-draft, downloads and compares every artifact and both logs, then makes the draft
-public. GitHub credentials remain in host orchestration. Failed or uncertain
-publication retains its private receipts; inspect them before retrying. Published
-assets are never replaced.
+Publication checks the qualification hashes and authored note, requires the
+canonical `numpde/nmr-provider-tools` GitHub destination, and refuses an existing
+release. It pushes the tag, uploads a draft, downloads and compares every asset
+and both logs, then makes the draft public. GitHub credentials stay in host
+orchestration. Failed or uncertain publication retains its private receipts for
+inspection; published assets are never replaced.
