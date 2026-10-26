@@ -157,19 +157,6 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(api.can_defer_phase_progress(failure, execution_attempt_ref=ATTEMPT_REF), operation in ("progress", "condition"))
                 self.assertFalse(failure.attempt_mutation_may_have_committed)
 
-    async def test_body_timeout_describes_this_send_without_erasing_prior_start_uncertainty(self):
-        api, transport, prior = await self.failed_replay_operation(reply(b"internal error", status=500), operation="start")
-        original = transport.calls[-1][0].content
-        self.assertTrue(prior.attempt_mutation_may_have_committed)
-        transport.replies = iter((reply(body_timeout_problem(), status=408),))
-        with self.assertRaises(ApiFailure) as caught:
-            await api.start_attempt(retained_start(), job_ref="job:example", analysis_kind_ref="nmr_predict", provider_ref="provider:example")
-        self.assertFalse(caught.exception.attempt_mutation_may_have_committed)
-        self.assertTrue(prior.attempt_mutation_may_have_committed)
-        self.assertEqual(transport.calls[-1][0].content, original)
-        self.assertEqual(len(transport.calls), 3)
-        self.assertTrue(api.can_replay_start(caught.exception))
-
     async def test_terminal_refusals_retry_without_granting_other_operation_permissions(self):
         denied = unavailable_problem(type="urn:nmr-api:problem:authorization-denied", status=403,
                                      code="authorization_denied")

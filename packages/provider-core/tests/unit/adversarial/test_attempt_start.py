@@ -90,6 +90,7 @@ class AttemptStartFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_current_send_refusal_does_not_erase_prior_uncertainty(self):
         for status, kind, code, uncertain in (
             (401, "authentication-failed", "signature_expired", False),
+            (408, "request-body-timeout", "request_body_timeout", False),
             (409, "operation-conflict", "provider_attempt_key_conflict", False),
             (409, "operation-conflict", "job_provider_attempt_limit_reached", False),
             (409, "operation-conflict", "job_attempt_limit_reached", False),

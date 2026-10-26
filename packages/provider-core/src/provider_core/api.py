@@ -198,7 +198,7 @@ _PROBLEM_REASONS = {
     ): "the signature timestamp is in the future; check the provider clock",
     (403, "authorization-denied", "authorization_denied"): "API denied this provider access to the requested resource; check the provider's API permissions",
     (404, "not-found", "resource_not_found"): "the requested resource was not found or is not accessible to this provider",
-    (408, "request-body-timeout", "request_body_timeout"): "the server did not receive the complete request body in time, so this send did not run the operation; earlier unanswered sends remain unresolved; check the API client's retry rule for this operation before retrying with a fresh signature",
+    (408, "request-body-timeout", "request_body_timeout"): "the server did not receive the complete request body in time, so this send did not run the operation; any earlier unanswered sends remain unresolved; check the API client's retry rule for this operation before retrying with a fresh signature",
     (
         409,
         "operation-conflict",

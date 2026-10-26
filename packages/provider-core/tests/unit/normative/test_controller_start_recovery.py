@@ -81,12 +81,15 @@ class ControllerStartRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 await store.close()
 
     async def test_terminal_start_replay_retires_session_without_preparing_or_executing(self):
-        for state in ("succeeded", "failed", "expired"):
-            with self.subTest(state=state), tempfile.TemporaryDirectory() as directory:
+        for state, replayed in (
+            ("succeeded", False), ("failed", False), ("expired", False),
+            ("succeeded", True), ("failed", True), ("expired", True),
+        ):
+            with self.subTest(state=state, replayed=replayed), tempfile.TemporaryDirectory() as directory:
                 store = await empty_store(directory, maximum_records=1)
                 session = SingleRetirementSession(store)
                 pending = record()
-                transport = Transport(reply(b"lost reply", status=500), reply(start_response(state=state, replayed=True)))
+                transport = Transport(reply(b"lost reply", status=500), reply(start_response(state=state, replayed=replayed)))
                 recovered = Mock()
                 controller = AttemptController(
                     api(transport, scope().api_origin),
@@ -101,6 +104,7 @@ class ControllerStartRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 try:
                     acknowledged = await controller.run(pending)
                     self.assertEqual(acknowledged.admission.state, state)
+                    self.assertIs(acknowledged.admission.replayed, replayed)
                     self.assertEqual(await store.inventory(), ())
                     self.assertEqual([event[0] for event in session.events], ["retire"])
                     self.assertEqual([request.content for request, _ in transport.calls], [pending.body] * 2)
