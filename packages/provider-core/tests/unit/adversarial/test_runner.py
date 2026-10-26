@@ -12,14 +12,43 @@ import sys
 import tempfile
 import threading
 import time
+from types import SimpleNamespace
 import unittest
 
+from provider_core.runner import serve
 from provider_core.runner_protocol import LifecycleRejected, receive_document, receive_greeting, send_document, send_greeting
 from provider_core.runner_session import RunnerSession
 from tests.fakes.runner import RunningSupervisor, worker_pid
 
 
 class RunnerRefusalTests(unittest.TestCase):
+    def test_status_directory_is_private_and_canonical_before_any_status_write(self):
+        for condition, failure_type in (("mode", PermissionError), ("symlink", ValueError)):
+            with self.subTest(condition=condition), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                endpoint, scratch, status = (root / name for name in ("endpoint", "scratch", "status"))
+                for directory in (endpoint, scratch, status):
+                    directory.mkdir(mode=0o700)
+                (endpoint / ".owner-session.lock").touch(mode=0o600)
+                selected = status
+                if condition == "mode":
+                    status.chmod(0o777)
+                else:
+                    selected = root / "status-alias"
+                    selected.symlink_to(status, target_is_directory=True)
+                options = SimpleNamespace(socket=endpoint / "runner.sock", scratch=scratch,
+                                          status_directory=selected, role="fixture")
+                read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+                try:
+                    os.write(write_fd, b"x")
+                    with self.assertRaises(failure_type):
+                        serve(options, [sys.executable, "-c", "raise SystemExit(77)"], read_fd)
+                    self.assertEqual([], list(status.iterdir()))
+                    self.assertFalse(options.socket.exists())
+                finally:
+                    os.close(read_fd)
+                    os.close(write_fd)
+
     def test_cli_requires_exactly_one_explicit_operation_lifetime(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

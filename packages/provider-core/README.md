@@ -22,6 +22,8 @@ disconnect, and supervisor shutdown still trigger bounded retirement and scratch
 cleanup. Startup, TERM, KILL and cleanup budgets remain mandatory. The provider
 owns scientific readiness, request deadlines and cleanup between requests; the
 control greeting does not prove that a model is ready.
+The supervisor admits socket, scratch and status directories as canonical
+absolute caller-owned mode 0700 directories and holds them for its lifetime.
 
 `RunnerSession.request_stop()` retains a stop requested before connection and
 wakes endpoint retries. Once connected, the original greeting reader retains

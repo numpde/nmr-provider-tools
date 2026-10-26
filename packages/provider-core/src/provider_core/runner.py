@@ -222,12 +222,14 @@ def serve(options, argv, shutdown):
     """Own the stable endpoint/lease until shutdown; accept only serial operations."""
     parent = _private_directory(options.socket.parent)
     scratch_fd = None
+    status_fd = None
     lease = None
     identity = None
     try:
         scratch_fd = _private_directory(options.scratch)
+        status_fd = _private_directory(options.status_directory)
         lease, lock_identity = _lease(parent)
-        status = ProcessStatus(options.status_directory, options.role)
+        status = ProcessStatus(Path(f"/proc/self/fd/{status_fd}"), options.role)
         status.refresh("starting")
         if os.listdir(scratch_fd):
             raise RetirementUnconfirmed("Runner scratch root is not empty; fresh-container cleanup is not established.")
@@ -272,6 +274,8 @@ def serve(options, argv, shutdown):
                 os.close(lease)
             if scratch_fd is not None:
                 os.close(scratch_fd)
+            if status_fd is not None:
+                os.close(status_fd)
             os.close(parent)
 
 
