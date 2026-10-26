@@ -1,0 +1,68 @@
+{
+  "repository": "https://github.com/numpde/nmrnet-repro",
+  "commit": "d09b77b951551c977e36bc87b5822315a4d1e944",
+  "files": [
+    {
+      "source": "tools/inference_native.sh",
+      "target": "tools/inference_native.sh",
+      "sha256": "662428e243eb0d61b0c8de9d08a1e027bba01fa0384c4637fa2a39b6d93d8862",
+      "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
+    },
+    {
+      "source": "tools/docker_client.sh",
+      "target": "tools/docker_client.sh",
+      "sha256": "46c4ffa0dace2c9ffd8969a4e55adf95bd44c6bda02111e9f75d01ffee2b9668",
+      "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
+    },
+    {
+      "source": "tools/docker.sh",
+      "target": "tools/docker.sh",
+      "sha256": "1f67f94061695282b03cae5762e4e639eef13e55d7f7148e03f6505c6f5bad70",
+      "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
+    },
+    {
+      "source": "tools/bound_http_proxy.py",
+      "target": "tools/bound_http_proxy.py",
+      "sha256": "98201e5795ba30fa02892efa77799197a8e557e4a6cb42272343d3c30e77ad1a",
+      "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
+    },
+    {
+      "source": "tools/acquisition_interface.sh",
+      "target": "tools/acquisition_interface.sh",
+      "sha256": "a1c2acd9c115f6e34799172a13597c34bda76a5f79d14f2b3a54dd9aee77bf00",
+      "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
+    },
+    {
+      "source": "tests/test_bound_http_proxy.py",
+      "target": "tests/repository/test_bound_http_proxy.py",
+      "sha256": "3894f8499627f5f353b2ee494550181968a7b8168745e1e93fc6d36a79e58f39",
+      "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
+    },
+    {
+      "source": "tests/test_inference_native.py",
+      "target": "tests/repository/test_inference_native.py",
+      "sha256": "c1fac835e4225cf7fe5306dc9d720f0a966ba80a453f42c692ba1fcfc2244970",
+      "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
+    },
+    {
+      "source": "tests/test_network_cancellation.py",
+      "target": "tests/repository/test_network_cancellation.py",
+      "sha256": "e825945d3a02c2f7b9b4ce5aaf848b3477a57b875cbb3716531c1f774bcc669f",
+      "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
+    },
+    {
+      "source": "tests/test_network_gate.py",
+      "target": "tests/repository/test_network_gate.py",
+      "sha256": "542a05dda04a739174799c0d15c601450a55284447ce40c2ae5b5cee868980be",
+      "adaptation": "Direct transport coverage. Donor offline-lane and daemon-pull rejection methods depend on unported launchers; replacement coverage belongs to the local checker provisioning tests. Worker grants here are explicit test caller inputs; the proxy grants are production-owned."
+    },
+    {
+      "source": "tools/wheelhouse_path.sh",
+      "target": "tools/wheelhouse_path.sh",
+      "sha256": "f1e5508d6498a67215e08722e18928dbba8f059ee3968137702b81336224d423",
+      "adaptation": "Operator aliases renamed. Missing forwarded values still fail as empty input. Unused wheel-population helper functions are omitted; directory selection and explicit-origin admission are retained.",
+      "repository": "https://github.com/numpde/pay-to-play",
+      "commit": "f3df825ef3e92f0873904694435ecdd43b5d87a2"
+    }
+  ]
+}

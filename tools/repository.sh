@@ -64,7 +64,7 @@ if [[ $printing == 0 ]]; then
 fi
 command=(env -i "PATH=/usr/bin:/bin" "HOME=$client" /usr/bin/docker
     --host=unix:///var/run/docker.sock --config "$client"
-    run --rm --pull=never --network=none --read-only
+    run --rm --init --pull=never --network=none --read-only
     --cap-drop=ALL --security-opt=no-new-privileges
     --pids-limit=64 --memory=512m --memory-swap=512m --cpus=2
     --user "$uid:$gid" --tmpfs /tmp:rw,noexec,nosuid,nodev,size=67108864
