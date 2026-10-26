@@ -5,8 +5,10 @@ This repository will own model-independent provider infrastructure: the shared
 Providers retain scientific input preparation, inference, model runners,
 offerings and model configuration.
 
-The current checkout owns its repository checks and their preparation workflow.
-The provider package and delivery service have not been extracted yet.
+The checkout owns its repository checks, the shared package and its offline build
+and installed-package qualification. Shared delivery deployment is the next
+implementation slice. Package releases go to GitHub Releases; this project does
+not publish to a Python package index.
 
 Run `make help` to discover commands. `make tests` runs every current check;
 `make tests/repository/quality` narrows the run to convention detectors and their
@@ -92,3 +94,25 @@ separation does not claim repository-wide Ruff lint coverage.
 
 The [initialization record](notes/002_checker_initialization_20261026.txt)
 records the preparation precedents, dependency review and qualification.
+
+The package lane uses separately closed runtime and build wheel locks. Acquire
+those third-party dependencies, then test the installed core without networking:
+
+```sh
+make packages/provider-core/download WHEELHOUSE=/path/to/shared/cache NETWORK_INTERFACE=your-interface
+make tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core WHEELHOUSE=/path/to/shared/cache
+```
+
+`make tests WHEELHOUSE=...` includes the repository and all three installed-core
+lanes. Package tests run from copied test files against a private installed wheel,
+with no consumer checkout or scientific environment on the import path.
+
+`make package/build WHEELHOUSE=... OUTPUT=...` captures clean committed HEAD and
+writes the wheel, source distribution, complete hash installation lock, source
+record and hash manifest into an existing empty caller-owned mode 0700 directory.
+`make tests/package WHEELHOUSE=... ARTIFACTS=...` verifies those exact five files,
+checks source and wheel completeness, rebuilds offline from the source archive,
+and tests both installed wheels. Only successful qualification emits the exact
+artifact hashes. Candidate artifacts are separate from the additive shared cache.
+Consumers acquire the versioned wheel from GitHub Releases with its SHA-256,
+then install its complete dependency lock offline.

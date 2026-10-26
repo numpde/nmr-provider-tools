@@ -1,0 +1,7 @@
+# Async controller closure; scientific and build dependencies stay separate.
+# Direct dependency precedent: magnet-deploy c5813ee35cfbb1c98a5cc5d20a94787271f26486 pyproject.toml.
+--index-url https://pypi.org/simple
+cryptography==50.0.0
+http-sf==1.2.1
+httpx==0.28.1
+tomli-w==1.2.0

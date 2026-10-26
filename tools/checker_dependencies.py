@@ -16,33 +16,13 @@ import json
 import os
 import re
 import shutil
-import stat
 import subprocess
 import tempfile
 import urllib.request
-from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
-
-@contextmanager
-def regular_file(path):
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-    try:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise ValueError(f"Cannot read checker input {path}: expected a regular file without a symlink.")
-        with os.fdopen(descriptor, "rb", closefd=False) as stream:
-            yield stream
-    finally:
-        os.close(descriptor)
-
-
-def fsync_directory(path):
-    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        os.fsync(descriptor)
-    finally:
-        os.close(descriptor)
+from tools.artifacts import fsync_directory, regular_file, require_download_proxy
 
 
 def unique_fields(pairs):
@@ -140,15 +120,7 @@ class HttpsRedirects(urllib.request.HTTPRedirectHandler):
 
 
 def download(packages, pool):
-    proxy = os.environ.get("HTTPS_PROXY")
-    if not (
-        proxy is not None
-        and (match := re.fullmatch(r"http://127\.0\.0\.1:([0-9]+)", proxy)) is not None
-        and 1 <= int(match[1]) <= 65535
-        and all(os.environ.get(name) == proxy for name in ("HTTP_PROXY", "http_proxy", "https_proxy"))
-        and all(os.environ.get(name) in (None, "") for name in ("NO_PROXY", "no_proxy", "ALL_PROXY", "all_proxy"))
-    ):
-        raise ValueError("Cannot download checker dependencies: launcher-owned loopback proxy configuration is required.")
+    require_download_proxy()
     if pool.is_symlink() or not pool.is_dir():
         raise ValueError(f"Cannot download checker dependencies: shared cache directory is missing: {pool}.")
     for package in packages:

@@ -32,6 +32,7 @@ worker=(--pull never --read-only --user "$uid:$gid" --cap-drop ALL --security-op
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --workdir /workspace
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace
     --mount "type=bind,src=$root/tools/checker_dependencies.py,dst=/workspace/tools/checker_dependencies.py,readonly"
+    --mount "type=bind,src=$root/tools/artifacts.py,dst=/workspace/tools/artifacts.py,readonly"
     --mount "type=bind,src=$root/tools/container_guard.py,dst=/workspace/tools/container_guard.py,readonly"
     --mount "type=bind,src=$root/requirements/checker-dependencies.json,dst=/workspace/requirements/checker-dependencies.json,readonly")
 if [[ $action == download || $action == prepare ]]; then

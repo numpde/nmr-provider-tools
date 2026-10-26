@@ -22,9 +22,9 @@
     },
     {
       "source": "tools/bound_http_proxy.py",
-      "target": "tools/bound_http_proxy.py",
+      "target": "packages/provider-core/src/provider_core/bound_http_proxy.py",
       "sha256": "98201e5795ba30fa02892efa77799197a8e557e4a6cb42272343d3c30e77ad1a",
-      "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
+      "adaptation": "Implementation has one shared package owner. Only guard import and local proof references change; bootstrap mounts these stdlib-only owned sources, deployed consumers use the installed wheel/image."
     },
     {
       "source": "tools/acquisition_interface.sh",
@@ -34,9 +34,9 @@
     },
     {
       "source": "tests/test_bound_http_proxy.py",
-      "target": "tests/repository/test_bound_http_proxy.py",
+      "target": "packages/provider-core/tests/unit/normative/test_bound_http_proxy.py",
       "sha256": "3894f8499627f5f353b2ee494550181968a7b8168745e1e93fc6d36a79e58f39",
-      "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
+      "adaptation": "Owned proxy tests move alongside the installed package; guard and import namespace follow that single implementation owner."
     },
     {
       "source": "tests/test_inference_native.py",

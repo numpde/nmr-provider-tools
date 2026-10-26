@@ -1,0 +1,46 @@
+Shared provider-core extraction, 2026-10-26
+
+Source: nmrnet-repro d09b77b951551c977e36bc87b5822315a4d1e944.
+The source manifest records original Git blobs and distinct test methods, including
+the generic proxy helpers moved from tools. Scientific preparation, offerings,
+model runners, checkpoints owned by a provider, and provider integration tests
+remain with each consumer. The generic lifecycle APIs remain optional package
+modules: DeliveryClient does not require importing the execution controller.
+
+The wheel is an independent 0.2.0 release with a Python >=3.12 contract. Only this
+repository builds it. Runtime and build dependencies are closed hash locks;
+requirements/provider-core-advisories.json records the exact upstream advisory
+responses read before installation. certifi advances to 2026.10.23, setuptools to
+84.1.0, and tomli-w 1.2.0 supplies the shared real TOML serialization need.
+Scientific numerical dependencies are outside this closure.
+
+The release destination is GitHub, not a Python package index. The precedent is
+pay-to-play-wire 4c92a3bf2c44a2a63f62b4256677538db2a99e81. Third-party dependency
+acquisition still uses its declared upstream index through the interface-bound
+proxy. Builds and installation use --no-index and verified privately captured
+files. Candidate output is explicit, separate from the additive shared cache.
+
+The binding definition is the single operator authority for API identity and
+trust, route, socket and shared GID. Provider freezers derive their existing
+runtime TOML from the selected binding. Producer IPC pacing/retirement budgets
+remain provider-owned. API publication budgets belong to shared delivery. The
+TOML loader describes grants without reading credentials or touching Docker.
+
+The supported pending inventory is bounded at 256 rows per binding so every
+supported inventory fits the existing 2 MiB IPC response envelope, including
+maximum escaped held explanations. Larger valid legacy queues remain readable
+and publishable. Only their complete IPC inventory refuses with bounded 503;
+single-Attempt status uses a primary-key query. No migration, row rewriting or
+operator discard is required to drain valid pending rows.
+
+Qualification boundaries:
+  Installed-wheel unit, contract and integration lanes have no consumer source
+  or scientific package on their import path. Actual Unix-socket durable enqueue,
+  retry/idempotence, API receipt retirement and proxy TLS tests remain owned here.
+  The active import blocker proves a real DeliveryClient/Inbox/Queue handoff with
+  execution/controller/recovery modules unavailable.
+  Repository detectors retain their raw findings and hostile fixtures. Narrow
+  source annotations document reviewed protocol/default and failure contracts;
+  they do not infer semantic safety or mechanically resolve test-name references.
+  These are contained component proofs. They do not claim deployed-host routing,
+  consumer science execution or production cutover proof.

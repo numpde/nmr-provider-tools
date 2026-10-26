@@ -105,11 +105,10 @@ class RepositoryHygieneTest(unittest.TestCase):
                 self.assertRegex(target, r"^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)+$")
 
     def test_make_test_scopes_run_their_supported_campaigns(self) -> None:
-        # Original dapp aggregate/campaign assertions mapped to NMRNet's two
-        # separately maintained suites. No recipe may replace aggregation.
+        # The public aggregate covers repository checks and every installed-core lane.
         makefile = read_text(repo_path("Makefile"))
         self.assertEqual(
-            ("tests/repository",),
+            ("tests/repository", "tests/unit/provider-core", "tests/contract/provider-core", "tests/integration/provider-core"),
             self.make_target_prereqs(makefile, "tests"),
         )
         self.assertEqual("", self.make_target_recipe(makefile, "tests").strip())

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Runtime tests are mounted. Only actual image construction inputs bind its tag.
 checker_input_paths=(
-    tools/base_image.sh tools/checker_dependencies.py tools/container_guard.py
+    tools/base_image.sh tools/checker_dependencies.py tools/container_guard.py tools/artifacts.py
     requirements/checker-dependencies.json containers/checker/Dockerfile
 )
 

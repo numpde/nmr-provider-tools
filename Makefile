@@ -19,8 +19,28 @@ override WHEELHOUSE_INPUT := $(value WHEELHOUSE)
 export WHEELHOUSE_INPUT
 endif
 
+unexport OUTPUT
+unexport OUTPUT_INPUT
+unexport OUTPUT_INPUT_ORIGIN
+override export OUTPUT_INPUT_ORIGIN := $(origin OUTPUT)
+ifeq ($(origin OUTPUT),command line)
+override OUTPUT_INPUT := $(value OUTPUT)
+export OUTPUT_INPUT
+endif
+
+unexport ARTIFACTS
+unexport ARTIFACTS_INPUT
+unexport ARTIFACTS_INPUT_ORIGIN
+override export ARTIFACTS_INPUT_ORIGIN := $(origin ARTIFACTS)
+ifeq ($(origin ARTIFACTS),command line)
+override ARTIFACTS_INPUT := $(value ARTIFACTS)
+export ARTIFACTS_INPUT
+endif
+
 .PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
+.PHONY: tests/package
+.PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
 
 help:
 	@printf '%s\n' \
@@ -36,6 +56,39 @@ help:
 	  'make checks/dependencies/check WHEELHOUSE=... Verify cached artifacts offline.' \
 	  'make checks/image/build WHEELHOUSE=... Build the checker offline.' \
 	  'make checks/prepare WHEELHOUSE=... NETWORK_INTERFACE=... Acquire artifacts and build.'
+	@printf '%s\n' \
+	  'make packages/provider-core/download WHEELHOUSE=... NETWORK_INTERFACE=... Acquire locked wheels.' \
+	  'make packages/provider-core/check WHEELHOUSE=... Verify locked wheels offline.' \
+	  'make tests/unit/provider-core WHEELHOUSE=... Build and test the isolated installed core.' \
+	  'make tests/contract/provider-core WHEELHOUSE=... Qualify installed package contracts.' \
+	  'make tests/integration/provider-core WHEELHOUSE=... Run contained package integrations.' \
+	  'make tests/integration/provider-core/delivery WHEELHOUSE=... Qualify real delivery IPC and recovery.' \
+	  'make package/build WHEELHOUSE=... OUTPUT=... Build clean committed source into an empty owned directory.' \
+	  'make tests/package WHEELHOUSE=... ARTIFACTS=... Qualify exact release files and the source rebuild.'
+
+packages/provider-core/download:
+	bash tools/provider_core.sh download
+
+packages/provider-core/check:
+	bash tools/provider_core.sh check
+
+package/build:
+	bash tools/provider_core.sh build
+
+tests/package:
+	bash tools/provider_core.sh package
+
+tests/unit/provider-core:
+	bash tools/provider_core.sh unit
+
+tests/contract/provider-core:
+	bash tools/provider_core.sh contract
+
+tests/integration/provider-core:
+	bash tools/provider_core.sh integration
+
+tests/integration/provider-core/delivery:
+	bash tools/provider_core.sh integration/delivery
 
 checks/base-image/download:
 	bash tools/checker.sh base-download
@@ -52,7 +105,7 @@ checks/image/build:
 checks/prepare:
 	bash tools/checker.sh prepare
 
-tests: tests/repository
+tests: tests/repository tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core
 
 tests/repository:
 	bash tools/repository.sh tests/repository

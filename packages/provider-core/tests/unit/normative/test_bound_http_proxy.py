@@ -1,6 +1,6 @@
 """Interface binding is mandatory for every proxy-owned outbound socket."""
 
-from tools.container_guard import require_container
+from provider_core.container_guard import require_container
 
 require_container()
 
@@ -13,7 +13,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from tools import bound_http_proxy
+from provider_core import bound_http_proxy
 
 
 class BoundProxyTests(unittest.TestCase):

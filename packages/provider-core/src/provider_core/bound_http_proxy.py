@@ -12,7 +12,7 @@ acquisition launcher owns process lifetime and container resources.
 
 from __future__ import annotations
 
-from tools.container_guard import require_container
+from provider_core.container_guard import require_container
 
 require_container()
 
@@ -145,7 +145,7 @@ def parse_destination(header: bytes) -> tuple[str, str, int, bytes]:
         # RFC 9110 sections 4.2.1 and 4.2.2 define omitted HTTP/HTTPS ports:
         # https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.1
         # https://www.rfc-editor.org/rfc/rfc9110.html#section-4.2.2
-        # silent-defaults: allow-contract -- Omitted URI ports mean HTTP 80 or HTTPS 443; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_destination_port_boundaries_and_scheme_defaults_are_preserved
+        # silent-defaults: allow-contract -- Omitted URI ports mean HTTP 80 or HTTPS 443; proof=packages/provider-core/tests/unit/normative/test_bound_http_proxy.py::BoundProxyTests.test_destination_port_boundaries_and_scheme_defaults_are_preserved
         port = 443 if parsed.scheme == "https" else 80
     # Admit the destination before DNS or socket use; explicit HTTP port zero
     # must not silently choose the scheme default.
@@ -156,7 +156,7 @@ def parse_destination(header: bytes) -> tuple[str, str, int, bytes]:
         return method, host, port, header
 
     # RFC 9112 section 3.2.1: https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2.1
-    # silent-defaults: allow-contract -- Origin-form requires / for an empty URI path; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_empty_absolute_path_becomes_origin_slash
+    # silent-defaults: allow-contract -- Origin-form requires / for an empty URI path; proof=packages/provider-core/tests/unit/normative/test_bound_http_proxy.py::BoundProxyTests.test_empty_absolute_path_becomes_origin_slash
     path = parsed.path or "/"
     if parsed.query:
         path += "?" + parsed.query
@@ -179,7 +179,7 @@ def _dns_name(name: str) -> bytes:
 
 # Each top-level name starts with no followed pointers; recursive calls below
 # supply depth + 1. Sixteen hops is this decoder's existing local bound.
-# silent-defaults: allow-contract -- A new DNS name starts its pointer recursion count at zero; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_dns_name_depth_starts_at_zero_and_bounds_compression
+# silent-defaults: allow-contract -- A new DNS name starts its pointer recursion count at zero; proof=packages/provider-core/tests/unit/normative/test_bound_http_proxy.py::BoundProxyTests.test_dns_name_depth_starts_at_zero_and_bounds_compression
 def _read_dns_name(message: bytes, offset: int, depth: int = 0) -> tuple[str, int]:
     """Decode a DNS name with at most sixteen compression-pointer hops.
 
@@ -455,7 +455,7 @@ class ProxyHandler(socketserver.BaseRequestHandler):
                 try:
                     self.request.settimeout(1)
                     self.request.sendall(self.admission_reply(error))
-                # silent-defaults: allow-contract -- A failed fixed 502 reply must still reach the original safe request-admission diagnostic; proof=tests/repository/test_bound_http_proxy.py::BoundProxyTests.test_failed_admission_reply_preserves_original_safe_cause_and_unexpected_errors
+                # silent-defaults: allow-contract -- A failed fixed 502 reply must still reach the original safe request-admission diagnostic; proof=packages/provider-core/tests/unit/normative/test_bound_http_proxy.py::BoundProxyTests.test_failed_admission_reply_preserves_original_safe_cause_and_unexpected_errors
                 except OSError:
                     pass
             # Native causes can contain request URLs, headers or other private

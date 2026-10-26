@@ -1,0 +1,89 @@
+{
+  "checked_at": "2026-10-26T09:33:19.306132+00:00",
+  "scope": "Exact-version PyPI advisory metadata; not a complete security audit",
+  "inputs_sha256": {
+    "requirements/provider-core.in": "f38a2d07788bd61d3e9b61c88f37198d6dbd01eab4459538f4d459a930fb7d63",
+    "requirements/provider-core.lock": "5b0b10480d7dc637fd29594ad6ead900409d0e521b8886d3118c9f9879f7b037",
+    "requirements/provider-core-build.lock": "17f3611344005a7c2d54982a79bded4f2b4fb9013511f8f9f4edb432745c1514"
+  },
+  "packages": [
+    {
+      "name": "anyio",
+      "url": "https://pypi.org/pypi/anyio/4.15.1/json",
+      "version": "4.15.1",
+      "vulnerabilities": []
+    },
+    {
+      "name": "certifi",
+      "url": "https://pypi.org/pypi/certifi/2026.10.23/json",
+      "version": "2026.10.23",
+      "vulnerabilities": []
+    },
+    {
+      "name": "cffi",
+      "url": "https://pypi.org/pypi/cffi/2.1.1/json",
+      "version": "2.1.1",
+      "vulnerabilities": []
+    },
+    {
+      "name": "cryptography",
+      "url": "https://pypi.org/pypi/cryptography/50.0.0/json",
+      "version": "50.0.0",
+      "vulnerabilities": []
+    },
+    {
+      "name": "h11",
+      "url": "https://pypi.org/pypi/h11/0.16.0/json",
+      "version": "0.16.0",
+      "vulnerabilities": []
+    },
+    {
+      "name": "http-sf",
+      "url": "https://pypi.org/pypi/http-sf/1.2.1/json",
+      "version": "1.2.1",
+      "vulnerabilities": []
+    },
+    {
+      "name": "httpcore",
+      "url": "https://pypi.org/pypi/httpcore/1.0.9/json",
+      "version": "1.0.9",
+      "vulnerabilities": []
+    },
+    {
+      "name": "httpx",
+      "url": "https://pypi.org/pypi/httpx/0.28.1/json",
+      "version": "0.28.1",
+      "vulnerabilities": []
+    },
+    {
+      "name": "idna",
+      "url": "https://pypi.org/pypi/idna/3.20/json",
+      "version": "3.20",
+      "vulnerabilities": []
+    },
+    {
+      "name": "pycparser",
+      "url": "https://pypi.org/pypi/pycparser/3.11/json",
+      "version": "3.11",
+      "vulnerabilities": []
+    },
+    {
+      "name": "typing-extensions",
+      "url": "https://pypi.org/pypi/typing-extensions/4.16.0/json",
+      "version": "4.16.0",
+      "vulnerabilities": []
+    },
+    {
+      "name": "setuptools",
+      "url": "https://pypi.org/pypi/setuptools/84.1.0/json",
+      "version": "84.1.0",
+      "vulnerabilities": []
+    },
+    {
+      "name": "tomli-w",
+      "version": "1.2.0",
+      "url": "https://pypi.org/pypi/tomli-w/1.2.0/json",
+      "vulnerabilities": []
+    }
+  ]
+}
