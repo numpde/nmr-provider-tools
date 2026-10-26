@@ -1,0 +1,311 @@
+{
+  "repository": "https://github.com/numpde/nmrnet-repro",
+  "commit": "d09b77b951551c977e36bc87b5822315a4d1e944",
+  "modules": [
+    {
+      "source": "repository_checks/fixtures/containers/docker.py",
+      "disposition": "no-current-consumer",
+      "reason": "Engine/acquisition/build fixtures support donor launchers that have not moved here. Actual checker-launch admission is tested locally."
+    },
+    {
+      "source": "repository_checks/fixtures/containers/fixture.py",
+      "disposition": "no-current-consumer",
+      "reason": "Engine/acquisition/build fixtures support donor launchers that have not moved here. Actual checker-launch admission is tested locally."
+    },
+    {
+      "source": "repository_checks/quality/__init__.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/makefile.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/__init__.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/_repo_surfaces.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_compose_empty_defaults.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_dockerfile_empty_defaults.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_env_file_empty_defaults.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_make_empty_defaults.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_make_origin.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_ops.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_python.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_python_contracts.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_python_empty_defaults.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_shared_scanner.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_shell_empty_defaults.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_workflow_empty_defaults.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/source_inventory.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/sources.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/test_assert_equal_argument_order_posture.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/test_error_transparency_posture.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/test_make_hygiene.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/test_makefile.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/test_python_cache_clutter.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/test_repository_root_posture.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/test_runtime_policy_posture.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/test_source_inventory.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/test_tuple_generator_posture.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/test_validation_guard_posture.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/quality/test_workflow_posture.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/science/__init__.py",
+      "disposition": "provider-owned",
+      "reason": "Scientific source, artifact, dependency or inference authority remains in provider repositories."
+    },
+    {
+      "source": "repository_checks/science/artifact.py",
+      "disposition": "provider-owned",
+      "reason": "Scientific source, artifact, dependency or inference authority remains in provider repositories."
+    },
+    {
+      "source": "repository_checks/science/dependency.py",
+      "disposition": "provider-owned",
+      "reason": "Scientific source, artifact, dependency or inference authority remains in provider repositories."
+    },
+    {
+      "source": "repository_checks/science/source.py",
+      "disposition": "provider-owned",
+      "reason": "Scientific source, artifact, dependency or inference authority remains in provider repositories."
+    },
+    {
+      "source": "repository_checks/test_acquisition_client_config.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    },
+    {
+      "source": "repository_checks/test_acquisition_inputs.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    },
+    {
+      "source": "repository_checks/test_build_inputs_port.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    },
+    {
+      "source": "repository_checks/test_build_magnet_layers_port.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    },
+    {
+      "source": "repository_checks/test_build_package_pinning_port.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    },
+    {
+      "source": "repository_checks/test_container_port_runtime.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/test_conventions.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/test_dependency_ownership.py",
+      "disposition": "provider-owned",
+      "reason": "Scientific source, artifact, dependency or inference authority remains in provider repositories."
+    },
+    {
+      "source": "repository_checks/test_discovery_port.py",
+      "disposition": "on-owner-extraction",
+      "reason": "Donor-specific operation is absent; assess its full assertions when moving that operation. Current checker runtime and convention families are ported."
+    },
+    {
+      "source": "repository_checks/test_documentation.py",
+      "disposition": "no-current-consumer",
+      "reason": "Donor asserts a published HTML collection and preserved historical HTML records. This port has README and plain-text design notes only."
+    },
+    {
+      "source": "repository_checks/test_engine_metadata_fixture.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    },
+    {
+      "source": "repository_checks/test_fixture_provenance.py",
+      "disposition": "provider-owned",
+      "reason": "Scientific source, artifact, dependency or inference authority remains in provider repositories."
+    },
+    {
+      "source": "repository_checks/test_geometry_image.py",
+      "disposition": "provider-owned",
+      "reason": "Scientific source, artifact, dependency or inference authority remains in provider repositories."
+    },
+    {
+      "source": "repository_checks/test_git_inputs.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    },
+    {
+      "source": "repository_checks/test_git_metadata.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    },
+    {
+      "source": "repository_checks/test_inference_client_config.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    },
+    {
+      "source": "repository_checks/test_inference_inputs.py",
+      "disposition": "provider-owned",
+      "reason": "Scientific source, artifact, dependency or inference authority remains in provider repositories."
+    },
+    {
+      "source": "repository_checks/test_operator_inputs_port.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    },
+    {
+      "source": "repository_checks/test_package_inputs.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    },
+    {
+      "source": "repository_checks/test_packages_client_config.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    },
+    {
+      "source": "repository_checks/test_proxy_posture.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No shared proxy implementation has been extracted; its full protocol/privacy/capacity tests must move with that owner."
+    },
+    {
+      "source": "repository_checks/test_proxy_resolver_input.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No shared proxy implementation has been extracted; its full protocol/privacy/capacity tests must move with that owner."
+    },
+    {
+      "source": "repository_checks/test_scientific_lint.py",
+      "disposition": "ported",
+      "reason": "See port-sources.json for exact donor bytes and local target."
+    },
+    {
+      "source": "repository_checks/test_scientific_product_contract.py",
+      "disposition": "provider-owned",
+      "reason": "Scientific source, artifact, dependency or inference authority remains in provider repositories."
+    },
+    {
+      "source": "repository_checks/test_source_closure.py",
+      "disposition": "provider-owned",
+      "reason": "Scientific source, artifact, dependency or inference authority remains in provider repositories."
+    },
+    {
+      "source": "repository_checks/test_wheelhouse_client_config.py",
+      "disposition": "on-owner-extraction",
+      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+    }
+  ]
+}

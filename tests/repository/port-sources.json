@@ -1,0 +1,530 @@
+{
+  "repository": "https://github.com/numpde/nmrnet-repro",
+  "commit": "d09b77b951551c977e36bc87b5822315a4d1e944",
+  "files": [
+    {
+      "source": "repository_checks/quality/__init__.py",
+      "target": "tests/repository/quality/__init__.py",
+      "sha256": "da4c28cf7aeb3215f131999a144b0cb9411a8239985237e8a6063c473e85082c",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": []
+    },
+    {
+      "source": "repository_checks/quality/makefile.py",
+      "target": "tests/repository/quality/makefile.py",
+      "sha256": "d1520a53f4c7ea658e431dc9c9e399702a1d76254304cad2ac1f6482db283e43",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": []
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/__init__.py",
+      "target": "tests/repository/quality/silent_defaults/__init__.py",
+      "sha256": "52ba6f1d7dc246c1bba38dc10092acf136b98dc643c2421fac8fa1d7ada56ec4",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": []
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/_repo_surfaces.py",
+      "target": "tests/repository/quality/silent_defaults/_repo_surfaces.py",
+      "sha256": "e8d818347bb17df1533236eb0677e7dfca0ba22fc5b3dd9b96d3e684ba79fb92",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": []
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_compose_empty_defaults.py",
+      "target": "tests/repository/quality/silent_defaults/test_compose_empty_defaults.py",
+      "sha256": "06a9f25177a03c8fb6f485cf0c1857682fe832859de1adb8771e57c3a5ce66d2",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "ComposeEmptyDefaultsTest.test_compose_files_use_strict_interpolation_not_empty_defaults",
+        "ComposeEmptyDefaultsTest.test_compose_matcher_flags_empty_default_interpolation",
+        "ComposeEmptyDefaultsTest.test_compose_matcher_ignores_strict_required_interpolation"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_dockerfile_empty_defaults.py",
+      "target": "tests/repository/quality/silent_defaults/test_dockerfile_empty_defaults.py",
+      "sha256": "405ff6562a064eacd3f96cbc6aa4911fc6940a9720c14ecbf41645254c333c17",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "DockerfileEmptyDefaultsTest.test_docker_arg_matcher_flags_defaults",
+        "DockerfileEmptyDefaultsTest.test_docker_env_matcher_flags_empty_values",
+        "DockerfileEmptyDefaultsTest.test_dockerfiles_do_not_define_arg_defaults",
+        "DockerfileEmptyDefaultsTest.test_dockerfiles_do_not_publish_blank_env_values"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_env_file_empty_defaults.py",
+      "target": "tests/repository/quality/silent_defaults/test_env_file_empty_defaults.py",
+      "sha256": "89ccb0a6985c70e566c36c2ffc33979328c610e0afe52b7e506bfbcbec22917a",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "EnvFileEmptyDefaultsTest.test_env_assignment_matcher_flags_blank_assignments",
+        "EnvFileEmptyDefaultsTest.test_env_file_exclusions_must_be_repo_relative",
+        "EnvFileEmptyDefaultsTest.test_env_file_scan_excludes_operator_only_secret_files",
+        "EnvFileEmptyDefaultsTest.test_env_files_do_not_publish_blank_assignments",
+        "EnvFileEmptyDefaultsTest.test_env_files_do_not_use_interpolation_defaults",
+        "EnvFileEmptyDefaultsTest.test_env_interpolation_matcher_flags_default_expansion",
+        "EnvFileEmptyDefaultsTest.test_surface_files_always_excludes_silent_defaults_tests"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_make_empty_defaults.py",
+      "target": "tests/repository/quality/silent_defaults/test_make_empty_defaults.py",
+      "sha256": "e0c1c2ae5d961c4e079a92fed7a84bc27ccc86cad72e45d8fd40b61e647266e4",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "MakeEmptyDefaultsTest.test_make_matcher_flags_conditional_assignment_defaults",
+        "MakeEmptyDefaultsTest.test_make_matcher_flags_empty_check_assignments",
+        "MakeEmptyDefaultsTest.test_make_matcher_flags_function_fallbacks",
+        "MakeEmptyDefaultsTest.test_make_matcher_flags_target_specific_variables",
+        "MakeEmptyDefaultsTest.test_make_surfaces_do_not_assign_defaults_after_empty_checks",
+        "MakeEmptyDefaultsTest.test_make_surfaces_do_not_use_conditional_assignment_defaults",
+        "MakeEmptyDefaultsTest.test_make_surfaces_do_not_use_function_fallbacks",
+        "MakeEmptyDefaultsTest.test_make_surfaces_do_not_use_target_specific_variables"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_make_origin.py",
+      "target": "tests/repository/quality/silent_defaults/test_make_origin.py",
+      "sha256": "a6e61fc5eb43ba09c3b36282c40420797bc29d51fbda2c57a861c90bdf6cee5d",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "MakeOriginGateTests.test_any_alternate_value_or_owner_remains_a_finding_in_both_collectors",
+        "MakeOriginGateTests.test_complete_origin_gates_are_classified_without_weakening_raw_matchers",
+        "MakeOriginGateTests.test_raw_conditional_default_assignment_detector_still_matches",
+        "MakeOriginGateTests.test_whole_line_gate_is_not_a_waiver_in_other_source_languages"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_ops.py",
+      "target": "tests/repository/quality/silent_defaults/test_ops.py",
+      "sha256": "c6770b556f450e07e7119504b2af5b6d3e5d77c5bb2c959bf14e4503d523faec",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "OpsSilentDefaultsTest.test_allowed_docker_defaults_match_exact_values",
+        "OpsSilentDefaultsTest.test_allowed_make_defaults_match_exact_values",
+        "OpsSilentDefaultsTest.test_allowed_shell_defaults_are_present_with_exact_values",
+        "OpsSilentDefaultsTest.test_docker_continuations_preserve_every_default_and_start_line",
+        "OpsSilentDefaultsTest.test_matchers_flag_representative_ops_defaults",
+        "OpsSilentDefaultsTest.test_ops_files_do_not_publish_silent_defaults",
+        "OpsSilentDefaultsTest.test_ops_property_distinguishes_private_resets_from_blank_publication",
+        "OpsSilentDefaultsTest.test_runtime_docker_environment_contracts_reject_value_path_and_instruction_changes",
+        "OpsSilentDefaultsTest.test_shell_publication_names_are_conservative_source_candidates"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_python.py",
+      "target": "tests/repository/quality/silent_defaults/test_python.py",
+      "sha256": "ec5a69a7f8e7e01089f07f06005d48ca7e0e4a77c58473c3896618ffa0373de0",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "PythonSilentDefaultsTest.test_matchers_flag_representative_python_defaults",
+        "PythonSilentDefaultsTest.test_matchers_ignore_explicit_absence",
+        "PythonSilentDefaultsTest.test_python_file_scan_is_repository_wide",
+        "PythonSilentDefaultsTest.test_python_files_do_not_default_operator_inputs"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_python_contracts.py",
+      "target": "tests/repository/quality/silent_defaults/test_python_contracts.py",
+      "sha256": "d4a471512f6592431fa65a87213d6bfc081f7ed26fb5ede4ef99002f66846f72",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "PythonContractApplicabilityTests.test_accepting_one_candidate_preserves_unannotated_neighbouring_findings",
+        "PythonContractApplicabilityTests.test_annotation_cannot_suppress_environment_or_cli_rules",
+        "PythonContractApplicabilityTests.test_assigned_publication_failure_composes_comparison_predicates",
+        "PythonContractApplicabilityTests.test_bad_or_ambiguous_annotations_do_not_admit_a_candidate",
+        "PythonContractApplicabilityTests.test_call_expression_contract_covers_multiline_consumer_regions",
+        "PythonContractApplicabilityTests.test_call_expression_contract_keeps_operator_callable_and_env_pop_boundaries_strict",
+        "PythonContractApplicabilityTests.test_call_expression_contract_preserves_siblings_other_shapes_and_enclosing_findings",
+        "PythonContractApplicabilityTests.test_comparison_predicates_do_not_default_create_fault_inputs",
+        "PythonContractApplicabilityTests.test_comparison_predicates_preserve_mixed_values_and_nested_defaults",
+        "PythonContractApplicabilityTests.test_composed_comparison_admission_preserves_function_default_finding",
+        "PythonContractApplicabilityTests.test_composed_comparison_predicates_apply_across_value_consumers",
+        "PythonContractApplicabilityTests.test_composed_comparisons_preserve_value_arms_and_nested_defaults",
+        "PythonContractApplicabilityTests.test_dict_entry_contract_covers_only_one_literal_key_value_region",
+        "PythonContractApplicabilityTests.test_dict_entry_contract_keeps_operator_and_callable_values_strict",
+        "PythonContractApplicabilityTests.test_dict_entry_contract_preserves_sibling_key_and_enclosing_findings",
+        "PythonContractApplicabilityTests.test_dict_entry_contract_rejects_computed_unpack_siblings_and_ambiguous_placement",
+        "PythonContractApplicabilityTests.test_dict_entry_contract_requires_a_nonblank_explanation",
+        "PythonContractApplicabilityTests.test_env_activation_guard_classification_stops_at_value_consumers",
+        "PythonContractApplicabilityTests.test_env_activation_guards_preserve_nested_and_body_defaults",
+        "PythonContractApplicabilityTests.test_explicit_lambda_body_contract_preserves_raw_and_outside_defaults",
+        "PythonContractApplicabilityTests.test_for_iterable_contract_accepts_only_annotated_generic_region",
+        "PythonContractApplicabilityTests.test_for_iterable_contract_keeps_env_cli_and_lambda_inputs_strict",
+        "PythonContractApplicabilityTests.test_for_iterable_contract_preserves_target_body_else_and_adjacent_findings",
+        "PythonContractApplicabilityTests.test_for_iterable_contract_requires_a_local_explanation_and_single_line_region",
+        "PythonContractApplicabilityTests.test_header_extension_keeps_operator_and_non_if_contracts_strict",
+        "PythonContractApplicabilityTests.test_if_header_annotation_covers_one_expression_and_preserves_body_findings",
+        "PythonContractApplicabilityTests.test_if_header_annotation_rejects_multiline_and_multiple_candidates",
+        "PythonContractApplicabilityTests.test_lambda_body_contract_rejects_nested_callables_operator_inputs_and_sibling_results",
+        "PythonContractApplicabilityTests.test_lambda_body_contract_requires_an_explanation",
+        "PythonContractApplicabilityTests.test_lambda_body_contract_requires_dedicated_immediate_same_column_placement",
+        "PythonContractApplicabilityTests.test_local_review_accepts_generic_candidates_without_changing_raw_findings",
+        "PythonContractApplicabilityTests.test_nested_generic_expression_keeps_siblings_and_strict_findings_visible",
+        "PythonContractApplicabilityTests.test_not_and_chained_comparisons_combine_predicates_without_admitting_defaults",
+        "PythonContractApplicabilityTests.test_optional_env_activation_guards_keep_raw_findings_without_defaulting_inputs",
+        "PythonContractApplicabilityTests.test_pop_tag_accepts_only_its_discarded_fixed_key_revocation",
+        "PythonContractApplicabilityTests.test_pop_tag_keeps_consumed_other_methods_and_nonliteral_shapes_strict",
+        "PythonContractApplicabilityTests.test_pop_tag_requires_an_explanation_and_exact_placement",
+        "PythonContractApplicabilityTests.test_return_value_contract_covers_multiline_fixture_selection_regions",
+        "PythonContractApplicabilityTests.test_return_value_contract_keeps_operator_and_nested_callable_defaults_strict",
+        "PythonContractApplicabilityTests.test_return_value_contract_preserves_siblings_adjacent_and_ancestor_findings",
+        "PythonContractApplicabilityTests.test_signature_contract_and_nested_exception_annotation_have_distinct_scopes",
+        "PythonContractApplicabilityTests.test_signature_contract_covers_sync_async_and_multiline_defaults",
+        "PythonContractApplicabilityTests.test_signature_contract_keeps_body_decorator_annotation_and_neighbours_visible",
+        "PythonContractApplicabilityTests.test_signature_contract_rejects_operator_defaults_and_wrong_boundaries",
+        "PythonContractApplicabilityTests.test_stale_annotation_is_a_finding_even_without_a_raw_default",
+        "PythonContractApplicabilityTests.test_typed_pass_annotation_accepts_explicit_types_and_flat_tuples",
+        "PythonContractApplicabilityTests.test_typed_pass_annotation_does_not_cover_neighbours_or_other_placements",
+        "PythonContractApplicabilityTests.test_typed_pass_annotation_keeps_protected_operator_inputs_strict",
+        "PythonContractApplicabilityTests.test_typed_pass_annotation_rejects_broad_computed_nested_and_nonpass_handlers",
+        "PythonContractApplicabilityTests.test_with_and_assignment_regions_keep_multiline_operator_and_callable_inputs_strict",
+        "PythonContractApplicabilityTests.test_with_and_assignment_regions_preserve_body_targets_and_adjacent_defaults",
+        "PythonContractApplicabilityTests.test_with_and_assignment_regions_reject_siblings_and_other_statement_kinds",
+        "PythonContractApplicabilityTests.test_with_context_and_assignment_value_cover_one_multiline_generic_contract"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_python_empty_defaults.py",
+      "target": "tests/repository/quality/silent_defaults/test_python_empty_defaults.py",
+      "sha256": "77ed2130e102104bb7fa8eb19d3214ed4a1c082ac1f6696a6e28318b29a1799a",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "PythonEmptyDefaultsTest.test_python_matcher_accepts_annotated_empty_get_defaults",
+        "PythonEmptyDefaultsTest.test_python_matcher_accepts_explicit_absence_checks",
+        "PythonEmptyDefaultsTest.test_python_matcher_flags_env_default_expression",
+        "PythonEmptyDefaultsTest.test_python_matcher_flags_falsy_empty_default_expressions",
+        "PythonEmptyDefaultsTest.test_python_matcher_flags_unannotated_empty_get_defaults",
+        "PythonEmptyDefaultsTest.test_python_matcher_flags_unannotated_pop_defaults",
+        "PythonEmptyDefaultsTest.test_python_matcher_flags_zero_getattr_defaults",
+        "PythonEmptyDefaultsTest.test_python_matcher_ignores_explicit_none_check",
+        "PythonEmptyDefaultsTest.test_python_operator_surfaces_annotate_empty_get_defaults",
+        "PythonEmptyDefaultsTest.test_python_operator_surfaces_annotate_pop_defaults",
+        "PythonEmptyDefaultsTest.test_python_operator_surfaces_do_not_default_env_reads",
+        "PythonEmptyDefaultsTest.test_python_operator_surfaces_do_not_default_getattr_to_zero",
+        "PythonEmptyDefaultsTest.test_python_operator_surfaces_do_not_use_falsy_empty_defaults"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_shared_scanner.py",
+      "target": "tests/repository/quality/silent_defaults/test_shared_scanner.py",
+      "sha256": "b1df6cdc337c968830217ad1719127a0c286016b268d077f5805758850e8d5c4",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "SharedScannerTest.test_line_findings_reports_relative_paths_and_skips_comments",
+        "SharedScannerTest.test_repo_files_excludes_skipped_dependency_material",
+        "SharedScannerTest.test_repo_files_excludes_this_check_package"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_shell_empty_defaults.py",
+      "target": "tests/repository/quality/silent_defaults/test_shell_empty_defaults.py",
+      "sha256": "fef89749b8153df93bde1ef98676e94d925107b9f1a67babac9cebf31f688ce7",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "ShellEmptyDefaultsTest.test_shell_matcher_flags_empty_default_expansion",
+        "ShellEmptyDefaultsTest.test_shell_matcher_ignores_strict_required_expansion",
+        "ShellEmptyDefaultsTest.test_shell_operator_surfaces_do_not_use_empty_default_expansion",
+        "ShellEmptyDefaultsTest.test_shell_surface_scan_excludes_operator_only_secret_files"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/silent_defaults/test_workflow_empty_defaults.py",
+      "target": "tests/repository/quality/silent_defaults/test_workflow_empty_defaults.py",
+      "sha256": "0d1239307b44d977f7b70c6b7569c7418d30c86809877e7c96ed85645020cdde",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "WorkflowEmptyDefaultsTest.test_workflow_blank_env_scanner_only_flags_entries_inside_env_blocks",
+        "WorkflowEmptyDefaultsTest.test_workflow_matcher_flags_default_fields",
+        "WorkflowEmptyDefaultsTest.test_workflows_do_not_define_dispatch_defaults",
+        "WorkflowEmptyDefaultsTest.test_workflows_do_not_publish_blank_env_entries"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/source_inventory.py",
+      "target": "tests/repository/quality/source_inventory.py",
+      "sha256": "1819acf66596cb065658ec85b6a3c24720593770b1b0a85931611b91224d66de",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": []
+    },
+    {
+      "source": "repository_checks/quality/sources.py",
+      "target": "tests/repository/quality/sources.py",
+      "sha256": "d7c80306845715f27c403b96ca8ca362961f606229494619b91b54dc90809fdd",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": []
+    },
+    {
+      "source": "repository_checks/quality/test_assert_equal_argument_order_posture.py",
+      "target": "tests/repository/quality/test_assert_equal_argument_order_posture.py",
+      "sha256": "d1888387690b5d2fbfea4a0ce705dca452ab93ba93217879a06786e586a71c1c",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "AssertEqualArgumentOrderPostureTests.test_detector_flags_only_visible_expected_second_arguments",
+        "AssertEqualArgumentOrderPostureTests.test_message_detector_uses_unittest_signatures",
+        "AssertEqualArgumentOrderPostureTests.test_repository_assert_equal_calls_put_visible_expectations_first",
+        "AssertEqualArgumentOrderPostureTests.test_repository_assertion_messages_are_keyword_arguments"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/test_error_transparency_posture.py",
+      "target": "tests/repository/quality/test_error_transparency_posture.py",
+      "sha256": "284be40b5df4a09e481ad9df0b4850830251576e96166d75534d4348eed642ac",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "ErrorTransparencyPostureTests.test_cli_projects_broad_failure_facts_instead_of_dumping_exception_text",
+        "ErrorTransparencyPostureTests.test_context_and_formatting_do_not_substitute_for_a_filesystem_cause",
+        "ErrorTransparencyPostureTests.test_detector_flags_fixed_cli_translations_even_with_exception_chaining",
+        "ErrorTransparencyPostureTests.test_detector_leaves_other_handler_shapes_for_separate_review",
+        "ErrorTransparencyPostureTests.test_explicit_reason_projection_is_not_a_cause_free_message",
+        "ErrorTransparencyPostureTests.test_filesystem_command_failures_do_not_hide_their_cause",
+        "ErrorTransparencyPostureTests.test_raw_exception_detector_follows_blocks_but_not_new_scopes",
+        "ErrorTransparencyPostureTests.test_raw_exception_text_is_not_a_safe_cause_projection",
+        "ErrorTransparencyPostureTests.test_raw_projection_dispatch_preserves_nested_and_unsupported_message_shapes"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/test_make_hygiene.py",
+      "target": "tests/repository/quality/test_make_hygiene.py",
+      "sha256": "061cee3720ff0770d9263f58a0602a89a9b7b70870b51a432d9decc92345e2ee",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt. Copied assertion message uses msg= without changing its condition.",
+      "mode": "100644",
+      "test_methods": [
+        "RepositoryHygieneTest.test_default_goal_accepts_one_bare_or_owned_help_assignment",
+        "RepositoryHygieneTest.test_default_goal_rejects_changed_missing_and_duplicate_authority",
+        "RepositoryHygieneTest.test_duplicate_detection_retains_names_repeated_across_multi_target_rules",
+        "RepositoryHygieneTest.test_first_party_paths_do_not_use_symlinks",
+        "RepositoryHygieneTest.test_first_party_python_bytecode_is_not_materialized_on_host",
+        "RepositoryHygieneTest.test_make_default_goal_is_explicit_help_target",
+        "RepositoryHygieneTest.test_make_help_mentions_existing_targets",
+        "RepositoryHygieneTest.test_make_phony_targets_are_real_targets",
+        "RepositoryHygieneTest.test_make_scoped_targets_are_hierarchical",
+        "RepositoryHygieneTest.test_make_targets_are_unique",
+        "RepositoryHygieneTest.test_make_test_scopes_run_their_supported_campaigns",
+        "RepositoryHygieneTest.test_multi_target_inventory_still_rejects_stale_help_and_phony_declarations",
+        "RepositoryHygieneTest.test_multi_target_rules_preserve_each_names_prerequisites_and_recipe",
+        "RepositoryHygieneTest.test_repository_has_one_make_entrypoint",
+        "RepositoryHygieneTest.test_secret_text_patterns_are_absent",
+        "RepositoryHygieneTest.test_target_parser_excludes_assignments_and_recipe_text"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/test_makefile.py",
+      "target": "tests/repository/quality/test_makefile.py",
+      "sha256": "b80e1d796f6157603615781f9672990b4347e7073d878a1f8e35b9c12c5ed50b",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "MakeHelpTests.test_literal_help_commands_name_make_targets",
+        "MakeRecipeOwnershipTests.test_preparation_lock_targets_pass_a_literal_profile_to_the_shared_owner",
+        "MakeRecipeOwnershipTests.test_preparation_wheelhouse_targets_pass_a_literal_profile_to_the_shared_owner",
+        "MakeRecipeOwnershipTests.test_provider_target_uses_contained_focused_lane_despite_hostile_shell",
+        "MakeRecipeOwnershipTests.test_recipe_macros_ignore_makeflags_assignments",
+        "MakeSourceInspectionTests.test_accepts_prerequisites_without_confusing_them_for_targets",
+        "MakeSourceInspectionTests.test_invocation_inventory_names_every_direct_owner",
+        "MakeSourceInspectionTests.test_invocation_inventory_rejects_uninspected_uses",
+        "MakeSourceInspectionTests.test_recipe_includes_lines_after_blank_lines_and_comments",
+        "MakeSourceInspectionTests.test_rejects_ambiguous_or_recipe_less_rules",
+        "MakeSourceInspectionTests.test_rejects_missing_duplicate_or_unowned_defines",
+        "MakeSourceInspectionTests.test_requires_an_exact_sole_literal_target",
+        "MakeSourceInspectionTests.test_returns_one_repository_owned_define_body",
+        "MakeSourceInspectionTests.test_returns_only_the_selected_recipe"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/test_python_cache_clutter.py",
+      "target": "tests/repository/quality/test_python_cache_clutter.py",
+      "sha256": "55fe30d0a79b65e9b77f1d6f57caac8d3237905e343c4df5f11c67451256939d",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "PythonCacheClutterTests.test_python_surfaces_do_not_contain_cache_artifacts",
+        "PythonCacheClutterTests.test_scanned_python_roots_exist"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/test_repository_root_posture.py",
+      "target": "tests/repository/quality/test_repository_root_posture.py",
+      "sha256": "1a399ec6965ab0c0429e5c62c040f01bfac09010b8fb0c0e2baab99cf0e1540c",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "RepositoryRootPostureTests.test_check_uses_no_source_layout_repository_root_inference",
+        "RepositoryRootPostureTests.test_detector_flags_source_layout_repository_root_inference",
+        "RepositoryRootPostureTests.test_detector_ignores_non_repository_and_non_source_roots",
+        "RepositoryRootPostureTests.test_python_does_not_infer_repository_root_from_source_layout"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/test_runtime_policy_posture.py",
+      "target": "tests/repository/quality/test_runtime_policy_posture.py",
+      "sha256": "7e5c6ff55751d65e9bbc578378686f230a1699c5b0fdccbb2a4b5ab7a0457fc8",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "RuntimePolicyPostureTests.test_detector_flags_module_scope_uppercase_direct_name_value_assignments",
+        "RuntimePolicyPostureTests.test_diagnostic_does_not_disclose_assigned_values",
+        "RuntimePolicyPostureTests.test_escape_near_matches_remain_findings",
+        "RuntimePolicyPostureTests.test_exact_local_escape_suppresses_single_name_assignment",
+        "RuntimePolicyPostureTests.test_report_module_scope_uppercase_direct_name_value_assignments"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/test_source_inventory.py",
+      "target": "tests/repository/quality/test_source_inventory.py",
+      "sha256": "423e523157af2c7bd6b052b263f063a657cc29972e51ad5ff7fabae5ca615bfe",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "SourceInventoryRepositoryTests.test_authored_python_roots_are_complete_safe_trees",
+        "SourceInventoryRepositoryTests.test_container_source_inventory_is_exact_and_fully_classified",
+        "SourceInventoryRepositoryTests.test_container_sources_keep_original_generic_hardening",
+        "SourceInventoryRepositoryTests.test_expected_source_inventory_is_json_serializable",
+        "SourceInventoryRepositoryTests.test_host_root_inventory_is_complete_and_visible_to_source_checks",
+        "SourceInventoryRepositoryTests.test_inventory_authorities_are_independent_of_discovery",
+        "SourceInventoryRepositoryTests.test_repository_checker_grants_complete_read_only_source_trees",
+        "SourceInventoryUnitTests.test_discovery_is_recursive_and_inventory_delta_is_directional",
+        "SourceInventoryUnitTests.test_discovery_rejects_file_and_directory_symlinks",
+        "SourceInventoryUnitTests.test_discovery_rejects_invalid_or_missing_source_roots",
+        "SourceInventoryUnitTests.test_exact_inventory_names_missing_and_unclassified_files",
+        "SourceInventoryUnitTests.test_frontend_ownership_rejects_pinned_and_unpinned_registry_directives",
+        "SourceInventoryUnitTests.test_python_source_selection_respects_explicit_scope",
+        "SourceInventoryUnitTests.test_root_visibility_rejects_malformed_duplicate_and_mismatched_records",
+        "SourceInventoryUnitTests.test_root_visibility_reports_new_source_caches_and_hidden_links"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/test_tuple_generator_posture.py",
+      "target": "tests/repository/quality/test_tuple_generator_posture.py",
+      "sha256": "47c333c2f034c895a620abd46b1750303a0eb00e56425e66009bd8bfd4194d89",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "TupleGeneratorPostureTests.test_detector_flags_only_direct_comprehension_conversions",
+        "TupleGeneratorPostureTests.test_escape_requires_a_documented_reason_near_the_binding",
+        "TupleGeneratorPostureTests.test_python_does_not_convert_comprehensions_directly_to_tuples"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/test_validation_guard_posture.py",
+      "target": "tests/repository/quality/test_validation_guard_posture.py",
+      "sha256": "f4e77603e82855c7069564074594cc1ac34e2cb859aef2cf40b6dd79b5a15109",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "GuardPostureTests.test_check_implementation_has_no_findings",
+        "GuardPostureTests.test_detector_flags_direct_rejected_orderings_and_split_ranges",
+        "GuardPostureTests.test_detector_flags_the_exact_inverse_optional_predicate_guard",
+        "GuardPostureTests.test_detector_inverts_mixed_ordered_rejection_terms",
+        "GuardPostureTests.test_mixed_ordering_renders_both_boolean_inverses",
+        "GuardPostureTests.test_nmr_api_has_no_guard_posture_findings",
+        "GuardPostureTests.test_split_range_rejects_unsupported_comparison_operators",
+        "GuardPostureTests.test_split_range_renders_each_admitted_bound_strictness"
+      ]
+    },
+    {
+      "source": "repository_checks/quality/test_workflow_posture.py",
+      "target": "tests/repository/quality/test_workflow_posture.py",
+      "sha256": "e218cac4121bae2edbd8787ed21e4a7429b598e2adbee02d888dfd1e696271ed",
+      "adaptation": "Import and fixture path relocation; local inventory changes are recorded in notes/001_repository_check_port_20261026.txt.",
+      "mode": "100644",
+      "test_methods": [
+        "WorkflowPostureTests.test_external_workflow_actions_are_commit_pinned",
+        "WorkflowPostureTests.test_unreviewed_workflow_cannot_expand_deferred_ci_scope",
+        "WorkflowPostureTests.test_workflow_inventory_matches_reviewed_ci_scope",
+        "WorkflowPostureTests.test_workflows_do_not_define_blank_environment_entries",
+        "WorkflowPostureTests.test_workflows_do_not_define_silent_dispatch_defaults",
+        "WorkflowPostureTests.test_workflows_pin_github_hosted_runner_images"
+      ]
+    },
+    {
+      "source": "tools/container_guard.py",
+      "target": "tools/container_guard.py",
+      "sha256": "4130aa581951e966d6ce20cdffd37f9853262120ec315c44dee4e444716f9815",
+      "adaptation": "Repository-specific launcher marker.",
+      "mode": "100644",
+      "test_methods": []
+    },
+    {
+      "source": "repository_checks/test_container_port_runtime.py",
+      "target": "tests/repository/test_container_port_runtime.py",
+      "sha256": "4f97382d2ccb0dc6737d3127564ed20851ff8074ff2ce737674142d540e42123",
+      "adaptation": "Relocated imports; caller identity marker and source/entrypoint inventories adapted locally.",
+      "mode": "100644",
+      "test_methods": [
+        "RuntimePostureTests.test_cgroup_v2_enforces_resource_bounds",
+        "RuntimePostureTests.test_fixture_install_retains_no_build_source",
+        "RuntimePostureTests.test_has_no_effective_linux_capabilities",
+        "RuntimePostureTests.test_has_only_loopback_network_interface",
+        "RuntimePostureTests.test_kernel_enforces_no_new_privileges",
+        "RuntimePostureTests.test_root_is_read_only_and_tmp_is_writable",
+        "RuntimePostureTests.test_runs_as_explicit_non_root_caller_identity",
+        "RuntimePostureTests.test_tmp_is_a_hardened_writable_tmpfs"
+      ]
+    },
+    {
+      "source": "repository_checks/test_conventions.py",
+      "target": "tests/repository/test_conventions.py",
+      "sha256": "c564c5c21b67008a7c43ffac6e515f80b90b5c657e3a258dbe5d9ad3f8618466",
+      "adaptation": "Relocated imports; caller identity marker and source/entrypoint inventories adapted locally.",
+      "mode": "100644",
+      "test_methods": [
+        "ConventionDetectionTests.test_canonical_guard_allows_module_documentation_and_future_import",
+        "ConventionDetectionTests.test_installed_core_requires_its_own_portable_guard",
+        "ConventionDetectionTests.test_missing_late_conditional_and_rebound_guards_fail",
+        "ConventionDetectionTests.test_new_nested_workers_and_future_package_enter_inventory",
+        "ConventionDetectionTests.test_only_empty_or_documentation_package_markers_are_exempt",
+        "ConventionDetectionTests.test_repository_lane_grants_only_reviewed_sources_including_future_package",
+        "ConventionDetectionTests.test_target_parser_ignores_recipes_and_assignments",
+        "RepositoryConventionTests.test_authored_production_sources_require_the_shared_guard",
+        "RepositoryConventionTests.test_batch_worker_target_invokes_only_the_fixed_qualification_case",
+        "RepositoryConventionTests.test_public_make_targets_are_hierarchical_and_test_aggregates_both_suites"
+      ]
+    },
+    {
+      "source": "repository_checks/test_scientific_lint.py",
+      "target": "tests/repository/test_scientific_lint.py",
+      "sha256": "7bc87416215c14d594df9e96ffcfc9b9284670694b4f0e22e5ed09f8f04a2038",
+      "adaptation": "Relocated imports; caller identity marker and source/entrypoint inventories adapted locally.",
+      "mode": "100644",
+      "test_methods": [
+        "ImportOrderDetectionTests.test_only_canonical_early_guard_may_precede_import_section",
+        "ScientificLintTests.test_full_selected_ruff_rule_policy",
+        "ScientificLintTests.test_guard_exception_retains_late_module_import_rejection",
+        "ScientificLintTests.test_provider_core_import_order",
+        "ScientificLintTests.test_ruff_format_policy"
+      ]
+    }
+  ],
+  "external_owner_sources": [
+    {
+      "source": "repository_checks/lint/ruff.toml",
+      "target": "tests/repository/ruff.toml",
+      "sha256": "180d6ead7eb2a58214d59092dca4f6a5ed4c1a23c2bcbf43df93137d247412fa",
+      "adaptation": "Removed local Ruff configuration; Ruff formatting is owned by the separate ruffer checkout by explicit user instruction.",
+      "mode": "100644"
+    }
+  ]
+}

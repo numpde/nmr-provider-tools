@@ -1,0 +1,123 @@
+Repository-check port -- 26 October 2026
+=======================================
+
+Scope
+-----
+Port repository-wide conventions and their detector fixtures into one
+tests/repository tree. Do not extract provider_core, start delivery, alter
+provider repositories, publish, or repair unrelated convention findings.
+
+Primary donor
+-------------
+nmrnet-repro d09b77b951551c977e36bc87b5822315a4d1e944.
+Every copied file is read from that Git object, not an unstaged worktree.
+tests/repository/port-sources.json retains each original path and SHA-256.
+The upstream comments preserve original API/dapp32/Magnet/SECS provenance.
+
+Later ports examined
+--------------------
+pay-to-play f3df825ef3e92f0873904694435ecdd43b5d87a2 and
+agent-mail 5b817df38da3d40857d30e55fdbb99022bb78a70.
+Agent Mail's tests/repository organization is adopted. NMRNet's complete
+quality cohort is retained instead of Agent Mail's smaller selection.
+Payment-wire CanonicalJSON and Agent Mail's canonical-JSON authority concern
+their signed artifact protocols. This repo has no such new protocol or JSON
+producer yet; do not impose a different serialization on NMR API requests.
+
+Preserved checks
+----------------
+All quality detector families: silent defaults across Python, shell, Make,
+Dockerfiles, Compose, env files and workflows; error transparency; runtime
+policy constants; validation guards; tuple construction; assertion order;
+repository-root inference; source discovery; cache clutter; Make and workflow
+posture. Preserve positive/negative fixtures and narrow annotation boundaries.
+The mandatory lint rule selection and formatting gate are retained.
+The eight effective container posture assertions run against this actual lane.
+
+Local adaptations
+-----------------
+Imports and self-fixture paths move from repository_checks to tests.repository.
+tools/container_guard.py uses NMR_PROVIDER_TOOLS_IN_CONTAINER. That marker
+prevents accidental host execution; it does not attest to kernel containment.
+Mandatory Python roots are tools and tests; src and packages/*/src become
+visible on addition. Package test roots enter whole-repository scans. Science
+and NMRNet-specific roots are removed from the local ownership inventory.
+Make owns one aggregate, tests, with tests/repository as its current child.
+NMRNet's provider and scientific recipe tests have no matching local entrypoint;
+the real checker target gets equivalent hostile-Make override and grant tests.
+No inherited Docker ENV default is allowed: no local Dockerfile exists.
+No hosted CI workflow is introduced; adding one changes the reviewed workflow
+inventory and must pass the preserved action-pin/default/environment rules.
+
+The current checker is an immutable prebuilt local artifact:
+sha256:9164d380c00bf0e013d44357cafb03d4b1f64570a93105f74ac4b85b66cf1b49
+Observed tools: Python 3.12.12, GNU Make 4.3, Ruff 0.15.15, Git 2.39.5.
+The donor recipe is containers/checker/Dockerfile with
+requirements/checker-dependencies.json at the primary donor revision above.
+This port introduces no image build, dependency download or installation lane.
+On another host the exact artifact must be loaded; missing images fail closed.
+
+Applicability of remaining donor families
+---------------------------------------
+Scientific weights, coordinate fixtures, inference and geometry image source
+closure: retained by provider/scientific repositories; no local consumer.
+Proxy protocol tests: apply on extraction of an actual shared proxy owner;
+do not copy a proxy implementation merely to run its tests here.
+Acquisition, wheelhouse, lock staging/apply and advisory/publication tests:
+apply when the owning dependency operation is moved here. No installer or
+acquisition operation exists in this port. Cached execution installs nothing.
+Provider credential install, image builds, Compose grants and delivery bindings:
+must accompany the extraction of those operations. The checker runtime's own
+grants and immutable image admission are in scope now.
+Durable result handoff, retries, isolation, recovery and scientific behavior:
+contract/integration tests belong with the extracted runtime, not convention
+detectors. No runtime delivery proof is claimed from this baseline.
+
+Validation policy
+-----------------
+Run the actual maintained Make lane offline. Distinguish detector-fixture or
+port-wiring defects from product/convention findings and missing prerequisites.
+Do not add skips, xfails, narrowed scan inventories or broad waivers merely to
+obtain green. Report genuine reds with their owning rule. The checker's source
+mounts inspect a live worktree; read-only does not freeze concurrent host edits.
+
+Port completeness
+-----------------
+All 61 Python modules in the donor repository_checks tree are individually
+classified in tests/repository/donor-modules.json. Every copied test method is
+listed in port-sources.json; a local check compares the present methods with
+that source inventory and the explicit method dispositions. New tests cannot
+silently replace a dropped donor rejection case. This is coverage accounting,
+not semantic equivalence proof for detector predicates.
+The donor Make parser fixture's assertion message was changed to msg= to obey
+the retained assertion-message rule; its expected status and output are intact.
+The Docker ENV contract test now owns a synthetic explicit fixture allowance
+rather than reading absent donor Dockerfiles. Its accepted exact value and
+rejected value/path/ARG mutations remain exercised. No runtime default is added.
+
+Validation result
+-----------------
+make tests: 223 tests passed, no failures, errors or skips.
+make tests/repository/runtime: all eight effective kernel posture checks passed.
+The full suite includes pinned Ruff check/format, actual empty-discovery
+refusal, hostile Make/engine ambient-input rejection, public-root visibility,
+guard and detector fixtures, and copied-method inventory accounting.
+No host dependency installation, image download/build, provider migration,
+delivery deployment, commit, push or remote publication was performed.
+The cached image was inspected and run, not rebuilt. The donor's recorded image
+ID and matching observed tool versions do not independently re-prove its build
+history or current dependency advisory status. Image provisioning on a fresh
+host is an explicit remaining prerequisite, not a hidden fallback.
+Raw run logs and the final source hash inventory are retained privately under
+.work/qualification/repository-port/. The checked source was an uncommitted
+working tree; the hash inventory identifies its actual bytes.
+
+Superseding Ruff ownership correction
+------------------------------------
+The user assigns Ruff to the separate ruffer repository. Local Ruff invocation,
+version and formatting gates and the unused Ruff TOML have been removed; their
+donor identities and explicit dispositions are retained. The custom canonical
+guard/import-order detector, its rejection fixtures and its scans remain.
+The prior 223/Ruff result above is historical. Current make tests passes all
+221 remaining checks. The borrowed image still contains Ruff until replaced
+by the forthcoming minimal checker build; no local gate uses it.

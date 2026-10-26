@@ -1,0 +1,10 @@
+.work/
+.agents/
+.aws/
+.codex/
+.vscode/
+__pycache__/
+*.py[cod]
+.ruff_cache/
+.pytest_cache/
+.mypy_cache/

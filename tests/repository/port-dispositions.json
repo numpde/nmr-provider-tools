@@ -1,0 +1,57 @@
+[
+  {
+    "target": "tests/repository/quality/test_makefile.py",
+    "method": "test_provider_target_uses_contained_focused_lane_despite_hostile_shell",
+    "disposition": "No NMRNet provider/preparation/lock/wheelhouse entrypoints exist in this repo. Equivalent actual checker Make ownership is tested locally."
+  },
+  {
+    "target": "tests/repository/quality/test_makefile.py",
+    "method": "test_preparation_lock_targets_pass_a_literal_profile_to_the_shared_owner",
+    "disposition": "No NMRNet provider/preparation/lock/wheelhouse entrypoints exist in this repo. Equivalent actual checker Make ownership is tested locally."
+  },
+  {
+    "target": "tests/repository/quality/test_makefile.py",
+    "method": "test_preparation_wheelhouse_targets_pass_a_literal_profile_to_the_shared_owner",
+    "disposition": "No NMRNet provider/preparation/lock/wheelhouse entrypoints exist in this repo. Equivalent actual checker Make ownership is tested locally."
+  },
+  {
+    "target": "tests/repository/test_conventions.py",
+    "method": "test_batch_worker_target_invokes_only_the_fixed_qualification_case",
+    "disposition": "NMRNet scientific target and its multi-script launcher fixture are donor-specific; checker grants and real launcher rejection are tested against tools/repository.sh."
+  },
+  {
+    "target": "tests/repository/test_conventions.py",
+    "method": "test_repository_lane_grants_only_reviewed_sources_including_future_package",
+    "disposition": "NMRNet scientific target and its multi-script launcher fixture are donor-specific; checker grants and real launcher rejection are tested against tools/repository.sh."
+  },
+  {
+    "target": "tests/repository/quality/test_source_inventory.py",
+    "method": "test_container_source_inventory_is_exact_and_fully_classified",
+    "disposition": "No local Dockerfile/build source. Checker image identity is instead an independently reviewed immutable input. Dockerfile helper rejection fixtures remain; source build obligations are recorded for extraction."
+  },
+  {
+    "target": "tests/repository/quality/test_source_inventory.py",
+    "method": "test_container_sources_keep_original_generic_hardening",
+    "disposition": "No local Dockerfile/build source. Checker image identity is instead an independently reviewed immutable input. Dockerfile helper rejection fixtures remain; source build obligations are recorded for extraction."
+  },
+  {
+    "target": "tests/repository/quality/test_source_inventory.py",
+    "method": "test_inventory_authorities_are_independent_of_discovery",
+    "disposition": "No local Dockerfile/build source. Checker image identity is instead an independently reviewed immutable input. Dockerfile helper rejection fixtures remain; source build obligations are recorded for extraction."
+  },
+  {
+    "target": "tests/repository/quality/test_source_inventory.py",
+    "method": "test_expected_source_inventory_is_json_serializable",
+    "disposition": "No local Dockerfile/build source. Checker image identity is instead an independently reviewed immutable input. Dockerfile helper rejection fixtures remain; source build obligations are recorded for extraction."
+  },
+  {
+    "target": "tests/repository/test_scientific_lint.py",
+    "method": "test_full_selected_ruff_rule_policy",
+    "disposition": "User assigns Ruff to the separate ruffer repository. Local custom import-order checks remain."
+  },
+  {
+    "target": "tests/repository/test_scientific_lint.py",
+    "method": "test_ruff_format_policy",
+    "disposition": "User assigns Ruff to the separate ruffer repository. Local custom import-order checks remain."
+  }
+]
