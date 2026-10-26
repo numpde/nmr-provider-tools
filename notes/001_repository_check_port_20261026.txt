@@ -121,3 +121,12 @@ guard/import-order detector, its rejection fixtures and its scans remain.
 The prior 223/Ruff result above is historical. Current make tests passes all
 221 remaining checks. The borrowed image still contains Ruff until replaced
 by the forthcoming minimal checker build; no local gate uses it.
+
+Superseding owned checker initialization
+---------------------------------------
+The initialization in notes/002_checker_initialization_20261026.txt replaces the
+borrowed image and its checkout record. The maintained checker now installs
+GNU Make without Ruff, uses fingerprint-specific Docker tags and immutable-ID
+admission, and owns acquisition, offline building and scoped temporary cleanup.
+The 223/221 results and .work paths above describe the historical port stages.
+The initial logs have moved to /tmp/nmr-provider-tools-initial-port-evidence.

@@ -1,0 +1,81 @@
+Checker initialization, 2026-10-26
+
+Scope: repository conventions and an owned checker preparation lane. No provider
+scientific code, execution controller, provider_core or delivery service moved.
+
+Precedents read at these revisions:
+  nmrnet-repro d09b77b951551c977e36bc87b5822315a4d1e944
+    tools/{docker,docker_client,inference_native,acquisition_interface}.sh,
+    bound_http_proxy.py, checker.sh and corresponding lifecycle/network tests.
+  pay-to-play f3df825ef3e92f0873904694435ecdd43b5d87a2
+    explicit Make selector forwarding, wheelhouse_path.sh and additive per-file
+    publication in tools/dependencies/wheel_pool.py.
+  agent-mail 5b817df38da3d40857d30e55fdbb99022bb78a70
+    tools/dependencies/checker.py: closed OS declaration and offline install.
+  dapp32 911d45dffb4b142334693f7438733dde857ce076
+    tools/compose_cleanup.sh: scoped teardown, residue verification, repeated
+    signal shielding, and mounted-input release ordering. The checker uses
+    native containers, so no Compose project or global prune was introduced.
+  ruffer dac3c39d37c596059e878c651e7b27baa90d963d
+    Separate Ruff owner; no local Ruff dependency, configuration or invocation.
+
+The imported native lifecycle helper and its fault fixtures are retained. The
+network source manifest records donor bytes and adaptations. Local provisioning
+fixtures replace donor-specific callers: offline checks ignore network choices;
+only the explicit base bootstrap delegates pulls to daemon routing; the actual
+acquisition caller supplies hardened worker grants and literal cache selection.
+
+Image identity: tools/base_image.sh owns the digest pin. checker_inputs.sh hashes
+the explicit construction sources and their modes. Private build contexts contain
+only captured construction sources plus admitted Make bytes. Tests and current
+source are mounted at runtime. Prepared images use fingerprint-specific tags;
+startup admits the image label and immutable ID. There is no .work directory or
+checkout-local image-ID record in the maintained workflow.
+
+Dependency review:
+  Official Python 3.12.15 release and Debian Bookworm Make 4.3-4.1 metadata were
+  checked before installation. The declared Make .deb was independently hashed.
+  Python 3.12.16 was released 2026-10-25 with security fixes; its official
+  python:3.12.16-slim-bookworm tag was not available at initialization. The pinned
+  3.12.15 image is not claimed to include those fixes. Review and advance the base
+  pin when that official artifact is published. Artifact SHA-256 admission remains
+  required independently of TLS.
+  https://www.python.org/downloads/release/python-31215/
+  https://www.python.org/downloads/release/python-31216/
+  https://packages.debian.org/bookworm/make
+  Debian security tracker source-package lookup was unavailable; no vulnerability-
+  free claim is made for the package or base image.
+
+Qualification: explicit base bootstrap, interface-bound Make download using
+an explicitly selected interface and shared artifact cache, then offline image
+build. The owned image passes effective kernel-grant checks and verifies Make is
+present while both the Ruff executable and Python distribution are absent.
+Provisioning fixtures cover additive publication, changed capture bytes, literal
+Make forwarding, metadata admission, primary failure, repeated cancellation,
+unknown retirement, unsuccessful creation, and false-success cleanup residue.
+Final make tests: 331 tests passed in 431.790 seconds, with no failures, errors
+or skips; the outer Make command also exited zero. Focused preparation fixtures:
+22 passed. Effective runtime grants: eight passed. The final complete log is
+/tmp/nmr-provider-final-complete.log.
+
+Additional native qualification:
+  A disposable source copy with an unprepared fingerprint refused startup.
+  An intentional RUN false in that copy failed the offline build, retained its
+  captured inputs, removed its owned container, and preserved the preceding
+  prepared image. After confirming the engine-reported failure and absence of
+  labeled container residue, only that probe's private paths were removed.
+  The complete checks/prepare command then succeeded with explicit selectors.
+  /tmp/nmr-provider-cold-proof.log
+  /tmp/nmr-provider-failed-build-proof.log
+  /tmp/nmr-provider-build-failure-cleanup.log
+  /tmp/nmr-provider-predecessor-proof.log
+  /tmp/nmr-provider-prepare-proof.log
+
+Prepared image:
+  sha256:bc36aa76b1780a94e9f2c0a4829641fef26b99c029d7035f9fc8e3b388dd595a
+Construction fingerprint:
+  e60d3d04dcebca425fde8c752ecdfba2f61fc37e9c33a1331f67dddaf792eec7
+
+Historical port logs formerly under .work/qualification/repository-port were
+moved to /tmp/nmr-provider-tools-initial-port-evidence during initialization.
+They describe the earlier borrowed image, not the final prepared checker.
