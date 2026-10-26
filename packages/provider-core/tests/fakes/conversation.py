@@ -1,6 +1,7 @@
 """Script model carriers and record owned endpoint cleanup without networking."""
 
 import json
+from copy import deepcopy
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
@@ -32,3 +33,16 @@ def endpoint(identifier, *replies):
         retire=AsyncMock(),
         retirement_confirmed=True,
     )
+
+
+def recording_endpoint(identifier, *replies):
+    model = endpoint(identifier, *replies)
+    original = model.complete
+    model.requests = []
+
+    async def complete(messages, tools):
+        model.requests.append(deepcopy(messages))
+        return await original(messages, tools)
+
+    model.complete = AsyncMock(side_effect=complete)
+    return model

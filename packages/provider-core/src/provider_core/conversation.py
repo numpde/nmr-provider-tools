@@ -36,6 +36,19 @@ class ToolFinished:
 
 
 @dataclass(frozen=True, slots=True)
+class TextCorrection:
+    """Continue rejected turns with plain diagnostic text and this user instruction."""
+
+    user_content: str = field(repr=False)
+
+    def __post_init__(self):
+        if type(self.user_content) is not str:
+            raise TypeError("Text correction requires a user instruction supplied as text.")
+        if not self.user_content:
+            raise ValueError("Text correction requires a nonempty user instruction.")
+
+
+@dataclass(frozen=True, slots=True)
 class ConversationResult:
     value: object = field(repr=False)
     observation: bytes = field(repr=False)
@@ -113,15 +126,22 @@ class ToolConversation:
     known endpoint secrets; transcripts are transient and never observations.
     retire() must also be observed after failure or cancellation. It may recheck
     cleanup, but neither run nor scientific effects can restart on this object.
+    TextCorrection additionally permits plain assistant turns to request repair
+    and retains canonical admitted arguments after caller rejection. Invalid or
+    unparsed argument text is still erased before continuation. Omitting the
+    grant keeps JSON rejection feedback and strict tool-call admission.
     """
 
-    def __init__(self, endpoints, *, max_turns, secrets):
+    def __init__(self, endpoints, *, max_turns, secrets, text_correction=None):
         if type(endpoints) is not tuple or not endpoints:
             raise ValueError("Cannot configure interpretation: provide a nonempty ordered tuple of endpoints.")
         require_turn_limit(max_turns)
         if type(secrets) is not tuple or any(type(secret) is not str or not secret for secret in secrets):
             raise TypeError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
+        if text_correction is not None and type(text_correction) is not TextCorrection:
+            raise TypeError("Cannot configure interpretation: text_correction must be TextCorrection or None.")
         self._endpoints, self._max_turns = endpoints, max_turns
+        self._text_correction = text_correction
         self._secrets = tuple(sorted(set(secrets), key=len, reverse=True))
         self._used = self._retired = False
         self._turns = self._corrections = 0
@@ -185,6 +205,8 @@ class ToolConversation:
     async def _run(self, messages, tools, dispatch):
         self._require_no_secrets(messages)
         self._require_no_secrets(tools)
+        if self._text_correction is not None:
+            self._require_no_secrets(self._text_correction.user_content)
         self._messages, self._tools = (
             json.loads(_encode(messages)),
             json.loads(_encode(tools)),
@@ -223,27 +245,26 @@ class ToolConversation:
             self._require_active()
             self._messages.append(message)
             if len(calls) != 1:
-                self._corrections += 1
-                self.last_rejection = "Choose exactly one tool per turn; no operations were performed."
-                self.correction_failures.append((self._turns, ToolRejected(self.last_rejection)))
                 for call in calls:
                     call["function"]["arguments"] = "{}"
-                    self._feedback(call["id"], {"rejected": self.last_rejection})
+                self._correct_turn(calls, ToolRejected("Choose exactly one tool per turn; no operations were performed."))
                 continue
             call = calls[0]
             try:
                 arguments = self._arguments(call["function"]["arguments"])
-                call["function"]["arguments"] = _encode(arguments).decode("ascii")
-                outcome = await dispatch(call["function"]["name"], arguments)
             except ToolRejected as rejection:
                 # Invalid argument text may contain encoded credentials. Keep
                 # its call identity and safe correction, not that raw text.
                 call["function"]["arguments"] = "{}"
-                self._require_no_secrets(str(rejection))
-                self.last_rejection = str(rejection)
-                self._corrections += 1
-                self.correction_failures.append((self._turns, rejection))
-                self._feedback(call["id"], {"rejected": self.last_rejection})
+                self._correct_turn(calls, rejection)
+                continue
+            call["function"]["arguments"] = _encode(arguments).decode("ascii")
+            try:
+                outcome = await dispatch(call["function"]["name"], arguments)
+            except ToolRejected as rejection:
+                if self._text_correction is None:
+                    call["function"]["arguments"] = "{}"
+                self._correct_turn(calls, rejection)
                 continue
             self._require_active()
             if type(outcome) is ToolFinished:
@@ -280,6 +301,8 @@ class ToolConversation:
                 self._require_no_secrets(message[text_field])
                 canonical[text_field] = message[text_field]
         calls = message.get("tool_calls")
+        if calls is None and self._text_correction is not None:
+            return canonical, []
         if type(calls) is not list or not calls:
             raise ConversationFailed("Cannot interpret model action: the reply supplies no identifiable tool call.")
         identifiers = set()
@@ -337,13 +360,30 @@ class ToolConversation:
 
     def _feedback(self, identifier, value):
         self._require_no_secrets(value)
+        self._tool_message(identifier, _encode(value).decode("ascii"))
+
+    def _tool_message(self, identifier, content):
         self._messages.append(
             {
                 "role": "tool",
                 "tool_call_id": identifier,
-                "content": _encode(value).decode("ascii"),
+                "content": content,
             }
         )
+
+    def _correct_turn(self, calls, rejection):
+        reason = str(rejection)
+        self._require_no_secrets(reason)
+        self.last_rejection = reason
+        self._corrections += 1
+        self.correction_failures.append((self._turns, rejection))
+        content = reason
+        if self._text_correction is None:
+            content = _encode({"rejected": reason}).decode("ascii")
+        for call in calls:
+            self._tool_message(call["id"], content)
+        if self._text_correction is not None:
+            self._messages.append({"role": "user", "content": self._text_correction.user_content})
 
     def _observation(self):
         return _encode(

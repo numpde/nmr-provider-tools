@@ -30,6 +30,17 @@ Use one absolute provider startup deadline across control setup and scientific
 readiness. A failed greeting prevents another control read, and closing the
 session does not prove child or scratch retirement.
 
+`ToolConversation` keeps one bounded transcript and permits endpoint fallback
+only after a carrier failure. Providers own endpoint selection and scientific
+tool dispatch. An explicit `text_correction=TextCorrection(user_content=...)`
+grant sends each safe rejection as plain tool text, followed by the exact
+reviewed user instruction. It also permits absent/null tool-call replies to
+consume a repair turn without inventing a tool result. Canonical admitted
+arguments survive caller rejection; invalid or unparsed arguments remain
+erased. Omitting the grant retains JSON rejection feedback and the existing
+tool-carrier requirements. Both modes reject reused call IDs and keep the same
+total turn budget and endpoint retirement requirements.
+
 Releases are GitHub assets from `numpde/nmr-provider-tools`, with an exact wheel
 hash, closed installation lock, source distribution and qualification evidence.
 Third-party dependency wheels are acquired separately. Install offline from the
