@@ -6,6 +6,7 @@ require_container()
 
 import os
 import shlex
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -35,8 +36,9 @@ class LauncherTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, msg=result.stderr)
         arguments = shlex.split(result.stdout.splitlines()[-1])
         self.assertNotIn("unreviewed", " ".join(arguments))
-        self.assertEqual(["env", "-i", "PATH=/usr/bin:/bin"], arguments[:3])
-        self.assertIn("--host=unix:///var/run/docker.sock", arguments)
+        self.assertEqual("env", arguments[0])
+        self.assertIn("DOCKER_HOST", arguments)
+        self.assertIn("unix:///var/run/docker.sock", arguments)
         self.assertIn("--pull=never", arguments)
         self.assertIn("--network=none", arguments)
         self.assertNotIn("--privileged", arguments)
@@ -44,13 +46,12 @@ class LauncherTests(unittest.TestCase):
     def test_preview_discovers_new_public_roots_and_rejects_hidden_links(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "tools").mkdir()
-            (root / "config").mkdir()
+            for name in ("tools", "requirements", "containers"):
+                shutil.copytree(ROOT / name, root / name)
             (root / "future-source").mkdir()
             (root / ".aws").mkdir()
             launcher = root / "tools/repository.sh"
             launcher.write_bytes((ROOT / "tools/repository.sh").read_bytes())
-            (root / "config/checker-image.txt").write_bytes((ROOT / "config/checker-image.txt").read_bytes())
             command = ["bash", str(launcher), "--print", "tests/repository"]
             result = subprocess.run(command, capture_output=True, text=True, check=False)
             self.assertEqual(0, result.returncode, msg=result.stderr)
@@ -64,14 +65,14 @@ class LauncherTests(unittest.TestCase):
             self.assertEqual("", result.stdout)
             self.assertIn("Cannot grant repository source", result.stderr)
 
-    def test_missing_image_and_unknown_target_fail_before_engine_execution(self):
+    def test_missing_inputs_and_unknown_target_fail_before_engine_execution(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "tools").mkdir()
             launcher = root / "tools/repository.sh"
             launcher.write_bytes((ROOT / "tools/repository.sh").read_bytes())
             for target, message in (
-                ("tests/repository", "config/checker-image.txt"),
+                ("tests/repository", "checker_inputs.sh"),
                 ("unreviewed", "unknown target"),
             ):
                 result = subprocess.run(

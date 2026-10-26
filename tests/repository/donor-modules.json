@@ -5,12 +5,12 @@
     {
       "source": "repository_checks/fixtures/containers/docker.py",
       "disposition": "no-current-consumer",
-      "reason": "Engine/acquisition/build fixtures support donor launchers that have not moved here. Actual checker-launch admission is tested locally."
+      "reason": "Donor engine fixtures model its provider, Git-projection and acquisition controllers. Local checker protocol fixtures exercise the smaller native caller and cleanup owners."
     },
     {
       "source": "repository_checks/fixtures/containers/fixture.py",
       "disposition": "no-current-consumer",
-      "reason": "Engine/acquisition/build fixtures support donor launchers that have not moved here. Actual checker-launch admission is tested locally."
+      "reason": "Donor engine fixtures model its provider, Git-projection and acquisition controllers. Local checker protocol fixtures exercise the smaller native caller and cleanup owners."
     },
     {
       "source": "repository_checks/quality/__init__.py",
@@ -265,7 +265,7 @@
     {
       "source": "repository_checks/test_operator_inputs_port.py",
       "disposition": "on-owner-extraction",
-      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+      "reason": "Scientific preparation, provider and Git-projection selectors remain donor-owned. Current checker cache/interface selectors and literal Make forwarding are tested in test_checker_provisioning.py."
     },
     {
       "source": "repository_checks/test_package_inputs.py",
@@ -304,8 +304,8 @@
     },
     {
       "source": "repository_checks/test_wheelhouse_client_config.py",
-      "disposition": "on-owner-extraction",
-      "reason": "No dependency acquisition, image build, Git projection or provider lifecycle owner exists locally. Preserve these obligations when that operation is extracted."
+      "disposition": "no-current-consumer",
+      "reason": "No Python-wheel resolver is needed by this Make-only checker. OS artifact capture and engine-client ownership are covered by checker dependency, provisioning, operation and imported native lifecycle fixtures."
     }
   ]
 }

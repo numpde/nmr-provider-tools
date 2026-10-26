@@ -27,11 +27,6 @@ from . import sources
 from .source_inventory import SourceInventoryError, discover_source_files, inventory_delta, require_exact_inventory
 from .sources import ROOT
 
-# This port consumes a prebuilt checker image. Its complete public image input
-# authority is one immutable ID; no local image build is introduced.
-REVIEWED_CHECKER_FILES = frozenset({"config/checker-image.txt"})
-
-
 def has_external_frontend(source):
     """Reject frontend directives even when hidden behind introductory comments."""
     return re.search(r"(?im)^\s*#\s*syntax\s*=", source) is not None
@@ -252,7 +247,7 @@ class SourceInventoryRepositoryTests(unittest.TestCase):
         )
         arguments = shlex.split(result.stdout)
         mounts = [arguments[index + 1] for index, value in enumerate(arguments) if value == "--mount"]
-        for subtree in ("tools", "tests", "config", "notes"):
+        for subtree in ("tools", "tests", "requirements", "containers", "notes"):
             self.assertIn(f"type=bind,src={ROOT / subtree},dst=/workspace/{subtree},readonly", mounts)
         for name in ("Makefile", "README.md"):
             self.assertIn(f"type=bind,src={ROOT / name},dst=/workspace/{name},readonly", mounts)
