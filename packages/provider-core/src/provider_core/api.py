@@ -198,6 +198,7 @@ _PROBLEM_REASONS = {
     ): "the signature timestamp is in the future; check the provider clock",
     (403, "authorization-denied", "authorization_denied"): "API denied this provider access to the requested resource; check the provider's API permissions",
     (404, "not-found", "resource_not_found"): "the requested resource was not found or is not accessible to this provider",
+    (408, "request-body-timeout", "request_body_timeout"): "the server did not receive the complete request body in time, so this send did not run the operation; earlier unanswered sends remain unresolved; check the API client's retry rule for this operation before retrying with a fresh signature",
     (
         409,
         "operation-conflict",
@@ -379,13 +380,36 @@ class ProviderAPI:
     def can_retry_read(self, failure):
         """Permit another safe GET after reviewed failure and confirmed retirement.
 
-        Gateway 502/503/504 replies permit a paced new read, without establishing
-        transience or API authority. An explicit wrong environment still refuses.
-        Verified timing refusals permit fresh signing under the caller's policy.
+        Rate limits and HTTP500/502/503/504 permit a paced new read, without
+        establishing transience or API authority. Verified request-body timeout
+        and timing refusals permit fresh signing under the caller's policy.
+        Keep request-ID evidence for operator diagnosis; an explicit wrong
+        environment still refuses. Pinned OpenAPI gives all provider GETs the
+        same read recovery contract (fixture source 12a53e720fc87e1a4144c76203f8853d5afaf753).
         Consult after retirement: it can reveal late evidence. Mutations never
         acquire retry permission here, including Hello and capability issuance.
         """
-        return self._retryable_failure(failure) and failure.request_method == "GET"
+        return (
+            (self._retryable_failure(failure) or self._settled_status_failure(failure, 500)
+             or self._settled_status_failure(failure, 429))
+            and failure.request_method == "GET"
+        )
+
+    def can_retry_job_discovery(self, failure):
+        """Permit paced discovery reads while provider access may recover.
+
+        Only this API's settled Jobs GET qualifies. Correlated authentication
+        and authorization refusals can persist; permission does not promise
+        recovery. The consumer owns stop checks, pacing and selection, and no
+        returned page grants scientific execution.
+        """
+        if (
+            type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed
+            or failure.request_method != "GET" or failure.request_target is None
+            or failure.request_target.partition(b"?")[0] != b"/provider/v1/jobs"
+        ):
+            return False
+        return self.can_retry_read(failure) or self._access_refusal(failure)
 
     def can_refresh_hello(self, failure):
         """Permit a freshly constructed current Hello, never replay an old body.
@@ -393,15 +417,20 @@ class ProviderAPI:
         Only this API's settled POST to the exact Hello target can qualify. A
         later receipt confirms the new announcement, not the earlier send.
         Other mutations retain their own replay/reconciliation requirements.
+        Pinned OpenAPI's latest_hello recovery permits HTTP500 and a verified
+        request-body timeout; the caller still constructs its current complete
+        announcement with fresh signing. A settled rate limit likewise permits
+        a paced current announcement, without promising service recovery.
         """
         return (
-            self._retryable_failure(failure)
+            (self._retryable_failure(failure) or self._settled_status_failure(failure, 500)
+             or self._settled_status_failure(failure, 429))
             and failure.request_method == "POST"
             and failure.request_target == b"/provider/v1/hello"
         )
 
     def can_refresh_signature(self, failure):
-        """Admit a settled no-effect timing refusal for existing retry owners.
+        """Admit a settled no-effect request refusal for existing retry owners.
 
         This alone grants no operation replay. The caller must use its existing
         route/body permission, request deadlines and retry/stop policy, and retain
@@ -413,14 +442,19 @@ class ProviderAPI:
         Authority: nmr-api-v1 e7790cf6a922c39261fe736d5a23d17a9a5ea322,
         nmr_api/security/problems.py:826-841 (ReplayAdmissionExpired and
         signature_expired): the operation did not run; retry with a new signature.
+        Pinned OpenAPI's request_body_timeout408 has the same fresh-signing rule;
+        security/problems.py::RequestBodyTimeout establishes no domain change.
+        This describes this send, never an earlier unacknowledged request.
         """
         return (
             type(failure) is ApiFailure
             and failure is self.last_failure
             and self.retirement_confirmed
             and failure.response is not None
-            and failure.status == 401
-            and failure.problem_code in {"authentication_window_closed", "signature_expired"}
+            and (
+                failure.status == 401 and failure.problem_code in {"authentication_window_closed", "signature_expired"}
+                or failure.status == 408 and failure.problem_code == "request_body_timeout"
+            )
         )
 
     def can_replay_start(self, failure):
@@ -492,9 +526,15 @@ class ProviderAPI:
             return False
         if self._recoverable_attempt_failure(failure):
             return True
+        return self._settled_status_failure(failure, 429) or self._access_refusal(failure)
+
+    def _settled_status_failure(self, failure, status):
+        """Recognize one settled origin/edge status, not operation permission."""
+        if type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed:
+            return False
         head = failure._received_head()
-        if head is not None and head.status == 429 and self._gateway_environment_matches(head):
-            # An origin/edge rate limit may use HTML (RFC 6585 section 4).
+        if head is not None and head.status == status and self._gateway_environment_matches(head):
+            # Error/rate replies may come from an edge with a non-API body.
             # An interrupted body still needs settled, clean transport evidence.
             exchange = failure.cause
             return failure.response is not None or (
@@ -502,8 +542,12 @@ class ProviderAPI:
                 and not isinstance(exchange.interruption, asyncio.CancelledError)
                 and _temporary_io_failure(exchange.primary, 8)
             )
-        # These correlated API refusals can persist. Exact terminal replay is
-        # safe if access later recovers; retrying does not assert it will recover.
+        return False
+
+    def _access_refusal(self, failure):
+        """Classify complete correlated refusals after the caller admits ownership."""
+        # These refusals can persist. Each operation owns whether another
+        # request is safe; this evidence does not establish absence of effects.
         return failure.response is not None and (
             failure.status == 401 and failure.problem_code in {
                 "authentication_failed", "authentication_nonce_reused", "authentication_window_closed",
@@ -516,12 +560,12 @@ class ProviderAPI:
         """Share settled send evidence; public methods own exact route permission."""
         if type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed:
             return False
-        if self._retryable_failure(failure):
+        if self._retryable_failure(failure) or self._settled_status_failure(failure, 500):
             return True
-        # The pinned Attempt routes allow their operation-specific recovery
-        # after HTTP500 too; safe-read/Hello availability policy stays narrower.
+        # Pinned Attempt recovery admits HTTP500 under its exact retained
+        # request and operation-specific replay rules.
         if failure.response is not None:
-            return failure.response.status == 500 and self._gateway_environment_matches(failure.response)
+            return False
         exchange = failure.cause
         if (
             type(exchange) is not ExchangeFailed
@@ -529,13 +573,7 @@ class ProviderAPI:
             or isinstance(exchange.interruption, asyncio.CancelledError)
         ):
             return False
-        if exchange.response_head is not None:
-            return (
-                exchange.response_head.status == 500
-                and self._gateway_environment_matches(exchange.response_head)
-                and _temporary_io_failure(exchange.primary, 8)
-            )
-        return type(exchange.primary) is httpcore.RemoteProtocolError
+        return exchange.response_head is None and type(exchange.primary) is httpcore.RemoteProtocolError
 
     def _retryable_failure(self, failure):
         """Share settled failure evidence, not operation retry authority."""
@@ -864,13 +902,17 @@ class ProviderAPI:
     def _remember_failure(self, failure, *, issuance=False, attempt_mutation=False, request_method=None, request_target=None):
         failure.request_method = request_method
         failure.request_target = request_target
-        # Reviewed 401 meanings establish no domain change (security/problems.py).
+        # Reviewed 401 and request-body timeout meanings establish no domain
+        # change for this send (security/problems.py).
         # These two grant-specific 409 branches precede issuance in operations/
         # provider_job_upload_read_capability.py; errors.py explicitly promises
         # no new link. Generic 403/404/409 statuses make no such assertion.
-        refused = failure.problem_code is not None and (
+        no_domain_change = failure.problem_code is not None and (
             failure.status == 401
-            or (failure.status == 409 and failure.problem_code in {"upload_read_not_finalized", "project_purge_in_progress"})
+            or (failure.status == 408 and failure.problem_code == "request_body_timeout")
+        )
+        refused = no_domain_change or (
+            failure.status == 409 and failure.problem_code in {"upload_read_not_finalized", "project_purge_in_progress"}
         )
         if issuance and not refused:
             failure.issuance_may_have_committed = True
@@ -881,24 +923,19 @@ class ProviderAPI:
         # start refusals. operations/errors.py also explicitly establishes no
         # progress change for the two progress conflicts. These facts describe
         # this send, never an earlier lost response.
-        attempt_refused = failure.problem_code is not None and (
-            failure.status == 401
-            or (
-                failure.status == 409
-                and failure.problem_code
-                in {
-                    "provider_attempt_key_conflict",
-                    "job_provider_attempt_limit_reached",
-                    "job_attempt_limit_reached",
-                    "execution_attempt_progress_terminal",
-                    "execution_attempt_progress_regression",
-                    "execution_attempt_outcome_expired",
-                    "execution_attempt_completion_after_failure",
-                    "execution_attempt_failure_after_success",
-                    "execution_attempt_completion_replay_mismatch",
-                    "execution_attempt_failure_replay_mismatch",
-                }
-            )
+        attempt_refused = no_domain_change or (
+            failure.status == 409 and failure.problem_code in {
+                "provider_attempt_key_conflict",
+                "job_provider_attempt_limit_reached",
+                "job_attempt_limit_reached",
+                "execution_attempt_progress_terminal",
+                "execution_attempt_progress_regression",
+                "execution_attempt_outcome_expired",
+                "execution_attempt_completion_after_failure",
+                "execution_attempt_failure_after_success",
+                "execution_attempt_completion_replay_mismatch",
+                "execution_attempt_failure_replay_mismatch",
+            }
         )
         if attempt_mutation and not attempt_refused:
             failure.attempt_mutation_may_have_committed = True

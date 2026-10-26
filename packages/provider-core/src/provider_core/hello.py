@@ -30,6 +30,10 @@ class AnalysisOffering:
     analysis_kind_ref: str
     description: str = field(repr=False)
 
+    def __post_init__(self):
+        require_analysis_kind(self.analysis_kind_ref)
+        _require_text(self.description, "offering description", 1024)
+
 
 @dataclass(frozen=True, slots=True)
 class HelloAccepted:
@@ -40,8 +44,10 @@ class HelloAccepted:
 
 
 def _require_text(value, name, maximum):
-    if type(value) is not str or not 1 <= len(value) <= maximum:
-        raise ValueError(f"Cannot announce provider: {name} must contain 1 through {maximum} Unicode scalars")
+    if type(value) is not str:
+        raise ValueError(f"Cannot announce provider: {name} must be Unicode text")
+    if not 1 <= len(value) <= maximum:
+        raise ValueError(f"Cannot announce provider: {name} has {len(value)} characters; expected 1 through {maximum} Unicode scalars")
     if "\0" in value or any(0xD800 <= ord(character) <= 0xDFFF for character in value):
         raise ValueError(f"Cannot announce provider: {name} must not contain NUL or surrogate characters")
 
@@ -61,8 +67,6 @@ def hello_body(*, display_name, description, analysis_offerings):
     for offering in analysis_offerings:
         if type(offering) is not AnalysisOffering:
             raise ValueError("Cannot announce provider: each entry must be an AnalysisOffering")
-        require_analysis_kind(offering.analysis_kind_ref)
-        _require_text(offering.description, "offering description", 1024)
         if offering.analysis_kind_ref in kinds:
             raise ValueError("Cannot announce provider: analysis kinds must not repeat")
         kinds.add(offering.analysis_kind_ref)

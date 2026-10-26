@@ -64,10 +64,14 @@ def https_settings(table, label, read_file):
     if "ca_file" in table:
         raw = read_file(table["ca_file"], maximum_bytes=1048576, label=label + " CA")
         try:
+            pem = raw.decode("ascii")
+        except UnicodeDecodeError as cause:
+            raise ApiConfigurationRejected(f"Cannot load {label} CA: the PEM certificate text must be ASCII.", cause=cause) from None
+        try:
             trust = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            trust.load_verify_locations(cadata=raw.decode("ascii"))
-        except (UnicodeError, ValueError, OSError) as cause:
-            raise ApiConfigurationRejected(f"{label} CA must contain PEM certificates within 1048576 bytes.", cause=cause) from None
+            trust.load_verify_locations(cadata=pem)
+        except (ValueError, OSError) as cause:
+            raise ApiConfigurationRejected(f"Cannot configure {label} CA trust: OpenSSL could not load the PEM certificate data.", cause=cause) from None
     else:
         try:
             trust = ssl.create_default_context()

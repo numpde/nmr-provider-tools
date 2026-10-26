@@ -14,6 +14,23 @@ from tests.fakes.hello import announcement, receipt
 
 
 class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
+    def test_offering_fields_are_admitted_at_construction_before_aggregation(self):
+        for kind, description in (
+            ("PRIVATE invalid", "d"), ("nmr_predict", "PRIVATE\udfff"), ("nmr_predict", "PRIVATE\0value"),
+            ("nmr_predict", ""), ("nmr_predict", "x" * 1025), ("nmr_predict", []),
+        ):
+            with self.subTest(kind_valid=kind == "nmr_predict"):
+                with self.assertRaises(ValueError) as caught:
+                    AnalysisOffering(kind, description)
+                self.assertNotIn("PRIVATE", str(caught.exception))
+
+    def test_offering_length_refusal_supplies_counts_without_description_content(self):
+        with self.assertRaises(ValueError) as caught:
+            AnalysisOffering("nmr_predict", "PRIVATE" + "x" * 1330)
+        self.assertIn("1337", str(caught.exception))
+        self.assertIn("1024", str(caught.exception))
+        self.assertNotIn("PRIVATE", str(caught.exception))
+
     def api(self, transport):
         return ProviderAPI(
             SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
@@ -31,10 +48,6 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
             {"display_name": "PRIVATE\ud800"},
             {"description": []},
             {"analysis_offerings": []},
-            {"analysis_offerings": (AnalysisOffering("PRIVATE invalid", "d"),)},
-            {"analysis_offerings": (AnalysisOffering("nmr_predict", "PRIVATE\udfff"),)},
-            {"analysis_offerings": (AnalysisOffering("nmr_predict", ""),)},
-            {"analysis_offerings": (AnalysisOffering("nmr_predict", "x" * 1025),)},
             {"analysis_offerings": (AnalysisOffering("nmr_predict", "one"), AnalysisOffering("nmr_predict", "one"))},
             # repo-check: allow-tuple-generator -- This over-limit tuple specimen reaches the Hello collection-bound refusal.
             {"analysis_offerings": tuple(AnalysisOffering("kind_" + str(i), "d") for i in range(65))},

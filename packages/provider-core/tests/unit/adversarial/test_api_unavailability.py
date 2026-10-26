@@ -43,7 +43,133 @@ def unavailable_problem(**changes):
     return json.dumps(document | changes).encode()
 
 
+def body_timeout_problem(**changes):
+    return unavailable_problem(**({"type": "urn:nmr-api:problem:request-body-timeout", "title": "Request body timeout",
+                                  "status": 408, "code": "request_body_timeout"} | changes))
+
+
 class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
+    async def failed_discovery(self, response):
+        transport = Transport(response)
+        api = ProviderAPI(SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
+                          transport, expected_topology="dev-local")
+        with self.assertRaises(ApiFailure) as caught:
+            await api.jobs(analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=1, cursor=None)
+        return api, transport, caught.exception
+
+    async def test_discovery_can_pace_access_refusals_without_granting_mutation_permissions(self):
+        responses = [reply(signature_window_problem(code=code), status=401) for code in (
+            "authentication_failed", "authentication_nonce_reused", "signature_created_in_future",
+        )]
+        responses += [reply(unavailable_problem(type="urn:nmr-api:problem:authorization-denied", status=403,
+                                                code="authorization_denied"), status=403),
+                      reply(b"rate limited", status=429, headers=((b"retry-after", b"10"),))]
+        for response in responses:
+            with self.subTest(status=response.status):
+                api, transport, failure = await self.failed_discovery(response)
+                self.assertTrue(api.can_retry_job_discovery(failure))
+                self.assertIs(api.can_retry_read(failure), response.status == 429)
+                self.assertFalse(api.can_refresh_hello(failure))
+                self.assertFalse(api.can_replay_terminal(failure))
+                self.assertEqual(len(transport.calls), 1)
+                transport.retirement_confirmed = False
+                self.assertFalse(api.can_retry_job_discovery(failure))
+                await api.retire()
+                self.assertTrue(api.can_retry_job_discovery(failure))
+                self.assertFalse(api.can_retry_job_discovery(ApiFailure("foreign read", "unknown")))
+                self.assertNotIn("PRIVATE_SERVER_DETAIL", str(failure))
+
+    async def test_discovery_permission_refuses_untrusted_refusals_and_unrelated_routes(self):
+        for response in (
+            reply(b"rate limited", status=429, headers=response_headers(status=429, topology=b"web")),
+            reply(signature_window_problem(code="authentication_failed"), status=401,
+                  headers=response_headers(status=401, request_id=b"request:other")),
+            reply(signature_window_problem(code="unreviewed_code"), status=401),
+            reply(b"denied", status=403), reply(b"not found", status=404), reply(b"bad request", status=400),
+            reply(b"malformed page"),
+            ExchangeFailed("Cleanup failed", primary=httpcore.ReadTimeout(), cleanup_failures=(OSError(),)),
+            ExchangeFailed("Cancelled", primary=httpcore.ReadTimeout(), interruption=asyncio.CancelledError()),
+        ):
+            with self.subTest(response=type(response).__name__):
+                api, transport, failure = await self.failed_discovery(response)
+                self.assertFalse(api.can_retry_job_discovery(failure))
+                self.assertEqual(len(transport.calls), 1)
+        api, transport, failure = await self.failed_read(reply(b"maintenance", status=503))
+        self.assertFalse(api.can_retry_job_discovery(failure))
+        for method, path in (("GET", "/provider/v1/jobs/other"), ("POST", "/provider/v1/jobs")):
+            transport.replies = iter((reply(b"maintenance", status=503),))
+            with self.assertRaises(ApiFailure) as caught:
+                await api._exchange("list Jobs", method=method, path=path, query=b"", maximum_bytes=4096)
+            self.assertFalse(api.can_retry_job_discovery(caught.exception))
+
+    async def test_safe_read_and_latest_hello_use_settled_internal_error_or_verified_body_timeout(self):
+        for response, expected in (
+            (reply(b"rate limited", status=429, headers=((b"retry-after", b"10"),)), True),
+            (reply(b"rate limited", status=429, headers=response_headers(status=429, topology=b"web")), False),
+            (reply(b"internal error", status=500), True),
+            (reply(b"internal error", status=500, headers=response_headers(status=500, topology=b"web")), False),
+            (reply(body_timeout_problem(), status=408), True),
+            (reply(body_timeout_problem(request_id="request:other"), status=408), False),
+            (reply(body_timeout_problem(code="unreviewed_code"), status=408), False),
+            (reply(body_timeout_problem(), status=408, headers=response_headers(status=408, topology=b"web")), False),
+            (reply(b"timeout", status=408), False),
+            (reply(signature_window_problem(), status=401), True),
+            (ExchangeFailed("Interrupted internal error", primary=httpcore.ReadTimeout(),
+                            response_head=HttpResponseHead(500, response_headers(status=500))), True),
+            (ExchangeFailed("Unclean internal error", primary=httpcore.ReadTimeout(),
+                            response_head=HttpResponseHead(500, response_headers(status=500)), cleanup_failures=(OSError(),)), False),
+            (ExchangeFailed("Cancelled internal error", primary=httpcore.ReadTimeout(),
+                            response_head=HttpResponseHead(500, response_headers(status=500)), interruption=asyncio.CancelledError()), False),
+            (ExchangeFailed("Interrupted rate limit", primary=httpcore.ReadTimeout(),
+                            response_head=HttpResponseHead(429, response_headers(status=429))), True),
+            (ExchangeFailed("Interrupted timeout refusal", primary=httpcore.ReadTimeout(),
+                            response_head=HttpResponseHead(408, response_headers(status=408))), False),
+        ):
+            with self.subTest(response=type(response).__name__, expected=expected):
+                api, transport, failure = await self.failed_read(response)
+                self.assertIs(api.can_retry_read(failure), expected)
+                self.assertNotIn("PRIVATE_SERVER_DETAIL", str(failure))
+                transport.retirement_confirmed = False
+                self.assertFalse(api.can_retry_read(failure))
+                await api.retire()
+                self.assertIs(api.can_retry_read(failure), expected)
+                transport.replies = iter((response,))
+                with self.assertRaises(ApiFailure) as caught:
+                    await api.publish_hello(provider_ref="provider:test", display_name="Test", description="Test",
+                                            analysis_offerings=(AnalysisOffering("peaks_from_mol", "Test"),))
+                self.assertIs(api.can_refresh_hello(caught.exception), expected)
+                self.assertFalse(api.can_retry_read(caught.exception))
+                transport.retirement_confirmed = False
+                self.assertFalse(api.can_refresh_hello(caught.exception))
+                await api.retire()
+                self.assertIs(api.can_refresh_hello(caught.exception), expected)
+                self.assertEqual(len(transport.calls), 2)
+
+    async def test_verified_body_timeout_preserves_each_exact_operation_permission(self):
+        for operation in ("start", "complete", "fail", "progress", "condition"):
+            with self.subTest(operation=operation):
+                api, _, failure = await self.failed_replay_operation(reply(body_timeout_problem(), status=408), operation=operation)
+                self.assertEqual(failure.problem_code, "request_body_timeout")
+                self.assertTrue(api.can_refresh_signature(failure))
+                self.assertIs(api.can_replay_start(failure), operation == "start")
+                self.assertIs(api.can_replay_terminal(failure), operation in ("complete", "fail"))
+                self.assertIs(api.can_retry_condition(failure, execution_attempt_ref=ATTEMPT_REF), operation in ("progress", "condition"))
+                self.assertIs(api.can_defer_phase_progress(failure, execution_attempt_ref=ATTEMPT_REF), operation in ("progress", "condition"))
+                self.assertFalse(failure.attempt_mutation_may_have_committed)
+
+    async def test_body_timeout_describes_this_send_without_erasing_prior_start_uncertainty(self):
+        api, transport, prior = await self.failed_replay_operation(reply(b"internal error", status=500), operation="start")
+        original = transport.calls[-1][0].content
+        self.assertTrue(prior.attempt_mutation_may_have_committed)
+        transport.replies = iter((reply(body_timeout_problem(), status=408),))
+        with self.assertRaises(ApiFailure) as caught:
+            await api.start_attempt(retained_start(), job_ref="job:example", analysis_kind_ref="nmr_predict", provider_ref="provider:example")
+        self.assertFalse(caught.exception.attempt_mutation_may_have_committed)
+        self.assertTrue(prior.attempt_mutation_may_have_committed)
+        self.assertEqual(transport.calls[-1][0].content, original)
+        self.assertEqual(len(transport.calls), 3)
+        self.assertTrue(api.can_replay_start(caught.exception))
+
     async def test_terminal_refusals_retry_without_granting_other_operation_permissions(self):
         denied = unavailable_problem(type="urn:nmr-api:problem:authorization-denied", status=403,
                                      code="authorization_denied")
@@ -342,7 +468,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             (reply(b"PRIVATE_HTML", status=504, headers=()), True),
             (reply(unavailable_problem(code="unknown"), status=503), True),
             (reply(unavailable_problem(request_id="request:other"), status=503), True),
-            (reply(unavailable_problem(), status=500), False),
+            (reply(unavailable_problem(), status=500), True),
             (reply(unavailable_problem(), status=401), False),
             (reply(unavailable_problem(), status=503, headers=response_headers(status=503, topology=b"web")), False),
         ):

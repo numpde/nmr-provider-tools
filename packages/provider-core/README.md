@@ -28,6 +28,27 @@ authentication or live API availability. Synthetic provider adaptations qualify
 their declared seams; real NMRNet and Magnet integration is proved by their own
 consumer suites.
 
+Retry permissions describe which next request is allowed; the consumer owns
+pacing, stop checks and deadlines. `can_retry_read` permits fresh GETs after
+settled rate limits and server failures, or a complete correlated request-body
+timeout. `can_retry_job_discovery` additionally permits paced Jobs reads while
+reviewed authentication or authorization refusals may recover. Neither permits
+science or promises that access will recover. Keep request-ID evidence for
+operator diagnosis.
+
+`can_refresh_hello` permits a freshly constructed current complete announcement,
+including after a rate limit or server failure. It never replays an old snapshot
+or confirms an earlier send. A verified request-body timeout proves only that
+this send made no domain change; earlier uncertainty and retained START keys and
+bodies remain owned by their lifecycle. Fresh-signing permission alone never
+authorizes another mutation or capability issuance.
+
+`AnalysisOffering` admits its kind and description when constructed, so providers
+can attach their model-specific context to a refusal. Aggregate Hello encoding
+owns offering uniqueness and the total request budget. CA loading distinguishes
+non-ASCII input from OpenSSL certificate-loading failures, preserving protected
+causes; the selected file reader owns file and byte-limit admission.
+
 Repository names below identify [NMRNet](https://github.com/numpde/nmrnet-repro),
 [Magnet](https://github.com/numpde/magnet-deploy),
 [SECS](https://github.com/numpde/secs-repro),
