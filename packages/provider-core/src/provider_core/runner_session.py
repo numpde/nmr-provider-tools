@@ -7,6 +7,7 @@ require_container()
 import socket
 import time
 import errno
+import threading
 from dataclasses import dataclass
 
 from provider_core.runner_protocol import LifecycleRejected, positive_seconds, receive_document, receive_greeting
@@ -21,8 +22,10 @@ class Retirement:
 class RunnerSession:
     """A synchronous I/O owner, retained by async callers through their original task.
 
-    Construct before starting connect. request_stop half-closes control immediately;
-    it does not wait for scientific exchange or claim that cleanup has completed.
+    Construct before starting connect. request_stop retains intent before connection
+    and half-closes connected control without waiting for scientific exchange.
+    Once connected, the original greeting read keeps its startup deadline; join
+    that setup operation before observing retirement or closing the session.
     """
 
     def __init__(self, path, *, role, expected_lock_identity, startup_seconds, retirement_seconds):
@@ -34,7 +37,9 @@ class RunnerSession:
         self.science = None
         self.generation = self.operation = self.lock_identity = None
         self.retirement = None
-        self._stop_requested = False
+        self._stop_requested = threading.Event()
+        self._control_state = threading.Lock()
+        self._connected = False
         self._observation_failure = None
         self._connect_started = False
 
@@ -44,30 +49,45 @@ class RunnerSession:
         self._connect_started = True
         phase_deadline = time.monotonic() + self._startup
         deadline = phase_deadline if deadline is None else min(deadline, phase_deadline)
+        self._connect_control(deadline)
+        try:
+            with self._control_state:
+                self._connected = True
+                if self._stop_requested.is_set():
+                    self.control.shutdown(socket.SHUT_WR)
+            greeting, self.science = receive_greeting(self.control, deadline=deadline)
+            if greeting["role"] != self.role or tuple(greeting["lock"]) != self.expected_lock_identity:
+                self.science.close()
+                self.science = None
+                raise LifecycleRejected("Runner greeting does not match the admitted role and stable lifetime lock.")
+            self.generation, self.operation = greeting["generation"], greeting["operation"]
+            self.lock_identity = tuple(greeting["lock"])
+        except BaseException as cause:
+            self._observation_failure = cause
+            raise
+
+    def _connect_control(self, deadline):
         while True:
+            if self._stop_requested.is_set():
+                raise InterruptedError("Runner startup was stopped before connecting to its control endpoint.")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError("Runner did not become ready within its startup budget.")
             self.control.settimeout(remaining)
             try:
                 self.control.connect(self.path)
-                break
+                return
             except OSError as cause:
                 if cause.errno not in (errno.ENOENT, errno.ECONNREFUSED):
                     raise
-                time.sleep(min(0.02, max(0, deadline - time.monotonic())))
-        greeting, self.science = receive_greeting(self.control, deadline=deadline)
-        if greeting["role"] != self.role or tuple(greeting["lock"]) != self.expected_lock_identity:
-            self.science.close()
-            self.science = None
-            raise LifecycleRejected("Runner greeting does not match the admitted role and stable lifetime lock.")
-        self.generation, self.operation = greeting["generation"], greeting["operation"]
-        self.lock_identity = tuple(greeting["lock"])
+                self._stop_requested.wait(min(0.02, max(0, deadline - time.monotonic())))
 
     def request_stop(self):
-        if not self._stop_requested:
-            self.control.shutdown(socket.SHUT_WR)
-            self._stop_requested = True
+        with self._control_state:
+            if not self._stop_requested.is_set():
+                self._stop_requested.set()
+                if self._connected:
+                    self.control.shutdown(socket.SHUT_WR)
 
     def retire(self, *, deadline=None):
         if self.retirement is None:
@@ -78,7 +98,7 @@ class RunnerSession:
         """Receive cleanup facts without causing retirement (including cap expiry)."""
         if self._observation_failure is not None:
             raise LifecycleRejected(
-                "Original runner retirement read failed; preserve its cause and use bounded lifecycle recovery, not a second frame read."
+                "Original runner control setup or lifecycle read failed; preserve its cause and use bounded lifecycle recovery, not a second frame read."
             ) from self._observation_failure
         if self.retirement is None:
             self.control.settimeout(self._cleanup)

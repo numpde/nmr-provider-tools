@@ -2,19 +2,89 @@
 
 import os
 import array
+from concurrent.futures import ThreadPoolExecutor
 import fcntl
+from pathlib import Path
 import signal
 import socket
+import tempfile
 import threading
 import time
 import unittest
 
-from provider_core.runner_protocol import LifecycleRejected, receive_document, receive_greeting
+from provider_core.runner_protocol import LifecycleRejected, receive_document, receive_greeting, send_document, send_greeting
 from provider_core.runner_session import RunnerSession
 from tests.fakes.runner import RunningSupervisor, worker_pid
 
 
 class RunnerRefusalTests(unittest.TestCase):
+    def test_failed_greeting_cannot_admit_a_retirement_with_null_operation_identity(self):
+        with tempfile.TemporaryDirectory() as temporary, socket.socket(socket.AF_UNIX) as listener:
+            path = str(Path(temporary) / "runner.sock")
+            listener.bind(path)
+            listener.listen()
+            listener.settimeout(1)
+            session = RunnerSession(
+                path, role="fixture", expected_lock_identity=(0, 0), startup_seconds=1, retirement_seconds=1,
+            )
+            self.addCleanup(session.close)
+            science, remote = socket.socketpair()
+            with science, remote:
+                def reply():
+                    peer, _ = listener.accept()
+                    with peer:
+                        send_greeting(peer, {"kind": "malformed"}, science, deadline=time.monotonic() + 1)
+                        send_document(peer, {
+                            "kind": "retired", "generation": None, "operation": None,
+                            "returncode": 0, "scratch_released": True,
+                        }, deadline=time.monotonic() + 1)
+                with ThreadPoolExecutor(max_workers=1) as executor:
+                    original = executor.submit(reply)
+                    with self.assertRaises(LifecycleRejected) as setup:
+                        session.connect()
+                    original.result(timeout=2)
+                science.close()
+                remote.settimeout(1)
+                self.assertEqual(b"", remote.recv(1))
+                with self.assertRaises(LifecycleRejected) as observation:
+                    session.observe_retirement()
+                self.assertIs(setup.exception, observation.exception.__cause__)
+                self.assertIsNone(session.retirement)
+
+    def test_partial_greeting_timeout_closes_its_descriptor_and_blocks_another_frame_read(self):
+        with tempfile.TemporaryDirectory() as temporary, socket.socket(socket.AF_UNIX) as listener:
+            path = str(Path(temporary) / "runner.sock")
+            listener.bind(path)
+            listener.listen()
+            listener.settimeout(1)
+            session = RunnerSession(
+                path, role="fixture", expected_lock_identity=(0, 0), startup_seconds=0.2, retirement_seconds=1,
+            )
+            self.addCleanup(session.close)
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                original = executor.submit(session.connect)
+                peer, _ = listener.accept()
+                science, remote = socket.socketpair()
+                with peer, science, remote:
+                    peer.sendmsg([b"\0\0\0"], [
+                        (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [science.fileno()])),
+                    ])
+                    science.close()
+                    with self.assertRaises(TimeoutError) as setup:
+                        original.result(timeout=1)
+                    remote.settimeout(1)
+                    self.assertEqual(b"", remote.recv(1))
+                    retired = {
+                        "kind": "retired", "generation": None, "operation": None,
+                        "returncode": 0, "scratch_released": True,
+                    }
+                    send_document(peer, retired, deadline=time.monotonic() + 1)
+                    with self.assertRaises(LifecycleRejected) as observation:
+                        session.observe_retirement()
+                    self.assertIs(setup.exception, observation.exception.__cause__)
+                    self.assertIsNone(session.retirement)
+                    self.assertEqual(retired, receive_document(session.control, deadline=time.monotonic() + 1))
+
     def test_extra_received_descriptors_are_closed_on_rejection(self):
         sender, receiver = socket.socketpair()
         one, two = socket.socketpair()
