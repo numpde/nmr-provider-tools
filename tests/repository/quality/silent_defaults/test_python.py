@@ -451,6 +451,47 @@ def _contract_candidate(node: ast.AST, label: str, *, protected: ast.Try | None 
     )
 
 
+def _positive_exit(value):
+    if isinstance(value, ast.Constant):
+        return type(value.value) is int and value.value > 0
+    return isinstance(value, ast.IfExp) and _positive_exit(value.body) and _positive_exit(value.orelse)
+
+
+def _exception_outcome_contract(handler, protected):
+    # This is annotation applicability, not a proof of exception semantics or
+    # reporting. Reviewers own those claims. Never cover nested input defaults.
+    if handler.type is None:
+        return False
+    if any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.Try, ast.With,
+                             ast.AsyncWith, ast.For, ast.AsyncFor, ast.While))
+           for statement in handler.body for node in ast.walk(statement)):
+        return False
+    if any(contains_env_access(statement) or contains_raw_args_access(statement) for statement in protected.body):
+        return False
+    if isinstance(handler.body[-1], ast.Return) and _positive_exit(handler.body[-1].value):
+        # A direct final return prevents a swallowed failure from falling through
+        # to the process success path. Earlier conditional returns must also fail.
+        return all(_positive_exit(node.value) for statement in handler.body
+                   for node in ast.walk(statement) if isinstance(node, ast.Return))
+    declared = handler.type.elts if isinstance(handler.type, ast.Tuple) else [handler.type]
+    if any(not isinstance(node, ast.Name) or node.id in {"Exception", "BaseException", "ExceptionGroup", "BaseExceptionGroup"}
+           for node in declared):
+        return False
+    if any(contains_env_access(statement) or contains_raw_args_access(statement)
+           or any(args_attribute_name(node) is not None for node in ast.walk(statement)) for statement in protected.body):
+        return False
+    if len(handler.body) != 1 or not isinstance(handler.body[0], ast.Return):
+        return False
+    value = handler.body[0].value
+    refusal = isinstance(value, ast.Constant) and value.value is False
+    unavailable = (
+        isinstance(value, ast.Dict) and len(value.keys) == 1 and isinstance(value.keys[0], ast.Constant)
+        and value.keys[0].value == "detail_unavailable" and isinstance(value.values[0], ast.Constant)
+        and isinstance(value.values[0].value, str) and bool(value.values[0].value.strip())
+    )
+    return refusal or unavailable or isinstance(value, ast.Name)
+
+
 def python_operator_default_findings(path: Path) -> list[str]:
     """Apply boolean guard classification and local reviewed exceptions.
 
@@ -479,6 +520,9 @@ def python_operator_default_findings(path: Path) -> list[str]:
     in its protected Try suite remains strict. The existing allow-pop-default tag
     covers only a discarded fixed-key ENV pop(None), using the same explanation
     requirement. The legacy production ENV-default rule remains separate and strict.
+    An allow-exception-outcome tag covers only a typed direct refusal, retained named result,
+    unavailable-detail record, or handler with a direct positive final result. It does not
+    prove the named result is a failure or that diagnostics are safe; review owns those claims.
     Each tag requires a nonblank explanation; reviewers judge its meaning.
     """
     source = path.read_text(encoding="utf-8")
@@ -499,7 +543,7 @@ def python_operator_default_findings(path: Path) -> list[str]:
     lambda_bodies = [node.body for node in ast.walk(tree) if isinstance(node, ast.Lambda)]
     for token in tokenize.generate_tokens(io.StringIO(source).readline):
         if token.type != tokenize.COMMENT or not token.string.startswith(
-            ("# silent-defaults: allow-contract", "# silent-defaults: allow-pop-default", "# silent-defaults: allow-lambda-body")
+            ("# silent-defaults: allow-contract", "# silent-defaults: allow-pop-default", "# silent-defaults: allow-lambda-body", "# silent-defaults: allow-exception-outcome")
         ):
             continue
         prefix, separator, reason = token.string.partition(" -- ")
@@ -509,6 +553,14 @@ def python_operator_default_findings(path: Path) -> list[str]:
         following_handlers = [(handler, owner) for handler, owner in handlers if handler.lineno == next_line]
         following_entries = [(key, value, owner) for key, value, owner in entries if key is not None and key.lineno == next_line]
         protected = None
+        if prefix == "# silent-defaults: allow-exception-outcome":
+            if (separator and not token.line[:token.start[1]].strip() and len(following_handlers) == 1
+                    and following_handlers[0][0].col_offset == token.start[1] and reason.strip()
+                    and _exception_outcome_contract(*following_handlers[0])):
+                accepted.add(following_handlers[0][0])
+            else:
+                findings.append(f"{path.relative_to(ROOT)}:{token.start[0]}: exception-outcome annotation requires an explanation and an immediate bounded failure outcome")
+            continue
         if prefix == "# silent-defaults: allow-lambda-body":
             # This placement owns one callable result, never its signature or container.
             following = [body for body in lambda_bodies if body.lineno == next_line]

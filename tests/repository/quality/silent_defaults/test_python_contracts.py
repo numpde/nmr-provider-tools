@@ -1086,6 +1086,41 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         self.assertEqual(2, len(raw))
         self.assertEqual([raw[1]], applicable)
 
+    def test_reviewed_exception_outcomes_preserve_raw_candidates(self):
+        tag = "# silent-defaults: allow-exception-outcome -- Preserve the reviewed failure outcome\n"
+        for outcome in ('False', 'failure', '{"detail_unavailable": "Unreadable optional detail"}'):
+            source = "def operation():\n    try:\n        parse_optional_detail()\n    " + tag + "    except ValueError:\n        return " + outcome + "\n"
+            with self.subTest(outcome=outcome):
+                raw, applicable = self.exercise_property(source, accepted=True)
+                self.assertEqual(1, len(raw))
+                self.assertEqual([], applicable)
+
+    def test_exception_outcome_tag_cannot_cover_success_or_operator_fallback(self):
+        tag = "# silent-defaults: allow-exception-outcome -- Review this handler only\n"
+        for body, caught, protected in (
+            ("return True", "ValueError", "parse()"),
+            ("return 0", "ValueError", "parse()"),
+            ("return []", "ValueError", "parse()"),
+            ("return failure", "Exception", "parse()"),
+            ("return False", "KeyError", 'os.environ["SETTING"]'),
+            ("return False", "IndexError", "args[0]"),
+            ("return 7", "KeyError", 'os.environ["SETTING"]'),
+            ("return 7", "IndexError", "args[0]"),
+            ("str(error)\n        if False:\n            return 1", "Exception as error", "parse()"),
+        ):
+            source = "def main():\n    try:\n        " + protected + "\n    " + tag + "    except " + caught + ":\n        " + body + "\n    return 0\n"
+            with self.subTest(body=body, caught=caught, protected=protected):
+                self.exercise_property(source, accepted=False)
+
+    def test_process_failure_contract_requires_direct_nonzero_final_return(self):
+        tag = "# silent-defaults: allow-exception-outcome -- Report the process failure and exit nonzero\n"
+        source = "def main():\n    try:\n        start()\n    " + tag + "    except BaseException as error:\n        report(error)\n        if interrupted(error):\n            return 130\n        return 2\n"
+        raw, applicable = self.exercise_property(source, accepted=True)
+        self.assertEqual(1, len(raw))
+        self.assertEqual([], applicable)
+        self.exercise_property(source.replace('return 130', 'return 0'), accepted=False)
+        self.exercise_property(source.replace('report(error)', 'value = state.get("value", 7)'), accepted=False)
+
 
 if __name__ == "__main__":
     unittest.main()
