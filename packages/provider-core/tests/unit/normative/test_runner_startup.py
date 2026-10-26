@@ -13,6 +13,7 @@ import time
 import unittest
 from unittest.mock import patch
 
+import provider_core.runner_session as runner_api
 from provider_core.runner_protocol import send_document, send_greeting
 from provider_core.runner_session import RunnerSession
 
@@ -42,10 +43,13 @@ class RunnerStartupTests(unittest.TestCase):
 
     def test_stop_before_connect_does_not_reach_the_listening_peer(self):
         session = self.session(socket.socket)
+        self.assertFalse(session.control_connected)
         session.request_stop()
         session.request_stop()
-        with self.assertRaises(InterruptedError):
+        with self.assertRaises(InterruptedError) as stopped:
             session.connect()
+        self.assertIs(runner_api.RunnerStartupStopped, type(stopped.exception))
+        self.assertFalse(session.control_connected)
         self.assertIsNone(session.science)
         self.assertIsNone(session.operation)
         self.assertIsNone(session.retirement)
@@ -81,9 +85,26 @@ class RunnerStartupTests(unittest.TestCase):
             self.assertTrue(attempted.wait(1))
             self.assertEqual(expected_errno, failures[0])
             session.request_stop()
-            with self.assertRaises(InterruptedError):
+            with self.assertRaises(InterruptedError) as stopped:
                 original.result(timeout=1)
+        self.assertIs(runner_api.RunnerStartupStopped, type(stopped.exception))
+        self.assertFalse(session.control_connected)
         self.assertIsNone(session.science)
+        self.assertIsNone(session.retirement)
+
+    def test_foreign_connect_interruption_keeps_its_original_identity(self):
+        failure = InterruptedError(errno.EINTR, "Fixture interrupted the transport connect.")
+
+        class InterruptedConnect(socket.socket):
+            def connect(self, _address):
+                raise failure
+
+        session = self.session(InterruptedConnect)
+        with self.assertRaises(InterruptedError) as caught:
+            session.connect()
+        self.assertIs(failure, caught.exception)
+        self.assertIsNot(runner_api.RunnerStartupStopped, type(caught.exception))
+        self.assertFalse(session.control_connected)
         self.assertIsNone(session.retirement)
 
     def test_stop_racing_successful_kernel_connect_half_closes_the_accepted_peer(self):
@@ -111,6 +132,7 @@ class RunnerStartupTests(unittest.TestCase):
                 self.assertEqual(b"", peer.recv(1))
                 send_greeting(peer, self.greeting, science, deadline=time.monotonic() + 1)
                 original.result(timeout=1)
+                self.assertTrue(session.control_connected)
                 send_document(peer, {
                     "kind": "retired", "generation": self.greeting["generation"],
                     "operation": self.greeting["operation"], "returncode": -15, "scratch_released": True,
@@ -149,5 +171,6 @@ class RunnerStartupTests(unittest.TestCase):
                 self.assertEqual(0, session.retirement.returncode)
                 self.assertTrue(session.retirement.scratch_released)
                 session.close()
+                self.assertTrue(session.control_connected)
                 remote.settimeout(1)
                 self.assertEqual(b"", remote.recv(1))

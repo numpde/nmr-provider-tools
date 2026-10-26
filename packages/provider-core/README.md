@@ -30,6 +30,12 @@ Use one absolute provider startup deadline across control setup and scientific
 readiness. A failed greeting prevents another control read, and closing the
 session does not prove child or scratch retirement.
 
+After setup joins, `control_connected` records whether control connect returned
+successfully, including after close. It proves neither greeting admission nor
+cleanup. Only the SDK's `RunnerStartupStopped` with no successful connection
+identifies its pre-connection stop path; arbitrary OS failures, including an
+ordinary `InterruptedError`, retain their original identity and uncertainty.
+
 `ToolConversation` keeps one bounded transcript and permits endpoint fallback
 only after a carrier failure. Providers own endpoint selection and scientific
 tool dispatch. An explicit `text_correction=TextCorrection(user_content=...)`

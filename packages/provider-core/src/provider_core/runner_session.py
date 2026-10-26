@@ -19,6 +19,10 @@ class Retirement:
     scratch_released: bool
 
 
+class RunnerStartupStopped(InterruptedError):
+    """The requested stop prevented control connection, including after known refusals."""
+
+
 class RunnerSession:
     """A synchronous I/O owner, retained by async callers through their original task.
 
@@ -42,6 +46,15 @@ class RunnerSession:
         self._connected = False
         self._observation_failure = None
         self._connect_started = False
+
+    @property
+    def control_connected(self):
+        """Record successful control connect after setup joins, even after close.
+
+        This proves neither greeting nor retirement. False does not exclude an
+        operation after an arbitrary OS connect failure.
+        """
+        return self._connected
 
     def connect(self, *, deadline=None):
         if self._connect_started:
@@ -69,7 +82,7 @@ class RunnerSession:
     def _connect_control(self, deadline):
         while True:
             if self._stop_requested.is_set():
-                raise InterruptedError("Runner startup was stopped before connecting to its control endpoint.")
+                raise RunnerStartupStopped("Runner startup was stopped before connecting to its control endpoint.")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 raise TimeoutError("Runner did not become ready within its startup budget.")
