@@ -66,6 +66,37 @@ class RunnerStartupTests(unittest.TestCase):
         self.listener.close()
         self.assert_retry_stops(errno.ECONNREFUSED)
 
+    def test_missing_endpoint_deadline_is_an_owned_unavailable_outcome(self):
+        self.listener.close()
+        self.path.unlink()
+        self.assert_deadline_unavailable(errno.ENOENT)
+
+    def test_refused_endpoint_deadline_is_an_owned_unavailable_outcome(self):
+        self.listener.close()
+        self.assert_deadline_unavailable(errno.ECONNREFUSED)
+
+    def assert_deadline_unavailable(self, expected_errno):
+        failures = []
+
+        class ObservedConnect(socket.socket):
+            def connect(self, address):
+                try:
+                    return super().connect(address)
+                except OSError as cause:
+                    failures.append(cause.errno)
+                    raise
+
+        session = self.session(ObservedConnect)
+        with self.assertRaises(TimeoutError) as unavailable:
+            session.connect(deadline=time.monotonic() + 0.1)
+        self.assertTrue(failures)
+        self.assertEqual({expected_errno}, set(failures))
+        self.assertEqual("RunnerStartupUnavailable", type(unavailable.exception).__name__)
+        self.assertEqual(runner_api.__name__, type(unavailable.exception).__module__)
+        self.assertFalse(session.control_connected)
+        self.assertIsNone(session.science)
+        self.assertIsNone(session.retirement)
+
     def assert_retry_stops(self, expected_errno):
         attempted = threading.Event()
         failures = []
@@ -104,6 +135,20 @@ class RunnerStartupTests(unittest.TestCase):
             session.connect()
         self.assertIs(failure, caught.exception)
         self.assertIsNot(runner_api.RunnerStartupStopped, type(caught.exception))
+        self.assertFalse(session.control_connected)
+        self.assertIsNone(session.retirement)
+
+    def test_foreign_connect_timeout_keeps_its_original_identity(self):
+        failure = TimeoutError("Fixture transport connect timed out.")
+
+        class TimedOutConnect(socket.socket):
+            def connect(self, _address):
+                raise failure
+
+        session = self.session(TimedOutConnect)
+        with self.assertRaises(TimeoutError) as caught:
+            session.connect()
+        self.assertIs(failure, caught.exception)
         self.assertFalse(session.control_connected)
         self.assertIsNone(session.retirement)
 

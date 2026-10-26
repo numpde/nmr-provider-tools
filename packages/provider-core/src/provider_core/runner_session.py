@@ -23,6 +23,10 @@ class RunnerStartupStopped(InterruptedError):
     """The requested stop prevented control connection, including after known refusals."""
 
 
+class RunnerStartupUnavailable(TimeoutError):
+    """The SDK startup deadline expired before any successful control connection."""
+
+
 class RunnerSession:
     """A synchronous I/O owner, retained by async callers through their original task.
 
@@ -85,7 +89,7 @@ class RunnerSession:
                 raise RunnerStartupStopped("Runner startup was stopped before connecting to its control endpoint.")
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                raise TimeoutError("Runner did not become ready within its startup budget.")
+                raise RunnerStartupUnavailable("Runner control endpoint was not connected within its startup budget.")
             self.control.settimeout(remaining)
             try:
                 self.control.connect(self.path)

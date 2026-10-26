@@ -118,6 +118,7 @@ class RunnerRefusalTests(unittest.TestCase):
                     science.close()
                     with self.assertRaises(TimeoutError) as setup:
                         original.result(timeout=1)
+                    self.assertIs(TimeoutError, type(setup.exception))
                     self.assertTrue(session.control_connected)
                     self.assertIsNone(session.operation)
                     remote.settimeout(1)

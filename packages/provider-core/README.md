@@ -38,6 +38,11 @@ cleanup. Only the SDK's `RunnerStartupStopped` with no successful connection
 identifies its pre-connection stop path; arbitrary OS failures, including an
 ordinary `InterruptedError`, retain their original identity and uncertainty.
 
+`RunnerStartupUnavailable` is a `TimeoutError` emitted only when the SDK's own
+pre-connection deadline expires, before any attempt or after known missing or
+refused endpoint attempts. Socket and greeting timeouts retain their original
+identity and uncertainty; providers own the resulting availability policy.
+
 `ToolConversation` keeps one bounded transcript and permits endpoint fallback
 only after a carrier failure. Providers own endpoint selection and scientific
 tool dispatch. An explicit `text_correction=TextCorrection(user_content=...)`
