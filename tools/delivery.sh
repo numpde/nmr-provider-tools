@@ -135,9 +135,9 @@ if [[ $action == up || $action == held || $action == discard ]]; then
         fi
         grants=(--mount "type=bind,src=$operation_directory/definition.toml,dst=/input/definition.toml,readonly"
             --mount "type=volume,src=$project-queue,dst=/state,volume-nocopy")
-        checker_metadata "$operation_directory/queue" volume inspect --format '{{.Name}}|{{index .Labels "com.docker.compose.project"}}' "$project-queue"
-        cmp -s "$operation_directory/queue" <(printf '%s|%s\n' "$project-queue" "$project") \
-            || { refuse 'the selected queue is absent or belongs to another project; no inspection helper was started.'; exit 2; }
+        checker_metadata "$operation_directory/queue" volume inspect --format '{{.Name}}' "$project-queue"
+        cmp -s "$operation_directory/queue" <(printf '%s\n' "$project-queue") \
+            || { refuse 'the selected queue is absent or its name differs; no inspection helper was started.'; exit 2; }
         helper /opt/provider-tools/delivery_deployment.py operator --definition /input/definition.toml --sha256 "$checksum" \
             -- --api-origin "$API_ORIGIN_INPUT" --provider-ref "$PROVIDER_REF_INPUT" "${arguments[@]}"
     fi
