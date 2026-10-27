@@ -8,7 +8,7 @@ preparation, inference, model runners, offerings and model configuration.
 
 Source is public at [numpde/nmr-provider-tools](https://github.com/numpde/nmr-provider-tools).
 Packages are distributed through [GitHub Releases](https://github.com/numpde/nmr-provider-tools/releases),
-including [v0.2.3](https://github.com/numpde/nmr-provider-tools/releases/tag/v0.2.3),
+including [v0.3.0](https://github.com/numpde/nmr-provider-tools/releases/tag/v0.3.0),
 rather than a Python package index. See the [package documentation](packages/provider-core/README.md)
 for API boundaries and provenance.
 
@@ -23,10 +23,10 @@ container build or runtime:
 ```sh
 python -m pip install --no-index --no-deps --only-binary=:all: \
   --find-links /path/to/cache --require-hashes \
-  -r /path/to/provider_core-0.2.3-install.lock
+  -r /path/to/provider_core-0.3.0-install.lock
 ```
 
-The [v0.2.3 release note](notes/009_release_v0.2.3.md) records the exact wheel
+The [v0.3.0 release note](notes/011_release_v0.3.0.md) records the exact wheel
 hash and asset links. Consumer builds install those issued bytes offline;
 they do not rebuild core or import a sibling checkout. Operational modules run
 through container launchers that supply the package's container marker.
