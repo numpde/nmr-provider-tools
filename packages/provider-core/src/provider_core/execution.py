@@ -29,6 +29,7 @@ from provider_core.analysis import AnalysisFailure, AnalysisSuccess, PreparedAna
 from provider_core.api import ApiFailure
 from provider_core.attempt_record import (
     AcknowledgedAttempt,
+    RecoveryScope,
     LocalExecutionPhase,
     SuppressionReason,
     TerminalOperation,
@@ -40,6 +41,7 @@ from provider_core.checkpoint_store import CheckpointFailed, CheckpointRefused
 from provider_core.delivery_client import DeliveryUnavailable
 from provider_core.delivery_store import DeliveryFull, DeliveryOutcome
 from provider_core.delivery_worker import require_delivery_retry_settings
+from provider_core.job_input import VerifiedJobInput
 from provider_core.producer_checkpoint import (
     AcknowledgedCheckpoint, DeliveryAcceptedCheckpoint, EnteredCheckpoint,
     EvidenceDigest, SuppressedCheckpoint, TerminalSelectedCheckpoint,
@@ -282,14 +284,27 @@ class AttemptExecutor:
     retry progress, START, terminal publication or scientific operations.
     """
 
+    def __init__(self, api, store, claim, session, **settings):
+        self._configure(api, store, store.scope, claim, session, preverified_input=None, **settings)
+
+    @classmethod
+    # None preserves the post-START input read; Magnet supplies its verified object.
+    def live(cls, api, claim, session, *, scope, preverified_input=None, **settings):
+        claim.require_live(scope)
+        executor = cls.__new__(cls)
+        executor._configure(api, None, scope, claim, session, preverified_input=preverified_input, **settings)
+        return executor
+
     # Core consumers keep fail-stop reads and phase delivery unless they explicitly supply recovery or a protected unconfirmed-phase observer.
-    def __init__(
+    def _configure(
         self,
         api,
         store,
+        scope,
         claim,
         session,
         *,
+        preverified_input,
         delivery,
         on_delivery_retry,
         delivery_retry_initial_seconds,
@@ -301,10 +316,12 @@ class AttemptExecutor:
         on_unconfirmed_phase_progress=None,
         condition_recovery=None,
     ):
-        if api.origin != store.scope.api_origin:
-            raise ValueError("Cannot configure execution: signing origin differs from retained storage scope")
+        if type(scope) is not RecoveryScope or api.origin != scope.api_origin:
+            raise ValueError("Cannot configure execution: signing origin differs from the selected scope")
+        if preverified_input is not None and type(preverified_input) is not VerifiedJobInput:
+            raise ValueError("Execution requires the actual verified Job input or an explicit post-START read")
         if ((delivery.endpoint.api_origin, delivery.endpoint.provider_ref)
-                != (store.scope.api_origin, store.scope.provider_ref) or not callable(on_delivery_retry)):
+                != (scope.api_origin, scope.provider_ref) or not callable(on_delivery_retry)):
             raise ValueError("Execution requires the scoped delivery binding and its protected retry observer.")
         require_execution_settings(
             allowed_job_states=allowed_job_states, poll_seconds=poll_seconds, task_settle_seconds=task_settle_seconds
@@ -314,6 +331,7 @@ class AttemptExecutor:
         require_phase_progress_observer(on_unconfirmed_phase_progress)
         require_condition_recovery(condition_recovery)
         self.api, self.store, self.claim, self.session = api, store, claim, session
+        self.scope, self._preverified_input = scope, preverified_input
         self.delivery, self._on_delivery_retry = delivery, on_delivery_retry
         self._delivery_retry_initial = delivery_retry_initial_seconds
         self._delivery_retry_max = delivery_retry_max_seconds
@@ -352,6 +370,15 @@ class AttemptExecutor:
         """Expose the owning confirmation without asking composition to repeat it."""
         return self._retirement is _Retirement.CONFIRMED
 
+    @property
+    def _storage_pending(self):
+        return self.store is not None and self.store.pending_owner is self
+
+    def require_terminal_release_ready(self, claim):
+        if (claim is not self.claim or self._delivery_acceptance is None
+                or type(self._checkpoint) is not DeliveryAcceptedCheckpoint):
+            raise ExecutionRefused("Cannot release report capacity before this executor receives its matching delivery acknowledgement")
+
     async def run(self, acknowledged):
         if self._started:
             raise ExecutionRefused("This executor already accepted a run; settlement cannot authorize another execution")
@@ -359,22 +386,28 @@ class AttemptExecutor:
             type(acknowledged) is not AcknowledgedAttempt
             or acknowledged.local_phase is not LocalExecutionPhase.NOT_ENTERED
             or acknowledged.admission.state != "in_progress"
-            or acknowledged.start.scope != self.store.scope
+            or acknowledged.start.scope != self.scope
         ):
             raise ExecutionRefused("Execution requires a matching active acknowledgement that has never entered science")
         self.claim.require_start(acknowledged.start)
-        self.claim.require(self.store.scope, acknowledged.admission.execution_attempt_ref)
+        self.claim.require(self.scope, acknowledged.admission.execution_attempt_ref)
+        if self.store is None:
+            self.claim.lifecycle_owner.require_execution_ready(self.claim, self, acknowledged)
+        if self._preverified_input is not None and self._preverified_input.identity != acknowledged.start.input:
+            raise ExecutionRefused("Verified Job input differs from this Attempt's selected input; no science was started")
         self.claim.begin(self)
         self._started = self._active = self._observing = True
         self._record = acknowledged
         self._checkpoint = AcknowledgedCheckpoint(acknowledged.start, acknowledged.admission)
         try:
-            if self._checkpoint not in await self.store.inventory(owner=self):
+            if self.store is not None and self._checkpoint not in await self.store.inventory(owner=self):
                 raise ExecutionRefused("Exact acknowledgement is not current in storage; reread it before preparing work")
             await self._observe_active()
-            instructions = await self._api(
-                self.api.job_input, acknowledged.start.input, analysis_kind_ref=acknowledged.start.analysis_kind_ref
-            )
+            instructions = self._preverified_input
+            if instructions is None:
+                instructions = await self._api(
+                    self.api.job_input, acknowledged.start.input, analysis_kind_ref=acknowledged.start.analysis_kind_ref
+                )
             await self._progress("preparing")
             prepared = await self._monitor("preparing", self._prepare_session, acknowledged, instructions)
             if type(prepared) is AnalysisFailure:
@@ -756,6 +789,10 @@ class AttemptExecutor:
         self._record = record
 
     async def _write_entry(self, record):
+        if self.store is None:
+            self._checkpoint = EnteredCheckpoint(self._checkpoint, EvidenceDigest.from_evidence(record.prepared_identity))
+            self._record = record
+            return
         # The prepared session is already live. Keep observing stop while its
         # entry record persists; cancelling this waiter cannot undo the store's
         # separately owned filesystem operation.
@@ -796,17 +833,25 @@ class AttemptExecutor:
             operation = TerminalOperation.FAIL
         else:
             raise TypeError("Analysis session returned an unsupported outcome; preserve it for binding diagnosis")
-        return DeliveryOutcome(self.store.scope.api_origin, self.store.scope.provider_ref,
+        return DeliveryOutcome(self.scope.api_origin, self.scope.provider_ref,
                                self._record.start.input.job_ref, reference, operation, body)
 
     async def _handoff(self):
-        self._delivery_outcome = self._terminal()
+        outcome = self._terminal()
+        if self.store is None and len(outcome.body) > self.claim.maximum_terminal_bytes:
+            raise ExecutionRefused(
+                "Cannot hand off this outcome: its encoded request exceeds the reserved report allowance; retain the outcome and cleanup owner"
+            )
+        self._delivery_outcome = outcome
         self._unconfirmed = TerminalSelectedCheckpoint(
             self._checkpoint, self._delivery_outcome.operation,
             self._delivery_outcome.body_sha256, len(self._delivery_outcome.body),
         )
         try:
-            self._checkpoint = await self.store.select_terminal(self._checkpoint, self._delivery_outcome, owner=self)
+            if self.store is None:
+                self._checkpoint = self._unconfirmed
+            else:
+                self._checkpoint = await self.store.select_terminal(self._checkpoint, self._delivery_outcome, owner=self)
         except CheckpointRefused:
             self._unconfirmed = None
             raise
@@ -836,9 +881,13 @@ class AttemptExecutor:
                 self._delivery_outcome = self._outcome = None
                 self._refresh_failure()
                 self._unconfirmed = DeliveryAcceptedCheckpoint(self._checkpoint)
-                self._checkpoint = await self.store.accept_delivery(
-                    self._checkpoint, self._delivery_acceptance, owner=self,
-                )
+                if self.store is None:
+                    self._checkpoint = self._unconfirmed
+                    self.claim.release_terminal(owner=self)
+                else:
+                    self._checkpoint = await self.store.accept_delivery(
+                        self._checkpoint, self._delivery_acceptance, owner=self,
+                    )
                 self._unconfirmed = None
                 return
 
@@ -928,11 +977,11 @@ class AttemptExecutor:
             raise CheckpointRefused(
                 "Cannot settle storage while the original entry observer is unresolved; settle that observer first"
             )
-        if self.store.pending_owner is self:
+        if self._storage_pending:
             try:
                 settled = await self.store.settle(owner=self)
             except CheckpointRefused:
-                if self.store.pending_owner is not self:
+                if not self._storage_pending:
                     self._unconfirmed = None
                 raise
             if self._unconfirmed is not None:
@@ -1002,11 +1051,11 @@ class AttemptExecutor:
             self._finish_if_settled()
 
     async def retain_suppressed_disposition(self):
-        """Persist why returned evidence was suppressed, without its scientific bytes.
+        """Retain why returned evidence was suppressed, without scientific bytes.
 
-        Settle original tasks and I/O first. This method starts one owned CAS write;
-        cancellation retains that write for settle(), never a replacement attempt.
-        Persistence alone cannot release unconfirmed worker retirement.
+        Settle original tasks and I/O first. Durable mode starts one owned CAS
+        write; live mode records the disposition synchronously. Neither releases
+        unconfirmed worker retirement or authorizes another calculation.
         """
         if (
             not self._active
@@ -1025,7 +1074,7 @@ class AttemptExecutor:
             or self._unconfirmed is not None
             or self._handoff_wait is not None
             or self.api.pending_owner is self
-            or self.store.pending_owner is self
+            or self._storage_pending
         ):
             raise ExecutionRefused("Cannot record suppression while original work or I/O is unresolved; settle it first")
         reason = _suppression_reason(self.last_failure.cause)
@@ -1037,7 +1086,10 @@ class AttemptExecutor:
         try:
             self._unconfirmed = SuppressedCheckpoint(self._checkpoint, reason)
             try:
-                self._checkpoint = await self.store.suppress(self._checkpoint, reason, owner=self)
+                if self.store is None:
+                    self._checkpoint = self._unconfirmed
+                else:
+                    self._checkpoint = await self.store.suppress(self._checkpoint, reason, owner=self)
             except CheckpointRefused:
                 self._unconfirmed = None
                 raise
@@ -1068,7 +1120,7 @@ class AttemptExecutor:
             and self._retirement_task is None
             and self.delivery.retirement_confirmed
             and self.api.pending_owner is not self
-            and self.store.pending_owner is not self
+            and not self._storage_pending
             and self._unconfirmed is None
             and not self._outcome_unretained()
         ):
