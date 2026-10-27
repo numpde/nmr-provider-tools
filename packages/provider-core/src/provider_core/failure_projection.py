@@ -14,6 +14,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 from provider_core.api import ApiFailure
+from provider_core.analysis import ObservedWorkerCrash
 from provider_core.api_config import ApiConfigurationRejected
 from provider_core.attempt_record import AcknowledgedAttempt
 from provider_core.chat import ChatFailed
@@ -61,6 +62,7 @@ def owned_relationships(error):
             yield f"interpreter turn {turn_index} correction failure", cause
     if kind in (
         CredentialRejected,
+        ObservedWorkerCrash,
         ApiFailure,
         CheckpointFailed,
         ControllerFailed,
@@ -100,6 +102,8 @@ def owned_relationships(error):
         yield "interruption cause", error.interruption_cause
     if kind is ExecutionFailed:
         yield "local delivery failure", error.delivery_failure
+        if error.delivery_diagnostic_failure is not None:
+            yield "delivery retry diagnostic", error.delivery_diagnostic_failure
         yield "handoff interruption", error.handoff_interruption
         yield "analysis operation interruption", error.operation_interruption
         yield "first condition failure", error.condition_failure
@@ -128,6 +132,7 @@ def owned_details(error):
     kind = type(error)
     if kind not in (
         CredentialRejected,
+        ObservedWorkerCrash,
         ApiFailure,
         CheckpointFailed,
         CheckpointRefused,
@@ -170,6 +175,12 @@ def owned_details(error):
     ):
         return {}
     details = {"message": str(error)}
+    if kind is ObservedWorkerCrash:
+        details.update({
+            "phase": error.phase, "returncode": error.native_exit.returncode,
+            "worker_role": error.native_exit.role, "worker_generation": error.native_exit.generation,
+            "worker_operation": error.native_exit.operation,
+        })
     if kind is DeliveryUnavailable:
         details["status"] = error.status
     if kind is DeliveryWorkerFailed:

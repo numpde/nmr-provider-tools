@@ -16,6 +16,7 @@ from typing import Protocol
 
 from provider_core.attempt_record import AcknowledgedAttempt, ProtectedEvidence
 from provider_core.job_input import VerifiedJobInput
+from provider_core.runner_session import RunnerSession
 
 ReportCondition = Callable[[str | None], Awaitable[None]]
 
@@ -34,6 +35,44 @@ class AnalysisFailure:
     code: str
     message: str = field(repr=False)
     evidence: ProtectedEvidence = field(repr=False)
+
+
+class ObservedWorkerCrash(RuntimeError):
+    """Original native exit evidence supplied by the current scientific owner.
+
+    Construction does not authorize FAIL. Core must still admit this exact
+    Attempt, phase and owner before selecting a report. Cause and evidence are
+    protected diagnostics; public wording uses only the phase and exit status.
+    """
+
+    def __init__(self, acknowledged, *, phase, owner, runner, evidence, cause):
+        if (type(acknowledged) is not AcknowledgedAttempt or phase not in ("preparing", "running")
+                or owner is None or type(runner) is not RunnerSession or type(evidence) is not ProtectedEvidence
+                or (cause is not None and not isinstance(cause, BaseException))):
+            raise ValueError("Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence")
+        original = runner.original_exit
+        if original is None:
+            raise ValueError("Cannot classify a worker crash without an original exit observed before local interruption")
+        self.acknowledged, self.phase, self.owner = acknowledged, phase, owner
+        self.runner, self.native_exit = runner, original
+        self.evidence, self.cause = evidence, cause
+        super().__init__(
+            f"Original worker exit observed (return code {original.returncode}); declared scientific phase: {phase}."
+        )
+
+    @classmethod
+    def from_session(cls, acknowledged, *, phase, owner, runner, evidence, cause):
+        return cls(acknowledged, phase=phase, owner=owner, runner=runner, evidence=evidence, cause=cause)
+
+    def public_failure(self):
+        # A signal number does not establish why that signal was sent.
+        phase = {"preparing": "preparation", "running": "calculation"}[self.phase]
+        code = self.native_exit.returncode
+        status = f"signal {-code}" if code < 0 else f"exit status {code}"
+        return AnalysisFailure(
+            "worker_crashed", f"Worker exited unexpectedly during {phase} ({status}). No verified outcome was returned.",
+            self.evidence,
+        )
 
 
 @dataclass(frozen=True, slots=True, eq=False)
