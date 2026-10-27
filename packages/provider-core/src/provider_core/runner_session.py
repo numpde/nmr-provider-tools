@@ -5,6 +5,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import socket
+import signal
 import time
 import errno
 import threading
@@ -189,6 +190,8 @@ class RunnerSession:
             or ("reason" in reply and reply["reason"] not in ("exited", "owner_lost", "deadline", "shutdown"))
         ):
             raise LifecycleRejected("Runner retirement is malformed or belongs to another operation.")
+        if not -signal.NSIG < reply["returncode"] < 256:
+            raise LifecycleRejected("Runner retirement has an impossible operating-system exit status; its cause remains unknown.")
         return Retirement(reply["returncode"], reply["scratch_released"], reply.get("reason"))
 
     def close(self):

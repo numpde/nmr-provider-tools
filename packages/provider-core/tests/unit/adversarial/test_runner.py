@@ -23,6 +23,25 @@ from tests.fakes.runner import RunningSupervisor, worker_pid
 
 
 class RunnerRefusalTests(unittest.TestCase):
+    def test_impossible_native_exit_status_cannot_create_original_exit_evidence(self):
+        for status in (-signal.NSIG, 256, 10 ** 2000):
+            with self.subTest(status_digits=len(str(status))):
+                session = RunnerSession(
+                    "unused", role="fixture", expected_lock_identity=(0, 0), startup_seconds=1, retirement_seconds=1,
+                )
+                self.addCleanup(session.close)
+                session.control.close()
+                sender, session.control = socket.socketpair()
+                session.generation, session.operation = "generation", "operation"
+                with sender:
+                    send_document(sender, {
+                        "kind": "retired", "generation": session.generation, "operation": session.operation,
+                        "returncode": status, "scratch_released": True, "reason": "exited",
+                    }, deadline=time.monotonic() + 1)
+                    with self.assertRaises(LifecycleRejected):
+                        session.observe_retirement()
+                self.assertIsNone(session.original_exit)
+
     def test_a_second_retirement_reader_cannot_consume_the_original_frame(self):
         runner = RunningSupervisor()
         self.addCleanup(runner.close)
