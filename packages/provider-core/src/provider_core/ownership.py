@@ -25,6 +25,10 @@ class OwnershipRefused(RuntimeError):
     """No claim or operation was acquired; existing ownership remains unchanged."""
 
 
+class LiveCapacityFull(OwnershipRefused):
+    """This selection acquired no claim; settle owners or wait for capacity."""
+
+
 @dataclass(frozen=True, slots=True)
 class LiveAttemptLimits:
     maximum_attempts: int = 8
@@ -117,12 +121,11 @@ class AttemptClaims:
         # Reject oversized control input before publishing indexes or allowing START.
         # The owner retains the original object; do not keep another encoded copy.
         _encode_pending(pending)
-        self._require_live_capacity(maximum_terminal_bytes)
         identities = (
             _start_identity(pending),
             (pending.scope.api_origin, pending.scope.provider_ref, "job", pending.input.job_ref),
         )
-        claim = self._reserve((identities,))[0]
+        claim = self._reserve((identities,), live_terminal_bytes=maximum_terminal_bytes)[0]
         claim._pending = pending
         claim._lifecycle_owner = lifecycle_owner
         claim._maximum_terminal_bytes = claim._pending_terminal_bytes = maximum_terminal_bytes
@@ -137,7 +140,7 @@ class AttemptClaims:
             or sum(claim._pending_terminal_bytes for claim in existing) + terminal_bytes
             > limits.maximum_pending_terminal_bytes
         ):
-            raise OwnershipRefused(
+            raise LiveCapacityFull(
                 "Cannot select another live Attempt: its entry, 131072-byte control allowance or terminal allowance "
                 "exceeds capacity; settle existing owners before selecting more work"
             )
@@ -165,11 +168,10 @@ class AttemptClaims:
     def _claim(self, identity):
         return self._reserve(((identity,),))[0]
 
-    def _reserve(self, groups):
+    def _reserve(self, groups, *, live_terminal_bytes=None):
         loop = asyncio.get_running_loop()
         if self._loop is not None and self._loop is not loop:
             raise OwnershipRefused("Attempt claims must remain on their owning event loop")
-        self._loop = loop
         selected = set()
         for identities in groups:
             for identity in identities:
@@ -178,6 +180,9 @@ class AttemptClaims:
                         "An Attempt identity is already owned or repeated; no selected recovery claims were acquired"
                     )
                 selected.add(identity)
+        if live_terminal_bytes is not None:
+            self._require_live_capacity(live_terminal_bytes)
+        self._loop = loop
         # repo-check: allow-tuple-generator -- Return fixed claims only after every selected identity is admitted.
         claims = tuple(_AttemptClaim(self, identities) for identities in groups)
         for claim in claims:

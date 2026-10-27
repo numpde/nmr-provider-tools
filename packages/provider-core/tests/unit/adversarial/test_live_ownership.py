@@ -5,7 +5,7 @@ from dataclasses import replace
 import unittest
 
 from provider_core.attempt_request import start_body
-from provider_core.ownership import AttemptClaims, LiveAttemptLimits, OwnershipRefused
+from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull, OwnershipRefused
 from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import ATTEMPT_REF
 
@@ -60,12 +60,21 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 claims, owner = AttemptClaims.live(limits=limits), Owner()
                 first = claims.claim_live(selected("job:a", "key:a"), lifecycle_owner=owner)
                 pending = selected("job:b", "key:b")
-                with self.assertRaises(OwnershipRefused):
+                with self.assertRaises(LiveCapacityFull):
                     claims.claim_live(pending, lifecycle_owner=Owner())
                 owner.release_ready = True
                 first.release(owner=owner)
                 admitted = claims.claim_live(pending, lifecycle_owner=Owner())
                 self.assertTrue(admitted.active)
+
+    async def test_duplicate_identity_is_not_misreported_as_capacity_backpressure(self):
+        claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
+        claims.claim_live(selected("job:a", "key:a"), lifecycle_owner=Owner())
+        with self.assertRaises(OwnershipRefused) as refused:
+            claims.claim_live(selected("job:a", "key:b"), lifecycle_owner=Owner())
+        self.assertIs(type(refused.exception), OwnershipRefused)
+        with self.assertRaises(LiveCapacityFull):
+            claims.claim_live(selected("job:b", "key:b"), lifecycle_owner=Owner())
 
     async def test_ack_releases_terminal_allowance_but_not_job_or_control_ownership(self):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_pending_terminal_bytes=2097152))

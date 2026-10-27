@@ -31,6 +31,8 @@ class Transport:
         self.replies = iter(replies)
         self.calls = []
         self.last_failure = None
+        self.exchange_seconds = 30
+        self.retirement_seconds = 5
         self.retirement_confirmed = True
         self.pending_owner = None
 

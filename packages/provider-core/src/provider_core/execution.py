@@ -58,6 +58,10 @@ class ExecutionRefused(RuntimeError):
     """No scientific execution was invoked by this refusal."""
 
 
+class ExecutionStopRequested(ExecutionRefused):
+    """The actual supervising owner withdrew permission to continue work."""
+
+
 def require_observation_gap(seconds):
     if not (type(seconds) in (int, float) and math.isfinite(seconds) and 0 < seconds):
         raise ValueError("Observation gap_seconds must be finite and positive")
@@ -240,7 +244,7 @@ def _suppression_reason(cause):
         return SuppressionReason.SERVER_STOP
     if isinstance(cause, (ApiFailure, ObservationGapExpired, ConditionRecoveryExpired)):
         return SuppressionReason.OBSERVATION_FAILED
-    if isinstance(cause, asyncio.CancelledError):
+    if isinstance(cause, (asyncio.CancelledError, ExecutionStopRequested)):
         return SuppressionReason.CALLER_CANCELLED
     return None
 
@@ -354,6 +358,7 @@ class AttemptExecutor:
         self._active = False
         self._observing = False
         self._record = None
+        self._acknowledged = None
         self._checkpoint = None
         self._unconfirmed = None
         self._outcome = None
@@ -369,6 +374,27 @@ class AttemptExecutor:
     def retirement_confirmed(self):
         """Expose the owning confirmation without asking composition to repeat it."""
         return self._retirement is _Retirement.CONFIRMED
+
+    @property
+    def work_settled(self):
+        """Confirm original task/I/O/native cleanup, independently of retained reports."""
+        return (
+            not self._observing
+            and self._retirement is _Retirement.CONFIRMED
+            and self._task is None
+            and self._entry_wait is None
+            and self._observation_wait is None
+            and self._handoff_wait is None
+            and self._retirement_task is None
+            and self.delivery.retirement_confirmed
+            and self.api.pending_owner is not self
+            and not self._storage_pending
+        )
+
+    @property
+    def shutdown_ready(self):
+        """Confirm cleanup and that no unhanded outcome/report would be lost."""
+        return self.work_settled and self._outcome is None and self._delivery_outcome is None
 
     @property
     def _storage_pending(self):
@@ -398,6 +424,7 @@ class AttemptExecutor:
         self.claim.begin(self)
         self._started = self._active = self._observing = True
         self._record = acknowledged
+        self._acknowledged = acknowledged
         self._checkpoint = AcknowledgedCheckpoint(acknowledged.start, acknowledged.admission)
         try:
             if self.store is not None and self._checkpoint not in await self.store.inventory(owner=self):
@@ -515,6 +542,7 @@ class AttemptExecutor:
             reporter.active = False
 
     async def _monitor(self, phase, operation, *args):
+        self._require_live_permission()
         self._cancel_requested = False
         reporter = _ConditionReporter(self, phase)
         self._task = asyncio.create_task(self._call_session(operation, reporter, *args))
@@ -523,16 +551,23 @@ class AttemptExecutor:
             while not self._task.done():
                 await asyncio.wait((self._task,), timeout=self._poll_seconds)
                 if not self._task.done():
+                    self._require_live_permission()
                     await self._observe_active()
             task = self._task
             self._task = None
             result = task.result()
+            self._require_live_permission()
             # A known binding failure needs no acceptance read. For a successful
             # return, finish observation before accepting the handle or outcome.
             await self._observe_active()
+            self._require_live_permission()
             return result
         finally:
             reporter.active = False
+
+    def _require_live_permission(self):
+        if self.store is None:
+            self.claim.lifecycle_owner.require_execution_ready(self.claim, self, self._acknowledged)
 
     def _cancel_task(self):
         if self._task is not None and not self._task.done() and not self._cancel_requested:
@@ -633,6 +668,7 @@ class AttemptExecutor:
 
     async def _exchange_api(self, operation, *args, **kwargs):
         """Capture API evidence while the caller holds this executor's API lock."""
+        self._require_live_permission()
         try:
             return await operation(*args, **kwargs, owner=self)
         except asyncio.CancelledError:
@@ -837,6 +873,7 @@ class AttemptExecutor:
                                self._record.start.input.job_ref, reference, operation, body)
 
     async def _handoff(self):
+        self._require_live_permission()
         outcome = self._terminal()
         if self.store is None and len(outcome.body) > self.claim.maximum_terminal_bytes:
             raise ExecutionRefused(
@@ -1112,15 +1149,7 @@ class AttemptExecutor:
 
     def _finish_if_settled(self):
         if (
-            self._retirement is _Retirement.CONFIRMED
-            and self._task is None
-            and self._entry_wait is None
-            and self._observation_wait is None
-            and self._handoff_wait is None
-            and self._retirement_task is None
-            and self.delivery.retirement_confirmed
-            and self.api.pending_owner is not self
-            and not self._storage_pending
+            self.work_settled
             and self._unconfirmed is None
             and not self._outcome_unretained()
         ):

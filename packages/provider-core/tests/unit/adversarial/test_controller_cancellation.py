@@ -45,10 +45,14 @@ class ControllerCancellationTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(asyncio.CancelledError):
                     await task
                 self.assertIs(store.pending_owner, controller)
+                self.assertFalse(controller.work_settled)
+                self.assertFalse(controller.shutdown_ready)
                 self.assertIsInstance(controller.last_failure.cause, asyncio.CancelledError)
                 self.assertEqual([event[0] for event in session.events], ["retire"])
                 barrier.release.set()
                 self.assertIsNone(await controller.settle())
+                self.assertTrue(controller.work_settled)
+                self.assertTrue(controller.shutdown_ready)
             self.assertEqual(transport.calls, [])
             self.assertEqual(await store.inventory(), ())
 

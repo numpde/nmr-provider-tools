@@ -31,9 +31,11 @@ from provider_core.execution import (
     ExecutionFailed,
     ExecutionRefused,
     ExecutionStopped,
+    ExecutionStopRequested,
     ObservationGapExpired,
 )
-from provider_core.ownership import OwnershipRefused
+from provider_core.ownership import LiveCapacityFull, OwnershipRefused
+from provider_core.lifetime import LifetimeRefused
 from provider_core.recovery import ObservedAttempt, RecoveryFailed, RecoveryRefused
 from provider_core.runner_protocol import LifecycleRejected, RetirementUnconfirmed
 from provider_core.starting import StartFailed, StartRefused
@@ -134,9 +136,12 @@ def owned_details(error):
         ExecutionFailed,
         ExecutionRefused,
         ExecutionStopped,
+        ExecutionStopRequested,
         ObservationGapExpired,
         ConditionRecoveryExpired,
         OwnershipRefused,
+        LiveCapacityFull,
+        LifetimeRefused,
         StartFailed,
         StartRefused,
         RecoveryFailed,

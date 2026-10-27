@@ -5,8 +5,6 @@ from dataclasses import replace
 import unittest
 from unittest.mock import Mock
 
-from provider_core.analysis import AnalysisSuccess, PreparedAnalysis
-from provider_core.attempt_record import ProtectedEvidence
 from provider_core.attempt_request import start_body
 from provider_core.execution import AttemptExecutor, ExecutionFailed, ExecutionRefused
 from provider_core.job_input import verify_job_input
@@ -18,32 +16,7 @@ from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import observation, progress_response, start_response
 from tests.fakes.checkpoint_execution import RecordingDelivery
 from tests.fakes.job_input import response
-
-
-class LiveSession:
-    def __init__(self):
-        self.instructions = None
-        self.events = []
-        self.handle = PreparedAnalysis(ProtectedEvidence("fixture.prepared.v1", b"prepared"))
-        self.retiring, self.release = asyncio.Event(), asyncio.Event()
-        self.release.set()
-        self.content = b"result"
-
-    async def prepare(self, acknowledged, instructions, *, report_condition):
-        self.events.append("prepare")
-        self.instructions = instructions
-        return self.handle
-
-    async def execute(self, prepared, *, report_condition):
-        self.events.append("execute")
-        if prepared is not self.handle:
-            raise AssertionError("Foreign scientific handle")
-        return AnalysisSuccess("result.v1", self.content, ProtectedEvidence("fixture.outcome.v1", b"evidence"))
-
-    async def retire(self):
-        self.retiring.set()
-        await self.release.wait()
-        self.events.append("retire")
+from tests.fakes.live_analysis import LiveSession
 
 
 class LiveOwner:

@@ -370,6 +370,14 @@ class ProviderAPI:
         return self._expected_topology
 
     @property
+    def exchange_seconds(self):
+        return self._transport.exchange_seconds
+
+    @property
+    def retirement_seconds(self):
+        return self._transport.retirement_seconds
+
+    @property
     def retirement_confirmed(self):
         return self._transport.retirement_confirmed
 

@@ -245,6 +245,14 @@ class HttpTransport:
         self.last_failure = None
 
     @property
+    def exchange_seconds(self):
+        return self._exchange_seconds
+
+    @property
+    def retirement_seconds(self):
+        return self._retirement_seconds
+
+    @property
     def retirement_confirmed(self):
         """Whether no exchange or unresolved cleanup remains owned here."""
         return self._active is None
