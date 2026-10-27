@@ -171,26 +171,40 @@ def capture(lock, pool, destination):
 
 def populate_pool(lock, pool):
     """Add verified wheels without replacing a peer's existing cache files."""
-    require_download_proxy()
     if pool.is_symlink() or not pool.is_dir():
         raise ValueError("Cannot acquire wheels: shared pool must be a directory without a symlink.")
-    stage = Path(tempfile.mkdtemp(prefix=".provider-core-download-", dir=pool))
-    frozen = stage / "requirements.lock"
-    with regular_file(lock) as source, frozen.open("xb") as target:
-        shutil.copyfileobj(source, target, CHUNK_BYTES)
-    requirements(frozen)
-    print(f"Downloading locked wheels in {stage}; failed staging is retained.", flush=True)
-    subprocess.run(
-        [sys.executable, "-I", "-m", "pip", "--isolated", "download", "--require-hashes",
-         "--only-binary=:all:", "--no-deps", "--cache-dir", str(pool / ".pip-cache"),
-         "--disable-pip-version-check", "--index-url", "https://pypi.org/simple",
-         "--find-links", str(pool), "--dest", str(stage), "-r", str(frozen)],
-        check=True,
-    )
-    selected = select_wheels(frozen, stage)
-    for name, checksum in selected["files"].items():
-        publish_file(stage / name, pool / name, checksum)
-    shutil.rmtree(stage)
+    with tempfile.TemporaryDirectory(prefix=".provider-core-download-", dir=pool) as temporary:
+        stage = Path(temporary)
+        frozen = stage / "requirements.lock"
+        with regular_file(lock) as source, frozen.open("xb") as target:
+            shutil.copyfileobj(source, target, CHUNK_BYTES)
+        requirements(frozen)
+        try:
+            select_wheels(frozen, pool)
+        except subprocess.CalledProcessError:
+            # An incomplete pool is expected during explicit acquisition; pip
+            # still owns compatibility and hash admission on the path below.
+            require_download_proxy()
+        else:
+            print("All locked wheels are already available in WHEELHOUSE; no download is needed.", flush=True)
+            return
+        # Pip reuses --dest files even when an index link outranks find-links.
+        # A rejected alias can be unlinked without modifying the cached inode.
+        for cached in pool.glob("*.whl"):
+            if cached.is_file() and not cached.is_symlink():
+                (stage / cached.name).symlink_to(cached.absolute())
+        print("Acquiring missing locked wheels using temporary staging in WHEELHOUSE.", flush=True)
+        subprocess.run(
+            [sys.executable, "-I", "-m", "pip", "--isolated", "download", "--require-hashes",
+             "--only-binary=:all:", "--no-deps", "--cache-dir", str(pool / ".pip-cache"),
+             "--disable-pip-version-check", "--index-url", "https://pypi.org/simple",
+             "--find-links", str(pool), "--dest", str(stage), "-r", str(frozen)],
+            check=True,
+        )
+        selected = select_wheels(frozen, stage)
+        for name, checksum in selected["files"].items():
+            if not (stage / name).is_symlink():
+                publish_file(stage / name, pool / name, checksum)
     fsync_directory(pool)
 
 

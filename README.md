@@ -71,6 +71,10 @@ interactive calls can prompt for omitted values. Environment values do not
 select either. The wheelhouse is an additive shared cache with no default
 location. Acquisition verifies declared sizes and SHA-256 hashes, preserves
 identical cached files and rejects conflicting bytes.
+Package acquisition checks a complete wheel set offline first. With a partial
+set, pip reuses compatible cached wheels and downloads missing files into private
+temporary staging. Normal completion or failure cleans staging after the pip
+processes exit; the reusable HTTP cache remains under `WHEELHOUSE/.pip-cache`.
 
 With the base image and artifacts already present, prepare the checker offline:
 
@@ -88,6 +92,18 @@ require prepared inputs; they do not download dependencies or rebuild the checke
 automatically. Shared caches and prepared images survive operation cleanup.
 If a command retains temporary inputs or receipts, inspect the reported paths
 before removing them or retrying an uncertain operation.
+
+To adopt this workflow in another repository, supply that repository's immutable
+Python image and platform, complete version/hash locks for each independently
+installed environment, and explicit URL/hash declarations for non-index files
+(including sizes where declared). Each adopting repository declares its package
+catalogs and direct artifact URLs with exact pins. This repository distributes
+`provider_core` through GitHub Releases.
+Pass the same flat `WHEELHOUSE` to each repository; `NETWORK_INTERFACE` selects
+the interface for acquisition. Let pip select compatible files and verify locked
+hashes for each lock separately, publish new verified files additively, then
+capture the selected inputs for builds with networking disabled. Each repository
+owns its Make commands, declarations and model-specific source preparation.
 
 ## Build and run shared delivery
 
