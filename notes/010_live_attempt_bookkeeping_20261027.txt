@@ -1,0 +1,269 @@
+Remembering running work and reporting crashes
+==============================================
+
+What we are changing
+-------------------
+A Job is a requested analysis. An Attempt is the server's record of one try at
+performing that analysis. A provider runs the calculation in a worker process.
+Its supervising process stays outside that worker and manages the Attempt.
+
+The shared SDK will keep a small, bounded list of the Attempts that the current
+supervisor still owns. This is live bookkeeping, not a history of past work.
+The SDK, NMRNet and Magnet owners jointly chose this design and its defaults.
+
+If the supervisor sees a worker crash during an Attempt, it reports that Attempt
+as failed, with as much useful verified detail as it can safely publish. If the
+supervisor itself dies and nobody observes the crash, we do not reconstruct work
+or send a new report when it restarts.
+
+This is the agreed plan, not a claim that the code or deployed services already
+behave this way. Implementation and consumer tests follow this note. Publishing
+a release and deploying it are separate steps.
+
+What happens during ordinary work
+---------------------------------
+Before asking the API to start an Attempt, the SDK reserves room for its local
+record and its eventual result or failure report. It keeps the Job identity and
+the exact START request, including the provider's request key. Repeating START
+uses those same bytes and key, so a lost reply does not require a new identity.
+
+The record points to the actual controller and the operation it is waiting for.
+It does not maintain another independently writable copy of their state.
+The same live Job, request key or known Attempt cannot acquire a competing local
+owner. An unrelated Job can proceed while the first is held, if there is enough
+capacity and its own resources are ready.
+
+When the calculation produces an outcome and the SDK's current lifecycle checks
+allow reporting it, the provider chooses its exact result or failure report.
+This choice needs no human approval. The provider hands that report to shared
+delivery, which saves it durably and returns a matching acknowledgement for
+those exact bytes. That acknowledgement transfers responsibility for delivering
+those bytes. It does NOT say that the API has accepted the result or failure.
+
+The provider can release the report bytes after that acknowledgement. It removes
+the remaining local Attempt record only after the original operations have
+finished or are confirmed stopped, and worker cleanup has finished. The original
+operation's owner supplies that confirmation; a wait ending is not enough.
+A closed socket,
+cancelled Python task or delivery acknowledgement does not prove worker cleanup.
+If the acknowledgement is lost, the original owner keeps the exact report and
+uses the existing delivery retry rules.
+
+Every concurrently active owner gets its own API and delivery exchanges. This
+also applies when held Attempt A and new Attempt B are in the same lane, meaning
+one independently scheduled stream of provider work. Settling A cannot close B's
+connection, replace its failure information or stop a worker B is keeping loaded
+for reuse. Reuse still requires proof that the previous request has finished.
+
+What counts as an observed crash
+--------------------------------
+The observer must know which Attempt and worker operation it was supervising.
+An unexpected worker exit during preparation or calculation can establish a
+crash. A timeout, broken connection, missing heartbeat or old file cannot do so
+by itself. Nor can an exit code collected after we deliberately killed a worker
+prove that the worker had crashed earlier. A structured failure reply can report
+a failed operation while the worker process itself is still alive.
+Remember local interruption intent BEFORE the first deliberate science/control
+channel close, stop request or forced termination. Closing a channel can itself
+make a worker exit. If the original exit cannot be distinguished from that local
+interruption, its cause stays unknown and it does not justify a crash report.
+
+The native supervisor already distinguishes a child that exited from one it
+stopped because the owner disconnected, a deadline expired or shutdown began.
+Today the client receives the final exit code but loses that original reason.
+We will carry the reason through the existing control message and keep one
+reader responsible for that message. An older message without a reason means
+the cause is unknown. A new worker or a second observation cannot supply the
+missing history of the old one.
+
+The SDK accepts a specifically identified crash from the current preparation or
+execution owner. It checks the Attempt, phase and worker association before
+choosing one worker_crashed failure report. It does not turn every caught
+exception into an Attempt failure. An API outage must not prevent this report
+from reaching an available local delivery service. Previously observed stop or
+cancellation still applies; settling a late reply cannot authorize a new report.
+
+The public explanation should name the phase, observed exit status or signal,
+useful verified cause, and what remains unknown about the outcome. A SIGKILL
+alone is not evidence of an out-of-memory kill. Secrets and private input stay
+out of public text. Existing bounded operator diagnostics retain richer detail;
+failure of a logging sink must not prevent the selected failure report.
+
+If a final result OR failure report was already chosen or may already have been
+submitted, keep its original delivery handling. A later cleanup crash is a
+separate cleanup failure, not permission to replace the chosen report. Normal
+delivery of that chosen outcome and worker cleanup may proceed independently,
+but local release requires
+both to finish. Unconfirmed cleanup keeps the affected resources unavailable.
+
+A proved crash must not cause another calculation for the same Attempt.
+Replacing the worker for future Jobs is a different operation. NMRNet's current
+prediction-retry loop needs that distinction added. Its other named scientific
+failures and uncertain transport failures need explicit treatment; neither is
+automatically evidence of a crash or permission to recalculate.
+
+The limits we chose
+-------------------
+Each entry reserves 128 KiB for its small control summary and up to 2 MiB for
+one encoded result or failure request. These are bookkeeping allowances, not
+permission to run that many calculations or a change to API/delivery quotas.
+
+                         Entries   Control allowance   Report allowance
+  Shared SDK default        8            1 MiB               16 MiB
+  NMRNet                    2          256 KiB                4 MiB
+  Magnet, two lanes         4          512 KiB                8 MiB
+  Magnet, three lanes       6          768 KiB               12 MiB
+
+Magnet derives its entry count as twice the configured lane count. NMRNet still
+runs one calculation at a time; its second slot gives room for held work.
+These are shared process limits, not guaranteed reserved places for each lane.
+
+A pending START summary can approach 64 KiB before adding the returned Attempt
+identity, the prepared-input fingerprint and the selected report's description.
+That is why each complete control summary gets 128 KiB. A test using the largest
+allowed fields must prove that it fits. The 2 MiB report allowance includes JSON
+and base64 overhead; it is not the 786432-byte raw scientific-result limit.
+
+Scientific evidence stays with its existing owner and its separate 256 KiB
+per-value limit. Prepared-input evidence and outcome evidence can coexist.
+The registry does not copy them, raw exception objects, tracebacks or tensors.
+Its allowance does not claim to bound those owners or the whole process's RAM.
+Model and native-process resource limits remain separate.
+
+Reserve capacity before START. If it is full, wait before taking new work.
+Do not evict an active record or a failure still awaiting delivery to make room.
+Time limits request stopping and settlement; they do not silently delete an
+obligation or turn an old record into proof of a crash. There is no history TTL.
+Reject an oversized START/control record before sending START. Never silently
+clip a result or report to make it fit. If a worker later produces an oversized
+value, use the existing input/output error policy and keep required cleanup;
+do not claim that the value was delivered or reinterpret it as a proved crash.
+
+Waiting and retrying
+--------------------
+The shared defaults are 30 seconds per API/delivery exchange, 5 seconds to wait
+for the original I/O to stop, and 10 seconds per wait for a task to finish.
+A wait expiring does not prove that the underlying operation stopped.
+Existing consumer overrides remain explicit: NMRNet uses 25 seconds for its API
+exchange. Scientific, preparation, polling, observation-gap and shutdown-drain
+budgets retain their existing consumer settings.
+
+One live START invocation means one running controller call for a selected Job.
+It allows the initial send and at most one permitted retry of the exact request.
+The 90-second decision clock starts when that controller begins the first START
+exchange. Retry only if the API client's contract permits it, the retry wait
+permits continuing, and no observed stop/cancel prevents it. Having time left
+does not itself grant permission to send again. The first retry wait is chosen
+uniformly between one and two seconds, then raised if the server's Retry-After
+or the consumer's existing cadence requires more. For example, Magnet configured
+to wait 12 seconds still waits at least 12 seconds, even if the shared random
+wait is only one or two seconds. If that wait plus the next configured exchange and
+I/O-retirement allowance cannot fit the remaining window, do not send again.
+At the deadline, start no new effect. Already-started I/O may still need further
+settlement and keeps its owner.
+
+Keep possible-commit uncertainty across the invocation: a later rejection cannot
+erase an earlier request that may have committed. A failure known not to have
+committed may defer immediately. Deferring uncertain START leaves its exact
+request and Job reservation with the same live controller, while other Jobs may
+proceed. That controller keeps occupying capacity until a valid disposition;
+there is no hidden schedule that automatically restarts its START campaign.
+It does not automatically reset the retry budget or start a new controller for
+the same Job. If the SDK can safely release a definitely uncommitted selection,
+a later ordinary selection is a separate invocation; there is no lifetime cap
+on all future selections.
+
+Terminal delivery keeps its existing stop-aware retry policy, with a one-second
+initial backoff and 30-second maximum. Expiry of a reporting wait does not discard
+the exact pending report.
+
+Public failure codes keep the existing 128-ASCII-character grammar. Public
+messages fit 1024 Unicode scalar values; an encoded FAIL fits 16 KiB.
+Operator rendering keeps its existing limits: 64 causal nodes, 32 frames per
+node and 4096 characters from each end of native output, with omitted counts.
+These are output limits, not promises about the memory held by raw exceptions.
+
+Provider-specific ordering stays intact
+---------------------------------------
+Magnet continues to verify input and check its warm processor before START.
+The SDK receives that same verified input and passes it onward without reading
+or serializing it again. NMRNet continues its verified input read, interpretation,
+uploads/geometry preparation and prediction allocation after START.
+For both providers, interpreting the selected Job and preparing its scientific
+calculation remain after START is acknowledged. Magnet's earlier input read and
+worker-readiness checks do not perform that Job's scientific preparation.
+The recorded execution-entry decision marks the call to execute; preparation
+may already have performed its own allowed work.
+
+A repeated START reply is not proof that earlier calculation never began.
+Magnet derives a repeatable key from its Job/generation/input identity. If a
+START reply says that key already names an active Attempt, but the current
+process cannot prove its earlier execution history, Magnet keeps it out of
+science, even if it has just made a local record. NMRNet keeps its established
+same-live-invocation recovery for a newly created key. Neither key algorithm
+changes. An already finished Attempt is not executed again, and we do not create
+an Attempt merely to report a crash that happened before admission.
+
+Restarting and changing over
+----------------------------
+If the supervisor dies, its in-memory list is lost. Restart does not send START
+or FAIL, poll the API, or resume science merely because old or missing local
+state suggests interrupted work. Reports already saved by shared delivery keep
+being delivered. Server expiry remains the server's responsibility.
+
+Remove Magnet's ordinary traversal of previously attempted Jobs where it can
+resend START after restart, and remove NMRNet's automatic startup START recovery.
+Also replace NMRNet's ordinary admission rule that globally blocks new work for
+any old producer record or remote active Attempt outside delivery ownership.
+Use known Job exclusions and real capacity, while retaining its ordinary
+never-attempted feed and key policy: it asks for Jobs this provider has not
+previously attempted. An unfinished Attempt from an earlier crash must not block
+unrelated new Jobs through that former global rule.
+
+The in-memory registry prevents overlap only within its own process. Preserve
+the existing shared-root/deployment lock that excludes a second supervisor
+before API effects and until original I/O and native work settle.
+NMRNet currently gets this lock from CheckpointStore. Keep the small lifetime
+lock when removing SQLite; operator-command and individual runner locks do not
+replace it. This does not provide cross-host or provider-wide distributed locking.
+Use the existing private deployment root for this lifetime lock. If another
+supervisor holds it, refuse startup before sending START. Release it only after
+the original supervised lifetime and its operations have actually settled.
+
+Stop the old local lifetime before cutover. Preserve old checkpoint files and
+queued reports. Where needed, keep their known Job/key/Attempt identities as
+passive exclusions: they prevent selecting that work but start no controller or
+API action. They are migration data, not live controllers occupying all new
+slots, and diagnostic age-out cannot erase their safety meaning.
+
+A START may commit at the server after its local caller dies. Job discovery is
+not an exclusive reservation. Any deliberate forgetting of old identities must
+therefore state whether that work could become eligible again, or rely on a
+separately proved existing server/key guarantee. The migration must define its
+bounded exclusion capacity and report exhaustion honestly. Finite storage cannot
+remember unlimited crash history forever without later observations or an
+explicit forgetting policy. Volatile bookkeeping alone does not promise global
+exactly-once execution. No new durable intent journal or key policy is implied.
+This note does not authorize deleting old exclusions or choose an expiry age
+for them. Before moving an existing deployment, its migration must specify the
+old identities to keep, their bounded capacity and the operator's explicit
+disposition of anything to forget. If that cannot be established, refuse the
+cutover rather than silently make old work eligible. New live bookkeeping does
+not automatically load old files into active controllers or replay them.
+
+Implementation reference and proof
+-----------------------------------
+Extend AttemptClaims and use explicit .live construction on the existing
+AttemptController, AttemptStarter and AttemptExecutor. Keep published durable
+constructors truthful; do not imitate CheckpointStore with a consumer adapter.
+For preverified input, check preverified_input.identity == pending.input and
+pass the same VerifiedJobInput object onward.
+
+Tests must prove capacity reservation before START, the largest control summary,
+unrelated-Job progress, the original native exit reason, one observed-crash FAIL
+without recalculation, and preserved COMPLETE after cleanup failure.
+They must also cover lost delivery acknowledgements, concurrent owner isolation,
+deadline/stop/late replies, the real two-process lifetime lock and no restart
+effects through ordinary Job discovery. Use independent audits and coherent
+local commits. Qualify both providers against the exact installed candidate
+wheel before a separate qualified GitHub release or maintained deployment.
