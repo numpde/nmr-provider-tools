@@ -33,9 +33,6 @@ Exact source distribution SHA-256:
 Exact complete installation lock SHA-256:
   7833b80727a2c58699f9f0a60ec5c8fc39b5d3aa9a3903c14ffdd757911fd671
 
-Both consumer sessions received these hashes and the shared-image/host interface.
-NMRNet independently fetched the public assets anonymously through its maintained
-interface-bound acquisition and matched the qualified wheel/source bytes.
 Provider repositories own their final consumer commits, qualification and any
 later separately coordinated live cutover. This release performed no live
 provider restart or scientific job.
