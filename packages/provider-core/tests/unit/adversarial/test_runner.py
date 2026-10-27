@@ -14,6 +14,7 @@ import threading
 import time
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 from provider_core.runner import serve
 from provider_core.runner_protocol import LifecycleRejected, receive_document, receive_greeting, send_document, send_greeting
@@ -22,6 +23,34 @@ from tests.fakes.runner import RunningSupervisor, worker_pid
 
 
 class RunnerRefusalTests(unittest.TestCase):
+    def test_a_second_retirement_reader_cannot_consume_the_original_frame(self):
+        runner = RunningSupervisor()
+        self.addCleanup(runner.close)
+        session = runner.session(startup_seconds=2, retirement_seconds=2)
+        self.addCleanup(session.close)
+        session.connect()
+        pid = worker_pid(session.science, b"H")
+        entered, release = threading.Event(), threading.Event()
+        receive = session._receive_retirement
+
+        def original_read(deadline):
+            entered.set()
+            if not release.wait(2):
+                raise TimeoutError("Original lifecycle read was not released by its test owner")
+            return receive(deadline)
+
+        with ThreadPoolExecutor(max_workers=1) as pool, patch.object(session, "_receive_retirement", side_effect=original_read):
+            original = pool.submit(session.observe_retirement)
+            try:
+                self.assertTrue(entered.wait(1))
+                with self.assertRaises(LifecycleRejected):
+                    session.observe_retirement()
+            finally:
+                os.kill(pid, signal.SIGKILL)
+                release.set()
+            original.result(timeout=3)
+        self.assertEqual(-9, session.original_exit.returncode)
+
     def test_legacy_retirement_has_unknown_reason_and_invented_reason_is_refused(self):
         for reason in (None, "oom", [], 1):
             with self.subTest(reason=reason):

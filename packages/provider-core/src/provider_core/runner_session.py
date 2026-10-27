@@ -20,6 +20,16 @@ class Retirement:
     reason: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class OriginalWorkerExit:
+    """An exit observed on its original session before local interruption began."""
+
+    role: str
+    generation: str
+    operation: str
+    returncode: int
+
+
 class RunnerStartupStopped(InterruptedError):
     """The requested stop prevented control connection, including after known refusals."""
 
@@ -48,6 +58,9 @@ class RunnerSession:
         self.retirement = None
         self._stop_requested = threading.Event()
         self._control_state = threading.Lock()
+        self._retirement_reader = threading.Lock()
+        self._local_interruption = False
+        self._original_exit = None
         self._connected = False
         self._observation_failure = None
         self._connect_started = False
@@ -102,10 +115,26 @@ class RunnerSession:
 
     def request_stop(self):
         with self._control_state:
+            self._local_interruption = True
             if not self._stop_requested.is_set():
                 self._stop_requested.set()
                 if self._connected:
                     self.control.shutdown(socket.SHUT_WR)
+
+    def mark_interruption(self):
+        """Call before the first deliberate science/control close, stop or kill.
+
+        Bindings must also call this before their own internal transport cleanup.
+        It records intent without sending a stop or changing an earlier exit fact.
+        """
+        with self._control_state:
+            self._local_interruption = True
+
+    @property
+    def original_exit(self):
+        """Return the original exit fact; later cleanup cannot establish its cause."""
+        with self._control_state:
+            return self._original_exit
 
     def retire(self, *, deadline=None):
         if self.retirement is None:
@@ -114,6 +143,14 @@ class RunnerSession:
 
     def observe_retirement(self, *, deadline=None):
         """Receive cleanup facts without causing retirement (including cap expiry)."""
+        if not self._retirement_reader.acquire(blocking=False):
+            raise LifecycleRejected("Runner retirement already has an original reader; join that observation instead of reading another frame.")
+        try:
+            self._observe_retirement(deadline)
+        finally:
+            self._retirement_reader.release()
+
+    def _observe_retirement(self, deadline):
         if self._observation_failure is not None:
             raise LifecycleRejected(
                 "Original runner control setup or lifecycle read failed; preserve its cause and use bounded lifecycle recovery, not a second frame read."
@@ -123,7 +160,13 @@ class RunnerSession:
             try:
                 phase_deadline = time.monotonic() + self._cleanup
                 effective = phase_deadline if deadline is None else min(deadline, phase_deadline)
-                self.retirement = self._receive_retirement(effective)
+                retirement = self._receive_retirement(effective)
+                with self._control_state:
+                    self.retirement = retirement
+                    if retirement.reason == "exited" and not self._local_interruption:
+                        self._original_exit = OriginalWorkerExit(
+                            self.role, self.generation, self.operation, retirement.returncode,
+                        )
             except Exception as cause:
                 # A partial frame cannot restart at its remaining bytes. Retain
                 # this owner until the binding's proof session settles it.
@@ -149,6 +192,7 @@ class RunnerSession:
         return Retirement(reply["returncode"], reply["scratch_released"], reply.get("reason"))
 
     def close(self):
+        self.mark_interruption()
         if self.science is not None:
             self.science.close()
         self.control.close()

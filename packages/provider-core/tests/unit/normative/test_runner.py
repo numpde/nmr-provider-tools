@@ -76,6 +76,26 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(-9, stopped.retirement.returncode)
         self.assertEqual("owner_lost", stopped.retirement.reason)
 
+    def test_exit_observed_before_interruption_keeps_its_original_worker_identity(self):
+        session = self.session()
+        pid = worker_pid(session.science, b"H")
+        os.kill(pid, 9)
+        session.observe_retirement()
+        original = session.original_exit
+        self.assertEqual((session.role, session.generation, session.operation, -9),
+                         (original.role, original.generation, original.operation, original.returncode))
+        session.mark_interruption()
+        self.assertIs(original, session.original_exit)
+
+    def test_local_interruption_before_exit_observation_cannot_become_crash_evidence(self):
+        session = self.session()
+        pid = worker_pid(session.science, b"H")
+        session.mark_interruption()
+        os.kill(pid, 9)
+        session.observe_retirement()
+        self.assertEqual("exited", session.retirement.reason)
+        self.assertIsNone(session.original_exit)
+
     def test_child_inherits_only_scientific_socket_and_the_admitted_lease(self):
         session = self.session()
         worker_pid(session.science, b"D")
