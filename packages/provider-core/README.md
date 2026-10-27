@@ -4,6 +4,54 @@ Model-independent signed NMR API operations, protocol admission, durable result
 delivery and reusable lifecycle helpers. Providers own scientific preparation,
 inference, offerings, model configuration and their execution policy.
 
+For live bookkeeping, use `AttemptController.live` with one shared
+`AttemptClaims.live` registry in the provider's supervising process. The SDK
+reserves capacity before START and keeps the actual controller reachable while
+its Job is held. Unrelated Jobs may continue when capacity and their own
+resources allow. The default registry reserves eight entries, 128 KiB of encoded
+control metadata and up to 2 MiB of terminal-request bytes per entry. These are
+bookkeeping allowances, not limits on the whole process's memory or permission
+to run eight calculations at once. Providers set their own explicit limits.
+
+A deferred START retains its exact request and any possible-commit uncertainty;
+it does not authorize a new key or another calculation. `ActiveStartReplayHeld`
+returns the verified server receipt for an already active Attempt, without
+entering science. That receipt identifies the Attempt; it does not show whether
+earlier calculation began. Choose active-replay permission explicitly for each
+provider. `LiveCapacityFull` identifies expected backpressure; settle the
+rejected controller before waiting for capacity, and preserve independent cleanup
+failures. Other ownership refusals are not capacity signals.
+
+`work_settled` confirms that original work, I/O and required native cleanup have
+stopped. It does not permit losing an unacknowledged report. Use every owned
+controller's `shutdown_ready`, together with the provider's other resource owners,
+before ending the supervisor lifetime. A passive Job exclusion can remain after
+cleanup; a returned outcome or exact report awaiting durable handoff cannot be
+discarded merely because its I/O stopped. Preserve the shared private lifetime
+root with `ProviderLifetime`; a container-private directory cannot exclude a
+second container.
+
+Only an original worker exit correlated to the current Attempt and scientific
+phase can become `ObservedWorkerCrash`. Keep the exact acknowledgement received
+by `AnalysisSession.prepare` for later execution. Timeouts, EOF and our own stop
+or kill are not crash evidence. Record local interruption before any deliberate
+science/control close, including timeout or cancellation cleanup. On unexpected
+EOF/reset, use one bounded `RunnerSession.observe_retirement()` call before local
+close. Unlike `retire()`, it does not request stopping. Retain that original task
+if the caller's wait expires; a failed underlying lifecycle read does not permit
+another reader. If no original exit is established before interruption, the
+cause remains unknown. Do not impose a short retirement deadline on a healthy
+warm worker.
+Diagnostics must not prevent an admitted crash report or replace an already
+chosen result or failure report.
+
+Live bookkeeping disappears if its supervisor dies. Restart does not restore
+START, calculate, poll old Attempts or fabricate failures from missing state.
+Reports already accepted by shared delivery continue independently. Existing
+durable constructors keep their checkpoint and recovery contracts; `.live` does
+not imitate a checkpoint store. Consumer migration and runtime qualification
+remain separate from the SDK's contained tests.
+
 The delivery client submits exact complete/fail request bytes to a configured
 provider-specific Unix socket. Its acknowledgement proves durable local enqueue;
 the shared delivery service then owns API publication and retries. It does not
@@ -13,7 +61,8 @@ previous request was never delivered.
 
 The host and provider deployment select the same operator-owned neutral binding
 definition for API identity, credential and CA paths, API routing and socket
-grant. Scientific configuration and producer recovery state remain provider-owned.
+grant. Providers own scientific configuration and selection of their private
+lifetime directory.
 
 The native supervisor requires one explicit lifetime: `--operation-seconds N`
 caps one child session, while `--owner-session-lifetime` allows a loaded child
