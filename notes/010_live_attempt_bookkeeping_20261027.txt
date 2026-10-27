@@ -49,6 +49,13 @@ cancelled Python task or delivery acknowledgement does not prove worker cleanup.
 If the acknowledgement is lost, the original owner keeps the exact report and
 uses the existing delivery retry rules.
 
+Finishing cleanup is separate from being ready to shut down. If an outcome still
+needs a delivery or suppression decision, or delivery has not acknowledged the
+chosen report, stopping all tasks and I/O does not permit dropping that duty.
+A passive Job exclusion need not keep the supervisor alive once all original
+work has stopped and no outcome or report remains to resolve. This does not
+release that Job for new work in the current process.
+
 Every concurrently active owner gets its own API and delivery exchanges. This
 also applies when held Attempt A and new Attempt B are in the same lane, meaning
 one independently scheduled stream of provider work. Settling A cannot close B's
