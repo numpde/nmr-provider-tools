@@ -12,7 +12,6 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-import fcntl
 import json
 import math
 import os
@@ -26,6 +25,7 @@ from pathlib import Path
 from provider_core.attempt_record import RecoveryScope, StartPending, TerminalOperation
 from provider_core.attempt_response import AttemptObservation
 from provider_core.delivery_store import DeliveryOutcome
+from provider_core.lifetime import LifetimeRefused, ProviderLifetime
 from provider_core.producer_checkpoint import (
     AcknowledgedCheckpoint, DeliveryAcceptedCheckpoint, EnteredCheckpoint,
     MAX_CHECKPOINT_BYTES, SuppressedCheckpoint, TerminalSelectedCheckpoint,
@@ -75,7 +75,8 @@ class _CheckpointDatabase:
 
     def __init__(self, root, scope, limits):
         self.root, self.scope, self.limits = root, scope, limits
-        self._db = self._lock = self._failure = None
+        self._db = self._failure = None
+        self._lifetime = ProviderLifetime(root)
 
     def _private_file(self, name):
         descriptor = os.open(self.root / name, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
@@ -90,15 +91,13 @@ class _CheckpointDatabase:
         return descriptor
 
     def open(self):
-        if self._db is not None or self._lock is not None:
+        if self._db is not None:
             raise CheckpointRefused("Producer checkpoint storage is already open; retain its original owner.")
         try:
-            facts = self.root.lstat()
-            if (self.root.resolve() != self.root or not stat.S_ISDIR(facts.st_mode)
-                    or facts.st_uid != os.geteuid() or stat.S_IMODE(facts.st_mode) != 0o700):
-                raise CheckpointRefused("Producer checkpoint directory must be canonical, caller-owned and mode 0700.")
-            self._lock = self._private_file(".checkpoint-owner.lock")
-            fcntl.flock(self._lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            self._lifetime.open()
+        except LifetimeRefused as cause:
+            raise CheckpointRefused(str(cause)) from None
+        try:
             descriptor = self._private_file("checkpoints.sqlite3")
             os.close(descriptor)
             self._db = sqlite3.connect(self.root / "checkpoints.sqlite3", timeout=1)
@@ -252,9 +251,7 @@ class _CheckpointDatabase:
         if self._db is not None:
             self._db.close()
             self._db = None
-        if self._lock is not None:
-            os.close(self._lock)
-            self._lock = None
+        self._lifetime.close()
 
 
 @dataclass(slots=True)
