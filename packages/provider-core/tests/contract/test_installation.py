@@ -100,6 +100,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/startup_file.py",
                 "provider_core/unix_http.py",
                 "provider_core/ownership.py",
+                "provider_core/lifetime.py",
                 "provider_core/starting.py",
                 "provider_core/analysis.py",
                 "provider_core/execution.py",
