@@ -17,6 +17,7 @@ from provider_core.runner_protocol import LifecycleRejected, positive_seconds, r
 class Retirement:
     returncode: int
     scratch_released: bool
+    reason: str | None = None
 
 
 class RunnerStartupStopped(InterruptedError):
@@ -135,13 +136,17 @@ class RunnerSession:
     def _receive_retirement(self, deadline):
         reply = receive_document(self.control, deadline=deadline)
         if (
-            set(reply) != {"kind", "generation", "operation", "returncode", "scratch_released"}
+            set(reply) not in (
+                {"kind", "generation", "operation", "returncode", "scratch_released"},
+                {"kind", "generation", "operation", "returncode", "scratch_released", "reason"},
+            )
             or reply["kind"] != "retired" or reply["generation"] != self.generation
             or reply["operation"] != self.operation or type(reply["returncode"]) is not int
             or type(reply["scratch_released"]) is not bool
+            or ("reason" in reply and reply["reason"] not in ("exited", "owner_lost", "deadline", "shutdown"))
         ):
             raise LifecycleRejected("Runner retirement is malformed or belongs to another operation.")
-        return Retirement(reply["returncode"], reply["scratch_released"])
+        return Retirement(reply["returncode"], reply["scratch_released"], reply.get("reason"))
 
     def close(self):
         if self.science is not None:

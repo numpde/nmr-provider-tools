@@ -62,6 +62,20 @@ class RunnerTests(unittest.TestCase):
             os.kill(pid, 0)
         self.assertEqual(list(self.runner.scratch.iterdir()), [])
 
+    def test_original_exit_reason_distinguishes_crash_from_our_kill_with_same_status(self):
+        unexpected = self.session()
+        pid = worker_pid(unexpected.science, b"H")
+        os.kill(pid, 9)
+        unexpected.observe_retirement()
+        self.assertEqual(-9, unexpected.retirement.returncode)
+        self.assertEqual("exited", unexpected.retirement.reason)
+
+        stopped = self.session()
+        worker_pid(stopped.science, b"H")
+        stopped.retire()
+        self.assertEqual(-9, stopped.retirement.returncode)
+        self.assertEqual("owner_lost", stopped.retirement.reason)
+
     def test_child_inherits_only_scientific_socket_and_the_admitted_lease(self):
         session = self.session()
         worker_pid(session.science, b"D")
@@ -129,6 +143,7 @@ class OwnerSessionLifetimeTests(unittest.TestCase):
         self.runner.process.terminate()
         self.session.observe_retirement()
         self.assertEqual(-9, self.session.retirement.returncode)
+        self.assertEqual("shutdown", self.session.retirement.reason)
         self.assertTrue(self.session.retirement.scratch_released)
         self.assertEqual(0, self.runner.process.wait(timeout=2))
         self.assertEqual([], list(self.runner.scratch.iterdir()))

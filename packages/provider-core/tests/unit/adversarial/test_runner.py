@@ -22,6 +22,33 @@ from tests.fakes.runner import RunningSupervisor, worker_pid
 
 
 class RunnerRefusalTests(unittest.TestCase):
+    def test_legacy_retirement_has_unknown_reason_and_invented_reason_is_refused(self):
+        for reason in (None, "oom", [], 1):
+            with self.subTest(reason=reason):
+                session = RunnerSession(
+                    "unused", role="fixture", expected_lock_identity=(0, 0),
+                    startup_seconds=1, retirement_seconds=1,
+                )
+                self.addCleanup(session.close)
+                session.control.close()
+                sender, session.control = socket.socketpair()
+                with sender:
+                    session.generation, session.operation = "generation", "operation"
+                    reply = {
+                        "kind": "retired", "generation": "generation", "operation": "operation",
+                        "returncode": -9, "scratch_released": True,
+                    }
+                    if reason is not None:
+                        reply["reason"] = reason
+                    send_document(sender, reply, deadline=time.monotonic() + 1)
+                    if reason is None:
+                        session.observe_retirement()
+                        self.assertIsNone(session.retirement.reason)
+                    else:
+                        with self.assertRaises(LifecycleRejected):
+                            session.observe_retirement()
+                        self.assertIsNone(session.retirement)
+
     def test_status_directory_is_private_and_canonical_before_any_status_write(self):
         for condition, failure_type in (("mode", PermissionError), ("symlink", ValueError)):
             with self.subTest(condition=condition), tempfile.TemporaryDirectory() as temporary:
@@ -224,6 +251,7 @@ class RunnerRefusalTests(unittest.TestCase):
             session.observe_retirement()
         self.assertEqual(session.retirement.returncode, 0)
         self.assertFalse(session.retirement.scratch_released)
+        self.assertEqual("exited", session.retirement.reason)
         with self.assertRaises(LifecycleRejected):
             session.retire()
         self.assertNotEqual(runner.process.wait(timeout=2), 0)
@@ -252,6 +280,7 @@ class RunnerRefusalTests(unittest.TestCase):
         pid = worker_pid(session.science, b"H")
         session.observe_retirement()
         self.assertEqual(session.retirement.returncode, -9)
+        self.assertEqual("deadline", session.retirement.reason)
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
 

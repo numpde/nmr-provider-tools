@@ -176,7 +176,7 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
         except (OSError, RecursionError) as cause:
             try:
                 send_document(control, {"kind": "retired", "generation": generation, "operation": operation,
-                                        "returncode": returncode, "scratch_released": False},
+                                        "returncode": returncode, "scratch_released": False, "reason": event},
                               deadline=time.monotonic() + options.startup_seconds)
             except OSError as delivery:
                 LOGGER.warning("event=failed_cleanup_delivery operation=%s cause_type=%s errno=%s",
@@ -185,7 +185,7 @@ def _operation(control, *, generation, lock_identity, lease, scratch_fd, argv, o
         control.settimeout(options.startup_seconds)
         try:
             send_document(control, {"kind": "retired", "generation": generation, "operation": operation,
-                                    "returncode": returncode, "scratch_released": True},
+                                    "returncode": returncode, "scratch_released": True, "reason": event},
                           deadline=time.monotonic() + options.startup_seconds)
         except OSError as delivery:
             LOGGER.warning("event=retirement_delivery_failed operation=%s child_reaped=true scratch_released=true cause_type=%s errno=%s",
