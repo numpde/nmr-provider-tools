@@ -1,4 +1,4 @@
-"""A returned start acknowledgement is durable and owned, never execution permission."""
+"""A returned start acknowledgement remains owned; it does not grant execution."""
 
 import tempfile
 import unittest
@@ -16,6 +16,33 @@ from tests.fakes.api import api
 
 
 class StartingTests(unittest.IsolatedAsyncioTestCase):
+    async def test_live_start_binds_the_actual_acknowledgement_without_checkpoint_storage(self):
+        pending = record()
+        claims = AttemptClaims.live()
+        claim = claims.claim_live(pending, lifecycle_owner=object())
+        transport = Transport(reply(start_response()), reply(start_response(replayed=True)), reply(start_response(replayed=True)))
+        starter = AttemptStarter.live(api(transport, scope().api_origin), claim, scope=scope())
+        acknowledged = await starter.start(pending)
+        self.assertEqual(pending, acknowledged.start)
+        self.assertEqual(ATTEMPT_REF, acknowledged.admission.execution_attempt_ref)
+        self.assertIs(LocalExecutionPhase.NOT_ENTERED, acknowledged.local_phase)
+        self.assertEqual(pending.body, transport.calls[0][0].content)
+        claim.require(scope(), ATTEMPT_REF)
+        self.assertIsNone(claim.operation_owner)
+        self.assertTrue(claims.owns_job(scope(), pending.input.job_ref))
+        replacement = AttemptStarter.live(starter.api, claim, scope=scope())
+        for send in (starter.start, starter.resume, replacement.start, replacement.resume):
+            with self.assertRaises(OwnershipRefused):
+                await send(pending)
+        self.assertEqual(1, len(transport.calls))
+
+    async def test_live_start_refuses_a_durable_claim_without_a_capacity_reservation(self):
+        claim = AttemptClaims().claim_start(record())
+        transport = Transport(reply(start_response()))
+        with self.assertRaises(OwnershipRefused):
+            AttemptStarter.live(api(transport, scope().api_origin), claim, scope=scope())
+        self.assertEqual([], transport.calls)
+
     async def test_fresh_and_terminal_replay_admissions_are_durable_and_keep_claims(self):
         for state in ("in_progress", "succeeded", "failed", "expired"):
             with self.subTest(state=state), tempfile.TemporaryDirectory() as directory:

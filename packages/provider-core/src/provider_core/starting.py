@@ -1,4 +1,4 @@
-"""Own durable start admission and explicit replay before scientific preparation.
+"""Own exact start admission and explicit replay before scientific preparation.
 
 NMRPeak 1697dc84dd1d76ae25b04efc8183fd80614000e5,
 nmrpeak_provider/attempt_lifecycle.py:442-508 admits the start before sending;
@@ -14,7 +14,7 @@ require_container()
 import asyncio
 
 from provider_core.api import ApiFailure
-from provider_core.attempt_record import StartPending, acknowledge_start
+from provider_core.attempt_record import RecoveryScope, StartPending, acknowledge_start
 from provider_core.checkpoint_store import CheckpointFailed, CheckpointRefused
 from provider_core.ownership import OwnershipRefused
 from provider_core.producer_checkpoint import AcknowledgedCheckpoint
@@ -37,23 +37,40 @@ class StartFailed(RuntimeError):
 
 
 class AttemptStarter:
-    """Borrow one start claim through durable acknowledgement, retaining both keys.
+    """Borrow one start claim until its actual acknowledgement is retained.
 
     The caller owns the claim after return, including terminal replay admissions.
+    Durable construction also records admission on disk; live construction uses
+    the bounded selection and received acknowledgement directly.
     Successful acknowledgement says nothing about preparation or worker retirement.
     """
 
     def __init__(self, api, store, claim):
-        if api.origin != store.scope.api_origin:
-            raise ValueError("Cannot configure Attempt start: signing origin differs from retained storage scope")
+        self._configure(api, store, store.scope, claim)
+
+    @classmethod
+    def live(cls, api, claim, *, scope):
+        claim.require_live(scope)
+        starter = cls.__new__(cls)
+        starter._configure(api, None, scope, claim)
+        return starter
+
+    def _configure(self, api, store, scope, claim):
+        if type(scope) is not RecoveryScope or api.origin != scope.api_origin:
+            raise ValueError("Cannot configure Attempt start: signing origin differs from the selected scope")
         self.api = api
         self.store = store
+        self.scope = scope
         self.claim = claim
         self._pending = None
         self._unretained = None
         self._api_failure = None
         self._observing = False
         self.last_failure = None
+
+    @property
+    def _storage_pending(self):
+        return self.store is not None and self.store.pending_owner is self
 
     async def start(self, pending):
         """Retain a new pending start, or the identical existing one, before sending."""
@@ -64,24 +81,29 @@ class AttemptStarter:
         return await self._start(pending, retain_new=False)
 
     async def _start(self, pending, *, retain_new):
-        if type(pending) is not StartPending or pending.scope != self.store.scope:
+        if type(pending) is not StartPending or pending.scope != self.scope:
             raise StartRefused("Start requires a pending record matching the current API, provider, lane and generation")
         if self._pending is not None:
             raise StartRefused("Attempt start still owns unresolved work; settle it before another request")
-        self.claim.require_start(pending)
+        if self.store is None:
+            self.claim.require_live_start(pending)
+        else:
+            self.claim.require_start(pending)
         self.claim.begin(self)
         self._pending = pending
         self._observing = True
         self._api_failure = None
         self.last_failure = None
         try:
-            if retain_new:
-                await self.store.retain_start(pending, owner=self)
-            else:
-                await self.store.require_start(pending, owner=self)
+            if self.store is not None:
+                if retain_new:
+                    await self.store.retain_start(pending, owner=self)
+                else:
+                    await self.store.require_start(pending, owner=self)
             self._unretained = await self._send(pending)
-            self.claim.bind_attempt(self.store.scope, self._unretained.admission.execution_attempt_ref, owner=self)
-            await self.store.acknowledge_start(pending, self._unretained.admission, owner=self)
+            self.claim.bind_attempt(self.scope, self._unretained.admission.execution_attempt_ref, owner=self)
+            if self.store is not None:
+                await self.store.acknowledge_start(pending, self._unretained.admission, owner=self)
             # Return the actual received admission. Historical disk metadata is
             # deliberately a different type and cannot recreate this live path.
             result = self._unretained
@@ -92,7 +114,7 @@ class AttemptStarter:
             raise
         except (ApiFailure, CheckpointFailed, CheckpointRefused, OwnershipRefused) as cause:
             raise self._remember(
-                "Attempt start lacks a durable owned acknowledgement; preserve the original request and protected admission evidence",
+                "Attempt start lacks a retained owned acknowledgement; preserve the original request and protected admission evidence",
                 cause,
             ) from None
         finally:
@@ -117,7 +139,7 @@ class AttemptStarter:
         return acknowledge_start(pending, admission)
 
     async def settle(self):
-        """Observe original I/O, returning an acknowledgement only after its write."""
+        """Settle original I/O; durable mode returns admission only after its write."""
         if self._pending is None or self._observing:
             raise StartRefused("No unobserved start operation is available to settle")
         self._observing = True
@@ -125,7 +147,7 @@ class AttemptStarter:
             if self.api.pending_owner is self:
                 await self.api.retire(owner=self)
             result = None
-            if self.store.pending_owner is self:
+            if self._storage_pending:
                 settled = await self.store.settle(owner=self)
                 if self._unretained is not None:
                     expected = AcknowledgedCheckpoint(self._pending, self._unretained.admission)
@@ -137,7 +159,7 @@ class AttemptStarter:
                     self._unretained = None
             if self._unretained is not None:
                 raise CheckpointFailed(
-                    "Received acknowledgement lacks durable ownership; reconcile storage and claims before preparation"
+                    "Received acknowledgement remains unresolved; retain its owner and reconcile the claim before preparation"
                 )
             return result
         except asyncio.CancelledError as cause:
@@ -152,7 +174,7 @@ class AttemptStarter:
             self._finish_if_settled()
 
     def _finish_if_settled(self):
-        if self.api.pending_owner is not self and self.store.pending_owner is not self and self._unretained is None:
+        if self.api.pending_owner is not self and not self._storage_pending and self._unretained is None:
             self.claim.finish(self)
             self._pending = None
 

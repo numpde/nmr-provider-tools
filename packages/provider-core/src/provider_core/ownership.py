@@ -226,6 +226,17 @@ class _AttemptClaim:
         if _identity(scope, execution_attempt_ref) not in self._identities:
             raise OwnershipRefused("Attempt claim differs from the API, provider or Attempt being used")
 
+    def require_live(self, scope):
+        self._registry._require(self)
+        if self._pending is None or scope != self._pending.scope:
+            raise OwnershipRefused("Live operation requires the exact scope and bounded selection of a live claim")
+
+    def require_live_start(self, pending):
+        self.require_live(pending.scope)
+        self.require_start(pending)
+        if any(identity[2] == "attempt" for identity in self._identities):
+            raise OwnershipRefused("This live START already owns its received Attempt; retain that admission instead of resending")
+
     def require_start(self, pending):
         self._registry._require(self)
         if self._registry._limits is not None and pending != self._pending:
