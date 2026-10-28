@@ -201,7 +201,8 @@ class CapturedNativeTests(unittest.TestCase):
         )
         result = subprocess.run(
             ["/bin/bash", "-euc", script, "bash", str(self.helper)],
-            env=self.environment,
+            # This stream test injects no file faults; use the real utilities.
+            env=os.environ,
             stdin=subprocess.DEVNULL,
             capture_output=True,
             timeout=5,
@@ -623,7 +624,7 @@ class CapturedNativeTests(unittest.TestCase):
                     command, environment = self.outcome_command(mode, next_success=True)
                     process = subprocess.Popen(
                         command,
-                        env=environment | {"NATIVE_BEHAVIOR": "resistant"},
+                        env=environment | {"NATIVE_BEHAVIOR": "resistant", "PATH": os.environ["PATH"]},
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         text=True,
@@ -1201,14 +1202,14 @@ class CapturedNativeTests(unittest.TestCase):
                     scratch = Path(json.loads(self.control.read_text())["directory"])
                     self.assertEqual(effect == "1" or native_status == "7", scratch.exists())
                     self.assert_client_retired()
-        command, environment = self.command()
+        command, _ = self.command()
         command[2] = (
             'trap ":" HUP INT TERM USR1; before=$(trap -p HUP INT TERM USR1); source "$1"; '
             "inference_diagnostic=; "
             'trap \'status=$?; trap - EXIT; printf "%s" "$inference_diagnostic" >&2; exit "$status"\' EXIT; '
             'inference_native probe "$2" discard true; [[ $(trap -p HUP INT TERM USR1) == "$before" ]]'
         )
-        result = subprocess.run(command, env=environment, text=True, capture_output=True, timeout=5, check=False)
+        result = subprocess.run(command, env=os.environ, text=True, capture_output=True, timeout=5, check=False)
         self.assertEqual(0, result.returncode, msg=result.stderr)
 
     def test_cleanup_cancellation_preserves_signal_status_and_actual_directory_effect(self):
@@ -1252,6 +1253,7 @@ class CapturedNativeTests(unittest.TestCase):
             ],
             env=self.environment
             | {
+                "PATH": os.environ["PATH"],
                 "NATIVE_STATUS": "7",
                 "NATIVE_BEHAVIOR": "stream-finite",
                 "NATIVE_DIAGNOSTIC": str(diagnostic),
