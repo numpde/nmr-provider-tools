@@ -1122,9 +1122,6 @@ class AttemptExecutor:
             self._checkpoint = SuppressedCheckpoint(self._checkpoint, reason)
             self._outcome = self._delivery_outcome = None
             return self._checkpoint
-        except asyncio.CancelledError as cause:
-            self._remember(cause, cleanup=True)
-            raise
         except Exception as cause:
             self._remember(cause, cleanup=True)
             raise self.last_failure from None

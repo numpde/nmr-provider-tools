@@ -195,8 +195,6 @@ class _AttemptClaim:
         self._registry._require(self)
         if pending != self._pending:
             raise OwnershipRefused("Live START differs from the exact pending selection retained by this claim")
-        if _start_identity(pending) not in self._identities:
-            raise OwnershipRefused("Start claim differs from the API, provider or retained provider attempt key")
 
     def bind_attempt(self, scope, execution_attempt_ref, *, owner):
         """Add the received reference atomically without releasing the start key."""
