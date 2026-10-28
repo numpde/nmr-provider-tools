@@ -1,34 +1,123 @@
-# Copy to a private operator-owned file and replace every host/provider choice.
-# Keep the existing project, UID/GID and socket leaf when adopting an old queue.
+# Copy this file somewhere private and replace the example values.
+# Use the same file for shared delivery and the providers that connect to it.
+# When reusing a queue, keep its project, UID/GID, API origin, provider_ref
+# and socket filename. See `make help` for deployment commands.
+# All durations below are positive numbers of seconds.
+
+# Docker Compose project name; also determines the queue and socket volume names.
 project = "nmr-api-delivery"
+
+# Non-root user ID for delivery and its API proxies. Use the deploying user's
+# `id -u`; this user must also own the signing credential file below.
 uid = 1000
+
+# Non-root group ID for those processes and the delivery sockets. Provider
+# processes need this as their primary or supplementary group to connect.
 gid = 1000
+
+# Seconds allowed separately to read a provider request, send its reply, and
+# close the connection. This does not time queue writes or remote API calls.
 request_seconds = 30
+
+# First retry delay for an API publication that is safe to repeat: randomly
+# between half this value and this value, in seconds.
+# Must be no greater than retry_max_seconds.
 retry_initial_seconds = 1
+
+# The retry interval doubles up to this ceiling, in seconds, before choosing
+# the random delay. Any API Retry-After delay is added on top of that wait.
 retry_max_seconds = 30
 
+# Queue capacity, including reports held for operator attention. Byte limits
+# count serialized report bodies, not total disk use or memory. At capacity,
+# new reports are refused; providers must keep them and pause new computation
+# until delivery can accept them.
 [limits]
+
+# Maximum stored reports per provider binding (1 to 256).
 provider_items = 8
+
+# Maximum stored report-body bytes per binding; 16777216 is 16 MiB.
 provider_bytes = 16777216
+
+# Maximum stored reports across all bindings. Must cover provider_items times
+# the number of bindings, so each provider has its own allowance.
 total_items = 8
+
+# Maximum report-body bytes across all bindings. Must cover provider_bytes
+# times the number of bindings. All four capacity limits must be positive.
 total_bytes = 16777216
 
+# Repeat this binding and its api/route tables for each provider (up to 16).
 [[bindings]]
+
+# Unique local name used to select this binding; separate from the API-issued
+# provider_ref below. Start with a letter or digit; use only letters, digits,
+# underscores or hyphens, up to 63 characters.
 name = "your-provider"
+
+# Delivery socket path INSIDE the provider container. Mount this binding's
+# shared socket volume at the parent directory (/run/delivery here).
 socket_path = "/run/delivery/http.sock"
 
 [bindings.api]
+
+# API HTTPS origin: scheme and hostname, with a non-default port if needed.
+# Use its canonical form, without a path, query or trailing slash.
 origin = "https://api.example.invalid"
+
+# Environment named in the issued signing credential: dev-local, dev or run.
+# This must match the credential file's profile.
 profile = "dev-local"
+
+# Expected NMR-API-Topology response header: dev-local, dev or web.
+# A different value causes delivery to reject the API response.
 topology = "dev-local"
+
+# Provider identity issued by the API. Must match the signing credential.
 provider_ref = "provider:your-provider"
+
+# Absolute HOST path to the API-issued signing credential JSON, mounted read-only.
+# The file must belong to uid above and have permissions 0400 or 0600.
 credential_file = "/private/api/provider-signing.json"
+
+# Seconds to wait for an API HTTP exchange before reporting a timeout.
+# A timeout does not prove the API rejected the report; its queued copy is kept.
 exchange_seconds = 30
+
+# Additional seconds to observe HTTP cleanup after a timeout or cancellation.
+# Expiry does not prove the request stopped; delivery keeps tracking that work.
 retirement_seconds = 5
+
+# Optional absolute HOST path to a PEM CA bundle, mounted read-only. If supplied,
+# it REPLACES the image's system CA roots; omit it to use those system roots.
 # ca_file = "/private/api/ca.pem"
 
 [bindings.route]
+
+# How the API proxy reaches the API (IPv4 only):
+# external: DNS and connections through a host interface; needs resolver_file.
+# mapped: explicit hostname=IPv4 mapping through a host interface; needs addresses.
+# local: explicit mapping on an existing Docker network; needs addresses/network_id.
 mode = "external"
+
+# Linux interface used for API connections and, in external mode, DNS queries.
+# Use a HOST interface for external/mapped; for local, use the interface inside
+# the proxy container (usually eth0). There is no fallback to another interface.
 interface = "your-interface"
+
+# API proxy logging only: INFO, DEBUG or WARNING.
 log_level = "INFO"
+
+# External mode only: absolute HOST path to a resolv.conf file, mounted read-only
+# in the proxy. It needs reachable, non-loopback IPv4 nameservers; a local stub
+# such as 127.0.0.53 will not work. Remove this setting for mapped/local mode.
 resolver_file = "/private/api/resolv.conf"
+
+# Mapped/local modes only: one entry for the API origin's hostname, using the
+# actual destination IPv4 address. TLS still checks the original hostname.
+# addresses = ["api.example.invalid=192.0.2.10"]
+
+# Local mode only: the existing Docker network's full 64-character lowercase
+# hexadecimal ID, not its name. Obtain it with `docker network inspect`.
+# network_id = "replace-with-the-full-network-id"
