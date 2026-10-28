@@ -292,3 +292,90 @@ wheel/version/import and dependency closure, then run the maintained consumer
 suite on Python 3.12. Update declared Python support truthfully. No source checkout
 import, default permission widening, new release, or scientific model upgrade.
 This prerequisite is not the final adopted runtime; old lifecycle removal follows.
+
+Checkpoint -- 20:34 UTC
+-----------------------
+
+SECS established real D005 RED in /tmp/secs-d005-red.log: ten selected-spectrum
+tests, seven existing passes and three new failures at unsupported prepare. The
+earlier missing-tokenizer-cache attempt is environment failure, not counted RED.
+CPU image sha256:eba7ee19e79acaa9b59e06a140c2a12260f227c8e5986ed3fe16723ed623507b
+was built offline from existing hash-locked inputs with no version changes.
+
+Advisory matching found legacy-package findings; it did not certify a safe
+deployment. The focused contained lane is network-none/read-only/nonroot65532,
+caps-none, no-new-privileges, 2 CPU/2 GiB/64 PIDs, with bounded temporary storage
+and read-only trusted fixture/cache inputs. It uses fixed tokenizer/spectra and
+static retrieval, not remote model/checkpoint/PT2/JIT/untrusted configuration.
+Those facts qualify this test lane's applicability analysis, not production.
+The source and product patch began only after the three real RED failures.
+
+NMRPeak D006 commit is 52528d4 and clean. Root also inspected the committed diff
+and weakref witness; agrees with SECS's narrow worker-local ownership proof.
+D009 Python/artifact prerequisites are now acknowledged and under preparation.
+
+D007/D008 stop work proceeds in parallel. Root explicitly repeated the recorded
+ACKs to avoid queued-message timing being mistaken for missing authorization.
+The application-level selected-handoff cancellation issue remains a separate
+unresolved implementation choice; no SDK API change has been authorized for it.
+
+D010 -- Reject an unnecessary consumer build-backend upgrade (20:38 UTC)
+---------------------------------------------------------------------
+
+Serious alternatives identified during D009 review:
+A. Copy SDK build-backend setuptools 84.1.0 into NMRPeak's project build as well
+   as adopting the SDK runtime wheel/lock. One tested version, but the already-
+   built SDK wheel does not require its own build backend in a consumer project.
+B. Retain NMRPeak's independently supported setuptools 79.0.1, inspect its exact
+   advisories for the actual build platform, and change only if relevant evidence
+   or a real Python 3.12 packaging failure requires it.
+
+Choice: B. Root challenged the candidate 84.1 change before acceptance/commit;
+the consumer confirmed no build requirement justified it and is reverting that
+candidate edit. Local advisory findings concern macOS Unicode MANIFEST handling
+and Windows legacy wheel installation, not this closed Linux source/PEP517 wheel
+path. This is scoped applicability, not a clean-security claim. Evidence:
+/tmp/nmrpeak-setuptools79-advisories.json. Final tests must use the actual retained
+backend input, not an earlier candidate image built from the rejected change.
+Runtime dependency alignment to the published SDK lock remains part of D009.
+
+D011 -- Repair an unavailable test-image OS pin narrowly (20:38 UTC)
+-----------------------------------------------------------------
+
+Actual D009 preparation failed before Python installation: the declared
+libexpat1 2.5.0-1+deb12u4 is no longer available from its configured repository.
+
+Serious alternatives:
+A. Add a Debian snapshot source to retain u4. This preserves an old version but
+   adds another repository authority and deliberately retains known fixed defects.
+B. Update only the unavailable test-image pin to Debian's available security
+   update 2.5.0-1+deb12u5; retain all other apt selections and image-input ownership.
+
+Choice: B. Debian's primary DLA-4849-1 (2026-10-22) identifies u5 as the Bookworm
+fix for four reported issues, including an incomplete prior patch. Root checked
+the advisory and current security tracker before acknowledging installation:
+https://lists.debian.org/debian-lts-announce/2026/10/msg00043.html
+https://security-tracker.debian.org/tracker/source-package/expat
+The tracker still lists open issues; this is not blanket security qualification.
+Rebuild with that single changed apt pin, preserve source/image identities, and
+run the maintained Python 3.12 installed-SDK consumer checks. Do not refresh the
+whole OS dependency set or scientific/model images to solve this test prerequisite.
+
+Checkpoint -- 20:38 UTC
+-----------------------
+
+SECS D005 science lane is GREEN (11 cases, 3.871 s), including consumed handles
+after retrieval failure, original admitted input after source deletion/selection
+mutation, buffer release, and formula rejection before model access. Full provider
+and input lanes are running; independent review/commit remain pending.
+
+NMRNet D008 preserved RED (/tmp/nmrnet-safe-down-red.log: 25 cases, 11 expected
+failures), then implemented provider-first metadata/stop guards. GREEN launcher
+qualification is running; root audit is pending. It explicitly does not claim
+that application-level cancelled handoff retry is repaired by the host fix.
+
+NMRPeak D009 has an actual Python-version RED before the prerequisite edits.
+Its 14 proposed runtime pins were matched locally against 26,692 current public
+advisories with no findings/unparsed bounds. Backend review and the unavailable
+OS pin above are separate from that runtime-pin result. No new SDK release,
+production deployment, or scientific runner runtime change has occurred.
