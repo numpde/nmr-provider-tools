@@ -206,3 +206,89 @@ normal stop separate from a deliberate emergency loss decision. Do not replace
 it with an unbounded host CLI or assume Compose down of all services preserves
 provider-before-runner ordering. Inspect actual provider exit/disposition before
 subsequent mutations. No new force framework or production stop is authorized.
+
+Checkpoint -- 20:31 UTC
+-----------------------
+
+D006 completed in NMRPeak commit 52528d4. Both HF/CHF RED witnesses failed before
+the pending-state reorder. The maintained contained unit suite then passed 599
+tests on snapshot 1142184e5549255611f54a5aa729e82125fc85923b53444cd1ffc6f67d9c69e2.
+SECS independently reviewed the dirty slice with no actionable defect. This proves
+worker-local input release with the nonretaining fixture runtime, not actual
+model/native quiescence. The latter remains required during adoption.
+
+D007 platform proof passed on installed Compose 5.5.1: finite 1-second stop killed
+the held child (137), while timeout=-1 plus a 4-second local caller timeout left
+it running; explicit release later produced exit 0 without restart. Evidence:
+/tmp/magnet-drain-compose-probe.log. Only the isolated fixture project was used.
+Magnet will now edit its existing provider-first stop and reuse the clean-exit
+guard in down as well as up, then run launcher regressions and obtain root audit.
+
+SECS has RED test source but no cached science image. Automatic approval review
+rejected an OSV batch inventory export. A safer public PyPI advisory-feed download
+and local-only matching succeeded (feed Last-Modified 20:03:09 UTC). Applicability
+of findings is being checked before offline image installation; this is neither
+a clean security audit nor an SDK gap. No product edit preceded real RED.
+
+D008 -- NMRNet provider-first guarded stop (20:31 UTC)
+----------------------------------------------------
+
+Serious alternatives, submitted by NMRNet:
+A. Increase the existing 60-second timeout or rely on application grace alone.
+   An unavailable delivery service can outlast either finite deadline.
+B. Add a drain socket/marker protocol. It would create a new authority while
+   actual container state and the existing provider's clean exit already exist.
+C. Under the existing deployment lock, select the exact provider container, use
+   no-kill engine stop with a bounded client waiter, confirm stopped exit 0, then
+   perform the existing dependency teardown. Refuse unconfirmed or unclean stop.
+
+Choice: C, using D007's installed-platform evidence rather than duplicating the
+experiment. This addresses ordering as well as timeout: all-service down is not
+provider-first shutdown. Client failure/cancellation leaves dependencies, volumes,
+and the current recipe/logs available; no runner/down/removal follows it. Explicit
+all-absent and repeat-call cases preserve truthful idempotency. Already-stopped
+nonzero/unknown exit must not be relabelled clean. Do not mutate restart policy.
+
+First slice excludes a new force-down framework. Any emergency CLI addition is a
+separate consequential choice; normal stop cannot silently select report loss.
+Required RED/GREEN: exact CID and -1 stop, held waiter/cancellation/nonzero/unknown
+exit preventing all dependency mutations, clean exit allowing ordered teardown,
+and repeated/all-absent cases. Root audits the actual dirty launcher diff.
+
+NMRNet also identified a separate application gap: _finish_work cancels the
+controller task after its drain window, potentially ending selected handoff retries
+and then holding forever even after delivery recovers. D008 prevents host SIGKILL
+but does not resolve that. Propose a distinct bounded change to original driver
+ownership before adding any shared SDK API. No decision on that next slice yet.
+
+D009 -- NMRPeak installed SDK and control Python (20:31 UTC)
+----------------------------------------------------------
+
+Serious alternatives, submitted by NMRPeak and checked against package metadata:
+A. Mount/copy the sibling SDK source or weaken its Python requirement to 3.11.
+   This bypasses installed-artifact qualification or introduces an unqualified
+   shared runtime-support change merely to avoid a consumer prerequisite.
+B. Upgrade only NMRPeak's provider/control and test images to the SDK-supported
+   pinned Python 3.12 line, align the closed dependency installation to the
+   published 0.4.0 wheel/lock, and qualify that installed boundary first.
+C. Fold dependency/interpreter changes into the full runtime adapter rewrite.
+   This avoids an unused interim dependency but confounds environment failures
+   with native/lifecycle behavior and produces a much larger first adoption diff.
+
+Choice: B as a coherent prerequisite local slice. Keep scientific runner images
+and scientific dependencies on their existing separately qualified runtime.
+Python 3.12.15's existing pinned consumer/base image is a candidate, not a mutable
+tag. Preserve image/source identity inputs and container guard contracts.
+
+Reuse the published release identities, not another consumer's live environment:
+  SDK source: d04373aab562b902be1a541a932e8d6d6896425d
+  wheel: 1a741c14664d2f849d3dad48f287e2179d6c5e2c076a9e9db4057787c1d77561
+  lock: 2c88ef651d83594f03a1d2ffecec81564affa3cae52a6421f252447f9685185a
+
+Refresh changed-package advisory checks before installation, preferably comparing
+the already downloaded public feed locally. Do not export another inventory or
+upgrade unrelated packages speculatively. The slice must qualify actual installed
+wheel/version/import and dependency closure, then run the maintained consumer
+suite on Python 3.12. Update declared Python support truthfully. No source checkout
+import, default permission widening, new release, or scientific model upgrade.
+This prerequisite is not the final adopted runtime; old lifecycle removal follows.
