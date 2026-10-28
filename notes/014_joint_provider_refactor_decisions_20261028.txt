@@ -1,0 +1,114 @@
+Joint provider refactor: running decisions and evidence
+=====================================================
+Started 2026-10-28 20:22 UTC
+
+Objective and authority
+-----------------------
+
+Implement and qualify the jointly reviewed common design in note 013 across
+the shared SDK, NMRNet, Magnet, SECS, and NMRPeak. Preserve scientific ownership,
+truthful failure/cleanup/reporting boundaries, and the chosen live-only restart
+policy. Remove displaced lifecycle/publication authority; a parallel legacy
+controller is not a completed adoption.
+
+The user authorized joint refactoring and meaningful commits. This does not
+authorize production deployment or assume a new shared SDK release is needed.
+The goal stays active until the agreed implementation and required qualification
+are complete, or an actual external blocker requires a user decision.
+
+This is the single running decision record. Before consequential implementation
+choices, record serious alternatives, the choice, evidence and consequences here.
+Update at each such choice and at least every three minutes during active work.
+Status checkpoints need not invent a decision when none has changed. Exact code,
+validation results, release artifacts, and live proof remain distinct evidence.
+
+Coordinators
+------------
+
+Shared SDK and this note: 01a1769b-a54e-7371-ae9a-4cf56c888228
+NMRNet:                  01a162ad-276f-7032-938f-89afb43514bc
+Magnet:                  01a177e4-772d-7db1-bc02-0b05a65f220d
+SECS:                    01a183cb-2653-7e10-b63a-afaaf2f2d78f
+NMRPeak:                 01a183cb-94c2-7652-bb7d-87aead1f948f
+
+Each repository's coordinator owns its edits and integration. Other peers audit
+that checkout read-only. Do not overwrite unrelated work or share ownership of
+the same mutable files. Only the shared coordinator edits this running note.
+
+D001 -- Implementation ownership (20:22 UTC)
+-------------------------------------------
+
+Serious alternatives:
+A. The shared coordinator authors every repository change. This gives one editor
+   but serializes four substantial consumer migrations and discards the existing
+   repo owners' task context.
+B. Each existing repository coordinator authors its own bounded slices; the shared
+   coordinator owns SDK integration, the common contract, and this log. Require
+   independent review across the boundaries before accepting each slice.
+
+Choice: B. The four owners have already inspected and jointly reviewed their
+consumer contracts. Repository ownership makes useful parallel work possible
+without concurrent writers to one checkout. It does not allow independent changes
+to the common design: bring consequential choices here before acting on them.
+
+Next evidence: each owner reports its current tree, one first slice, genuine
+implementation gaps, serious alternatives, and focused validation. No blanket
+approval to rewrite a whole runtime without intermediate review.
+
+D002 -- One decision record (20:22 UTC)
+--------------------------------------
+
+Serious alternatives:
+A. Independent running notes in all five repositories. Local reasoning is near
+   code, but shared decisions can diverge and reviewers must reconstruct order.
+B. One ordered note here, with provider-labelled decisions and source/commit
+   references. Consumer-specific static notes remain background, governed by
+   common note 013 where their old mechanism prescriptions conflict.
+
+Choice: B, following the user's explicit requirement for one running note.
+Peers submit alternatives and rationale; the shared coordinator records and
+acknowledges the relevant decision before consequential edits proceed.
+
+D003 -- Shared SDK baseline (20:22 UTC)
+--------------------------------------
+
+Serious alternatives:
+A. Start a new shared lease/gate/recovery API and require all consumers to migrate
+   to it. This centralizes machinery but no current evidence establishes its need.
+B. Begin with published provider-core 0.4.0 and its existing public seams; add a
+   shared capability only after an actual consumer gap or justified duplication
+   demonstrates that existing ownership cannot establish the contract.
+
+Choice: B. The four-provider comparison found smaller working precedents for
+serial admission, request correlation, and a bounded proof-session barrier.
+Do not create another nonce protocol, global gate, second intervention latch,
+or poisoned-reader reset merely to satisfy the first local design drafts.
+
+If the SDK really must change, record the failing scenario, serious alternative
+consumer compositions, compatibility consequences, and qualification before edit.
+Release and consumer artifact updates then become explicit separate decisions.
+
+D004 -- Completion across providers (20:22 UTC)
+-----------------------------------------------
+
+Serious alternatives:
+A. Rebuild NMRNet and Magnet to match one uniform new consumer architecture.
+B. Preserve their existing qualified owners where sufficient; change only actual
+   gaps. Complete SECS/NMRPeak adoption with their own scientific bindings and
+   remove the displaced lifecycle/recovery/publication implementations.
+
+Choice: B. Note 013 standardizes facts and ownership, not identical provider
+internals. NMRNet's fresh-child roles and Magnet's warm boots are both legitimate
+where each contract is proved. Uniform structure alone does not justify churn.
+
+Completion requires actual consumer adapter and installed-runtime checks, bounded
+report ownership and correct stop/recovery behavior, and absence of reachable
+duplicate lifecycle/publisher paths. Scientific/model and signed live API evidence
+must be named separately; fixtures do not become production proof.
+
+Checkpoint -- 20:22 UTC
+-----------------------
+
+Goal created and active. Shared checkout is clean at 0cab18b before this note.
+Common design already has all four design-scope approvals. Implementation kickoff
+has not yet been dispatched; the decisions above precede that action.
