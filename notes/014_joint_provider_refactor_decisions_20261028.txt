@@ -759,3 +759,33 @@ focused cases include first provider clean/second provider bad; all probes,
 An apparent application drain-expiry cancellation gap is being traced there;
 the host guard does not by itself resolve it. Magnet also independently reviews
 NMRNet's original-driver shutdown slice.
+
+D022 -- Magnet distinguishes expired wait from actual final failure (21:07 UTC)
+---------------------------------------------------------------------------
+
+Magnet corrected its initial cancellation hypothesis after tracing the source.
+run_with_shutdown_drain uses asyncio.wait and then shielded _join_task; expiry
+does not directly cancel the original driver. However, the timeout branch raises
+ProcessOperationFailed unconditionally even after the original operation joins
+successfully. Actual force_close effects and sibling failures need their own
+evidence; do not report the rejected direct-cancellation hypothesis as a defect.
+
+Serious alternatives:
+A. Keep unconditional process failure after the wait window, regardless of a
+   later exact ACK and clean final owner state. Conservative, but a recovered
+   operation still fails the new clean-exit deployment guard without a remaining
+   failed obligation.
+B. Preserve Magnet's existing scientific cutoff/force_close policy and original
+   task join, then classify the actual completed operation through the existing
+   common result/error boundary. Preserve actual cutoff, cleanup, sibling and
+   diagnostic failures; elapsed observation time alone does not manufacture one.
+C. Introduce an SDK-selected-report query and branch on mirrored lifecycle state.
+   No actual need for another state authority has been established.
+
+Choice: B as the bounded hypothesis to prove, not blanket approval to widen
+scientific budgets. Root inspected the actual supervision function. First build
+the real-SDK queue-full -> stop -> expiry -> recovery witness through this wrapper,
+checking original owner/report identity, ACK and shutdown readiness. Keep a genuine
+scientific-cutoff/error witness and force_close failure behavior distinct. Then
+review the smallest product correction; sibling TaskGroup cancellation remains
+unproved until exercised. Do not copy NMRNet's service architecture into Magnet.
