@@ -1548,3 +1548,75 @@ Install-lock SHA-256:
 857e56952ede64196e77e686b2d6da2e3925416ef698c4eac868646bb8910480.
 These qualify the b176008 candidate, not an eventual different 0.5 release.
 Consumer probes use installed artifacts, not shared checkout source imports.
+
+D037 -- Patch the shared qualification runtimes before new acquisition (22:42 UTC)
+--------------------------------------------------------------------------------
+
+The fixed Python 3.11 base was absent, so acquisition stopped before its worker
+started; no cp311 wheel was downloaded. Before pulling it, root checked primary
+Python security sources. Python 3.11.14 and current shared 3.12.15 are superseded
+by the expedited 3.11.18 and 3.12.16 security releases, including the compromised
+intermediate-CA distrust change. Sources:
+https://docs.python.org/3.11/whatsnew/changelog.html
+https://blog.python.org/2026/10/python-3152-31410-31318-31216-31118/
+
+Serious alternatives:
+A. Pull the older base simply because the scientific stack currently names it.
+   This makes newly bootstrapped network acquisition use known-superseded trust
+   behavior and conflates a compatibility target with the infrastructure default.
+B. Qualify current security patches within Python 3.11 and 3.12 for shared
+   infrastructure, using official immutable OCI identities. Keep older scientific
+   patch compatibility as an explicit offline/consumer qualification where needed.
+C. Force a new scientific minor version or add another interpreter prefix to
+   avoid qualifying SDK support. Neither resolves the actual shared requirement.
+
+Choice: B. Select 3.11.18 and 3.12.16 after checking their official registry
+identities; do not run mutable tags. This changes shared infrastructure patches,
+not model weights, scientific dependency ABI or provider numerical promises.
+Scientific image changes remain their provider's reviewed, qualified responsibility.
+Bootstrap retains its explicit daemon-route contract; wheel acquisition stays
+interface-bound and hash-locked. No new ad hoc downloader or route change.
+
+D038 -- Share native observation and stopping ownership (22:42 UTC)
+------------------------------------------------------------------------
+
+NMRPeak's real eof_alive case closes science while retaining the child/lease.
+The synchronous observation waits out the full cleanup budget, poisons the native
+reader, then requests stop too late to confirm cleanup. This is a concrete shared
+ownership/composition gap, not evidence that scientific EOF proves native exit.
+
+Serious alternatives:
+A. Stop immediately on every EOF. Conservative about exit evidence, but forfeits
+   available original-exit observation and repeats stopping composition per provider.
+B. Share an asynchronous owner around the existing native session: retain one
+   original setup/retirement operation, bound the caller's pre-stop observation
+   separately, then request stop and join that same reader within the aggregate
+   cleanup budget. Keep scientific protocol/readers with the provider.
+C. Add local watchdogs, another frame parser or retry a poisoned control read.
+   These duplicate authority or lose the original observation contract.
+
+Choice: B. Reuse the qualified original-owner patterns, including NMRNet's existing
+composition, without moving a scientific controller into the SDK. Caller wait
+expiry must not poison or replace the original read. Stop-first races must not
+reconstruct original_exit. Observation allowance is explicit and part of the
+declared aggregate budget, not an arbitrary new grace or proof that a timer fired.
+Exact API and patch require independent review and actual eof_alive/partial-frame/
+cancel/child-exit witnesses before integration. Keep consumer adapters moving;
+this shared seam must not become another standalone local QA campaign.
+
+Checkpoint -- 22:42 UTC
+-----------------------
+
+D035's installed unit suite passed 488 cases. Its provisional immutable snapshot
+ca306e2 is building through the maintained clean-source lane into
+/tmp/provider-core-0.5.0-d035 so consumers need not wait for Python matrix closure.
+It retains the already-qualified 3.12 requirement for that provisional API test;
+the main candidate's 3.11 support remains separately under qualification.
+
+The root record again lagged during bootstrap/API investigation. These new
+choices precede their product edits; this entry does not pretend the requested
+checkpoint cadence was met. The shared upload-transfer patch is now available
+from independent investigation with 52 focused unit and 32 integration cases;
+root integration/review is next. SECS has committed its SDK-free codec extraction
+as b2a6213 and continues actual async adoption. NMRPeak's real async adapter
+tests are progressing against installed 0.5 artifacts, not only native QA.
