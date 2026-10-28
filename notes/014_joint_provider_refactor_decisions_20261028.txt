@@ -1193,3 +1193,27 @@ SECS and NMRPeak report the user's explicit local instruction to apply delegated
 repo change with critical Luna/medium review. Each coordinator retains all edits;
 their new native/deadline auditors are read-only. This does not transfer ownership
 of this record or authorize cross-repository writes, releases or deployment.
+
+Checkpoint -- 21:41 UTC
+-----------------------
+
+NMRPeak's atomic native slice now includes the standalone control stages,
+bootstrap/policy, worker descriptor arguments, closed image inputs and inspected
+entrypoints. The old generic supervisor and two model wrappers are deleted in
+the dirty slice. A reviewer found the benchmark host's old entrypoint declaration;
+updating that owning contract is part of the same cut, not a second runtime mode.
+Actual attachment/warm-child/retirement tests pass; unit native test ports are
+explicit, with no production None fallback. Reset/race/poisoned-reader consumer
+witnesses and final image qualification are still required before acceptance.
+
+Independent review also suggested changing SDK crash/greeting behavior. Root and
+the consumer rejected those changes without a demonstrated contract gap: a death
+not originally observed before local interruption cannot be reconstructed into
+original_exit merely because physical death may have happened earlier. Existing
+phase/greeting deadlines remain. Qualify these as negative/race cases rather
+than broadening crash authority or starting an SDK release on conjecture.
+
+SECS continues the explicit request-deadline/retirement comparison before its
+native product cut. Magnet's pre-stop sibling-failure variant is being checked
+before the next supervision choice. These are local design/qualification tasks;
+there is no pending user approval or authorized production operation.
