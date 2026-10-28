@@ -20,6 +20,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 
+# Cover ten-second startup, twenty-second native work and retirement overhead.
+# Tests of promptness and cancellation separately assert their narrower bounds.
+# repo-check: allow-module-constant
+NATIVE_FIXTURE_WATCHDOG_SECONDS = 35
+
+
 class CapturedNativeTests(unittest.TestCase):
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
@@ -418,8 +424,8 @@ class CapturedNativeTests(unittest.TestCase):
             str(Path(__file__).resolve()),
         ], (self.environment if environment is None else environment)
 
-    # silent-defaults: allow-contract -- Ordinary probes use a five-second test watchdog and twenty-second native budget; timing-specific cases explicitly select their own bounds; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_cleanup_preserves_primary_and_traps_are_restored
-    def run_native(self, *, budget="20", additions=None, watchdog_seconds=5):
+    # silent-defaults: allow-contract -- This runner forwards its declared twenty-second fixture budget unless the case explicitly selects another one; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_cleanup_preserves_primary_and_traps_are_restored
+    def run_native(self, *, budget="20", additions=None):
         command, environment = self.command(budget=budget)
         # silent-defaults: allow-contract -- Omitted additions preserve the declared client scenario; supplied entries overlay only their selected inputs; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_cli_signal_dispositions_are_native
         result = subprocess.run(
@@ -427,7 +433,7 @@ class CapturedNativeTests(unittest.TestCase):
             env=environment | ({} if additions is None else additions),
             text=True,
             capture_output=True,
-            timeout=watchdog_seconds,
+            timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS,
             check=False,
         )
         self.retain_cleanup(result.stderr)
@@ -465,7 +471,7 @@ class CapturedNativeTests(unittest.TestCase):
 
     def run_fact(self, *, budget, additions=None):
         command, environment = self.fact_command(budget=budget, additions=additions)
-        result = subprocess.run(command, env=environment, text=True, capture_output=True, timeout=5, check=False)
+        result = subprocess.run(command, env=environment, text=True, capture_output=True, timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS, check=False)
         self.retain_cleanup(result.stderr)
         return result, (self.root / "retired").read_text().strip()
 
@@ -1116,15 +1122,22 @@ class CapturedNativeTests(unittest.TestCase):
     def test_terminal_publication_failure_is_prompt_and_retires_held_descendant(self):
         for phase in ("status", "printf"):
             with self.subTest(phase=phase):
+                failed_at = self.root / (phase + "-failed-at")
                 if phase == "printf":
                     source = self.helper.read_text()
                     terminal = '        if { printf "%s\\n" "$status" > "$receipt.pending" \\\n'
                     self.assertEqual(1, source.count(terminal))
-                    self.helper.write_text(source.replace(terminal, "        if { false \\\n", 1))
-                started = time.monotonic()
-                result = self.run_native(additions={"NATIVE_PUBLICATION_FAILURE": phase, "NATIVE_BEHAVIOR": "held-descendant"})
+                    # Fail the first write step through the same timestamped
+                    # fixture used for a failed final status rename.
+                    self.helper.write_text(source.replace(terminal, '        if { mv -- "$receipt.ready" "$receipt.printf" \\\n', 1))
+                result = self.run_native(additions={
+                    "NATIVE_PUBLICATION_FAILURE": phase, "NATIVE_BEHAVIOR": "held-descendant",
+                    "NATIVE_PUBLICATION_FAILED_AT": str(failed_at),
+                })
+                returned_at = time.monotonic()
                 self.assertEqual(1, result.returncode, msg=result.stderr)
-                self.assertLess(time.monotonic() - started, 3)
+                self.assertTrue(failed_at.is_file(), msg="Publication fault was not observed")
+                self.assertLess(returned_at - float(failed_at.read_text()), 3)
                 self.assertIn("publication failed; the client status is unobserved", result.stderr)
                 self.assert_client_retired()
 
@@ -1167,12 +1180,7 @@ class CapturedNativeTests(unittest.TestCase):
     def test_drain_failure_preserves_native_failure_and_rejects_success(self):
         for native_status, expected in (("0", 33), ("7", 7)):
             with self.subTest(status=native_status):
-                # Status precedence permits ten seconds for startup and twenty
-                # for native work, plus termination and fixture overhead.
-                result = self.run_native(
-                    additions={"NATIVE_STATUS": native_status, "NATIVE_DRAIN_FAILURE": "1"},
-                    watchdog_seconds=35,
-                )
+                result = self.run_native(additions={"NATIVE_STATUS": native_status, "NATIVE_DRAIN_FAILURE": "1"})
                 self.assertEqual(expected, result.returncode, msg=result.stderr)
                 self.assert_client_retired()
 
@@ -1300,7 +1308,7 @@ class StdioNativeTests(unittest.TestCase):
 
     def run_stdio(self, *, budget, additions):
         command, environment = self.fact_command(budget=budget, additions=additions)
-        result = subprocess.run(command, env=environment, capture_output=True, timeout=5, check=False)
+        result = subprocess.run(command, env=environment, capture_output=True, timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS, check=False)
         self.retain_cleanup(result.stderr.decode(errors="replace"))
         return result, (self.root / "retired").read_text().strip()
 
@@ -1771,6 +1779,8 @@ def fixture_command(name):
             if os.environ.get("NATIVE_CANCEL_PUBLICATION") == "1":
                 parent = int(Path("/proc", str(anchor), "stat").read_text().split()[3])
                 os.kill(parent, signal.SIGTERM)
+            if "NATIVE_PUBLICATION_FAILED_AT" in os.environ:
+                Path(os.environ["NATIVE_PUBLICATION_FAILED_AT"]).write_text(str(time.monotonic()))
             return 29
         if target.name == "status":
             mutation = os.environ["NATIVE_STATUS_MUTATION"]
