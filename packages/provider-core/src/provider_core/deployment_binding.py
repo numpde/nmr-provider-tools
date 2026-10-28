@@ -222,20 +222,31 @@ def _report_definition_failure(failure):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("paths",))
+    parser.add_argument("action", choices=("paths", "describe-binding"))
     parser.add_argument("--definition", type=Path, required=True)
     selection = parser.add_mutually_exclusive_group(required=True)
     selection.add_argument("--binding")
     selection.add_argument("--all", action="store_true")
     args = parser.parse_args()
+    if args.action == "describe-binding" and args.all:
+        parser.error("describe-binding requires one --binding name")
     try:
         definition = load_deployment_bindings(args.definition)
         if args.all:
             bindings = definition.bindings
         else:
             bindings = (definition.selected(args.binding),)
-        for path in input_paths(bindings):
-            sys.stdout.buffer.write(path.encode("utf-8") + b"\0")
+        if args.action == "describe-binding":
+            binding = bindings[0]
+            print(json.dumps({
+                "ipc_volume": binding.ipc_volume,
+                "socket_path": str(binding.socket_path),
+                "socket_group_id": binding.socket_group_id,
+                "input_paths": input_paths(bindings),
+            }, ensure_ascii=True))
+        else:
+            for path in input_paths(bindings):
+                sys.stdout.buffer.write(path.encode("utf-8") + b"\0")
         return 0
     # silent-defaults: allow-exception-outcome -- This executable reports safe retained evidence and refuses malformed private definitions
     except BindingDefinitionRejected as failure:

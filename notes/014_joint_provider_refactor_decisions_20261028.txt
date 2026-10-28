@@ -2058,3 +2058,154 @@ publishes the native session/async owner together on the existing event loop.
 This removes the construction/stop publication race without adding a lock or
 mutable shared deadline. D047/D048's revised SDK patch and its new exception/cap
 tests are under installed native-only qualification before root integration.
+
+D049 -- Separate native setup from Magnet's scientific READY owner (23:30 UTC)
+---------------------------------------------------------------------------------
+
+Serious alternatives:
+A. Add a shared adoption constructor for an already-connected native session.
+   Magnet's whole startup Future also includes READY, so treating it as completed
+   setup would require new proof/capability rules or risk waiting on itself.
+B. Separate native connect and scientific READY under the existing resident
+   async owner. The same shared native owner then serves science EOF and retirement.
+C. Add a second event loop, local synchronous facade or independent reader to
+   preserve the current mixed startup thread. This repeats ownership machinery.
+
+Choice: B, jointly supported by Magnet's actual call-site audit and real EOF RED.
+Its one production boot constructor makes this a bounded direct change. Retain
+the original READY/science operation separately, preserve startup retry and actual
+native admission distinctions, and keep the existing aggregate stop budget.
+Normal warm sessions must not inherit a startup deadline as their lifetime cap:
+startup consumes its own existing allowance, retirement starts on observation/stop.
+The inherited not_after cap is for an already-running cleanup/proof owner.
+
+Open resource question: Magnet has dedicated startup/science executors; moving
+native control to an ambient default executor must not silently lose that
+isolation. Serious alternatives are an explicit composition-owned executor grant,
+an SDK-owned bounded control executor with explicit retirement, or retaining the
+default pool only after actual concurrency bounds prove it sufficient. Resolve
+this shared resource boundary before final consumer adoption; no choice yet.
+
+Checkpoint -- 23:30 UTC
+-----------------------
+
+Passive START settlement is committed as 401adb0; patched common Python as
+9ef438c; corrected idle-deadline/donor witnesses as 5640488. Installed unit and
+native suites passed 489 and 12 cases after that fixture correction. D047/D048
+are now integrated after a separate final 22-case installed native-only pass;
+their package contract/integration and source-quality checks are running.
+
+The quality lane found narrow source-posture issues in the new async module
+and fixtures; these remain to correct without weakening the checks. Independent
+native-fixture investigation established concrete false watchdog failures:
+valid join receipt at 3.748s versus a 3s fixture wait, and ordinary exit cases at
+5.042s/5.178s versus a 5s watchdog. Actual retirement succeeded, without OOM/PID
+events and with little CPU throttling. Use existing fixture watchdogs and isolate
+each signal subcase's receipts/cleanup; preserve product deadlines and the actual
+two-second interrupted-retry assertions. The root broad gate is still not green.
+
+NMRNet's existing, explicitly documented pure-prediction retry policy needs precise
+scope: note021 permits one bounded retry in the same live Attempt after confirmed
+native retirement using the same frozen bytes/model. Note022 forbids restart/
+cutover reconstruction; the user's crash policy forbids recalculation after an
+observed crash and does nothing after dark death. Do not infer a new blanket
+scientific retry permission or prohibition from goal shorthand. Review this
+specific established policy against those conditions before changing it.
+
+D050 -- Give the shared native owner one bounded control executor (23:33 UTC)
+--------------------------------------------------------------------------------
+
+All four peers reviewed D049's resource question and support a dedicated shared
+control worker. Magnet already isolates control/science work; an ambient pool
+would silently weaken that boundary. NMRNet correctly notes that an asyncio
+wrapper's completion/cancellation does not prove its underlying thread finished.
+
+Serious alternatives:
+A. Retain the ambient executor and assume scientific work leaves a worker free.
+   This gives no independent progress guarantee under actual pool saturation.
+B. Require every provider to grant/manage its own control executor. Feasible,
+   but repeats an invariant that is independent of scientific scheduling.
+C. Let the shared owner lazily allocate one serial control worker and retain the
+   original concurrent Future for each setup/read, with automatic exact release.
+
+Choice: C, following the existing SDK private-file I/O owner precedent. One worker
+serves setup then the single retirement read; no provider executor setting,
+second event loop or local reader. Async waits shield adapters over the original
+concurrent Future. Native exceptions remain exact outcome data until the observing
+caller raises them. Release the executor after actual failed setup or completed
+reader, including a poisoned read, never after successful warm setup or merely
+cancelled/expired observation. Never wait for executor shutdown on its own worker
+or the event loop. Retained outcomes remain observable after executor release.
+
+Count every live/held native session and proof session in each provider's actual
+resource bounds; Attempt entry capacity alone is not a thread-count proof. A
+proof session is a real second native operation with its own shared owner and
+the original absolute cap. Test ambient pool saturation, pending-I/O retention,
+actual worker release, submission failure, and original failure/cap preservation.
+
+Checkpoint -- 23:33 UTC
+-----------------------
+
+The integrated package passed 15 contract and 154 integration cases. Source
+quality remains open on narrow new-code posture findings; preserve its rules.
+The independent fixture-only correction passed the exact three affected tests,
+all signal/status subcases, with process count returning to two. Root will review
+and integrate that patch without changing product timers or retry assertions.
+The next immutable candidate must include D050's real control-worker ownership;
+do not hand providers an ambient-pool endpoint and call it the final shared design.
+
+D051 -- Correct fixture watchdogs and per-scenario ownership (23:35 UTC)
+-----------------------------------------------------------------------
+
+Serious alternatives:
+A. Change native product deadlines or loosen the actual two-second retry proof
+   until the broad fixture suite passes. This changes the wrong contract.
+B. Retain 3s/5s fixture watchdogs despite measured valid completions after them.
+   This reports healthy retirement as failure and leaves failed scenarios alive.
+C. Use the fixture's existing 35s outer watchdog for startup/completion, keep
+   the actual promptness assertions, and retire each scenario's exact held group.
+
+Choice: C. The independent /tmp/native-fixture-correction.patch changes tests only:
+per-signal join/anchor receipts, the fixture-owned anchor PID recorded at its
+existing birth handoff, immediate finally cleanup, and existing outer watchdogs.
+Keep the exact two-second retry window, zero/one interruption receipts, signal
+status, retirement=true and physical client-retirement assertions. Its focused
+three-case qualification passed all signal/status subcases in 7.867s and returned
+to the original process count. No native product timeout or behavior changes.
+
+D052 -- Preserve the specifically documented live scientific retry scope (23:35 UTC)
+------------------------------------------------------------------------------------
+
+Serious alternatives:
+A. Remove NMRNet's established pure-prediction retry because broad goal wording
+   says no scientific reruns. This silently changes its specifically documented
+   live scientific policy beyond the crash/restart prohibition.
+B. Treat every uncertain transport failure as permission to recompute. The user
+   expressly rejected failure alone as such authority.
+C. Retain only the existing explicit bounded pure-prediction policy: same live
+   Attempt, frozen input/model, confirmed original retirement and remaining budget;
+   positively observed crashes and restart/dark reconstruction cannot use it.
+
+Choice: C, after reading the exact note021 policy, note022 cutover restriction
+and note010 uncertainty/crash conditions with NMRNet. These additional policy and
+retirement facts distinguish the allowed scientific retry from error-driven
+replay. Do not add scientific retries to the shared SDK or imply the original
+calculation did not happen. A positively proved crash reports failure through the
+shared controller; a dark process death creates no reconstructed action.
+
+Checkpoint -- 23:35 UTC
+-----------------------
+
+The four peers agree on D050's one-worker shared resource boundary. The revision
+is being tested before integration; asynchronous wrapper completion will not be
+used as proof that its native thread ended. A later stop cannot retroactively
+shorten a previously started setup/read: retain that original operation and
+refuse release if the shorter observing wait expires. not_after is supplied
+before starting inherited cleanup/proof work; it is not mutable phase state.
+
+Magnet agrees to separate native setup from READY on its resident event loop,
+and NMRNet's publication fix removes the cross-thread stop/owner handoff race.
+NMRPeak is qualifying its real HF/CHF science stack on a single Python 3.12.16
+interpreter with necessary compatible dependency changes and held-checkpoint
+baselines. Neither matching ABI nor a few synthetic outputs establish general
+numerical/scientific equivalence; preserve the exact scope of each proof.

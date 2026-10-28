@@ -1,5 +1,9 @@
 """The host and providers derive grants from one neutral definition."""
 
+import json
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -42,6 +46,24 @@ addresses = ["api.example=127.0.0.1"]
 
 
 class DeploymentBindingTests(unittest.TestCase):
+    def test_cli_projects_only_selected_host_grants_without_opening_inputs(self):
+        selected = parse_deployment_bindings(definition(2)).selected("fixture-1")
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "definition.toml"
+            path.write_bytes(definition(2))
+            result = subprocess.run(
+                [sys.executable, "-I", "-B", "-m", "provider_core.deployment_binding",
+                 "describe-binding", "--definition", str(path), "--binding", "fixture-1"],
+                capture_output=True, text=True, check=False, timeout=5,
+            )
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual({
+            "ipc_volume": selected.ipc_volume,
+            "socket_path": "/run/delivery/delivery.sock",
+            "socket_group_id": 65532,
+            "input_paths": ["/synthetic/signing.json"],
+        }, json.loads(result.stdout))
+
     def test_selected_binding_derives_wire_identity_volume_and_group_without_opening_credentials(self):
         with patch("provider_core.deployment_binding.read_startup_file") as read:
             host = parse_deployment_bindings(definition(2))
