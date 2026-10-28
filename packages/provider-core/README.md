@@ -4,6 +4,19 @@ Model-independent signed NMR API operations, protocol admission, durable result
 delivery and reusable lifecycle helpers. Providers own scientific preparation,
 inference, offerings, model configuration and their execution policy.
 
+## Contents
+
+- [Attempts and capacity](#attempts-and-capacity)
+- [Crashes and recovery](#crashes-and-recovery)
+- [Shared result delivery](#shared-result-delivery)
+- [Runner lifecycle](#runner-lifecycle)
+- [Conversations and tools](#conversations-and-tools)
+- [API behavior](#api-behavior)
+- [Package and qualification](#package-and-qualification)
+- [Source history](#source-history)
+
+## Attempts and capacity
+
 Producer bookkeeping is live-only. The earlier `CheckpointStore`,
 `AttemptRecovery` and store-taking lifecycle constructors have been removed.
 Use the `.live()` factories below. The shared delivery queue continues to own
@@ -26,6 +39,8 @@ earlier calculation began. Choose active-replay permission explicitly for each
 provider. `LiveCapacityFull` identifies expected backpressure; settle the
 rejected controller before waiting for capacity, and preserve independent cleanup
 failures. Other ownership refusals are not capacity signals.
+
+## Crashes and recovery
 
 `work_settled` confirms that original work, I/O and required native cleanup have
 stopped. It does not permit losing an unacknowledged report. Use every owned
@@ -62,6 +77,8 @@ must instead wait for shutdown readiness and the provider's other resource
 owners. Consumer migration and runtime qualification remain separate from the
 SDK's contained tests.
 
+## Shared result delivery
+
 The delivery client submits exact complete/fail request bytes to a configured
 provider-specific Unix socket. Its acknowledgement proves durable local enqueue;
 the shared delivery service then owns API publication and retries. It does not
@@ -73,6 +90,8 @@ The host and provider deployment select the same operator-owned neutral binding
 definition for API identity, credential and CA paths, API routing and socket
 grant. Providers own scientific configuration and selection of their private
 lifetime directory.
+
+## Runner lifecycle
 
 The native supervisor requires one explicit lifetime: `--operation-seconds N`
 caps one child session, while `--owner-session-lifetime` allows a loaded child
@@ -102,6 +121,8 @@ pre-connection deadline expires, before any attempt or after known missing or
 refused endpoint attempts. Socket and greeting timeouts retain their original
 identity and uncertainty; providers own the resulting availability policy.
 
+## Conversations and tools
+
 `ToolConversation` keeps one bounded transcript and permits endpoint fallback
 only after a carrier failure. Providers own endpoint selection and scientific
 tool dispatch. An explicit `text_correction=TextCorrection(user_content=...)`
@@ -113,18 +134,7 @@ erased. Omitting the grant retains JSON rejection feedback and the existing
 tool-carrier requirements. Both modes reject reused call IDs and keep the same
 total turn budget and endpoint retirement requirements.
 
-Releases are GitHub assets from `numpde/nmr-provider-tools`, with an exact wheel
-hash, closed installation lock, source distribution and qualification evidence.
-Third-party dependency wheels are acquired separately. Install offline from the
-verified cache; consumer builds do not rebuild this package or import a sibling
-checkout. Operational modules run through contained launchers, which supply the
-package's container marker.
-
-The source distribution carries generic test helpers and pinned API fixtures.
-Those fixtures establish recorded contract/content compatibility, not publisher
-authentication or live API availability. Synthetic provider adaptations qualify
-their declared seams; real NMRNet and Magnet integration is proved by their own
-consumer suites.
+## API behavior
 
 Retry permissions describe which next request is allowed; the consumer owns
 pacing, stop checks and deadlines. `can_retry_read` permits fresh GETs after
@@ -146,6 +156,23 @@ can attach their model-specific context to a refusal. Aggregate Hello encoding
 owns offering uniqueness and the total request budget. CA loading distinguishes
 non-ASCII input from OpenSSL certificate-loading failures, preserving protected
 causes; the selected file reader owns file and byte-limit admission.
+
+## Package and qualification
+
+Releases are GitHub assets from `numpde/nmr-provider-tools`, with an exact wheel
+hash, closed installation lock, source distribution and qualification evidence.
+Third-party dependency wheels are acquired separately. Install offline from the
+verified cache; consumer builds do not rebuild this package or import a sibling
+checkout. Operational modules run through contained launchers, which supply the
+package's container marker.
+
+The source distribution carries generic test helpers and pinned API fixtures.
+Those fixtures establish recorded contract/content compatibility, not publisher
+authentication or live API availability. Synthetic provider adaptations qualify
+their declared seams; real NMRNet and Magnet integration is proved by their own
+consumer suites.
+
+## Source history
 
 Repository names below identify [NMRNet](https://github.com/numpde/nmrnet-repro),
 [Magnet](https://github.com/numpde/magnet-deploy),
