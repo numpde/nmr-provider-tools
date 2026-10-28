@@ -233,7 +233,7 @@ class AttemptController:
             result = await self._run_effects(pending)
             if (type(result) is StartDeferred and result.may_have_committed) or type(result) is ActiveStartReplayHeld:
                 return result
-            self._release_claim()
+            self._claim.release(owner=self)
             self._lifetime = _Lifetime.RELEASED
             return result
         except asyncio.CancelledError as cause:
@@ -328,9 +328,6 @@ class AttemptController:
         if self._acknowledged is not None and self._acknowledged.admission.state != "in_progress":
             return
         raise ControllerRefused("Cannot release this live Job: START may have committed or its active Attempt lacks a valid disposition")
-
-    def _release_claim(self):
-        self._claim.release(owner=self)
 
     def _defer_start(self, pending, failure, possible_commit):
         self._start_deferred = StartDeferred(pending, failure, possible_commit, self._acknowledged)
@@ -448,7 +445,7 @@ class AttemptController:
             await self.delivery.retire()
             if self._claim is not None:
                 try:
-                    self._release_claim()
+                    self._claim.release(owner=self)
                 except ControllerRefused as cause:
                     self._remember(cause, cleanup=True)
                     raise self.last_failure from None

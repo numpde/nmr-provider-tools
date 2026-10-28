@@ -70,10 +70,7 @@ class AttemptClaims:
     @classmethod
     # silent-defaults: allow-contract -- Note 010 chooses the shared eight-entry live capacity; consumers explicitly override their own limits.
     def live(cls, *, limits=LiveAttemptLimits()):
-        if type(limits) is not LiveAttemptLimits:
-            raise ValueError("Live Attempt claims require admitted LiveAttemptLimits")
         return cls(limits=limits)
-
 
     # silent-defaults: allow-contract -- Note 010 reserves the existing 2 MiB wire ceiling unless the live owner declares a smaller sufficient allowance.
     def claim_live(self, pending, *, lifecycle_owner, maximum_terminal_bytes=2097152):
@@ -88,7 +85,7 @@ class AttemptClaims:
             _start_identity(pending),
             (pending.scope.api_origin, pending.scope.provider_ref, "job", pending.input.job_ref),
         )
-        claim = self._reserve((identities,), live_terminal_bytes=maximum_terminal_bytes)[0]
+        claim = self._reserve(identities, live_terminal_bytes=maximum_terminal_bytes)
         claim._pending = pending
         claim._lifecycle_owner = lifecycle_owner
         claim._maximum_terminal_bytes = claim._pending_terminal_bytes = maximum_terminal_bytes
@@ -126,27 +123,21 @@ class AttemptClaims:
         if self._loop is not None and asyncio.get_running_loop() is not self._loop:
             raise OwnershipRefused("Live owner views must remain on their owning event loop")
 
-
-    def _reserve(self, groups, *, live_terminal_bytes):
+    def _reserve(self, identities, *, live_terminal_bytes):
         loop = asyncio.get_running_loop()
         if self._loop is not None and self._loop is not loop:
             raise OwnershipRefused("Attempt claims must remain on their owning event loop")
-        selected = set()
-        for identities in groups:
-            for identity in identities:
-                if identity in self._claims or identity in selected:
-                    raise OwnershipRefused(
-                        "An Attempt identity is already owned or repeated; no selected recovery claims were acquired"
-                    )
-                selected.add(identity)
+        for identity in identities:
+            if identity in self._claims:
+                raise OwnershipRefused(
+                    "Cannot select this live Attempt: its START key or Job is already owned; no claim was acquired"
+                )
         self._require_live_capacity(live_terminal_bytes)
         self._loop = loop
-        # repo-check: allow-tuple-generator -- Return fixed claims only after every selected identity is admitted.
-        claims = tuple(_AttemptClaim(self, identities) for identities in groups)
-        for claim in claims:
-            for identity in claim._identities:
-                self._claims[identity] = claim
-        return claims
+        claim = _AttemptClaim(self, identities)
+        for identity in claim._identities:
+            self._claims[identity] = claim
+        return claim
 
     def _require(self, claim):
         if asyncio.get_running_loop() is not self._loop or not claim.active:

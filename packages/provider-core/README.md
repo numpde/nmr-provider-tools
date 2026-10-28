@@ -52,10 +52,9 @@ chosen result or failure report.
 
 Live bookkeeping disappears if its supervisor dies. Restart does not restore
 START, calculate, poll old Attempts or fabricate failures from missing state.
-Reports already accepted by shared delivery continue independently. Existing
-durable constructors keep their checkpoint and recovery contracts; `.live` does
-not imitate a checkpoint store. Consumer migration and runtime qualification
-remain separate from the SDK's contained tests.
+Reports already accepted by shared delivery continue independently. Consumer
+migration and runtime qualification remain separate from the SDK's contained
+tests.
 
 The delivery client submits exact complete/fail request bytes to a configured
 provider-specific Unix socket. Its acknowledgement proves durable local enqueue;
