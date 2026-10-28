@@ -38,9 +38,12 @@ retries. The ACK is not a remote API acceptance receipt.
 
 While handover is unresolved, keep the exact request bytes available. Retire the
 prior exchange and follow the client's retry disposition; a lost ACK can permit
-replaying the identical request after retryable I/O has settled. Queue
-backpressure pauses new work admissions until space is available; already-started
-work can finish. A missing queue row alone does not prove that an earlier request
+replaying the identical request after retryable I/O has settled. When a delivery
+client reports a full queue, the provider's admission loop must pause new
+computation using that delivery endpoint until capacity returns. Already-started
+work can finish. Shared delivery enforces per-provider and total queue limits;
+each provider controls its own admission loop. A missing queue row alone does
+not prove that an earlier request
 was never delivered. Providers own handover retry pacing
 and live control bookkeeping; shared delivery owns durable pending result
 storage. Provider integration should not add a second durable scientific-output

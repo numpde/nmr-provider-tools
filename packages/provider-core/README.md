@@ -30,9 +30,10 @@ failures. Other ownership refusals are not capacity signals.
 `work_settled` confirms that original work, I/O and required native cleanup have
 stopped. It does not permit losing an unacknowledged report. Use every owned
 controller's `shutdown_ready`, together with the provider's other resource owners,
-before ending the supervisor lifetime. A passive Job exclusion can remain after
-cleanup; a returned outcome or exact report awaiting durable handoff cannot be
-discarded merely because its I/O stopped. Preserve the shared private lifetime
+before ending the supervisor lifetime. A passive Job exclusion with no pending
+outcome or report does not block `shutdown_ready` once cleanup has settled.
+A returned outcome or exact report awaiting durable handoff cannot be discarded
+merely because its I/O stopped. Preserve the shared private lifetime
 root with `ProviderLifetime`; a container-private directory cannot exclude a
 second container.
 
@@ -54,9 +55,12 @@ without one are rejected and cannot establish an observed crash.
 
 Live bookkeeping disappears if its supervisor dies. Restart does not restore
 START, calculate, poll old Attempts or fabricate failures from missing state.
-Reports already accepted by shared delivery continue independently. Consumer
-migration and runtime qualification remain separate from the SDK's contained
-tests.
+Reports already accepted by shared delivery continue independently. If the
+supervisor dies before handover is confirmed, the report may already be queued
+or may be lost; the SDK does not reconstruct it on restart. Orderly shutdown
+must instead wait for shutdown readiness and the provider's other resource
+owners. Consumer migration and runtime qualification remain separate from the
+SDK's contained tests.
 
 The delivery client submits exact complete/fail request bytes to a configured
 provider-specific Unix socket. Its acknowledgement proves durable local enqueue;
