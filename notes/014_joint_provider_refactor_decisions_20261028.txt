@@ -588,3 +588,48 @@ stop, final exit guard, refusal paths, retained control files, and RED/GREEN/doc
 evidence. No blocking source issue in down. One wording fix remains: describe
 no-kill timeout as this down operation's behavior, not a universal container property.
 That slice does not qualify all up/replacement paths or application handoff resume.
+
+D018 -- A provider oneoff is not proof of no reporting duty (20:56 UTC)
+--------------------------------------------------------------------
+
+Magnet's installed Compose probe showed stop provider returning success while
+an owned oneoff provider container remained running and received no TERM:
+/tmp/magnet-drain-oneoff-probe.log. Later down --remove-orphans could kill it.
+Its oneoff label alone does not establish that it is only a harmless helper.
+
+Serious alternatives:
+A. Ignore provider oneoffs because normal Compose stop excludes them. This
+   leaves a demonstrated live reporting-owner bypass before removal.
+B. Add automatic special-case oneoff stopping or a helper-role allowlist. That
+   introduces new effects or classifications without a demonstrated need.
+C. Admit the existing owned topology shape but include every service=provider
+   container in the final state gate. Leave Compose's ordinary provider stop
+   behavior intact; a live oneoff blocks teardown, while clean exited or proven
+   never-started instances can pass the existing disposition rule.
+
+Choice: C. No new role framework or force path. Existing up topology admission
+already refuses oneoffs; down intentionally admits broken owned topology, so
+this gate closes its specific later-removal gap without erasing that distinction.
+Add the causal oneoff RED, clean/never-started cases, and no-runner/removal effects
+when the live oneoff remains. Do not claim that label admission proves cleanup.
+
+Checkpoint -- 20:56 UTC
+-----------------------
+
+Root audit closed NMRPeak D009 prerequisite source and NMRNet D008 down source
+subject to its narrow wording correction; both can commit coherent audited
+slices after their recorded checks. Neither result is full native/controller
+adoption. Magnet D014 correction proceeds; D018 closes the new oneoff bypass.
+
+SECS D013/D017 actual acquisition exited 0 and obtained all 13 locked inputs.
+Octet-stream warnings were initially misread as a failed URL-as-find-links
+hypothesis; both peers withdrew the extra staging proposal before implementing
+it after inspecting the actual exit/result/hash. No new acquisition machinery
+was added for those nonfatal warnings. The separate earlier direct-URL offline
+installation failure remains a valid cause witness.
+
+SECS's actual offline provider-image build passed at
+sha256:be39332c076c79306d61927adea84cb78a733edab859a4267d1c447ea6ed3fa1.
+Its installed SDK version/origin/import/pip-check case passed (1 case, 0.371 s).
+Maintained provider tests and required root audit are pending. No production
+container or scientific lock was changed by this prerequisite.
