@@ -2,7 +2,8 @@
 
 from tests.fakes.checkpoint_execution import RecordingDelivery
 from unittest.mock import Mock
-from provider_core.producer_checkpoint import AcknowledgedCheckpoint, EnteredCheckpoint, DeliveryAcceptedCheckpoint, SuppressedCheckpoint, TerminalSelectedCheckpoint, EvidenceDigest
+from provider_core.producer_checkpoint import SuppressedCheckpoint
+from tests.fakes.execution import live_executor
 import asyncio
 import errno
 import json
@@ -11,14 +12,14 @@ import time
 import unittest
 
 from provider_core.attempt_record import SuppressionReason
-from provider_core.execution import AttemptExecutor, ExecutionFailed, ExecutionRefused, ObservationGapExpired, ObservationRecovery
+from provider_core.execution import ExecutionFailed, ExecutionRefused, ObservationGapExpired, ObservationRecovery
 from provider_core.failure_projection import owned_details, owned_relationships
 from provider_core.ownership import OwnershipRefused
 from provider_core.transport import ExchangeFailed
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempts import observation, progress_response
 from tests.fakes.conditions import ReportingSession
-from tests.fakes.execution import PausedSession, acknowledged_store
+from tests.fakes.execution import PausedSession, live_attempt
 from tests.fakes.job_input import response
 from tests.fakes.api import api
 
@@ -26,7 +27,7 @@ from tests.fakes.api import api
 class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_late_success_does_not_gain_authority_before_the_timeout_callback_can_run(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             session = PausedSession(store, "execute")
 
             class LateReply(Transport):
@@ -37,7 +38,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                     return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
             transport = LateReply(reply(observation()))
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -52,17 +53,14 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                     lambda _attempt, _failure: self.fail("Late reply is not admitted"),
                 ),
             )
-            try:
-                with self.assertRaises(ExecutionFailed) as failed:
-                    await executor.run(acknowledged)
-                self.assertIs(type(failed.exception.cause), ObservationGapExpired)
-                self.assertTrue(failed.exception.cause.read_started)
-                self.assertIsNone(failed.exception.cause.cause)
-                self.assertEqual([item[0] for item in session.events], ["retire"])
-                self.assertEqual(len(transport.calls), 1)
-                claim.release()
-            finally:
-                await store.close()
+            with self.assertRaises(ExecutionFailed) as failed:
+                await executor.run(acknowledged)
+            self.assertIs(type(failed.exception.cause), ObservationGapExpired)
+            self.assertTrue(failed.exception.cause.read_started)
+            self.assertIsNone(failed.exception.cause.cause)
+            self.assertEqual([item[0] for item in session.events], ["retire"])
+            self.assertEqual(len(transport.calls), 1)
+            claim.release(owner=claim.lifecycle_owner)
 
     async def test_expiry_bounds_the_inflight_read_and_preserves_its_cause_and_completed_result(self):
         await self.check_expiry(delayed_read_cleanup=False)
@@ -72,7 +70,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def check_expiry(self, *, delayed_read_cleanup):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             retired = asyncio.Event()
 
             class RetiredSession(PausedSession):
@@ -109,7 +107,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 reply(progress_response(phase="running")),
                 reply(observation()),
             )
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -139,7 +137,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIsNone(expired.cause)
                     self.assertTrue(expired.observation_pending)
                     with self.assertRaises(OwnershipRefused):
-                        claim.release()
+                        claim.release(owner=claim.lifecycle_owner)
                     with self.assertRaises(ExecutionRefused):
                         await executor.retain_suppressed_disposition()
                 cleanup_release.set()
@@ -161,18 +159,18 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(hasattr(retained, "candidate"))
                 self.assertIsNone(executor._outcome)
                 self.assertEqual([item[0] for item in session.events], ["prepare", "execute", "retire"])
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             finally:
                 session.release.set()
                 cleanup_release.set()
                 if not task.done():
                     task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
-                await store.close()
+                pass
 
     async def test_lock_wait_expiry_has_no_invented_read_cause_after_an_earlier_recovery(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             session = ReportingSession(store)
             session.conditions = {"prepare": ("waiting_capacity",), "execute": ()}
             condition_sent = asyncio.Event()
@@ -194,7 +192,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             transport = BlockedCondition(
                 reply(b"maintenance", status=503), reply(observation()), reply(response()), reply(progress_response())
             )
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -226,12 +224,12 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(failed.exception.api_failure.attempt_mutation_may_have_committed)
                 self.assertEqual(len(transport.calls), 5)
                 await executor.settle()
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             finally:
                 if not task.done():
                     task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
-                await store.close()
+                pass
 
     def test_policy_rejects_unbounded_windows_or_missing_protected_observers(self):
         def retry(_attempt, _failure, _seconds):
@@ -251,7 +249,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_deadline_keeps_independent_cause_when_failed_read_retirement_is_interrupted(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             session = PausedSession(store, "execute")
             cleanup_release = asyncio.Event()
             cleanup = OSError(errno.EIO, "PRIVATE retirement evidence")
@@ -270,7 +268,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                     await super().retire(owner=owner)
 
             transport = InterruptedRetirement(reply(b"maintenance", status=503))
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -293,11 +291,11 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(any(cause.__cause__ is cleanup for cause in failed.exception.cleanup_failures))
                 self.assertEqual([item[0] for item in session.events], ["retire"])
                 with self.assertRaises(OwnershipRefused):
-                    claim.release()
+                    claim.release(owner=claim.lifecycle_owner)
                 cleanup_release.set()
                 await executor.settle()
                 self.assertEqual(len(transport.calls), 1)
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             finally:
                 cleanup_release.set()
-                await store.close()
+                pass

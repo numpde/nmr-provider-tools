@@ -7,7 +7,6 @@ require_container()
 import ast
 import json
 import unittest
-from pathlib import Path
 
 from tests.repository.quality.sources import ROOT
 
@@ -21,6 +20,10 @@ class ProviderCorePortTests(unittest.TestCase):
         for entry in manifest["files"]:
             path = ROOT / entry["path"]
             with self.subTest(path=entry["path"]):
+                if "retired" in entry:
+                    self.assertTrue(entry["retired"].strip())
+                    self.assertFalse(path.exists())
+                    continue
                 self.assertTrue(path.is_file() and not path.is_symlink())
                 if path.suffix != ".py":
                     continue
@@ -30,7 +33,19 @@ class ProviderCorePortTests(unittest.TestCase):
                     for method in owner.body if isinstance(method, (ast.FunctionDef, ast.AsyncFunctionDef))
                     and method.name.startswith("test_")
                 }
-                self.assertLessEqual(set(entry["test_methods"]), present)
+                expected = set(entry["test_methods"])
+                if "retired_test_methods" in entry:
+                    retired = entry["retired_test_methods"]
+                    self.assertTrue(all(reason.strip() for reason in retired.values()))
+                    self.assertLessEqual(set(retired), expected)
+                    self.assertFalse(set(retired) & present)
+                    expected -= set(retired)
+                if "replaced_test_methods" in entry:
+                    replacements = entry["replaced_test_methods"]
+                    self.assertLessEqual(set(replacements), expected)
+                    self.assertLessEqual(set(replacements.values()), present)
+                    expected -= set(replacements)
+                self.assertLessEqual(expected, present)
 
     def test_bootstrap_and_installed_proxy_have_one_source_owner(self):
         self.assertFalse((ROOT / "tools/bound_http_proxy.py").exists())

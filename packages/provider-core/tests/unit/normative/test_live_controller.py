@@ -1,16 +1,20 @@
 """The real live controller retains uncertain work without restarting science."""
 
 import asyncio
+import ssl
 import unittest
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+
+import httpcore
 
 from provider_core.controller import ActiveStartReplayHeld, AttemptController, ControllerFailed, LiveStartPolicy, StartDeferred
 from provider_core.job_input import verify_job_input
 from provider_core.delivery_client import DeliveryUnavailable
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
-from tests.fakes.api import Transport, api, reply, signature_window_problem
+from provider_core.transport import ExchangeFailed
+from tests.fakes.api import Transport, api, reply, response_headers, signature_window_problem
 from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import observation, progress_response, start_response
 from tests.fakes.checkpoint_execution import RecordingDelivery
@@ -139,8 +143,87 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             accepted = await controller.run(record())
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
         self.assertEqual(transport.calls[0][0].content, transport.calls[1][0].content)
+        for header in ("signature-input", "signature"):
+            self.assertNotEqual(transport.calls[0][0].headers[header], transport.calls[1][0].headers[header])
         self.assertEqual(1, controller.session.events.count("execute"))
         controller._start_policy.on_recovered.assert_called_once()
+
+    async def test_permanent_malformed_or_unsettled_start_failure_never_replays(self):
+        for response in (
+            reply(b"denied", status=401), reply(b"conflict", status=409), reply(b"invalid success"),
+            reply(b"maintenance", status=503, headers=response_headers(status=503, topology=b"web")),
+            ExchangeFailed("Certificate rejected", primary=ssl.SSLCertVerificationError()),
+            ExchangeFailed("Cleanup failed", primary=httpcore.ReadTimeout(), cleanup_failures=(OSError(),)),
+        ):
+            with self.subTest(response_type=type(response).__name__):
+                controller = self.controller(Transport(response))
+                deferred = await controller.run(record())
+                self.assertIs(type(deferred), StartDeferred)
+                self.assertEqual(record(), deferred.pending)
+                self.assertEqual(1, len(controller.api._transport.calls))
+                controller._start_policy.on_retry.assert_not_called()
+                self.assertEqual(["retire"], controller.session.events)
+
+    async def test_cancellation_during_retry_wait_preserves_original_command(self):
+        waiting = asyncio.Event()
+        controller = self.controller(Transport(reply(b"maintenance", status=503)))
+        controller._start_policy = LiveStartPolicy(10, lambda *_: waiting.set(), Mock())
+        task = asyncio.create_task(controller.run(record()))
+        await asyncio.wait_for(waiting.wait(), 1)
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        self.assertEqual(record(), controller._claim._pending)
+        self.assertEqual(1, len(controller.api._transport.calls))
+        self.assertEqual(["retire"], controller.session.events)
+        self.assertIn(controller, controller._claims.live_owners())
+
+    async def test_original_retirement_and_late_evidence_precede_replay(self):
+        for late in ("certificate", "cleanup", "availability"):
+            with self.subTest(late=late):
+                lost = ExchangeFailed("Unconfirmed START", primary=httpcore.ReadTimeout())
+                transport = Transport(lost, reply(start_response(state="failed", replayed=True)))
+                exchange, retire = transport.exchange, transport.retire
+                entered, release = asyncio.Event(), asyncio.Event()
+
+                async def held_exchange(request, *, maximum_bytes, owner=None):
+                    try:
+                        return await exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+                    except ExchangeFailed:
+                        transport.retirement_confirmed, transport.pending_owner = False, owner
+                        raise
+
+                async def held_retirement(*, owner=None):
+                    entered.set()
+                    await release.wait()
+                    if late == "cleanup":
+                        raise ExchangeFailed("Retirement failed", primary=OSError())
+                    if late == "certificate":
+                        lost.primary = ssl.SSLCertVerificationError()
+                    await retire(owner=owner)
+
+                transport.exchange, transport.retire = held_exchange, held_retirement
+                controller = self.controller(transport)
+                task = asyncio.create_task(controller.run(record()))
+                try:
+                    await asyncio.wait_for(entered.wait(), 1)
+                    self.assertEqual(1, len(transport.calls))
+                    self.assertFalse(task.done())
+                    release.set()
+                    if late == "cleanup":
+                        with self.assertRaises(ControllerFailed):
+                            await asyncio.wait_for(task, 3)
+                    else:
+                        await asyncio.wait_for(task, 3)
+                    if late == "availability":
+                        self.assertEqual(2, len(transport.calls))
+                    else:
+                        self.assertEqual(1, len(transport.calls))
+                finally:
+                    release.set()
+                    if not task.done():
+                        task.cancel()
+                    await asyncio.gather(task, return_exceptions=True)
 
     async def test_late_active_acknowledgement_stays_owned_without_preparation(self):
         clock = SimpleNamespace(elapsed=0)

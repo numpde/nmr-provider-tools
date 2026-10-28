@@ -1,5 +1,6 @@
 """Real signed TLS plus durable relay handoff, with recording scientific work."""
 
+from tests.fakes.execution import LiveAttemptProbe, live_executor
 import asyncio
 import hashlib
 import json
@@ -9,11 +10,9 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import Mock
 
-from provider_core.checkpoint_store import CheckpointLimits, CheckpointStore
 from provider_core.delivery_client import DeliveryClient, DeliveryEndpoint
 from provider_core.delivery_service import DeliveryBinding, DeliveryService
 from provider_core.delivery_store import QueueLimits
-from provider_core.execution import AttemptExecutor
 from provider_core.ownership import AttemptClaims
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from provider_core.starting import AttemptStarter
@@ -40,13 +39,13 @@ class ExecutionIntegrationTests(unittest.IsolatedAsyncioTestCase):
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
             client = api(transport, peer.origin)
             sender = api(HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5), peer.origin)
-            claim = AttemptClaims().claim_start(pending)
+            store = LiveAttemptProbe()
+            store.scope = selected_scope
+            claim = AttemptClaims.live().claim_live(pending, lifecycle_owner=store)
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
-                for name in ("control", "delivery", "ipc"):
+                for name in ("delivery", "ipc"):
                     (root / name).mkdir(mode=0o700)
-                store = CheckpointStore(root / "control", scope=selected_scope, limits=CheckpointLimits(1, 150000), operation_seconds=1)
-                await store.open()
                 published = asyncio.Event()
                 def notice(_error, facts):
                     if facts["event"] == "delivery_published":
@@ -60,13 +59,13 @@ class ExecutionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 session = ReportingSession(store)
                 try:
                     await asyncio.wait_for(relay.ready.wait(), 1)
-                    acknowledged = await AttemptStarter(client, store, claim).start(pending)
-                    accepted = await AttemptExecutor(client, store, claim, session,
+                    acknowledged = await AttemptStarter.live(client, claim, scope=selected_scope).start(pending)
+                    accepted = await live_executor(client, store, claim, session,
                         delivery=delivery, on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
                         delivery_retry_max_seconds=0.02, allowed_job_states=frozenset({"open"}),
                         poll_seconds=1, task_settle_seconds=0.1).run(acknowledged)
                     self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
-                    self.assertEqual(await store.inventory(), (accepted,))
+                    self.assertEqual(store.records, (accepted,))
                     await asyncio.wait_for(published.wait(), 2)
                     self.assertEqual(relay.queue.inventory(peer.origin, selected_scope.provider_ref), [])
                     self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
@@ -79,11 +78,10 @@ class ExecutionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                         verify_signed_request(request, body, origin=peer.origin, key=client.identity.private_key)
                     verify_signed_request(peer.requests[-1], peer.request_bodies[-1], origin=peer.origin, key=sender.identity.private_key)
                     self.assertTrue(peer.requests[-1].startswith(b"POST /provider/v1/execution-attempts/complete "))
-                    self.assertNotIn(b"result bytes", (root / "control/checkpoints.sqlite3").read_bytes())
-                    claim.release()
+                    self.assertFalse((root / "control").exists())
+                    claim.release(owner=claim.lifecycle_owner)
                 finally:
                     relay.request_stop()
                     await asyncio.wait_for(relay_task, 2)
                     await delivery.retire()
-                    await store.close()
             await transport.retire()

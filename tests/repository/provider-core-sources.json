@@ -77,7 +77,8 @@
       "mode": "100644",
       "git_blob": "ae30d56354449b457d7435909cabfe5f23a2e166",
       "sha256": "8498de674cde2659671ccf3d41325b36f7391fd08f904cf58913d944046c2b73",
-      "test_methods": []
+      "test_methods": [],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/src/provider_core/container_guard.py",
@@ -252,7 +253,8 @@
       "mode": "100644",
       "git_blob": "cce8b2a6d542d9b770c9eba4ca53ce3a7454d5c3",
       "sha256": "54254834fa8041716b7930a349d3c97860f19d4be8526d12b173f37ee39465db",
-      "test_methods": []
+      "test_methods": [],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/src/provider_core/response_json.py",
@@ -1014,7 +1016,8 @@
       "mode": "100644",
       "git_blob": "d9abd5c633f84f94a6232f7be8d9f9162f6f59bc",
       "sha256": "8bedb4caaadf3bb31619869418329b2842c127a76c9399f9e86fc97ce3d7d46f",
-      "test_methods": []
+      "test_methods": [],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/integration/recovery/test_recovery.py",
@@ -1023,14 +1026,16 @@
       "sha256": "05d36edfe814a9bdf307266dc6f4d2e25115a82d917e930b79e1321201d21e77",
       "test_methods": [
         "CheckpointRecoveryTlsTests.test_lost_read_reply_retains_entry_then_explicit_read_reconciles_without_post"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/integration/starting/__init__.py",
       "mode": "100644",
       "git_blob": "17da7f15ebb370284d72b80edf1467d7312f7096",
       "sha256": "9382e99e514891fb3fc98b84e1af450b439d2dc9ffbd778c4a873d5f1fa6cd55",
-      "test_methods": []
+      "test_methods": [],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/integration/starting/test_starting.py",
@@ -1039,7 +1044,8 @@
       "sha256": "a04008de5d94c2210614221f824a8d7106b90131625e18d26e6eac769b2bec26",
       "test_methods": [
         "StartingIntegrationTests.test_lost_start_reply_reopens_and_replays_original_bytes"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/integration/test_api_input.py",
@@ -1107,7 +1113,8 @@
       "test_methods": [
         "CheckpointStoreProcessTests.test_process_exit_preserves_entered_record_without_repeating_entry",
         "CheckpointStoreProcessTests.test_second_process_is_excluded_then_recovers_after_owner_closes"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/integration/test_child_retirement.py",
@@ -1153,7 +1160,11 @@
         "MagnetAdaptationTests.test_indeterminate_prediction_retains_entered_phase_and_recovery_never_reexecutes",
         "MagnetAdaptationTests.test_preparation_preserves_source_and_model_fields_and_publishes_opaque_product_bytes",
         "MagnetAdaptationTests.test_typed_preentry_unavailability_remains_retry_safe_without_a_new_core_outcome_type"
-      ]
+      ],
+      "replaced_test_methods": {
+        "MagnetAdaptationTests.test_indeterminate_prediction_retains_entered_phase_and_recovery_never_reexecutes": "MagnetAdaptationTests.test_indeterminate_prediction_retains_live_owner_without_reexecution"
+      },
+      "retired_test_methods": {}
     },
     {
       "path": "packages/provider-core/tests/integration/test_terminal_store.py",
@@ -1375,7 +1386,8 @@
       "test_methods": [
         "AdmissionInventoryFailureTests.test_cancelled_inventory_retains_original_io_until_exact_owner_settles",
         "AdmissionInventoryFailureTests.test_failed_inventory_observation_keeps_the_private_original_cause"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_api.py",
@@ -1489,7 +1501,11 @@
         "AttemptRecordFailureTests.test_inconsistent_or_mutable_start_is_rejected",
         "AttemptRecordFailureTests.test_invalid_scope_is_not_a_recovery_owner",
         "AttemptRecordFailureTests.test_unsupported_and_corrupt_records_fail_without_private_text"
-      ]
+      ],
+      "retired_test_methods": {
+        "AttemptRecordFailureTests.test_foreign_api_provider_lane_and_generation_block_restore": "Specific to retired producer persistence or stopped recovery.",
+        "AttemptRecordFailureTests.test_unsupported_and_corrupt_records_fail_without_private_text": "Specific to retired producer persistence or stopped recovery."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_attempt_start.py",
@@ -1513,7 +1529,8 @@
         "AttemptTransitionFailureTests.test_corrupt_checkpoints_cannot_supply_active_control",
         "AttemptTransitionFailureTests.test_foreign_acknowledgement_and_repeated_entry_are_rejected",
         "AttemptTransitionFailureTests.test_stale_absent_foreign_and_backward_transitions_preserve_current_control"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_checkpoint_store.py",
@@ -1526,7 +1543,8 @@
         "CheckpointRefusalTests.test_second_owner_is_excluded_and_reopen_checks_total_metadata_bytes",
         "CheckpointRefusalTests.test_selected_identity_cannot_change_and_acceptance_must_match",
         "CheckpointRefusalTests.test_wrong_scope_and_full_capacity_leave_original_start_unchanged"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_controller.py",
@@ -1541,7 +1559,11 @@
         "ControllerFailureTests.test_non_none_retirement_never_confirms_terminal_replay_or_failed_start_cleanup",
         "ControllerFailureTests.test_unaccepted_handoff_keeps_exact_selected_control_without_repeating_science",
         "ControllerFailureTests.test_unresolved_inventory_refuses_fresh_start_and_retires_session"
-      ]
+      ],
+      "replaced_test_methods": {},
+      "retired_test_methods": {
+        "ControllerFailureTests.test_unresolved_inventory_refuses_fresh_start_and_retires_session": "Specific to retired producer persistence or stopped recovery."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_controller_cancellation.py",
@@ -1551,7 +1573,8 @@
       "test_methods": [
         "ControllerCancellationTests.test_cancelled_acknowledgement_write_settles_to_original_admission_without_science",
         "ControllerCancellationTests.test_cancelled_inventory_read_remains_owned_and_late_read_never_starts"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_controller_recovery.py",
@@ -1565,7 +1588,11 @@
         "ControllerRecoveryFailureTests.test_original_ipc_retirement_and_late_permission_precede_retry",
         "ControllerRecoveryFailureTests.test_permanent_refusal_or_unsettled_cleanup_never_retries",
         "ControllerRecoveryFailureTests.test_retry_settings_reject_nonfinite_bounds_and_missing_recipient_before_effects"
-      ]
+      ],
+      "replaced_test_methods": {},
+      "retired_test_methods": {
+        "ControllerRecoveryFailureTests.test_accepted_metadata_failure_drops_payload_without_replaying_successful_handoff": "Specific to retired producer persistence or stopped recovery."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_controller_start_recovery.py",
@@ -1579,7 +1606,8 @@
         "ControllerStartRecoveryFailureTests.test_policy_rejects_nonfinite_bounds_and_missing_observers",
         "ControllerStartRecoveryFailureTests.test_received_acknowledgement_write_failure_never_resends",
         "ControllerStartRecoveryFailureTests.test_retirement_and_late_evidence_precede_replay"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_credential.py",
@@ -1624,7 +1652,8 @@
       "test_methods": [
         "InterruptedSuppressionTests.test_cancelled_suppression_wait_settles_original_disposition_and_releases_body",
         "InterruptedSuppressionTests.test_failed_entry_persistence_prevents_scientific_execution_and_delivery"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_delivery_store.py",
@@ -1658,7 +1687,16 @@
         "ExecutionFailureTests.test_selection_write_failure_retires_session_but_retains_outcome_and_claim",
         "ExecutionFailureTests.test_unconfirmed_running_progress_prevents_entry_and_execution",
         "ExecutionFailureTests.test_unencodable_result_is_preserved_and_retired_without_reexecution"
-      ]
+      ],
+      "replaced_test_methods": {
+        "ExecutionFailureTests.test_closed_job_after_entry_write_prevents_execution_and_failure_publication": "ExecutionFailureTests.test_closed_job_before_execution_prevents_science_and_publication"
+      },
+      "retired_test_methods": {
+        "ExecutionFailureTests.test_cancelled_entry_write_is_observed_but_never_resumed_into_science": "Specific to retired producer persistence or stopped recovery.",
+        "ExecutionFailureTests.test_cancelled_selection_write_preserves_result_and_never_submits_during_settlement": "Specific to retired producer persistence or stopped recovery.",
+        "ExecutionFailureTests.test_definite_entry_refusal_retires_without_retaining_a_nonexistent_write": "Specific to retired producer persistence or stopped recovery.",
+        "ExecutionFailureTests.test_selection_write_failure_retires_session_but_retains_outcome_and_claim": "Specific to retired producer persistence or stopped recovery."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_execution_condition_recovery.py",
@@ -1702,7 +1740,8 @@
         "EntryPersistenceTests.test_completed_write_during_poll_cannot_override_stop_or_hide_a_disk_failure",
         "EntryPersistenceTests.test_late_disk_failure_is_secondary_to_stop_and_failed_retirement_blocks_reuse",
         "EntryPersistenceTests.test_stop_or_failed_poll_retires_before_disk_release_and_settles_once"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_execution_job_policy.py",
@@ -1842,7 +1881,12 @@
         "PreparedIdentityRefusalTests.test_identity_cannot_be_attached_before_execution_entry",
         "PreparedIdentityRefusalTests.test_protected_evidence_refuses_empty_mutable_and_oversized_content",
         "UnidentifiedPreparationTests.test_unidentified_handle_retires_before_running_progress_or_execution"
-      ]
+      ],
+      "replaced_test_methods": {},
+      "retired_test_methods": {
+        "PreparedIdentityRefusalTests.test_checkpoint_restore_keeps_its_actual_metadata_byte_limit": "Specific to retired producer persistence or stopped recovery.",
+        "PreparedIdentityRefusalTests.test_entry_digest_is_required_and_checked_even_when_state_is_forged": "Specific to retired producer persistence or stopped recovery."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_producer_checkpoint.py",
@@ -1853,7 +1897,10 @@
         "ProducerCheckpointRefusalTests.test_acknowledgement_and_selected_identity_must_match_their_actual_control_types",
         "ProducerCheckpointRefusalTests.test_foreign_scope_and_undeclared_payload_field_are_not_silently_adopted",
         "ProducerCheckpointRefusalTests.test_full_prepared_evidence_cannot_be_encoded_as_control_metadata"
-      ]
+      ],
+      "retired_test_methods": {
+        "ProducerCheckpointRefusalTests.test_foreign_scope_and_undeclared_payload_field_are_not_silently_adopted": "Specific to retired producer persistence or stopped recovery."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_recovery.py",
@@ -1867,7 +1914,8 @@
         "CompactRecoveryRefusalTests.test_mismatched_relay_choice_does_not_clear_or_overwrite_selected_identity",
         "CompactRecoveryRefusalTests.test_stale_checkpoint_sends_nothing_and_keeps_actual_state",
         "CompactRecoveryRefusalTests.test_unbound_or_unreadable_api_reply_preserves_control"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_result_verbosity.py",
@@ -1918,7 +1966,8 @@
         "StartingFailureTests.test_remote_conflict_retains_admission_and_both_claims",
         "StartingFailureTests.test_resume_preserves_the_real_closed_store_reason_without_sending",
         "StartingFailureTests.test_retention_failure_prevents_every_api_send"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_suppressed_persistence.py",
@@ -1931,7 +1980,12 @@
         "SuppressionPersistenceTests.test_classified_preparation_failure_can_be_retained_after_stop_without_execution",
         "SuppressionPersistenceTests.test_durable_suppression_cannot_release_unconfirmed_worker_retirement",
         "SuppressionPersistenceTests.test_failed_suppression_write_keeps_original_cause_and_outcome_owned"
-      ]
+      ],
+      "replaced_test_methods": {},
+      "retired_test_methods": {
+        "SuppressionPersistenceTests.test_cancelled_suppression_write_settles_original_once": "Specific to retired producer persistence or stopped recovery.",
+        "SuppressionPersistenceTests.test_failed_suppression_write_keeps_original_cause_and_outcome_owned": "Specific to retired producer persistence or stopped recovery."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_transport.py",
@@ -2068,7 +2122,8 @@
       "sha256": "f390c092aba21cd72f099beeea07a91d8e737de663ed01eafe86d3e9a505ecd4",
       "test_methods": [
         "AdmissionInventoryTests.test_inventory_returns_exact_control_without_consuming_a_slot"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_api.py",
@@ -2138,7 +2193,10 @@
       "test_methods": [
         "AttemptRecordTests.test_maximum_retained_start_and_scope_text_remain_encodable",
         "AttemptRecordTests.test_pending_start_round_trip_preserves_exact_request_and_scope"
-      ]
+      ],
+      "replaced_test_methods": {
+        "AttemptRecordTests.test_pending_start_round_trip_preserves_exact_request_and_scope": "AttemptRecordTests.test_pending_start_projection_preserves_exact_request_and_scope"
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_attempt_start.py",
@@ -2159,7 +2217,8 @@
         "AttemptTransitionTests.test_acknowledgement_and_execution_entry_survive_reopen",
         "AttemptTransitionTests.test_maximum_start_fits_compact_acknowledgement_and_entry",
         "AttemptTransitionTests.test_terminal_start_replay_is_retained_without_local_execution"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_checkpoint_store.py",
@@ -2173,7 +2232,8 @@
         "CheckpointStoreTests.test_failed_disk_operation_reaches_the_protected_renderer_without_raw_text",
         "CheckpointStoreTests.test_selected_identity_survives_restart_without_becoming_accepted",
         "CheckpointStoreTests.test_start_and_acknowledgement_survive_reopen_as_metadata"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_controller.py",
@@ -2186,7 +2246,11 @@
         "ControllerTests.test_one_run_retains_confirmation_and_releases_private_claim_only_after_session_retirement",
         "ControllerTests.test_terminal_start_replays_retire_the_allocated_session_without_entering_science",
         "ControllerTests.test_unresolved_producer_control_blocks_fresh_work_before_start"
-      ]
+      ],
+      "replaced_test_methods": {},
+      "retired_test_methods": {
+        "ControllerTests.test_unresolved_producer_control_blocks_fresh_work_before_start": "Specific to retired producer persistence or stopped recovery."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_controller_condition_recovery.py",
@@ -2225,7 +2289,8 @@
         "ControllerStartRecoveryTests.test_admitted_start_replay_may_finish_bounded_io_after_retry_window",
         "ControllerStartRecoveryTests.test_exact_start_replay_has_fresh_authentication_and_one_scientific_execution",
         "ControllerStartRecoveryTests.test_terminal_start_replay_retires_session_without_preparing_or_executing"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_credential.py",
@@ -2274,7 +2339,13 @@
         "DeliveryExecutionTests.test_native_cleanup_cancellation_does_not_withdraw_approved_handoff",
         "DeliveryExecutionTests.test_relay_acceptance_does_not_wait_for_native_cleanup",
         "DeliveryExecutionTests.test_success_transfers_exact_result_and_retains_only_compact_acceptance"
-      ]
+      ],
+      "replaced_test_methods": {},
+      "retired_test_methods": {
+        "DeliveryExecutionTests.test_blocked_selection_never_blocks_cleanup_or_submits_early": "Specific to retired producer persistence or stopped recovery.",
+        "DeliveryExecutionTests.test_cleanup_failure_during_selection_does_not_veto_approved_delivery": "Specific to retired producer persistence or stopped recovery.",
+        "DeliveryExecutionTests.test_failed_accepted_metadata_write_never_retains_or_resubmits_body": "Specific to retired producer persistence or stopped recovery."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_delivery_logging.py",
@@ -2337,7 +2408,8 @@
       "sha256": "9479719ab14c675e4a101969d9d3616f3758206752283c745920daa929eccffd",
       "test_methods": [
         "EntryPersistenceTests.test_active_poll_then_completed_original_write_still_checks_state_before_one_execution"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_execution_job_policy.py",
@@ -2422,7 +2494,10 @@
         "PreparedIdentityTests.test_compact_entry_round_trip_keeps_digest_without_restoring_a_live_handle",
         "PreparedIdentityTests.test_execute_observes_matching_identity_in_durable_entry_and_terminal",
         "PreparedIdentityTests.test_largest_ram_identity_and_escaped_schema_fit_compact_entry_bound"
-      ]
+      ],
+      "replaced_test_methods": {
+        "PreparedIdentityTests.test_compact_entry_round_trip_keeps_digest_without_restoring_a_live_handle": "PreparedIdentityTests.test_compact_entry_projection_keeps_digest_without_a_live_handle"
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_process_status.py",
@@ -2458,7 +2533,8 @@
         "CompactRecoveryTests.test_positive_pending_or_held_relay_identity_clears_control_without_api_or_science",
         "CompactRecoveryTests.test_terminal_api_observation_closes_entry_without_claiming_candidate_publication",
         "CompactRecoveryTests.test_terminal_start_replay_clears_only_its_control_and_never_sends"
-      ]
+      ],
+      "retired": "Removed with producer disk checkpoints and stopped recovery; live lifecycle and durable delivery retain their own coverage."
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_result_verbosity.py",
@@ -2500,7 +2576,11 @@
       "sha256": "0d75edc73efb885a0418d4504edcfaba7de610230cf0f9ea61fa5923b76af095",
       "test_methods": [
         "StartingTests.test_fresh_and_terminal_replay_admissions_are_durable_and_keep_claims"
-      ]
+      ],
+      "replaced_test_methods": {},
+      "retired_test_methods": {
+        "StartingTests.test_fresh_and_terminal_replay_admissions_are_durable_and_keep_claims": "Specific to retired producer persistence or stopped recovery."
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_transport.py",

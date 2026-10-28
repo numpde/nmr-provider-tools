@@ -241,8 +241,8 @@ def _observe_file_io(waiter):
 class _UploadFile:
     """Own one private leaf and its original create/close/remove operations.
 
-    CheckpointStore._run/_observe supplies the original-future precedent. The caller
-    lends an exclusively controlled private directory until handoff or cleanup.
+    The caller lends an exclusively controlled private directory until handoff
+    or cleanup; cancelled waits retain their original filesystem operations.
     Entry identity protects cleanup only; grant/hash facts own source admission.
     """
 

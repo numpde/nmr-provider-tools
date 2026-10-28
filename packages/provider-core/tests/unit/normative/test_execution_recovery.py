@@ -2,16 +2,16 @@
 
 from tests.fakes.checkpoint_execution import RecordingDelivery
 from unittest.mock import Mock
-from provider_core.producer_checkpoint import AcknowledgedCheckpoint, EnteredCheckpoint, DeliveryAcceptedCheckpoint, SuppressedCheckpoint, TerminalSelectedCheckpoint, EvidenceDigest
+from tests.fakes.execution import live_executor
 import asyncio
 import tempfile
 import unittest
 
 from provider_core.attempt_record import TerminalOperation
-from provider_core.execution import AttemptExecutor, ObservationRecovery
+from provider_core.execution import ObservationRecovery
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempts import observation, progress_response
-from tests.fakes.execution import PausedSession, acknowledged_store
+from tests.fakes.execution import PausedSession, live_attempt
 from tests.fakes.job_input import response
 from tests.fakes.api import api
 
@@ -30,7 +30,7 @@ class CompletedDuringOutage(PausedSession):
 class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_completed_science_waits_for_a_fresh_read_after_settled_outage(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             session = CompletedDuringOutage(store)
             notices = []
 
@@ -69,7 +69,7 @@ class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(attempt.admission, acknowledged.admission)
                 notices.append(("recovered", failure))
 
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -84,7 +84,7 @@ class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
                 self.assertEqual(terminal.selection.body_sha256, executor.delivery.items[0].body_sha256)
                 self.assertIsNone(executor._outcome)
-                self.assertEqual(await store.inventory(), (terminal,))
+                self.assertEqual(store.records, (terminal,))
                 self.assertEqual([item[0] for item in notices], ["retry", "recovered"])
                 self.assertIs(notices[0][1], notices[1][1])
                 self.assertEqual(notices[0][1].status, 503)
@@ -92,7 +92,7 @@ class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertLessEqual(notices[0][2], 0.01)
                 self.assertEqual(len(transport.calls), 9)
                 self.assertEqual([item[0] for item in session.events], ["prepare", "execute", "retire"])
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             finally:
                 session.release.set()
-                await store.close()
+                pass

@@ -1,18 +1,17 @@
 """A returned start acknowledgement remains owned; it does not grant execution."""
 
-import tempfile
+from dataclasses import replace
 import unittest
-from pathlib import Path
 
 from provider_core.attempt_record import LocalExecutionPhase
-from provider_core.checkpoint_store import CheckpointStore, CheckpointLimits
-from provider_core.producer_checkpoint import AcknowledgedCheckpoint
+from provider_core.attempt_request import start_body
 from provider_core.ownership import AttemptClaims, OwnershipRefused
-from provider_core.starting import AttemptStarter
+from provider_core.starting import AttemptStarter, StartFailed, StartRefused
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import ATTEMPT_REF, start_response
 from tests.fakes.api import api
+from tests.fakes.execution import LiveAttemptProbe
 
 
 class StartingTests(unittest.IsolatedAsyncioTestCase):
@@ -36,33 +35,31 @@ class StartingTests(unittest.IsolatedAsyncioTestCase):
                 await send(pending)
         self.assertEqual(1, len(transport.calls))
 
-    async def test_live_start_refuses_a_durable_claim_without_a_capacity_reservation(self):
-        claim = AttemptClaims().claim_start(record())
+    async def test_remote_conflict_retains_received_admission_and_both_live_claims(self):
+        claims = AttemptClaims.live()
+        pending = record()
+        other = replace(record("first"), input=replace(pending.input, job_ref="job:other"),
+                        body=start_body("job:other", "first"))
+        existing = claims.claim_live(other, lifecycle_owner=LiveAttemptProbe())
+        owner = object()
+        existing.begin(owner)
+        existing.bind_attempt(scope(), ATTEMPT_REF, owner=owner)
+        existing.finish(owner)
+        claim = claims.claim_live(pending, lifecycle_owner=LiveAttemptProbe())
         transport = Transport(reply(start_response()))
-        with self.assertRaises(OwnershipRefused):
-            AttemptStarter.live(api(transport, scope().api_origin), claim, scope=scope())
-        self.assertEqual([], transport.calls)
-
-    async def test_fresh_and_terminal_replay_admissions_are_durable_and_keep_claims(self):
-        for state in ("in_progress", "succeeded", "failed", "expired"):
-            with self.subTest(state=state), tempfile.TemporaryDirectory() as directory:
-                pending = record()
-                transport = Transport(reply(start_response(state=state, replayed=state != "in_progress")))
-                claims = AttemptClaims()
-                claim = claims.claim_start(pending)
-                store = CheckpointStore(
-                    Path(directory), scope=scope(), limits=CheckpointLimits(1, 150000), operation_seconds=1
-                )
-                await store.open()
-                try:
-                    acknowledged = await AttemptStarter(api(transport, scope().api_origin), store, claim).start(pending)
-                    self.assertEqual(await store.inventory(), (AcknowledgedCheckpoint(pending, acknowledged.admission),))
-                    self.assertEqual(acknowledged.admission.state, state)
-                    self.assertIs(acknowledged.local_phase, LocalExecutionPhase.NOT_ENTERED)
-                    self.assertEqual(transport.calls[0][0].content, pending.body)
-                    claim.require(scope(), ATTEMPT_REF)
-                    with self.assertRaises(OwnershipRefused):
-                        claims.claim_start(pending)
-                    claim.release()
-                finally:
-                    await store.close()
+        starter = AttemptStarter.live(api(transport, scope().api_origin), claim, scope=scope())
+        with self.assertRaises(StartFailed) as failed:
+            await starter.start(pending)
+        acknowledgement = failed.exception.acknowledgement
+        self.assertEqual(ATTEMPT_REF, acknowledgement.admission.execution_attempt_ref)
+        self.assertEqual(pending, acknowledgement.start)
+        self.assertTrue(existing.active)
+        self.assertTrue(claim.active)
+        self.assertIs(starter, claim.operation_owner)
+        with self.assertRaises(StartFailed) as unsettled:
+            await starter.settle()
+        self.assertIs(acknowledgement, unsettled.exception.acknowledgement)
+        self.assertIsInstance(unsettled.exception.settlement_failures[-1], StartRefused)
+        with self.assertRaises(StartRefused):
+            await starter.resume(pending)
+        self.assertEqual(1, len(transport.calls))

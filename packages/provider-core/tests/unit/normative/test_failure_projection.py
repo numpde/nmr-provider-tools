@@ -143,11 +143,10 @@ class CoreFailureProjectionTests(unittest.TestCase):
             self.assertEqual(details["api_receipt_received"], received)
             self.assertNotIn("PRIVATE", repr(details))
         execution = ExecutionFailed(
-            cause=OSError(), outcome=candidate, unconfirmed_record=checkpoint, api_failure=None, cleanup_failures=(), attempt=active
+            cause=OSError(), outcome=candidate, api_failure=None, cleanup_failures=(), attempt=active
         )
         details = owned_details(execution)
         self.assertTrue(details["outcome_in_memory"])
-        self.assertTrue(details["unconfirmed_record_in_memory"])
         self.assertIs(execution.attempt, active)
         self.assertEqual(details["job_ref"], active.admission.job_ref)
         self.assertEqual(details["execution_attempt_ref"], ATTEMPT_REF)
@@ -157,7 +156,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
     def test_execution_distinguishes_relay_acceptance_from_api_receipt_and_preserves_delivery_cause(self):
         active = acknowledge_start(record(), admission())
         cause, interruption = OSError(), asyncio.CancelledError()
-        failure = ExecutionFailed(cause=cause, outcome=None, unconfirmed_record=None,
+        failure = ExecutionFailed(cause=cause, outcome=None,
                                   api_failure=None, cleanup_failures=(), attempt=active)
         self.assertFalse(owned_details(failure)["delivery_acceptance_received"])
         failure.delivery_acceptance = {"body_sha256": "sha256:" + "b" * 64}

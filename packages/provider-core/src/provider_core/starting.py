@@ -15,9 +15,7 @@ import asyncio
 
 from provider_core.api import ApiFailure
 from provider_core.attempt_record import RecoveryScope, StartPending, acknowledge_start
-from provider_core.checkpoint_store import CheckpointFailed, CheckpointRefused
 from provider_core.ownership import OwnershipRefused
-from provider_core.producer_checkpoint import AcknowledgedCheckpoint
 from provider_core.transport import ExchangeFailed
 
 
@@ -40,26 +38,22 @@ class AttemptStarter:
     """Borrow one start claim until its actual acknowledgement is retained.
 
     The caller owns the claim after return, including terminal replay admissions.
-    Durable construction also records admission on disk; live construction uses
-    the bounded selection and received acknowledgement directly.
+    The bounded selection and received acknowledgement remain with their live owner.
     Successful acknowledgement says nothing about preparation or worker retirement.
     """
 
-    def __init__(self, api, store, claim):
-        self._configure(api, store, store.scope, claim)
 
     @classmethod
     def live(cls, api, claim, *, scope):
         claim.require_live(scope)
         starter = cls.__new__(cls)
-        starter._configure(api, None, scope, claim)
+        starter._configure(api, scope, claim)
         return starter
 
-    def _configure(self, api, store, scope, claim):
+    def _configure(self, api, scope, claim):
         if type(scope) is not RecoveryScope or api.origin != scope.api_origin:
             raise ValueError("Cannot configure Attempt start: signing origin differs from the selected scope")
         self.api = api
-        self.store = store
         self.scope = scope
         self.claim = claim
         self._pending = None
@@ -68,42 +62,29 @@ class AttemptStarter:
         self._observing = False
         self.last_failure = None
 
-    @property
-    def _storage_pending(self):
-        return self.store is not None and self.store.pending_owner is self
 
     async def start(self, pending):
         """Retain a new pending start, or the identical existing one, before sending."""
-        return await self._start(pending, retain_new=True)
+        return await self._start(pending)
 
     async def resume(self, pending):
         """Replay only an exact existing pending start under the current scope."""
-        return await self._start(pending, retain_new=False)
+        return await self._start(pending)
 
-    async def _start(self, pending, *, retain_new):
+    async def _start(self, pending):
         if type(pending) is not StartPending or pending.scope != self.scope:
             raise StartRefused("Start requires a pending record matching the current API, provider, lane and generation")
         if self._pending is not None:
             raise StartRefused("Attempt start still owns unresolved work; settle it before another request")
-        if self.store is None:
-            self.claim.require_live_start(pending)
-        else:
-            self.claim.require_start(pending)
+        self.claim.require_live_start(pending)
         self.claim.begin(self)
         self._pending = pending
         self._observing = True
         self._api_failure = None
         self.last_failure = None
         try:
-            if self.store is not None:
-                if retain_new:
-                    await self.store.retain_start(pending, owner=self)
-                else:
-                    await self.store.require_start(pending, owner=self)
             self._unretained = await self._send(pending)
             self.claim.bind_attempt(self.scope, self._unretained.admission.execution_attempt_ref, owner=self)
-            if self.store is not None:
-                await self.store.acknowledge_start(pending, self._unretained.admission, owner=self)
             # Return the actual received admission. Historical disk metadata is
             # deliberately a different type and cannot recreate this live path.
             result = self._unretained
@@ -112,7 +93,7 @@ class AttemptStarter:
         except asyncio.CancelledError as cause:
             self._remember("Attempt start was cancelled; preserve its exact request and settle owned I/O before reuse", cause)
             raise
-        except (ApiFailure, CheckpointFailed, CheckpointRefused, OwnershipRefused) as cause:
+        except (ApiFailure, OwnershipRefused) as cause:
             raise self._remember(
                 "Attempt start lacks a retained owned acknowledgement; preserve the original request and protected admission evidence",
                 cause,
@@ -139,33 +120,22 @@ class AttemptStarter:
         return acknowledge_start(pending, admission)
 
     async def settle(self):
-        """Settle original I/O; durable mode returns admission only after its write."""
+        """Settle original I/O without inventing a late acknowledgement."""
         if self._pending is None or self._observing:
             raise StartRefused("No unobserved start operation is available to settle")
         self._observing = True
         try:
             if self.api.pending_owner is self:
                 await self.api.retire(owner=self)
-            result = None
-            if self._storage_pending:
-                settled = await self.store.settle(owner=self)
-                if self._unretained is not None:
-                    expected = AcknowledgedCheckpoint(self._pending, self._unretained.admission)
-                    if settled.value != expected:
-                        raise CheckpointFailed(
-                            "Settled storage result differs from the received acknowledgement; preserve storage for reconciliation"
-                        )
-                    result = self._unretained
-                    self._unretained = None
             if self._unretained is not None:
-                raise CheckpointFailed(
+                raise StartRefused(
                     "Received acknowledgement remains unresolved; retain its owner and reconcile the claim before preparation"
                 )
-            return result
+            return None
         except asyncio.CancelledError as cause:
             self._remember("Start settlement was cancelled; original ownership remains retained", cause, settlement=True)
             raise
-        except (CheckpointFailed, CheckpointRefused, ExchangeFailed) as cause:
+        except (StartRefused, ExchangeFailed) as cause:
             raise self._remember(
                 "Cannot settle Attempt start; preserve primary evidence and the start claim", cause, settlement=True
             ) from None
@@ -174,7 +144,7 @@ class AttemptStarter:
             self._finish_if_settled()
 
     def _finish_if_settled(self):
-        if self.api.pending_owner is not self and not self._storage_pending and self._unretained is None:
+        if self.api.pending_owner is not self and self._unretained is None:
             self.claim.finish(self)
             self._pending = None
 

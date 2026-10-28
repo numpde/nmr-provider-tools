@@ -88,7 +88,7 @@ class ChildSession:
     async def prepare(self, acknowledged, instructions, *, report_condition):  # noqa: ARG002
         if acknowledged.start.input != instructions.identity:
             raise ValueError("Scripted preparation requires the exact admitted input")
-        self.phases.append(type((await self.store.inventory())[0]))
+        self.phases.append(type(self.store.records[0]))
         await self.child.start(self.mode)
         fingerprint = instructions.identity.input_fingerprint
         await self.child.send({"operation": "prepare", "source_fingerprint": fingerprint})
@@ -106,7 +106,7 @@ class ChildSession:
         if handle is not self._prepared or handle is None:
             raise ValueError("Scripted generation requires this session's current unused handle")
         self._prepared = None
-        self.phases.append(type((await self.store.inventory())[0]))
+        self.phases.append(type(self.store.records[0]))
         self.generations += 1
         await self.child.send({"operation": "generate"})
         if await self.child.receive() != {"state": "generating"}:

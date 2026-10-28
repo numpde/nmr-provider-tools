@@ -42,7 +42,7 @@ replaying the identical request after retryable I/O has settled. Queue
 backpressure pauses new work admissions until space is available; already-started
 work can finish. A missing queue row alone does not prove that an earlier request
 was never delivered. Providers own handover retry pacing
-and compact control checkpoints; shared delivery owns durable pending result
+and live control bookkeeping; shared delivery owns durable pending result
 storage. Provider integration should not add a second durable scientific-output
 outbox or rerun inference to recover publication.
 

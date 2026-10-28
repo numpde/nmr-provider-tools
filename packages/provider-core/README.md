@@ -4,6 +4,11 @@ Model-independent signed NMR API operations, protocol admission, durable result
 delivery and reusable lifecycle helpers. Providers own scientific preparation,
 inference, offerings, model configuration and their execution policy.
 
+Producer bookkeeping is live-only. The earlier `CheckpointStore`,
+`AttemptRecovery` and store-taking lifecycle constructors have been removed.
+Use the `.live()` factories below. The shared delivery queue continues to own
+durable pending results and retries.
+
 For live bookkeeping, use `AttemptController.live` with one shared
 `AttemptClaims.live` registry in the provider's supervising process. The SDK
 reserves capacity before START and keeps the actual controller reachable while

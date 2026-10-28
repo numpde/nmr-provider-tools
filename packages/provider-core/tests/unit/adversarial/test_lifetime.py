@@ -1,4 +1,4 @@
-"""The live supervisor and existing checkpoint owner exclude each other."""
+"""Independent live supervisors contend for the same lifetime lock."""
 
 from pathlib import Path
 import select
@@ -7,9 +7,7 @@ import sys
 import tempfile
 import unittest
 
-from provider_core.checkpoint_store import CheckpointLimits, CheckpointStore
 from provider_core.lifetime import LifetimeRefused, ProviderLifetime
-from tests.fakes.attempt_store import scope
 
 
 class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
@@ -26,27 +24,18 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         return result.stdout.strip()
 
-    async def test_live_lock_excludes_checkpoint_owner_without_creating_database(self):
+    async def test_live_lock_excludes_another_owner_without_creating_database(self):
         lifetime = ProviderLifetime(self.root).open()
         self.addCleanup(lifetime.close)
         inode = (self.root / ".checkpoint-owner.lock").stat().st_ino
-        self.assertEqual("blocked", self.contender("checkpoint"))
+        self.assertEqual("blocked", self.contender("live"))
         self.assertFalse((self.root / "checkpoints.sqlite3").exists())
         with self.assertRaises(LifetimeRefused):
             lifetime.open()
         self.assertEqual("blocked", self.contender("live"))
         lifetime.close()
-        self.assertEqual("acquired", self.contender("checkpoint"))
-        self.assertEqual(inode, (self.root / ".checkpoint-owner.lock").stat().st_ino)
-
-    async def test_existing_checkpoint_lock_excludes_live_supervisor(self):
-        store = CheckpointStore(self.root, scope=scope(), limits=CheckpointLimits(2, 300000), operation_seconds=1)
-        await store.open()
-        try:
-            self.assertEqual("blocked", self.contender("live"))
-        finally:
-            await store.close()
         self.assertEqual("acquired", self.contender("live"))
+        self.assertEqual(inode, (self.root / ".checkpoint-owner.lock").stat().st_ino)
 
     async def test_process_death_releases_the_same_lock_inode(self):
         child = subprocess.Popen([

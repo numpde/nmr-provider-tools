@@ -7,6 +7,7 @@ process tree, source selection, native parser, warm reuse or production isolatio
 from provider_core.producer_checkpoint import AcknowledgedCheckpoint, EnteredCheckpoint, DeliveryAcceptedCheckpoint
 from tests.fakes.checkpoint_execution import RecordingDelivery
 from unittest.mock import Mock
+from tests.fakes.execution import live_executor
 import asyncio
 import base64
 import hashlib
@@ -19,14 +20,14 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from provider_core.attempt_record import LocalExecutionPhase, TerminalOperation
-from provider_core.execution import AttemptExecutor, ExecutionFailed, ExecutionRefused
+from provider_core.attempt_record import TerminalOperation
+from provider_core.execution import ExecutionFailed, ExecutionRefused
 from provider_core.ownership import OwnershipRefused
 from tests.fakes.acquisition import file_sources, private_source_directory, store_headers
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempts import observation, progress_response
 from tests.fakes.child_session import ChildChannelClosed, ChildSession, ChildStopUnconfirmed
-from tests.fakes.execution import acknowledged_store
+from tests.fakes.execution import live_attempt
 from tests.fakes.job_input import response
 from tests.fakes.api import api
 from tests.fakes.transport import Client, Stream
@@ -48,7 +49,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(session.source_reply["marker"], "acquired-source-observed")
             self.assertTrue(source.exists())
             with self.assertRaises(OwnershipRefused):
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             with self.assertRaises(ExecutionFailed):
                 await executor.settle()
             self.assertTrue(source.exists())
@@ -65,7 +66,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             remove.assert_called_once_with(session.source.name, dir_fd=session.directory_fd)
             self.assertTrue(source.exists())
             with self.assertRaises(OwnershipRefused):
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             await executor.settle()
             self.assertIs(session.child.process, process)
             self.assertIsNotNone(process.returncode)
@@ -77,8 +78,8 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(session.source_removals, 1)
             self.assertEqual(session.generations, 1)
             self.assertEqual(source_api.calls.count("grant"), 1)
-            self.assertIs(type((await store.inventory())[0]), EnteredCheckpoint)
-            claim.release()
+            self.assertIs(type((store.records)[0]), EnteredCheckpoint)
+            claim.release(owner=claim.lifecycle_owner)
 
     async def test_cancelled_reader_work_reaps_the_same_child_before_releasing_its_acquired_source(self):
         async with AsyncExitStack() as cleanup:
@@ -104,8 +105,8 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(session.generations, 0)
             self.assertEqual(source_api.calls.count("grant"), 1)
             self.assertIsNone(executor.last_failure.outcome)
-            self.assertIs(type((await store.inventory())[0]), AcknowledgedCheckpoint)
-            claim.release()
+            self.assertIs(type((store.records)[0]), AcknowledgedCheckpoint)
+            claim.release(owner=claim.lifecycle_owner)
 
     async def test_prestart_source_rejection_cleans_its_owned_file_without_claiming_a_child_was_stopped(self):
         for mode in ("block", "close_output"):
@@ -122,13 +123,12 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
                     self.assertFalse(source.exists())
                     self.assertEqual(session.source_removals, 1)
                     self.assertEqual(session.generations, 0)
-                    self.assertIs(type((await store.inventory())[0]), AcknowledgedCheckpoint)
-                    claim.release()
+                    self.assertIs(type((store.records)[0]), AcknowledgedCheckpoint)
+                    claim.release(owner=claim.lifecycle_owner)
 
     async def _source_resources(self, cleanup, mode):
         directory = cleanup.enter_context(tempfile.TemporaryDirectory())
-        store, acknowledged, claim = await acknowledged_store(directory)
-        cleanup.push_async_callback(store.close)
+        store, acknowledged, claim = await live_attempt()
         root, descriptor = cleanup.enter_context(private_source_directory())
         acquisition, source_api, _, _ = file_sources()
         # Use a complete, independently authored marker; no scientific decoder
@@ -162,8 +162,8 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
                 result,
                 {"state": "result", "source_fingerprint": acknowledged.start.input.input_fingerprint, "value": "scripted-only"},
             )
-            self.assertEqual(await store.inventory(), (terminal,))
-            claim.release()
+            self.assertEqual(store.records, (terminal,))
+            claim.release(owner=claim.lifecycle_owner)
 
     async def test_scripted_preparation_rejection_never_records_entry_or_generates(self):
         async with AsyncExitStack() as cleanup:
@@ -175,7 +175,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(session.generations, 0)
             self.assertIsNotNone(session.child.process.returncode)
             self.assertTrue(session.child.pipes_closed)
-            claim.release()
+            claim.release(owner=claim.lifecycle_owner)
 
     async def test_cancelled_generation_stops_exact_child_and_keeps_entered_history_without_publication(self):
         async with AsyncExitStack() as cleanup:
@@ -194,8 +194,8 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(session.child.pipes_closed)
             self.assertEqual(session.generations, 1)
             self.assertIsNone(executor.last_failure.outcome)
-            self.assertIs(type((await store.inventory())[0]), EnteredCheckpoint)
-            claim.release()
+            self.assertIs(type((store.records)[0]), EnteredCheckpoint)
+            claim.release(owner=claim.lifecycle_owner)
 
     async def test_closed_output_does_not_release_claim_until_that_same_child_is_stopped_and_reaped(self):
         async with AsyncExitStack() as cleanup:
@@ -208,26 +208,25 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(original_process.returncode)
             self.assertTrue(any(isinstance(cause, ChildStopUnconfirmed) for cause in failed.exception.cleanup_failures))
             with self.assertRaises(OwnershipRefused):
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             with self.assertRaises(ExecutionFailed):
                 await executor.settle()
             self.assertIsNone(original_process.returncode)
             self.assertEqual(session.generations, 1)
             await session.child.stop()
             with self.assertRaises(OwnershipRefused):
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             self.assertIsNone(await executor.settle())
             self.assertIs(session.child.process, original_process)
             self.assertIsNotNone(original_process.returncode)
             self.assertTrue(session.child.pipes_closed)
             self.assertEqual(session.generations, 1)
-            self.assertIs(type((await store.inventory())[0]), EnteredCheckpoint)
-            claim.release()
+            self.assertIs(type((store.records)[0]), EnteredCheckpoint)
+            claim.release(owner=claim.lifecycle_owner)
 
     async def _resources(self, cleanup, mode):
         directory = cleanup.enter_context(tempfile.TemporaryDirectory())
-        store, acknowledged, claim = await acknowledged_store(directory)
-        cleanup.push_async_callback(store.close)
+        store, acknowledged, claim = await live_attempt()
         session = ChildSession(store, mode)
         cleanup.push_async_callback(session.child.stop)
         return store, acknowledged, claim, session
@@ -261,7 +260,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
         # Long poll interval isolates child/caller-cancellation correctness from
         # scheduler-dependent read counts; all waits have separate test watchdogs.
         transport = Transport(*itertools.chain(beginning, after, itertools.repeat(reply(observation()), 16)))
-        return AttemptExecutor(
+        return live_executor(
             api(transport, store.scope.api_origin),
             store,
             claim,

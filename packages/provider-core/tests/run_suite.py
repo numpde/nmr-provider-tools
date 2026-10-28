@@ -33,8 +33,6 @@ def main():
         "integration/transport",
         "integration/api",
         "integration/delivery",
-        "integration/starting",
-        "integration/recovery",
     }:
         raise ValueError("Unknown provider-core test selection")
     suite = unittest.TestSuite()

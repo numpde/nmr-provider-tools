@@ -118,8 +118,8 @@ def _observe_file_write(waiter):
 class _FileBody:
     """One bounded disk write at a time, borrowing the caller's descriptor.
 
-    CheckpointStore._run/_observe is the original-future ownership precedent. A
-    cancelled waiter never cancels the disk operation or permits descriptor reuse.
+    A cancelled waiter never cancels the original disk operation or permits
+    descriptor reuse before that same operation settles.
     This executor handles response writes only; it is not another storage queue.
     """
 

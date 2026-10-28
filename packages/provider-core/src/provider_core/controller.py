@@ -2,10 +2,10 @@
 
 The sequence exercised at NMRNet 5629cb031b54afefbfff2a34d81602c6bc2b19ae,
 tests/integration/provider_core/test_live_worker.py::LiveWorkerTests.run_lifecycle, becomes runtime composition
-here. Scientific preparation, durable entry and retirement retain their existing
-owners. Optional START recovery repeats the exact durable command before preparation.
+here. Scientific preparation, live control and retirement retain their existing
+owners. Bounded START retries retain the exact original command before preparation.
 The executor transfers an approved outcome to the scoped relay independently of
-native retirement; this controller clears its checkpoint only after both complete.
+native retirement; this controller releases its claim only after both complete.
 This owner never reruns a session or publishes directly to the API.
 """
 
@@ -24,7 +24,7 @@ from provider_core.analysis import retire_session
 from provider_core.api import ApiFailure
 from provider_core.attempt_record import AcknowledgedAttempt, RecoveryScope, StartPending
 from provider_core.delivery_worker import require_delivery_retry_settings
-from provider_core.producer_checkpoint import AcknowledgedCheckpoint, DeliveryAcceptedCheckpoint, SuppressedCheckpoint
+from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint, SuppressedCheckpoint
 from provider_core.job_input import VerifiedJobInput
 from provider_core.execution import (
     AttemptExecutor,
@@ -50,28 +50,6 @@ class ControllerFailed(RuntimeError):
         )
         self.cause = cause
         self.cleanup_failures = cleanup_failures
-
-
-@dataclass(frozen=True, slots=True)
-class StartRecovery:
-    """Pace reviewed exact START retries before scientific preparation.
-
-    Individual exchanges and settlement remain bounded; an availability outage
-    does not expire the durable command. Protected synchronous observers
-    receive the original pending Job before retry and its durable admission after
-    recovery; no Attempt reference is assumed before a verified acknowledgement.
-    """
-
-    backoff_max_seconds: float
-    on_retry: Callable[[StartPending, ApiFailure, float], None] = field(repr=False)
-    on_recovered: Callable[[AcknowledgedAttempt, ApiFailure], None] = field(repr=False)
-
-    def __post_init__(self):
-        value = self.backoff_max_seconds
-        if not (type(value) in (int, float) and math.isfinite(value) and 0 < value):
-            raise ValueError("START recovery backoff maximum must be finite positive seconds")
-        if not callable(self.on_retry) or not callable(self.on_recovered):
-            raise ValueError("START recovery requires explicit protected retry and recovery observers")
 
 
 class _Lifetime(Enum):
@@ -122,8 +100,7 @@ class ActiveStartReplayHeld:
 class AttemptController:
     """Accept one session after configuration validation, including pre-start cleanup.
 
-    Composition supplies the shared claim registry and already opened scoped
-    store, and retains API/store lifetime. The accepted session belongs here even
+    Composition supplies the shared live claim registry and retains API lifetime. The accepted session belongs here even
     when a start fails or returns a terminal replay. Constructor refusal leaves
     it with the caller. A held controller never starts or publishes fresh work.
 
@@ -133,11 +110,6 @@ class AttemptController:
     science after a late admission or select a late scientific outcome for delivery.
     """
 
-    def __init__(self, api, store, claims, session, **settings):
-        self._configure(
-            api, store, store.scope, claims, session, maximum_terminal_bytes=None,
-            preverified_input=None, stopping=None, start_policy=None, allow_active_start_replay=False, **settings,
-        )
 
     @classmethod
     # silent-defaults: allow-contract -- Note 010 chooses the 2 MiB report ceiling and refuses unproved active replays; supplied input explicitly replaces the post-START read.
@@ -146,17 +118,15 @@ class AttemptController:
         claims._require_live_view()
         controller = cls.__new__(cls)
         controller._configure(
-            api, None, scope, claims, session, maximum_terminal_bytes=maximum_terminal_bytes,
+            api, scope, claims, session, maximum_terminal_bytes=maximum_terminal_bytes,
             preverified_input=preverified_input, stopping=stopping, start_policy=start_policy,
             allow_active_start_replay=allow_active_start_replay, **settings,
         )
         return controller
 
-    # Optional durable policies keep their published fail-stop behavior.
     def _configure(
         self,
         api,
-        store,
         scope,
         claims,
         session,
@@ -176,19 +146,17 @@ class AttemptController:
         observation_recovery=None,
         on_unconfirmed_phase_progress=None,
         condition_recovery=None,
-        start_recovery=None,
     ):
         if type(scope) is not RecoveryScope or api.origin != scope.api_origin:
             raise ValueError("Cannot configure Attempt controller: signing origin differs from the selected scope")
         if preverified_input is not None and type(preverified_input) is not VerifiedJobInput:
             raise ValueError("Attempt controller requires the actual verified Job input or an explicit post-START read")
-        if store is None:
-            if type(stopping) is not asyncio.Event or type(start_policy) is not LiveStartPolicy:
-                raise ValueError("Live Attempt controller requires its stop event and admitted LiveStartPolicy")
-            if type(maximum_terminal_bytes) is not int or not 16384 <= maximum_terminal_bytes <= 2097152:
-                raise ValueError("Live terminal allowance must cover 16384 through 2097152 encoded request bytes")
-            if type(allow_active_start_replay) is not bool or start_recovery is not None:
-                raise ValueError("Live Attempt controller requires an explicit active-replay decision and LiveStartPolicy instead of durable recovery")
+        if type(stopping) is not asyncio.Event or type(start_policy) is not LiveStartPolicy:
+            raise ValueError("Live Attempt controller requires its stop event and admitted LiveStartPolicy")
+        if type(maximum_terminal_bytes) is not int or not 16384 <= maximum_terminal_bytes <= 2097152:
+            raise ValueError("Live terminal allowance must cover 16384 through 2097152 encoded request bytes")
+        if type(allow_active_start_replay) is not bool:
+            raise ValueError("Live Attempt controller requires an explicit boolean active-replay decision")
         require_execution_settings(
             allowed_job_states=allowed_job_states, poll_seconds=poll_seconds, task_settle_seconds=task_settle_seconds
         )
@@ -199,16 +167,13 @@ class AttemptController:
         require_observation_recovery(observation_recovery)
         require_phase_progress_observer(on_unconfirmed_phase_progress)
         require_condition_recovery(condition_recovery)
-        if start_recovery is not None and type(start_recovery) is not StartRecovery:
-            raise ValueError("START recovery must be an admitted policy or explicit fail-stop None")
         self.delivery, self._on_delivery_retry = delivery, on_delivery_retry
         self._delivery_retry_initial = delivery_retry_initial_seconds
         self._delivery_retry_max = delivery_retry_max_seconds
         self._observation_recovery = observation_recovery
         self._on_unconfirmed_phase_progress = on_unconfirmed_phase_progress
         self._condition_recovery = condition_recovery
-        self._start_recovery = start_recovery
-        self.api, self.store, self._claims, self.session = api, store, claims, session
+        self.api, self._claims, self.session = api, claims, session
         self.scope = scope
         self._maximum_terminal_bytes = maximum_terminal_bytes
         self._preverified_input = preverified_input
@@ -238,7 +203,7 @@ class AttemptController:
         """Confirm cleanup without granting permission to forget a held Job."""
         if (self._lifetime in (_Lifetime.NEW, _Lifetime.RUNNING, _Lifetime.SETTLING)
                 or not self.api.retirement_confirmed or not self.delivery.retirement_confirmed
-                or (self.store is not None and self.store.pending_owner is self)):
+                ):
             return False
         if isinstance(self._operation, AttemptExecutor):
             return self._operation.work_settled
@@ -284,42 +249,28 @@ class AttemptController:
                 self._lifetime = _Lifetime.HELD
 
     async def _run_effects(self, pending):
-        if self.store is None:
-            if type(pending) is not StartPending or pending.scope != self.scope:
-                raise ControllerRefused("Live START requires the selected API, provider, lane and generation")
-            if self._preverified_input is not None and self._preverified_input.identity != pending.input:
-                raise ControllerRefused("Verified input differs from the selected START; no request was sent")
-            self._claim = self._claims.claim_live(
-                pending, lifecycle_owner=self, maximum_terminal_bytes=self._maximum_terminal_bytes,
-            )
-            self._operation = AttemptStarter.live(self.api, self._claim, scope=self.scope)
-            acknowledged = await self._start_live_attempt(pending)
-            if type(acknowledged) is StartDeferred:
-                await self._retire_session()
-                return acknowledged
-        else:
-            inventory = await self.store.inventory(owner=self)
-            if inventory:
-                raise ControllerRefused("Retained work requires explicit recovery before this session can start a fresh Attempt")
-            self._claim = self._claims.claim_start(pending)
-            self._operation = AttemptStarter(self.api, self.store, self._claim)
-            acknowledged = await self._start_attempt(pending)
+        if type(pending) is not StartPending or pending.scope != self.scope:
+            raise ControllerRefused("Live START requires the selected API, provider, lane and generation")
+        if self._preverified_input is not None and self._preverified_input.identity != pending.input:
+            raise ControllerRefused("Verified input differs from the selected START; no request was sent")
+        self._claim = self._claims.claim_live(
+            pending, lifecycle_owner=self, maximum_terminal_bytes=self._maximum_terminal_bytes,
+        )
+        self._operation = AttemptStarter.live(self.api, self._claim, scope=self.scope)
+        acknowledged = await self._start_live_attempt(pending)
+        if type(acknowledged) is StartDeferred:
+            await self._retire_session()
+            return acknowledged
         self._acknowledged = acknowledged
         if acknowledged.admission.state != "in_progress":
             self._operation = self.session
             await self._retire_session()
-            if self.store is not None:
-                await self.store.clear_terminal_start_after_cleanup(
-                    AcknowledgedCheckpoint(acknowledged.start, acknowledged.admission), owner=self,
-                )
             return acknowledged
-        if self.store is None and acknowledged.admission.replayed and not self._allow_active_start_replay:
+        if acknowledged.admission.replayed and not self._allow_active_start_replay:
             await self._retire_session()
             return ActiveStartReplayHeld(acknowledged)
         self._operation = self._new_executor()
         accepted = await self._operation.run(acknowledged)
-        if self.store is not None:
-            await self.store.clear_after_cleanup(accepted, owner=self)
         return accepted
 
     def _new_executor(self):
@@ -335,17 +286,14 @@ class AttemptController:
             on_unconfirmed_phase_progress=self._on_unconfirmed_phase_progress,
             condition_recovery=self._condition_recovery,
         )
-        if self.store is None:
-            return AttemptExecutor.live(
-                self.api, self._claim, self.session, scope=self.scope,
-                preverified_input=self._preverified_input, **settings,
-            )
-        return AttemptExecutor(self.api, self.store, self._claim, self.session, **settings)
+        return AttemptExecutor.live(
+            self.api, self._claim, self.session, scope=self.scope,
+            preverified_input=self._preverified_input, **settings,
+        )
 
     def require_execution_ready(self, claim, executor, acknowledged):
         if (
-            self.store is not None
-            or self._lifetime is not _Lifetime.RUNNING
+            self._lifetime is not _Lifetime.RUNNING
             or claim is not self._claim
             or claim.lifecycle_owner is not self
             or executor is not self._operation
@@ -359,7 +307,7 @@ class AttemptController:
 
     def require_claim_release_ready(self, claim):
         if (
-            self.store is not None or claim is not self._claim or claim.lifecycle_owner is not self
+            claim is not self._claim or claim.lifecycle_owner is not self
             or claim.operation_owner is not None or not self.api.retirement_confirmed
             or not self.delivery.retirement_confirmed
         ):
@@ -382,10 +330,7 @@ class AttemptController:
         raise ControllerRefused("Cannot release this live Job: START may have committed or its active Attempt lacks a valid disposition")
 
     def _release_claim(self):
-        if self.store is None:
-            self._claim.release(owner=self)
-        else:
-            self._claim.release()
+        self._claim.release(owner=self)
 
     def _defer_start(self, pending, failure, possible_commit):
         self._start_deferred = StartDeferred(pending, failure, possible_commit, self._acknowledged)
@@ -457,42 +402,6 @@ class AttemptController:
                     return self._defer_start(pending, latest_failure, True)
                 return acknowledged
 
-    async def _start_attempt(self, pending):
-        policy = self._start_recovery
-        first_failure = None
-        # silent-defaults: allow-contract -- A missing admitted recovery policy supplies no retry backoff.
-        delay = min(self._poll_seconds, policy.backoff_max_seconds) if policy is not None else None
-        send = self._operation.start
-        while True:
-            try:
-                acknowledged = await send(pending)
-            except StartFailed as failure:
-                if (
-                    type(failure) is not StartFailed
-                    or policy is None
-                    or failure.cause is not failure.api_failure
-                    or failure.api_failure is None
-                    or failure.acknowledgement is not None
-                    or failure.settlement_failures
-                ):
-                    raise
-                # Settlement belongs to this same starter. Late transport or
-                # independent cleanup evidence must be admitted before replay.
-                if self._claim.operation_owner is self._operation:
-                    await self._operation.settle()
-                if not self.api.can_replay_start(failure.api_failure):
-                    raise
-                if first_failure is None:
-                    first_failure = failure.api_failure
-                seconds = random.uniform(delay / 2, delay)
-                policy.on_retry(pending, failure.api_failure, seconds)
-                await asyncio.sleep(seconds)
-                delay = min(policy.backoff_max_seconds, delay * 2)
-                send = self._operation.resume
-            else:
-                if first_failure is not None:
-                    policy.on_recovered(acknowledged, first_failure)
-                return acknowledged
 
     async def _retire_after_failure(self):
         # silent-defaults: allow-contract -- Admission can fail before a claim exists; that state has no borrowed operation to settle.
@@ -517,12 +426,12 @@ class AttemptController:
         result = None
         failures = []
         try:
-            # silent-defaults: allow-contract -- A refused admission has no claim; session and inventory cleanup still run without inventing an operation owner.
+            # silent-defaults: allow-contract -- A refused admission has no claim; session cleanup still run without inventing an operation owner.
             owner = self._claim.operation_owner if self._claim is not None else None
             if isinstance(owner, AttemptExecutor):
-                operations = (owner.settle, self._settle_inventory)
+                operations = (owner.settle,)
             else:
-                operations = (self._retire_session, self._settle_operation, self._settle_inventory)
+                operations = (self._retire_session, self._settle_operation)
             for operation in operations:
                 try:
                     value = await operation()
@@ -537,8 +446,6 @@ class AttemptController:
                         raise cause
                 raise self.last_failure from None
             await self.delivery.retire()
-            if self.store is not None and type(result) is DeliveryAcceptedCheckpoint:
-                await self.store.clear_after_cleanup(result, owner=self)
             if self._claim is not None:
                 try:
                     self._release_claim()
@@ -562,15 +469,12 @@ class AttemptController:
         self._retired_by_controller = True
 
     async def _settle_operation(self):
-        # silent-defaults: allow-contract -- Pre-claim admission failures leave no borrowed operation; their inventory and session settle through separate owners.
+        # silent-defaults: allow-contract -- Pre-claim admission failures leave no borrowed operation; their session settles through its original owner.
         owner = self._claim.operation_owner if self._claim is not None else None
         if owner is not None:
             return await owner.settle()
         return None
 
-    async def _settle_inventory(self):
-        if self.store is not None and self.store.pending_owner is self:
-            await self.store.settle(owner=self)
 
     # silent-defaults: allow-contract -- Ordinary call failures are primary; cleanup callers explicitly add an independent failure while preserving the primary cause.
     def _remember(self, cause, *, cleanup=False):

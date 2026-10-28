@@ -2,19 +2,20 @@
 
 from tests.fakes.checkpoint_execution import RecordingDelivery
 from unittest.mock import Mock
-from provider_core.producer_checkpoint import AcknowledgedCheckpoint, EnteredCheckpoint, DeliveryAcceptedCheckpoint, SuppressedCheckpoint, TerminalSelectedCheckpoint, EvidenceDigest
+from provider_core.producer_checkpoint import SuppressedCheckpoint
+from tests.fakes.execution import live_executor
 import asyncio
 import tempfile
 import unittest
 from unittest.mock import AsyncMock, patch
 
 from provider_core.attempt_record import SuppressionReason
-from provider_core.execution import AttemptExecutor, ExecutionFailed, ExecutionStopped
+from provider_core.execution import ExecutionFailed, ExecutionStopped
 from provider_core.ownership import OwnershipRefused
 from provider_core.transport import ExchangeFailed
 from tests.fakes.api import Transport, reply
 from tests.fakes.attempts import observation, progress_response
-from tests.fakes.execution import Session, acknowledged_store
+from tests.fakes.execution import Session, live_attempt
 from tests.fakes.job_input import response
 from tests.fakes.api import api
 
@@ -56,13 +57,13 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
     async def test_stop_during_each_phase_cancels_once_and_never_publishes(self):
         for phase in ("prepare", "execute"):
             with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
-                store, acknowledged, claim = await acknowledged_store(directory)
+                store, acknowledged, claim = await live_attempt()
                 replies = [reply(observation()), reply(response()), reply(progress_response())]
                 if phase == "execute":
                     replies += [reply(observation()), reply(progress_response(phase="running")), reply(observation())]
                 replies.append(reply(observation(job_state="closed")))
                 session = WaitingSession(store, phase)
-                executor = AttemptExecutor(
+                executor = live_executor(
                     api(Transport(*replies), store.scope.api_origin),
                     store,
                     claim,
@@ -81,19 +82,19 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                         [e[0] for e in session.events],
                         ["prepare", "retire"] if phase == "prepare" else ["prepare", "execute", "retire"],
                     )
-                    claim.release()
+                    claim.release(owner=claim.lifecycle_owner)
                 finally:
                     session.release.set()
-                    await store.close()
+                    pass
 
     async def test_retired_worker_with_pending_task_keeps_claim_until_original_task_settles(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             session = WaitingSession(store, "prepare", resist=True)
             transport = Transport(
                 reply(observation()), reply(response()), reply(progress_response()), reply(observation(job_state="closed"))
             )
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -108,7 +109,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsInstance(failed.exception.cause, ExecutionStopped)
                 self.assertTrue(any(isinstance(e, TimeoutError) for e in failed.exception.cleanup_failures))
                 with self.assertRaises(OwnershipRefused):
-                    claim.release()
+                    claim.release(owner=claim.lifecycle_owner)
                 with self.assertRaises(ExecutionFailed):
                     await executor.settle()
                 self.assertEqual(session.cancel_count, 1)
@@ -116,14 +117,14 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsNone(await executor.settle())
                 self.assertEqual([e[0] for e in session.events], ["prepare", "retire"])
                 self.assertEqual(len(transport.calls), 4)
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             finally:
                 session.release.set()
-                await store.close()
+                pass
 
     async def test_final_stop_preserves_completed_result_without_terminal_publication(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             session = Session(store)
             transport = Transport(
                 reply(observation()),
@@ -134,7 +135,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 reply(observation()),
                 reply(observation(job_state="closed")),
             )
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -143,29 +144,26 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 poll_seconds=0.1,
                 task_settle_seconds=0.02,
             )
-            try:
-                with self.assertRaises(ExecutionFailed) as failed:
-                    await executor.run(acknowledged)
-                self.assertIsInstance(failed.exception.cause, ExecutionStopped)
-                self.assertIs(failed.exception.outcome, session.outcome)
-                with self.assertRaises(OwnershipRefused):
-                    claim.release()
-                with self.assertRaises(ExecutionFailed):
-                    await executor.settle()
-                retained = await executor.retain_suppressed_disposition()
-                self.assertIsInstance(retained, SuppressedCheckpoint)
-                self.assertIs(retained.reason, SuppressionReason.SERVER_STOP)
-                self.assertFalse(hasattr(retained, "candidate"))
-                self.assertIsNone(executor._outcome)
-                self.assertEqual(await store.inventory(), (retained,))
-                claim.release()
-                self.assertEqual([e[0] for e in session.events], ["prepare", "execute", "retire"])
-            finally:
-                await store.close()
+            with self.assertRaises(ExecutionFailed) as failed:
+                await executor.run(acknowledged)
+            self.assertIsInstance(failed.exception.cause, ExecutionStopped)
+            self.assertIs(failed.exception.outcome, session.outcome)
+            with self.assertRaises(OwnershipRefused):
+                claim.release(owner=claim.lifecycle_owner)
+            with self.assertRaises(ExecutionFailed):
+                await executor.settle()
+            retained = await executor.retain_suppressed_disposition()
+            self.assertIsInstance(retained, SuppressedCheckpoint)
+            self.assertIs(retained.reason, SuppressionReason.SERVER_STOP)
+            self.assertFalse(hasattr(retained, "candidate"))
+            self.assertIsNone(executor._outcome)
+            self.assertEqual(store.records, (retained,))
+            claim.release(owner=claim.lifecycle_owner)
+            self.assertEqual([e[0] for e in session.events], ["prepare", "execute", "retire"])
 
     async def test_result_during_failed_poll_is_preserved_with_original_api_failure(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             session = WaitingSession(store, "execute")
 
             class RacingTransport(Transport):
@@ -184,7 +182,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 reply(observation()),
                 ExchangeFailed("poll reply lost"),
             )
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -200,20 +198,20 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(failed.exception.outcome, session.outcome)
                 self.assertEqual(len(transport.calls), 7)
                 with self.assertRaises(OwnershipRefused):
-                    claim.release()
+                    claim.release(owner=claim.lifecycle_owner)
                 retained = await executor.retain_suppressed_disposition()
                 self.assertIs(retained.reason, SuppressionReason.OBSERVATION_FAILED)
                 self.assertIs(executor.last_failure.cause, failed.exception.api_failure)
-                self.assertEqual(await store.inventory(), (retained,))
-                claim.release()
+                self.assertEqual(store.records, (retained,))
+                claim.release(owner=claim.lifecycle_owner)
                 self.assertEqual([e[0] for e in session.events], ["prepare", "execute", "retire"])
             finally:
                 session.release.set()
-                await store.close()
+                pass
 
     async def test_late_execution_result_updates_failure_and_keeps_unretained_outcome_owned(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             session = WaitingSession(store, "execute", resist=True)
             transport = Transport(
                 reply(observation()),
@@ -224,7 +222,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 reply(observation()),
                 reply(observation(job_state="closed")),
             )
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -245,27 +243,27 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(executor.last_failure.outcome, session.outcome)
                 self.assertEqual(session.cancel_count, 1)
                 with self.assertRaises(OwnershipRefused):
-                    claim.release()
+                    claim.release(owner=claim.lifecycle_owner)
                 retained = await executor.retain_suppressed_disposition()
                 self.assertIs(retained.reason, SuppressionReason.SERVER_STOP)
-                self.assertEqual(await store.inventory(), (retained,))
-                claim.release()
+                self.assertEqual(store.records, (retained,))
+                claim.release(owner=claim.lifecycle_owner)
                 self.assertEqual(len(transport.calls), 7)
             finally:
                 session.release.set()
-                await store.close()
+                pass
 
     async def test_failed_binding_needs_no_final_acceptance_read(self):
         for phase in ("prepare", "execute"):
             with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
-                store, acknowledged, claim = await acknowledged_store(directory)
+                store, acknowledged, claim = await live_attempt()
                 replies = [reply(observation()), reply(response()), reply(progress_response())]
                 if phase == "execute":
                     replies += [reply(observation()), reply(progress_response(phase="running")), reply(observation())]
                 transport = Transport(*replies, ExchangeFailed("must not read after binding failure"))
                 session = Session(store)
                 cause = RuntimeError("private binding failure")
-                executor = AttemptExecutor(
+                executor = live_executor(
                     api(transport, store.scope.api_origin),
                     store,
                     claim,
@@ -274,19 +272,16 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                     poll_seconds=0.1,
                     task_settle_seconds=0.02,
                 )
-                try:
-                    with patch.object(session, phase, AsyncMock(side_effect=cause)), self.assertRaises(ExecutionFailed) as failed:
-                        await executor.run(acknowledged)
-                    self.assertIs(failed.exception.cause, cause)
-                    self.assertEqual(len(transport.calls), len(replies))
-                    self.assertEqual(failed.exception.cleanup_failures, ())
-                    claim.release()
-                finally:
-                    await store.close()
+                with patch.object(session, phase, AsyncMock(side_effect=cause)), self.assertRaises(ExecutionFailed) as failed:
+                    await executor.run(acknowledged)
+                self.assertIs(failed.exception.cause, cause)
+                self.assertEqual(len(transport.calls), len(replies))
+                self.assertEqual(failed.exception.cleanup_failures, ())
+                claim.release(owner=claim.lifecycle_owner)
 
     async def test_cancellation_during_poll_retains_api_ownership_until_settlement(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             session = WaitingSession(store, "execute")
             reading = asyncio.Event()
 
@@ -308,7 +303,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 reply(progress_response(phase="running")),
                 reply(observation()),
             )
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -326,12 +321,12 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsInstance(executor.last_failure.cause, asyncio.CancelledError)
                 self.assertIs(transport.pending_owner, executor)
                 with self.assertRaises(OwnershipRefused):
-                    claim.release()
+                    claim.release(owner=claim.lifecycle_owner)
                 self.assertIsNone(await executor.settle())
                 self.assertIsNone(transport.pending_owner)
                 self.assertEqual(session.cancel_count, 1)
                 self.assertEqual(len(transport.calls), 7)
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             finally:
                 session.release.set()
-                await store.close()
+                pass

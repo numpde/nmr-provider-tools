@@ -137,18 +137,6 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
             claims.claim_live(pending, lifecycle_owner=Owner())
         self.assertTrue(claims.claim_live(record(), lifecycle_owner=Owner()).active)
 
-    async def test_live_and_durable_acquisition_modes_cannot_be_mixed(self):
-        claims = AttemptClaims.live()
-        for acquire in (
-            lambda: claims.claim(scope(), ATTEMPT_REF),
-            lambda: claims.claim_start(record()),
-            lambda: claims.claim_record(record()),
-            lambda: claims.claim_records(()),
-        ):
-            with self.assertRaises(OwnershipRefused):
-                acquire()
-        with self.assertRaises(OwnershipRefused):
-            AttemptClaims().claim_live(record(), lifecycle_owner=Owner())
 
     async def test_terminal_grants_cover_fail_and_respect_the_wire_ceiling(self):
         claims = AttemptClaims.live()

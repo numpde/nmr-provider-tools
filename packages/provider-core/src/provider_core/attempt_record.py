@@ -10,10 +10,8 @@ from provider_core.container_guard import require_container
 
 require_container()
 
-import binascii
 import json
-import re
-from base64 import b64decode, b64encode
+from base64 import b64encode
 from dataclasses import asdict, dataclass, field, replace
 from datetime import datetime, timedelta
 from enum import Enum
@@ -29,13 +27,12 @@ from provider_core.attempt_response import (
     read_start,
 )
 from provider_core.job_input import FeedInputFacts
-from provider_core.response_json import ResponseRejected, read_document
 from provider_core.signing import _https_origin
 
 # Pending starts only: 4096 request bytes become at most 5464 base64 characters;
 # two scope identities of 1024 scalars each need at most 24576 JSON escape bytes.
 # The encoder checks total size, including the API origin and metadata.
-# Bound the persisted exact-request envelope admitted by the record codec.
+# Bound the exact-request envelope admitted into live control bookkeeping.
 # repo-check: allow-module-constant
 MAX_PENDING_RECORD_BYTES = 65536
 # Diagnostic envelope precedent: pinned NMRPeak attempt_diagnostic.py. Unlike its
@@ -198,38 +195,3 @@ def _encode_pending(record):
             f"Cannot encode pending start: record requires {len(raw)} bytes, exceeding the {MAX_PENDING_RECORD_BYTES}-byte limit"
         )
     return raw
-
-
-def _fields(document, fields, label):
-    if type(document) is not dict or set(document) != fields:
-        raise ValueError(f"Cannot restore Attempt record: {label} fields do not match the retained schema")
-
-
-def _decode_pending(raw, *, scope):
-    """Reject foreign scope before restoring any obligation; never adopt implicitly."""
-    if type(scope) is not RecoveryScope:
-        raise ValueError("Cannot restore pending start: an explicit expected recovery scope is required")
-    try:
-        document = read_document(raw, MAX_PENDING_RECORD_BYTES)
-    except ResponseRejected as cause:
-        raise ValueError(f"Cannot restore pending start: {cause}") from None
-    _fields(document, {"schema_id", "scope", "analysis_kind_ref", "input", "start_body"}, "record")
-    if document["schema_id"] != "provider_core.start_pending.v1":
-        raise ValueError("Cannot restore pending start: retained schema is unsupported")
-    _fields(document["scope"], {"api_origin", "provider_ref", "consumer_id", "generation_id"}, "scope")
-    if RecoveryScope(**document["scope"]) != scope:
-        raise ValueError(
-            "Cannot restore pending start: API, provider, consumer or generation differs from the expected recovery scope"
-        )
-    _fields(document["input"], {"job_ref", "input_schema_id", "input_fingerprint", "input_byte_length"}, "input")
-    identity = FeedInputFacts(**document["input"])
-    encoded = document["start_body"]
-    if not (type(encoded) is str and len(encoded) <= 5464):
-        raise ValueError("Cannot restore pending start: retained request must be bounded base64 text")
-    try:
-        body = b64decode(encoded, validate=True)
-    except (ValueError, binascii.Error):
-        raise ValueError("Cannot restore pending start: retained request is not valid standard base64") from None
-    if b64encode(body).decode("ascii") != encoded:
-        raise ValueError("Cannot restore pending start: retained request base64 is not canonical")
-    return StartPending(scope, document["analysis_kind_ref"], identity, body)

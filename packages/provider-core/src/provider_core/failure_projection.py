@@ -18,7 +18,6 @@ from provider_core.analysis import ObservedWorkerCrash
 from provider_core.api_config import ApiConfigurationRejected
 from provider_core.attempt_record import AcknowledgedAttempt
 from provider_core.chat import ChatFailed
-from provider_core.checkpoint_store import CheckpointFailed, CheckpointRefused
 from provider_core.controller import ControllerFailed, ControllerRefused
 from provider_core.conversation import ConversationFailed, ConversationRetirementFailed, ToolRejected
 from provider_core.credential import CredentialRejected
@@ -37,7 +36,6 @@ from provider_core.execution import (
 )
 from provider_core.ownership import LiveCapacityFull, OwnershipRefused
 from provider_core.lifetime import LifetimeRefused
-from provider_core.recovery import ObservedAttempt, RecoveryFailed, RecoveryRefused
 from provider_core.runner_protocol import LifecycleRejected, RetirementUnconfirmed
 from provider_core.starting import StartFailed, StartRefused
 from provider_core.startup_file import StartupFileRejected
@@ -64,12 +62,10 @@ def owned_relationships(error):
         CredentialRejected,
         ObservedWorkerCrash,
         ApiFailure,
-        CheckpointFailed,
         ControllerFailed,
         ExecutionFailed,
         ObservationGapExpired,
         ConditionRecoveryExpired,
-        RecoveryFailed,
         StartFailed,
         ChatFailed,
         UploadFailed,
@@ -88,7 +84,6 @@ def owned_relationships(error):
     if kind in (
         ControllerFailed,
         ExecutionFailed,
-        RecoveryFailed,
         ExchangeFailed,
         UploadFailed,
         UploadInputRejected,
@@ -111,7 +106,7 @@ def owned_relationships(error):
     if kind is StartFailed:
         for cause in error.settlement_failures:
             yield "independent settlement", cause
-    if kind in (ExecutionFailed, StartFailed, RecoveryFailed, DeliveryWorkerFailed):
+    if kind in (ExecutionFailed, StartFailed, DeliveryWorkerFailed):
         yield "API failure", error.api_failure
     if kind is ExchangeFailed:
         yield "transport primary", error.primary
@@ -134,8 +129,6 @@ def owned_details(error):
         CredentialRejected,
         ObservedWorkerCrash,
         ApiFailure,
-        CheckpointFailed,
-        CheckpointRefused,
         ControllerFailed,
         ControllerRefused,
         ExecutionFailed,
@@ -149,8 +142,6 @@ def owned_details(error):
         LifetimeRefused,
         StartFailed,
         StartRefused,
-        RecoveryFailed,
-        RecoveryRefused,
         ChatFailed,
         ConversationFailed,
         ConversationRetirementFailed,
@@ -211,9 +202,7 @@ def owned_details(error):
     if kind is ConditionRecoveryExpired:
         details.update(window_seconds=error.window_seconds, phase=error.phase, condition_code=error.condition_code)
     if kind is ExecutionFailed:
-        details.update(
-            outcome_in_memory=error.outcome is not None, unconfirmed_record_in_memory=error.unconfirmed_record is not None
-        )
+        details["outcome_in_memory"] = error.outcome is not None
         details["condition_receipt_received"] = error.condition_receipt is not None
     if kind in (UploadFailed, UploadInputRejected):
         details["grant_issued"] = error.grant_issued
@@ -240,11 +229,4 @@ def owned_details(error):
         details["acknowledgement_received"] = error.acknowledgement is not None
         if error.acknowledgement is not None:
             details["observed_attempt_state"] = error.acknowledgement.admission.state
-    if kind is RecoveryFailed:
-        details["attempt_observation_received"] = type(error.observed_record) is ObservedAttempt
-        if type(error.observed_record) is ObservedAttempt:
-            details.update(
-                observed_attempt_state=error.observed_record.observation.state,
-                observed_job_state=error.observed_record.observation.job_state,
-            )
     return details

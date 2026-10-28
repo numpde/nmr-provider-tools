@@ -17,7 +17,7 @@ class ExecutionUnavailable(importlib.abc.MetaPathFinder):
     blocked = {
         "provider_core.controller", "provider_core.execution", "provider_core.analysis",
         "provider_core.runner", "provider_core.runner_protocol", "provider_core.runner_session",
-        "provider_core.recovery", "provider_core.starting", "nmrnet_provider", "nmrnet_inference",
+        "provider_core.starting", "nmrnet_provider", "nmrnet_inference",
         "magnet_provider", "rdkit", "torch",
     }
 

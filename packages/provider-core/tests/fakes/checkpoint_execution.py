@@ -1,11 +1,11 @@
-"""Recording execution and relay ports around the real compact checkpoint owner."""
+"""Recording analysis and relay ports for live lifecycle tests."""
 
 import asyncio
 from pathlib import Path
 
 from provider_core.delivery_client import DeliveryEndpoint
 from tests.fakes.attempt_store import scope
-from tests.fakes.execution import Session, acknowledged_store
+from tests.fakes.execution import Session, live_attempt
 
 
 class CheckpointSession(Session):

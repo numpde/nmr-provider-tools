@@ -2,17 +2,17 @@
 
 from tests.fakes.checkpoint_execution import RecordingDelivery
 from unittest.mock import Mock
-from provider_core.producer_checkpoint import AcknowledgedCheckpoint, EnteredCheckpoint, DeliveryAcceptedCheckpoint, SuppressedCheckpoint, TerminalSelectedCheckpoint, EvidenceDigest
+from provider_core.producer_checkpoint import AcknowledgedCheckpoint, EnteredCheckpoint
+from tests.fakes.execution import live_executor
 import asyncio
 import tempfile
 import unittest
 
 from provider_core.api import ApiFailure
-from provider_core.attempt_record import LocalExecutionPhase
-from provider_core.execution import AttemptExecutor, ExecutionFailed, ExecutionRefused
+from provider_core.execution import ExecutionFailed, ExecutionRefused
 from provider_core.transport import ExchangeFailed
 from tests.fakes.conditions import ConditionTransport, ReportingSession, SwallowingSession
-from tests.fakes.execution import acknowledged_store
+from tests.fakes.execution import live_attempt
 from tests.fakes.api import api
 
 
@@ -43,12 +43,12 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                     self.caught = cause
 
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionTransport()
             transport.block_read = 2
             start_report, reporting = asyncio.Event(), asyncio.Event()
             session = QueuedSession(store)
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -71,22 +71,22 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
                 self.assertEqual(transport.maximum_in_flight, 1)
                 self.assertFalse(any(b"waiting_capacity" in request.content for request, _ in transport.calls))
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             finally:
                 start_report.set()
                 transport.release_read.set()
                 if not task.done():
                     task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
-                await store.close()
+                pass
 
     async def test_report_queued_behind_poll_rechecks_phase_after_acquiring_exchange(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionTransport()
             transport.block_read = 2
             session = PausingSession(store)
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -116,7 +116,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(task, 1)
                 self.assertFalse(any(b"late_condition" in request.content for request, _ in transport.calls))
                 self.assertEqual(transport.maximum_in_flight, 1)
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             finally:
                 transport.release_read.set()
                 session.finish.set()
@@ -125,15 +125,15 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.gather(task, return_exceptions=True)
                 if report is not None:
                     await asyncio.gather(report, return_exceptions=True)
-                await store.close()
+                pass
 
     async def test_retained_phase_reporters_refuse_without_api_effect(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionTransport()
             transport.release.set()
             session = ReportingSession(store)
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -142,46 +142,40 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 poll_seconds=1,
                 task_settle_seconds=0.1,
             )
-            try:
-                await executor.run(acknowledged)
-                count = len(transport.calls)
-                for reporter in session.reporters.values():
-                    with self.assertRaises(ExecutionRefused):
-                        await reporter("late_condition")
-                self.assertEqual(len(transport.calls), count)
-                claim.release()
-            finally:
-                await store.close()
+            await executor.run(acknowledged)
+            count = len(transport.calls)
+            for reporter in session.reporters.values():
+                with self.assertRaises(ExecutionRefused):
+                    await reporter("late_condition")
+            self.assertEqual(len(transport.calls), count)
+            claim.release(owner=claim.lifecycle_owner)
 
     async def test_invalid_condition_uses_existing_request_admission_and_never_executes(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionTransport()
             session = ReportingSession(store)
             session.conditions["prepare"] = ("PRIVATE invalid text",)
-            try:
-                with self.assertRaises(ExecutionFailed) as failed:
-                    await AttemptExecutor(
-                        api(transport, store.scope.api_origin),
-                        store,
-                        claim,
-                        session,
-                        delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
-                        poll_seconds=1,
-                        task_settle_seconds=0.1,
-                    ).run(acknowledged)
-                self.assertIsInstance(failed.exception.cause, ValueError)
-                self.assertNotIn("PRIVATE", str(failed.exception.cause))
-                self.assertEqual(len(transport.calls), 3)
-                self.assertEqual([event[0] for event in session.events], ["retire"])
-                claim.release()
-            finally:
-                await store.close()
+            with self.assertRaises(ExecutionFailed) as failed:
+                await live_executor(
+                    api(transport, store.scope.api_origin),
+                    store,
+                    claim,
+                    session,
+                    delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+                    poll_seconds=1,
+                    task_settle_seconds=0.1,
+                ).run(acknowledged)
+            self.assertIsInstance(failed.exception.cause, ValueError)
+            self.assertNotIn("PRIVATE", str(failed.exception.cause))
+            self.assertEqual(len(transport.calls), 3)
+            self.assertEqual([event[0] for event in session.events], ["retire"])
+            claim.release(owner=claim.lifecycle_owner)
 
     async def test_swallowed_report_failure_still_stops_next_phase_or_publication(self):
         for phase in ("prepare", "execute"):
             with self.subTest(phase=phase), tempfile.TemporaryDirectory() as directory:
-                store, acknowledged, claim = await acknowledged_store(directory)
+                store, acknowledged, claim = await live_attempt()
                 transport = ConditionTransport()
                 transport.release.set()
                 transport.failure = ExchangeFailed("Authored private transport cause")
@@ -191,7 +185,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 session.conditions[other_phase] = ()
                 cleanup = RuntimeError("Authored private cleanup cause")
                 session.retirement_failure = cleanup
-                executor = AttemptExecutor(
+                executor = live_executor(
                     api(transport, store.scope.api_origin),
                     store,
                     claim,
@@ -209,7 +203,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIn(cleanup, failed.exception.cleanup_failures)
                     # silent-defaults: allow-contract -- Only execution failure can retain the already-computed outcome.
                     self.assertIs(failed.exception.outcome, session.outcome if phase == "execute" else None)
-                    (retained,) = await store.inventory()
+                    (retained,) = store.records
                     self.assertIs(
                         type(retained),
                         EnteredCheckpoint if phase == "execute" else AcknowledgedCheckpoint,
@@ -218,7 +212,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                         self.assertNotIn("execute", [event[0] for event in session.events])
                 finally:
                     session.retirement_failure = None
-                    await store.close()
+                    pass
 
     async def test_swallowed_report_cancellation_preserves_original_and_cleanup(self):
         class LaterFailureSession(SwallowingSession):
@@ -227,7 +221,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 raise later
 
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionTransport()
             transport.release.set()
             previous = OSError("Authored private interrupted cause")
@@ -238,7 +232,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
             session = LaterFailureSession(store)
             cleanup = RuntimeError("Authored private cleanup cause")
             session.retirement_failure = cleanup
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -258,7 +252,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertNotIn("execute", [event[0] for event in session.events])
             finally:
                 session.retirement_failure = None
-                await store.close()
+                pass
 
     async def test_later_binding_failure_does_not_replace_first_report_failure(self):
         class LaterFailureSession(SwallowingSession):
@@ -267,13 +261,13 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 raise later
 
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionTransport()
             transport.release.set()
             transport.failure = ExchangeFailed("Authored private transport cause")
             later = RuntimeError("Authored later private binding cause")
             session = LaterFailureSession(store)
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -282,12 +276,9 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 poll_seconds=1,
                 task_settle_seconds=0.1,
             )
-            try:
-                with self.assertRaises(ExecutionFailed) as failed:
-                    await executor.run(acknowledged)
-                self.assertIs(failed.exception.cause, session.caught)
-                self.assertIs(failed.exception.cause.__context__, later)
-                self.assertIs(failed.exception.api_failure, session.caught)
-                claim.release()
-            finally:
-                await store.close()
+            with self.assertRaises(ExecutionFailed) as failed:
+                await executor.run(acknowledged)
+            self.assertIs(failed.exception.cause, session.caught)
+            self.assertIs(failed.exception.cause.__context__, later)
+            self.assertIs(failed.exception.api_failure, session.caught)
+            claim.release(owner=claim.lifecycle_owner)

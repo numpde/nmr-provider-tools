@@ -1,11 +1,9 @@
 """Recording async session: proves core ordering, not actual worker retirement."""
 
 import asyncio
-from pathlib import Path
 
 from provider_core.analysis import AnalysisSuccess, PreparedAnalysis
 from provider_core.attempt_record import ProtectedEvidence, acknowledge_start
-from provider_core.checkpoint_store import CheckpointLimits, CheckpointStore
 from provider_core.ownership import AttemptClaims
 from tests.fakes.attempt_store import admission, record, scope
 from tests.fakes.attempts import ATTEMPT_REF
@@ -15,24 +13,71 @@ async def unexpected_condition(_condition_code):
     raise AssertionError("This scientific fixture does not report conditions")
 
 
-async def acknowledged_store(directory):
+class LiveAttemptProbe:
+    """Observe the actual live owner rather than copying its lifecycle state."""
+
+    def __init__(self):
+        self.scope = scope()
+        self.executor = self.controller = None
+
+    @property
+    def records(self):
+        if self.controller is not None:
+            claim = self.controller._claim
+            if claim is None or not claim.active:
+                return ()
+            operation = self.controller.operation
+        else:
+            operation = self.executor
+        checkpoint = getattr(operation, "_checkpoint", None)
+        if checkpoint is None:
+            return ()
+        return (checkpoint,)
+
+    def require_execution_ready(self, claim, executor, acknowledged):
+        if executor is not self.executor:
+            raise AssertionError("Only the original live executor can enter science")
+
+    def require_claim_release_ready(self, claim):
+        if claim.operation_owner is not None:
+            raise AssertionError("The original operation must settle before release")
+
+
+async def live_attempt():
     pending = record()
     acknowledged = acknowledge_start(pending, admission())
-    store = CheckpointStore(Path(directory), scope=scope(), limits=CheckpointLimits(2, 300000), operation_seconds=1)
-    await store.open()
-    await store.retain_start(pending)
-    await store.acknowledge_start(pending, acknowledged.admission)
-    claim = AttemptClaims().claim_start(pending)
+    probe = LiveAttemptProbe()
+    claim = AttemptClaims.live().claim_live(pending, lifecycle_owner=probe)
     owner = object()
     claim.begin(owner)
     claim.bind_attempt(scope(), ATTEMPT_REF, owner=owner)
     claim.finish(owner)
-    return store, acknowledged, claim
+    return probe, acknowledged, claim
+
+
+def live_executor(api, probe, claim, session, **settings):
+    from provider_core.execution import AttemptExecutor
+
+    executor = AttemptExecutor.live(api, claim, session, scope=probe.scope, **settings)
+    probe.executor = executor
+    return executor
+
+
+def live_controller(api, probe, claims, session, **settings):
+    from unittest.mock import Mock
+    from provider_core.controller import AttemptController, LiveStartPolicy
+
+    controller = AttemptController.live(
+        api, claims, session, scope=probe.scope, stopping=asyncio.Event(),
+        start_policy=LiveStartPolicy(0.001, Mock(), Mock()), **settings,
+    )
+    probe.controller = controller
+    return controller
 
 
 class Session:
-    def __init__(self, store):
-        self.store = store
+    def __init__(self, probe):
+        self.probe = probe
         self.handle = PreparedAnalysis(ProtectedEvidence("fixture.prepared_input.v1", b"scripted candidate"))
         self.events = []
         self.preparation = self.handle
@@ -41,7 +86,7 @@ class Session:
 
     # Match the required session port; this recording fixture emits no conditions.
     async def prepare(self, acknowledged, instructions, *, report_condition):  # noqa: ARG002
-        self.events.append(("prepare", (await self.store.inventory())[0], instructions))
+        self.events.append(("prepare", self.probe.records[0], instructions))
         if acknowledged.start.input != instructions.identity:
             raise AssertionError("substituted input")
         return self.preparation
@@ -50,7 +95,7 @@ class Session:
     async def execute(self, prepared, *, report_condition):  # noqa: ARG002
         if prepared is not self.handle:
             raise AssertionError("foreign prepared handle")
-        self.events.append(("execute", (await self.store.inventory())[0]))
+        self.events.append(("execute", self.probe.records[0]))
         return self.outcome
 
     async def retire(self):

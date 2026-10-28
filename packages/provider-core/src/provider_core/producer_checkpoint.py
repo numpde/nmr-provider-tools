@@ -1,11 +1,7 @@
-"""Compact producer decisions, never scientific payloads or publication receipts.
+"""Bound live control projections without retaining scientific payloads.
 
-NMRNet d09b77b docs/notes/021_compose_runner_architecture_20261023.html
-supersedes its note017's full suppressed-result retention. The exact small
-START and API admission codecs come from attempt_record. Restored metadata
-cannot recreate a live session.
-Selected-command identity is durable before enqueue; accepted-delivery identity
-records a later real handoff and does not claim API publication or native exit.
+Encoding measures the complete control allowance; it does not create durable
+recovery state. Providers retain the actual controllers only for their lifetime.
 """
 
 from provider_core.container_guard import require_container
@@ -19,18 +15,17 @@ from dataclasses import asdict, dataclass
 
 from provider_core.attempt_record import (
     MAX_PENDING_RECORD_BYTES, ProtectedEvidence, RecoveryScope, StartPending, SuppressionReason, TerminalOperation,
-    _admission_bytes, _decode_pending, _encode_pending,
+    _admission_bytes, _encode_pending,
 )
 from provider_core.attempt_request import _scalar_text
 from provider_core.attempt_response import ATTEMPT_RESPONSE_BYTES, AttemptAdmission, read_start
-from provider_core.response_json import read_document
 
 # The existing START/admission bounds plus a 1024-scalar schema identifier,
 # digest/size and fixed state labels; there is no future result-body reservation.
-# Bound the compact durable checkpoint envelope independently of scientific payload size.
+# Bound the control projection independently of scientific payload size.
 # repo-check: allow-module-constant
 MAX_CHECKPOINT_BYTES = MAX_PENDING_RECORD_BYTES + ATTEMPT_RESPONSE_BYTES + 16384
-# Persisted compact checkpoints use this exact versioned codec identity.
+# Identify the bounded control projection used to qualify live metadata size.
 # repo-check: allow-module-constant
 SCHEMA = "provider_core.producer_checkpoint.v1"
 
@@ -70,7 +65,7 @@ class EvidenceDigest:
 
 @dataclass(frozen=True, slots=True)
 class AcknowledgedCheckpoint:
-    """Historical scoped START admission; no live execution handle is restored."""
+    """Scoped START admission without a scientific execution handle."""
 
     start: StartPending
     admission: AttemptAdmission
@@ -116,7 +111,7 @@ def _require_active(checkpoint):
 
 @dataclass(frozen=True, slots=True)
 class TerminalSelectedCheckpoint:
-    """An approved immutable command's identity before any enqueue may occur."""
+    """The approved immutable command identity before a delivery handoff."""
 
     attempt: AcknowledgedCheckpoint | EnteredCheckpoint
     operation: TerminalOperation
@@ -156,8 +151,6 @@ class SuppressedCheckpoint:
             raise ValueError("Suppression requires the owned disposition, without scientific payloads.")
 
 
-def checkpoint_start(checkpoint):
-    return checkpoint if type(checkpoint) is StartPending else checkpoint_acknowledgement(checkpoint).start
 
 
 def _document(checkpoint):
@@ -183,66 +176,3 @@ def encode_checkpoint(checkpoint):
     if not (len(raw) <= MAX_CHECKPOINT_BYTES):
         raise ValueError("Producer control checkpoint exceeds its metadata byte limit.")
     return raw
-
-
-def _fields(document, fields):
-    if type(document) is not dict or set(document) != fields:
-        raise ValueError("Cannot restore producer control checkpoint: fields do not match its state.")
-
-
-def _acknowledged(document, scope):
-    _fields(document, {"kind", "start", "admission"})
-    if document["kind"] != "acknowledged":
-        raise ValueError("Cannot restore producer checkpoint: expected acknowledgement metadata.")
-    # Match the START encoder: separator whitespace must not consume its budget.
-    start = _decode_pending(json.dumps(document["start"], separators=(",", ":")).encode(), scope=scope)
-    admission = read_start(json.dumps(document["admission"]).encode(), job_ref=start.input.job_ref,
-                           analysis_kind_ref=start.analysis_kind_ref, provider_ref=start.scope.provider_ref)
-    return AcknowledgedCheckpoint(start, admission)
-
-
-def _active(document, scope):
-    if type(document) is dict and document.get("kind") == "acknowledged":
-        return _acknowledged(document, scope)
-    _fields(document, {"kind", "acknowledgement", "prepared"})
-    if document["kind"] != "entered":
-        raise ValueError("Cannot restore producer checkpoint: expected active control metadata.")
-    _fields(document["prepared"], {"schema_id", "sha256", "byte_length"})
-    return EnteredCheckpoint(_acknowledged(document["acknowledgement"], scope), EvidenceDigest(**document["prepared"]))
-
-
-def _selected(document, scope):
-    _fields(document, {"kind", "attempt", "operation", "body_sha256", "body_bytes"})
-    if document["kind"] != "terminal_selected":
-        raise ValueError("Cannot restore producer checkpoint: expected selected command identity.")
-    try:
-        operation = TerminalOperation(document["operation"])
-    except ValueError:
-        raise ValueError("Cannot restore producer checkpoint: terminal operation is unsupported.") from None
-    return TerminalSelectedCheckpoint(_active(document["attempt"], scope), operation, document["body_sha256"], document["body_bytes"])
-
-
-def decode_checkpoint(raw, *, scope):
-    document = read_document(raw, MAX_CHECKPOINT_BYTES)
-    if type(document) is not dict or document.get("schema_id") != SCHEMA:
-        raise ValueError("Cannot restore producer checkpoint: schema is unsupported.")
-    state = {name: value for name, value in document.items() if name != "schema_id"}
-    kind = state.get("kind")
-    if kind == "start_pending":
-        _fields(state, {"kind", "start"})
-        return _decode_pending(json.dumps(state["start"], separators=(",", ":")).encode(), scope=scope)
-    if kind in ("acknowledged", "entered"):
-        return _active(state, scope)
-    if kind == "terminal_selected":
-        return _selected(state, scope)
-    if kind == "delivery_accepted":
-        _fields(state, {"kind", "selection"})
-        return DeliveryAcceptedCheckpoint(_selected(state["selection"], scope))
-    if kind == "suppressed":
-        _fields(state, {"kind", "attempt", "reason"})
-        try:
-            reason = SuppressionReason(state["reason"])
-        except ValueError:
-            raise ValueError("Cannot restore producer checkpoint: suppression disposition is unsupported.") from None
-        return SuppressedCheckpoint(_active(state["attempt"], scope), reason)
-    raise ValueError("Cannot restore producer checkpoint: state is unsupported.")

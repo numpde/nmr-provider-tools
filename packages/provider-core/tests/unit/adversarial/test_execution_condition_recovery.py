@@ -2,7 +2,8 @@
 
 from tests.fakes.checkpoint_execution import RecordingDelivery
 from unittest.mock import Mock, patch
-from provider_core.producer_checkpoint import AcknowledgedCheckpoint, EnteredCheckpoint, DeliveryAcceptedCheckpoint, SuppressedCheckpoint, TerminalSelectedCheckpoint, EvidenceDigest
+from provider_core.producer_checkpoint import SuppressedCheckpoint
+from tests.fakes.execution import live_executor
 import asyncio
 import errno
 import itertools
@@ -11,22 +12,14 @@ import unittest
 from unittest.mock import Mock
 
 from provider_core.api import ApiFailure
-from provider_core.execution import (
-    AttemptExecutor,
-    ConditionRecovery,
-    ConditionRecoveryExpired,
-    ExecutionFailed,
-    ExecutionRefused,
-    ExecutionStopped,
-    ObservationRecovery,
-)
+from provider_core.execution import ConditionRecovery, ConditionRecoveryExpired, ExecutionFailed, ExecutionRefused, ExecutionStopped, ObservationRecovery
 from provider_core.failure_projection import owned_details, owned_relationships
 from provider_core.transport import ExchangeFailed
 from tests.fakes.api import reply
 from tests.fakes.attempts import observation
 from tests.fakes.condition_recovery import ConditionOutageTransport
 from tests.fakes.conditions import ConditionTransport, ReportingSession, SwallowingSession
-from tests.fakes.execution import acknowledged_store
+from tests.fakes.execution import live_attempt
 from tests.fakes.api import api
 
 
@@ -46,7 +39,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 await read_recovered.wait()
 
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = InterruptedTransport()
             transport.release.set()
             transport.failure = asyncio.CancelledError()
@@ -60,7 +53,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 read_recovered.set()
 
             session = WaitingSession(store)
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -71,27 +64,24 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 condition_recovery=ConditionRecovery(1, 0.02, Mock(), Mock()),
                 observation_recovery=ObservationRecovery(1, 0.02, retry_read, recovered_read),
             )
-            try:
-                with self.assertRaises(asyncio.CancelledError):
-                    await asyncio.wait_for(executor.run(acknowledged), 2)
-                self.assertTrue(read_recovered.is_set())
-                self.assertEqual(len(cancelled_sends), 1)
-                self.assertIs(executor.last_failure.latest_condition_failure, cancelled_sends[0])
-                self.assertIs(cancelled_sends[0].cause, transport.last_failure)
-                self.assertIsNone(executor.last_failure.api_failure)
-                self.assertIsNone(executor.last_failure.condition_failure)
-                self.assertNotIn("execute", [event[0] for event in session.events])
-                claim.release()
-            finally:
-                await store.close()
+            with self.assertRaises(asyncio.CancelledError):
+                await asyncio.wait_for(executor.run(acknowledged), 2)
+            self.assertTrue(read_recovered.is_set())
+            self.assertEqual(len(cancelled_sends), 1)
+            self.assertIs(executor.last_failure.latest_condition_failure, cancelled_sends[0])
+            self.assertIs(cancelled_sends[0].cause, transport.last_failure)
+            self.assertIsNone(executor.last_failure.api_failure)
+            self.assertIsNone(executor.last_failure.condition_failure)
+            self.assertNotIn("execute", [event[0] for event in session.events])
+            claim.release(owner=claim.lifecycle_owner)
 
     async def test_overlapping_call_invalidates_retry_without_resending_an_old_condition(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionOutageTransport(first_failed_put=2)
             transport.release_retirement.clear()
             session = ReportingSession(store)
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -113,17 +103,17 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(transport.condition_requests), 1)
                 self.assertEqual([event[0] for event in session.events], ["retire"])
                 self.assertFalse(any(b"replacement_condition" in request.content for request, _ in transport.calls))
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             finally:
                 transport.release_retirement.set()
                 if not task.done():
                     task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
-                await store.close()
+                pass
 
     async def test_cancellation_after_monitor_recovery_retains_first_and_latest_condition_failures(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionOutageTransport(first_failed_put=2)
             transport.faults = itertools.repeat(reply(b"PRIVATE condition unavailable", status=503))
             session, read_recovered = ReportingSession(store), asyncio.Event()
@@ -145,7 +135,7 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 task.cancel()
                 read_recovered.set()
 
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -177,22 +167,22 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                     self.assertIsNot(executor.last_failure.api_failure, failures[-1])
                     self.assertIn(("latest condition failure", failures[-1]), tuple(owned_relationships(executor.last_failure)))
                     self.assertEqual([event[0] for event in session.events], ["retire"])
-                    claim.release()
+                    claim.release(owner=claim.lifecycle_owner)
                 finally:
                     if not task.done():
                         task.cancel()
                     await asyncio.gather(task, return_exceptions=True)
-                    await store.close()
+                    pass
 
     async def test_retry_waiting_behind_the_monitor_cannot_dispatch_after_its_window(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionOutageTransport(first_failed_put=2)
             transport.block_read = 2
             transport.faults = itertools.repeat(reply(b"PRIVATE unavailable", status=503))
             session = ReportingSession(store)
             window = 0.04
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -215,21 +205,21 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(type(caught.exception.cause), ConditionRecoveryExpired)
                 self.assertEqual(len(transport.condition_requests), sends)
                 self.assertEqual([event[0] for event in session.events], ["retire"])
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             finally:
                 transport.release_read.set()
                 if not task.done():
                     task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
-                await store.close()
+                pass
 
     async def test_actual_retirement_gates_resend_and_dependent_effect(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionOutageTransport(first_failed_put=2)
             transport.release_retirement.clear()
             session, retry = ReportingSession(store), Mock()
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -249,22 +239,22 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(task, 2)
                 self.assertEqual(len(transport.condition_requests), 2)
                 self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
-                claim.release()
+                claim.release(owner=claim.lifecycle_owner)
             finally:
                 transport.release_retirement.set()
                 if not task.done():
                     task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
-                await store.close()
+                pass
 
     async def test_existing_monitor_observes_stop_during_recovery_without_a_second_waiter(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionOutageTransport(first_failed_put=2)
             transport.faults = itertools.repeat(reply(b"PRIVATE unavailable", status=503))
             transport.followup_observation = reply(observation(job_state="cancelled"))
             session = ReportingSession(store)
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -274,23 +264,20 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 task_settle_seconds=0.1,
                 condition_recovery=ConditionRecovery(1, 0.04, Mock(), Mock()),
             )
-            try:
-                with self.assertRaises(ExecutionFailed) as caught:
-                    await asyncio.wait_for(executor.run(acknowledged), 2)
-                self.assertIs(type(caught.exception.cause), ExecutionStopped)
-                self.assertEqual(caught.exception.condition_failure.status, 503)
-                self.assertEqual([event[0] for event in session.events], ["retire"])
-                claim.release()
-            finally:
-                await store.close()
+            with self.assertRaises(ExecutionFailed) as caught:
+                await asyncio.wait_for(executor.run(acknowledged), 2)
+            self.assertIs(type(caught.exception.cause), ExecutionStopped)
+            self.assertEqual(caught.exception.condition_failure.status, 503)
+            self.assertEqual([event[0] for event in session.events], ["retire"])
+            claim.release(owner=claim.lifecycle_owner)
 
     async def test_expiry_is_not_erased_by_a_binding_that_catches_it_and_returns_science(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionOutageTransport(first_failed_put=5)
             transport.faults = itertools.repeat(reply(b"PRIVATE unavailable", status=503))
             session = SwallowingSession(store)
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -300,34 +287,31 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 task_settle_seconds=0.1,
                 condition_recovery=ConditionRecovery(0.03, 0.02, Mock(), Mock()),
             )
-            try:
-                with self.assertRaises(ExecutionFailed) as caught:
-                    await asyncio.wait_for(executor.run(acknowledged), 2)
-                self.assertIs(type(caught.exception.cause), ConditionRecoveryExpired)
-                self.assertIs(caught.exception.cause, session.caught)
-                self.assertIs(caught.exception.outcome, session.outcome)
-                first = caught.exception.condition_failure
-                self.assertIs(type(caught.exception.cause.cause), ApiFailure)
-                self.assertIsNot(caught.exception.cause.cause, first)
-                self.assertIn(("first condition failure", first), tuple(owned_relationships(caught.exception)))
-                with self.assertRaises(ExecutionFailed):
-                    await executor.settle()
-                suppressed = await executor.retain_suppressed_disposition()
-                self.assertIs(type(suppressed), SuppressedCheckpoint)
-                self.assertFalse(hasattr(suppressed, "candidate"))
-                self.assertIsNone(executor._outcome)
-                claim.release()
-            finally:
-                await store.close()
+            with self.assertRaises(ExecutionFailed) as caught:
+                await asyncio.wait_for(executor.run(acknowledged), 2)
+            self.assertIs(type(caught.exception.cause), ConditionRecoveryExpired)
+            self.assertIs(caught.exception.cause, session.caught)
+            self.assertIs(caught.exception.outcome, session.outcome)
+            first = caught.exception.condition_failure
+            self.assertIs(type(caught.exception.cause.cause), ApiFailure)
+            self.assertIsNot(caught.exception.cause.cause, first)
+            self.assertIn(("first condition failure", first), tuple(owned_relationships(caught.exception)))
+            with self.assertRaises(ExecutionFailed):
+                await executor.settle()
+            suppressed = await executor.retain_suppressed_disposition()
+            self.assertIs(type(suppressed), SuppressedCheckpoint)
+            self.assertFalse(hasattr(suppressed, "candidate"))
+            self.assertIsNone(executor._outcome)
+            claim.release(owner=claim.lifecycle_owner)
 
     async def test_recovered_observer_failure_retains_first_fault_and_actual_received_receipt(self):
         with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await acknowledged_store(directory)
+            store, acknowledged, claim = await live_attempt()
             transport = ConditionOutageTransport(first_failed_put=2)
             fault = OSError(errno.EIO, "PRIVATE output error")
             session = ReportingSession(store)
             retry, recovered = Mock(), Mock(side_effect=fault)
-            executor = AttemptExecutor(
+            executor = live_executor(
                 api(transport, store.scope.api_origin),
                 store,
                 claim,
@@ -337,17 +321,14 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 task_settle_seconds=0.1,
                 condition_recovery=ConditionRecovery(1, 0.02, retry, recovered),
             )
-            try:
-                with self.assertRaises(ExecutionFailed) as caught:
-                    await asyncio.wait_for(executor.run(acknowledged), 2)
-                self.assertIs(caught.exception.cause, fault)
-                self.assertIs(caught.exception.condition_failure, retry.call_args.args[3])
-                self.assertEqual(caught.exception.condition_receipt.condition_code, "waiting_capacity")
-                self.assertIs(owned_details(caught.exception)["condition_receipt_received"], True)
-                self.assertEqual([event[0] for event in session.events], ["retire"])
-                claim.release()
-            finally:
-                await store.close()
+            with self.assertRaises(ExecutionFailed) as caught:
+                await asyncio.wait_for(executor.run(acknowledged), 2)
+            self.assertIs(caught.exception.cause, fault)
+            self.assertIs(caught.exception.condition_failure, retry.call_args.args[3])
+            self.assertEqual(caught.exception.condition_receipt.condition_code, "waiting_capacity")
+            self.assertIs(owned_details(caught.exception)["condition_receipt_received"], True)
+            self.assertEqual([event[0] for event in session.events], ["retire"])
+            claim.release(owner=claim.lifecycle_owner)
 
     async def test_cleanup_and_unreviewed_failure_remain_operational_without_resend(self):
         for fault in (
@@ -357,11 +338,11 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             ),
         ):
             with self.subTest(fault=type(fault).__name__), tempfile.TemporaryDirectory() as directory:
-                store, acknowledged, claim = await acknowledged_store(directory)
+                store, acknowledged, claim = await live_attempt()
                 transport = ConditionOutageTransport(first_failed_put=2)
                 transport.faults = iter((fault,))
                 session, retry = ReportingSession(store), Mock()
-                executor = AttemptExecutor(
+                executor = live_executor(
                     api(transport, store.scope.api_origin),
                     store,
                     claim,
@@ -371,13 +352,10 @@ class ConditionRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                     task_settle_seconds=0.1,
                     condition_recovery=ConditionRecovery(1, 0.02, retry, Mock()),
                 )
-                try:
-                    with self.assertRaises(ExecutionFailed) as caught:
-                        await executor.run(acknowledged)
-                    self.assertIs(type(caught.exception.cause), ApiFailure)
-                    retry.assert_not_called()
-                    self.assertEqual(len(transport.condition_requests), 1)
-                    self.assertEqual([event[0] for event in session.events], ["retire"])
-                    claim.release()
-                finally:
-                    await store.close()
+                with self.assertRaises(ExecutionFailed) as caught:
+                    await executor.run(acknowledged)
+                self.assertIs(type(caught.exception.cause), ApiFailure)
+                retry.assert_not_called()
+                self.assertEqual(len(transport.condition_requests), 1)
+                self.assertEqual([event[0] for event in session.events], ["retire"])
+                claim.release(owner=claim.lifecycle_owner)

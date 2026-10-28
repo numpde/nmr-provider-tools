@@ -68,7 +68,7 @@ class MagnetSession:
         """
         if acknowledged.start.input != instructions.identity or self.retired or self._prepared is not None:
             raise ValueError("Magnet fixture preparation requires its exact live admitted input")
-        self.phases.append(type((await self.store.inventory())[0]))
+        self.phases.append(type(self.store.records[0]))
         value = await self.interpreter(instructions.specification_bytes)
         model_input = {"smiles": value["smiles"], "h_solvent": value["solvent"], "c_solvent": value["solvent"]}
         candidate = json.dumps(model_input, sort_keys=True, separators=(",", ":")).encode()
@@ -83,7 +83,7 @@ class MagnetSession:
             raise ValueError("Magnet fixture execution requires its current unused prepared handle")
         _, key, model_input = self._prepared
         self._prepared = None
-        self.phases.append(type((await self.store.inventory())[0]))
+        self.phases.append(type(self.store.records[0]))
         result = await self.worker(model_input)
         return AnalysisSuccess(
             RESULT_SCHEMA_ID,
