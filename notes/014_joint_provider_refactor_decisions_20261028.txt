@@ -898,3 +898,47 @@ renewed final acceptance. NMRNet observed two genuine RED failures among 47
 cases and is preserving the driver; its initial product iteration also exposed
 two older tests coupled to forced cancellation, which must preserve their real
 cleanup proof while being adjusted to the new stopping policy.
+
+D026 -- NMRNet up starts a fresh project rather than recreating incumbents (21:16 UTC)
+---------------------------------------------------------------------------------
+
+Root and NMRNet independently traced ordinary up: it initializes lifetime state,
+then invokes Compose up directly. Only down uses the qualified provider-first
+drain. Compose can recreate the provider or scientific dependencies on up.
+
+Serious alternatives:
+A. Automatically drain the incumbent before every up, then reconcile. This can
+   preserve safety but changes an ostensibly startup command into an implicit
+   shutdown and requires another admitted broken-topology policy.
+B. Refuse up if any container in the exact project exists, including stopped
+   containers, before lifetime initialization. Require explicit normal down and
+   inspection first. This is narrower and exposes the stop/replacement boundary.
+C. Use a no-recreation variant or compare recipes to allow apparently identical
+   running containers. Dependency changes and partial topology still need a full
+   ownership/reconciliation policy; no existing proof covers that path.
+
+Choice: B for this bounded closure. Query Engine ps --all with the exact project
+label under the existing deployment lock, using the retained bounded native
+metadata owner; any failure, malformed output or incumbent blocks effects.
+Fresh project startup remains the only up path. The command ceases to be an
+idempotent check/reconcile operation; explain that consequence in guidance.
+Do not promise down always repairs a partial/abnormal project: its current guard
+can itself refuse unproved exit, and such cases require explicit inspection and
+disposition. Do not silently weaken that guard or add a force flag here.
+Qualify running/stopped/partial project refusal before lifetime/container effects,
+empty project startup, metadata failure and retained unretired-client facts.
+
+Checkpoint -- 21:16 UTC
+-----------------------
+
+NMRNet committed D019 as 90d621a after 48-case integration and documentation
+checks and Magnet's independent functional audit. Root reviewed the exact commit:
+the completion wait preserves the existing task result classifier; revised older
+tests still prove independent cleanup failures. Source acceptance is closed.
+
+SECS's corrected offline image built as
+sha256:258f56012f119ff842e2eadce3da3f52fdfa0484556568436b51576766bd6eb1.
+Root's final source read covers the actual compiler constraint, normalization,
+atomic lock publication and unchanged exact 13-distribution hash closure; no
+blocking source issue. Installed/runtime checks for that exact image are pending
+before renewed commit acceptance. Earlier image results are not substituted.
