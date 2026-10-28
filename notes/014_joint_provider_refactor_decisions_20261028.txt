@@ -471,3 +471,120 @@ check with retained backend and corrected OS pin; the full maintained suite is
 running. Root has not accepted/committed that slice yet. NMRNet D008's final
 launcher and docs checks are ready for root audit; Magnet is adjudicating the
 initial-state guard findings before final acceptance.
+
+D014 -- All Magnet provider states need an honest stop disposition (20:53 UTC)
+----------------------------------------------------------------------------
+
+Root audit found that restarting incumbents were captured but bypassed the
+running-only clean-exit check; paused incumbents were not captured at all.
+Six real state-regression failures demonstrate the gap before correction.
+
+Serious alternatives:
+A. Keep the running-only guard. This misses live states and allows runner/removal
+   effects after a failed stop, contrary to D007.
+B. Guard all currently live states, but automatically allow teardown/replacement
+   of an already-exited abnormal provider as an implicit recovery operation.
+C. Capture every regular provider and require exited/0/non-OOM for every started
+   incumbent. Permit a never-started created/0/non-OOM container as an explicit
+   no-execution case. Abnormal historical exits need explicit operator disposition.
+
+Choice: C, following the same conservative normal-stop boundary as NMRNet D008.
+Unknown/unclean stop must not silently authorize changing dependent native owners
+or removing the evidence. This intentionally tightens prior up/down behavior;
+it is not merely helper extraction. It does not reconstruct lost reports or
+claim historical exit 0 alone proves all scientific history. Owned broken
+topology, retired services and oneoffs still remain admissible input shapes;
+they do not exempt a regular provider from its disposition check.
+
+No force CLI is added here. A deliberate emergency retirement remains a separate
+operator action with disclosed possible pre-handoff loss. Qualify restarting,
+paused, removing, exited-abnormal/OOM, never-started and duplicate-provider cases
+before accepting the correction. Root and independent source review remain gates.
+
+D015 -- Preserve NMRNet's original driver during ordinary drain (20:53 UTC)
+-------------------------------------------------------------------------
+
+Serious alternatives, submitted by NMRNet:
+A. Keep each acknowledged controller.run invocation alive until its original
+   work/handoff finishes, using existing public stop events and resource owners.
+B. Retain cancellation of the whole driver at the science drain deadline, adding
+   an SDK-derived selected-report predicate/drain API to protect selected handoff.
+C. Mirror selection in a callback-owned flag. This introduces another authority
+   and is unreliable when callback exceptions are handled independently.
+
+Choice: A as the first implementation to qualify. The current whole-driver
+cancellation can cancel handoff and leave retained bytes without retries after
+delivery recovers. Do not add an SDK selection API before showing existing
+owner/event composition cannot solve this. Stop new START immediately, preserve
+the original acknowledged owner, and request any scientific stopping through
+its existing policy/owner rather than cancelling its report driver blindly.
+
+Consequences must be explicit: an ordinary wait window expiring is a blocked
+drain observation, not report permission revocation or automatic driver loss.
+Existing scientific/native budgets still apply. If science can consequently run
+longer than the old service-drain window, document that instead of leaving a
+silently misleading configuration. Test the returned-but-unselected stop race
+and supported suppression separately from selected exact-report retries.
+If existing APIs cannot provide the desired bounded science policy, bring the
+concrete failing case back before adopting B. No mirrored selection flag.
+
+D016 -- NMRPeak native Python: qualify separate control runtime (20:53 UTC)
+------------------------------------------------------------------------
+
+D012 comparison is now concrete. SECS/NMRNet/Magnet native interpreters already
+satisfy SDK 3.12 support. NMRPeak's scientific family fixes Python 3.11 and cp311
+Torch 2.3 artifacts; a science 3.12 upgrade cannot reuse those exact artifacts.
+Root's isolated 3.11 syntax probe parsed 49 SDK source modules, but proves no
+runtime, dependency, native, packaging or supported-platform compatibility.
+Evidence: /tmp/sdk-python311-syntax-feasibility.log.
+
+Serious alternatives remain D012 A/B/C. Choose B for a bounded feasibility
+prototype: pinned SDK/control Python 3.12 beside the preserved science Python
+3.11, with fixed explicit scientific interpreter argv and one SDK native owner.
+This confines a real consumer gap without expanding the whole SDK support matrix
+and issuing a new release merely because syntax happens to parse. It also avoids
+changing the scientific ABI/model runtime before its own numerical qualification.
+
+This is not permission to ship an unproved multi-interpreter image. First prove
+both prefixes/stdlibs and dependency closures, dynamic-library resolution and
+environment isolation, original descriptor/lease inheritance, science startup,
+and bounded stop/reap/scratch behavior in an isolated candidate. Keep scientific
+pins/base authority, no child SDK import on 3.11, no host Engine grant, no second
+supervisor, no metadata bypass or copied sibling source. Use actual published
+SDK artifacts. If the image/ABI composition cannot meet this contract, return
+with the failing proof and reconsider A/C before product integration.
+
+D017 -- Keep SECS acquisition separate from offline installation (20:53 UTC)
+---------------------------------------------------------------------------
+
+Serious alternatives exposed by D013 plumbing:
+A. Put the official SDK direct URL into the installation lock. An actual dry run
+   with cached wheels and --no-index still attempted GitHub inside network-none.
+B. Give the build network access to follow the URL. This widens authority and
+   defeats the existing closed wheelhouse lane.
+C. Keep the issued numeric install lock/hashes; pass the single official wheel
+   URL only to the existing acquisition/lock-generation --find-links boundary.
+
+Choice: C, the existing no-network-build contract selected in D013. The observed
+direct-URL failure is /tmp/secs-sdk-direct-url-cause.log. No new downloader or
+parallel dependency authority is needed. NMRPeak's explicitly networked dependency
+preparation has a different existing boundary; do not force one installer shape
+on both repositories. Require the actual offline image to prove installation.
+
+Checkpoint -- 20:53 UTC
+-----------------------
+
+The record interval exceeded three minutes during root audit/choice comparison;
+this checkpoint catches it up before further implementation acknowledgements.
+Keep subsequent updates at the stated cadence rather than silently redefining it.
+
+Root reviewed NMRPeak D009's nine-file scope, installed-origin smoke, exact SDK
+runtime version alignment and unchanged setuptools, sole apt correction, and
+maintained results. No blocking source issue. Actual provider-image smoke remains
+required after its clean commit, separate from the already-qualified test image.
+
+Root reviewed NMRNet D008's parent-shell metadata/native fact handling, exact CID
+stop, final exit guard, refusal paths, retained control files, and RED/GREEN/docs
+evidence. No blocking source issue in down. One wording fix remains: describe
+no-kill timeout as this down operation's behavior, not a universal container property.
+That slice does not qualify all up/replacement paths or application handoff resume.
