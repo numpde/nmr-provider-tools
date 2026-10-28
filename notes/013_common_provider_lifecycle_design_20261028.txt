@@ -1,0 +1,352 @@
+Common provider controller, native ownership, and result delivery
+===============================================================
+2026-10-28
+
+Status and scope
+----------------
+
+Jointly reviewed design: NMRNet, Magnet, SECS, and NMRPeak.
+
+Use the shared Attempt controller and delivery service while keeping scientific
+behavior in each provider. Require the same ownership guarantees; reuse existing
+consumer mechanisms where they establish those guarantees. A review finding is
+not a reason to introduce the same new protocol or scheduler in all providers.
+
+This note follows the live-only policy jointly recorded in note 010 and released
+in 0.4.0. It adds a common adoption design based on current consumer comparisons.
+It does not implement changes, qualify models, approve a release, or authorize
+deployment. Consumer-specific scientific requirements remain in SECS note 008
+and NMRPeak note 007. Where they mandate an extra warm-worker nonce/entry ACK,
+a callback-owned global gate/intervention latch, or offline-only recovery, this
+common design supersedes those prescriptions. The required guarantees remain.
+
+Sources and precedent
+---------------------
+
+Source snapshots used for the comparison:
+  nmr-provider-tools e8f3afc4c18ee5faf1bde6a2e08dd90f25abd2e9
+  nmrnet-repro      7ed4594 (current inspected consumer checkout)
+  magnet-deploy     f8552a8 (published 0.4.0 adoption)
+  secs-repro        7356c35 (product), note 008 through 4bd1ca2
+  nmrpeak-repro     1697dc8 (product), note 007 through eb94f43
+
+Important source owners, relative to their repositories:
+
+- SDK: packages/provider-core/src/provider_core/{controller,execution,analysis,
+  ownership,lifetime,runner,runner_session,delivery_client,delivery_store}.py.
+- NMRNet: nmrnet_provider/{service,native_session,runtime,session}.py.
+  service._work_loop awaits a controller before selecting more work.
+  NativeOperation retains original reads and has a same-owner proof-session
+  barrier after failed control observation.
+- Magnet: magnet_provider/{controller,provider_process,native_runner_boot_owner,
+  runner_session,provider_status}.py. Its scientific boot owner serializes use;
+  scientific EOF can observe original native exit before deliberate interruption.
+  Settlement distinguishes selected handoff from supported outcome suppression.
+- SECS: src/secs_inference/provider/{runtime,worker,worker_model,analysis_run,
+  source_access,execution}.py. The existing stream is serial and the loaded child
+  is checked before START; source access and scientific preparation remain local.
+- NMRPeak: nmrpeak_provider/{lifecycle_lane,runner_protocol,runner_session,
+  attempt_lifecycle}.py and families/nmrpeak/runner_worker.py. Existing boot,
+  request correlation, Attempt/key, and validated capability already identify
+  scientific work; preparation and generation are separate operations.
+
+These are implementation precedents and inspected test/source contracts, not
+claims about the revisions deployed on any host. Existing evidence qualifies
+its named consumer and scenario; adapting it requires the new consumer's proof.
+
+Who owns what
+-------------
+
+The provider chooses Jobs, scientific lanes/generations, resource policy,
+readiness requirements, input preparation, model execution, and result/failure
+meaning. Its AnalysisSession exposes prepare, execute, and retire. The SDK does
+not learn spectrum readers, chemical interpretation, model schema, or GPU policy.
+
+The shared controller owns exact START handling, bounded live claims, Attempt
+observation, lifecycle progress, and the handoff/suppression decisions allowed
+by its contract. Do not keep a second producer lifecycle or restart publisher
+beside it. Separately active API and delivery operations keep separate exchange
+owners; a preparation transport must not compete with live Attempt observation.
+
+Shared delivery alone owns the durable pending queue, API publication, retries,
+and held queue items. A matching enqueue ACK transfers the exact report into
+that ownership. It does not establish API acceptance or native cleanup.
+
+The native owner establishes child exit and scratch cleanup. A provider-owned
+scientific allocation establishes which live request may use a healthy child.
+Child lifetime, Attempt lifetime, report lifetime, and cleanup lifetime differ.
+No projection or convenience flag may turn one of these facts into another.
+
+Live ownership and restart
+-------------------------
+
+Reserve bounded control/report capacity before START. Retain the actual owner,
+exact key/body, and any possible-commit uncertainty. A failed wait does not
+authorize a replacement key or another calculation. Scientific resource limits
+remain independent of bookkeeping capacity.
+
+If the supervising process dies, do not reconstruct execution or manufacture
+FAIL from missing state. The server owns expiry. Already-enqueued reports keep
+being delivered. Before enqueue is confirmed, supervisor death may lose a report
+or leave its acceptance uncertain; this design promises no restart repair.
+
+Ordinary Job selection and existing provider key policy remain provider-owned.
+An active replay receipt identifies an Attempt, not proof that earlier science
+did not run. Changing active-replay permission requires explicit consumer policy
+and proof; do not give all providers one replay default merely for symmetry.
+
+Keep a shared private-root/deployment lifetime lock across possible local
+supervisors until original operations and their reporting dispositions settle.
+A container-private root or a runner-only lock cannot exclude another provider
+supervisor. This does not claim distributed exclusion across hosts.
+
+Warm workers: correctness without a mandatory new lease protocol
+--------------------------------------------------------------
+
+One live allocation owns scientific use of the child at a time. Before transfer
+to another Attempt, finish/join the original exchange, consume or release its
+prepared capability, and establish release of per-request readers and work.
+Keep loaded model state and native scratch in their child-lifetime owners.
+An ambiguous exchange prevents reuse until qualified retirement/recovery.
+
+Native generation/operation identifies a loaded-child lifetime, potentially many
+Attempts. Request association must use the provider's actual allocation and
+scientific protocol. NMRPeak's existing correlation/capability or Magnet's
+single-owner/request correlation can suffice. SECS's single-flight stream may
+also suffice if no orphan reply can reach a later request. An extra random
+lease nonce, numeric sequence, or entry/release round trip is not mandatory.
+Add correlation only where the existing protocol can genuinely confuse owners.
+
+A complete scientific response may establish cooperative quiescence if all
+required request cleanup happens before it is emitted. Prefer that ordering
+over an additional ceremonial ACK. It proves only the trusted implementation's
+documented behavior. In particular, unlinking paths cannot revoke open file
+descriptors or erase worker memory. Close source/archive readers and discard
+prepared state before release; on uncertainty retire the child before deleting
+files. Do not claim kernel-enforced revocation inside a healthy warm process.
+
+An idle-child exit fails no Attempt. A live allocation may identify the Attempt
+whose worker became unavailable, but this does not prove a scientific command
+was accepted or began, or identify the cause of death. Stronger started-science
+claims require existing correlated acceptance evidence or a justified protocol
+change. Preserve the SDK's phase/owner/acknowledgement checks for crash reports.
+
+Necessary consumer work differs:
+  SECS: make input/materialization/formula admission a real prepared handle
+    before search; prove source release; retain async owners of blocking work.
+    Do not reinterpret inputs after indeterminate scientific dispatch.
+  NMRPeak: use its current validation capability and HF/CHF correlations. Clear
+    pending request state and finish work before ResultFrame. Native retirement
+    handles cancellation with a pending validated request; a new discard protocol
+    is unnecessary unless a measured requirement justifies it.
+  Magnet: preserve its existing boot owner and scientific exchange ordering;
+    use it as a precedent, not a source of another model's scientific policy.
+  NMRNet: preserve its actual allocation/retirement owners; do not force a warm
+    pool into roles whose current lifetime is deliberately shorter.
+
+Delivery pressure: bounded admission before extra scheduler state
+----------------------------------------------------------------
+
+The safety requirement is bounded retained obligations and no new admission
+beyond declared capacity. A delivery queue status/inventory snapshot cannot
+reserve space for a later report. AttemptClaims already reserves local report
+allowance before START; do not implement another independently writable ledger.
+
+The smallest serial design awaits controller.run through exact handoff before
+selecting more work. NMRNet does this today; SECS should use that ordering for
+its initial single scientific slot. Settled scientific resources may release
+while the controller still owns report bytes, without allowing the scheduler
+to forget or replace that controller. No callback-owned global gate is needed.
+
+For concurrent lanes, retain one owner/reservation per admitted operation and
+choose an explicit pressure policy in the existing supervisor. Lane-local
+waiting with bounded claims is safe where policy permits unrelated lanes to
+continue. NMRPeak may choose conservative binding-wide pause for HF/CHF, but
+this is a provider policy, not a universal shared-SDK requirement. Derive any
+blocker inventory from actual retained owners; do not invent another scheduler
+framework or a distributed queue-reservation protocol.
+
+If a policy uses a blocker, normal DeliveryAcceptedCheckpoint or retained
+verified delivery_acceptance can discharge its delivery duty. Cleanup failure
+may still exclude resources and hold the lifetime lock. An ACK does not reserve
+future queue capacity, and an unrelated error does not clear an unresolved owner.
+
+Keep semantic scheduling updates separate from logging/history I/O. Prefer a
+small synchronous owner-state update before fallible diagnostics. SDK 0.4.0
+allows an ordinary retry observer exception to stop handoff; for admitted
+crashes it catches any such exception so reporting can continue. A consumer
+must not rely on rethrow to enforce admission exclusion in that crash path.
+Existing serial flow or a complete owner-state update may already establish it.
+An additional intervention latch is justified only if a genuinely fallible or
+partial semantic transition otherwise leaves admission open. It is not a common
+requirement for every provider. Preserve failures visibly; do not hide a semantic
+error as a harmless logging failure or claim every SDK observer is protected.
+
+Native failure: one original reader and an existing recovery barrier
+------------------------------------------------------------------
+
+On unexpected scientific EOF/reset, observe the original native exit within a
+bounded wait before deliberate close/stop. Magnet supplies a concrete ordering
+precedent. Do not start a cleanup-length read across a healthy warm lifetime.
+Mark local interruption before deliberate close or stop. EOF, timeout, a worker
+failure frame, or our own kill alone does not establish an unexpected native exit.
+
+If only the caller's wait expired, retain/join the original read. If the SDK read
+itself failed, its channel is poisoned and cannot be resumed with another reader.
+Keep its error and ownership. Stop intent remains possible, but is not proof
+of exit or scratch cleanup. There is no poisoned-object reset in SDK 0.4.0.
+
+Do not make offline containment the only common recovery path. NMRNet already
+has NativeOperation._retire/_prove_retirement. After the original read is
+finished and failed, close its control and retain one bounded proof session
+at the original endpoint/expected lock identity. Issue no science; retire the
+proof child and join its original operations. This allocates another child on
+the same supervisor, not another supervisor or a retry of the poisoned frame.
+
+Why the barrier can establish prior cleanup: SDK runner.serve accepts native
+operations serially, after the previous operation reaps its child and removes
+its scratch. Runner startup checks that its selected scratch root is empty;
+this neither requires nor proves durable storage, and scratch may be on tmpfs.
+After supervisor replacement, this establishes prior cleanup only with continuity
+of the original scratch authority or independent old-cleanup proof. Preserve
+endpoint/role/lease identity and original scratch-root authority throughout the
+proof. A changed generation or matching lock inode alone is insufficient; a
+clean replacement scratch root does not establish cleanup of the original root.
+
+In particular, NMRNet's changed-generation fixture first waits for the old
+scratch to become empty, then restarts with fresh scratch. It demonstrates
+recovery after independently established old cleanup; it does not discover
+unknown old cleanup from a clean replacement root. Prefer the unchanged live
+supervisor barrier. Any generation replacement needs the original scratch/
+lease continuity or independent old-cleanup proof, not just a new greeting.
+
+Qualification must cover inherited lease lifetime, the original read being done,
+serial admission, scratch-root continuity, proof setup/retirement, and all local
+I/O owners. The proof uses the existing cleanup budget; it must not reset a
+timer to make failure disappear. It can incur child startup/model-loading cost,
+even though it sends no scientific command. Retain one proof owner, including
+partial setup and caller cancellation, rather than launching repeated probes.
+
+A successful barrier can prove physical settlement. It cannot reconstruct the
+original exit reason, repair original_exit, authorize a crash FAIL, establish
+an earlier scientific outcome, or deliver a retained report. Those duties stay
+with their original owners. Do not turn this consumer precedent into a new
+native recovery protocol without a separate demonstrated need.
+
+If a consumer cannot establish these preconditions, or the proof/budget fails,
+retain exclusion/sources and expose blocked retirement. Explicit deployment-
+owned offline containment is the fallback: stop the exact original lifetime,
+establish child exit and scratch cleanup separately, then admit a fresh lifetime.
+Status snapshots, socket disappearance, or another supervisor are insufficient.
+Emergency provider death may lose an unacknowledged report; disclose that cost.
+
+Stop, suppression, and size limits
+---------------------------------
+
+Stop accepting new work separately from signalling controller stop. A returned
+scientific outcome is not yet a selected terminal report: stopping can win the
+permission check before selection. Use only the SDK's supported explicit
+suppression disposition after original work settles. Already-selected reports
+cannot be erased through that path. Keep their exact original handoff owner;
+generic cancellation is not a successful drain or permission to send elsewhere.
+
+Delivery acknowledgement and cleanup are independent. An invocation may raise
+for retirement failure after its report was enqueued; use retained verified
+acceptance without pretending cleanup succeeded or resending a replacement.
+Require valid reporting disposition plus actual resource settlement before
+shutdown_ready and lifetime release. Indefinitely unavailable delivery can block
+orderly shutdown indefinitely. Expose blocked drain; emergency force-stop is an
+explicit loss decision, not ordinary successful shutdown or restart recovery.
+
+This is a deployment acceptance requirement, not an established property of all
+current stop commands. For example, the inspected NMRNet Compose down path uses
+a fixed 60-second timeout; Magnet's inspected deployment stop path uses 600
+seconds. Neither healthy rollout proves lossless blocked-report drain or an
+operator decision before forced termination. Qualify the actual consumer stop
+path rather than citing a healthy run as that evidence.
+
+The current controller's terminal reservation ceiling is 2,097,152 encoded
+request bytes. Configuration cannot raise it. Establish supported envelope
+bounds before rollout, including encoding overhead. Do not truncate scientific
+content, evict a report, or recalculate to obtain smaller bytes. Unexpected
+oversize stays an explicit held outcome with settled science released and no
+false delivery/shutdown claim. A genuinely larger required contract needs its
+own SDK/wire review; this note does not enlarge it.
+
+Cutover and practical feasibility
+--------------------------------
+
+SECS/NMRPeak should drain old executable journal obligations under their old
+qualified runtime and refuse cutover while START/active/terminal/held obligations
+remain unresolved. Preserve exact commands and diagnostic histories. No new
+runtime replays those journal records beside the shared controller/publisher.
+Keep existing identity/key/exclusion safety when retiring old storage; empty
+obligations alone do not authorize making already-attempted work eligible again.
+If bounded old exclusions or existing server/key guarantees cannot establish
+that safety, block cutover rather than silently forgetting the identities.
+
+Consume a qualified GitHub wheel/lock and the shared binding/deployment tooling;
+do not copy SDK source or import another provider runtime. The provider retains
+scientific images, resource grants, and configuration. Shared delivery has its
+own persistent queue and only the API/provider bindings it needs. Concurrent
+HF/CHF lanes sharing one issued provider identity share one delivery binding.
+
+The immediate feasible scope is consumer adapters and explicit ordering around
+existing SDK APIs. No new shared gate class, universal wire identity, or native
+reset protocol is a prerequisite. If adoption exposes a genuinely missing shared
+capability, bring the concrete failing scenario to the SDK owner before adding
+duplicate consumer machinery. The common contracts must remain model-independent.
+
+Proof required before implementation is called complete
+------------------------------------------------------
+
+Use the actual consumer adapters and deployments for these boundaries:
+
+- Original request/reply ownership across warm reuse, stale/late replies, idle
+  exit and handover; source/pending-state release before reuse; cancelled
+  validation and uncertain dispatch without repeated science.
+- Backpressure with retained report reservations; a free scientific slot cannot
+  bypass the chosen admission policy. Exercise the actual concurrent-lane policy
+  where present. No queue snapshot is treated as a reservation.
+- Failed diagnostic sinks versus semantic scheduling failures, especially an
+  admitted-crash callback exception. No required admission exclusion disappears
+  merely because the SDK catches an observer exception.
+- Caller wait expiry versus a failed/partial native read; original read joining,
+  proof-session ordering, changed generation/root continuity, proof cancellation,
+  exhausted budget, failed scratch cleanup, and offline fallback as applicable.
+- ACK followed by cleanup failure; stopping before selection versus after selected
+  handoff; blocked orderly drain; supported and oversized encoded reports.
+- Restart creates no inferred failure or repeated calculation, while already
+  acknowledged shared-delivery reports publish independently of model startup.
+
+Inspecting a test establishes its intended case, not that it passed in this
+review. Contained SDK/consumer fixtures, actual installed image/grant checks,
+model qualification, signed API acceptance, and production rollout are separate
+proofs. Record exact evidence and limits at the stage that supplies each one.
+
+Joint review record
+-------------------
+
+All four responsible threads approved the common design within their scopes,
+including correctness, necessity, and feasibility. They reviewed draft blob
+4192b4e83b08657511a3bc3f9cb62680a152f345, then each confirmed corrected blob
+42c53856940899efa4a65072bd7f74fc3b26734f. Finalization changes only status and
+this review record; the reviewed design body is unchanged.
+
+  NMRNet:  01a162ad-276f-7032-938f-89afb43514bc
+    Confirmed serial scheduling and scoped proof-session precedent; corrected
+    scratch persistence wording and bounded the changed-generation test claim.
+  Magnet:  01a177e4-772d-7db1-bc02-0b05a65f220d
+    Confirmed existing warm ownership/correlation and lane-local pressure policy;
+    rejected mandatory extra wire/gate state and recorded its stop-timeout limit.
+  SECS:    01a183cb-2653-7e10-b63a-afaaf2f2d78f
+    Confirmed its serial stream/scheduler as smaller precedents, keeping actual
+    prepare/source-release/async adoption work and bounded recovery obligations.
+  NMRPeak: 01a183cb-94c2-7652-bb7d-87aead1f948f
+    Confirmed existing correlation/capability, cleanup-before-reply, optional
+    shared-binding pause, and the limits of native recovery and evidence.
+
+No reviewer requested a remaining user policy decision within this scope.
+This agreement selects a smaller common design; it is not a passing-test claim,
+consumer implementation acceptance, model qualification, installed deployment
+proof, lossless shutdown guarantee, SDK API change, or rollout authorization.
