@@ -942,3 +942,49 @@ Root's final source read covers the actual compiler constraint, normalization,
 atomic lock publication and unchanged exact 13-distribution hash closure; no
 blocking source issue. Installed/runtime checks for that exact image are pending
 before renewed commit acceptance. Earlier image results are not substituted.
+
+Checkpoint -- 21:18 UTC
+-----------------------
+
+NMRNet's D026 causal RED showed existing-project up returning success and
+invoking lifetime/Compose work. The four-line gate now queries the exact project
+before those effects. Root final source review is clear; 34 image/launcher and
+3 documentation cases pass. Await Magnet's independent review, then commit.
+No new SDK API or shared scheduling state was introduced.
+
+NMRPeak's native-first RED uses the actual installed SDK fixture: the current
+HF/CHF client misreads control greeting as scientific READY, and cleanup skips
+native retirement for a scientifically unusable session. Two cases produced
+one assertion failure and two intended protocol errors before product edits.
+The atomic native cut is now underway under D024/D025.
+
+SECS's independent prototype review flagged that an updated child source added
+a module import absent from the earlier v2 log. NMRPeak reran the current exact
+source for both HF and CHF and recorded source hashes. Root inspected the new
+logs/hash record; the earlier v2 acceptance remains limited to its actual
+dependency/native facts. No numerical/model-generation proof is claimed.
+
+Checkpoint -- 21:20 UTC
+-----------------------
+
+NMRNet committed fresh-project up as 99d592a after root and Magnet review,
+34 image/launcher cases and 3 documentation cases. Its exact NMR COMPLETE
+envelope bound is 1,048,843 bytes: admitted 786,432-byte result content becomes
+1,048,576 base64 characters plus 267 bytes of fixed schema/reference/JSON.
+The 2,097,152-byte reservation is sufficient; no SDK capacity change is needed.
+Actual scientific result planning separately rejects excess content before
+prediction and enforces the reservation at finish. A newly identified question
+is how its ResultRejected preparation error is classified publicly; inspect
+the current policy before any change. Do not claim every nominal batch fits.
+
+SECS committed the SDK installation/lock-generation prerequisite as 1a02016.
+The exact corrected image passed installed origin/import/pip-check (1 case,
+0.681 s) and maintained provider tests (279 cases, 47.135 s). Native venv
+installation proceeds under D021; Dockerignore already admits the needed lock,
+so there is no reason to change it. First actual environment/FD proof is CPU;
+the shared CPU/GPU recipe does not establish GPU or numerical qualification.
+
+Root reviewed Magnet's current D022 product and test diff; no blocking source
+issue. NMRNet independently reviewed it read-only and also found the actual
+result/error boundary preserved. Appropriate maintained qualification precedes
+its commit; the speculative two-lane sibling path is still a separate question.
