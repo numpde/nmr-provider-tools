@@ -834,3 +834,67 @@ choice, not an incidental compiler refresh. Compare actual pins/hashes and prove
 offline installation after generation. Keep the GitHub source URL/hash explicit
 in provider.in. Do not present unconstrained resolver success as proof of the
 exact selected installation or silently claim the refreshed version was tested.
+
+D024 -- NMRPeak replaces the native owner and attachment together (21:14 UTC)
+-------------------------------------------------------------------------
+
+Root reviewed the concrete native-first proposal and current client, Dockerfiles,
+entrypoint/input guards and SDK lifecycle interfaces. The existing _LaneOwner
+already retains loaded scientific sessions; no generic pool framework is needed.
+Old cancel/retire only close science and do not establish native retirement.
+
+Serious alternatives:
+A. Adopt the Attempt controller first around the old client. Its retire contract
+   remains false unless another native owner is quietly introduced underneath.
+B. Ship only a second interpreter while leaving the old supervisor active.
+   Feasibility is now proved, so another unused installation stage does not move
+   the real ownership boundary.
+C. Replace actual native supervision and provider attachment together, preserving
+   scientific READY/Validate/Generate/capability and the existing warm lane owner.
+   Update the inspected launcher/image contract and delete the old native engine.
+
+Choice: C. Bound the coherent source cut to runner_session, a small family native
+bootstrap, worker inherited descriptor arguments, both image/closed input lists,
+build/deployment exact-entrypoint guards, and native consumer tests. Remove the
+generic supervisor and both old model wrappers. The bootstrap provisions paths
+and fixed argv; SDK alone supervises/reaps/cleans. Use a standalone digest-pinned
+3.12 control stage and the existing exact dependency lock, not the provider image
+or mutable tag. Preserve scientific 3.11 pins and source/checkpoint declarations.
+
+Retain original setup/scientific/native read owners; a caller timeout cannot
+authorize another reader. Observe original exit before deliberate interruption,
+which must be marked before close. Native exit/scratch receipts, scientific
+failure frames and successful quiescent responses establish different facts.
+Failed retirement holds the original owner; qualify any proof-session recovery
+separately rather than resetting a poisoned channel.
+
+D025 -- NMRPeak aggregate native retirement budget (21:14 UTC)
+---------------------------------------------------------------
+
+Serious alternatives:
+A. Keep retire_seconds=10 while adding 5 s TERM, 5 s KILL and scratch cleanup.
+   This does not cover the newly promised aggregate operation.
+B. Shorten native termination bounds to fit 10 s. No evidence justifies that
+   change to scientific stopping behavior.
+C. Adopt the existing Magnet SDK composition: 5 s TERM + 5 s KILL + 5 s cleanup,
+   plus 5 s for control observation, with a 20 s aggregate observer allowance.
+   Reject incompatible configured retirement budgets before native effects.
+
+Choice: C. Root inspected magnet_provider/runner_lifecycle.py: these exact
+component and aggregate values are an existing implementation precedent, not
+invented safety numbers. Set/explain the NMRPeak example accordingly; do not
+silently clamp an old configuration or change generation/interpretation budgets.
+This allowance is bounded observation, not proof that every kernel operation
+finishes within it. Failure keeps sources/exclusion and the original I/O owner.
+
+Checkpoint -- 21:14 UTC
+-----------------------
+
+SECS's actual maintained lock-write target now exits 0 using the rebuilt
+compiler and narrow normalization. Root independently compared the regenerated
+lock with the published SDK lock: all 13 distribution/version/artifact-hash sets
+match exactly. Actual offline image/install requalification is underway before
+renewed final acceptance. NMRNet observed two genuine RED failures among 47
+cases and is preserving the driver; its initial product iteration also exposed
+two older tests coupled to forced cancellation, which must preserve their real
+cleanup proof while being adjusted to the new stopping policy.
