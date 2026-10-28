@@ -1476,3 +1476,75 @@ artifact qualification; SDK unit success is not evidence of their completed
 composition. The Python 3.11 maintained matrix remains the next shared runtime
 slice. Its selected local acquisition interface is wlp1s0 under the user's
 default-route preference.
+
+D035 -- Shared admission stop is distinct from scientific cutoff (22:27 UTC)
+---------------------------------------------------------------------------
+
+Magnet's installed 0.5 candidate probes now recover the original selected report
+after both sibling faults. A separate pending-START witness still fails in its
+consumer: observer cancellation destroys the provider watcher, then admission
+stop cannot prevent another START. NMRNet has analogous phase-sensitive watcher
+composition. These are shared lifecycle phases, not scientific model policy.
+
+Serious alternatives:
+A. Retain a separate phase watcher in each provider task tree and shield more
+   provider tasks. This repairs one composition while repeating the same phase
+   boundary and its cancellation races.
+B. Add a caller-owned admission_stopping event to the existing SDK controller.
+   It governs START, replay pacing and late-ACK entry; existing stopping/local
+   request_stop governs scientific cutoff. Already selected handoff continues.
+C. Merge all stop signals. This stops admitted science prematurely or allows
+   new START after admission closes, depending on which policy is chosen.
+
+Choice: B, independently supported by Magnet's review of the actual phase rules.
+Read supplied events without setting them; use the original admission and driver
+facts, not another phase ledger. Acknowledged execution already admitted before
+ordinary admission stop can drain under its scientific policy. A late active ACK
+after admission closes stays owned without entering science. Preserve exact
+request/replay uncertainty. Test stop/retry/late-ACK and admitted-science behavior.
+Providers still own Job selection, result/status effects and prompt admission stop
+on group failure; they must join original drivers before final settlement.
+
+D036 -- Share verified file-transfer ownership, preserve explicit source policy (22:27 UTC)
+-------------------------------------------------------------------------------------
+
+Root inspected JobUploads acquisition, grant, transfer and abort/settle owners;
+NMRNet independently compared SECS AttemptSources. Existing policies differ:
+SECS caches completed files and charges successful declared bytes, with up to
+three reviewed retries and map reconciliation. JobUploads charges consumed store
+bytes including failures, bounds all source requests/deadline, refreshes canonical
+membership before each grant and makes no implicit retry. For an 8 MB file in a
+10 MB budget after a 4 MB failed transfer, the two policies admit different work.
+
+Serious alternatives:
+A. Silently adopt JobUploads wholesale. This removes code but changes observable
+   retry/admission behavior without a jointly chosen policy.
+B. Copy its private transfer/file cleanup into SECS or keep old HTTP lifecycle.
+   This retains duplicate protocol, verification and cancellation authority.
+C. Move a shared transfer-only owner into the public SDK and make JobUploads
+   itself use that owner; consumers retain explicit selection/cache/retry policy.
+
+Choice: C. Move, rather than mirror, original file/exchange futures, whole-file
+header/hash verification, cancellation evidence and cleanup authority. Preserve
+JobUploads' existing create-before-grant ordering and tests. A closed receipt
+does not prove later pathname bytes: retain the existing verified readback boundary
+and scientific reader lifetime. Do not invent a wrapper whose state duplicates
+the private file owner. Exact public API/slice must be critiqued before editing;
+SECS's independent async composition can continue while that seam is integrated.
+
+Checkpoint -- 22:27 UTC
+-----------------------
+
+The record lagged during the shared API review; the user explicitly reminded
+root to keep recording decisions. D035/D036 above precede their product edits;
+this checkpoint does not claim intervening progress was written every three
+minutes. Keep the record alongside implementation and prioritize the shared goal
+over independent local QA campaigns. Minor issues remain separately deferred.
+
+Shared owner commit b176008 produced five immutable local candidate artifacts
+in /tmp/provider-core-0.5.0-b176008. Manifest hashes were checked. Wheel SHA-256:
+9b24bf0c03d370507812bf8b47c8261e73add436be9b4a05623267a1a00e55fa.
+Install-lock SHA-256:
+857e56952ede64196e77e686b2d6da2e3925416ef698c4eac868646bb8910480.
+These qualify the b176008 candidate, not an eventual different 0.5 release.
+Consumer probes use installed artifacts, not shared checkout source imports.
