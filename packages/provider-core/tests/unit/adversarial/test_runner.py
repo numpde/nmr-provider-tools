@@ -70,7 +70,7 @@ class RunnerRefusalTests(unittest.TestCase):
             original.result(timeout=3)
         self.assertEqual(-9, session.original_exit.returncode)
 
-    def test_legacy_retirement_has_unknown_reason_and_invented_reason_is_refused(self):
+    def test_retirement_without_a_reason_or_with_an_invented_reason_is_refused(self):
         for reason in (None, "oom", [], 1):
             with self.subTest(reason=reason):
                 session = RunnerSession(
@@ -89,13 +89,10 @@ class RunnerRefusalTests(unittest.TestCase):
                     if reason is not None:
                         reply["reason"] = reason
                     send_document(sender, reply, deadline=time.monotonic() + 1)
-                    if reason is None:
+                    with self.assertRaises(LifecycleRejected):
                         session.observe_retirement()
-                        self.assertIsNone(session.retirement.reason)
-                    else:
-                        with self.assertRaises(LifecycleRejected):
-                            session.observe_retirement()
-                        self.assertIsNone(session.retirement)
+                    self.assertIsNone(session.retirement)
+                    self.assertIsNone(session.original_exit)
 
     def test_status_directory_is_private_and_canonical_before_any_status_write(self):
         for condition, failure_type in (("mode", PermissionError), ("symlink", ValueError)):
@@ -157,7 +154,7 @@ class RunnerRefusalTests(unittest.TestCase):
                         send_greeting(peer, {"kind": "malformed"}, science, deadline=time.monotonic() + 1)
                         send_document(peer, {
                             "kind": "retired", "generation": None, "operation": None,
-                            "returncode": 0, "scratch_released": True,
+                            "returncode": 0, "scratch_released": True, "reason": "exited",
                         }, deadline=time.monotonic() + 1)
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     original = executor.submit(reply)
@@ -200,7 +197,7 @@ class RunnerRefusalTests(unittest.TestCase):
                     self.assertEqual(b"", remote.recv(1))
                     retired = {
                         "kind": "retired", "generation": None, "operation": None,
-                        "returncode": 0, "scratch_released": True,
+                        "returncode": 0, "scratch_released": True, "reason": "exited",
                     }
                     send_document(peer, retired, deadline=time.monotonic() + 1)
                     with self.assertRaises(LifecycleRejected) as observation:

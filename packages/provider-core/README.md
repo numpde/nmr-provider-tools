@@ -49,6 +49,8 @@ cause remains unknown. Do not impose a short retirement deadline on a healthy
 warm worker.
 Diagnostics must not prevent an admitted crash report or replace an already
 chosen result or failure report.
+Runner retirement messages must include an explicit supported reason; messages
+without one are rejected and cannot establish an observed crash.
 
 Live bookkeeping disappears if its supervisor dies. Restart does not restore
 START, calculate, poll old Attempts or fabricate failures from missing state.

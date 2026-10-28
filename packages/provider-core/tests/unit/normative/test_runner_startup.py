@@ -181,6 +181,7 @@ class RunnerStartupTests(unittest.TestCase):
                 send_document(peer, {
                     "kind": "retired", "generation": self.greeting["generation"],
                     "operation": self.greeting["operation"], "returncode": -15, "scratch_released": True,
+                    "reason": "owner_lost",
                 }, deadline=time.monotonic() + 1)
                 session.retire()
         self.assertEqual(-15, session.retirement.returncode)
@@ -210,7 +211,7 @@ class RunnerStartupTests(unittest.TestCase):
                 self.assertEqual(self.greeting["operation"], session.operation)
                 send_document(peer, {
                     "kind": "retired", "generation": session.generation, "operation": session.operation,
-                    "returncode": 0, "scratch_released": True,
+                    "returncode": 0, "scratch_released": True, "reason": "owner_lost",
                 }, deadline=time.monotonic() + 1)
                 session.retire()
                 self.assertEqual(0, session.retirement.returncode)

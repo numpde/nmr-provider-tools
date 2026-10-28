@@ -180,19 +180,18 @@ class RunnerSession:
     def _receive_retirement(self, deadline):
         reply = receive_document(self.control, deadline=deadline)
         if (
-            set(reply) not in (
-                {"kind", "generation", "operation", "returncode", "scratch_released"},
-                {"kind", "generation", "operation", "returncode", "scratch_released", "reason"},
-            )
+            set(reply) != {"kind", "generation", "operation", "returncode", "scratch_released", "reason"}
             or reply["kind"] != "retired" or reply["generation"] != self.generation
             or reply["operation"] != self.operation or type(reply["returncode"]) is not int
             or type(reply["scratch_released"]) is not bool
-            or ("reason" in reply and reply["reason"] not in ("exited", "owner_lost", "deadline", "shutdown"))
+            or reply["reason"] not in ("exited", "owner_lost", "deadline", "shutdown")
         ):
-            raise LifecycleRejected("Runner retirement is malformed or belongs to another operation.")
+            raise LifecycleRejected(
+                "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
+            )
         if not -signal.NSIG < reply["returncode"] < 256:
             raise LifecycleRejected("Runner retirement has an impossible operating-system exit status; its cause remains unknown.")
-        return Retirement(reply["returncode"], reply["scratch_released"], reply.get("reason"))
+        return Retirement(reply["returncode"], reply["scratch_released"], reply["reason"])
 
     def close(self):
         self.mark_interruption()
