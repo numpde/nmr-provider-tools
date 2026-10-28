@@ -113,15 +113,19 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
         session = self.session("preparing")
         session.begin_crash.clear()
 
+        # Native PID exchange and exit observation each allow two seconds.
+        # Leave five for their barrier and six for the read; expiry has separate tests.
         class OutageDuringCrash(Transport):
             async def exchange(self, request, *, maximum_bytes, owner=None):
                 if len(self.calls) == 3:
                     session.begin_crash.set()
-                    await asyncio.wait_for(session.crash_ready.wait(), 2)
+                    await asyncio.wait_for(session.crash_ready.wait(), 5)
+                    if owner.observed_crash is None:
+                        raise AssertionError("The fixture requires an admitted crash before its API failure")
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         recovery = ObservationRecovery(
-            gap_seconds=0.2, backoff_max_seconds=0.04,
+            gap_seconds=6, backoff_max_seconds=0.04,
             on_retry=Mock(side_effect=OSError("Logging sink failed")), on_recovered=Mock(),
         )
         controller = self.controller(session, OutageDuringCrash(*self.transport("preparing").replies),
