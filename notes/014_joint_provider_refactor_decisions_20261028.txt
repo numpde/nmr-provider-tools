@@ -670,3 +670,52 @@ uses the same report and original work, then reaches shutdown_ready. Also prove
 slow admitted science and explicit preselection suppression separately. A failed
 notice sink must not cancel the driver. Do not infer all shutdown paths from the
 host down guard, or turn eventual successful recovery into an unexplained failure.
+
+D020 -- SECS lock generation must also reproduce the SDK closure (21:02 UTC)
+-------------------------------------------------------------------------
+
+SECS checked the actual existing uv compiler after acquisition/build/tests had
+passed. Unlike pip acquisition, uv does not resolve provider-core from this
+wheel URL used as --find-links. The lock-write route is therefore not yet green;
+the earlier commit acceptance is withdrawn pending this concrete correction.
+Do not conflate pip acquisition success with compiler support for the same flag.
+
+Serious alternatives:
+A. Put the exact GitHub wheel URL/hash in provider.in, which uv can resolve,
+   then extend the repository's existing Torch direct-wheel normalization to
+   this known SDK distribution. Preserve generated hashes in the numeric offline
+   lock and retain the already-working acquisition lane.
+B. Stage a verified wheel before compilation. This can work but introduces a
+   second acquisition step solely to accommodate the compiler's input format.
+C. Commit the manually verified published closure while leaving lock/write
+   broken. This leaves a repository-owned maintenance route unusable.
+
+Choice: A. Root inspected tools/normalize_lock.py and the existing lock-write
+route. Extend that existing narrow transformation rather than inventing a new
+installer or generic URL resolver. Keep unrelated references untouched and the
+generated hash authority intact. Qualify actual uv generation, normalization,
+offline acquisition/install and installed closure; compiler failure is a new
+real witness, not a reinterpretation of the earlier nonfatal pip warnings.
+
+Checkpoint -- 21:03 UTC
+-----------------------
+
+Root reviewed Magnet's final up/down source and causal state/oneoff tests.
+All captured provider IDs are checked, including duplicate and oneoff owners;
+unknown stop, abnormal exit, OOM and live oneoff block later removal. Source
+audit is clear. The maintained repository suite passed 158 cases in 139.104 s;
+both host tooling gates passed. Fresh peer review and the final narrow diagnostic
+wording check precede its commit. NMRNet's next dirty slice will receive Magnet's
+independent read-only review after that commit.
+
+NMRPeak's scratch-only dual-runtime prototype passed. Root independently read
+the Dockerfile, driver, child and run-v2 log. Actual SDK 0.4.0 control Python 3.12
+uses /opt/control; unchanged scientific Python 3.11 uses /usr/local and imports
+the original NumPy/Torch/SciPy closure without child SDK/path bleed. Actual
+inherited descriptors and lock identity match, two requests share one child,
+deliberate retirement releases scratch, and original voluntary exit is observed
+before interruption. Killing the supervisor leaves the child/lease/scratch held
+without a receipt; explicit fixture containment follows pidfd-observed exit.
+This qualifies that CPU runtime composition, not weights, numerical generation,
+the other image variant, or product adoption. Product build/input-authority and
+native-owner slice choices remain pending before scientific image edits.
