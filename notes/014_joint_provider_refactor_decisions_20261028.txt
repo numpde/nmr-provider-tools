@@ -1143,3 +1143,22 @@ Magnet is probing the proposed two-lane sibling-cancellation scenario in a
 scratch fixture using real SDK controllers and production operation supervision.
 It remains a hypothesis until the exact driver/cause/ACK behavior is observed.
 No extra SDK API, scheduling state or product change is approved for that question.
+
+Checkpoint -- 21:34 UTC
+-----------------------
+
+NMRNet independently cleared SECS D021's exact four-file source and actual
+image/installed/science/input evidence. All prerequisite review gates are closed;
+SECS owns its commit and next native-replacement proposal. The probe remains an
+authored child, not model execution or the production worker adapter.
+
+NMRPeak's first actual native-client product cut is now dirty and reviewable:
+SDK control/science-FD attachment, original scientific-call/native-reader owners,
+partial-startup retention and actual retirement confirmation. Image/launcher
+integration and old-owner deletion remain part of the same uncommitted slice.
+Root preview found a concrete wrapped-reset path to qualify: the scientific
+codec wraps OSError in RunnerProtocolError, while the new unexpected-close check
+only recognizes raw reset errors or typed EOF. Preserve original cause/exit
+observation before deliberate interruption for actual reset; a mere timeout or
+protocol error still does not establish a crash. NMRNet independently reviews
+the native ownership/race boundary read-only; this preview is not final acceptance.
