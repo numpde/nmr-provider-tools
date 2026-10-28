@@ -1637,3 +1637,84 @@ failure/observer ownership rule. A cancelled original concurrent Future produces
 an explicit unconfirmed-control diagnostic; it cannot establish a native exit or
 thread quiescence. Executor shutdown initiation is likewise distinct from an
 observed OS-thread exit; resource claims must account for actual teardown.
+
+D055 -- Reuse exact Future observation for provider-owned thread work (23:53 UTC)
+--------------------------------------------------------------------------------
+
+Magnet reproduced the same TimeoutError identity/notes loss in its scientific
+READY and lease-read executor bridges. These operations remain provider-owned.
+
+Serious alternatives:
+A. Copy D054's wait/notification logic into each provider thread boundary.
+   This repeats the same exception/cancellation contract outside its shared owner.
+B. Extract one small await_original function and use it inside AsyncRunnerSession
+   as well as those actual caller-owned Future boundaries.
+C. Add an executor/lifecycle framework for scientific work. That moves unrelated
+   scheduling and resource ownership into the SDK.
+
+Choice: B. Keep it in the existing async_runner_session module. Require an explicit
+deadline keyword: an absolute monotonic cap or None for joining the original
+completion without a new caller cap. It observes one original concurrent Future,
+never cancels/replaces it, and returns or raises its original result exactly.
+Native-specific cancelled-Future refusal remains with AsyncRunnerSession; a
+generic physically cancelled Future raises its normal cancellation exception.
+No executor creation, science scheduling or cleanup authority moves with this
+helper. Test values, original failures/notes, waiter timeout/cancellation and
+repeated joins, including actual native uses of the same helper.
+
+D056 -- Reserve observation inside the existing native cleanup budget (23:53 UTC)
+---------------------------------------------------------------------------------
+
+Serious alternatives:
+A. Use the full 20s allowance for initial observation. The real EOF-alive case
+   consumes the reader's deadline before any deliberate stopping can settle it.
+B. Use the full arithmetic slack of 5s before TERM5/KILL5/cleanup5. This leaves
+   no allowance for the terminal control receipt or scheduling.
+C. Use 4s initial observation within 20s, retaining those three phase caps and
+   1s for receipt/scheduling; qualify the actual worst-case composition.
+
+Choice: C for the reviewed Magnet/NMRPeak 20s composition, consistent with
+NMRNet's existing one-fifth observation policy. SECS keeps its explicitly reviewed
+10s phase decomposition; do not silently copy a different provider's durations.
+Preserve each original aggregate deadline and scientific closure ordering. This
+is an operator cap and a truthful refusal boundary, not an OS scheduling guarantee.
+Fast EOF-alive success alone does not prove the worst-case budget relationship.
+
+D057 -- Expose unresolved file ownership without a consumer mirror (23:53 UTC)
+-----------------------------------------------------------------------------
+
+SECS cannot call settle_file after successful transfer or completed abort cleanup:
+that method correctly refuses when there is no unresolved file owner.
+
+Serious alternatives:
+A. Catch/refine that refusal or inspect private _file in every consumer.
+B. Maintain a consumer boolean copying whether the SDK still owns file cleanup.
+C. Expose file_cleanup_pending as a read-only derivation of the actual file owner.
+
+Choice: C. The property is exactly whether UploadTransfer retains its unresolved
+private-file owner; it adds no state or pathname-existence claim. A successful
+receipt transfers the closed file lifetime to composition. Its later deletion
+still requires actual reader quiescence and cannot follow this property alone.
+Tests cover successful handoff, retained pending I/O and later confirmed cleanup.
+
+D058 -- Keep signed API route intent with the selected binding (23:53 UTC)
+----------------------------------------------------------------------------
+
+NMRPeak found that api_settings admits signing/TLS fields while HttpsSettings
+also accepts a runtime proxy socket. The existing delivery runtime derives that
+socket grant separately; putting it into the API document is correctly refused.
+
+Serious alternatives:
+A. Ignore binding.route in providers and preserve separate API route authority.
+   This can contradict the selected operator binding.
+B. Add proxy_socket to the signing/TLS input schema. A deployment-derived socket
+   is a different grant and should not become another operator API identity field.
+C. Derive signed API route intent from the selected binding, while deployment
+   grants each runtime's actual proxy/socket. Scientific/model routes stay local.
+
+Choice: C. Follow the existing shared delivery composition pattern, retaining
+api_settings as signing/TLS authority and deriving its runtime proxy separately.
+The shared tooling currently renders delivery proxies; inspect actual provider
+host recipes and agree the common projection before adding code. Do not copy the
+API schema into four host parsers or install the SDK into host Python. The exact
+provider route projection remains under joint review.

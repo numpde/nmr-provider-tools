@@ -206,6 +206,11 @@ class UploadTransfer:
         self._active = False
         self.last_failure = None
 
+    @property
+    def file_cleanup_pending(self):
+        """Report whether this owner still retains an unresolved private file."""
+        return self._file is not None
+
     def _remaining_seconds(self):
         seconds = self._remaining()
         if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds <= 0:

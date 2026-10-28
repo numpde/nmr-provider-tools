@@ -5,10 +5,36 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import CancelledError as FutureCancelledError, Future, ThreadPoolExecutor
 import time
 
 from provider_core.runner_protocol import LifecycleRejected, positive_seconds
+
+
+def _observe_completion(wrapped):
+    if not wrapped.cancelled():
+        wrapped.exception()
+
+
+async def await_original(original, *, deadline):
+    """Observe caller-owned thread work, preserving its exact result or failure.
+
+    deadline is an absolute monotonic cap, or explicit None to join without a
+    new caller cap. Expiry and cancellation never cancel the original Future.
+    This wait grants no resource retirement or permission to close its inputs.
+    """
+    if not isinstance(original, Future):
+        raise TypeError("Cannot observe thread work: supply its original concurrent Future.")
+    seconds = None
+    if deadline is not None:
+        positive_seconds(deadline)
+        seconds = max(0, deadline - time.monotonic())
+    if not original.done():
+        wrapped = asyncio.wrap_future(original)
+        wrapped.add_done_callback(_observe_completion)
+        async with asyncio.timeout(seconds):
+            await asyncio.wait((wrapped,))
+    return original.result()
 
 
 class AsyncRunnerSession:
@@ -101,24 +127,13 @@ class AsyncRunnerSession:
         original.add_done_callback(completed)
         return original
 
-    @staticmethod
-    def _observed(wrapped):
-        if not wrapped.cancelled():
-            wrapped.exception()
-
     async def _wait(self, original, deadline):
-        if not original.done():
-            wrapped = asyncio.wrap_future(original)
-            wrapped.add_done_callback(self._observed)
-            async with asyncio.timeout(max(0, deadline - time.monotonic())):
-                # wait observes completion without propagating the adapted
-                # exception or cancelling its input when this caller leaves.
-                await asyncio.wait((wrapped,))
-        if original.cancelled():
-            raise self._failure(original)
-        # The executor bridge may copy exceptions; only this original Future
-        # retains the exact native cause, including KI/SystemExit/cancellation.
-        return original.result()
+        try:
+            return await await_original(original, deadline=deadline)
+        except FutureCancelledError:
+            if not original.cancelled():
+                raise
+            raise self._failure(original) from None
 
     def _retirement_deadline(self):
         if self._deadline is None:
