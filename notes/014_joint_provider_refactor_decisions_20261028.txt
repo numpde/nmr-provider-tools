@@ -1620,3 +1620,72 @@ from independent investigation with 52 focused unit and 32 integration cases;
 root integration/review is next. SECS has committed its SDK-free codec extraction
 as b2a6213 and continues actual async adoption. NMRPeak's real async adapter
 tests are progressing against installed 0.5 artifacts, not only native QA.
+
+Checkpoint -- 22:59 UTC
+-----------------------
+
+The record was not kept at the requested few-minute cadence. A read-only audit
+now checks for stale checkpoints and unrecorded product choices; root remains
+responsible for writing the decisions before editing their implementation.
+
+The D035 provisional artifacts are complete in /tmp/provider-core-0.5.0-d035,
+from snapshot ca306e2d76dd4436ae6dc855b054fa061084f00d. Wheel SHA-256:
+4576f0c49cb85ff4bb884af29f28164d1c459a580a06140e4f98018ae625120e.
+Install-lock SHA-256:
+f0bbceb59e7ab2391452fd5696a3620bc82c03e2384add98f3202561fd80350b.
+Magnet independently verified the manifest and all 265 source-file identities.
+Its maintained candidate checks passed: 158 repository, 672 unit, 18 contract
+and 131 integration cases. These qualify that provisional candidate, not the
+unfinished combined SDK or a deployed release.
+
+NMRNet's actual installed-candidate tests exposed two consumer gaps: cancellation
+of an observer requires joining the retained driver before settlement, and the
+process admission stop must reach the controller directly. Its initial migration
+passed 77 focused cases; a new late-START-ACK witness then exposed unresolved
+passive settlement semantics. Keep that witness open rather than describing the
+migration as complete. NMRPeak's real two-lane process passed a durable-delivery
+integration on the same candidate. SECS continues its direct async binding cut.
+
+D037 remains unfinished: official patched-image identities are being resolved;
+the dirty 3.11 tooling still names the older base. No actual 3.11 compatibility
+claim follows from syntax checks or provisional 3.12 consumer success.
+
+D039 -- The shared transfer owns the exchange deadline (22:59 UTC)
+----------------------------------------------------------------
+
+Serious alternatives:
+A. Require every consumer to supply an asynchronous request wrapper that also
+   enforces the deadline. This repeats the very transport ownership being moved.
+B. Put the actual exchange and timeout inside UploadTransfer, with synchronous
+   policy hooks for request and byte accounting and the existing aggregate budget.
+C. Give each exchange a fresh independent allowance. This can extend acquisition
+   indefinitely and changes the existing source-policy contract.
+
+Choice: B. NMRNet's revised proposal follows this ownership boundary. Root has
+not integrated it yet. The current frozen proposal is
+/tmp/provider-core-upload-transfer-validated.patch, SHA-256
+6f31da98c52739d05657e20606948834dee4bfb34816e8cfdf417f0fb1de8101.
+Its investigator reports 61 focused unit and 32 integration passes. Independent
+review must still verify aggregate-time ownership, provided-grant validation,
+original file/exchange cleanup, and unchanged JobUploads behavior before edits.
+
+Next design question -- Native installation without an API dependency closure
+---------------------------------------------------------------------------
+
+Serious alternatives under joint review:
+A. Keep isolated interpreter prefixes or install the entire API dependency lock
+   into every scientific worker. This adds maintenance or changes model closure.
+B. Split native helpers into a second independently versioned distribution.
+   This creates another publication and compatibility surface.
+C. Keep one SDK wheel with a standard-library-only native base and an explicit
+   API dependency extra; publish native and full API installation locks derived
+   from the same wheel. Move verified file readback to a dependency-free module.
+
+Preferred direction: C, pending exact packaging and consumer critique. It must
+include a shared native lock: changing extras alone leaves Magnet's existing
+full-lock installer unchanged. Preserve canonical verified readback rather than
+copying a parser into scientific repositories. No dependency bypass, site-package
+injection, second interpreter, or release claim is authorized by this proposal.
+Before implementation, settle artifact inventory, full-API acquisition behavior
+and actual native-only install tests. SECS also requests a shared host-facing
+binding projection; inspect the existing CLI before choosing or adding that API.

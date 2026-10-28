@@ -38,6 +38,12 @@ scientific effects, then join before `settle()`. Stopping cannot erase a selecte
 report, and the controller never sets the caller-supplied event. Keep the provider
 lifetime and other resource owners alive while the original task is still running.
 
+Supply a separate `admission_stopping` event when ordinary shutdown should stop
+START and replay while admitted science drains. A late active START receipt stays
+owned without entering science. The `stopping` event and `request_stop()` still
+withdraw scientific permission; selected reports retain their delivery duty.
+Without a separate admission event, the supplied `stopping` event governs both.
+
 A deferred START retains its exact request and any possible-commit uncertainty;
 it does not authorize a new key or another calculation. `ActiveStartReplayHeld`
 returns the verified server receipt for an already active Attempt, without

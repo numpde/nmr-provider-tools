@@ -153,6 +153,7 @@ class AttemptController:
         observation_recovery=None,
         on_unconfirmed_phase_progress=None,
         condition_recovery=None,
+        admission_stopping=None,
     ):
         claims._require_live_view()
         if type(scope) is not RecoveryScope or api.origin != scope.api_origin:
@@ -161,6 +162,10 @@ class AttemptController:
             raise ValueError("Attempt controller requires the actual verified Job input or an explicit post-START read")
         if type(stopping) is not asyncio.Event or type(start_policy) is not LiveStartPolicy:
             raise ValueError("Live Attempt controller requires its stop event and admitted LiveStartPolicy")
+        if admission_stopping is None:
+            admission_stopping = stopping
+        if type(admission_stopping) is not asyncio.Event:
+            raise ValueError("Live Attempt admission stopping requires an asyncio Event")
         if type(maximum_terminal_bytes) is not int or not 16384 <= maximum_terminal_bytes <= 2097152:
             raise ValueError("Live terminal allowance must cover 16384 through 2097152 encoded request bytes")
         if type(allow_active_start_replay) is not bool:
@@ -186,6 +191,7 @@ class AttemptController:
         self._maximum_terminal_bytes = maximum_terminal_bytes
         self._preverified_input = preverified_input
         self._stopping, self._start_policy = stopping, start_policy
+        self._admission_stopping = admission_stopping
         self._allow_active_start_replay = allow_active_start_replay
         self._allowed_job_states = allowed_job_states
         self._poll_seconds, self._task_settle_seconds = poll_seconds, task_settle_seconds
@@ -280,10 +286,16 @@ class AttemptController:
     def _stopping_requested(self):
         return self._stop_requested.is_set() or self._stopping.is_set()
 
-    async def _wait_for_stop(self, seconds):
+    def _admission_stopping_requested(self):
+        return self._stopping_requested() or self._admission_stopping.is_set()
+
+    async def _wait_for_admission_stop(self, seconds):
         waits = []
         try:
-            for event in (self._stop_requested, self._stopping):
+            events = (self._stop_requested, self._stopping)
+            if self._admission_stopping is not self._stopping:
+                events += (self._admission_stopping,)
+            for event in events:
                 waits.append(_create_owned_task(event.wait()))
             done, _ = await asyncio.wait(waits, timeout=seconds, return_when=asyncio.FIRST_COMPLETED)
             return bool(done)
@@ -412,7 +424,7 @@ class AttemptController:
 
     async def _start_live_attempt(self, pending):
         policy, loop = self._start_policy, asyncio.get_running_loop()
-        if self._stopping_requested():
+        if self._admission_stopping_requested():
             return self._defer_start(pending, None, False)
         deadline = loop.time() + policy.window_seconds
         possible_commit = False
@@ -444,7 +456,7 @@ class AttemptController:
                     retry_after = latest_failure.retry_after_seconds
                     if retry_after is not None:
                         retry_at = loop.time() + retry_after
-                if (self._stopping_requested() or replays >= policy.maximum_replays
+                if (self._admission_stopping_requested() or replays >= policy.maximum_replays
                         or not self.api.can_replay_start(latest_failure)):
                     return self._defer_start(pending, latest_failure, possible_commit)
                 if first_failure is None:
@@ -456,11 +468,11 @@ class AttemptController:
                 if seconds + allowance > deadline - loop.time():
                     return self._defer_start(pending, latest_failure, possible_commit)
                 policy.on_retry(pending, latest_failure, seconds)
-                if self._stopping_requested() or seconds + allowance > deadline - loop.time():
+                if self._admission_stopping_requested() or seconds + allowance > deadline - loop.time():
                     return self._defer_start(pending, latest_failure, possible_commit)
-                if await self._wait_for_stop(seconds):
+                if await self._wait_for_admission_stop(seconds):
                     return self._defer_start(pending, latest_failure, possible_commit)
-                if self._stopping_requested() or allowance > deadline - loop.time():
+                if self._admission_stopping_requested() or allowance > deadline - loop.time():
                     return self._defer_start(pending, latest_failure, possible_commit)
                 replays += 1
                 send = self._operation.resume
@@ -468,7 +480,7 @@ class AttemptController:
                 self._acknowledged = acknowledged
                 if first_failure is not None:
                     policy.on_recovered(acknowledged, first_failure)
-                if acknowledged.admission.state == "in_progress" and (self._stopping_requested() or loop.time() > deadline):
+                if acknowledged.admission.state == "in_progress" and (self._admission_stopping_requested() or loop.time() > deadline):
                     return self._defer_start(pending, latest_failure, True)
                 return acknowledged
 

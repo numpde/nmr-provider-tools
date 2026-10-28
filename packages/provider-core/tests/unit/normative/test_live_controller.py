@@ -25,7 +25,7 @@ from tests.fakes.live_analysis import LiveSession
 
 class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
     # silent-defaults: allow-contract -- Ordinary specimens refuse active replays; the explicit same-live NMR specimen grants its preserved policy.
-    def controller(self, transport, *, claims=None, session=None, policy=None, preverified_input=None, allow_active_start_replay=False, stopping=None):
+    def controller(self, transport, *, claims=None, session=None, policy=None, preverified_input=None, allow_active_start_replay=False, stopping=None, admission_stopping=None):
         if claims is None:
             claims = AttemptClaims.live()
         if session is None:
@@ -37,6 +37,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         return AttemptController.live(
             api(transport, scope().api_origin), claims, session, scope=scope(), stopping=stopping,
             start_policy=policy, preverified_input=preverified_input,
+            admission_stopping=admission_stopping,
             allow_active_start_replay=allow_active_start_replay,
             delivery=RecordingDelivery(), on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
             delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
@@ -183,6 +184,61 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         sibling = self.controller(self.lifecycle(), claims=claims, stopping=supplied,
                                   preverified_input=verify_job_input(response(), feed=record().input))
         self.assertIs(type(await sibling.run(record())), DeliveryAcceptedCheckpoint)
+
+    async def test_admission_stop_after_cancelled_observation_prevents_replay_or_late_science(self):
+        for receipt in (reply(b"maintenance", status=503), reply(start_response())):
+            with self.subTest(status=receipt.status):
+                entered, release, admission = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+                class PausedStart(Transport):
+                    async def exchange(self, request, *, maximum_bytes, owner=None):
+                        entered.set()
+                        await release.wait()
+                        return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+
+                transport = PausedStart(receipt)
+                controller = self.controller(transport, admission_stopping=admission)
+                observer = asyncio.create_task(controller.run(record()))
+                try:
+                    await asyncio.wait_for(entered.wait(), 1)
+                    observer.cancel()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await observer
+                    admission.set()
+                    release.set()
+                    held = await asyncio.wait_for(controller.join(), 1)
+                    self.assertIs(type(held), StartDeferred)
+                    self.assertTrue(held.may_have_committed)
+                    self.assertEqual(len(transport.calls), 1)
+                    self.assertEqual(controller.session.events, ["retire"])
+                    self.assertFalse(controller._stopping.is_set())
+                finally:
+                    release.set()
+                    admission.set()
+                    await asyncio.wait_for(asyncio.gather(controller.join(), return_exceptions=True), 2)
+
+    async def test_admission_stop_does_not_revoke_already_admitted_science(self):
+        preparing, release, admission = asyncio.Event(), asyncio.Event(), asyncio.Event()
+
+        class PausedPreparation(LiveSession):
+            async def prepare(self, acknowledged, instructions, *, report_condition):
+                result = await super().prepare(acknowledged, instructions, report_condition=report_condition)
+                preparing.set()
+                await release.wait()
+                return result
+
+        controller = self.controller(
+            self.lifecycle(), session=PausedPreparation(), admission_stopping=admission,
+            preverified_input=verify_job_input(response(), feed=record().input),
+        )
+        observer = asyncio.create_task(controller.run(record()))
+        try:
+            await asyncio.wait_for(preparing.wait(), 1)
+            admission.set()
+        finally:
+            release.set()
+        self.assertIs(type(await asyncio.wait_for(observer, 1)), DeliveryAcceptedCheckpoint)
+        self.assertEqual(controller.session.events, ["prepare", "execute", "retire"])
 
     async def test_start_owner_creation_failure_keeps_a_releasable_no_effect_claim(self):
         claims, failure = AttemptClaims.live(), RuntimeError("Cannot construct the START owner")
