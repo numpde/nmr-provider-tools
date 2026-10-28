@@ -789,3 +789,48 @@ checking original owner/report identity, ACK and shutdown readiness. Keep a genu
 scientific-cutoff/error witness and force_close failure behavior distinct. Then
 review the smallest product correction; sibling TaskGroup cancellation remains
 unproved until exercised. Do not copy NMRNet's service architecture into Magnet.
+
+Checkpoint -- 21:10 UTC
+-----------------------
+
+NMRNet's new tests now exercise the real SDK controller at the delivery seam:
+selected report, full queue, service stop, elapsed drain window, recovery, exact
+body, one execution and final owner release. Root preview confirmed the authored
+failure targets the original whole-driver cancellation. Source is still unchanged
+pending its RED run; returned/unselected suppression is a separate case.
+
+SECS's D020 correction now extends only known wheel normalization and uses the
+existing compiler -> raw lock -> offline normalization -> atomic publication
+route. Root preview found no source issue; actual compiler/hash-closure evidence
+and focused checks remain necessary before renewed commit acceptance.
+
+NMRPeak is mapping the actual native ownership replacement across provider
+attachment, worker descriptors, image/input identity, deployment and retirement
+checks before proposing the next atomic source slice. Both named scientific
+images are CPU x86_64 variants; the prototype covered HF, so CHF still needs
+its own image/import/native smoke. An earlier generic GPU caveat from root does
+not describe these two variants. No scientific image edits have been approved
+merely from the scratch prototype.
+
+D023 -- SECS regeneration preserves the qualified SDK closure (21:10 UTC)
+------------------------------------------------------------------------
+
+The actual maintained uv route now compiles and normalizes, but fresh resolution
+selected pycparser 3.12 instead of the published/qualified 3.11. That is real
+dependency drift, not evidence that the prior installed image was wrong.
+
+Serious alternatives:
+A. Accept the new transitive version and qualify another closure. This widens
+   the prerequisite beyond the exact SDK installation already selected.
+B. Pin that single transitive dependency in provider.in. This duplicates a
+   release-lock fact and does not address other incidental refreshes.
+C. Restore the published numeric closure and pass that existing lock as the
+   compiler's constraint input while atomically generating the normalized output.
+   This reuses the qualified authority without a second constraint inventory.
+
+Choice: C. The lock-write route reproduces the deliberately selected closure;
+changing the SDK release or dependency closure remains an explicit maintenance
+choice, not an incidental compiler refresh. Compare actual pins/hashes and prove
+offline installation after generation. Keep the GitHub source URL/hash explicit
+in provider.in. Do not present unconstrained resolver success as proof of the
+exact selected installation or silently claim the refreshed version was tested.
