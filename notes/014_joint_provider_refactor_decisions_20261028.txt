@@ -426,3 +426,48 @@ stated rather than silently conflated with newly successful drain.
 NMRPeak D009 is rebuilding after D010/D011, then needs installed-artifact and
 maintained-suite evidence. D012 is a separate real native-adoption feasibility
 question; it does not reverse or silently extend D009's image scope.
+
+D013 -- SECS provider-only installed SDK prerequisite (20:46 UTC)
+---------------------------------------------------------------
+
+Serious alternatives, submitted by SECS after completing D005:
+A. Vendor SDK files or import the sibling checkout, bypassing the qualified
+   distribution and leaving two sources of shared runtime behavior.
+B. Combine package installation with the entire native/controller rewrite,
+   obscuring environmental failures inside a larger behavior change.
+C. Adopt the official 0.4.0 wheel and verified closed runtime lock through SECS's
+   existing provider.in/lock/wheelhouse/build owner, with contained SDK imports
+   and installed-distribution tests before the runtime transition.
+
+Choice: C. SECS already uses pinned Python 3.12.12, so no interpreter/base upgrade
+is needed. Align required cryptography/runtime dependencies to the issued SDK
+closure, not an unconstrained resolver. Keep CPU/GPU scientific locks unchanged
+in this provider prerequisite; their native installation is a later explicit
+slice. Do not add another installer or source-path authority.
+
+Baseline installed-package RED is PackageNotFoundError(provider-core) in the
+unchanged provider image (/tmp/secs-sdk-install-red.log). Published source/wheel/
+lock identities match D009; the install lock hash was independently verified.
+Local public-feed matching of 13 issued runtime pins found no matching advisory
+or unparsed version bound. This does not qualify unrelated scientific packages.
+Require actual installed controller/analysis/delivery/native/binding imports,
+pip check, maintained provider tests, and independent review before commit.
+
+Checkpoint -- 20:46 UTC
+-----------------------
+
+SECS D005 is committed as 563b713 with the exact atomic caller/worker change.
+NMRPeak's independent source/log review found no remaining actionable defect
+in that slice; it is not full lifecycle adoption.
+
+D012 constraints are now concrete: SECS CPU/GPU and provider all use 3.12.12;
+NMRNet native/controller roles also use 3.12.12; Magnet scientific native images
+use 3.12.12 while its provider/test images use 3.12.15. Only NMRPeak's science
+family here is fixed to 3.11, with compiled cp311 Torch 2.3 artifacts and older
+NumPy/SciPy constraints. Do not infer a Python 3.12 model upgrade from SDK support.
+
+NMRPeak D009's rebuilt test image has passed its installed-SDK smoke and pip
+check with retained backend and corrected OS pin; the full maintained suite is
+running. Root has not accepted/committed that slice yet. NMRNet D008's final
+launcher and docs checks are ready for root audit; Magnet is adjudicating the
+initial-state guard findings before final acceptance.
