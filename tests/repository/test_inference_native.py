@@ -417,8 +417,8 @@ class CapturedNativeTests(unittest.TestCase):
             str(Path(__file__).resolve()),
         ], (self.environment if environment is None else environment)
 
-    # silent-defaults: allow-contract -- This runner forwards its declared twenty-second fixture budget unless the case explicitly selects another one; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_cleanup_preserves_primary_and_traps_are_restored
-    def run_native(self, *, budget="20", additions=None):
+    # silent-defaults: allow-contract -- Ordinary probes use a five-second test watchdog and twenty-second native budget; timing-specific cases explicitly select their own bounds; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_cleanup_preserves_primary_and_traps_are_restored
+    def run_native(self, *, budget="20", additions=None, watchdog_seconds=5):
         command, environment = self.command(budget=budget)
         # silent-defaults: allow-contract -- Omitted additions preserve the declared client scenario; supplied entries overlay only their selected inputs; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_cli_signal_dispositions_are_native
         result = subprocess.run(
@@ -426,7 +426,7 @@ class CapturedNativeTests(unittest.TestCase):
             env=environment | ({} if additions is None else additions),
             text=True,
             capture_output=True,
-            timeout=5,
+            timeout=watchdog_seconds,
             check=False,
         )
         self.retain_cleanup(result.stderr)
@@ -1166,7 +1166,12 @@ class CapturedNativeTests(unittest.TestCase):
     def test_drain_failure_preserves_native_failure_and_rejects_success(self):
         for native_status, expected in (("0", 33), ("7", 7)):
             with self.subTest(status=native_status):
-                result = self.run_native(additions={"NATIVE_STATUS": native_status, "NATIVE_DRAIN_FAILURE": "1"})
+                # Status precedence permits ten seconds for startup and twenty
+                # for native work, plus termination and fixture overhead.
+                result = self.run_native(
+                    additions={"NATIVE_STATUS": native_status, "NATIVE_DRAIN_FAILURE": "1"},
+                    watchdog_seconds=35,
+                )
                 self.assertEqual(expected, result.returncode, msg=result.stderr)
                 self.assert_client_retired()
 
