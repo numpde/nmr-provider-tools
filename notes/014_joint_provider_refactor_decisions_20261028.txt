@@ -988,3 +988,34 @@ Root reviewed Magnet's current D022 product and test diff; no blocking source
 issue. NMRNet independently reviewed it read-only and also found the actual
 result/error boundary preserved. Appropriate maintained qualification precedes
 its commit; the speculative two-lane sibling path is still a separate question.
+
+D027 -- NMRNet publishes an expected result-capacity rejection (21:22 UTC)
+------------------------------------------------------------------------
+
+Root inspected ResultPlan and session.prepare/_failed_preparation. The planner
+conservatively reserves the selected output before shift prediction. A batch
+can meet per-geometry/count limits yet exceed that reservation; the existing
+128-by-128 fixture demonstrates this. Generic ResultRejected also represents
+malformed structures, encoding faults and final reservation drift, so it does
+not identify an expected user-correctable capacity failure by itself.
+
+Serious alternatives:
+A. Keep the uncaught preparation error and held execution diagnostics. It avoids
+   a false result but leaves the API user without an actionable size explanation.
+B. Map every ResultRejected to public FAIL. This masks structural/internal
+   failures and incorrectly gives them a user-input classification.
+C. Add a narrow ResultCapacityExceeded subtype only at the pre-prediction result
+   reservation check; map it through the existing preparation failure owner to
+   public result_size_limit, safe text and bounded protected evidence.
+D. Move scientific preparation ahead of START to reject earlier. This changes
+   the agreed lifecycle/ownership boundary for a locally solvable classification.
+
+Choice: C. No broad catch, truncation, silent verbosity change or rerun. Preserve
+normal session retirement and shared delivery ownership. Explain the conservative
+bound honestly: the result MAY exceed the API ceiling; do not call a worst-case
+reservation a measured final result. State that shift prediction did not run and
+suggest fewer geometries or lower verbosity. Keep structural/drift errors internal.
+Qualify the count statement in the offering rather than implying every nominal
+batch fits. The separate protected-evidence ceiling is outside this terminal-size
+slice. Require a real planner/session/core FAIL path with no prediction, and a
+structural-error counterexample that does not become result_size_limit.
