@@ -67,6 +67,11 @@ class RunnerSession:
         self._connect_started = False
 
     @property
+    def retirement_seconds(self):
+        """Return the configured aggregate allowance for native observation and stop."""
+        return self._cleanup
+
+    @property
     def control_connected(self):
         """Record successful control connect after setup joins, even after close.
 

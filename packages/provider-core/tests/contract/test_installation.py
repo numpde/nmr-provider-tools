@@ -66,6 +66,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/runner.py",
                 "provider_core/runner_protocol.py",
                 "provider_core/runner_session.py",
+                "provider_core/async_runner_session.py",
                 "provider_core/process_status.py",
                 "provider_core/result_verbosity.py",
                 "provider_core/chat.py",
@@ -107,10 +108,13 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/response_json.py",
                 "provider_core/upload_response.py",
                 "provider_core/uploads.py",
+                "provider_core/upload_file.py",
             },
         )
         self.assertEqual(
-            set(distribution.requires), {"cryptography==50.0.0", "http-sf==1.2.1", "httpx==0.28.1", "httpcore==1.0.9", "h11==0.16.0", "tomli-w==1.2.0"}
+            set(distribution.requires), {f'{requirement}; extra == "api"' for requirement in (
+                "cryptography==50.0.0", "http-sf==1.2.1", "httpx==0.28.1", "httpcore==1.0.9", "h11==0.16.0", "tomli-w==1.2.0",
+            )}
         )
 
     def test_core_imports_without_scientific_or_repository_packages(self):

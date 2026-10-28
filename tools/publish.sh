@@ -73,9 +73,10 @@ notes=("$root"/notes/*_release_"$tag".md)
 wheel=provider_core-$version-py3-none-any.whl
 sdist=provider_core-$version.tar.gz
 lock=provider_core-$version-install.lock
+native_lock=provider_core-$version-native-install.lock
 record=provider_core-$version-release.json
 manifest=provider_core-$version-sha256.json
-names=("$wheel" "$sdist" "$lock" "$record" "$manifest")
+names=("$wheel" "$sdist" "$lock" "$native_lock" "$record" "$manifest")
 
 if [[ $action == prepare ]]; then
     [[ -v OUTPUT_INPUT_ORIGIN && $OUTPUT_INPUT_ORIGIN == 'command line' && -v OUTPUT_INPUT && -n $OUTPUT_INPUT ]] \
@@ -120,12 +121,12 @@ verify_qualified_artifacts() {
     local -A qualified=()
     while read -r marker checksum name extra; do
         [[ $marker == QUALIFIED_SHA256 ]] || continue
-        case "$name" in "$wheel"|"$sdist"|"$lock"|"$record"|"$manifest") ;; *) fail 'Qualification returned an unexpected artifact name.' ;; esac
+        case "$name" in "$wheel"|"$sdist"|"$lock"|"$native_lock"|"$record"|"$manifest") ;; *) fail 'Qualification returned an unexpected artifact name.' ;; esac
         [[ -z $extra && $checksum =~ ^[0-9a-f]{64}$ && ! -v qualified["$name"] ]] \
             || fail 'Qualification returned a malformed or duplicate artifact receipt.'
         qualified["$name"]=$checksum
     done < "$scratch/release-test.log"
-    [[ ${#qualified[@]} == 5 ]] || fail 'Exact installed-artifact qualification did not return all five artifact hashes.'
+    [[ ${#qualified[@]} == 6 ]] || fail 'Exact installed-artifact qualification did not return all six artifact hashes.'
     for name in "${names[@]}"; do
         [[ $(sha256sum "$scratch/assets/$name" | cut -d ' ' -f1) == "${qualified[$name]}" ]] \
             || fail 'Release artifact bytes differ from the successful qualification receipt.'
@@ -168,7 +169,7 @@ native 'draft release creation' 120 gh release create "$tag" --repo "$repository
     --notes-file "$scratch/release-notes.md" "$scratch/assets/"* "$scratch/release-build.log" "$scratch/release-test.log"
 native 'uploaded draft acquisition' 120 gh release download "$tag" --repo "$repository" --dir "$scratch/downloaded"
 downloaded=("$scratch/downloaded/"*)
-[[ ${#downloaded[@]} == 7 ]] || fail 'Downloaded draft asset set differs from the seven qualified public files.'
+[[ ${#downloaded[@]} == 8 ]] || fail 'Downloaded draft asset set differs from the eight qualified public files.'
 for name in "${names[@]}"; do
     cmp -- "$scratch/assets/$name" "$scratch/downloaded/$name" \
         || fail 'Downloaded artifact differs from the qualified bytes; retain the draft for inspection.'

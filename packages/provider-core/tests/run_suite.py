@@ -23,6 +23,7 @@ def main():
     root = Path(__file__).parent
     selection = sys.argv[1]
     if selection not in {
+        "native",
         "unit",
         "unit/normative",
         "unit/adversarial",

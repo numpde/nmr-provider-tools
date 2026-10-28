@@ -13,7 +13,7 @@ require_container()
 
 import re
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from provider_core.response_json import ResponseRejected, read_document
 
@@ -81,6 +81,25 @@ def _byte_facts(document, *, pending_allowed):
         raise ResponseRejected("Upload content_hash must be a lowercase SHA-256 fingerprint")
 
 
+def _grant_target_and_token(url, token):
+    if type(url) is not str or not url.startswith("https://") or len(url) > 359:
+        raise ResponseRejected("Grant download_url must be an HTTPS URL of at most 359 characters")
+    if type(token) is not str or not 1 <= len(token) <= 2048:
+        raise ResponseRejected("Grant capability must contain 1 through 2048 characters")
+
+
+def require_read_grant(grant, *, job_ref):
+    """Admit a caller-supplied grant's facts without claiming API issuance."""
+    require_job_ref(job_ref)
+    if type(grant) is not ReadGrant or grant.job_ref != job_ref:
+        raise ResponseRejected("Read grant must belong to the selected Job")
+    _byte_facts({"upload_ref": grant.upload_ref, "byte_length": grant.byte_length,
+                 "content_hash": grant.content_hash}, pending_allowed=False)
+    _grant_target_and_token(grant.download_url, grant.capability)
+    if type(grant.expires_at) is not datetime or grant.expires_at.tzinfo is None or grant.expires_at.utcoffset() != timedelta(0):
+        raise ResponseRejected("Read grant expiry must be a UTC datetime")
+
+
 def read_membership(raw, *, job_ref):
     """Preserve ordered descriptions and pending hashes after exact Job binding."""
     document = read_document(raw, MEMBERSHIP_RESPONSE_BYTES)
@@ -132,11 +151,8 @@ def read_grant(raw, *, job_ref, upload_ref):
         raise ResponseRejected("Download grant must authorize GET")
     _byte_facts(document, pending_allowed=False)
     url = document["download_url"]
-    if type(url) is not str or not url.startswith("https://") or len(url) > 359:
-        raise ResponseRejected("Grant download_url must be an HTTPS URL of at most 359 characters")
     token = document["capability"]
-    if type(token) is not str or not 1 <= len(token) <= 2048:
-        raise ResponseRejected("Grant capability must contain 1 through 2048 characters")
+    _grant_target_and_token(url, token)
     return ReadGrant(
         job_ref, upload_ref, document["byte_length"], document["content_hash"], url, token, _expiry(document["expires_at"])
     )

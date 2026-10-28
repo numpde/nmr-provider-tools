@@ -90,6 +90,10 @@ def build_candidate(source, runtime_lock, build_lock, pool, output):
         expected = requirements(locks["runtime"]) | {("provider-core", version): {digest(wheel)}}
         if requirements(lock) != expected:
             raise ValueError("Cannot publish provider-core: installation lock differs from the runtime closure and built wheel.")
+        native_lock = output / f"provider_core-{version}-native-install.lock"
+        native_lock.write_text(f"provider-core=={version} \\\n    --hash=sha256:{digest(wheel)}\n")
+        if requirements(native_lock) != {("provider-core", version): {digest(wheel)}}:
+            raise ValueError("Cannot publish provider-core: native installation lock differs from the built wheel.")
     return wheel, lock, identities
 
 
@@ -154,14 +158,16 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
     wheel, lock, identities = build_candidate(source, runtime_lock, build_lock, pool, output)
     prefix = wheel.name.removesuffix("-py3-none-any.whl")
     sdist = output / (prefix + ".tar.gz")
+    native_lock = output / (prefix + "-native-install.lock")
+    payload = (wheel, sdist, lock, native_lock)
     record = output / (prefix + "-release.json")
     record.write_text(json.dumps({
         "source_revision": revision, "dependency_inputs": identities,
-        "source_files": inventory, "files": {path.name: digest(path) for path in (wheel, sdist, lock)},
+        "source_files": inventory, "files": {path.name: digest(path) for path in payload},
     }, sort_keys=True, indent=2) + "\n")
     manifest = output / (prefix + "-sha256.json")
-    manifest.write_text(json.dumps({path.name: digest(path) for path in (wheel, sdist, lock, record)}, sort_keys=True, indent=2) + "\n")
-    for path in (wheel, sdist, lock, record, manifest):
+    manifest.write_text(json.dumps({path.name: digest(path) for path in (*payload, record)}, sort_keys=True, indent=2) + "\n")
+    for path in (*payload, record, manifest):
         with regular_file(path) as stream:
             os.fchmod(stream.fileno(), 0o644)
             os.fsync(stream.fileno())

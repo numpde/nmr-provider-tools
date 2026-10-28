@@ -20,7 +20,7 @@ with socket.socket(fileno=args.session_fd) as channel:
     command = channel.recv(1)
     if command:
         print('event=fixture_scientific_input operation=' + args.operation, file=sys.stderr, flush=True)
-    if command == b'H':
+    if command in (b'H', b'E'):
         signal.signal(signal.SIGTERM, signal.SIG_IGN)
     if command == b'C':
         os.chmod('.', 0)
@@ -37,6 +37,10 @@ with socket.socket(fileno=args.session_fd) as channel:
         lease = os.fstat(args.lease_fd)
         channel.sendall(json.dumps({'sockets': sockets, 'science': args.session_fd,
                                    'lock': [lease.st_dev, lease.st_ino]}).encode() + b'\\n')
+    if command == b'E':
+        channel.shutdown(socket.SHUT_RDWR)
+        channel.close()
+        while True: time.sleep(1)
     if command == b'H':
         while True: time.sleep(1)
     if command == b'F':

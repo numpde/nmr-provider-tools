@@ -39,6 +39,10 @@ def run_suite(suite, patterns):
         run = root / "run"
         shutil.copytree(Path("/package/tests"), run / "tests")
         subprocess.run([str(python), "-I", "-B", str(run / "tests/run_suite.py"), suite, *patterns], cwd=run, check=True)
+        if suite == "unit":
+            native_lock = output / wheel.name.replace("-py3-none-any.whl", "-native-install.lock")
+            native_python = install_environment(Path("/runtime/native-proof"), native_lock, from_tools_pool)
+            subprocess.run([str(native_python), "-I", "-B", str(run / "tests/run_suite.py"), "native", "test*.py"], cwd=run, check=True)
 
 
 if __name__ == "__main__":

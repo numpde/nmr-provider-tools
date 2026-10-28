@@ -78,6 +78,13 @@ cause remains unknown. Do not impose a short retirement deadline on a healthy
 warm worker.
 Diagnostics must not prevent an admitted crash report or replace an already
 chosen result or failure report.
+
+`AsyncRunnerSession` retains the original native setup and retirement reader.
+Its short observation wait can expire while the same reader continues; request
+stop, then join that reader within the native session's aggregate cleanup budget.
+Use `not_after` when an existing cleanup owner already has an earlier deadline.
+The failure accessors retain exact native causes. Science exchange and confirmed
+reader quiescence remain the provider's responsibility.
 Runner retirement messages must include an explicit supported reason; messages
 without one are rejected and cannot establish an observed crash.
 
@@ -172,12 +179,23 @@ causes; the selected file reader owns file and byte-limit admission.
 
 ## Package and qualification
 
-Releases are GitHub assets from `numpde/nmr-provider-tools`, with an exact wheel
-hash, closed installation lock, source distribution and qualification evidence.
-Third-party dependency wheels are acquired separately. Install offline from the
-verified cache; consumer builds do not rebuild this package or import a sibling
-checkout. Operational modules run through contained launchers, which supply the
-package's container marker.
+Use the [GitHub releases](https://github.com/numpde/nmr-provider-tools/releases)
+on Python 3.12 or later. Each release supplies one wheel, its source distribution,
+two installation locks and qualification evidence. The full `install.lock` includes
+API dependencies; `native-install.lock` installs only that same SDK wheel for
+scientific workers. For ordinary dependency declarations, request
+`provider-core[api]` when using API or delivery modules.
+
+Native lifecycle helpers and `provider_core.upload_file` use only the standard
+library. Scientific readers can verify immutable file snapshots there without
+installing HTTP or signing dependencies. Install offline from verified release
+assets and cached third-party wheels; consumers do not rebuild the SDK or import
+a sibling checkout. Contained launchers supply the package's container marker.
+
+`UploadTransfer` owns verified file transfer and its original I/O cleanup when a
+provider needs its own source selection, cache or retry policy. `JobUploads` uses
+that same owner with its existing request, byte and deadline limits. A closed
+file receipt still requires verified readback before scientific parsing.
 
 The source distribution carries generic test helpers and pinned API fixtures.
 Those fixtures establish recorded contract/content compatibility, not publisher

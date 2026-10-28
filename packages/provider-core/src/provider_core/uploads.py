@@ -13,59 +13,27 @@ require_container()
 
 import asyncio
 import base64
-import hashlib
 import math
 import os
 import secrets
 import stat
 import time
-from builtins import BaseExceptionGroup
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 import httpx
 
 from provider_core.transport import ExchangeFailed
-from provider_core.upload_response import require_job_ref, require_upload_ref
+from provider_core.response_json import ResponseRejected
+from provider_core.upload_response import require_job_ref, require_read_grant, require_upload_ref
 
 
-class UploadFailed(RuntimeError):
-    """Safe reason with private response, cause, interruption and cleanup evidence.
-
-    Cleanup failures are diagnostic observations, not ownership flags. They may
-    remain available after settle_file confirms later abort cleanup.
-    """
-
-    # silent-defaults: allow-contract -- An omitted cleanup tuple carries no independent cleanup evidence; it does not confirm retirement.
-    def __init__(self, reason, *, response=None, cause=None, cleanup_failures=(), interruption=None):
-        super().__init__(f"Cannot acquire Upload: {reason}")
-        self.reason = reason
-        self.response = response
-        self.cause = cause
-        self.cleanup_failures = tuple(cleanup_failures)
-        self.interruption = interruption
-        self.grant_issued = False
-
-
-class UploadInputRejected(UploadFailed):
-    """A source selection or fixed per-file input limit permits correction.
-
-    Grant, transfer, budget and retirement failures remain operational. Only the
-    acquisition owner distinguishes these pre-grant refusals from spent budgets.
-    """
-
-
-class UploadFileReadFailed(RuntimeError):
-    """A reader's operational failure, separate from grant acquisition facts."""
-
-    # silent-defaults: allow-contract -- An omitted cleanup tuple carries no independent cleanup evidence; it does not confirm retirement.
-    def __init__(self, reason, *, cause=None, cleanup_failures=(), interruption=None):
-        super().__init__(f"Cannot read verified Upload file: {reason}")
-        self.cause = cause
-        self.cleanup_failures = tuple(cleanup_failures)
-        self.interruption = interruption
+from provider_core.upload_file import (
+    UploadFailed, UploadFileReadFailed, UploadInputRejected,
+    VerifiedUpload, VerifiedUploadFile, read_upload_file,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,123 +51,6 @@ class UploadLimits:
                 raise ValueError("Cannot configure Upload acquisition: byte and request limits must be positive integers")
         if not (type(self.seconds) in (int, float) and math.isfinite(self.seconds) and 0 < self.seconds):
             raise ValueError("Cannot configure Upload acquisition: duration must be finite positive seconds")
-
-
-@dataclass(frozen=True, slots=True)
-class VerifiedUpload:
-    job_ref: str
-    upload_ref: str
-    byte_length: int
-    content_hash: str
-    data: bytes = field(repr=False)
-
-    def __post_init__(self):
-        if type(self.data) is not bytes or len(self.data) != self.byte_length:
-            raise UploadFailed("source byte length differs from its transfer receipt")
-        if "sha256:" + hashlib.sha256(self.data).hexdigest() != self.content_hash:
-            raise UploadFailed("source SHA-256 differs from its transfer receipt")
-
-
-@dataclass(frozen=True, slots=True)
-class VerifiedUploadFile:
-    """Verified transfer into a closed private file, owned by composition.
-
-    name is relative to the directory borrowed for acquisition. A reader must
-    verify its own immutable snapshot against these facts before parsing; this
-    receipt cannot establish future pathname contents or durable storage.
-    """
-
-    job_ref: str
-    upload_ref: str
-    byte_length: int
-    content_hash: str
-    name: str = field(repr=False)
-
-
-def read_upload_file(receipt, *, directory_fd, maximum_bytes):
-    """Verify immutable source bytes inside an already supervised reader worker.
-
-    SECS 7356c354368f2355d3ab5cef00cf48c67cea9c2c,
-    source_access.py::_read_stream and input_adapter.py::_verify_components
-    establish the immutable-consumption seam. A checked path or an earlier hash
-    cannot establish bytes later read from a mutable file. Open once, verify the
-    copied bytes, close once, then let the consumer parse only the returned data.
-    Composition retains the source until reader quiescence or confirmed stop.
-    """
-    if type(receipt) is not VerifiedUploadFile:
-        raise UploadFileReadFailed("a verified-file receipt is required before reading source bytes")
-    if type(directory_fd) is not int or directory_fd < 0:
-        raise UploadFileReadFailed("reading a private source requires an explicit open directory descriptor")
-    if type(maximum_bytes) is not int or maximum_bytes <= 0:
-        raise UploadFileReadFailed("the reader's source byte ceiling must be a positive integer")
-    if type(receipt.byte_length) is not int or not 0 <= receipt.byte_length <= maximum_bytes:
-        raise UploadFileReadFailed("the receipt's source byte length is outside the reader's explicit ceiling")
-    name = receipt.name
-    if type(name) is not str or name in ("", ".", "..") or "/" in name or "\0" in name:
-        raise UploadFileReadFailed("the private source locator must be one non-dot basename in the granted directory")
-    try:
-        descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=directory_fd)
-    except OSError as cause:
-        raise UploadFileReadFailed("the private source file could not be opened", cause=cause) from None
-    primary = None
-    try:
-        return _read_upload_snapshot(descriptor, receipt)
-    except BaseException as cause:
-        # This worker owns closure even when its synchronous read is interrupted.
-        primary = cause
-        raise
-    finally:
-        try:
-            os.close(descriptor)
-        except OSError as cause:
-            cleanup = UploadFileReadFailed(
-                "private source file closure is unconfirmed; retire its reader worker before releasing the source",
-                cause=cause,
-            )
-            if type(primary) is UploadFileReadFailed:
-                primary.cleanup_failures = (*primary.cleanup_failures, cleanup)
-            elif isinstance(primary, asyncio.CancelledError):
-                # Preserve the actual cancellation and its previous cause, as
-                # JobUploads._link_file_interruption does for acquired-file I/O.
-                retained = UploadFileReadFailed(
-                    "source reading was interrupted before confirmed file closure",
-                    cause=primary.__cause__,
-                    cleanup_failures=(cleanup,),
-                    interruption=primary,
-                )
-                primary.__cause__ = retained
-            elif primary is not None:
-                raise BaseExceptionGroup("Source reading and independent file closure failed", [primary, cleanup]) from None
-            else:
-                raise cleanup from None
-
-
-def _read_upload_snapshot(descriptor, receipt):
-    try:
-        details = os.fstat(descriptor)
-        if not stat.S_ISREG(details.st_mode):
-            raise UploadFileReadFailed("the opened private source is not a regular file")
-        if details.st_size != receipt.byte_length:
-            raise UploadFileReadFailed("the private source file byte length differs from its transfer receipt")
-        chunks = []
-        received = 0
-        while chunk := os.read(descriptor, min(65536, receipt.byte_length + 1 - received)):
-            chunks.append(chunk)
-            received += len(chunk)
-            if received > receipt.byte_length:
-                break
-        data = b"".join(chunks)
-        try:
-            return VerifiedUpload(receipt.job_ref, receipt.upload_ref, receipt.byte_length, receipt.content_hash, data)
-        except UploadFailed as refusal:
-            # Reuse the byte verifier, while reporting this reader's operation.
-            # Its pure length/hash refusal has no grant or I/O evidence to copy.
-            rejected = UploadFileReadFailed(refusal.reason)
-        # Outside the handler, there is no synthetic acquisition context for
-        # protected renderers to misreport as a failed grant operation.
-        raise rejected
-    except OSError as cause:
-        raise UploadFileReadFailed("the private source file could not be read", cause=cause) from None
 
 
 def require_store_origin(value):
@@ -332,156 +183,51 @@ class _UploadFile:
         self._executor.shutdown(wait=False)
 
 
-class JobUploads:
-    """One serial source session, with no byte cache or implicit grant retry.
+class UploadTransfer:
+    """Own verified store transfers and their original file and I/O cleanup.
 
-    Composition supplies separate API/store transport authority and owns retirement.
-    Successful calls return immutable bytes or a closed private-file receipt.
-    Partial or unverified transfers never become consumer results.
-    Metadata responses have their API route ceilings; the byte budget counts raw
-    store response bodies, including failures. The request/deadline limits cover
-    membership, issuance and store calls together, starting at construction.
+    Composition supplies remaining time and synchronous request and byte
+    accounting callbacks. This owner bounds the store exchange by the supplied
+    remaining time and retains it until retirement. The async grant factory runs only after a
+    private file was created; it owns selection and grant policy. No retries or
+    membership reads are implicit. A supplied grant alone does not establish
+    when or whether the caller obtained it from the API.
     """
 
-    def __init__(self, job_ref, *, api, store, store_origin, limits):
+    def __init__(self, job_ref, *, store, store_origin, remaining, before_request, account, exchange_owner=None):
         require_job_ref(job_ref)
-        if type(limits) is not UploadLimits:
-            raise TypeError("Cannot configure Upload acquisition: explicit UploadLimits are required")
-        self.job_ref = job_ref
-        self._api = api
-        self._store = store
+        if not all(callable(value) for value in (remaining, before_request, account)):
+            raise TypeError("Upload transfer requires explicit remaining-time, request and byte-accounting owners")
+        self.job_ref, self._store = job_ref, store
         self._origin = require_store_origin(store_origin)
-        self._limits = limits
-        self._deadline = time.monotonic() + limits.seconds
-        self._requests = 0
-        self._received = 0
-        self._snapshot = None
-        self._active = False
-        self._grant_issued = False
+        self._remaining, self._before_request, self._account_bytes = remaining, before_request, account
+        self._exchange_owner = self if exchange_owner is None else exchange_owner
         self._file = None
+        self._active = False
         self.last_failure = None
 
-    @property
-    def received_bytes(self):
-        return self._received
-
-    @property
-    def requests_started(self):
-        return self._requests
+    def _remaining_seconds(self):
+        seconds = self._remaining()
+        if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds <= 0:
+            raise UploadFailed("source transfer requires a positive finite remaining deadline")
+        return seconds
 
     @asynccontextmanager
     async def _operation(self):
         if self._active:
-            raise UploadFailed("another source operation is active")
+            raise UploadFailed("another source transfer is active")
         if self._file is not None:
             raise UploadFailed("a private source file remains owned; settle its original I/O and cleanup before more source work")
         if not self._store.retirement_confirmed:
             raise UploadFailed("previous store resource retirement is unconfirmed; retire its transport before more work")
         self._active = True
-        self._grant_issued = False
         self.last_failure = None
         try:
             yield
-        except BaseException as failure:
-            self._snapshot = None
-            if self._grant_issued:
-                # Successful issuance remains true even if later local checks,
-                # transfer, or cancellation prevent a usable byte handoff.
-                if isinstance(failure, UploadFailed):
-                    evidence = failure
-                elif isinstance(failure, asyncio.CancelledError) and isinstance(self.last_failure, UploadFailed):
-                    evidence = self.last_failure
-                else:
-                    cause = self.last_failure if isinstance(failure, asyncio.CancelledError) else failure
-                    evidence = UploadFailed("transfer did not complete after read access was issued", cause=cause)
-                evidence.grant_issued = True
-                evidence.add_note("Read access was issued before this failure and may have extended Upload retention.")
-                self.last_failure = evidence
-            elif not isinstance(failure, asyncio.CancelledError):
-                self.last_failure = failure
-            raise
         finally:
             self._active = False
 
-    def _remaining_seconds(self):
-        remaining = self._deadline - time.monotonic()
-        if remaining <= 0:
-            raise UploadFailed("the source session's total deadline expired")
-        return remaining
-
-    def _require_request_capacity(self):
-        remaining = self._remaining_seconds()
-        if self._requests >= self._limits.requests:
-            raise UploadFailed(f"the source session exhausted its {self._limits.requests}-request limit")
-        return remaining
-
-    async def _call(self, resource_owner, operation, *args, **kwargs):
-        remaining = self._require_request_capacity()
-        self._requests += 1
-        deadline = asyncio.timeout(remaining)
-        try:
-            async with deadline:
-                return await operation(*args, **kwargs)
-        except asyncio.CancelledError:
-            self.last_failure = resource_owner.last_failure
-            raise
-        except TimeoutError:
-            if not deadline.expired():
-                raise
-            raise UploadFailed("the source session's total deadline expired", cause=resource_owner.last_failure) from None
-
-    async def inspect(self):
-        """Refresh the source list; callers choose from this observation."""
-        async with self._operation():
-            self._snapshot = await self._call(self._api, self._api.uploads, self.job_ref)
-            return self._snapshot
-
-    async def acquire(self, upload_ref):
-        """Require unchanged Job membership, obtain access, and verify source bytes.
-
-        Re-read the inspected membership before requesting a fresh read grant;
-        reject changes rather than silently selecting from the new list.
-        """
-        async with self._operation():
-            selected = self._select(upload_ref)
-            grant = await self._grant(selected)
-            return await self._download(grant)
-
-    def _select(self, upload_ref):
-        require_upload_ref(upload_ref)
-        self._require_request_capacity()
-        if self._snapshot is None:
-            raise UploadInputRejected("inspect the current Job Uploads before selecting a source")
-        selected = next((item for item in self._snapshot.members if item.upload_ref == upload_ref), None)
-        if selected is None:
-            raise UploadInputRejected("selected Upload is not in the inspected Job membership; inspect and select again")
-        # Correction cannot revive spent work. Neither refusal issues a grant.
-        if selected.byte_length > self._limits.total_bytes - self._received:
-            raise UploadFailed("selected Upload exceeds the source session's remaining byte budget")
-        if selected.byte_length > self._limits.per_source_bytes:
-            raise UploadInputRejected(
-                f"selected Upload has {selected.byte_length} bytes and exceeds the fixed "
-                f"{self._limits.per_source_bytes}-byte per-source limit; select a smaller Upload"
-            )
-        return selected
-
-    async def _grant(self, selected):
-        refreshed = await self._call(self._api, self._api.uploads, self.job_ref)
-        if refreshed != self._snapshot:
-            self._require_request_capacity()
-            raise UploadInputRejected("Job Upload membership changed; inspect the current list and select again")
-        grant = await self._call(self._api, self._api.read_grant, self.job_ref, selected.upload_ref)
-        self._grant_issued = True
-        if (
-            grant.job_ref != self.job_ref
-            or grant.upload_ref != selected.upload_ref
-            or grant.byte_length != selected.byte_length
-            or (selected.content_hash is not None and grant.content_hash != selected.content_hash)
-        ):
-            raise UploadFailed("download grant differs from the selected Upload identity or byte facts")
-        return grant
-
-    async def acquire_file(self, upload_ref, *, directory_fd, retirement_seconds):
+    async def acquire_file(self, grant_factory, *, directory_fd, retirement_seconds):
         """Verify one transfer into a closed private file; lend its directory.
 
         Keep directory_fd open and exclusively controlled until success or
@@ -489,7 +235,8 @@ class JobUploads:
         file lifetime to composition, which must wait for readers before deletion.
         """
         async with self._operation():
-            selected = self._select(upload_ref)
+            if not callable(grant_factory):
+                raise TypeError("Upload transfer requires an async grant factory")
             if type(directory_fd) is not int or directory_fd < 0:
                 raise UploadFailed("private-file acquisition requires an open directory descriptor")
             if type(retirement_seconds) not in (int, float) or not math.isfinite(retirement_seconds) or retirement_seconds <= 0:
@@ -497,7 +244,24 @@ class JobUploads:
             file = self._file = _UploadFile(directory_fd, retirement_seconds)
             try:
                 await file.create(self._remaining_seconds())
-                grant = await self._grant(selected)
+                deadline = asyncio.timeout(self._remaining_seconds())
+                try:
+                    async with deadline:
+                        grant = await grant_factory()
+                except TimeoutError as failure:
+                    if not deadline.expired():
+                        raise
+                    prior = self.last_failure
+                    if prior is None:
+                        raise UploadFailed(
+                            "the source session's total deadline expired while obtaining the grant",
+                            cause=failure,
+                        ) from None
+                    raise UploadFailed(
+                        "the source session's total deadline expired while obtaining the grant",
+                        cause=prior,
+                        interruption=failure,
+                    ) from None
                 response = await self._transfer(grant, output_fd=file.fd)
                 _verify_store_headers(response, grant)
                 if response.byte_length != grant.byte_length:
@@ -597,9 +361,9 @@ class JobUploads:
     async def settle_file(self):
         """Confirm abort cleanup only, without resuming a grant or download.
 
-        Composition must first retire the exact store exchange with this
-        JobUploads as owner. The retained cleanup grace works after the source
-        deadline expires; source request/byte/deadline budgets never reset.
+        Composition must first retire the exact store exchange with the
+        configured exchange owner. The retained cleanup grace works after the
+        source deadline expires; acquisition budgets never reset.
         """
         if self._active:
             raise UploadFailed("another source operation is active")
@@ -628,12 +392,6 @@ class JobUploads:
         finally:
             self._active = False
 
-    def _account_bytes(self, count):
-        # Count the offending chunk too: bytes already consumed cannot be refunded.
-        self._received += count
-        if self._received > self._limits.total_bytes:
-            raise UploadFailed(f"download exhausted the source session's {self._limits.total_bytes}-byte budget")
-
     async def _download(self, grant):
         response = await self._transfer(grant)
         _verify_store_headers(response, grant)
@@ -642,6 +400,10 @@ class JobUploads:
         return verified
 
     def _download_request(self, grant):
+        try:
+            require_read_grant(grant, job_ref=self.job_ref)
+        except ResponseRejected as failure:
+            raise UploadFailed("the read grant is malformed or belongs to a different Job", cause=failure) from None
         target = self._origin + "/upload/v1/uploads/" + grant.upload_ref + "/bytes"
         if grant.download_url != target:
             raise UploadFailed("download grant does not name the configured store and exact Upload path")
@@ -658,23 +420,215 @@ class JobUploads:
 
     async def _transfer(self, grant, *, output_fd=None):
         request = self._download_request(grant)
+        self._before_request()
+        deadline = asyncio.timeout(self._remaining_seconds())
         try:
-            if output_fd is None:
-                return await self._call(
-                    self._store, self._store.exchange, request, maximum_bytes=grant.byte_length, account_bytes=self._account_bytes
+            async with deadline:
+                if output_fd is None:
+                    return await self._store.exchange(
+                        request, maximum_bytes=grant.byte_length, account_bytes=self._account_bytes
+                    )
+                return await self._store.exchange_file(
+                    request, output_fd=output_fd, maximum_bytes=grant.byte_length,
+                    account_bytes=self._account_bytes, owner=self._exchange_owner,
                 )
-            return await self._call(
-                self._store,
-                self._store.exchange_file,
-                request,
-                output_fd=output_fd,
-                maximum_bytes=grant.byte_length,
-                account_bytes=self._account_bytes,
-                owner=self,
-            )
+        except TimeoutError:
+            if not deadline.expired():
+                raise
+            raise UploadFailed("the source session's total deadline expired", cause=self._store.last_failure) from None
+        except asyncio.CancelledError:
+            if self.last_failure is None and self._store.last_failure is not None:
+                self.last_failure = self._store.last_failure
+            raise
         except ExchangeFailed as cause:
             reason = str(cause.primary) if isinstance(cause.primary, UploadFailed) else str(cause)
             raise UploadFailed(reason, cause=cause) from None
+
+
+class JobUploads:
+    """One serial source session, with no byte cache or implicit grant retry.
+
+    Composition supplies separate API/store transport authority and owns retirement.
+    Successful calls return immutable bytes or a closed private-file receipt.
+    Partial or unverified transfers never become consumer results.
+    Metadata responses have their API route ceilings; the byte budget counts raw
+    store response bodies, including failures. The request/deadline limits cover
+    membership, issuance and store calls together, starting at construction.
+    """
+
+    def __init__(self, job_ref, *, api, store, store_origin, limits):
+        require_job_ref(job_ref)
+        if type(limits) is not UploadLimits:
+            raise TypeError("Cannot configure Upload acquisition: explicit UploadLimits are required")
+        self.job_ref = job_ref
+        self._api = api
+        self._store = store
+        self._origin = require_store_origin(store_origin)
+        self._limits = limits
+        self._deadline = time.monotonic() + limits.seconds
+        self._requests = 0
+        self._received = 0
+        self._snapshot = None
+        self._active = False
+        self._grant_issued = False
+        self._transfer_owner = UploadTransfer(
+            job_ref, store=store, store_origin=store_origin, remaining=self._remaining_seconds,
+            before_request=self._reserve_transfer_request, account=self._account_bytes, exchange_owner=self,
+        )
+
+    @property
+    def last_failure(self):
+        return self._transfer_owner.last_failure
+
+    @last_failure.setter
+    def last_failure(self, value):
+        self._transfer_owner.last_failure = value
+
+    @property
+    def received_bytes(self):
+        return self._received
+
+    @property
+    def requests_started(self):
+        return self._requests
+
+    @asynccontextmanager
+    async def _operation(self):
+        if self._active:
+            raise UploadFailed("another source operation is active")
+        if self._transfer_owner._file is not None:
+            raise UploadFailed("a private source file remains owned; settle its original I/O and cleanup before more source work")
+        if not self._store.retirement_confirmed:
+            raise UploadFailed("previous store resource retirement is unconfirmed; retire its transport before more work")
+        self._active = True
+        self._grant_issued = False
+        self.last_failure = None
+        try:
+            yield
+        except BaseException as failure:
+            self._snapshot = None
+            if self._grant_issued:
+                # Successful issuance remains true even if later local checks,
+                # transfer, or cancellation prevent a usable byte handoff.
+                if isinstance(failure, UploadFailed):
+                    evidence = failure
+                elif isinstance(failure, asyncio.CancelledError) and isinstance(self.last_failure, UploadFailed):
+                    evidence = self.last_failure
+                else:
+                    cause = self.last_failure if isinstance(failure, asyncio.CancelledError) else failure
+                    evidence = UploadFailed("transfer did not complete after read access was issued", cause=cause)
+                if not evidence.grant_issued:
+                    evidence.grant_issued = True
+                    evidence.add_note("Read access was issued before this failure and may have extended Upload retention.")
+                self.last_failure = evidence
+            elif not isinstance(failure, asyncio.CancelledError):
+                self.last_failure = failure
+            raise
+        finally:
+            self._active = False
+
+    def _remaining_seconds(self):
+        remaining = self._deadline - time.monotonic()
+        if remaining <= 0:
+            raise UploadFailed("the source session's total deadline expired")
+        return remaining
+
+    def _require_request_capacity(self):
+        remaining = self._remaining_seconds()
+        if self._requests >= self._limits.requests:
+            raise UploadFailed(f"the source session exhausted its {self._limits.requests}-request limit")
+        return remaining
+
+    def _reserve_transfer_request(self):
+        self._require_request_capacity()
+        self._requests += 1
+
+    async def _call(self, resource_owner, operation, *args, **kwargs):
+        remaining = self._require_request_capacity()
+        self._requests += 1
+        deadline = asyncio.timeout(remaining)
+        try:
+            async with deadline:
+                return await operation(*args, **kwargs)
+        except asyncio.CancelledError:
+            self.last_failure = resource_owner.last_failure
+            raise
+        except TimeoutError:
+            if not deadline.expired():
+                raise
+            raise UploadFailed("the source session's total deadline expired", cause=resource_owner.last_failure) from None
+
+    async def inspect(self):
+        """Refresh the source list; callers choose from this observation."""
+        async with self._operation():
+            self._snapshot = await self._call(self._api, self._api.uploads, self.job_ref)
+            return self._snapshot
+
+    async def acquire(self, upload_ref):
+        """Require unchanged Job membership, obtain access, and verify source bytes.
+
+        Re-read the inspected membership before requesting a fresh read grant;
+        reject changes rather than silently selecting from the new list.
+        """
+        async with self._operation():
+            selected = self._select(upload_ref)
+            grant = await self._grant(selected)
+            return await self._transfer_owner._download(grant)
+
+    def _select(self, upload_ref):
+        require_upload_ref(upload_ref)
+        self._require_request_capacity()
+        if self._snapshot is None:
+            raise UploadInputRejected("inspect the current Job Uploads before selecting a source")
+        selected = next((item for item in self._snapshot.members if item.upload_ref == upload_ref), None)
+        if selected is None:
+            raise UploadInputRejected("selected Upload is not in the inspected Job membership; inspect and select again")
+        # Correction cannot revive spent work. Neither refusal issues a grant.
+        if selected.byte_length > self._limits.total_bytes - self._received:
+            raise UploadFailed("selected Upload exceeds the source session's remaining byte budget")
+        if selected.byte_length > self._limits.per_source_bytes:
+            raise UploadInputRejected(
+                f"selected Upload has {selected.byte_length} bytes and exceeds the fixed "
+                f"{self._limits.per_source_bytes}-byte per-source limit; select a smaller Upload"
+            )
+        return selected
+
+    async def _grant(self, selected):
+        refreshed = await self._call(self._api, self._api.uploads, self.job_ref)
+        if refreshed != self._snapshot:
+            self._require_request_capacity()
+            raise UploadInputRejected("Job Upload membership changed; inspect the current list and select again")
+        grant = await self._call(self._api, self._api.read_grant, self.job_ref, selected.upload_ref)
+        self._grant_issued = True
+        if (
+            grant.job_ref != self.job_ref
+            or grant.upload_ref != selected.upload_ref
+            or grant.byte_length != selected.byte_length
+            or (selected.content_hash is not None and grant.content_hash != selected.content_hash)
+        ):
+            raise UploadFailed("download grant differs from the selected Upload identity or byte facts")
+        return grant
+
+    async def acquire_file(self, upload_ref, *, directory_fd, retirement_seconds):
+        """Acquire and verify a file while retaining this Job's selection policy."""
+        async with self._operation():
+            selected = self._select(upload_ref)
+            return await self._transfer_owner.acquire_file(
+                lambda: self._grant(selected), directory_fd=directory_fd, retirement_seconds=retirement_seconds,
+            )
+
+    async def settle_file(self):
+        """Observe the original private-file cleanup without starting a new transfer."""
+        if self._active:
+            raise UploadFailed("another source operation is active")
+        return await self._transfer_owner.settle_file()
+
+    def _account_bytes(self, count):
+        # Count the offending chunk too: bytes already consumed cannot be refunded.
+        self._received += count
+        if self._received > self._limits.total_bytes:
+            raise UploadFailed(f"download exhausted the source session's {self._limits.total_bytes}-byte budget")
+
 
 
 def _verify_store_headers(response, grant):

@@ -8,7 +8,10 @@ version = "0.5.0"
 description = "Contained NMR API provider operations and recovery"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["cryptography==50.0.0", "http-sf==1.2.1", "httpx==0.28.1", "httpcore==1.0.9", "h11==0.16.0", "tomli-w==1.2.0"]
+dependencies = []
+
+[project.optional-dependencies]
+api = ["cryptography==50.0.0", "http-sf==1.2.1", "httpx==0.28.1", "httpcore==1.0.9", "h11==0.16.0", "tomli-w==1.2.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

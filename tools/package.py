@@ -27,7 +27,7 @@ from tools.wheelhouse import capture, digest, requirements
 
 def artifact_names(version):
     prefix = f"provider_core-{version}"
-    return {prefix + suffix for suffix in ("-py3-none-any.whl", ".tar.gz", "-install.lock", "-release.json", "-sha256.json")}
+    return {prefix + suffix for suffix in ("-py3-none-any.whl", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")}
 
 
 def unpack_source(archive, destination, version):
@@ -120,7 +120,7 @@ def check(artifacts, revision):
         version = match[1]
         prefix = f"provider_core-{version}"
         if {path.name for path in captured.iterdir()} != artifact_names(version):
-            raise ValueError("Cannot qualify package: expect exactly the five declared release artifacts.")
+            raise ValueError("Cannot qualify package: expect exactly the six declared release artifacts.")
         manifest = json.loads((captured / (prefix + "-sha256.json")).read_text())
         expected = {path.name: digest(path) for path in captured.iterdir() if not path.name.endswith("-sha256.json")}
         if manifest != expected:
@@ -137,6 +137,9 @@ def check(artifacts, revision):
         lock = captured / (prefix + "-install.lock")
         if requirements(lock) != requirements(Path("/core-runtime.lock")) | {("provider-core", version): {digest(wheels[0])}}:
             raise ValueError("Cannot qualify package: issued install lock differs from the closed runtime dependencies and wheel.")
+        native_lock = captured / (prefix + "-native-install.lock")
+        if requirements(native_lock) != {("provider-core", version): {digest(wheels[0])}}:
+            raise ValueError("Cannot qualify package: native install lock differs from the same released wheel.")
         rebuilt = scratch / "rebuilt"
         rebuilt.mkdir()
         rebuilt_wheel, rebuilt_lock, identities = build_candidate(
@@ -148,6 +151,7 @@ def check(artifacts, revision):
         runtime.mkdir()
         qualify_installed(wheels[0], lock, source, Path("/wheelhouse"), runtime / "original", ("unit", "contract", "integration"))
         qualify_installed(rebuilt_wheel, rebuilt_lock, source, Path("/wheelhouse"), runtime / "rebuilt", ("contract",))
+        qualify_installed(wheels[0], native_lock, source, Path("/wheelhouse"), runtime / "native", ("native",))
         for path in sorted(captured.iterdir()):
             print("QUALIFIED_SHA256", digest(path), path.name, flush=True)
 
