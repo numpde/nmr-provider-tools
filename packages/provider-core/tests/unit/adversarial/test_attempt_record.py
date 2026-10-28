@@ -3,7 +3,8 @@
 import unittest
 from dataclasses import replace
 
-from provider_core.attempt_record import RecoveryScope, StartPending, _encode_pending
+from provider_core.attempt_record import RecoveryScope, StartPending, _encode_pending, acknowledge_start
+from tests.fakes.attempt_store import admission
 from tests.fakes.attempts import retained_start
 from tests.fakes.job_input import facts
 
@@ -35,6 +36,16 @@ class AttemptRecordFailureTests(unittest.TestCase):
         ):
             with self.assertRaises(ValueError):
                 replace(self.scope(), **changes)
+
+    def test_foreign_start_admission_is_rejected_as_an_acknowledgement_refusal(self):
+        pending = self.record()
+        for changes in (
+            {"job_ref": "job:other"},
+            {"provider_ref": "provider:other"},
+            {"analysis_kind_ref": "other_analysis"},
+        ):
+            with self.subTest(changes=changes), self.assertRaisesRegex(ValueError, "Cannot retain acknowledgement"):
+                acknowledge_start(pending, replace(admission(), **changes))
 
     def test_encoder_refuses_record_above_the_live_control_limit(self):
         scope = replace(self.scope(), api_origin="https://" + "a" * 70000)
