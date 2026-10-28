@@ -31,6 +31,13 @@ control metadata and up to 2 MiB of terminal-request bytes per entry. These are
 bookkeeping allowances, not limits on the whole process's memory or permission
 to run eight calculations at once. Providers set their own explicit limits.
 
+The controller owns its original lifecycle task. `run(pending)` starts it once;
+`join()` observes that same task. Cancelling either wait ends only that observation.
+Use `request_stop()` or the supplied stop event to withdraw future START and
+scientific effects, then join before `settle()`. Stopping cannot erase a selected
+report, and the controller never sets the caller-supplied event. Keep the provider
+lifetime and other resource owners alive while the original task is still running.
+
 A deferred START retains its exact request and any possible-commit uncertainty;
 it does not authorize a new key or another calculation. `ActiveStartReplayHeld`
 returns the verified server receipt for an already active Attempt, without

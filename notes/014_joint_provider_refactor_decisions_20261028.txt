@@ -1292,3 +1292,187 @@ condition for revisiting. Unchanged-model campaigns, unproved GPU/OOM scenarios
 and genuinely non-blocking capability work can be separated from this refactor.
 Do not relabel the user's four rejected endpoints as acceptable caveats, or
 invent a new shared framework before its actual cross-consumer owner is proved.
+
+D031 -- The existing SDK controller owns its original driver (22:00 UTC)
+-------------------------------------------------------------------------
+
+Root inspected AttemptController.run/settle, AttemptClaims and executor handoff.
+Magnet's before-stop and during-stop probes show the real gap: the caller owns
+the driving coroutine, so a sibling TaskGroup cancellation abandons a selected
+report. Claims retain the controller but not an independently driven invocation.
+
+Serious alternatives:
+A. Patch every consumer's task-group cancellation and finalizer composition.
+   This can protect one boat but repeats the lifetime owner and its race proofs.
+B. Give the existing AttemptController its one original driver task, registered
+   under its existing bounded claim before dispatch. Separate observation from
+   explicit stopping and joining. Claims remain the retained owner inventory.
+C. Introduce a new generic cohort/supervision framework. No extra registry or
+   report/phase ledger is needed to protect the already-existing controller owner.
+
+Choice: B, with independent Magnet critique of the concrete semantics. run is
+single-use and reserves/validates synchronously before spawning or yielding to
+its original driver. Cancelling an observer does not cancel that driver, request
+stopping, or settle concurrently. join observes that same original result/error;
+repeated joins never dispatch again. request_stop affects only a controller-owned
+stop event, not the caller-supplied (possibly shared) event. Both actual stop
+sources govern permission checks and wake START pacing. Selected handoff remains
+owned until durable ACK; explicit stopping cannot erase the selected report.
+
+Keep settle's refusal of concurrent lifetime observation: composition explicitly
+stops/joins the original invocation before settling. Driver-creation failure must
+not dispatch or release unretired accepted resources; retain the existing exact
+no-effect START disposition and owner until cleanup. Register the claim before
+task creation so an observer-cancellation race cannot hide a future START from
+the lifetime inventory. Preserve original errors and actual cleanup evidence.
+
+This deliberately changes cancellation semantics. Prepare a new SDK candidate
+version rather than overwrite published 0.4.0; release/publication remains a
+separate later decision. Consumer migrations must keep stop watchers/lifetime
+owners with the actual driver, surface errors promptly, stop fresh admissions,
+and join before final settlement. Qualify both nested-group witnesses and races,
+not merely a shielded await in isolation. No new generic supervisor is selected.
+
+Checkpoint -- 22:00 UTC
+-----------------------
+
+Shared Python 3.11 qualification requires the existing hash-locked cp311 cffi
+artifact, absent from the selected pool. Dependency metadata/syntax are not a
+runtime proof. Acquisition uses the existing interface-bound workflow; the repo
+requires explicit interface selection with no guessed default. Root asked the
+user for that missing configuration asynchronously; other shared work continues.
+NMRNet supplies the maintained two-runtime qualification proposal read-only.
+
+NMRPeak's native fault tests now qualify wrapped reset, real original exit,
+stop-first negative evidence, retained single observation, partial native-frame
+failure and warm HF/CHF cleanup. Maintained native candidate suites pass except
+the expected committed-context/dirty-image mismatch, being checked in an isolated
+candidate snapshot. Its held two-Python endpoint is not thereby accepted.
+
+D032 -- Apply the user's host-specific acquisition preference (22:02 UTC)
+---------------------------------------------------------------------------
+
+The user explicitly selected this machine's default and prefers WLAN on ra@proart.
+This resolves the missing selection; do not ask again or silently transfer an
+interface name between hosts.
+
+Serious alternatives:
+A. Continue forcing a named-adapter prompt despite the user's explicit default
+   preference. This adds babysitting without obtaining new authorization.
+B. Resolve this host's current kernel default-route device and pass that explicit
+   selection through the existing interface-bound acquisition owner. On ProArt,
+   prefer its verified WLAN path. Preserve the existing proxy/hash/cache workflow.
+C. Add an ad hoc unbound downloader or change routing globally. Neither is needed.
+
+Choice: B. The user preference overrides the earlier unresolved-choice state.
+Resolve locally before acquisition and record the selected device; an old ProArt
+WLAN name is not evidence about this machine. No host route changes are selected.
+
+D033 -- SECS goes directly to asynchronous scientific composition (22:02 UTC)
+--------------------------------------------------------------------------------
+
+The old synchronous callback does real API I/O while the relay independently
+enforces science deadlines. Removing only the relay loses that separation.
+The native SDK already supports resident owner-session children; D021's actual
+same-child proof refutes the suggestion that a new resident protocol is required.
+
+Serious alternatives:
+A. Add a retained per-request watchdog solely to keep the old synchronous API
+   callback safe during a staged native-only cut. Possible, but it introduces
+   extra timer ownership around a controller the final refactor deletes.
+B. Add another resident native protocol. Existing SDK functionality covers the
+   actual requirement; this is an unsupported abstraction.
+C. Compose an asynchronous AnalysisSession directly under the shared controller,
+   remove the synchronous per-request API snapshot callback, and retain bounded
+   original scientific RPC/retirement ownership separately from async observation.
+
+Choice: C. Preserve scientific prepare/consume and healthy warm-worker policy;
+delete the old lifecycle/publication owners in the end-state cut. The native RPC
+can enforce its I/O deadline and confirm stopping while core's independent API
+observation is pending. Prove that actual blocked-observation scenario; cancellation
+or timer expiry is still not exit/scratch proof. Do not add a temporary watchdog,
+warm pool, nonce protocol or SDK fork. Existing stop component values must remain
+explicitly qualified rather than silently copied from another provider.
+
+D034 -- Qualify shared Python 3.11 support as a new SDK candidate (22:02 UTC)
+-------------------------------------------------------------------------------
+
+Serious alternatives:
+A. Retain SDK >=3.12 and transplant another Python prefix into NMRPeak. This is
+   the consumer packaging burden the user rejected as a long-term endpoint.
+B. Ignore published Requires-Python or merely lower metadata without qualification.
+   Neither establishes supported runtime behavior or an honest release contract.
+C. Declare >=3.11 in a new SDK candidate and maintain real qualification on the
+   fixed 3.11 scientific target and current 3.12 target, using the same dependency
+   locks, standard acquisition, offline builds and exact installed artifacts.
+
+Choice: C. Qualify Python 3.11.14's pinned slim-bookworm base used by the preserved
+scientific stack and current 3.12.15; do not change the scientific interpreter or
+dependencies to make infrastructure fit. Reuse the existing wheelhouse, adding
+the required locked cp311 artifact rather than another dependency inventory.
+Run installed lifecycle/native/cancellation/delivery/SQLite contracts on both;
+qualify wheel, sdist and source rebuild. Platform-specific selected wheels differ:
+compare each runtime against admitted lock hashes and exact source/artifact facts,
+not an invalid requirement for cp311 and cp312 ABI selections to be identical.
+Use fixed targets in the existing tooling, not a generic version-selection layer.
+
+Prepare candidate version 0.5.0 for D031/D034's changed contract. This authorizes
+local candidate implementation/qualification, not publication of a new release
+or replacement of the published 0.4.0 artifacts. Consumers must use qualified
+candidate artifacts for joint tests rather than sibling source on their path.
+
+Checkpoint -- 22:08 UTC
+-----------------------
+
+The user reiterated high-end code with minor concerns explicitly deferred. Keep
+the shared owner and full adoption critical path; do not detour into cosmetic
+cleanup or use deferral to weaken correctness. D033's direct asynchronous SECS
+composition is approved; the repeated end-state proposal does not need another
+permission round. Preserve its declared 2 s TERM, 2 s KILL, 2 s scratch and 2 s
+receipt-write components within the 10 s client observation allowance, with
+actual process proof. Scientific startup 600 s and worker grace 20 s stay explicit.
+
+The user-selected local default route resolves to wlp1s0 by the actual kernel
+route query. The first sandboxed query was denied netlink access; the authorized
+read-only escalated query established the device. No route was changed. ProArt
+remains WLAN-preferred; its interface is not assumed from this host's name.
+
+D031's new installed-SDK unit witness was genuinely RED: after cancelling the
+run observer, the selected exact report never acquired an ACK when the queue
+recovered (1 error among 480 cases; 479 passed). The initial retained driver
+made that witness pass. Its full 480-case run then had four failures: two old
+cancellation-contract expectations, an over-narrow fake asyncio module, and a
+real original CancelledError identity/cause loss through Task observation.
+Root updated the obsolete contract fixtures and retains the actual escaping
+driver interruption before Task normalization, keeping fresh observer cancellation
+distinct. The next maintained run is in progress; no all-green claim is made.
+
+Candidate source version is now 0.5.0; published 0.4.0 remains untouched. Root
+requested independent review of the actual dirty shared owner and is adding
+claim/spawn/stop/cancellation race proof before integration. SDK driver result
+ownership is being corrected once, not copied into four provider task groups.
+
+Checkpoint -- 22:18 UTC
+-----------------------
+
+D031 shared-owner qualification is now green: 486 installed unit cases,
+15 contracts and 154 integrations. New cases cover observer cancellation before
+driver scheduling, retained exact report after repeated cancelled observations,
+local/shared stop isolation, rejected driver/START-owner construction, partial
+stop-waiter creation and eager scheduling. Independent Magnet source audit is
+clear after its two concrete setup-failure findings were corrected. Existing
+cleanup interruption provenance is preserved through the new Task boundary.
+
+An intermediate 480-case run passed the owner/cancellation changes but failed
+one existing native operation-deadline fixture while reading its worker PID
+(ConnectionResetError). The subsequent full 486-case run passed it; no runner
+product code or timeout was changed to hide that result. Record the one-off
+fixture timing concern as a minor deferred item in this repository, with the
+actual failed and passing logs, rather than launch a speculative runner rewrite.
+
+The SDK candidate 0.5.0 owner slice is ready for its meaningful local commit.
+Consumer migrations and both actual nested-group witnesses still need candidate
+artifact qualification; SDK unit success is not evidence of their completed
+composition. The Python 3.11 maintained matrix remains the next shared runtime
+slice. Its selected local acquisition interface is wlp1s0 under the user's
+default-route preference.

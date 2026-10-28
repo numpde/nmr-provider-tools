@@ -8,9 +8,10 @@ from unittest.mock import Mock, patch
 
 import httpcore
 
-from provider_core.controller import ActiveStartReplayHeld, AttemptController, ControllerFailed, LiveStartPolicy, StartDeferred
+from provider_core.controller import ActiveStartReplayHeld, AttemptController, ControllerFailed, ControllerRefused, LiveStartPolicy, StartDeferred
 from provider_core.job_input import verify_job_input
 from provider_core.delivery_client import DeliveryUnavailable
+from provider_core.delivery_store import DeliveryFull
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from provider_core.transport import ExchangeFailed
@@ -24,15 +25,17 @@ from tests.fakes.live_analysis import LiveSession
 
 class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
     # silent-defaults: allow-contract -- Ordinary specimens refuse active replays; the explicit same-live NMR specimen grants its preserved policy.
-    def controller(self, transport, *, claims=None, session=None, policy=None, preverified_input=None, allow_active_start_replay=False):
+    def controller(self, transport, *, claims=None, session=None, policy=None, preverified_input=None, allow_active_start_replay=False, stopping=None):
         if claims is None:
             claims = AttemptClaims.live()
         if session is None:
             session = LiveSession()
         if policy is None:
             policy = LiveStartPolicy(cadence_seconds=0.01, on_retry=Mock(), on_recovered=Mock())
+        if stopping is None:
+            stopping = asyncio.Event()
         return AttemptController.live(
-            api(transport, scope().api_origin), claims, session, scope=scope(), stopping=asyncio.Event(),
+            api(transport, scope().api_origin), claims, session, scope=scope(), stopping=stopping,
             start_policy=policy, preverified_input=preverified_input,
             allow_active_start_replay=allow_active_start_replay,
             delivery=RecordingDelivery(), on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
@@ -71,6 +74,160 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             session.release.set()
             await asyncio.wait_for(task, 1)
         self.assertEqual((), claims.live_owners())
+
+    async def test_cancelled_observer_keeps_original_selected_report_retrying(self):
+        pressured, recovered = asyncio.Event(), asyncio.Event()
+        bodies = []
+
+        class PressuredDelivery(RecordingDelivery):
+            async def submit(self, item):
+                bodies.append(item.body)
+                if not recovered.is_set():
+                    pressured.set()
+                    raise DeliveryFull("The authored queue is full")
+                return await super().submit(item)
+
+        claims = AttemptClaims.live()
+        controller = self.controller(
+            self.lifecycle(), claims=claims,
+            preverified_input=verify_job_input(response(), feed=record().input),
+        )
+        controller.delivery = delivery = PressuredDelivery()
+        observer = asyncio.create_task(controller.run(record()))
+        try:
+            await asyncio.wait_for(pressured.wait(), 1)
+            observer.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await observer
+            self.assertIn(controller, claims.live_owners())
+            self.assertFalse(controller.shutdown_ready)
+            joined_observer = asyncio.create_task(controller.join())
+            await asyncio.sleep(0)
+            joined_observer.cancel()
+            with self.assertRaises(asyncio.CancelledError):
+                await joined_observer
+            recovered.set()
+            await asyncio.wait_for(delivery.accepted.wait(), 1)
+            accepted = await asyncio.wait_for(controller.join(), 1)
+            self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
+            self.assertIs(accepted, await controller.join())
+            self.assertTrue(controller.shutdown_ready)
+            self.assertEqual((), claims.live_owners())
+            self.assertEqual(controller.session.events.count("execute"), 1)
+            self.assertGreaterEqual(len(bodies), 2)
+            self.assertTrue(all(body == bodies[0] for body in bodies))
+        finally:
+            recovered.set()
+            if not observer.done():
+                await observer
+            await asyncio.wait_for(asyncio.gather(controller.join(), return_exceptions=True), 2)
+
+    async def test_claim_is_visible_when_observer_cancels_before_driver_scheduling(self):
+        claims, session = AttemptClaims.live(), LiveSession()
+        session.release.clear()
+        controller = self.controller(self.lifecycle(), claims=claims, session=session,
+                                     preverified_input=verify_job_input(response(), feed=record().input))
+        ready, created = asyncio.Event(), []
+        create_task = asyncio.create_task
+
+        async def observe():
+            await ready.wait()
+            return await controller.run(record())
+
+        observer = create_task(observe())
+
+        def spawn(coroutine):
+            if not created:
+                self.assertIn(controller, claims.live_owners())
+                asyncio.current_task().cancel()
+            task = create_task(coroutine)
+            created.append(task)
+            return task
+
+        try:
+            with patch("provider_core.controller.asyncio.create_task", side_effect=spawn):
+                ready.set()
+                with self.assertRaises(asyncio.CancelledError):
+                    await observer
+            self.assertIn(controller, claims.live_owners())
+            self.assertFalse(controller.shutdown_ready)
+        finally:
+            session.release.set()
+            await asyncio.wait_for(controller.join(), 2)
+        self.assertEqual(controller.session.events.count("execute"), 1)
+
+    async def test_failed_driver_creation_retains_resources_until_no_effect_settlement(self):
+        claims, failure = AttemptClaims.live(), RuntimeError("Cannot create the authored driver")
+        transport = self.lifecycle()
+        controller = self.controller(transport, claims=claims)
+        with patch("provider_core.controller.asyncio.create_task", side_effect=failure):
+            with self.assertRaises(ControllerFailed) as caught:
+                await controller.run(record())
+        self.assertIs(caught.exception.cause, failure)
+        self.assertEqual(transport.calls, [])
+        self.assertEqual(controller.session.events, ["retire"])
+        self.assertIn(controller, claims.live_owners())
+        with self.assertRaises(ControllerRefused):
+            await controller.join()
+        await controller.settle()
+        self.assertEqual(claims.live_owners(), ())
+
+    async def test_local_stop_does_not_set_the_shared_supplied_event(self):
+        supplied, claims = asyncio.Event(), AttemptClaims.live()
+        stopped = self.controller(self.lifecycle(), claims=claims, stopping=supplied)
+        stopped.request_stop()
+        deferred = await stopped.run(record())
+        self.assertFalse(deferred.may_have_committed)
+        self.assertFalse(supplied.is_set())
+        self.assertEqual(stopped.api._transport.calls, [])
+        sibling = self.controller(self.lifecycle(), claims=claims, stopping=supplied,
+                                  preverified_input=verify_job_input(response(), feed=record().input))
+        self.assertIs(type(await sibling.run(record())), DeliveryAcceptedCheckpoint)
+
+    async def test_start_owner_creation_failure_keeps_a_releasable_no_effect_claim(self):
+        claims, failure = AttemptClaims.live(), RuntimeError("Cannot construct the START owner")
+        controller = self.controller(self.lifecycle(), claims=claims)
+        with patch("provider_core.controller.AttemptStarter.live", side_effect=failure):
+            with self.assertRaises(ControllerFailed) as caught:
+                await controller.run(record())
+        self.assertIs(caught.exception.cause, failure)
+        self.assertEqual(controller.api._transport.calls, [])
+        self.assertIn(controller, claims.live_owners())
+        await controller.settle()
+        self.assertEqual(claims.live_owners(), ())
+
+    async def test_second_stop_waiter_creation_failure_joins_the_first_waiter(self):
+        failure, created, calls = RuntimeError("Cannot create the second stop waiter"), [], []
+        controller = self.controller(Transport(reply(b"maintenance", status=503)))
+        create_task = asyncio.create_task
+
+        def spawn(coroutine):
+            calls.append(coroutine)
+            if len(calls) == 3:
+                raise failure
+            task = create_task(coroutine)
+            created.append(task)
+            return task
+
+        with patch("provider_core.controller.asyncio.create_task", side_effect=spawn):
+            with self.assertRaises(ControllerFailed) as caught:
+                await controller.run(record())
+        self.assertIs(caught.exception.cause, failure)
+        self.assertEqual(len(controller.api._transport.calls), 1)
+        self.assertEqual(len(created), 2)
+        self.assertTrue(all(task.done() for task in created))
+
+    @unittest.skipUnless(hasattr(asyncio, "eager_task_factory"), "This Python has no eager task factory")
+    async def test_eager_driver_dispatch_uses_the_registered_claim(self):
+        controller = self.controller(self.lifecycle(), preverified_input=verify_job_input(response(), feed=record().input))
+        loop = asyncio.get_running_loop()
+        previous = loop.get_task_factory()
+        loop.set_task_factory(asyncio.eager_task_factory)
+        try:
+            self.assertIs(type(await controller.run(record())), DeliveryAcceptedCheckpoint)
+        finally:
+            loop.set_task_factory(previous)
+        self.assertTrue(controller.shutdown_ready)
 
     async def test_unknown_active_start_replay_cannot_enter_science(self):
         claims = AttemptClaims.live()
@@ -164,15 +321,15 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                 controller._start_policy.on_retry.assert_not_called()
                 self.assertEqual(["retire"], controller.session.events)
 
-    async def test_cancellation_during_retry_wait_preserves_original_command(self):
+    async def test_explicit_stop_during_retry_wait_preserves_original_command(self):
         waiting = asyncio.Event()
         controller = self.controller(Transport(reply(b"maintenance", status=503)))
         controller._start_policy = LiveStartPolicy(10, lambda *_: waiting.set(), Mock())
         task = asyncio.create_task(controller.run(record()))
         await asyncio.wait_for(waiting.wait(), 1)
-        task.cancel()
-        with self.assertRaises(asyncio.CancelledError):
-            await task
+        controller.request_stop()
+        deferred = await asyncio.wait_for(task, 1)
+        self.assertIs(type(deferred), StartDeferred)
         self.assertEqual(record(), controller._claim._pending)
         self.assertEqual(1, len(controller.api._transport.calls))
         self.assertEqual(["retire"], controller.session.events)
@@ -235,10 +392,8 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                 return result
 
         controller = self.controller(LateStart(reply(start_response())))
-        control_asyncio = SimpleNamespace(
-            get_running_loop=lambda: SimpleNamespace(time=lambda: clock.elapsed),
-            CancelledError=asyncio.CancelledError,
-        )
+        control_asyncio = Mock(wraps=asyncio)
+        control_asyncio.get_running_loop.return_value = SimpleNamespace(time=lambda: clock.elapsed)
         with patch("provider_core.controller.asyncio", control_asyncio):
             deferred = await controller.run(record())
         self.assertTrue(deferred.may_have_committed)

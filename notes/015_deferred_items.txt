@@ -1,0 +1,25 @@
+Deferred items for shared provider infrastructure
+================================================
+
+Priorities and active design obligations are recorded in
+014_joint_provider_refactor_decisions_20261028.txt. Deferral here does not turn a
+rejected runtime, report-ownership or operational compromise into an accepted
+endpoint.
+
+Native operation-deadline fixture startup timing
+----------------------------------------------
+
+Owner: provider-core native test qualification.
+Priority: minor; investigate if it repeats or that fixture changes.
+
+During the retained-controller work, one intermediate installed unit run failed
+test_absolute_operation_deadline_stops_connected_but_idle_owner while receiving
+the fixture worker PID: ConnectionResetError. The later complete 486-case run
+passed, with no native runner implementation or timeout change. A product defect
+has not been established; avoid rewriting the runner or extending its deadline
+merely to suppress a one-off test result.
+
+Evidence: /tmp/sdk-owned-driver-green.log (480 cases, one error) and
+/tmp/sdk-owned-driver-races-green.log (486 cases, all passed). These temporary
+logs identify the observed runs; the shared decision note preserves their
+interpretation if the files are later removed.

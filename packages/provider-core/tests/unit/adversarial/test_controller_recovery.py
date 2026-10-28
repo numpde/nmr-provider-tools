@@ -6,7 +6,7 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, Mock
 
-from provider_core.controller import ControllerFailed
+from provider_core.controller import ControllerFailed, ControllerRefused
 from provider_core.delivery_client import DeliveryRejected, DeliveryUnavailable
 from provider_core.delivery_store import DeliveryFull
 from provider_core.execution import ExecutionFailed
@@ -55,26 +55,41 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(type((store.records)[0]), TerminalSelectedCheckpoint)
 
 
-    async def test_caller_cancellation_stops_backoff_and_settle_never_creates_submission(self):
+    async def test_selected_report_survives_observer_cancellation_and_explicit_stop(self):
         store = LiveAttemptProbe()
         session, delivery, entered = SingleRetirementSession(store), RecordingDelivery(), asyncio.Event()
-        delivery.submit = AsyncMock(side_effect=DeliveryFull("Relay full"))
+        recovered, bodies, submit = asyncio.Event(), [], delivery.submit
+
+        async def pressured(item):
+            bodies.append(item.body)
+            if not recovered.is_set():
+                raise DeliveryFull("Relay full")
+            return await submit(item)
+
+        delivery.submit = pressured
         controller = live_controller(api(Transport(*lifecycle_replies()), scope().api_origin), store, AttemptClaims.live(), session,
-            delivery=delivery, on_delivery_retry=lambda *_: entered.set(), delivery_retry_initial_seconds=10,
-            delivery_retry_max_seconds=10, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+            delivery=delivery, on_delivery_retry=lambda *_: entered.set(), delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.02, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
         task = asyncio.create_task(controller.run(record()))
         try:
             await asyncio.wait_for(entered.wait(), 1)
             task.cancel()
             with self.assertRaises(asyncio.CancelledError):
                 await task
-            with self.assertRaises(ControllerFailed):
+            controller.request_stop()
+            with self.assertRaises(ControllerRefused):
                 await controller.settle()
-            delivery.submit.assert_awaited_once()
             self.assertIs(type((store.records)[0]), TerminalSelectedCheckpoint)
+            recovered.set()
+            await asyncio.wait_for(controller.join(), 1)
+            self.assertTrue(controller.shutdown_ready)
+            self.assertGreaterEqual(len(bodies), 2)
+            self.assertTrue(all(body == bodies[0] for body in bodies))
             self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
         finally:
+            recovered.set()
             await cancel_task(task)
+            await asyncio.wait_for(controller.join(), 1)
 
     async def test_original_ipc_retirement_and_late_permission_precede_retry(self):
         for disposition in ("permanent", "cleanup", "available"):

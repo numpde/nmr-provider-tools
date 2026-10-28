@@ -29,6 +29,7 @@ from provider_core.job_input import VerifiedJobInput
 from provider_core.execution import (
     AttemptExecutor,
     ExecutionStopRequested,
+    _observe_task_failure,
     require_condition_recovery,
     require_execution_settings,
     require_observation_recovery,
@@ -58,6 +59,15 @@ class _Lifetime(Enum):
     HELD = auto()
     SETTLING = auto()
     RELEASED = auto()
+
+
+def _create_owned_task(coroutine):
+    """Close an unsubmitted coroutine if the event loop refuses its ownership."""
+    try:
+        return asyncio.create_task(coroutine)
+    except BaseException:
+        coroutine.close()
+        raise
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,6 +190,9 @@ class AttemptController:
         self._allowed_job_states = allowed_job_states
         self._poll_seconds, self._task_settle_seconds = poll_seconds, task_settle_seconds
         self._lifetime = _Lifetime.NEW
+        self._driver = None
+        self._driver_interruption = None
+        self._stop_requested = asyncio.Event()
         self._claim = None
         self._operation = None
         self._acknowledged = None
@@ -222,11 +235,74 @@ class AttemptController:
         )
 
     async def run(self, pending):
+        """Start once and observe the retained driver without transferring ownership.
+
+        Cancelling this wait does not cancel the lifecycle. Use request_stop to
+        withdraw future effects, then join before settling its original owners.
+        """
         if self._lifetime is not _Lifetime.NEW:
             raise ControllerRefused(
                 "This controller accepts only one run; retain its original invocation and controller for settlement or recovery"
             )
         self._lifetime = _Lifetime.RUNNING
+        try:
+            self._reserve_start(pending)
+            self._driver = _create_owned_task(self._drive(pending))
+            self._driver.add_done_callback(_observe_task_failure)
+        except (Exception, asyncio.CancelledError) as cause:
+            self._remember(cause)
+            try:
+                await self._retire_after_failure()
+            finally:
+                self._lifetime = _Lifetime.HELD
+            if isinstance(cause, asyncio.CancelledError):
+                raise
+            raise self.last_failure from None
+        return await self.join()
+
+    async def join(self):
+        """Observe the original driver; repeated or cancelled waits dispatch nothing."""
+        if self._driver is None:
+            raise ControllerRefused("This controller has no original driver to join; no new work was dispatched")
+        observer = asyncio.current_task()
+        cancellations = observer.cancelling()
+        try:
+            return await asyncio.shield(self._driver)
+        except asyncio.CancelledError:
+            if observer.cancelling() == cancellations and self._driver_interruption is not None:
+                raise self._driver_interruption
+            raise
+
+    def request_stop(self):
+        """Withdraw future START/scientific effects without revoking selected delivery."""
+        self._stop_requested.set()
+
+    def _stopping_requested(self):
+        return self._stop_requested.is_set() or self._stopping.is_set()
+
+    async def _wait_for_stop(self, seconds):
+        waits = []
+        try:
+            for event in (self._stop_requested, self._stopping):
+                waits.append(_create_owned_task(event.wait()))
+            done, _ = await asyncio.wait(waits, timeout=seconds, return_when=asyncio.FIRST_COMPLETED)
+            return bool(done)
+        finally:
+            for wait in waits:
+                wait.cancel()
+            await asyncio.gather(*waits, return_exceptions=True)
+
+    async def _drive(self, pending):
+        try:
+            return await self._run_lifetime(pending)
+        except asyncio.CancelledError as cause:
+            # Task observation reconstructs CancelledError; retain the original
+            # exception so its independent cleanup evidence is not erased.
+            self._driver_interruption = cause
+            raise
+
+    async def _run_lifetime(self, pending):
+        self._start_deferred = None
         try:
             result = await self._run_effects(pending)
             if (type(result) is StartDeferred and result.may_have_committed) or type(result) is ActiveStartReplayHeld:
@@ -246,7 +322,7 @@ class AttemptController:
             if self._lifetime is _Lifetime.RUNNING:
                 self._lifetime = _Lifetime.HELD
 
-    async def _run_effects(self, pending):
+    def _reserve_start(self, pending):
         if type(pending) is not StartPending or pending.scope != self.scope:
             raise ControllerRefused("Live START requires the selected API, provider, lane and generation")
         if self._preverified_input is not None and self._preverified_input.identity != pending.input:
@@ -254,7 +330,10 @@ class AttemptController:
         self._claim = self._claims.claim_live(
             pending, lifecycle_owner=self, maximum_terminal_bytes=self._maximum_terminal_bytes,
         )
+        self._defer_start(pending, None, False)
         self._operation = AttemptStarter.live(self.api, self._claim, scope=self.scope)
+
+    async def _run_effects(self, pending):
         acknowledged = await self._start_live_attempt(pending)
         if type(acknowledged) is StartDeferred:
             await self._retire_session()
@@ -298,7 +377,7 @@ class AttemptController:
             or acknowledged is not self._acknowledged
         ):
             raise ControllerRefused("Cannot begin live execution without this running controller's original admission and executor")
-        if self._stopping.is_set():
+        if self._stopping_requested():
             raise ExecutionStopRequested("Cannot continue science or select a report: the supervising owner requested stopping")
         if acknowledged.admission.replayed and not self._allow_active_start_replay:
             raise ControllerRefused("Cannot execute an active START replay with unproved earlier execution")
@@ -333,7 +412,7 @@ class AttemptController:
 
     async def _start_live_attempt(self, pending):
         policy, loop = self._start_policy, asyncio.get_running_loop()
-        if self._stopping.is_set():
+        if self._stopping_requested():
             return self._defer_start(pending, None, False)
         deadline = loop.time() + policy.window_seconds
         possible_commit = False
@@ -365,7 +444,7 @@ class AttemptController:
                     retry_after = latest_failure.retry_after_seconds
                     if retry_after is not None:
                         retry_at = loop.time() + retry_after
-                if (self._stopping.is_set() or replays >= policy.maximum_replays
+                if (self._stopping_requested() or replays >= policy.maximum_replays
                         or not self.api.can_replay_start(latest_failure)):
                     return self._defer_start(pending, latest_failure, possible_commit)
                 if first_failure is None:
@@ -377,15 +456,11 @@ class AttemptController:
                 if seconds + allowance > deadline - loop.time():
                     return self._defer_start(pending, latest_failure, possible_commit)
                 policy.on_retry(pending, latest_failure, seconds)
-                if self._stopping.is_set() or seconds + allowance > deadline - loop.time():
+                if self._stopping_requested() or seconds + allowance > deadline - loop.time():
                     return self._defer_start(pending, latest_failure, possible_commit)
-                try:
-                    await asyncio.wait_for(self._stopping.wait(), timeout=seconds)
-                except TimeoutError:
-                    # This wait owns only the pacing timer, never API/native I/O.
-                    if self._stopping.is_set() or allowance > deadline - loop.time():
-                        return self._defer_start(pending, latest_failure, possible_commit)
-                else:
+                if await self._wait_for_stop(seconds):
+                    return self._defer_start(pending, latest_failure, possible_commit)
+                if self._stopping_requested() or allowance > deadline - loop.time():
                     return self._defer_start(pending, latest_failure, possible_commit)
                 replays += 1
                 send = self._operation.resume
@@ -393,7 +468,7 @@ class AttemptController:
                 self._acknowledged = acknowledged
                 if first_failure is not None:
                     policy.on_recovered(acknowledged, first_failure)
-                if acknowledged.admission.state == "in_progress" and (self._stopping.is_set() or loop.time() > deadline):
+                if acknowledged.admission.state == "in_progress" and (self._stopping_requested() or loop.time() > deadline):
                     return self._defer_start(pending, latest_failure, True)
                 return acknowledged
 
