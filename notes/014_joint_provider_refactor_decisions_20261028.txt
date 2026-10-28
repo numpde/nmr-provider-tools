@@ -1162,3 +1162,34 @@ only recognizes raw reset errors or typed EOF. Preserve original cause/exit
 observation before deliberate interruption for actual reset; a mere timeout or
 protocol error still does not establish a crash. NMRNet independently reviews
 the native ownership/race boundary read-only; this preview is not final acceptance.
+
+Checkpoint -- 21:38 UTC
+-----------------------
+
+SECS committed the qualified native installation as 19e356c; its tree was clean.
+Its next actual native proposal preserves the WorkerClient caller seam and serial
+scientific JSON codec while replacing fork/relay/reap with SDK RunnerSession and
+an inherited-FD child. Root found a consequential budget issue before approving
+relay removal: the old relay enforces each request deadline independently, while
+the client can block in a synchronous API snapshot for up to its I/O allowance.
+A plain owner-session runner plus the same callback would lose that independent
+deadline behavior. Compare a retained client deadline owner with advancing async
+observation composition; preserve scientific budgets explicitly. Existing SECS
+TERM/KILL bounds are 2+2 s, client stop is 10 s and worker Compose grace 20 s;
+do not silently replace them with another provider's defaults. Read-only native
+RED/protocol work can proceed while this local ownership choice is resolved.
+
+Magnet's actual-SDK scratch two-lane probe confirmed that B's cutoff failure
+causes production TaskGroup supervision to cancel A's selected-report driver.
+After delivery recovers, A has no ACK and is not shutdown-ready. NMRNet reviewed
+the counterexample independently. It proves the group behavior with an authored
+force-close callback, not the full nested production finalizer or model system.
+Root requested a pre-stop genuine-error variant before choosing between a
+drain-only correction and failure-triggered graceful joining generally. Keep
+external owner cancellation and scientific cutoff policy distinct; no product
+change or new SDK state API is approved for this new question yet.
+
+SECS and NMRPeak report the user's explicit local instruction to apply delegated
+repo change with critical Luna/medium review. Each coordinator retains all edits;
+their new native/deadline auditors are read-only. This does not transfer ownership
+of this record or authorize cross-repository writes, releases or deployment.
