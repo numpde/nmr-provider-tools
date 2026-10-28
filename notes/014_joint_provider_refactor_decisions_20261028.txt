@@ -1019,3 +1019,25 @@ Qualify the count statement in the offering rather than implying every nominal
 batch fits. The separate protected-evidence ceiling is outside this terminal-size
 slice. Require a real planner/session/core FAIL path with no prediction, and a
 structural-error counterexample that does not become result_size_limit.
+
+Checkpoint -- 21:25 UTC
+-----------------------
+
+Root reviewed NMRNet's six-file D027 change: the single pre-prediction size
+subtype is mapped through the existing failure owner, structural errors stay
+internal, and the offering count statement is qualified. The real planner batch
+returns safe AnalysisFailure without prediction; cleanup is tested separately.
+The real SDK/relay/API FAIL test and maintained qualification precede acceptance.
+
+SECS D021 captured its genuine missing-/opt/native RED before product edits.
+Root reviewed the isolated venv/product build diff and actual FD test/probe:
+the supervisor ignores inherited global PYTHONPATH, while its explicit scientific
+child uses the unchanged global environment and installed scientific package.
+The build reuses the exact acquired lock/wheelhouse, includes both in its input
+identity, and creates no provider-image cycle. Actual offline CPU build and
+installed environment/FD checks remain pending; installation does not replace
+the old worker lifecycle yet.
+
+NMRPeak's atomic native cut and Magnet's maintained D022 qualification continue.
+The goal remains active: committed prerequisites and local proof are not the
+completed SECS/NMRPeak controller/delivery migration, a new SDK release or rollout.
