@@ -1217,3 +1217,78 @@ SECS continues the explicit request-deadline/retirement comparison before its
 native product cut. Magnet's pre-stop sibling-failure variant is being checked
 before the next supervision choice. These are local design/qualification tasks;
 there is no pending user approval or authorized production operation.
+
+Critical review checkpoint -- 21:45 UTC
+-------------------------------------
+
+The user asked which decisions are most questionable. Root identified four
+tradeoffs, without silently changing their implementation authority:
+
+- NMRPeak's two-Python composition protects the scientific closure but adds
+  packaging/patching burden. Properly qualifying SDK Python 3.11 support remains
+  a serious alternative. Current evidence proves selected dual-runtime facts,
+  not yet the finished product images; do not justify this choice by sunk cost.
+- NMRNet's fresh-only up is deliberately coarse. It closes unqualified recreation
+  but sacrifices idempotence and complicates partial-state recovery. Automatic
+  provider-first drain/reconcile remains an alternative requiring its own policy.
+- Retaining selected reports can make graceful shutdown wait indefinitely.
+  That protects live obligations but is an operator tradeoff, not bounded shutdown.
+- SECS native-first sequencing may require deadline machinery solely for the
+  synchronous controller due to be deleted. Compare that cost with moving async
+  observation composition into the native cut before adding temporary machinery.
+
+Coordination itself has also become too expensive: repeated ACK exchanges have
+caused redundant waits. A recorded design choice and closed source audit already
+authorize the named coordinator to commit once the specified independent review
+and checks pass. Do not demand another root permission round without changed
+scope, new findings or failed evidence. Keep independent critique and one editor
+per repository; remove repeated acknowledgement ceremonies, not actual proof.
+
+D030 -- Raise the shared foundation, prioritize real blockers (21:51 UTC)
+---------------------------------------------------------------------------
+
+The user rejected the four compromises above as endpoints and directed every
+peer to rise the tide rather than lift individual boats. The user also asked
+for prioritization and authorized respective repository deferred-items notes.
+These instructions govern the next work; the prior choices are not defended
+merely because local commits or candidate code already exist.
+
+Serious alternatives:
+A. Finish separate consumer workarounds (two-Python images, local watchdogs,
+   coarse startup refusal and per-provider supervision patches), then extract
+   something later. This entrenches precisely the maintenance burden rejected.
+B. Establish shared lifecycle/deadline/runtime/operational boundaries from the
+   demonstrated failures, then use thin scientific adapters in consumers.
+   Preserve useful tests and product work, while changing the rejected endpoints.
+C. Turn every caveat into a blocking infrastructure campaign. This obscures the
+   actual correctness/adoption blockers and prevents useful convergence.
+
+Choice: B with explicit priorities, not C. Root has sent this direction to all
+four responsible peers. Root alone integrates SDK changes; each consumer remains
+the sole editor of its checkout. No release/deployment authority is inferred.
+
+Priority 1: shared correctness. Preserve original selected-report drivers across
+failure/stop and enforce scientific deadlines independently of API observation.
+Use the actual multi-lane and blocking-callback witnesses. Keep external caller
+cancellation, original native observation and real cleanup evidence distinct.
+
+Priority 2: shared adoption. Qualify a supported SDK runtime solution instead of
+per-consumer metadata bypasses or interpreter-prefix workarounds. NMRNet now
+investigates actual Python 3.11 dependencies/APIs/qualification beyond syntax.
+SECS compares direct async composition against temporary synchronous watchdogs;
+NMRPeak retains scientific/native work while its two-Python endpoint is held.
+Complete both providers' actual controller/delivery migrations and delete old
+lifecycle/publication authority; do not call prerequisite installation adoption.
+
+Priority 3: shared operations. Establish safe idempotent deployment reconciliation
+and an outage-handoff design with minimal operator intervention. A fail-closed
+guard or retained owner can protect current work during implementation; neither
+is automatically the desired long-term operator experience. Do not promise bounded
+shutdown merely by assigning a timeout or destroying an undelivered obligation.
+
+Deferred-items notes belong in the respective repositories and link to this
+decision record. Record a concrete concern, owner, reason for deferral, and a
+condition for revisiting. Unchanged-model campaigns, unproved GPU/OOM scenarios
+and genuinely non-blocking capability work can be separated from this refactor.
+Do not relabel the user's four rejected endpoints as acceptable caveats, or
+invent a new shared framework before its actual cross-consumer owner is proved.
