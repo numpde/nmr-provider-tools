@@ -1041,3 +1041,59 @@ the old worker lifecycle yet.
 NMRPeak's atomic native cut and Magnet's maintained D022 qualification continue.
 The goal remains active: committed prerequisites and local proof are not the
 completed SECS/NMRPeak controller/delivery migration, a new SDK release or rollout.
+
+D028 -- Restore NMRNet's maintained fixture and test grants (21:27 UTC)
+------------------------------------------------------------------------
+
+The broader provider lane ran 256 cases with ten failing subcases. Root inspected
+the actual failure log and owning source. Six image cases stop at a required
+hello.md selector absent from the committed ImageSource scaffold; the required
+selector and omission both predate D027. Four consumer-launcher dry runs require
+/workspace/requirements, which the enclosing unit lane does not mount. The real
+checkout has that authority. No baseline run is claimed; these source/setup
+causes are independently demonstrated, not inferred from unrelated filenames.
+
+Serious alternatives:
+A. Fix the two actual test owners: include the required offering in the authored
+   image scaffold and grant public requirements read-only to unit selections
+   that execute these consumer-launcher dry runs. Preserve the production checks.
+B. Weaken required selectors or source admission to let incomplete fixtures pass.
+   This changes the product boundary instead of supplying its required inputs.
+C. Split a new test framework/lane or ignore the maintained failures. Neither
+   is needed for two local missing-input facts, and ignoring them leaves the
+   final branch without its maintained proof.
+
+Choice: A as a separate small validation repair after the D027 behavior slice.
+Keep grants limited to the unit selections that include the affected cases,
+read-only, without Engine, network, secret or whole-checkout authority. Use the
+existing source-directory admission before granting it; do not change scientific
+dependencies or bypass container requirements. Re-run the causal failing cases
+then the maintained provider lane. Local D027 can commit after focused proof and
+independent audit with this exact known qualification closure named; do not call
+the final branch fully green until D028 closes those failures.
+
+Checkpoint -- 21:28 UTC
+-----------------------
+
+Magnet committed D022 as c720141 with a clean tree after 669 unit cases in
+41.417 s and 122 integration cases in 88.685 s, focused real-SDK/supervision
+proof, root review and NMRNet independent review. These authored API/relay tests
+are local consumer evidence, not production-finalizer or model qualification.
+Magnet independently cleared the narrow NMRNet D027 mapping as well.
+
+SECS D021's actual offline CPU image is
+sha256:33bc49d581399c22498457d5be90953ee24099b18091707793f12e57c7d778a4.
+Its installed two-environment/FD/lease/warm-child/retirement test passed, as did
+11 reader/science and 136 input cases plus 21 semantic coverage cases. One added
+scientific installed-origin assertion is being rerun before commit. Root source
+acceptance is closed, conditional on that final actual-image test remaining green.
+This qualifies installation and the fixture boundary, not actual WorkerClient
+replacement, GPU/model inference or completed controller/delivery adoption.
+
+Evidence correction: SECS's reused helper initially overwrote its earlier D005
+science/input /tmp log filenames with these new runs. Those files no longer
+prove the historical D005 runs; their earlier tool history and this record remain.
+The current D021 logs were copied to /tmp/secs-native-{science,input}-green.log;
+future runs must use distinct stage names. Do not silently relabel current logs
+as the earlier proof. This is an evidence-handling mistake, not a scientific
+result change or reason to repeat a passing campaign without new concerns.
