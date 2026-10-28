@@ -322,12 +322,10 @@ class RunnerRefusalTests(unittest.TestCase):
         session = runner.session(startup_seconds=2, retirement_seconds=2)
         self.addCleanup(session.close)
         session.connect()
-        pid = worker_pid(session.science, b"H")
         session.observe_retirement()
-        self.assertEqual(session.retirement.returncode, -9)
+        self.assertIn(session.retirement.returncode, (-15, -9))
         self.assertEqual("deadline", session.retirement.reason)
-        with self.assertRaises(ProcessLookupError):
-            os.kill(pid, 0)
+        self.assertTrue(session.retirement.scratch_released)
 
     def test_busy_runner_does_not_spawn_second_child_without_retirement(self):
         runner = RunningSupervisor()

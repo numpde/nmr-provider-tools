@@ -1593,7 +1593,9 @@
         "ControllerRecoveryFailureTests.test_permanent_refusal_or_unsettled_cleanup_never_retries",
         "ControllerRecoveryFailureTests.test_retry_settings_reject_nonfinite_bounds_and_missing_recipient_before_effects"
       ],
-      "replaced_test_methods": {},
+      "replaced_test_methods": {
+        "ControllerRecoveryFailureTests.test_caller_cancellation_stops_backoff_and_settle_never_creates_submission": "ControllerRecoveryFailureTests.test_selected_report_survives_observer_cancellation_and_explicit_stop"
+      },
       "retired_test_methods": {
         "ControllerRecoveryFailureTests.test_accepted_metadata_failure_drops_payload_without_replaying_successful_handoff": "Specific to retired producer persistence or stopped recovery."
       }
