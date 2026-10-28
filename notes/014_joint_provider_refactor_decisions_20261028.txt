@@ -379,3 +379,50 @@ Its 14 proposed runtime pins were matched locally against 26,692 current public
 advisories with no findings/unparsed bounds. Backend review and the unavailable
 OS pin above are separate from that runtime-pin result. No new SDK release,
 production deployment, or scientific runner runtime change has occurred.
+
+D012 -- Investigate the native interpreter boundary before choosing (20:42 UTC)
+-----------------------------------------------------------------------------
+
+Actual new adoption gap: NMRPeak's scientific images use Python 3.11, whereas
+the published SDK metadata requires 3.12. D009 upgrades provider/test control
+images only; it does not make a shared native supervisor installable into the
+unchanged scientific interpreter. SECS must identify the same boundary in its
+own images before assuming its native adoption is environment-neutral.
+
+Serious alternatives to assess:
+A. Upgrade the scientific interpreter to 3.12 while preserving scientific pins.
+   This is one runtime, but requires real compatibility/model qualification and
+   may disturb compiled scientific dependencies. It is not implied by D009.
+B. Put SDK/control Python 3.12 beside the unchanged scientific Python 3.11 in
+   the same model image. Native Popen can launch the explicit science interpreter;
+   this preserves model pins but adds a second interpreter/ABI/image closure.
+C. Qualify shared SDK support for Python 3.11, then issue a reviewed compatible
+   artifact if the complete support matrix justifies it. This may be smaller for
+   consumers, but metadata lowering alone would be dishonest: syntax, runtime,
+   native/lifecycle behavior, dependencies and release qualification all matter.
+
+Choice now: evidence gathering only, before authorizing any of A/B/C. Keep the
+approved 3.12 control/test prerequisite coherent; do not change scientific images,
+vendor SDK source, bypass its package metadata in a shipped runtime, or announce
+new support/release on the basis of a syntax probe. Root owns shared SDK feasibility;
+peers report concrete image/interpreter/dependency constraints and alternatives.
+An isolated existing-image syntax/compatibility probe can rule out unsupported
+assumptions without installing new dependencies or mutating a deployment.
+
+Checkpoint -- 20:42 UTC
+-----------------------
+
+SECS D005 final corrected lanes pass: provider 278, real science 11, input 136,
+plus 21 semantic evidence requirements. NMRPeak independently reviewed source
+and logs; requested formula/entry-refusal/source-retention witnesses are closed.
+SECS is committing only the atomic scientific caller/worker boundary.
+
+NMRNet D008 launcher RED/GREEN is ready for root audit, with final maintained
+target running. Magnet D007 is also ready; root found an initial-state guard
+gap for restarting/paused live providers and requested adversarial state cases
+before accepting that slice. Already-stopped abnormal teardown policy must be
+stated rather than silently conflated with newly successful drain.
+
+NMRPeak D009 is rebuilding after D010/D011, then needs installed-artifact and
+maintained-suite evidence. D012 is a separate real native-adoption feasibility
+question; it does not reverse or silently extend D009's image scope.
