@@ -504,7 +504,7 @@ class CapturedNativeTests(unittest.TestCase):
                         env=environment | {"NATIVE_STATUS": str(status)},
                         capture_output=True,
                         text=True,
-                        timeout=5,
+                        timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS,
                         check=False,
                     )
                     self.retain_cleanup(result.stderr)
@@ -842,12 +842,20 @@ class CapturedNativeTests(unittest.TestCase):
     def test_anchor_join_interruption_retries_before_confirming_retirement(self):
         source = self.helper.read_text()
         retirement = 'kill -KILL -- "-$leader"'
+        birth = '    leader=$!\n'
         join = '            wait "$leader" 2>/dev/null || :\n'
         self.assertEqual(1, source.count(retirement))
+        self.assertEqual(1, source.count(birth))
         self.assertEqual(1, source.count(join))
         # TERM leaves the held anchor live so its actual wait can be interrupted.
-        # The external probe releases that same held group after observing retry.
+        # Record that exact group before startup so failed assertions can retire
+        # it before the next signal scenario starts.
         source = source.replace(retirement, 'kill -TERM -- "-$leader"', 1)
+        source = source.replace(
+            birth,
+            birth + '    printf "%s\\n" "$leader" > "$NATIVE_ANCHOR"\n',
+            1,
+        )
         source = source.replace(
             join,
             '            printf "%s %s\\n" "$interrupt_count" "$inference_retirement_confirmed" >> "$NATIVE_JOIN"\n' + join,
@@ -857,30 +865,36 @@ class CapturedNativeTests(unittest.TestCase):
         for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
             with self.subTest(signal=signum):
                 self.observation.unlink(missing_ok=True)
-                receipt = self.root / "join"
-                receipt.unlink(missing_ok=True)
+                receipt = self.root / f"join-{signum.value}"
+                anchor = self.root / f"anchor-{signum.value}"
                 command, environment = self.fact_command(budget="untimed", additions={"NATIVE_BEHAVIOR": "held-descendant"})
                 process = subprocess.Popen(
                     command,
-                    env=environment | {"NATIVE_JOIN": str(receipt)},
+                    env=environment | {"NATIVE_JOIN": str(receipt), "NATIVE_ANCHOR": str(anchor)},
                     text=True,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     start_new_session=True,
                 )
-                self.addCleanup(self.retire_probe, process)
-                self.await_file(receipt)
-                observed = json.loads(self.observation.read_text())
                 try:
+                    deadline = time.monotonic() + NATIVE_FIXTURE_WATCHDOG_SECONDS
+                    while not receipt.exists() and time.monotonic() < deadline:
+                        time.sleep(0.01)
+                    self.assertTrue(receipt.exists(), msg=f"fixture did not publish {receipt.name}")
                     process.send_signal(signum)
                     deadline = time.monotonic() + 2
                     while len(receipt.read_text().splitlines()) < 2 and time.monotonic() < deadline:
                         time.sleep(0.01)
                     self.assertEqual(["0 false", "1 false"], receipt.read_text().splitlines())
                 finally:
-                    os.killpg(observed["parent"], signal.SIGKILL)
-                _, stderr = process.communicate(timeout=4)
-                self.retain_cleanup(stderr)
+                    if anchor.exists():
+                        with suppress(ProcessLookupError):
+                            os.killpg(int(anchor.read_text()), signal.SIGKILL)
+                    try:
+                        _, stderr = process.communicate(timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS)
+                    finally:
+                        self.retire_probe(process)
+                    self.retain_cleanup(stderr)
                 self.assertEqual(128 + signum, process.returncode, msg=stderr)
                 self.assertEqual("true\n", (self.root / "retired").read_text())
                 self.assert_client_retired()
