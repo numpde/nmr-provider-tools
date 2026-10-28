@@ -1097,3 +1097,49 @@ The current D021 logs were copied to /tmp/secs-native-{science,input}-green.log;
 future runs must use distinct stage names. Do not silently relabel current logs
 as the earlier proof. This is an evidence-handling mistake, not a scientific
 result change or reason to repeat a passing campaign without new concerns.
+
+D029 -- The wheel-capture fixture uses its checker interpreter (21:29 UTC)
+-------------------------------------------------------------------------
+
+D028 exposed two remaining wheel-capture failures. Root read the exact traces
+and fixture: it launches the selector with the provider-test venv interpreter,
+whose pip is intentionally absent. Actual wheel selection belongs to the checker
+base interpreter, which already runs that selector before creating the SDK venv.
+
+Serious alternatives:
+A. Install pip into the provider-test environment. This adds an installer to a
+   consumer runtime merely to satisfy a fixture's wrong interpreter choice.
+B. Make the contained wheel-capture fixture explicitly use its existing checker
+   base interpreter (sys._base_executable under the supported CPython image).
+   Keep the selector, hash checks, offline pip dry run and runtime venv unchanged.
+C. Fake a successful selection or bypass pip's report. This removes the behavior
+   the fixture is supposed to prove.
+
+Choice: B. No host interpreter, network, Engine grant or fallback search. Root
+found the proposed helper edit already present while reviewing; this entry does
+not claim to precede that edit. The selection must still execute the real frozen
+selector with its actual checker-owned dependency tool. Re-run the two causal
+cases and the maintained provider lane before the validation repair commits.
+
+Checkpoint -- 21:31 UTC
+-----------------------
+
+NMRNet committed D027 as 582a97f after real SDK/relay/API FAIL, no-prediction,
+cleanup and structural-counterexample proof (service 49, result 36 cases) and
+root/Magnet review. It committed D028/D029 as 30fae9b after the complete 256-case
+provider unit lane passed. Its tree is clean. No further common-design invariant
+violation is established in the reviewed NMRNet scope. Deliberate limitations
+remain: separate protected-evidence refusal, scratch-authority requirements for
+replacement proof, potentially indefinite delivery drain, and unrun GPU/OOM,
+numerical and live-rollout campaigns. Do not turn those unclaimed campaigns into
+successful proof or automatic new product scope.
+
+SECS D021's final installed-origin/environment/FD case passed on its actual
+CPU image (1 case, 2.994 s); reader/science and input results remain green.
+Root final source acceptance is closed. NMRNet is independently reviewing the
+exact four-file slice read-only before its commit; root permission is not pending.
+
+Magnet is probing the proposed two-lane sibling-cancellation scenario in a
+scratch fixture using real SDK controllers and production operation supervision.
+It remains a hypothesis until the exact driver/cause/ACK behavior is observed.
+No extra SDK API, scheduling state or product change is approved for that question.
