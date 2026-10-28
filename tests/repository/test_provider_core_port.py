@@ -24,6 +24,9 @@ class ProviderCorePortTests(unittest.TestCase):
                     self.assertTrue(entry["retired"].strip())
                     self.assertFalse(path.exists())
                     continue
+                if "replacement_path" in entry:
+                    self.assertFalse(path.exists())
+                    path = ROOT / entry["replacement_path"]
                 self.assertTrue(path.is_file() and not path.is_symlink())
                 if path.suffix != ".py":
                     continue

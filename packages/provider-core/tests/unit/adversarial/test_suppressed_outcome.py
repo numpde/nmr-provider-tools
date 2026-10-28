@@ -42,7 +42,7 @@ async def stopped_executor(directory, retirement_failure):
     return store, executor, session, claim, transport
 
 
-class SuppressionPersistenceTests(unittest.IsolatedAsyncioTestCase):
+class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
     async def test_caller_cancellation_preserves_returned_result_after_original_api_settles(self):
         reading = asyncio.Event()
 
@@ -110,7 +110,7 @@ class SuppressionPersistenceTests(unittest.IsolatedAsyncioTestCase):
             claim.release(owner=claim.lifecycle_owner)
 
 
-    async def test_durable_suppression_cannot_release_unconfirmed_worker_retirement(self):
+    async def test_suppression_cannot_release_unconfirmed_worker_retirement(self):
         with tempfile.TemporaryDirectory() as directory:
             store, executor, session, claim, transport = await stopped_executor(directory, RuntimeError("private cleanup failure"))
             retained = await executor.retain_suppressed_disposition()

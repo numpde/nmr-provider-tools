@@ -2,8 +2,9 @@
 
 Authority: nmr-api-v1 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8,
 nmr_api/provider/schemas/execution_attempt_start_request.v1.schema.json and
-provider/routes.py::EXECUTION_ATTEMPT_START_ROUTE. The lifecycle owner must persist
-the body before first dispatch. This module does not generate keys or persist data.
+provider/routes.py::EXECUTION_ATTEMPT_START_ROUTE. The lifecycle owner retains the
+exact body before first dispatch. This module neither generates keys nor stores
+request state.
 """
 
 from provider_core.container_guard import require_container
@@ -104,7 +105,7 @@ def _failure_code(value):
 
 
 def complete_body(execution_attempt_ref, result_schema_id, result):
-    """Encode opaque result bytes once for persistence and exact terminal replay.
+    """Encode opaque result bytes once for exact terminal delivery and replay.
 
     Authority: pinned provider/schemas/execution_attempt_complete_request.v1.schema.json
     and operations/canonical_content.py. Core does not interpret scientific content.

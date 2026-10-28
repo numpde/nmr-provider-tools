@@ -41,7 +41,7 @@ class PreparedIdentityTests(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(len(raw), MAX_CHECKPOINT_BYTES)
         self.assertNotIn(identity.content, raw)
 
-    async def test_execute_observes_matching_identity_in_durable_entry_and_terminal(self):
+    async def test_execute_observes_matching_identity_in_live_entry_and_terminal(self):
         transport = Transport(
             reply(observation()),
             reply(response()),

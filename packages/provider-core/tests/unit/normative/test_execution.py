@@ -1,4 +1,4 @@
-"""Execution follows verified source, preparation, progress and durable entry."""
+"""Execution follows verified source, preparation, progress and live entry."""
 
 from tests.fakes.checkpoint_execution import RecordingDelivery
 from unittest.mock import Mock
@@ -17,7 +17,7 @@ from tests.fakes.api import api
 
 
 class ExecutionTests(unittest.IsolatedAsyncioTestCase):
-    async def test_success_observes_durable_entry_and_retains_outcome_before_return(self):
+    async def test_success_observes_live_entry_and_retains_outcome_before_return(self):
         transport = Transport(
             reply(observation()),
             reply(response()),

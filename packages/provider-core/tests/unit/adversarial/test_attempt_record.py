@@ -36,7 +36,7 @@ class AttemptRecordFailureTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 replace(self.scope(), **changes)
 
-    def test_encoder_refuses_record_larger_than_decoder_can_restore(self):
+    def test_encoder_refuses_record_above_the_live_control_limit(self):
         scope = replace(self.scope(), api_origin="https://" + "a" * 70000)
         record = StartPending(scope, "nmr_predict", facts(), retained_start())
         with self.assertRaisesRegex(ValueError, "65536"):

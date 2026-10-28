@@ -794,9 +794,9 @@ class ProviderAPI:
             ) from None
 
     async def start_attempt(self, body, *, job_ref, analysis_kind_ref, provider_ref, owner=None):
-        """Send retained start bytes once; recovery calls must reuse those bytes.
+        """Send retained START bytes once; retries must reuse those exact bytes.
 
-        Composition persists body before dispatch and the returned identity before
+        Composition retains the body before dispatch and the received admission before
         scientific work. A replay may return a terminal Attempt. Admission alone
         never authorizes execution or resolves local execution-entry uncertainty.
         """
@@ -852,7 +852,7 @@ class ProviderAPI:
     async def complete_attempt(self, body, *, execution_attempt_ref, owner=None):
         """Publish or reconcile exact retained result bytes without rerunning work.
 
-        The lifecycle owner persists this terminal choice and body before sending.
+        The caller retains this terminal choice and exact body for any permitted replay.
         Uncertainty never authorizes replacing it with another result or failure.
         """
         require_attempt_ref(execution_attempt_ref)

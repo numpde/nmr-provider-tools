@@ -1,4 +1,4 @@
-"""Control codecs refuse full legacy records and foreign recovery identities."""
+"""Control projections reject scientific evidence and invalid state identities."""
 
 import unittest
 from dataclasses import replace
@@ -13,10 +13,10 @@ from tests.fakes.attempt_store import admission, record
 
 class ProducerCheckpointRefusalTests(unittest.TestCase):
     def test_full_prepared_evidence_cannot_be_encoded_as_control_metadata(self):
-        legacy = mark_execution_entered(acknowledge_start(record(), admission()),
+        entered_attempt = mark_execution_entered(acknowledge_start(record(), admission()),
                                         ProtectedEvidence("fixture.prepared.v1", b"PRIVATE_COORDINATES"))
         with self.assertRaisesRegex(ValueError, "control checkpoint"):
-            encode_checkpoint(legacy)
+            encode_checkpoint(entered_attempt)
 
 
     def test_acknowledgement_and_selected_identity_must_match_their_actual_control_types(self):

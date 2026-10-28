@@ -543,7 +543,8 @@
       "mode": "100644",
       "git_blob": "291aa31930eea6b44fa93e798111cd42f061f609",
       "sha256": "cd54e6df5adbf98eaf44ee2955ae85c8c9a014473d07fb26b2b0849f40667fec",
-      "test_methods": []
+      "test_methods": [],
+      "retired": "The producer entry-write operation and all users of its transaction barrier have been removed."
     },
     {
       "path": "packages/provider-core/tests/fakes/execution.py",
@@ -1505,6 +1506,9 @@
       "retired_test_methods": {
         "AttemptRecordFailureTests.test_foreign_api_provider_lane_and_generation_block_restore": "Specific to retired producer persistence or stopped recovery.",
         "AttemptRecordFailureTests.test_unsupported_and_corrupt_records_fail_without_private_text": "Specific to retired producer persistence or stopped recovery."
+      },
+      "replaced_test_methods": {
+        "AttemptRecordFailureTests.test_encoder_refuses_record_larger_than_decoder_can_restore": "AttemptRecordFailureTests.test_encoder_refuses_record_above_the_live_control_limit"
       }
     },
     {
@@ -1981,11 +1985,16 @@
         "SuppressionPersistenceTests.test_durable_suppression_cannot_release_unconfirmed_worker_retirement",
         "SuppressionPersistenceTests.test_failed_suppression_write_keeps_original_cause_and_outcome_owned"
       ],
-      "replaced_test_methods": {},
+      "replaced_test_methods": {
+        "SuppressionPersistenceTests.test_caller_cancellation_preserves_returned_result_after_original_api_settles": "SuppressionOutcomeTests.test_caller_cancellation_preserves_returned_result_after_original_api_settles",
+        "SuppressionPersistenceTests.test_classified_preparation_failure_can_be_retained_after_stop_without_execution": "SuppressionOutcomeTests.test_classified_preparation_failure_can_be_retained_after_stop_without_execution",
+        "SuppressionPersistenceTests.test_durable_suppression_cannot_release_unconfirmed_worker_retirement": "SuppressionOutcomeTests.test_suppression_cannot_release_unconfirmed_worker_retirement"
+      },
       "retired_test_methods": {
         "SuppressionPersistenceTests.test_cancelled_suppression_write_settles_original_once": "Specific to retired producer persistence or stopped recovery.",
         "SuppressionPersistenceTests.test_failed_suppression_write_keeps_original_cause_and_outcome_owned": "Specific to retired producer persistence or stopped recovery."
-      }
+      },
+      "replacement_path": "packages/provider-core/tests/unit/adversarial/test_suppressed_outcome.py"
     },
     {
       "path": "packages/provider-core/tests/unit/adversarial/test_transport.py",
@@ -2379,7 +2388,10 @@
       "test_methods": [
         "ExecutionTests.test_classified_preparation_failure_never_enters_or_executes",
         "ExecutionTests.test_success_observes_durable_entry_and_retains_outcome_before_return"
-      ]
+      ],
+      "replaced_test_methods": {
+        "ExecutionTests.test_success_observes_durable_entry_and_retains_outcome_before_return": "ExecutionTests.test_success_observes_live_entry_and_retains_outcome_before_return"
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_execution_condition_recovery.py",
@@ -2496,7 +2508,8 @@
         "PreparedIdentityTests.test_largest_ram_identity_and_escaped_schema_fit_compact_entry_bound"
       ],
       "replaced_test_methods": {
-        "PreparedIdentityTests.test_compact_entry_round_trip_keeps_digest_without_restoring_a_live_handle": "PreparedIdentityTests.test_compact_entry_projection_keeps_digest_without_a_live_handle"
+        "PreparedIdentityTests.test_compact_entry_round_trip_keeps_digest_without_restoring_a_live_handle": "PreparedIdentityTests.test_compact_entry_projection_keeps_digest_without_a_live_handle",
+        "PreparedIdentityTests.test_execute_observes_matching_identity_in_durable_entry_and_terminal": "PreparedIdentityTests.test_execute_observes_matching_identity_in_live_entry_and_terminal"
       }
     },
     {
