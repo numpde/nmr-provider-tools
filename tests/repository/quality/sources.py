@@ -19,7 +19,6 @@ SKIP_DIRS = {
     ".agents",
     ".codex",
     ".aws",
-    ".work",
     "secrets",
     "node_modules",
     "dependencies",

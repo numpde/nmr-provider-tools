@@ -1,5 +1,5 @@
 # Port source: https://github.com/numpde/dapp32/blob/778c16f8d8b77181d2ac4cd11a62a2034ded2518/tests/checks/silent_defaults/test_python.py
-# Original detector semantics and fixtures retained; inventories use authored NMRNet paths.
+# Original detector semantics and fixtures retained; inventories use this repository's authored paths.
 from __future__ import annotations
 
 from tools.container_guard import require_container

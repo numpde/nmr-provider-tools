@@ -1,9 +1,8 @@
 """Complete authored image source discovery and independent reviewed inventory.
 
-API Compose build-service and checker-image assembly assertions are specific to
-that source repository. NMRNet has direct Dockerfile consumers and a launcher
-that mounts source trees; its corresponding completeness assertion reads the
-launcher's printed mount grant without contacting the container engine.
+The checker reads public source trees through the repository launcher.
+Its mount-completeness assertion inspects the printed grants without contacting
+the container engine; image construction has separate provisioning checks.
 """
 
 from tools.container_guard import require_container
@@ -36,7 +35,7 @@ ROOT_ENTRY_MANIFEST = Path("/repository-source-inventory/root-entries")
 # The coordinator explicitly keeps checkout control, credentials and writable
 # acquisition/runtime state outside source-check authority. Capturing their
 # names in the manifest proves classification without exposing their contents.
-PRIVATE_ROOT_ENTRIES = frozenset({".git", ".agents", ".codex", ".aws", ".work", "secrets"})
+PRIVATE_ROOT_ENTRIES = frozenset({".git", ".agents", ".codex", ".aws", "secrets"})
 
 
 def root_entry_visibility_findings(manifest, root):
@@ -133,6 +132,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
                     "new-source.py: public source root is invisible to repository checks",
                     ".pytest_cache: public source root is invisible to repository checks",
                     "linked.py: public source root is not a regular file or directory",
+                    ".work: public source root is invisible to repository checks",
                     "stale.txt: visible root entry is absent from host inventory",
                 ],
                 root_entry_visibility_findings(manifest, root),

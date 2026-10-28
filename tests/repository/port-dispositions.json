@@ -27,22 +27,22 @@
   {
     "target": "tests/repository/quality/test_source_inventory.py",
     "method": "test_container_source_inventory_is_exact_and_fully_classified",
-    "disposition": "No local Dockerfile/build source. Checker image identity is instead an independently reviewed immutable input. Dockerfile helper rejection fixtures remain; source build obligations are recorded for extraction."
+    "disposition": "The donor checks target its Compose build inventory. This repository builds checker and delivery images directly; local provisioning, image-source, launcher-grant and deployment checks own those boundaries."
   },
   {
     "target": "tests/repository/quality/test_source_inventory.py",
     "method": "test_container_sources_keep_original_generic_hardening",
-    "disposition": "No local Dockerfile/build source. Checker image identity is instead an independently reviewed immutable input. Dockerfile helper rejection fixtures remain; source build obligations are recorded for extraction."
+    "disposition": "The donor checks target its Compose build inventory. This repository builds checker and delivery images directly; local provisioning, image-source, launcher-grant and deployment checks own those boundaries."
   },
   {
     "target": "tests/repository/quality/test_source_inventory.py",
     "method": "test_inventory_authorities_are_independent_of_discovery",
-    "disposition": "No local Dockerfile/build source. Checker image identity is instead an independently reviewed immutable input. Dockerfile helper rejection fixtures remain; source build obligations are recorded for extraction."
+    "disposition": "The donor checks target its Compose build inventory. This repository builds checker and delivery images directly; local provisioning, image-source, launcher-grant and deployment checks own those boundaries."
   },
   {
     "target": "tests/repository/quality/test_source_inventory.py",
     "method": "test_expected_source_inventory_is_json_serializable",
-    "disposition": "No local Dockerfile/build source. Checker image identity is instead an independently reviewed immutable input. Dockerfile helper rejection fixtures remain; source build obligations are recorded for extraction."
+    "disposition": "The donor checks target its Compose build inventory. This repository builds checker and delivery images directly; local provisioning, image-source, launcher-grant and deployment checks own those boundaries."
   },
   {
     "target": "tests/repository/test_scientific_lint.py",

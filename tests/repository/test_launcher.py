@@ -49,6 +49,7 @@ class LauncherTests(unittest.TestCase):
             for name in ("tools", "requirements", "containers"):
                 shutil.copytree(ROOT / name, root / name)
             (root / "future-source").mkdir()
+            (root / ".work").mkdir()
             (root / ".aws").mkdir()
             launcher = root / "tools/repository.sh"
             launcher.write_bytes((ROOT / "tools/repository.sh").read_bytes())
@@ -58,7 +59,7 @@ class LauncherTests(unittest.TestCase):
             arguments = shlex.split(result.stdout)
             self.assertIn(f"type=bind,src={root}/future-source,dst=/workspace/future-source,readonly", arguments)
             self.assertNotIn(f"type=bind,src={root}/.aws,dst=/workspace/.aws,readonly", arguments)
-            self.assertFalse((root / ".work").exists())
+            self.assertIn(f"type=bind,src={root}/.work,dst=/workspace/.work,readonly", arguments)
             (root / "linked").symlink_to(root / "future-source", target_is_directory=True)
             result = subprocess.run(command, capture_output=True, text=True, check=False)
             self.assertNotEqual(0, result.returncode)
