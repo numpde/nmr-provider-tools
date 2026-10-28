@@ -4,7 +4,6 @@ from tests.fakes.checkpoint_execution import RecordingDelivery
 from unittest.mock import Mock
 from tests.fakes.execution import live_controller
 from tests.fakes.execution import LiveAttemptProbe
-import tempfile
 import unittest
 
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
@@ -20,29 +19,28 @@ from tests.fakes.api import api
 
 class ControllerConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_controller_passes_the_selected_condition_policy_to_its_executor(self):
-        with tempfile.TemporaryDirectory() as directory:
-            store = LiveAttemptProbe()
-            session = ReportingSession(store)
-            session.conditions = {"prepare": ("waiting_capacity",), "execute": ()}
-            retry, recovered = Mock(), Mock()
-            replies = list(lifecycle_replies())
-            replies[4:4] = [reply(b"PRIVATE outage", status=503), reply(progress_response(condition_code="waiting_capacity"))]
-            transport = Transport(*replies)
-            confirmed = await live_controller(
-                api(transport, scope().api_origin),
-                store,
-                AttemptClaims.live(),
-                session,
-                delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
-                poll_seconds=1,
-                task_settle_seconds=0.1,
-                condition_recovery=ConditionRecovery(1, 0.01, retry, recovered),
-            ).run(record())
-            self.assertIs(type(confirmed), DeliveryAcceptedCheckpoint)
-            retry.assert_called_once()
-            recovered.assert_called_once()
-            self.assertEqual(retry.call_args.args[1:3], ("preparing", "waiting_capacity"))
-            self.assertIs(retry.call_args.args[3], recovered.call_args.args[3])
-            self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
-            self.assertEqual(store.records, ())
-            self.assertEqual(len(transport.calls), 10)
+        store = LiveAttemptProbe()
+        session = ReportingSession(store)
+        session.conditions = {"prepare": ("waiting_capacity",), "execute": ()}
+        retry, recovered = Mock(), Mock()
+        replies = list(lifecycle_replies())
+        replies[4:4] = [reply(b"PRIVATE outage", status=503), reply(progress_response(condition_code="waiting_capacity"))]
+        transport = Transport(*replies)
+        confirmed = await live_controller(
+            api(transport, scope().api_origin),
+            store,
+            AttemptClaims.live(),
+            session,
+            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=0.1,
+            condition_recovery=ConditionRecovery(1, 0.01, retry, recovered),
+        ).run(record())
+        self.assertIs(type(confirmed), DeliveryAcceptedCheckpoint)
+        retry.assert_called_once()
+        recovered.assert_called_once()
+        self.assertEqual(retry.call_args.args[1:3], ("preparing", "waiting_capacity"))
+        self.assertIs(retry.call_args.args[3], recovered.call_args.args[3])
+        self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
+        self.assertEqual(store.records, ())
+        self.assertEqual(len(transport.calls), 10)

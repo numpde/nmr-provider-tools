@@ -1,7 +1,6 @@
 """No fresh science dispatch may omit or replace its retained candidate identity."""
 
 from tests.fakes.execution import live_executor
-import tempfile
 import unittest
 from dataclasses import replace
 from unittest.mock import Mock
@@ -52,23 +51,22 @@ class UnidentifiedPreparationTests(unittest.IsolatedAsyncioTestCase):
             reply(progress_response()),
             reply(observation()),
         )
-        with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await live_attempt()
-            session = Session(store)
-            session.preparation = object()
-            executor = live_executor(
-                api(transport, store.scope.api_origin),
-                store,
-                claim,
-                session,
-                delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
-                poll_seconds=1,
-                task_settle_seconds=0.1,
-            )
-            with self.assertRaises(ExecutionFailed) as failed:
-                await executor.run(acknowledged)
-            self.assertIsInstance(failed.exception.cause, TypeError)
-            self.assertEqual(["prepare", "retire"], [event[0] for event in session.events])
-            self.assertEqual((AcknowledgedCheckpoint(acknowledged.start, acknowledged.admission),), store.records)
-            self.assertEqual(4, len(transport.calls))
-            claim.release(owner=claim.lifecycle_owner)
+        store, acknowledged, claim = await live_attempt()
+        session = Session(store)
+        session.preparation = object()
+        executor = live_executor(
+            api(transport, store.scope.api_origin),
+            store,
+            claim,
+            session,
+            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=0.1,
+        )
+        with self.assertRaises(ExecutionFailed) as failed:
+            await executor.run(acknowledged)
+        self.assertIsInstance(failed.exception.cause, TypeError)
+        self.assertEqual(["prepare", "retire"], [event[0] for event in session.events])
+        self.assertEqual((AcknowledgedCheckpoint(acknowledged.start, acknowledged.admission),), store.records)
+        self.assertEqual(4, len(transport.calls))
+        claim.release(owner=claim.lifecycle_owner)

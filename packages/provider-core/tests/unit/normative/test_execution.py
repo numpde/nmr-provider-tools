@@ -4,7 +4,6 @@ from tests.fakes.checkpoint_execution import RecordingDelivery
 from unittest.mock import Mock
 from provider_core.producer_checkpoint import AcknowledgedCheckpoint, EnteredCheckpoint
 from tests.fakes.execution import live_executor
-import tempfile
 import unittest
 
 from provider_core.analysis import AnalysisFailure
@@ -27,37 +26,35 @@ class ExecutionTests(unittest.IsolatedAsyncioTestCase):
             reply(observation()),
             reply(observation()),
         )
-        with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await live_attempt()
-            session = Session(store)
-            executor = live_executor(
-                api(transport, store.scope.api_origin), store, claim, session,
-                delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1
-            )
-            terminal = await executor.run(acknowledged)
-            self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
-            self.assertIs(type(session.events[1][1]), EnteredCheckpoint)
-            self.assertEqual(store.records, (terminal,))
-            self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
-            self.assertEqual(terminal.selection.body_sha256, executor.delivery.items[0].body_sha256)
-            self.assertIsNone(executor._outcome)
-            self.assertEqual(len(transport.calls), 7)
-            claim.release(owner=claim.lifecycle_owner)
+        store, acknowledged, claim = await live_attempt()
+        session = Session(store)
+        executor = live_executor(
+            api(transport, store.scope.api_origin), store, claim, session,
+            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1
+        )
+        terminal = await executor.run(acknowledged)
+        self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
+        self.assertIs(type(session.events[1][1]), EnteredCheckpoint)
+        self.assertEqual(store.records, (terminal,))
+        self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
+        self.assertEqual(terminal.selection.body_sha256, executor.delivery.items[0].body_sha256)
+        self.assertIsNone(executor._outcome)
+        self.assertEqual(len(transport.calls), 7)
+        claim.release(owner=claim.lifecycle_owner)
 
     async def test_classified_preparation_failure_never_enters_or_executes(self):
         transport = Transport(reply(observation()), reply(response()), reply(progress_response()), reply(observation()))
-        with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await live_attempt()
-            session = Session(store)
-            session.preparation = AnalysisFailure(
-                "input_rejected", "Supply a geometry.", ProtectedEvidence("evidence.v1", b"reason")
-            )
-            terminal = await live_executor(
-                api(transport, store.scope.api_origin), store, claim, session,
-                delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1
-            ).run(acknowledged)
-            self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
-            self.assertIs(type(terminal.selection.attempt), AcknowledgedCheckpoint)
-            self.assertIs(terminal.selection.operation, TerminalOperation.FAIL)
-            self.assertEqual(len(transport.calls), 4)
-            claim.release(owner=claim.lifecycle_owner)
+        store, acknowledged, claim = await live_attempt()
+        session = Session(store)
+        session.preparation = AnalysisFailure(
+            "input_rejected", "Supply a geometry.", ProtectedEvidence("evidence.v1", b"reason")
+        )
+        terminal = await live_executor(
+            api(transport, store.scope.api_origin), store, claim, session,
+            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1
+        ).run(acknowledged)
+        self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
+        self.assertIs(type(terminal.selection.attempt), AcknowledgedCheckpoint)
+        self.assertIs(terminal.selection.operation, TerminalOperation.FAIL)
+        self.assertEqual(len(transport.calls), 4)
+        claim.release(owner=claim.lifecycle_owner)

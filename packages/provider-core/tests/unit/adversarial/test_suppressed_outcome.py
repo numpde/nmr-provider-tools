@@ -2,7 +2,6 @@
 
 from tests.fakes.execution import live_executor
 import asyncio
-import tempfile
 import unittest
 
 from provider_core.analysis import AnalysisFailure
@@ -22,7 +21,7 @@ def unexpected_delivery_retry(*_args):
     raise AssertionError("Suppressed outcome cannot be submitted")
 
 
-async def stopped_executor(directory, retirement_failure):
+async def stopped_executor(retirement_failure):
     store, acknowledged, claim = await live_attempt()
     session = Session(store)
     session.retirement_failure = retirement_failure
@@ -56,69 +55,66 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.Future()
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
-        with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await live_attempt()
-            session = Session(store)
-            transport = PendingTransport(reply(observation()), reply(response()), reply(progress_response()), reply(observation()),
-                                         reply(progress_response(phase="running")), reply(observation()))
-            executor = live_executor(api(transport, store.scope.api_origin), store, claim, session,
-                               delivery=RecordingDelivery(), on_delivery_retry=unexpected_delivery_retry,
-                               delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-                                       allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
-            task = asyncio.create_task(executor.run(acknowledged))
-            await asyncio.wait_for(reading.wait(), 1)
-            task.cancel()
-            with self.assertRaises(asyncio.CancelledError):
-                await task
-            with self.assertRaises(ExecutionFailed) as unretained:
-                await executor.settle()
-            self.assertIn("suppression disposition", str(unretained.exception.cleanup_failures[-1]))
-            self.assertIs(unretained.exception.outcome, session.outcome)
-            self.assertIsNone(transport.pending_owner)
-            self.assertTrue(transport.retirement_confirmed)
-            retained = await executor.retain_suppressed_disposition()
-            self.assertIs(retained.reason, SuppressionReason.CALLER_CANCELLED)
-            self.assertIsInstance(executor.last_failure.cause, asyncio.CancelledError)
-            self.assertIsNone(executor.last_failure.outcome)
-            self.assertNotIn(session.outcome.content, encode_checkpoint(retained))
-            self.assertNotIn(session.outcome.evidence.content, encode_checkpoint(retained))
-            self.assertEqual(executor.delivery.items, [])
-            self.assertEqual(len(transport.calls), 7)
-            claim.release(owner=claim.lifecycle_owner)
+        store, acknowledged, claim = await live_attempt()
+        session = Session(store)
+        transport = PendingTransport(reply(observation()), reply(response()), reply(progress_response()), reply(observation()),
+                                     reply(progress_response(phase="running")), reply(observation()))
+        executor = live_executor(api(transport, store.scope.api_origin), store, claim, session,
+                           delivery=RecordingDelivery(), on_delivery_retry=unexpected_delivery_retry,
+                           delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
+                                   allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+        task = asyncio.create_task(executor.run(acknowledged))
+        await asyncio.wait_for(reading.wait(), 1)
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+        with self.assertRaises(ExecutionFailed) as unretained:
+            await executor.settle()
+        self.assertIn("suppression disposition", str(unretained.exception.cleanup_failures[-1]))
+        self.assertIs(unretained.exception.outcome, session.outcome)
+        self.assertIsNone(transport.pending_owner)
+        self.assertTrue(transport.retirement_confirmed)
+        retained = await executor.retain_suppressed_disposition()
+        self.assertIs(retained.reason, SuppressionReason.CALLER_CANCELLED)
+        self.assertIsInstance(executor.last_failure.cause, asyncio.CancelledError)
+        self.assertIsNone(executor.last_failure.outcome)
+        self.assertNotIn(session.outcome.content, encode_checkpoint(retained))
+        self.assertNotIn(session.outcome.evidence.content, encode_checkpoint(retained))
+        self.assertEqual(executor.delivery.items, [])
+        self.assertEqual(len(transport.calls), 7)
+        claim.release(owner=claim.lifecycle_owner)
 
     async def test_classified_preparation_failure_can_be_retained_after_stop_without_execution(self):
-        with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await live_attempt()
-            session = Session(store)
-            session.preparation = AnalysisFailure("invalid_input", "Supply coordinates.", ProtectedEvidence("evidence.v1", b"reason"))
-            transport = Transport(reply(observation()), reply(response()), reply(progress_response()),
-                                  reply(observation(job_state="closed")))
-            executor = live_executor(api(transport, store.scope.api_origin), store, claim, session,
-                               delivery=RecordingDelivery(), on_delivery_retry=unexpected_delivery_retry,
-                               delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-                                       allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
-            with self.assertRaises(ExecutionFailed):
-                await executor.run(acknowledged)
-            retained = await executor.retain_suppressed_disposition()
-            self.assertIs(type(retained.attempt), AcknowledgedCheckpoint)
-            self.assertIs(retained.reason, SuppressionReason.SERVER_STOP)
-            self.assertIsNone(executor.last_failure.outcome)
-            self.assertFalse(hasattr(retained, "candidate"))
-            self.assertEqual(executor.delivery.items, [])
-            self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
-            self.assertEqual(len(transport.calls), 4)
-            claim.release(owner=claim.lifecycle_owner)
+        store, acknowledged, claim = await live_attempt()
+        session = Session(store)
+        session.preparation = AnalysisFailure("invalid_input", "Supply coordinates.", ProtectedEvidence("evidence.v1", b"reason"))
+        transport = Transport(reply(observation()), reply(response()), reply(progress_response()),
+                              reply(observation(job_state="closed")))
+        executor = live_executor(api(transport, store.scope.api_origin), store, claim, session,
+                           delivery=RecordingDelivery(), on_delivery_retry=unexpected_delivery_retry,
+                           delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
+                                   allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+        with self.assertRaises(ExecutionFailed):
+            await executor.run(acknowledged)
+        retained = await executor.retain_suppressed_disposition()
+        self.assertIs(type(retained.attempt), AcknowledgedCheckpoint)
+        self.assertIs(retained.reason, SuppressionReason.SERVER_STOP)
+        self.assertIsNone(executor.last_failure.outcome)
+        self.assertFalse(hasattr(retained, "candidate"))
+        self.assertEqual(executor.delivery.items, [])
+        self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
+        self.assertEqual(len(transport.calls), 4)
+        claim.release(owner=claim.lifecycle_owner)
 
 
     async def test_suppression_cannot_release_unconfirmed_worker_retirement(self):
-        with tempfile.TemporaryDirectory() as directory:
-            store, executor, session, claim, transport = await stopped_executor(directory, RuntimeError("private cleanup failure"))
-            retained = await executor.retain_suppressed_disposition()
-            self.assertEqual(store.records, (retained,))
-            with self.assertRaises(OwnershipRefused):
-                claim.release(owner=claim.lifecycle_owner)
-            session.retirement_failure = None
-            self.assertIsNone(await executor.settle())
-            self.assertEqual(len(transport.calls), 7)
-            self.assertEqual([event[0] for event in session.events].count("execute"), 1)
+        store, executor, session, claim, transport = await stopped_executor(RuntimeError("private cleanup failure"))
+        retained = await executor.retain_suppressed_disposition()
+        self.assertEqual(store.records, (retained,))
+        with self.assertRaises(OwnershipRefused):
             claim.release(owner=claim.lifecycle_owner)
+        session.retirement_failure = None
+        self.assertIsNone(await executor.settle())
+        self.assertEqual(len(transport.calls), 7)
+        self.assertEqual([event[0] for event in session.events].count("execute"), 1)
+        claim.release(owner=claim.lifecycle_owner)

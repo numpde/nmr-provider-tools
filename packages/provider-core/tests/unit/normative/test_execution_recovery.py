@@ -4,7 +4,6 @@ from tests.fakes.checkpoint_execution import RecordingDelivery
 from unittest.mock import Mock
 from tests.fakes.execution import live_executor
 import asyncio
-import tempfile
 import unittest
 
 from provider_core.attempt_record import TerminalOperation
@@ -29,70 +28,68 @@ class CompletedDuringOutage(PausedSession):
 
 class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
     async def test_completed_science_waits_for_a_fresh_read_after_settled_outage(self):
-        with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await live_attempt()
-            session = CompletedDuringOutage(store)
-            notices = []
+        store, acknowledged, claim = await live_attempt()
+        session = CompletedDuringOutage(store)
+        notices = []
 
-            class OutageTransport(Transport):
-                async def exchange(self, request, *, maximum_bytes, owner=None):
-                    if len(self.calls) == 6:
-                        await session.paused.wait()
-                        session.release.set()
-                        await session.produced.wait()
-                    received = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
-                    if len(self.calls) == 7:
-                        self.retirement_confirmed = False
-                        self.pending_owner = owner
-                    return received
+        class OutageTransport(Transport):
+            async def exchange(self, request, *, maximum_bytes, owner=None):
+                if len(self.calls) == 6:
+                    await session.paused.wait()
+                    session.release.set()
+                    await session.produced.wait()
+                received = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+                if len(self.calls) == 7:
+                    self.retirement_confirmed = False
+                    self.pending_owner = owner
+                return received
 
-            transport = OutageTransport(
-                reply(observation()),
-                reply(response()),
-                reply(progress_response()),
-                reply(observation()),
-                reply(progress_response(phase="running")),
-                reply(observation()),
-                reply(b"PRIVATE maintenance", status=503),
-                reply(observation()),
-                reply(observation()),
-            )
+        transport = OutageTransport(
+            reply(observation()),
+            reply(response()),
+            reply(progress_response()),
+            reply(observation()),
+            reply(progress_response(phase="running")),
+            reply(observation()),
+            reply(b"PRIVATE maintenance", status=503),
+            reply(observation()),
+            reply(observation()),
+        )
 
-            def retry(attempt, failure, seconds):
-                self.assertIs(attempt.admission, acknowledged.admission)
-                self.assertTrue(transport.retirement_confirmed)
-                self.assertTrue(session.produced.is_set())
-                self.assertEqual([item[0] for item in session.events], ["prepare", "execute"])
-                notices.append(("retry", failure, seconds))
+        def retry(attempt, failure, seconds):
+            self.assertIs(attempt.admission, acknowledged.admission)
+            self.assertTrue(transport.retirement_confirmed)
+            self.assertTrue(session.produced.is_set())
+            self.assertEqual([item[0] for item in session.events], ["prepare", "execute"])
+            notices.append(("retry", failure, seconds))
 
-            def recovered(attempt, failure):
-                self.assertIs(attempt.admission, acknowledged.admission)
-                notices.append(("recovered", failure))
+        def recovered(attempt, failure):
+            self.assertIs(attempt.admission, acknowledged.admission)
+            notices.append(("recovered", failure))
 
-            executor = live_executor(
-                api(transport, store.scope.api_origin),
-                store,
-                claim,
-                session,
-                delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
-                poll_seconds=0.01,
-                task_settle_seconds=0.1,
-                observation_recovery=ObservationRecovery(1, 0.02, retry, recovered),
-            )
-            try:
-                terminal = await asyncio.wait_for(executor.run(acknowledged), 3)
-                self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
-                self.assertEqual(terminal.selection.body_sha256, executor.delivery.items[0].body_sha256)
-                self.assertIsNone(executor._outcome)
-                self.assertEqual(store.records, (terminal,))
-                self.assertEqual([item[0] for item in notices], ["retry", "recovered"])
-                self.assertIs(notices[0][1], notices[1][1])
-                self.assertEqual(notices[0][1].status, 503)
-                self.assertGreater(notices[0][2], 0)
-                self.assertLessEqual(notices[0][2], 0.01)
-                self.assertEqual(len(transport.calls), 9)
-                self.assertEqual([item[0] for item in session.events], ["prepare", "execute", "retire"])
-                claim.release(owner=claim.lifecycle_owner)
-            finally:
-                session.release.set()
-                pass
+        executor = live_executor(
+            api(transport, store.scope.api_origin),
+            store,
+            claim,
+            session,
+            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            poll_seconds=0.01,
+            task_settle_seconds=0.1,
+            observation_recovery=ObservationRecovery(1, 0.02, retry, recovered),
+        )
+        try:
+            terminal = await asyncio.wait_for(executor.run(acknowledged), 3)
+            self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
+            self.assertEqual(terminal.selection.body_sha256, executor.delivery.items[0].body_sha256)
+            self.assertIsNone(executor._outcome)
+            self.assertEqual(store.records, (terminal,))
+            self.assertEqual([item[0] for item in notices], ["retry", "recovered"])
+            self.assertIs(notices[0][1], notices[1][1])
+            self.assertEqual(notices[0][1].status, 503)
+            self.assertGreater(notices[0][2], 0)
+            self.assertLessEqual(notices[0][2], 0.01)
+            self.assertEqual(len(transport.calls), 9)
+            self.assertEqual([item[0] for item in session.events], ["prepare", "execute", "retire"])
+            claim.release(owner=claim.lifecycle_owner)
+        finally:
+            session.release.set()
