@@ -1811,3 +1811,250 @@ ACK and settled I/O, but SDK settle attempted to release a deliberately passive
 claim and reported ControllerRefused. It is not an unretained ACK or transport
 failure. A shared correction must distinguish clean passive retention from claim
 release without hiding independent failures. Exact choice and tests come next.
+
+D043 -- Settle a passive START hold without pretending to release it (23:09 UTC)
+-------------------------------------------------------------------------------
+
+Serious alternatives:
+A. Make each provider catch the release refusal and reinterpret shutdown. This
+   duplicates lifecycle meaning and risks suppressing real cleanup failures.
+B. Have SDK settlement retire the original owners, then retain a passive START
+   claim cleanly when it cannot be released. Preserve actual cleanup failures;
+   shutdown readiness and claim release remain distinct existing facts.
+C. Release an uncertain or active START claim to make shutdown look successful.
+   This wrongly permits another selection of the still-owned Job.
+
+Choice: B. This applies only to START holds with no executor/report duty, no
+borrower, retired API/delivery I/O and confirmed session retirement. Repeated
+settlement must keep the same claim excluded; it cannot replay START or begin
+science. Known no-effect and terminal START dispositions still release normally.
+Actual unretained ACK, transport or native cleanup failures still surface. Test
+late active ACK and unknown-commit holds, retained exclusion and repeated settle.
+
+Checkpoint -- 23:09 UTC
+-----------------------
+
+D042 is committed as 65d61e1. The 3.11 selectors/matrix have been removed and
+requires-python >=3.12 restored. All four peers received the directive; NMRPeak
+is moving its actual scientific dependency/model qualification to 3.12. The
+native/API split passed its first installed unit/native lane. Its separate API
+contract lane is running. The patched shared base invalidated the old checker
+image identity, so maintained checks/prepare is rebuilding the correct checker
+before repository/publication-fixture tests; do not bypass image admission.
+
+D044 -- Project selected host grants through the shared binding CLI (23:11 UTC)
+-------------------------------------------------------------------------------
+
+SECS's actual host recipe needs the selected delivery volume, socket location,
+socket group and trust/resolver mount references. Root inspected the existing
+SDK CLI: it only projects NUL-delimited input paths. No selected host projection
+already exists.
+
+Serious alternatives:
+A. Parse the API/binding schema again in each host deployment recipe. This gives
+   four repositories independent copies of shared identity and grant derivation.
+B. Add a describe-binding CLI action that loads the original definition through
+   the SDK's existing authority and emits the selected host grants as JSON.
+C. Install/import the SDK into host Python to share its parser. This breaches the
+   existing contained-tooling boundary and adds host dependency management.
+
+Choice: B. Emit exactly ipc_volume, socket_path, socket_group_id and input_paths.
+The host derives the parent directory from socket_path; no duplicated parent or
+unused API identity fields. Paths are mount references, never credential contents.
+Require one named binding for this action; retain existing paths/--all behavior.
+Consumers validate this projection's wiring shape without reimplementing the API
+schema. Loading the definition opens no referenced credential or resolver file.
+
+Checkpoint -- 23:11 UTC
+-----------------------
+
+The native/API package contract passed all 15 cases. The correct patched checker
+was prepared and the broader repository lane is running. Native signal-fixture
+failures have appeared during concurrent test runs; their causes are unclassified,
+so they are not being reported as a clean gate or a product regression yet.
+The new passive START tests are running before the D043 controller edit. Shared
+async-native implementation is being proposed independently in /tmp; root still
+owns integration and the exact setup/read/stop failure semantics.
+
+Checkpoint -- 23:14 UTC
+-----------------------
+
+D043's installed RED run reproduced release-refusal errors for uncertain START
+and an explicit stop during START retry. An unrelated native fixture also reset
+before its PID exchange; its cause remains unclassified. The corrected controller
+now retains passive claims after real cleanup. The subsequent run passed the new
+cases but exposed three older tests that expected the deliberate release refusal
+even after cleanup later succeeded. Review each cleanup/claim assertion before
+updating those expectations; do not turn an unconfirmed retirement into success.
+
+D044's actual selected-binding subprocess test is included in that run. The SDK
+API package contract remains green, and native-profile publication fixes are under
+repository checks. Historical donor-source coverage is not a generated inventory
+of new SDK files, so it should not be rewritten to pretend new files came from
+the donor. The independently proposed async native owner is undergoing actual
+installed native-only tests; its exact interface will be recorded before root
+integration. All consumer final pins remain pending exact combined artifacts.
+
+D045 -- Exact shared asynchronous native-session surface (23:17 UTC)
+-------------------------------------------------------------------
+
+Serious alternatives:
+A. Retain only retirement and make providers separately own setup Futures and
+   cleanup clocks. Partial setup and cancelled observation would still have
+   several independent implementations.
+B. Retain setup and the original retirement reader around RunnerSession, using
+   its existing retirement_seconds as the sole aggregate cleanup allowance.
+C. Add separate reader seconds, a new phase ledger, watchdog or proof-session
+   manager. These duplicate configuration/authority or move scientific binding
+   recovery into an unqualified shared framework.
+
+Choice: B. The proposed AsyncRunnerSession provides connect, observe_retirement,
+request_stop and join_retirement. Async waits take a caller wait_seconds; they
+shield the original task and never set its I/O deadline to that shorter wait.
+The first observation or stop fixes one absolute retirement deadline from the
+native session's existing allowance. Later calls cannot renew it. Original setup
+must be started through connect and joined before any retirement read.
+
+Expose the actual retained setup/reader and a read-only retirement_deadline so
+existing binding-owned proof recovery can use the same deadline after a truly
+failed reader. Callers join these operations; they must not cancel or replace
+them. Retain the first actual stop failure independently. Original exit/intent
+remains synchronized inside RunnerSession; do not copy that fact into the wrapper.
+Providers still own scientific exchange/quiescence, closure and qualified proof
+recovery. Each provider explicitly reserves observation time within its existing
+aggregate allowance; there is no arbitrary shared grace or timeout inflation.
+
+Actual installed native-only tests found that asyncio.to_thread's Future bridge
+recreates builtin TimeoutError, losing the original exception identity. Preserve
+the exact native exception through the thread result and raise it in the retained
+async task; do not infer it from a later timeout. The intermediate test correctly
+failed this identity witness before the correction. Also close an unsubmitted
+coroutine when task creation fails, as independently requested by SECS and root.
+The final candidate tests must cover these corrections, EOF with a live child,
+cancelled/expired waiters, partial-frame continuation and underlying read failure.
+
+Checkpoint -- 23:17 UTC
+-----------------------
+
+NMRNet independently reviewed the integrated D043 branch and agrees it preserves
+actual failures while allowing clean passive retention. Three older tests were
+updated only after confirming their native cleanup had succeeded; primary and
+cleanup evidence remains asserted. The next full installed unit run passed its controller and binding cases but
+again failed the short native PID-exchange fixture; that failure remains open.
+The async-native candidate's first corrected installed run passed 11 tests;
+deadline exposure and task-creation cleanup are under its final rerun. This is
+not yet an integrated SDK artifact or completed consumer migration.
+
+D046 -- Test an idle native deadline without requiring science readiness (23:19 UTC)
+---------------------------------------------------------------------------------
+
+The short native deadline fixture repeatedly reset during worker_pid(..., H).
+Its 250 ms operation allowance starts before scientific readiness, so a control
+greeting cannot guarantee the child will receive H, install its TERM handler and
+return its PID before the valid deadline stops it. That readiness assumption is
+outside the native contract this test intends to prove.
+
+Serious alternatives:
+A. Increase fixture timeouts until the scientific handshake usually wins. This
+   reduces the symptom without fixing the unsupported readiness assumption.
+B. Move the product deadline to after scientific readiness. This changes the
+   actual native lifetime contract solely to satisfy a fixture.
+C. Test the connected idle owner directly: do no science exchange, observe the
+   actual deadline retirement and require its supported signal and scratch proof.
+
+Choice: C. Keep the 250 ms native deadline unchanged. Admit TERM or KILL according
+to actual child progress; require reason=deadline and scratch_released. Other
+existing resistant-child tests continue to prove forced KILL and physical PID
+retirement. Do not infer an original crash from either locally imposed signal.
+
+Checkpoint -- 23:19 UTC
+-----------------------
+
+The final independent native-only candidate passed 12 installed tests on 3.12.16,
+including both peer corrections and exact underlying failure identity. Root has
+integrated it after D045; its package inventory now includes the async module.
+NMRNet/SECS have the actual interface for review and consumer adaptation. Source
+and fixture qualification remain distinct from final combined release artifacts.
+
+D047 -- Raise native failures in the observer, not in an orphanable task (23:22 UTC)
+---------------------------------------------------------------------------------
+
+NMRPeak's independent review extends the actual TimeoutError identity finding:
+raising native CancelledError inside the retained Task normalizes its identity;
+KeyboardInterrupt/SystemExit in that Task can escape through the event loop.
+
+Serious alternatives:
+A. Special-case cancellation identity while leaving fatal BaseExceptions raised
+   inside the producer Task. This repairs only part of the failure boundary.
+B. Retain the native command's None-or-exact-exception outcome as the producer
+   Task result, and re-raise it only in the caller observing that original task.
+C. Wrap every native failure in a new exception taxonomy. This changes causal
+   identities without addressing where interruption should be observed.
+
+Choice: B. The retained native command must complete normally with its exact
+outcome; shielded waits raise any original failure in their observing caller.
+Derived setup_failure/retirement_failure accessors can expose that actual result
+for existing binding recovery; no cached phase or copied failure state. Tests
+must cover repeated observation of CancelledError, KeyboardInterrupt and SystemExit
+without an unobserved child Task disrupting the event loop. The earlier 12-test
+candidate did not establish this case and is not the final failure contract.
+
+D048 -- Inherit an existing aggregate deadline without renewing it (23:22 UTC)
+----------------------------------------------------------------------------
+
+SECS's actual proof-session composition revealed a remaining budget gap: setup
+can consume time before a new wrapper starts its configured retirement allowance.
+Capping only the caller's wait leaves the original reader running past the old
+aggregate deadline. NMRNet also owns preparation before native session creation.
+
+Serious alternatives:
+A. Let each binding cap its wait and retain a longer-running native reader. This
+   stays conservative about cleanup but fails the intended aggregate I/O bound.
+B. Mutate private deadlines or maintain separate copies of the native reader.
+   This defeats the common ownership seam and repeats the implementation.
+C. Accept an optional absolute not_after cap from the existing outer owner. Use
+   it for original native connect and as an upper bound on retirement's deadline.
+
+Choice: C. A normal native session needs no inherited cap. Proof recovery or an
+already-running cleanup owner supplies its existing absolute monotonic deadline;
+this is neither another configurable duration nor a fresh grace. Original connect
+receives that cap. The first observation/stop fixes min(native configured cap,
+inherited cap); repeated operations never renew it. A past cap cannot admit a new
+control connection/read. Keep original pending operations and real failure facts.
+Qualify setup-time consumption, deadline stability and expired-cap no-effect cases.
+
+Checkpoint -- 23:22 UTC
+-----------------------
+
+NMRNet reviewed D043 clear; SECS reviewed D044's four-field host projection clear.
+The focused publication/artifact tests passed, while the donor coverage check
+found an older D031 renamed witness missing its replacement entry. Preserve the
+historical donor inventory and record that exact replacement; do not regenerate
+history. Three additional focused failures were caused by the one-off launcher's
+missing requirements mount, not missing repository files. Correct that grant on
+the focused rerun. The broader lane still has native signal-fixture failures and
+is not a clean gate. No final release, pin or deployment has been claimed.
+
+Checkpoint -- 23:25 UTC
+-----------------------
+
+The focused publication, artifact, donor replacement and immutable-base checks
+now pass all 17 cases with their complete read grants. The broader 343-case run
+finished with seven failures/errors: the obsolete base literal and missing D031
+donor replacement are corrected; five native signal-fixture subcases remain
+unresolved. A bounded independent investigation will inspect those exact cases,
+not repeat the entire suite or call them load failures without causal evidence.
+
+Magnet now supplies a real EOF-with-live-child RED: its synchronous science path
+consumes the full control-read allowance before stop, poisons that original read
+and cannot confirm scratch cleanup. Its actual aggregate allowance exceeded its
+fixture TERM/KILL/cleanup phases, so this is the same shared composition gap,
+not merely a too-short cleanup budget. Trace the existing resident event-loop
+seam before choosing a synchronous shared facade or restructuring boot/science.
+No second event loop, local watchdog or copied frame reader is an accepted fix.
+
+NMRNet has moved lease observation into its retained filesystem thread and
+publishes the native session/async owner together on the existing event loop.
+This removes the construction/stop publication race without adding a lock or
+mutable shared deadline. D047/D048's revised SDK patch and its new exception/cap
+tests are under installed native-only qualification before root integration.

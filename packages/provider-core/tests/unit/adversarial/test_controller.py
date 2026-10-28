@@ -78,9 +78,9 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
             await controller.settle()
             self.assertFalse(claims.owns_job(scope(), record().input.job_ref))
         else:
-            with self.assertRaises(ControllerFailed):
-                await controller.settle()
+            self.assertIsNone(await controller.settle())
             self.assertTrue(claims.owns_job(scope(), record().input.job_ref))
+            self.assertTrue(controller.shutdown_ready)
         self.assertEqual(len(transport.calls), 1)
 
     async def test_unaccepted_handoff_keeps_exact_selected_control_without_repeating_science(self):
@@ -142,9 +142,9 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([event[0] for event in session.events], ["retire"])
         with self.assertRaises(OwnershipRefused):
             claims.claim_live(record(), lifecycle_owner=LiveAttemptProbe())
-        with self.assertRaises(ControllerFailed):
-            await controller.settle()
+        self.assertIsNone(await controller.settle())
         self.assertTrue(claims.owns_job(scope(), record().input.job_ref))
+        self.assertTrue(controller.shutdown_ready)
         self.assertEqual(len(transport.calls), 1)
         self.assertEqual(deferred.pending, record())
         self.assertEqual([event[0] for event in session.events], ["retire"])
@@ -170,6 +170,8 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(OwnershipRefused):
             claims.claim_live(record(), lifecycle_owner=LiveAttemptProbe())
         session.retirement_failure = None
-        with self.assertRaises(ControllerFailed):
-            await controller.settle()
+        self.assertIsNone(await controller.settle())
         self.assertTrue(claims.owns_job(scope(), record().input.job_ref))
+        self.assertTrue(controller.shutdown_ready)
+        self.assertIs(controller.last_failure.cause, primary)
+        self.assertIn(cleanup_failure, controller.last_failure.cleanup_failures)

@@ -292,8 +292,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(type(held), ActiveStartReplayHeld)
         self.assertTrue(held.acknowledgement.admission.replayed)
         self.assertEqual(["retire"], controller.session.events)
-        with self.assertRaises(ControllerFailed):
-            await controller.settle()
+        self.assertIsNone(await controller.settle())
         self.assertIn(controller, claims.live_owners())
         self.assertTrue(controller.work_settled)
         self.assertTrue(controller.shutdown_ready)
@@ -390,6 +389,11 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(controller.api._transport.calls))
         self.assertEqual(["retire"], controller.session.events)
         self.assertIn(controller, controller._claims.live_owners())
+        for _ in range(2):
+            self.assertIsNone(await controller.settle())
+            self.assertTrue(controller.shutdown_ready)
+            self.assertIn(controller, controller._claims.live_owners())
+        self.assertEqual(["retire"], controller.session.events)
 
     async def test_original_retirement_and_late_evidence_precede_replay(self):
         for late in ("certificate", "cleanup", "availability"):
@@ -456,6 +460,12 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNotNone(deferred.acknowledgement)
         self.assertEqual(["retire"], controller.session.events)
         self.assertIn(controller, controller._claims.live_owners())
+        for _ in range(2):
+            self.assertIsNone(await controller.settle())
+            self.assertTrue(controller.shutdown_ready)
+            self.assertIn(controller, controller._claims.live_owners())
+        self.assertIsNone(controller.last_failure)
+        self.assertEqual(["retire"], controller.session.events)
 
     async def test_stopped_unacknowledged_report_duty_prevents_clean_shutdown(self):
         class RefusedDelivery(RecordingDelivery):
@@ -506,7 +516,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(type(deferred), StartDeferred)
         self.assertTrue(deferred.may_have_committed)
         self.assertEqual(1, len(transport.calls))
-        with self.assertRaises(ControllerFailed):
-            await controller.settle()
+        self.assertIsNone(await controller.settle())
         self.assertIn(controller, claims.live_owners())
         self.assertTrue(controller.work_settled)
+        self.assertTrue(controller.shutdown_ready)

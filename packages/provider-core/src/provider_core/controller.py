@@ -529,6 +529,16 @@ class AttemptController:
                 raise self.last_failure from None
             await self.delivery.retire()
             if self._claim is not None:
+                if (
+                    not isinstance(self._operation, AttemptExecutor)
+                    and ((self._start_deferred is not None and self._start_deferred.may_have_committed)
+                         or (self._acknowledged is not None and self._acknowledged.admission.state == "in_progress"))
+                    and self._claim.operation_owner is None
+                    and self._retired_by_controller
+                    and self.api.retirement_confirmed
+                    and self.delivery.retirement_confirmed
+                ):
+                    return result
                 try:
                     self._claim.release(owner=self)
                 except ControllerRefused as cause:
