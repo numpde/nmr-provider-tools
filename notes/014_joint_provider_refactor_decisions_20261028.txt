@@ -719,3 +719,43 @@ without a receipt; explicit fixture containment follows pidfd-observed exit.
 This qualifies that CPU runtime composition, not weights, numerical generation,
 the other image variant, or product adoption. Product build/input-authority and
 native-owner slice choices remain pending before scientific image edits.
+
+D021 -- SECS native SDK installation preserves the science closure (21:05 UTC)
+---------------------------------------------------------------------------
+
+SECS's existing scientific image already uses Python 3.12.12. Its single global
+environment overlaps the SDK lock at certifi, idna and typing-extensions; only
+the first two need different versions for the published SDK closure. The plain
+scientific child endpoint does not need an SDK import.
+
+Serious alternatives:
+A. Install the SDK in the global scientific environment, aligning two TLS
+   dependency pins. This avoids another environment but changes both scientific
+   lock closures to accommodate a supervisor-only dependency.
+B. Create /opt/native as a venv of the same existing interpreter; install the
+   exact provider lock from the existing provider wheelhouse. Run the supervisor
+   there and keep the explicit scientific child interpreter global. This adds
+   one environment and build context, but no second Python version or downloader,
+   and leaves the scientific dependencies unchanged.
+C. Keep the SDK-free native fork/relay/reap implementation. This retains the
+   lifecycle authority the completed adoption is meant to remove.
+
+Choice: B. The existing package build can accept the narrow additional wheelhouse
+context and lock, with both included in its input identity. Do not copy the
+provider application or force a new dependency on generic library users. Scope
+the prerequisite to the package Dockerfile/dockerignore, package build inputs,
+and actual installed-origin/environment checks. Hash-check wheels and pip-check
+both environments offline; verify global scientific/TLS versions stay unchanged.
+Use an explicit isolated supervisor interpreter and explicit global child argv.
+Actual RunnerSession/worker replacement remains a separate atomic source slice
+with real-process failure evidence, not an inference from installation.
+
+Checkpoint -- 21:05 UTC
+-----------------------
+
+Magnet committed the audited stop guard as 409607b, with a clean tree. The final
+focused cases include first provider clean/second provider bad; all probes,
+158-case maintained suite and both host gates passed within their named scopes.
+An apparent application drain-expiry cancellation gap is being traced there;
+the host guard does not by itself resolve it. Magnet also independently reviews
+NMRNet's original-driver shutdown slice.
