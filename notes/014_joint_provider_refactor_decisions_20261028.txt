@@ -633,3 +633,40 @@ sha256:be39332c076c79306d61927adea84cb78a733edab859a4267d1c447ea6ed3fa1.
 Its installed SDK version/origin/import/pip-check case passed (1 case, 0.371 s).
 Maintained provider tests and required root audit are pending. No production
 container or scientific lock was changed by this prerequisite.
+
+Checkpoint -- 21:01 UTC
+-----------------------
+
+NMRPeak committed the audited SDK/control-runtime prerequisite as 1b8d5bc.
+Its actual provider image built and passed an offline, read-only, nonroot
+installed-origin/import/pip-check smoke on Python 3.12.15. The scientific
+reference image remains unchanged; dual-runtime feasibility is the next proof.
+NMRNet committed the audited down-only guard as e667abe after the documentation
+correction and focused checks. Its ordinary up/replacement path is still open.
+
+Root independently inspected SECS's provider-only Dockerfile, acquisition and
+lock inputs, and installed-distribution test. The maintained provider suite is
+green (279 cases, 47.702 s), alongside the actual offline image and installed
+SDK case. NMRPeak's independent audit also closed. This slice can commit; it
+does not yet replace the old lifecycle/native/delivery owners.
+
+D019 -- NMRNet drain expiry keeps the original admitted driver (21:01 UTC)
+------------------------------------------------------------------------
+
+Serious alternatives:
+A. Cancel controller.run at drain expiry and later retry delivery elsewhere.
+   This abandons the live selected handoff and invents another report owner.
+B. Add SDK selection queries and parallel shutdown state to decide when to
+   cancel. No demonstrated API gap yet justifies that mirrored authority.
+C. Keep the original acknowledged controller.run alive across the soft drain
+   window. Existing operation/API budgets remain effective; stopping admission
+   still uses the existing stop event. The window triggers an operator notice,
+   not report withdrawal or permission to kill.
+
+Choice: C, implementing the direction recorded in D015. Bound the first slice
+to service._finish_work and its actual service tests, configuration explanation
+and operator guidance. Prove queue-full -> stop -> window expiry -> queue recovery
+uses the same report and original work, then reaches shutdown_ready. Also prove
+slow admitted science and explicit preselection suppression separately. A failed
+notice sink must not cancel the driver. Do not infer all shutdown paths from the
+host down guard, or turn eventual successful recovery into an unexplained failure.
