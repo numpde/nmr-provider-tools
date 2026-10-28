@@ -2,8 +2,6 @@
 
 from tests.fakes.execution import live_executor
 import json
-from pathlib import Path
-import tempfile
 import unittest
 from unittest.mock import Mock
 
@@ -51,21 +49,19 @@ class PreparedIdentityTests(unittest.IsolatedAsyncioTestCase):
             reply(observation()),
             reply(observation()),
         )
-        with tempfile.TemporaryDirectory() as directory:
-            store, acknowledged, claim = await live_attempt()
-            session = Session(store)
-            session.handle = session.preparation = PreparedAnalysis(IDENTITY)
-            terminal = await live_executor(
-                api(transport, store.scope.api_origin),
-                store,
-                claim,
-                session,
-                delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
-                poll_seconds=1,
-                task_settle_seconds=0.1,
-            ).run(acknowledged)
-            self.assertEqual(EvidenceDigest.from_evidence(IDENTITY), session.events[1][1].prepared)
-            self.assertEqual(EvidenceDigest.from_evidence(IDENTITY), terminal.selection.attempt.prepared)
-            self.assertNotIn(IDENTITY.content, encode_checkpoint(terminal))
-            self.assertFalse((Path(directory) / "checkpoints.sqlite3").exists())
-            claim.release(owner=claim.lifecycle_owner)
+        store, acknowledged, claim = await live_attempt()
+        session = Session(store)
+        session.handle = session.preparation = PreparedAnalysis(IDENTITY)
+        terminal = await live_executor(
+            api(transport, store.scope.api_origin),
+            store,
+            claim,
+            session,
+            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=0.1,
+        ).run(acknowledged)
+        self.assertEqual(EvidenceDigest.from_evidence(IDENTITY), session.events[1][1].prepared)
+        self.assertEqual(EvidenceDigest.from_evidence(IDENTITY), terminal.selection.attempt.prepared)
+        self.assertNotIn(IDENTITY.content, encode_checkpoint(terminal))
+        claim.release(owner=claim.lifecycle_owner)
