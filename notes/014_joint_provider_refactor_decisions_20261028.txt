@@ -177,3 +177,32 @@ witness must observe input release rather than mirror an internal pending flag.
 Preserve partial-write and failure behavior. Establish RED before product edits;
 audit independently before committing. Failure-before-close/native adoption is
 a separate next slice, not implied by this completion-ordering change.
+
+D007 -- Magnet normal stop must not impose report loss (20:27 UTC)
+----------------------------------------------------------------
+
+Serious alternatives, submitted by Magnet:
+A. Increase the current finite 600-second grace. This delays the same forced
+   kill and still cannot establish successful drain during indefinite outage.
+B. Send SIGTERM manually and poll. This can interact with unless-stopped restart
+   policy and requires additional lifecycle mutations/ownership to be correct.
+C. Request engine-managed stop without a daemon kill deadline, retain the existing
+   bounded local command wait, and report blocked/uncertain stop if that wait ends.
+   No runner reconciliation, down, or removal follows an unconfirmed provider stop.
+
+Choice: investigate C as the smallest existing engine primitive, conditionally.
+Docker documents container stop --timeout=-1 as waiting without a kill timeout:
+https://docs.docker.com/reference/cli/docker/container/stop/
+Compose documents a stop timeout but does not state the -1 behavior there:
+https://docs.docker.com/reference/cli/docker/compose/stop/
+Therefore this source alone does not establish the exact Compose/client-cancel
+path. First run an isolated offline fixture against the installed engine/client,
+including a child that retains an obligation past the local caller wait. Prove
+no SIGKILL, no accidental restart, and no following runner/down/removal action.
+
+Product edit is conditional on that probe. If supported, change the existing
+provider-first stop operation and its honest blocked-stop diagnostics, keeping
+normal stop separate from a deliberate emergency loss decision. Do not replace
+it with an unbounded host CLI or assume Compose down of all services preserves
+provider-before-runner ordering. Inspect actual provider exit/disposition before
+subsequent mutations. No new force framework or production stop is authorized.
