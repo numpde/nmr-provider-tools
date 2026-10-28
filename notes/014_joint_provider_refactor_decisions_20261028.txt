@@ -1,5 +1,5 @@
-Joint provider refactor: running decisions and evidence
-=====================================================
+Joint provider refactor: decisions and rationale
+==============================================
 Started 2026-10-28 20:22 UTC
 
 Objective and authority
@@ -18,9 +18,10 @@ are complete, or an actual external blocker requires a user decision.
 
 This is the single running decision record. Before consequential implementation
 choices, record serious alternatives, the choice, evidence and consequences here.
-Update at each such choice and at least every three minutes during active work.
-Status checkpoints need not invent a decision when none has changed. Exact code,
-validation results, release artifacts, and live proof remain distinct evidence.
+Update at each consequential choice. Keep operational progress and heartbeat
+checkpoints out of this durable note; record alternatives, rationale, scope and
+supersessions when the decision changes. Exact code, validation results, release
+artifacts and live proof remain distinct evidence.
 
 Coordinators
 ------------
@@ -106,26 +107,6 @@ report ownership and correct stop/recovery behavior, and absence of reachable
 duplicate lifecycle/publisher paths. Scientific/model and signed live API evidence
 must be named separately; fixtures do not become production proof.
 
-Checkpoint -- 20:22 UTC
------------------------
-
-Goal created and active. Shared checkout is clean at 0cab18b before this note.
-Common design already has all four design-scope approvals. Implementation kickoff
-has not yet been dispatched; the decisions above precede that action.
-
-Checkpoint -- 20:25 UTC
------------------------
-
-Implementation kickoff sent to all four coordinators after D001-D004 were
-committed as 0107ccb. Each owns its repository; first-slice alternatives and
-validation proposals are pending before consequential implementation edits.
-All four consumer trees were clean at kickoff: NMRNet 7ed4594, Magnet f8552a8,
-SECS 4bd1ca2, NMRPeak eb94f43. Existing notes/review commits are preserved.
-
-The shared owner inspected maintained installed-package validation lanes.
-No SDK product change or new API has yet been justified. Published 0.4.0 remains
-the baseline; required consumer evidence is not inferred from its SDK tests.
-
 D005 -- SECS scientific preparation boundary (20:26 UTC)
 -------------------------------------------------------
 
@@ -156,6 +137,13 @@ analysed/no_starting_candidates classification and decimal result encoding.
 Use an existing contained CPU science lane; no fake import substitutes for this
 boundary. Establish RED before product edits and audit the integrated dirty diff.
 
+Evidence scope: the science lane uses fixed tokenizer/spectra and static
+retrieval under network-none/read-only/nonroot65532, caps-none,
+no-new-privileges, 2 CPU/2 GiB/64 PIDs, bounded temporary storage and read-only
+trusted fixture/cache inputs. It does not load remote checkpoints, PT2/JIT or
+untrusted configuration. Advisory
+applicability for that lane is not production security qualification.
+
 D006 -- NMRPeak healthy completion ordering (20:26 UTC)
 -----------------------------------------------------
 
@@ -177,6 +165,10 @@ witness must observe input release rather than mirror an internal pending flag.
 Preserve partial-write and failure behavior. Establish RED before product edits;
 audit independently before committing. Failure-before-close/native adoption is
 a separate next slice, not implied by this completion-ordering change.
+
+Evidence boundary: the weakref/order witnesses establish worker-local input
+release with a nonretaining fixture runtime. They do not establish model/native
+quiescence, which remains a separate adoption requirement.
 
 D007 -- Magnet normal stop must not impose report loss (20:27 UTC)
 ----------------------------------------------------------------
@@ -207,28 +199,11 @@ it with an unbounded host CLI or assume Compose down of all services preserves
 provider-before-runner ordering. Inspect actual provider exit/disposition before
 subsequent mutations. No new force framework or production stop is authorized.
 
-Checkpoint -- 20:31 UTC
------------------------
-
-D006 completed in NMRPeak commit 52528d4. Both HF/CHF RED witnesses failed before
-the pending-state reorder. The maintained contained unit suite then passed 599
-tests on snapshot 1142184e5549255611f54a5aa729e82125fc85923b53444cd1ffc6f67d9c69e2.
-SECS independently reviewed the dirty slice with no actionable defect. This proves
-worker-local input release with the nonretaining fixture runtime, not actual
-model/native quiescence. The latter remains required during adoption.
-
-D007 platform proof passed on installed Compose 5.5.1: finite 1-second stop killed
-the held child (137), while timeout=-1 plus a 4-second local caller timeout left
-it running; explicit release later produced exit 0 without restart. Evidence:
-/tmp/magnet-drain-compose-probe.log. Only the isolated fixture project was used.
-Magnet will now edit its existing provider-first stop and reuse the clean-exit
-guard in down as well as up, then run launcher regressions and obtain root audit.
-
-SECS has RED test source but no cached science image. Automatic approval review
-rejected an OSV batch inventory export. A safer public PyPI advisory-feed download
-and local-only matching succeeded (feed Last-Modified 20:03:09 UTC). Applicability
-of findings is being checked before offline image installation; this is neither
-a clean security audit nor an SDK gap. No product edit preceded real RED.
+Installed-platform evidence: Compose 5.5.1 with finite stop=1 killed the held
+fixture child (137). stop=-1 plus a four-second local waiter left it running;
+explicit release then produced exit 0 without restart. Evidence:
+/tmp/magnet-drain-compose-probe.log. This supports the selected stop operation,
+not a universal property of every container stop path.
 
 D008 -- NMRNet provider-first guarded stop (20:31 UTC)
 ----------------------------------------------------
@@ -293,32 +268,6 @@ suite on Python 3.12. Update declared Python support truthfully. No source check
 import, default permission widening, new release, or scientific model upgrade.
 This prerequisite is not the final adopted runtime; old lifecycle removal follows.
 
-Checkpoint -- 20:34 UTC
------------------------
-
-SECS established real D005 RED in /tmp/secs-d005-red.log: ten selected-spectrum
-tests, seven existing passes and three new failures at unsupported prepare. The
-earlier missing-tokenizer-cache attempt is environment failure, not counted RED.
-CPU image sha256:eba7ee19e79acaa9b59e06a140c2a12260f227c8e5986ed3fe16723ed623507b
-was built offline from existing hash-locked inputs with no version changes.
-
-Advisory matching found legacy-package findings; it did not certify a safe
-deployment. The focused contained lane is network-none/read-only/nonroot65532,
-caps-none, no-new-privileges, 2 CPU/2 GiB/64 PIDs, with bounded temporary storage
-and read-only trusted fixture/cache inputs. It uses fixed tokenizer/spectra and
-static retrieval, not remote model/checkpoint/PT2/JIT/untrusted configuration.
-Those facts qualify this test lane's applicability analysis, not production.
-The source and product patch began only after the three real RED failures.
-
-NMRPeak D006 commit is 52528d4 and clean. Root also inspected the committed diff
-and weakref witness; agrees with SECS's narrow worker-local ownership proof.
-D009 Python/artifact prerequisites are now acknowledged and under preparation.
-
-D007/D008 stop work proceeds in parallel. Root explicitly repeated the recorded
-ACKs to avoid queued-message timing being mistaken for missing authorization.
-The application-level selected-handoff cancellation issue remains a separate
-unresolved implementation choice; no SDK API change has been authorized for it.
-
 D010 -- Reject an unnecessary consumer build-backend upgrade (20:38 UTC)
 ---------------------------------------------------------------------
 
@@ -361,25 +310,6 @@ Rebuild with that single changed apt pin, preserve source/image identities, and
 run the maintained Python 3.12 installed-SDK consumer checks. Do not refresh the
 whole OS dependency set or scientific/model images to solve this test prerequisite.
 
-Checkpoint -- 20:38 UTC
------------------------
-
-SECS D005 science lane is GREEN (11 cases, 3.871 s), including consumed handles
-after retrieval failure, original admitted input after source deletion/selection
-mutation, buffer release, and formula rejection before model access. Full provider
-and input lanes are running; independent review/commit remain pending.
-
-NMRNet D008 preserved RED (/tmp/nmrnet-safe-down-red.log: 25 cases, 11 expected
-failures), then implemented provider-first metadata/stop guards. GREEN launcher
-qualification is running; root audit is pending. It explicitly does not claim
-that application-level cancelled handoff retry is repaired by the host fix.
-
-NMRPeak D009 has an actual Python-version RED before the prerequisite edits.
-Its 14 proposed runtime pins were matched locally against 26,692 current public
-advisories with no findings/unparsed bounds. Backend review and the unavailable
-OS pin above are separate from that runtime-pin result. No new SDK release,
-production deployment, or scientific runner runtime change has occurred.
-
 D012 -- Investigate the native interpreter boundary before choosing (20:42 UTC)
 -----------------------------------------------------------------------------
 
@@ -409,24 +339,6 @@ peers report concrete image/interpreter/dependency constraints and alternatives.
 An isolated existing-image syntax/compatibility probe can rule out unsupported
 assumptions without installing new dependencies or mutating a deployment.
 
-Checkpoint -- 20:42 UTC
------------------------
-
-SECS D005 final corrected lanes pass: provider 278, real science 11, input 136,
-plus 21 semantic evidence requirements. NMRPeak independently reviewed source
-and logs; requested formula/entry-refusal/source-retention witnesses are closed.
-SECS is committing only the atomic scientific caller/worker boundary.
-
-NMRNet D008 launcher RED/GREEN is ready for root audit, with final maintained
-target running. Magnet D007 is also ready; root found an initial-state guard
-gap for restarting/paused live providers and requested adversarial state cases
-before accepting that slice. Already-stopped abnormal teardown policy must be
-stated rather than silently conflated with newly successful drain.
-
-NMRPeak D009 is rebuilding after D010/D011, then needs installed-artifact and
-maintained-suite evidence. D012 is a separate real native-adoption feasibility
-question; it does not reverse or silently extend D009's image scope.
-
 D013 -- SECS provider-only installed SDK prerequisite (20:46 UTC)
 ---------------------------------------------------------------
 
@@ -452,25 +364,6 @@ Local public-feed matching of 13 issued runtime pins found no matching advisory
 or unparsed version bound. This does not qualify unrelated scientific packages.
 Require actual installed controller/analysis/delivery/native/binding imports,
 pip check, maintained provider tests, and independent review before commit.
-
-Checkpoint -- 20:46 UTC
------------------------
-
-SECS D005 is committed as 563b713 with the exact atomic caller/worker change.
-NMRPeak's independent source/log review found no remaining actionable defect
-in that slice; it is not full lifecycle adoption.
-
-D012 constraints are now concrete: SECS CPU/GPU and provider all use 3.12.12;
-NMRNet native/controller roles also use 3.12.12; Magnet scientific native images
-use 3.12.12 while its provider/test images use 3.12.15. Only NMRPeak's science
-family here is fixed to 3.11, with compiled cp311 Torch 2.3 artifacts and older
-NumPy/SciPy constraints. Do not infer a Python 3.12 model upgrade from SDK support.
-
-NMRPeak D009's rebuilt test image has passed its installed-SDK smoke and pip
-check with retained backend and corrected OS pin; the full maintained suite is
-running. Root has not accepted/committed that slice yet. NMRNet D008's final
-launcher and docs checks are ready for root audit; Magnet is adjudicating the
-initial-state guard findings before final acceptance.
 
 D014 -- All Magnet provider states need an honest stop disposition (20:53 UTC)
 ----------------------------------------------------------------------------
@@ -554,6 +447,14 @@ supervisor, no metadata bypass or copied sibling source. Use actual published
 SDK artifacts. If the image/ABI composition cannot meet this contract, return
 with the failing proof and reconsider A/C before product integration.
 
+Historical feasibility scope: the isolated CPU prototype used /opt/control
+for SDK 0.4.0 on Python 3.12 and /usr/local for the unchanged science closure on
+3.11. It established inherited descriptors/lease identity, two requests on one
+child, retirement/scratch release and original exit before interruption. Killing
+the supervisor left the child/lease/scratch held without a receipt. It did not
+qualify weights, numerical generation or the other image variant, and it did not
+authorize the two-interpreter endpoint later rejected by D030/D042.
+
 D017 -- Keep SECS acquisition separate from offline installation (20:53 UTC)
 ---------------------------------------------------------------------------
 
@@ -571,23 +472,10 @@ parallel dependency authority is needed. NMRPeak's explicitly networked dependen
 preparation has a different existing boundary; do not force one installer shape
 on both repositories. Require the actual offline image to prove installation.
 
-Checkpoint -- 20:53 UTC
------------------------
-
-The record interval exceeded three minutes during root audit/choice comparison;
-this checkpoint catches it up before further implementation acknowledgements.
-Keep subsequent updates at the stated cadence rather than silently redefining it.
-
-Root reviewed NMRPeak D009's nine-file scope, installed-origin smoke, exact SDK
-runtime version alignment and unchanged setuptools, sole apt correction, and
-maintained results. No blocking source issue. Actual provider-image smoke remains
-required after its clean commit, separate from the already-qualified test image.
-
-Root reviewed NMRNet D008's parent-shell metadata/native fact handling, exact CID
-stop, final exit guard, refusal paths, retained control files, and RED/GREEN/docs
-evidence. No blocking source issue in down. One wording fix remains: describe
-no-kill timeout as this down operation's behavior, not a universal container property.
-That slice does not qualify all up/replacement paths or application handoff resume.
+Rejected extra machinery: actual acquisition exited 0 and obtained the locked
+inputs despite octet-stream warnings. The proposed URL-staging change was
+withdrawn after inspecting exit/result/hash evidence. Those warnings do not
+invalidate the separate demonstrated direct-URL offline-installation failure.
 
 D018 -- A provider oneoff is not proof of no reporting duty (20:56 UTC)
 --------------------------------------------------------------------
@@ -612,43 +500,6 @@ already refuses oneoffs; down intentionally admits broken owned topology, so
 this gate closes its specific later-removal gap without erasing that distinction.
 Add the causal oneoff RED, clean/never-started cases, and no-runner/removal effects
 when the live oneoff remains. Do not claim that label admission proves cleanup.
-
-Checkpoint -- 20:56 UTC
------------------------
-
-Root audit closed NMRPeak D009 prerequisite source and NMRNet D008 down source
-subject to its narrow wording correction; both can commit coherent audited
-slices after their recorded checks. Neither result is full native/controller
-adoption. Magnet D014 correction proceeds; D018 closes the new oneoff bypass.
-
-SECS D013/D017 actual acquisition exited 0 and obtained all 13 locked inputs.
-Octet-stream warnings were initially misread as a failed URL-as-find-links
-hypothesis; both peers withdrew the extra staging proposal before implementing
-it after inspecting the actual exit/result/hash. No new acquisition machinery
-was added for those nonfatal warnings. The separate earlier direct-URL offline
-installation failure remains a valid cause witness.
-
-SECS's actual offline provider-image build passed at
-sha256:be39332c076c79306d61927adea84cb78a733edab859a4267d1c447ea6ed3fa1.
-Its installed SDK version/origin/import/pip-check case passed (1 case, 0.371 s).
-Maintained provider tests and required root audit are pending. No production
-container or scientific lock was changed by this prerequisite.
-
-Checkpoint -- 21:01 UTC
------------------------
-
-NMRPeak committed the audited SDK/control-runtime prerequisite as 1b8d5bc.
-Its actual provider image built and passed an offline, read-only, nonroot
-installed-origin/import/pip-check smoke on Python 3.12.15. The scientific
-reference image remains unchanged; dual-runtime feasibility is the next proof.
-NMRNet committed the audited down-only guard as e667abe after the documentation
-correction and focused checks. Its ordinary up/replacement path is still open.
-
-Root independently inspected SECS's provider-only Dockerfile, acquisition and
-lock inputs, and installed-distribution test. The maintained provider suite is
-green (279 cases, 47.702 s), alongside the actual offline image and installed
-SDK case. NMRPeak's independent audit also closed. This slice can commit; it
-does not yet replace the old lifecycle/native/delivery owners.
 
 D019 -- NMRNet drain expiry keeps the original admitted driver (21:01 UTC)
 ------------------------------------------------------------------------
@@ -697,29 +548,6 @@ generated hash authority intact. Qualify actual uv generation, normalization,
 offline acquisition/install and installed closure; compiler failure is a new
 real witness, not a reinterpretation of the earlier nonfatal pip warnings.
 
-Checkpoint -- 21:03 UTC
------------------------
-
-Root reviewed Magnet's final up/down source and causal state/oneoff tests.
-All captured provider IDs are checked, including duplicate and oneoff owners;
-unknown stop, abnormal exit, OOM and live oneoff block later removal. Source
-audit is clear. The maintained repository suite passed 158 cases in 139.104 s;
-both host tooling gates passed. Fresh peer review and the final narrow diagnostic
-wording check precede its commit. NMRNet's next dirty slice will receive Magnet's
-independent read-only review after that commit.
-
-NMRPeak's scratch-only dual-runtime prototype passed. Root independently read
-the Dockerfile, driver, child and run-v2 log. Actual SDK 0.4.0 control Python 3.12
-uses /opt/control; unchanged scientific Python 3.11 uses /usr/local and imports
-the original NumPy/Torch/SciPy closure without child SDK/path bleed. Actual
-inherited descriptors and lock identity match, two requests share one child,
-deliberate retirement releases scratch, and original voluntary exit is observed
-before interruption. Killing the supervisor leaves the child/lease/scratch held
-without a receipt; explicit fixture containment follows pidfd-observed exit.
-This qualifies that CPU runtime composition, not weights, numerical generation,
-the other image variant, or product adoption. Product build/input-authority and
-native-owner slice choices remain pending before scientific image edits.
-
 D021 -- SECS native SDK installation preserves the science closure (21:05 UTC)
 ---------------------------------------------------------------------------
 
@@ -750,15 +578,17 @@ Use an explicit isolated supervisor interpreter and explicit global child argv.
 Actual RunnerSession/worker replacement remains a separate atomic source slice
 with real-process failure evidence, not an inference from installation.
 
-Checkpoint -- 21:05 UTC
------------------------
+Installed-boundary evidence: the SDK supervisor ignores inherited global
+PYTHONPATH; its explicit scientific child uses the original global environment
+and installed scientific package. This qualifies installation and the authored
+FD/lease/warm-child boundary, not WorkerClient replacement, GPU/model inference
+or completed controller/delivery adoption.
 
-Magnet committed the audited stop guard as 409607b, with a clean tree. The final
-focused cases include first provider clean/second provider bad; all probes,
-158-case maintained suite and both host gates passed within their named scopes.
-An apparent application drain-expiry cancellation gap is being traced there;
-the host guard does not by itself resolve it. Magnet also independently reviews
-NMRNet's original-driver shutdown slice.
+Evidence provenance: D021 reused and overwrote the earlier D005 science/input
+/tmp log filenames. Their current bytes cannot prove historical D005 runs;
+those runs remain in the earlier tool history. D021 logs were copied to
+/tmp/secs-native-{science,input}-green.log. Use distinct stage names rather than
+relabel current logs as earlier proof.
 
 D022 -- Magnet distinguishes expired wait from actual final failure (21:07 UTC)
 ---------------------------------------------------------------------------
@@ -789,28 +619,6 @@ checking original owner/report identity, ACK and shutdown readiness. Keep a genu
 scientific-cutoff/error witness and force_close failure behavior distinct. Then
 review the smallest product correction; sibling TaskGroup cancellation remains
 unproved until exercised. Do not copy NMRNet's service architecture into Magnet.
-
-Checkpoint -- 21:10 UTC
------------------------
-
-NMRNet's new tests now exercise the real SDK controller at the delivery seam:
-selected report, full queue, service stop, elapsed drain window, recovery, exact
-body, one execution and final owner release. Root preview confirmed the authored
-failure targets the original whole-driver cancellation. Source is still unchanged
-pending its RED run; returned/unselected suppression is a separate case.
-
-SECS's D020 correction now extends only known wheel normalization and uses the
-existing compiler -> raw lock -> offline normalization -> atomic publication
-route. Root preview found no source issue; actual compiler/hash-closure evidence
-and focused checks remain necessary before renewed commit acceptance.
-
-NMRPeak is mapping the actual native ownership replacement across provider
-attachment, worker descriptors, image/input identity, deployment and retirement
-checks before proposing the next atomic source slice. Both named scientific
-images are CPU x86_64 variants; the prototype covered HF, so CHF still needs
-its own image/import/native smoke. An earlier generic GPU caveat from root does
-not describe these two variants. No scientific image edits have been approved
-merely from the scratch prototype.
 
 D023 -- SECS regeneration preserves the qualified SDK closure (21:10 UTC)
 ------------------------------------------------------------------------
@@ -868,6 +676,18 @@ failure frames and successful quiescent responses establish different facts.
 Failed retirement holds the original owner; qualify any proof-session recovery
 separately rather than resetting a poisoned channel.
 
+Scientific/native proof limits: HF and CHF here are both CPU x86_64 variants;
+an HF prototype alone did not qualify CHF. A changed child module import requires
+proof from that exact source. Native/FD evidence does not establish numerical
+or model-generation behavior.
+
+Retain reset causes through the scientific codec's RunnerProtocolError wrapping:
+a wrapped OSError reset can require original-exit observation just as a raw reset
+does. A timeout or protocol error alone does not establish a crash. Death not
+originally observed before local interruption must not be reconstructed into
+original_exit merely because physical death may have happened earlier. No
+crash/greeting contract or phase deadline was changed on that conjecture.
+
 D025 -- NMRPeak aggregate native retirement budget (21:14 UTC)
 ---------------------------------------------------------------
 
@@ -886,18 +706,6 @@ invented safety numbers. Set/explain the NMRPeak example accordingly; do not
 silently clamp an old configuration or change generation/interpretation budgets.
 This allowance is bounded observation, not proof that every kernel operation
 finishes within it. Failure keeps sources/exclusion and the original I/O owner.
-
-Checkpoint -- 21:14 UTC
------------------------
-
-SECS's actual maintained lock-write target now exits 0 using the rebuilt
-compiler and narrow normalization. Root independently compared the regenerated
-lock with the published SDK lock: all 13 distribution/version/artifact-hash sets
-match exactly. Actual offline image/install requalification is underway before
-renewed final acceptance. NMRNet observed two genuine RED failures among 47
-cases and is preserving the driver; its initial product iteration also exposed
-two older tests coupled to forced cancellation, which must preserve their real
-cleanup proof while being adjusted to the new stopping policy.
 
 D026 -- NMRNet up starts a fresh project rather than recreating incumbents (21:16 UTC)
 ---------------------------------------------------------------------------------
@@ -927,67 +735,6 @@ can itself refuse unproved exit, and such cases require explicit inspection and
 disposition. Do not silently weaken that guard or add a force flag here.
 Qualify running/stopped/partial project refusal before lifetime/container effects,
 empty project startup, metadata failure and retained unretired-client facts.
-
-Checkpoint -- 21:16 UTC
------------------------
-
-NMRNet committed D019 as 90d621a after 48-case integration and documentation
-checks and Magnet's independent functional audit. Root reviewed the exact commit:
-the completion wait preserves the existing task result classifier; revised older
-tests still prove independent cleanup failures. Source acceptance is closed.
-
-SECS's corrected offline image built as
-sha256:258f56012f119ff842e2eadce3da3f52fdfa0484556568436b51576766bd6eb1.
-Root's final source read covers the actual compiler constraint, normalization,
-atomic lock publication and unchanged exact 13-distribution hash closure; no
-blocking source issue. Installed/runtime checks for that exact image are pending
-before renewed commit acceptance. Earlier image results are not substituted.
-
-Checkpoint -- 21:18 UTC
------------------------
-
-NMRNet's D026 causal RED showed existing-project up returning success and
-invoking lifetime/Compose work. The four-line gate now queries the exact project
-before those effects. Root final source review is clear; 34 image/launcher and
-3 documentation cases pass. Await Magnet's independent review, then commit.
-No new SDK API or shared scheduling state was introduced.
-
-NMRPeak's native-first RED uses the actual installed SDK fixture: the current
-HF/CHF client misreads control greeting as scientific READY, and cleanup skips
-native retirement for a scientifically unusable session. Two cases produced
-one assertion failure and two intended protocol errors before product edits.
-The atomic native cut is now underway under D024/D025.
-
-SECS's independent prototype review flagged that an updated child source added
-a module import absent from the earlier v2 log. NMRPeak reran the current exact
-source for both HF and CHF and recorded source hashes. Root inspected the new
-logs/hash record; the earlier v2 acceptance remains limited to its actual
-dependency/native facts. No numerical/model-generation proof is claimed.
-
-Checkpoint -- 21:20 UTC
------------------------
-
-NMRNet committed fresh-project up as 99d592a after root and Magnet review,
-34 image/launcher cases and 3 documentation cases. Its exact NMR COMPLETE
-envelope bound is 1,048,843 bytes: admitted 786,432-byte result content becomes
-1,048,576 base64 characters plus 267 bytes of fixed schema/reference/JSON.
-The 2,097,152-byte reservation is sufficient; no SDK capacity change is needed.
-Actual scientific result planning separately rejects excess content before
-prediction and enforces the reservation at finish. A newly identified question
-is how its ResultRejected preparation error is classified publicly; inspect
-the current policy before any change. Do not claim every nominal batch fits.
-
-SECS committed the SDK installation/lock-generation prerequisite as 1a02016.
-The exact corrected image passed installed origin/import/pip-check (1 case,
-0.681 s) and maintained provider tests (279 cases, 47.135 s). Native venv
-installation proceeds under D021; Dockerignore already admits the needed lock,
-so there is no reason to change it. First actual environment/FD proof is CPU;
-the shared CPU/GPU recipe does not establish GPU or numerical qualification.
-
-Root reviewed Magnet's current D022 product and test diff; no blocking source
-issue. NMRNet independently reviewed it read-only and also found the actual
-result/error boundary preserved. Appropriate maintained qualification precedes
-its commit; the speculative two-lane sibling path is still a separate question.
 
 D027 -- NMRNet publishes an expected result-capacity rejection (21:22 UTC)
 ------------------------------------------------------------------------
@@ -1020,27 +767,12 @@ batch fits. The separate protected-evidence ceiling is outside this terminal-siz
 slice. Require a real planner/session/core FAIL path with no prediction, and a
 structural-error counterexample that does not become result_size_limit.
 
-Checkpoint -- 21:25 UTC
------------------------
-
-Root reviewed NMRNet's six-file D027 change: the single pre-prediction size
-subtype is mapped through the existing failure owner, structural errors stay
-internal, and the offering count statement is qualified. The real planner batch
-returns safe AnalysisFailure without prediction; cleanup is tested separately.
-The real SDK/relay/API FAIL test and maintained qualification precede acceptance.
-
-SECS D021 captured its genuine missing-/opt/native RED before product edits.
-Root reviewed the isolated venv/product build diff and actual FD test/probe:
-the supervisor ignores inherited global PYTHONPATH, while its explicit scientific
-child uses the unchanged global environment and installed scientific package.
-The build reuses the exact acquired lock/wheelhouse, includes both in its input
-identity, and creates no provider-image cycle. Actual offline CPU build and
-installed environment/FD checks remain pending; installation does not replace
-the old worker lifecycle yet.
-
-NMRPeak's atomic native cut and Magnet's maintained D022 qualification continue.
-The goal remains active: committed prerequisites and local proof are not the
-completed SECS/NMRPeak controller/delivery migration, a new SDK release or rollout.
+Capacity evidence: NMRNet's maximum COMPLETE envelope is 1,048,843 bytes:
+786,432 bytes of admitted result content become 1,048,576 base64 characters plus
+267 fixed schema/reference/JSON bytes. The existing 2,097,152-byte reservation is
+sufficient, so this case does not justify an SDK capacity change. Scientific
+planning must still reject excess content before prediction and enforce the
+reservation at finish; nominal batch limits alone do not guarantee it fits.
 
 D028 -- Restore NMRNet's maintained fixture and test grants (21:27 UTC)
 ------------------------------------------------------------------------
@@ -1072,32 +804,6 @@ then the maintained provider lane. Local D027 can commit after focused proof and
 independent audit with this exact known qualification closure named; do not call
 the final branch fully green until D028 closes those failures.
 
-Checkpoint -- 21:28 UTC
------------------------
-
-Magnet committed D022 as c720141 with a clean tree after 669 unit cases in
-41.417 s and 122 integration cases in 88.685 s, focused real-SDK/supervision
-proof, root review and NMRNet independent review. These authored API/relay tests
-are local consumer evidence, not production-finalizer or model qualification.
-Magnet independently cleared the narrow NMRNet D027 mapping as well.
-
-SECS D021's actual offline CPU image is
-sha256:33bc49d581399c22498457d5be90953ee24099b18091707793f12e57c7d778a4.
-Its installed two-environment/FD/lease/warm-child/retirement test passed, as did
-11 reader/science and 136 input cases plus 21 semantic coverage cases. One added
-scientific installed-origin assertion is being rerun before commit. Root source
-acceptance is closed, conditional on that final actual-image test remaining green.
-This qualifies installation and the fixture boundary, not actual WorkerClient
-replacement, GPU/model inference or completed controller/delivery adoption.
-
-Evidence correction: SECS's reused helper initially overwrote its earlier D005
-science/input /tmp log filenames with these new runs. Those files no longer
-prove the historical D005 runs; their earlier tool history and this record remain.
-The current D021 logs were copied to /tmp/secs-native-{science,input}-green.log;
-future runs must use distinct stage names. Do not silently relabel current logs
-as the earlier proof. This is an evidence-handling mistake, not a scientific
-result change or reason to repeat a passing campaign without new concerns.
-
 D029 -- The wheel-capture fixture uses its checker interpreter (21:29 UTC)
 -------------------------------------------------------------------------
 
@@ -1121,108 +827,11 @@ not claim to precede that edit. The selection must still execute the real frozen
 selector with its actual checker-owned dependency tool. Re-run the two causal
 cases and the maintained provider lane before the validation repair commits.
 
-Checkpoint -- 21:31 UTC
------------------------
+Tradeoffs and coordination boundary reviewed before D030 (21:45 UTC)
+--------------------------------------------------------------------
 
-NMRNet committed D027 as 582a97f after real SDK/relay/API FAIL, no-prediction,
-cleanup and structural-counterexample proof (service 49, result 36 cases) and
-root/Magnet review. It committed D028/D029 as 30fae9b after the complete 256-case
-provider unit lane passed. Its tree is clean. No further common-design invariant
-violation is established in the reviewed NMRNet scope. Deliberate limitations
-remain: separate protected-evidence refusal, scratch-authority requirements for
-replacement proof, potentially indefinite delivery drain, and unrun GPU/OOM,
-numerical and live-rollout campaigns. Do not turn those unclaimed campaigns into
-successful proof or automatic new product scope.
-
-SECS D021's final installed-origin/environment/FD case passed on its actual
-CPU image (1 case, 2.994 s); reader/science and input results remain green.
-Root final source acceptance is closed. NMRNet is independently reviewing the
-exact four-file slice read-only before its commit; root permission is not pending.
-
-Magnet is probing the proposed two-lane sibling-cancellation scenario in a
-scratch fixture using real SDK controllers and production operation supervision.
-It remains a hypothesis until the exact driver/cause/ACK behavior is observed.
-No extra SDK API, scheduling state or product change is approved for that question.
-
-Checkpoint -- 21:34 UTC
------------------------
-
-NMRNet independently cleared SECS D021's exact four-file source and actual
-image/installed/science/input evidence. All prerequisite review gates are closed;
-SECS owns its commit and next native-replacement proposal. The probe remains an
-authored child, not model execution or the production worker adapter.
-
-NMRPeak's first actual native-client product cut is now dirty and reviewable:
-SDK control/science-FD attachment, original scientific-call/native-reader owners,
-partial-startup retention and actual retirement confirmation. Image/launcher
-integration and old-owner deletion remain part of the same uncommitted slice.
-Root preview found a concrete wrapped-reset path to qualify: the scientific
-codec wraps OSError in RunnerProtocolError, while the new unexpected-close check
-only recognizes raw reset errors or typed EOF. Preserve original cause/exit
-observation before deliberate interruption for actual reset; a mere timeout or
-protocol error still does not establish a crash. NMRNet independently reviews
-the native ownership/race boundary read-only; this preview is not final acceptance.
-
-Checkpoint -- 21:38 UTC
------------------------
-
-SECS committed the qualified native installation as 19e356c; its tree was clean.
-Its next actual native proposal preserves the WorkerClient caller seam and serial
-scientific JSON codec while replacing fork/relay/reap with SDK RunnerSession and
-an inherited-FD child. Root found a consequential budget issue before approving
-relay removal: the old relay enforces each request deadline independently, while
-the client can block in a synchronous API snapshot for up to its I/O allowance.
-A plain owner-session runner plus the same callback would lose that independent
-deadline behavior. Compare a retained client deadline owner with advancing async
-observation composition; preserve scientific budgets explicitly. Existing SECS
-TERM/KILL bounds are 2+2 s, client stop is 10 s and worker Compose grace 20 s;
-do not silently replace them with another provider's defaults. Read-only native
-RED/protocol work can proceed while this local ownership choice is resolved.
-
-Magnet's actual-SDK scratch two-lane probe confirmed that B's cutoff failure
-causes production TaskGroup supervision to cancel A's selected-report driver.
-After delivery recovers, A has no ACK and is not shutdown-ready. NMRNet reviewed
-the counterexample independently. It proves the group behavior with an authored
-force-close callback, not the full nested production finalizer or model system.
-Root requested a pre-stop genuine-error variant before choosing between a
-drain-only correction and failure-triggered graceful joining generally. Keep
-external owner cancellation and scientific cutoff policy distinct; no product
-change or new SDK state API is approved for this new question yet.
-
-SECS and NMRPeak report the user's explicit local instruction to apply delegated
-repo change with critical Luna/medium review. Each coordinator retains all edits;
-their new native/deadline auditors are read-only. This does not transfer ownership
-of this record or authorize cross-repository writes, releases or deployment.
-
-Checkpoint -- 21:41 UTC
------------------------
-
-NMRPeak's atomic native slice now includes the standalone control stages,
-bootstrap/policy, worker descriptor arguments, closed image inputs and inspected
-entrypoints. The old generic supervisor and two model wrappers are deleted in
-the dirty slice. A reviewer found the benchmark host's old entrypoint declaration;
-updating that owning contract is part of the same cut, not a second runtime mode.
-Actual attachment/warm-child/retirement tests pass; unit native test ports are
-explicit, with no production None fallback. Reset/race/poisoned-reader consumer
-witnesses and final image qualification are still required before acceptance.
-
-Independent review also suggested changing SDK crash/greeting behavior. Root and
-the consumer rejected those changes without a demonstrated contract gap: a death
-not originally observed before local interruption cannot be reconstructed into
-original_exit merely because physical death may have happened earlier. Existing
-phase/greeting deadlines remain. Qualify these as negative/race cases rather
-than broadening crash authority or starting an SDK release on conjecture.
-
-SECS continues the explicit request-deadline/retirement comparison before its
-native product cut. Magnet's pre-stop sibling-failure variant is being checked
-before the next supervision choice. These are local design/qualification tasks;
-there is no pending user approval or authorized production operation.
-
-Critical review checkpoint -- 21:45 UTC
--------------------------------------
-
-The user asked which decisions are most questionable. Root identified four
-tradeoffs, without silently changing their implementation authority:
+These four tradeoffs informed D030; this review did not independently change
+their implementation authority:
 
 - NMRPeak's two-Python composition protects the scientific closure but adds
   packaging/patching burden. Properly qualifying SDK Python 3.11 support remains
@@ -1293,6 +902,11 @@ and genuinely non-blocking capability work can be separated from this refactor.
 Do not relabel the user's four rejected endpoints as acceptable caveats, or
 invent a new shared framework before its actual cross-consumer owner is proved.
 
+Scope discipline: prioritize the shared owner and completed adoption. Minor
+concerns may be explicitly deferred; that does not authorize weakened correctness,
+cosmetic detours, or a new permission round for already approved direct async
+composition.
+
 D031 -- The existing SDK controller owns its original driver (22:00 UTC)
 -------------------------------------------------------------------------
 
@@ -1333,21 +947,23 @@ owners with the actual driver, surface errors promptly, stop fresh admissions,
 and join before final settlement. Qualify both nested-group witnesses and races,
 not merely a shielded await in isolation. No new generic supervisor is selected.
 
-Checkpoint -- 22:00 UTC
------------------------
+Cancellation evidence: an escaping driver CancelledError must retain its actual
+identity/cause before asyncio Task observation normalizes it. It is distinct from
+a fresh observer cancellation. Cleanup interruption provenance must survive the
+new Task boundary. Register-before-dispatch and owner-creation failures require
+real no-effect/resource-retention witnesses.
 
-Shared Python 3.11 qualification requires the existing hash-locked cp311 cffi
-artifact, absent from the selected pool. Dependency metadata/syntax are not a
-runtime proof. Acquisition uses the existing interface-bound workflow; the repo
-requires explicit interface selection with no guessed default. Root asked the
-user for that missing configuration asynchronously; other shared work continues.
-NMRNet supplies the maintained two-runtime qualification proposal read-only.
+Historical donor-source coverage is not a generated inventory of new SDK files.
+Record an exact renamed-witness replacement in that historical inventory; do not
+regenerate it to imply new SDK files originated in the donor.
 
-NMRPeak's native fault tests now qualify wrapped reset, real original exit,
-stop-first negative evidence, retained single observation, partial native-frame
-failure and warm HF/CHF cleanup. Maintained native candidate suites pass except
-the expected committed-context/dirty-image mismatch, being checked in an isolated
-candidate snapshot. Its held two-Python endpoint is not thereby accepted.
+Historical candidate provenance: shared owner commit b176008 produced immutable
+local artifacts in /tmp/provider-core-0.5.0-b176008. Verified wheel SHA-256:
+9b24bf0c03d370507812bf8b47c8261e73add436be9b4a05623267a1a00e55fa.
+Install-lock SHA-256:
+857e56952ede64196e77e686b2d6da2e3925416ef698c4eac868646bb8910480.
+These identities qualify that candidate, not a later combined 0.5 release.
+Consumer probes use installed artifacts, not sibling checkout source imports.
 
 D032 -- Apply the user's host-specific acquisition preference (22:02 UTC)
 ---------------------------------------------------------------------------
@@ -1367,6 +983,10 @@ C. Add an ad hoc unbound downloader or change routing globally. Neither is neede
 Choice: B. The user preference overrides the earlier unresolved-choice state.
 Resolve locally before acquisition and record the selected device; an old ProArt
 WLAN name is not evidence about this machine. No host route changes are selected.
+
+Host-specific evidence: the kernel default-route query selected wlp1s0 for
+this host's acquisition. No route was changed. ProArt's WLAN preference requires
+its own verified interface; this observed device is not a cross-host default.
 
 D033 -- SECS goes directly to asynchronous scientific composition (22:02 UTC)
 --------------------------------------------------------------------------------
@@ -1394,6 +1014,12 @@ or timer expiry is still not exit/scratch proof. Do not add a temporary watchdog
 warm pool, nonce protocol or SDK fork. Existing stop component values must remain
 explicitly qualified rather than silently copied from another provider.
 
+Preserved SECS allowances: TERM=2 s, KILL=2 s, scratch=2 s and receipt-write=2 s
+fit within the 10 s client observation allowance, subject to actual process proof.
+Scientific startup remains 600 s and worker Compose grace remains 20 s. Removing
+the old relay must preserve independently enforced per-request science deadlines
+even while API observation blocks.
+
 D034 -- Qualify shared Python 3.11 support as a new SDK candidate (22:02 UTC)
 -------------------------------------------------------------------------------
 
@@ -1420,62 +1046,6 @@ Prepare candidate version 0.5.0 for D031/D034's changed contract. This authorize
 local candidate implementation/qualification, not publication of a new release
 or replacement of the published 0.4.0 artifacts. Consumers must use qualified
 candidate artifacts for joint tests rather than sibling source on their path.
-
-Checkpoint -- 22:08 UTC
------------------------
-
-The user reiterated high-end code with minor concerns explicitly deferred. Keep
-the shared owner and full adoption critical path; do not detour into cosmetic
-cleanup or use deferral to weaken correctness. D033's direct asynchronous SECS
-composition is approved; the repeated end-state proposal does not need another
-permission round. Preserve its declared 2 s TERM, 2 s KILL, 2 s scratch and 2 s
-receipt-write components within the 10 s client observation allowance, with
-actual process proof. Scientific startup 600 s and worker grace 20 s stay explicit.
-
-The user-selected local default route resolves to wlp1s0 by the actual kernel
-route query. The first sandboxed query was denied netlink access; the authorized
-read-only escalated query established the device. No route was changed. ProArt
-remains WLAN-preferred; its interface is not assumed from this host's name.
-
-D031's new installed-SDK unit witness was genuinely RED: after cancelling the
-run observer, the selected exact report never acquired an ACK when the queue
-recovered (1 error among 480 cases; 479 passed). The initial retained driver
-made that witness pass. Its full 480-case run then had four failures: two old
-cancellation-contract expectations, an over-narrow fake asyncio module, and a
-real original CancelledError identity/cause loss through Task observation.
-Root updated the obsolete contract fixtures and retains the actual escaping
-driver interruption before Task normalization, keeping fresh observer cancellation
-distinct. The next maintained run is in progress; no all-green claim is made.
-
-Candidate source version is now 0.5.0; published 0.4.0 remains untouched. Root
-requested independent review of the actual dirty shared owner and is adding
-claim/spawn/stop/cancellation race proof before integration. SDK driver result
-ownership is being corrected once, not copied into four provider task groups.
-
-Checkpoint -- 22:18 UTC
------------------------
-
-D031 shared-owner qualification is now green: 486 installed unit cases,
-15 contracts and 154 integrations. New cases cover observer cancellation before
-driver scheduling, retained exact report after repeated cancelled observations,
-local/shared stop isolation, rejected driver/START-owner construction, partial
-stop-waiter creation and eager scheduling. Independent Magnet source audit is
-clear after its two concrete setup-failure findings were corrected. Existing
-cleanup interruption provenance is preserved through the new Task boundary.
-
-An intermediate 480-case run passed the owner/cancellation changes but failed
-one existing native operation-deadline fixture while reading its worker PID
-(ConnectionResetError). The subsequent full 486-case run passed it; no runner
-product code or timeout was changed to hide that result. Record the one-off
-fixture timing concern as a minor deferred item in this repository, with the
-actual failed and passing logs, rather than launch a speculative runner rewrite.
-
-The SDK candidate 0.5.0 owner slice is ready for its meaningful local commit.
-Consumer migrations and both actual nested-group witnesses still need candidate
-artifact qualification; SDK unit success is not evidence of their completed
-composition. The Python 3.11 maintained matrix remains the next shared runtime
-slice. Its selected local acquisition interface is wlp1s0 under the user's
-default-route preference.
 
 D035 -- Shared admission stop is distinct from scientific cutoff (22:27 UTC)
 ---------------------------------------------------------------------------
@@ -1505,6 +1075,19 @@ request/replay uncertainty. Test stop/retry/late-ACK and admitted-science behavi
 Providers still own Job selection, result/status effects and prompt admission stop
 on group failure; they must join original drivers before final settlement.
 
+Consumer composition evidence: cancelling an observer still requires joining
+the retained driver before settlement, and process admission stop must reach the
+controller directly. A late START ACK can be retained with I/O settled while its
+passive claim still cannot be released; D043 governs that distinct settlement.
+
+Historical provisional artifact identity: /tmp/provider-core-0.5.0-d035 was built
+from ca306e2d76dd4436ae6dc855b054fa061084f00d. Verified wheel SHA-256:
+4576f0c49cb85ff4bb884af29f28164d1c459a580a06140e4f98018ae625120e.
+Install-lock SHA-256:
+f0bbceb59e7ab2391452fd5696a3620bc82c03e2384add98f3202561fd80350b.
+Independent review verified the manifest and 265 source-file identities. This
+identifies the provisional candidate; it is not a combined SDK release or rollout.
+
 D036 -- Share verified file-transfer ownership, preserve explicit source policy (22:27 UTC)
 -------------------------------------------------------------------------------------
 
@@ -1532,22 +1115,11 @@ and scientific reader lifetime. Do not invent a wrapper whose state duplicates
 the private file owner. Exact public API/slice must be critiqued before editing;
 SECS's independent async composition can continue while that seam is integrated.
 
-Checkpoint -- 22:27 UTC
------------------------
-
-The record lagged during the shared API review; the user explicitly reminded
-root to keep recording decisions. D035/D036 above precede their product edits;
-this checkpoint does not claim intervening progress was written every three
-minutes. Keep the record alongside implementation and prioritize the shared goal
-over independent local QA campaigns. Minor issues remain separately deferred.
-
-Shared owner commit b176008 produced five immutable local candidate artifacts
-in /tmp/provider-core-0.5.0-b176008. Manifest hashes were checked. Wheel SHA-256:
-9b24bf0c03d370507812bf8b47c8261e73add436be9b4a05623267a1a00e55fa.
-Install-lock SHA-256:
-857e56952ede64196e77e686b2d6da2e3925416ef698c4eac868646bb8910480.
-These qualify the b176008 candidate, not an eventual different 0.5 release.
-Consumer probes use installed artifacts, not shared checkout source imports.
+Transfer review constraints: bound grant-factory awaits and validate provided
+grants on both streaming and buffered paths. An asyncio deadline requests
+cancellation; it cannot forcibly end a callback that suppresses cancellation.
+The original callback/transport owner must retain and retire actual I/O. A timeout
+alone establishes neither I/O retirement nor resource release.
 
 D037 -- Patch the shared qualification runtimes before new acquisition (22:42 UTC)
 --------------------------------------------------------------------------------
@@ -1577,6 +1149,13 @@ Scientific image changes remain their provider's reviewed, qualified responsibil
 Bootstrap retains its explicit daemon-route contract; wheel acquisition stays
 interface-bound and hash-locked. No new ad hoc downloader or route change.
 
+Resolved immutable Linux/amd64 identities:
+Python 3.12.16: sha256:623674a14ef93d052bb9b0de4dbf5f28eb578a35263838941cc8aa43213c1487
+Python 3.11.18: sha256:061c190f3d5815b341a18dfe8a45771f8ba68c15a607ea56997fde3009ac4eec
+D042 retains the 3.12 security patch and withdraws the additional 3.11 target.
+A changed declared base invalidates the old checker identity; use maintained
+checks/prepare rather than bypassing checker image admission.
+
 D038 -- Share native observation and stopping ownership (22:42 UTC)
 ------------------------------------------------------------------------
 
@@ -1604,52 +1183,6 @@ Exact API and patch require independent review and actual eof_alive/partial-fram
 cancel/child-exit witnesses before integration. Keep consumer adapters moving;
 this shared seam must not become another standalone local QA campaign.
 
-Checkpoint -- 22:42 UTC
------------------------
-
-D035's installed unit suite passed 488 cases. Its provisional immutable snapshot
-ca306e2 is building through the maintained clean-source lane into
-/tmp/provider-core-0.5.0-d035 so consumers need not wait for Python matrix closure.
-It retains the already-qualified 3.12 requirement for that provisional API test;
-the main candidate's 3.11 support remains separately under qualification.
-
-The root record again lagged during bootstrap/API investigation. These new
-choices precede their product edits; this entry does not pretend the requested
-checkpoint cadence was met. The shared upload-transfer patch is now available
-from independent investigation with 52 focused unit and 32 integration cases;
-root integration/review is next. SECS has committed its SDK-free codec extraction
-as b2a6213 and continues actual async adoption. NMRPeak's real async adapter
-tests are progressing against installed 0.5 artifacts, not only native QA.
-
-Checkpoint -- 22:59 UTC
------------------------
-
-The record was not kept at the requested few-minute cadence. A read-only audit
-now checks for stale checkpoints and unrecorded product choices; root remains
-responsible for writing the decisions before editing their implementation.
-
-The D035 provisional artifacts are complete in /tmp/provider-core-0.5.0-d035,
-from snapshot ca306e2d76dd4436ae6dc855b054fa061084f00d. Wheel SHA-256:
-4576f0c49cb85ff4bb884af29f28164d1c459a580a06140e4f98018ae625120e.
-Install-lock SHA-256:
-f0bbceb59e7ab2391452fd5696a3620bc82c03e2384add98f3202561fd80350b.
-Magnet independently verified the manifest and all 265 source-file identities.
-Its maintained candidate checks passed: 158 repository, 672 unit, 18 contract
-and 131 integration cases. These qualify that provisional candidate, not the
-unfinished combined SDK or a deployed release.
-
-NMRNet's actual installed-candidate tests exposed two consumer gaps: cancellation
-of an observer requires joining the retained driver before settlement, and the
-process admission stop must reach the controller directly. Its initial migration
-passed 77 focused cases; a new late-START-ACK witness then exposed unresolved
-passive settlement semantics. Keep that witness open rather than describing the
-migration as complete. NMRPeak's real two-lane process passed a durable-delivery
-integration on the same candidate. SECS continues its direct async binding cut.
-
-D037 remains unfinished: official patched-image identities are being resolved;
-the dirty 3.11 tooling still names the older base. No actual 3.11 compatibility
-claim follows from syntax checks or provisional 3.12 consumer success.
-
 D039 -- The shared transfer owns the exchange deadline (22:59 UTC)
 ----------------------------------------------------------------
 
@@ -1669,10 +1202,10 @@ Its investigator reports 61 focused unit and 32 integration passes. Independent
 review must still verify aggregate-time ownership, provided-grant validation,
 original file/exchange cleanup, and unchanged JobUploads behavior before edits.
 
-Next design question -- Native installation without an API dependency closure
----------------------------------------------------------------------------
+Native installation alternatives leading to D040
+------------------------------------------------
 
-Serious alternatives under joint review:
+Serious alternatives:
 A. Keep isolated interpreter prefixes or install the entire API dependency lock
    into every scientific worker. This adds maintenance or changes model closure.
 B. Split native helpers into a second independently versioned distribution.
@@ -1681,30 +1214,14 @@ C. Keep one SDK wheel with a standard-library-only native base and an explicit
    API dependency extra; publish native and full API installation locks derived
    from the same wheel. Move verified file readback to a dependency-free module.
 
-Preferred direction: C, pending exact packaging and consumer critique. It must
+Direction developed into D040: C. The chosen boundary must
 include a shared native lock: changing extras alone leaves Magnet's existing
 full-lock installer unchanged. Preserve canonical verified readback rather than
 copying a parser into scientific repositories. No dependency bypass, site-package
 injection, second interpreter, or release claim is authorized by this proposal.
-Before implementation, settle artifact inventory, full-API acquisition behavior
-and actual native-only install tests. SECS also requests a shared host-facing
-binding projection; inspect the existing CLI before choosing or adding that API.
-
-Checkpoint -- 23:02 UTC
------------------------
-
-Magnet independently reviewed the exact D035 controller, documentation and test
-diff with no remaining findings. The coherent slice and the 22:59 decisions were
-committed locally as 5388276. Consumer pins still refer to a provisional candidate;
-there is no published combined release or deployment claim.
-
-Official Linux/amd64 registry metadata resolved the patched immutable bases:
-Python 3.11.18: sha256:061c190f3d5815b341a18dfe8a45771f8ba68c15a607ea56997fde3009ac4eec
-Python 3.12.16: sha256:623674a14ef93d052bb9b0de4dbf5f28eb578a35263838941cc8aa43213c1487
-Both were acquired through maintained bootstrap. The hash-locked cp311 cffi wheel
-was then acquired through the selected wlp1s0 proxy. Actual installed 3.11 tests
-are running. The initial offline missing-wheel diagnostic was expected discovery,
-not a failed network acquisition; the completed acquisition log records success.
+D040 settles artifact inventory, full-API acquisition and native-only tests.
+D044 separately settles the shared host-facing binding projection after inspecting
+the existing CLI.
 
 D040 -- One SDK wheel, explicit native and API installation profiles (23:02 UTC)
 -----------------------------------------------------------------------------
@@ -1730,6 +1247,12 @@ existing API contracts. Update metadata tests, artifact inventory and source
 rebuild qualification together. Do not broaden the lock grammar merely to encode
 extras: the issued full lock already lists every exact API dependency explicitly;
 ordinary dependency declarations use provider-core[api].
+
+Publication consequences: six declared release artifacts plus two logs make
+eight assets. Keep duplicate qualification-receipt rejection intact; remove the
+withdrawn two-runtime package invocation rather than accepting duplicate receipts.
+The seven moved readback/error/receipt definitions were independently checked as
+AST-identical; that evidence does not replace native-only installation tests.
 
 D041 -- Qualify a portable wheel against each runtime's allowed ABI inputs (23:02 UTC)
 -----------------------------------------------------------------------------------
@@ -1781,36 +1304,10 @@ The standard-library base/API extra and two locks therefore remain shared work;
 they must not be used as a Python-version workaround or mistaken for isolation.
 Actual network/filesystem/credential grants remain the runtime security boundary.
 
-Checkpoint -- 23:07 UTC
------------------------
-
-The root record again lagged; the user explicitly repeated the requirement.
-Write each consequential choice here before editing it, including withdrawals.
-The note is not a retrospective claim that the requested cadence was met.
-
-The first installed profile lane passed the existing 488 unit cases and three
-new native-only cases: genuinely absent HTTP/crypto dependencies, a real native
-child's retirement/scratch proof, and verified file readback rejecting mutation.
-An independent audit confirms all seven moved readback/error/receipt definitions
-are AST-identical. It found two publication issues: duplicate receipts from the
-now-withdrawn two-runtime package lane, and an old seven-asset count after adding
-the sixth artifact. Remove the obsolete matrix and update the count to eight
-(six artifacts plus two logs); do not weaken duplicate-receipt rejection.
-
-The transfer review found an unbounded grant-factory await and validation absent
-from the buffered path. NMRNet supplied a revised proposal,
-/tmp/provider-core-upload-transfer-reviewed.patch, SHA-256
-956655e4632670bed3fedf722789023a54f86117bdeabedd3d0e2b3c7e33996b.
-Its installed focused tests pass 55 cases and updated integrations pass 25 cases.
-Root has not integrated it yet. An asyncio deadline requests cancellation; it
-cannot forcibly terminate a callback that suppresses cancellation. The original
-callback/transport owner must retain and retire actual I/O; no timeout is proof.
-
-The late-active-START problem is now precisely identified: NMRNet retained the
-ACK and settled I/O, but SDK settle attempted to release a deliberately passive
-claim and reported ControllerRefused. It is not an unretained ACK or transport
-failure. A shared correction must distinguish clean passive retention from claim
-release without hiding independent failures. Exact choice and tests come next.
+Scientific proof boundary: compatible ABI and a few synthetic outputs do not
+establish general numerical/scientific equivalence. Qualify the actual HF/CHF
+stack and necessary compatible dependencies on one Python 3.12 interpreter,
+using held-checkpoint baselines and stating the exact scope of each proof.
 
 D043 -- Settle a passive START hold without pretending to release it (23:09 UTC)
 -------------------------------------------------------------------------------
@@ -1831,16 +1328,10 @@ science. Known no-effect and terminal START dispositions still release normally.
 Actual unretained ACK, transport or native cleanup failures still surface. Test
 late active ACK and unknown-commit holds, retained exclusion and repeated settle.
 
-Checkpoint -- 23:09 UTC
------------------------
-
-D042 is committed as 65d61e1. The 3.11 selectors/matrix have been removed and
-requires-python >=3.12 restored. All four peers received the directive; NMRPeak
-is moving its actual scientific dependency/model qualification to 3.12. The
-native/API split passed its first installed unit/native lane. Its separate API
-contract lane is running. The patched shared base invalidated the old checker
-image identity, so maintained checks/prepare is rebuilding the correct checker
-before repository/publication-fixture tests; do not bypass image admission.
+Settlement evidence boundary: older tests expecting release refusal may change
+only after actual native cleanup has succeeded. Preserve primary and cleanup
+failure assertions; an unconfirmed retirement must not become success merely
+to make passive settlement pass.
 
 D044 -- Project selected host grants through the shared binding CLI (23:11 UTC)
 -------------------------------------------------------------------------------
@@ -1864,36 +1355,6 @@ unused API identity fields. Paths are mount references, never credential content
 Require one named binding for this action; retain existing paths/--all behavior.
 Consumers validate this projection's wiring shape without reimplementing the API
 schema. Loading the definition opens no referenced credential or resolver file.
-
-Checkpoint -- 23:11 UTC
------------------------
-
-The native/API package contract passed all 15 cases. The correct patched checker
-was prepared and the broader repository lane is running. Native signal-fixture
-failures have appeared during concurrent test runs; their causes are unclassified,
-so they are not being reported as a clean gate or a product regression yet.
-The new passive START tests are running before the D043 controller edit. Shared
-async-native implementation is being proposed independently in /tmp; root still
-owns integration and the exact setup/read/stop failure semantics.
-
-Checkpoint -- 23:14 UTC
------------------------
-
-D043's installed RED run reproduced release-refusal errors for uncertain START
-and an explicit stop during START retry. An unrelated native fixture also reset
-before its PID exchange; its cause remains unclassified. The corrected controller
-now retains passive claims after real cleanup. The subsequent run passed the new
-cases but exposed three older tests that expected the deliberate release refusal
-even after cleanup later succeeded. Review each cleanup/claim assertion before
-updating those expectations; do not turn an unconfirmed retirement into success.
-
-D044's actual selected-binding subprocess test is included in that run. The SDK
-API package contract remains green, and native-profile publication fixes are under
-repository checks. Historical donor-source coverage is not a generated inventory
-of new SDK files, so it should not be rewritten to pretend new files came from
-the donor. The independently proposed async native owner is undergoing actual
-installed native-only tests; its exact interface will be recorded before root
-integration. All consumer final pins remain pending exact combined artifacts.
 
 D045 -- Exact shared asynchronous native-session surface (23:17 UTC)
 -------------------------------------------------------------------
@@ -1933,17 +1394,10 @@ coroutine when task creation fails, as independently requested by SECS and root.
 The final candidate tests must cover these corrections, EOF with a live child,
 cancelled/expired waiters, partial-frame continuation and underlying read failure.
 
-Checkpoint -- 23:17 UTC
------------------------
-
-NMRNet independently reviewed the integrated D043 branch and agrees it preserves
-actual failures while allowing clean passive retention. Three older tests were
-updated only after confirming their native cleanup had succeeded; primary and
-cleanup evidence remains asserted. The next full installed unit run passed its controller and binding cases but
-again failed the short native PID-exchange fixture; that failure remains open.
-The async-native candidate's first corrected installed run passed 11 tests;
-deadline exposure and task-creation cleanup are under its final rerun. This is
-not yet an integrated SDK artifact or completed consumer migration.
+Later decisions refine this surface: D047 defines observer failure ownership,
+D048 inherited cleanup caps, D050 dedicated worker ownership, D053 independent
+startup permission, and D054 original concurrent-Future exception authority.
+The earlier 12-test candidate did not establish those later contracts.
 
 D046 -- Test an idle native deadline without requiring science readiness (23:19 UTC)
 ---------------------------------------------------------------------------------
@@ -1966,15 +1420,6 @@ Choice: C. Keep the 250 ms native deadline unchanged. Admit TERM or KILL accordi
 to actual child progress; require reason=deadline and scratch_released. Other
 existing resistant-child tests continue to prove forced KILL and physical PID
 retirement. Do not infer an original crash from either locally imposed signal.
-
-Checkpoint -- 23:19 UTC
------------------------
-
-The final independent native-only candidate passed 12 installed tests on 3.12.16,
-including both peer corrections and exact underlying failure identity. Root has
-integrated it after D045; its package inventory now includes the async module.
-NMRNet/SECS have the actual interface for review and consumer adaptation. Source
-and fixture qualification remain distinct from final combined release artifacts.
 
 D047 -- Raise native failures in the observer, not in an orphanable task (23:22 UTC)
 ---------------------------------------------------------------------------------
@@ -2023,41 +1468,10 @@ inherited cap); repeated operations never renew it. A past cap cannot admit a ne
 control connection/read. Keep original pending operations and real failure facts.
 Qualify setup-time consumption, deadline stability and expired-cap no-effect cases.
 
-Checkpoint -- 23:22 UTC
------------------------
-
-NMRNet reviewed D043 clear; SECS reviewed D044's four-field host projection clear.
-The focused publication/artifact tests passed, while the donor coverage check
-found an older D031 renamed witness missing its replacement entry. Preserve the
-historical donor inventory and record that exact replacement; do not regenerate
-history. Three additional focused failures were caused by the one-off launcher's
-missing requirements mount, not missing repository files. Correct that grant on
-the focused rerun. The broader lane still has native signal-fixture failures and
-is not a clean gate. No final release, pin or deployment has been claimed.
-
-Checkpoint -- 23:25 UTC
------------------------
-
-The focused publication, artifact, donor replacement and immutable-base checks
-now pass all 17 cases with their complete read grants. The broader 343-case run
-finished with seven failures/errors: the obsolete base literal and missing D031
-donor replacement are corrected; five native signal-fixture subcases remain
-unresolved. A bounded independent investigation will inspect those exact cases,
-not repeat the entire suite or call them load failures without causal evidence.
-
-Magnet now supplies a real EOF-with-live-child RED: its synchronous science path
-consumes the full control-read allowance before stop, poisons that original read
-and cannot confirm scratch cleanup. Its actual aggregate allowance exceeded its
-fixture TERM/KILL/cleanup phases, so this is the same shared composition gap,
-not merely a too-short cleanup budget. Trace the existing resident event-loop
-seam before choosing a synchronous shared facade or restructuring boot/science.
-No second event loop, local watchdog or copied frame reader is an accepted fix.
-
-NMRNet has moved lease observation into its retained filesystem thread and
-publishes the native session/async owner together on the existing event loop.
-This removes the construction/stop publication race without adding a lock or
-mutable shared deadline. D047/D048's revised SDK patch and its new exception/cap
-tests are under installed native-only qualification before root integration.
+Cap immutability: a later stop cannot retroactively shorten an already-started
+setup/read. Retain that original operation and refuse release if a shorter
+observing wait expires. Supply not_after before inherited cleanup/proof work;
+it is not mutable phase state.
 
 D049 -- Separate native setup from Magnet's scientific READY owner (23:30 UTC)
 ---------------------------------------------------------------------------------
@@ -2086,31 +1500,11 @@ an SDK-owned bounded control executor with explicit retirement, or retaining the
 default pool only after actual concurrency bounds prove it sufficient. Resolve
 this shared resource boundary before final consumer adoption; no choice yet.
 
-Checkpoint -- 23:30 UTC
------------------------
-
-Passive START settlement is committed as 401adb0; patched common Python as
-9ef438c; corrected idle-deadline/donor witnesses as 5640488. Installed unit and
-native suites passed 489 and 12 cases after that fixture correction. D047/D048
-are now integrated after a separate final 22-case installed native-only pass;
-their package contract/integration and source-quality checks are running.
-
-The quality lane found narrow source-posture issues in the new async module
-and fixtures; these remain to correct without weakening the checks. Independent
-native-fixture investigation established concrete false watchdog failures:
-valid join receipt at 3.748s versus a 3s fixture wait, and ordinary exit cases at
-5.042s/5.178s versus a 5s watchdog. Actual retirement succeeded, without OOM/PID
-events and with little CPU throttling. Use existing fixture watchdogs and isolate
-each signal subcase's receipts/cleanup; preserve product deadlines and the actual
-two-second interrupted-retry assertions. The root broad gate is still not green.
-
-NMRNet's existing, explicitly documented pure-prediction retry policy needs precise
-scope: note021 permits one bounded retry in the same live Attempt after confirmed
-native retirement using the same frozen bytes/model. Note022 forbids restart/
-cutover reconstruction; the user's crash policy forbids recalculation after an
-observed crash and does nothing after dark death. Do not infer a new blanket
-scientific retry permission or prohibition from goal shorthand. Review this
-specific established policy against those conditions before changing it.
+Causal evidence: Magnet's synchronous EOF-with-live-child path consumed the full
+control-read allowance before stop, poisoned that reader and could not confirm
+scratch cleanup. Its aggregate allowance already exceeded the configured
+TERM/KILL/cleanup phases, so simply increasing a short cleanup budget does not
+address the demonstrated composition gap.
 
 D050 -- Give the shared native owner one bounded control executor (23:33 UTC)
 --------------------------------------------------------------------------------
@@ -2143,16 +1537,10 @@ proof session is a real second native operation with its own shared owner and
 the original absolute cap. Test ambient pool saturation, pending-I/O retention,
 actual worker release, submission failure, and original failure/cap preservation.
 
-Checkpoint -- 23:33 UTC
------------------------
-
-The integrated package passed 15 contract and 154 integration cases. Source
-quality remains open on narrow new-code posture findings; preserve its rules.
-The independent fixture-only correction passed the exact three affected tests,
-all signal/status subcases, with process count returning to two. Root will review
-and integrate that patch without changing product timers or retry assertions.
-The next immutable candidate must include D050's real control-worker ownership;
-do not hand providers an ambient-pool endpoint and call it the final shared design.
+Artifact requirement: the next immutable candidate representing this design must
+include real dedicated control-worker ownership. An ambient-default-pool endpoint
+is not the final shared resource boundary. Count retained/proof operations and
+actual executor/thread teardown rather than asyncio wrapper completion alone.
 
 D051 -- Correct fixture watchdogs and per-scenario ownership (23:35 UTC)
 -----------------------------------------------------------------------
@@ -2172,6 +1560,12 @@ Keep the exact two-second retry window, zero/one interruption receipts, signal
 status, retirement=true and physical client-retirement assertions. Its focused
 three-case qualification passed all signal/status subcases in 7.867s and returned
 to the original process count. No native product timeout or behavior changes.
+
+Measured cause: valid retirement completed at 3.748 s against a 3 s fixture wait;
+ordinary exit cases completed at 5.042/5.178 s against a 5 s watchdog. Actual
+retirement succeeded with no OOM/PID events and little CPU throttling. Those
+measurements justify correcting fixture watchdogs and scenario cleanup, not
+changing native product deadlines or the two-second interrupted-retry assertion.
 
 D052 -- Preserve the specifically documented live scientific retry scope (23:35 UTC)
 ------------------------------------------------------------------------------------
@@ -2193,19 +1587,53 @@ replay. Do not add scientific retries to the shared SDK or imply the original
 calculation did not happen. A positively proved crash reports failure through the
 shared controller; a dark process death creates no reconstructed action.
 
-Checkpoint -- 23:35 UTC
------------------------
+D053 -- Bind startup permission separately from warm retirement (23:39 UTC)
+-----------------------------------------------------------------------------
 
-The four peers agree on D050's one-worker shared resource boundary. The revision
-is being tested before integration; asynchronous wrapper completion will not be
-used as proof that its native thread ended. A later stop cannot retroactively
-shorten a previously started setup/read: retain that original operation and
-refuse release if the shorter observing wait expires. not_after is supplied
-before starting inherited cleanup/proof work; it is not mutable phase state.
+Magnet's reusable worker outlives its startup deadline. Using that deadline as
+the inherited lifetime cap would prevent healthy retirement later. Merely giving
+the native session a relative startup duration can also extend permission when
+dispatch is delayed.
 
-Magnet agrees to separate native setup from READY on its resident event loop,
-and NMRNet's publication fix removes the cross-thread stop/owner handoff race.
-NMRPeak is qualifying its real HF/CHF science stack on a single Python 3.12.16
-interpreter with necessary compatible dependency changes and held-checkpoint
-baselines. Neither matching ABI nor a few synthetic outputs establish general
-numerical/scientific equivalence; preserve the exact scope of each proof.
+Serious alternatives:
+A. Reuse not_after for startup and retirement. This incorrectly expires warm
+   workers' later cleanup authority.
+B. Grant a new relative startup allowance when the worker thread finally starts.
+   This extends the original absolute startup permission under queue delay.
+C. Bind an optional setup_not_after once at shared-owner construction. It caps
+   only original connect; inherited not_after continues to cap setup and cleanup.
+
+Choice: C, jointly reviewed with Magnet. Native connect uses the earliest supplied
+absolute cap; repeated observing waits cannot renew it. Normal warm workers pass
+their existing startup deadline as setup_not_after without a lifetime cap. Proof
+recovery passes the original cleanup deadline as not_after. Neither parameter is
+a new configurable duration. Test delayed dispatch and healthy warm retirement
+after the startup deadline, alongside stop during original setup.
+
+D054 -- Let the original concurrent Future own native exceptions (23:39 UTC)
+-----------------------------------------------------------------------------
+
+The dedicated executor provides an original concurrent Future that safely stores
+all native BaseExceptions. This allows a simpler implementation of D047's intent.
+
+Serious alternatives:
+A. Keep a custom None-or-exception result protocol inside the native command.
+   It preserves identity but duplicates the concurrent Future's exception role.
+B. Await an asyncio adapter's result directly. Its bridge may recreate builtin
+   exceptions, losing the original cause identity.
+C. Use the asyncio adapter only as a completion notification via asyncio.wait,
+   then read the original concurrent Future's result in the observing caller.
+
+Choice: C. Preserve ordinary Future.exception/result semantics and exact native
+failure identity without a custom exception carrier. Waiter cancellation/expiry
+must not cancel the original Future. Consume the adapter's exception separately
+so an abandoned observer creates no unhandled diagnostic. Read the original result
+after leaving the caller timeout context, so native cancellation cannot be
+reinterpreted as that waiter's timeout. Qualify this on the actual Python 3.12
+runtime with CancelledError, KeyboardInterrupt, SystemExit and TimeoutError.
+
+This supersedes D047's custom producer-result mechanism while preserving its
+failure/observer ownership rule. A cancelled original concurrent Future produces
+an explicit unconfirmed-control diagnostic; it cannot establish a native exit or
+thread quiescence. Executor shutdown initiation is likewise distinct from an
+observed OS-thread exit; resource claims must account for actual teardown.
