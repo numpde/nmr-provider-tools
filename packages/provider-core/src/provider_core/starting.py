@@ -45,12 +45,10 @@ class AttemptStarter:
 
     @classmethod
     def live(cls, api, claim, *, scope):
-        claim.require_live(scope)
-        starter = cls.__new__(cls)
-        starter._configure(api, scope, claim)
-        return starter
+        return cls(api, scope, claim)
 
-    def _configure(self, api, scope, claim):
+    def __init__(self, api, scope, claim):
+        claim.require_live(scope)
         if type(scope) is not RecoveryScope or api.origin != scope.api_origin:
             raise ValueError("Cannot configure Attempt start: signing origin differs from the selected scope")
         self.api = api

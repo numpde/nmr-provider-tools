@@ -115,16 +115,13 @@ class AttemptController:
     # silent-defaults: allow-contract -- Note 010 chooses the 2 MiB report ceiling and refuses unproved active replays; supplied input explicitly replaces the post-START read.
     def live(cls, api, claims, session, *, scope, stopping, start_policy,
              maximum_terminal_bytes=2097152, preverified_input=None, allow_active_start_replay=False, **settings):
-        claims._require_live_view()
-        controller = cls.__new__(cls)
-        controller._configure(
+        return cls(
             api, scope, claims, session, maximum_terminal_bytes=maximum_terminal_bytes,
             preverified_input=preverified_input, stopping=stopping, start_policy=start_policy,
             allow_active_start_replay=allow_active_start_replay, **settings,
         )
-        return controller
 
-    def _configure(
+    def __init__(
         self,
         api,
         scope,
@@ -147,6 +144,7 @@ class AttemptController:
         on_unconfirmed_phase_progress=None,
         condition_recovery=None,
     ):
+        claims._require_live_view()
         if type(scope) is not RecoveryScope or api.origin != scope.api_origin:
             raise ValueError("Cannot configure Attempt controller: signing origin differs from the selected scope")
         if preverified_input is not None and type(preverified_input) is not VerifiedJobInput:

@@ -5,7 +5,10 @@ from dataclasses import replace
 import unittest
 
 from provider_core.attempt_request import start_body
+from provider_core.controller import AttemptController
+from provider_core.execution import AttemptExecutor
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull, OwnershipRefused
+from provider_core.starting import AttemptStarter
 from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import ATTEMPT_REF
 
@@ -30,6 +33,11 @@ def selected(job, key):
 
 
 class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
+    def test_lifecycle_objects_require_construction_inputs(self):
+        for owner_type in (AttemptController, AttemptStarter, AttemptExecutor):
+            with self.subTest(owner_type=owner_type.__name__), self.assertRaises(TypeError):
+                owner_type()
+
     async def test_same_job_or_key_excludes_other_lanes_but_unrelated_work_can_run(self):
         claims, owner = AttemptClaims.live(), Owner()
         pending = selected("job:a", "key:a")

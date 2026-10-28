@@ -292,13 +292,10 @@ class AttemptExecutor:
     @classmethod
     # None preserves the post-START input read; Magnet supplies its verified object.
     def live(cls, api, claim, session, *, scope, preverified_input=None, **settings):
-        claim.require_live(scope)
-        executor = cls.__new__(cls)
-        executor._configure(api, scope, claim, session, preverified_input=preverified_input, **settings)
-        return executor
+        return cls(api, scope, claim, session, preverified_input=preverified_input, **settings)
 
     # Core consumers keep fail-stop reads and phase delivery unless they explicitly supply recovery or a protected unconfirmed-phase observer.
-    def _configure(
+    def __init__(
         self,
         api,
         scope,
@@ -317,6 +314,7 @@ class AttemptExecutor:
         on_unconfirmed_phase_progress=None,
         condition_recovery=None,
     ):
+        claim.require_live(scope)
         if type(scope) is not RecoveryScope or api.origin != scope.api_origin:
             raise ValueError("Cannot configure execution: signing origin differs from the selected scope")
         if preverified_input is not None and type(preverified_input) is not VerifiedJobInput:
