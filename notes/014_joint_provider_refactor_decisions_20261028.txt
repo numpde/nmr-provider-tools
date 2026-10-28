@@ -1689,3 +1689,125 @@ injection, second interpreter, or release claim is authorized by this proposal.
 Before implementation, settle artifact inventory, full-API acquisition behavior
 and actual native-only install tests. SECS also requests a shared host-facing
 binding projection; inspect the existing CLI before choosing or adding that API.
+
+Checkpoint -- 23:02 UTC
+-----------------------
+
+Magnet independently reviewed the exact D035 controller, documentation and test
+diff with no remaining findings. The coherent slice and the 22:59 decisions were
+committed locally as 5388276. Consumer pins still refer to a provisional candidate;
+there is no published combined release or deployment claim.
+
+Official Linux/amd64 registry metadata resolved the patched immutable bases:
+Python 3.11.18: sha256:061c190f3d5815b341a18dfe8a45771f8ba68c15a607ea56997fde3009ac4eec
+Python 3.12.16: sha256:623674a14ef93d052bb9b0de4dbf5f28eb578a35263838941cc8aa43213c1487
+Both were acquired through maintained bootstrap. The hash-locked cp311 cffi wheel
+was then acquired through the selected wlp1s0 proxy. Actual installed 3.11 tests
+are running. The initial offline missing-wheel diagnostic was expected discovery,
+not a failed network acquisition; the completed acquisition log records success.
+
+D040 -- One SDK wheel, explicit native and API installation profiles (23:02 UTC)
+-----------------------------------------------------------------------------
+
+The serious alternatives are listed in the preceding native-installation question.
+SECS independently confirms the standard-library base can replace its isolated
+native prefix without changing its 51 scientific dependency pins. Magnet confirms
+the full-lock installer must also change to realize a smaller native closure.
+
+Choice: one wheel with no mandatory third-party dependencies, an explicit api
+extra containing the existing API dependency intent, and two issued hash locks.
+The existing install.lock remains the complete API closure. Add native-install.lock
+containing only the same built SDK wheel and hash, as a sixth declared artifact.
+Do not make each consumer derive or maintain its own partial release lock.
+
+Move the existing verified-file receipt/readback implementation and its required
+error types into one dependency-free SDK module; retain existing public import
+identities where current callers use them. No reader or parser is copied. Native
+installation must work normally offline, pass pip check, import the native and
+verified-readback surfaces without HTTP/crypto packages, and execute their real
+tests. The complete API profile must still install its closed lock and pass the
+existing API contracts. Update metadata tests, artifact inventory and source
+rebuild qualification together. Do not broaden the lock grammar merely to encode
+extras: the issued full lock already lists every exact API dependency explicitly;
+ordinary dependency declarations use provider-core[api].
+
+D041 -- Qualify a portable wheel against each runtime's allowed ABI inputs (23:02 UTC)
+-----------------------------------------------------------------------------------
+
+Serious alternatives:
+A. Require identical selected runtime wheel filenames/hashes on Python 3.11 and
+   3.12. This incorrectly rejects the distinct cffi ABI wheels allowed by one lock.
+B. Compare the exact authoritative lock identity on both runtimes, require each
+   rebuild's actual wheels to pass that lock's normal pip/hash admission, preserve
+   exact build-tool inputs, and compare rebuilt SDK payload and wheel metadata.
+C. Skip the second source rebuild or remove dependency-input checking wholesale.
+   This weakens the installed/source-distribution qualification unnecessarily.
+
+Choice: B. Keep source inventory, release hashes, exact build inputs and installed
+behavior checks. The runtime lock, rather than one platform's selected ABI wheel,
+is the shared cross-runtime authority. The normal capture/build path still admits
+and records the actual compatible dependency bytes. This is a narrowly scoped
+qualification correction, not permission to accept changed locks or unpinned input.
+
+D042 -- Raise the common Python baseline; withdraw the 3.11 accommodation (23:07 UTC)
+----------------------------------------------------------------------------------
+
+The user explicitly directed NMRPeak to move its scientific environment to Python
+3.12 and repeated: "rise the tide, don't lift boats". Root had instead preserved
+its existing Python pin in the shared SDK plan. That was the wrong prioritization.
+All four responsible peers have been notified of the corrected common baseline;
+NMRPeak was directed to qualify its actual scientific stack on 3.12, remove the
+two-interpreter/prefix endpoint, and continue controller/delivery adoption.
+
+Serious alternatives:
+A. Preserve NMRPeak's current scientific Python through a shared 3.11 matrix.
+   This was root's accommodation and is explicitly rejected by the user.
+B. Move NMRPeak science to 3.12 and qualify its real model/dependency behavior.
+   Keep the shared SDK and qualification tooling on the common 3.12 baseline.
+C. Keep two interpreters or a native prefix to avoid moving the science stack.
+   This retains operational complexity and also conflicts with the user's goal.
+
+Choice: B, following the user's direct instruction. This supersedes D034's 3.11
+support, D037's additional 3.11 qualification base, and D041's cross-runtime ABI
+qualification adjustment. Restore requires-python >=3.12; remove the uncommitted
+3.11 selectors/matrix and restore exact dependency-input comparison for the one
+maintained runtime. Retain the verified 3.12.16 security-patched shared base.
+The completed 3.11 run (488 unit, 15 contract, 154 integration passes) remains
+historical evidence of the rejected path, not a supported-release promise.
+
+D040 remains justified independently: scientific workers need native lifecycle
+and canonical verified readback without acquiring an API dependency closure.
+The standard-library base/API extra and two locks therefore remain shared work;
+they must not be used as a Python-version workaround or mistaken for isolation.
+Actual network/filesystem/credential grants remain the runtime security boundary.
+
+Checkpoint -- 23:07 UTC
+-----------------------
+
+The root record again lagged; the user explicitly repeated the requirement.
+Write each consequential choice here before editing it, including withdrawals.
+The note is not a retrospective claim that the requested cadence was met.
+
+The first installed profile lane passed the existing 488 unit cases and three
+new native-only cases: genuinely absent HTTP/crypto dependencies, a real native
+child's retirement/scratch proof, and verified file readback rejecting mutation.
+An independent audit confirms all seven moved readback/error/receipt definitions
+are AST-identical. It found two publication issues: duplicate receipts from the
+now-withdrawn two-runtime package lane, and an old seven-asset count after adding
+the sixth artifact. Remove the obsolete matrix and update the count to eight
+(six artifacts plus two logs); do not weaken duplicate-receipt rejection.
+
+The transfer review found an unbounded grant-factory await and validation absent
+from the buffered path. NMRNet supplied a revised proposal,
+/tmp/provider-core-upload-transfer-reviewed.patch, SHA-256
+956655e4632670bed3fedf722789023a54f86117bdeabedd3d0e2b3c7e33996b.
+Its installed focused tests pass 55 cases and updated integrations pass 25 cases.
+Root has not integrated it yet. An asyncio deadline requests cancellation; it
+cannot forcibly terminate a callback that suppresses cancellation. The original
+callback/transport owner must retain and retire actual I/O; no timeout is proof.
+
+The late-active-START problem is now precisely identified: NMRNet retained the
+ACK and settled I/O, but SDK settle attempted to release a deliberately passive
+claim and reported ControllerRefused. It is not an unretained ACK or transport
+failure. A shared correction must distinguish clean passive retention from claim
+release without hiding independent failures. Exact choice and tests come next.
