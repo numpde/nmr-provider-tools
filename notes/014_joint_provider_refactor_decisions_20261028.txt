@@ -112,3 +112,68 @@ Checkpoint -- 20:22 UTC
 Goal created and active. Shared checkout is clean at 0cab18b before this note.
 Common design already has all four design-scope approvals. Implementation kickoff
 has not yet been dispatched; the decisions above precede that action.
+
+Checkpoint -- 20:25 UTC
+-----------------------
+
+Implementation kickoff sent to all four coordinators after D001-D004 were
+committed as 0107ccb. Each owns its repository; first-slice alternatives and
+validation proposals are pending before consequential implementation edits.
+All four consumer trees were clean at kickoff: NMRNet 7ed4594, Magnet f8552a8,
+SECS 4bd1ca2, NMRPeak eb94f43. Existing notes/review commits are preserved.
+
+The shared owner inspected maintained installed-package validation lanes.
+No SDK product change or new API has yet been justified. Published 0.4.0 remains
+the baseline; required consumer evidence is not inferred from its SDK tests.
+
+D005 -- SECS scientific preparation boundary (20:26 UTC)
+-------------------------------------------------------
+
+Serious alternatives, submitted by the SECS coordinator:
+A. Wrap the current entire run_analysis loop in execute. Smaller edit, but it
+   hides input preparation and interpreter repair inside scientific dispatch.
+B. Add a parallel prepare/execute worker API without moving the current caller.
+   This creates an unused seam and leaves two authorities to reconcile later.
+C. Move the existing worker and caller together from analyse to prepare followed
+   by single-consume execute. The worker retains the admitted spectrum/formula;
+   execute uses that handle and cannot reopen changed sources.
+
+Choice: C. This establishes the actual scientific boundary needed by the shared
+controller without inventing an SDK API or moving SECS science into generic code.
+Use the existing exclusive stream for ownership. Input rejection can return to
+the same interpreter before execution entry; uncertainty after scientific
+dispatch cannot authorize another selection/calculation. Clear per-request state
+before the completed response becomes observable.
+
+This first local slice may retain the old controller while caller and worker
+remain coherent. It is not completed SDK adoption and grants no release/rollout
+permission. The next integration must remove the old lifecycle/publication owners.
+
+Required first evidence: real spectrum/formula preparation, source mutation or
+deletion after preparation without changed execution inputs, exactly one search,
+wrong/replayed handle refusal, and rejected inputs before search. Preserve
+analysed/no_starting_candidates classification and decimal result encoding.
+Use an existing contained CPU science lane; no fake import substitutes for this
+boundary. Establish RED before product edits and audit the integrated dirty diff.
+
+D006 -- NMRPeak healthy completion ordering (20:26 UTC)
+-----------------------------------------------------
+
+Serious alternatives, submitted by the NMRPeak coordinator:
+A. Add a new release/ACK protocol. It adds states and another exchange when the
+   existing terminal response can already follow actual request cleanup.
+B. Wrap the whole old lifecycle in an SDK adapter first. This risks preserving
+   duplicated lifecycle authority before the scientific boundary is sound.
+C. Retain HF/CHF codecs and current correlation; clear pending source/input state
+   before the existing ResultFrame becomes observable to its provider owner.
+
+Choice: C. The model can remain loaded while the old request no longer owns input
+state. Fix ordering at the worker, not through a provider-side IDLE flag. No SDK,
+new nonce, new ACK, dependency, or scientific result-policy change is required.
+
+Required first evidence: both real HF/CHF codecs, actual decoded input lifetime
+observed at the send boundary, and two requests on one warm runtime. A weakref
+witness must observe input release rather than mirror an internal pending flag.
+Preserve partial-write and failure behavior. Establish RED before product edits;
+audit independently before committing. Failure-before-close/native adoption is
+a separate next slice, not implied by this completion-ordering change.
