@@ -4730,3 +4730,59 @@ test-server teardown ordering defect: Python 3.12 Server.wait_closed waits for
 accepted peers whose fixture barriers were still held. The fixture now closes
 the listener, cancels/joins its owned handlers, then waits for server closure.
 No SDK or production change was requested. Its narrowed rerun remains pending.
+
+D147 -- Keep a new API Job proof within its actual authorized case (2026-10-29 07:00 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet requested the owner/client path for one API-created live Job. Root verified
+the quoted Oct23 instructions, but their adjacent original handoff bounded the
+then-prepared two-record SDF case, paid model destination, six turns and retained
+R46/R48 references. That is evidence of that case's authorization, not automatic
+permission to repeat it as a new post-release scientific campaign. The current
+rollout has actual startup/IPC proof, not a remote result receipt.
+
+Serious alternatives:
+A. Create a fresh Job under a new operation_ref after every release. This obtains
+   a new smoke witness but can repeat an already completed authorized case and
+   expand paid/scientific effects without retaining its original scope.
+B. Call startup readiness end-to-end result proof. This avoids another mutation
+   but makes a claim the observed evidence does not support.
+C. Identify the original case's state and current one-Job scope, use the existing
+   issued user actor and chosen route, and keep any necessary mutation within
+   that retained exact case; otherwise leave remote result proof unestablished.
+
+Choice: C. Root asked NMRNet for the scope/reference clarification; no new Job,
+credential or provider-selection mutation has been performed here. Existing
+client metadata and public reads may establish the actor/project path without
+printing keys. use-nmr-api supplies the one-shot request/recovery contract; an
+uncertain Job-create keeps the same operation_ref and submitted facts. Never use
+a provider credential as a user, reconstruct a changed case under an old key,
+or reopen a broad scientific campaign to improve a release completion claim.
+This does not undo the verified deployment authority or block completed rollout.
+
+Open question -- Magnet's late classified outcome (2026-10-29 07:00 UTC)
+--------------------------------------------------------------------
+
+Magnet constructed a stronger framed E01 witness: actual processor/session,
+backend and protocol validator, a synthetic Unix peer returning two validated
+EXECUTION_FAILED frames, and a fake native lifetime. A callback cancels the
+session caller after its phase task completes but before that caller observes
+the resulting AnalysisFailure; retirement returns and the value remains on the
+phase task. This is a constructed ordering, not a live lost result/crash proof.
+
+Serious alternatives under review:
+A. Treat every late AnalysisFailure as an independent cleanup failure. This
+   confuses ordinary classified outcomes with exceptions and may falsify physical
+   retirement or create a terminal duty after deliberate cancellation.
+B. Discard every such value because the caller was cancelled. This may lose
+   protected evidence the actual enclosing SDK suppression contract expects.
+C. Trace the original SDK operation and session outcome-retention boundary, then
+   preserve any demonstrated missing evidence there without granting a new report
+   or reclassifying physical cleanup. Existing terminal-selection/suppression
+   policy remains the authority.
+
+No product choice or fix is approved from the private Task result alone. Root
+and Magnet are tracing the actual enclosing SDK path, distinguishing an ordinary
+AnalysisFailure value from an unobserved original exception/failed native frame.
+No new flag, registry, cleanup refusal or terminal-report permission is justified
+until that causal boundary is established. This is not a deployment blocker.
