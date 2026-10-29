@@ -1581,7 +1581,8 @@ C. Retain only the existing explicit bounded pure-prediction policy: same live
    execution slot under the configured per-exchange limits;
    positively observed crashes and restart/dark reconstruction cannot use it.
 
-Choice: C, after reading the exact note021 policy, note022 cutover restriction
+Historical choice, now under direct user scope review: C, after reading the
+exact note021 policy, note022 cutover restriction
 and note010 uncertainty/crash conditions with NMRNet. These additional policy and
 retirement facts distinguish the allowed scientific retry from error-driven
 replay. Do not add scientific retries to the shared SDK or imply the original
@@ -1605,10 +1606,11 @@ shared execution.py::_execute_session.
 Scope review reopened: the active consumer goal literally prohibits automatic
 scientific reruns, while this earlier choice retained a pre-existing bounded
 same-Attempt policy. Agent agreement cannot override an explicit user requirement.
-The exact original instruction and any later exception must govern. A direct user
-clarification is pending; hold policy removal/integration/rollout until the scope
-is settled. Existing service remains running, and no new scientific retry
-permission follows from this review.
+The exact original instruction and any later exception must govern. The user
+has now clarified that scientific retry policy must be configurable in TOML,
+and requested comparison before implementation; see D152. This supersedes the
+binary retain/remove question, not the need to admit an explicit policy and its
+failure outcomes. Existing service is unchanged during that design review.
 
 D053 -- Bind startup permission separately from warm retirement (23:39 UTC)
 -----------------------------------------------------------------------------
@@ -4544,6 +4546,837 @@ Use a causal slow-construction witness to show that effects do not begin after
 the request budget is exhausted. Scientific request content and parsing policy
 stay unchanged.
 
+D151 -- Make stricter chat deadlines explicit rather than infer outer timeouts
+----------------------------------------------------------------------------
+
+ChatEndpoint.complete constructs JSON and an HTTP request before entering the
+transport's relative exchange allowance. It has no absolute deadline parameter.
+A composed installed-package witness delays synchronous construction beyond an
+outer asyncio.timeout and records transport-task entry afterward. This establishes
+scheduling behavior; it does not prove a real HTTP request or a live incident.
+
+Serious alternatives:
+A. Infer an arbitrary caller's timeout inside the carrier. This hides authority
+   and cannot reliably make synchronous Python work preemptible.
+B. Reopen the completed deployment/release immediately from a stubbed task-entry
+   witness. That treats an unqualified effect boundary as an established incident
+   and changes an API before its stricter contract is selected.
+C. Keep the current relative transport contract, retain the precise limitation,
+   and make any future strict caller cap explicit through the same original owner.
+
+Choice: C for current scope. The existing carrier does not expose an absolute
+no-dispatch-after-outer-timeout guarantee. A stricter interface should carry the
+caller's original deadline through construction, dispatch checks and retirement,
+not create a provider-local carrier or another Task registry. Record it in the
+existing shared deferred note015 with owner, trigger and required physical proof.
+No new release, rollout or broad renderer work follows from this constructed
+witness. D150's explicit NMRPeak request-budget correction remains independently
+necessary under that caller's selected contract.
+
+D152 -- Configure scientific retries explicitly in model-owned TOML
+------------------------------------------------------------------
+
+The user clarified that scientific retries must be configurable in a .toml,
+usually under config/, and requested an evidence-based comparison before edits.
+This is the accepted direction. It does not yet choose the key, shipped value,
+upper bound, failure classification or migration behavior.
+
+Actual current provider practice, read from committed code and tracked templates:
+- NMRNet: config/provider.toml.example has explicit preparation counts under
+  preparation and native timing fields under service. No scientific retry setting
+  exists. Committed
+  session.py::_predict permits initial execution plus one retry; preparation is
+  outside that retry catch, the current observer's presence also gates retry,
+  and a proved native exit takes the crash path. Do not
+  mistake the pending uncommitted removal candidate for committed behavior.
+- Magnet: each implementation has a separate runner/interpreter TOML template and
+  closed binding reader. E01/E02 generation backends hard-code initial plus one
+  retry after eligible execution failure/indeterminate reply and original boot
+  retirement. G01 has one prediction call. Provider-wide analysis_unavailable
+  delays are not a scientific retry count.
+- SECS: provider.toml controls execution/interpretation budgets; worker.toml owns
+  the scientific algorithm. max_generations is search depth within one GA run,
+  not repeat execution after failure. One consumed prepared handle invokes one
+  full search at most; no scientific retry loop/count is configured.
+- NMRPeak: provider.toml separates process, runner and interpreter settings. The
+  generation path consumes its prepared handle and sends one GenerateFrame.
+  Up to two model-HTTP attempts per endpoint turn and interpretation retries belong to preparation,
+  not repeat scientific generation. No scientific retry setting exists.
+
+Configuration admission and application differ:
+- All four have closed TOML schemas and typed admitted policies, but acquisition
+  bounds differ. SECS's provider reader caps bytes; its worker file is size-checked
+  by host preflight, then the child uses plain read_bytes without a runtime byte
+  cap. Do not describe that child read as bounded. Specific optional/default fields
+  differ, so do not claim every allowed key is universally required.
+- NMRNet, Magnet and NMRPeak capture selected operator configuration for the
+  deployment. Templates initialize absent operator files; adding an example key
+  does not update already retained configurations automatically.
+- SECS binds operator TOML read-only and parses it at process/child startup.
+  Read-only mount is not content freezing: same-inode host edits can reach a
+  replacement child. Atomic host file replacement need not reach an existing file
+  bind until remount/recreation. Neither behavior is an immutable operation snapshot.
+  A future retry policy must have an explicit operation snapshot, not drift midway.
+
+Other-repository precedents inspected:
+- Agent-mail config/mail.toml.example and agent_mail/_config/mail.py use strict
+  bounded TOML and immutable operation snapshots. storage_recovery.py requires
+  a positive finite backoff ceiling; delivery_maintenance.py retries fresh DB
+  observations until shutdown. There is no attempt-count/exhaustion policy to
+  copy for science. The examples explicitly are selections, not parser defaults.
+- Dapp32's refund worker uses strict JSON, not runtime TOML. Its config.ts rejects
+  missing/unknown fields and validates count/cross-field bounds; runner.ts sets
+  RPC retryCount to zero in code. Transfer admission/ownership practice, not a
+  nonexistent TOML scientific retry schema or numeric cap.
+- Pay-to-play src/api/settings.py loads complete bounded JSON into frozen
+  settings and rejects duplicate/missing/unknown fields. It configures operation
+  timeouts, not an automatic retry loop. Packaging/lint TOML is not runtime policy.
+
+Serious placement alternatives:
+A. Put a global scientific retry table in shared delivery/SDK configuration.
+   This unifies syntax but moves model-specific eligibility into an unrelated
+   owner and implies replay support for models that currently have none.
+B. Extend each affected implementation's existing operator TOML and admitted
+   runner/native policy, keeping shared scalar semantics and model-owned gates.
+C. Introduce a separate scientific retry-policy file/schema across all providers.
+   This can separate release scientific policy, but adds capture/validation inputs
+   where existing scoped configuration already owns the affected runtime facts.
+
+Current preference for the next design slice: B. This comparison does not yet
+approve implementation. Use one documented notion of extra retries (zero means
+one execution) rather than confuse total attempts, concurrency, GA generations,
+START replay or input interpretation. Explicit zero in shipped configurations is
+proposed as a conservative new policy; it would disable existing NMRNet/E01/E02
+retries and is not their current behavior or an implicit parser fallback.
+Default and upper bounds still need joint selection from actual owner,
+failure-retention and resource contracts, not an arbitrary borrowed constant.
+
+Preserve these constraints before implementation:
+- A numeric count is a limit, not permission: frozen input/model, exact original
+  retirement, current Attempt/session permission and crash/dark exclusions remain
+  model-owned. Closing new-Job admission is distinct from cancelling an admitted
+  Attempt; provider-shutdown retry behavior must be selected explicitly.
+- Scientific retry is another computation, not exact-byte delivery replay.
+  Identical inputs/seed are provenance, not a guarantee of bitwise-identical GPU
+  output or proof that a lost first result was never produced.
+- An admitted retry count must own the decision; do not leave diagnostic callback
+  presence as an independent hidden switch for scientific re-execution.
+- NMRNet's native-lifetime factor two must not automatically scale with retry
+  count: prepare and execute are separate timed exchanges, and a replacement is
+  a distinct native operation. No aggregate Attempt clock is invented.
+- More than one extra retry needs explicit first/latest failure-retention review;
+  the present two-execution path is not evidence that arbitrary counts are safe.
+- Zero/exhaustion must have a truthful outcome. A validated model execution_failed
+  is distinct from transport uncertainty or a proved worker crash. NMRNet currently
+  propagates ordinary prediction exceptions locally rather than classifying all
+  as terminal AnalysisFailure. Decide that boundary explicitly; do not strand an
+  Attempt or fabricate remote failure merely by replacing range(2) with a setting.
+
+Relevant sources: NMRNet config.py/session.py/startup_capture.py; Magnet per-model
+binding_config/binding_policy/unix_runner_backend; SECS provider config.py,
+worker_model.py/session.py and compose/provider.yml; NMRPeak provider_config.py,
+analysis_session.py/runner_session.py and deployment/provider_deployment.py.
+No retry policy, runtime configuration, deployment or scientific workload was
+changed for this comparison.
+
+D153 -- One explicit extra-retry count, not a shared scientific controller
+------------------------------------------------------------------------
+
+The user renewed the joint end-to-end goal after the comparison and directed
+meaningful defaults with configurable, preferably uniform controls. The owners
+must implement real positive-count behavior; an accepted but ineffective setting
+is not the requested end state.
+
+Serious alternatives:
+A. Four independently named counts/defaults/readers. This fits existing local
+   structures but perpetuates ambiguity about whether the initial run is counted.
+B. One shared immutable count/value contract, populated from each model/provider's
+   existing TOML, while bindings own scientific eligibility and execution.
+C. A shared retry controller that replaces/rearms all scientific workers. The
+   actual prepared handles, model state and lane lifetime owners are different;
+   this would move scientific authority into an unnecessary framework.
+
+Choice: B. Use the uniform table [scientific_retry] and required max_retries field
+in the affected provider/model runtime TOML. max_retries counts additional science:
+0 permits one initial execution; 1 permits at most two total executions. The shared
+ScientificRetryPolicy value has no default and accepts exact integers 0 or 1;
+booleans, strings, floats, negative values and larger counts fail admission.
+
+The upper bound is the supported two-execution contract, not an arbitrary safety
+constant: current failure retention and qualified replacement paths cover the
+original and one later execution. Extending it needs deliberate multi-failure
+retention and resource proof. Share meaning/validation only; no mutable retry
+registry, scientific execution engine or inference implementation enters core.
+An admitted count limits permitted re-execution; it does not authorize one.
+
+D154 -- Preserve existing defaults explicitly and capture policy before science
+-----------------------------------------------------------------------------
+
+Serious alternatives:
+A. Ship zero everywhere. This removes existing NMRNet/E01/E02 recovery while
+   introducing a setting, rather than merely making that policy explicit.
+B. Ship one everywhere. This enables new behavior in models that currently run
+   once, before their positive-retry path is selected and qualified.
+C. Write meaningful model-owned values in TOML, preserving current behavior while
+   every supported implementation gains a real, explicit off/on count.
+
+Choice before the later deploy-first supersession: NMRNet and Magnet E01/E02
+select one extra retry in their capable shipped configurations. SECS, NMRPeak HF/CHF and Magnet G01 select zero. All supported
+positive values must actually work after qualification; zero-only inert fields
+are not an acceptable substitute. These are explicit configuration selections,
+not constructor/parser fallback defaults. D157 supersedes the immediate affected
+selection with zero. Do not restore one automatically after later implementation;
+re-adjudicate the eventual enabled default against the explicit current policy.
+
+Require the table/key in the next admitted scientific configuration. Update tracked
+examples and tracked deployment selections; existing separately maintained operator
+files require an explicit edit and fresh capture/revalidation. Do not silently
+rewrite active operator data or preserve the old implicit policy when a key is
+missing. Each existing versioned config owner must make its clean-cut shape change
+honest; no parallel legacy parser or automatic compatibility branch.
+
+Capture an immutable count for the current Attempt before scientific effects.
+Keep it in the existing runtime-policy identity, separate from checkpoint/decode
+identity unless a model's actual identity contract requires otherwise. A worker
+replacement must use the same admitted scientific model/config/input; read-only
+host mounts alone do not prove that. Preserve existing per-operation/per-phase or
+original Attempt deadlines; do not multiply budgets by the retry count or invent
+a new aggregate Attempt clock. Closing new-Job admission does not itself cancel an
+admitted Attempt; actual Attempt/session stop still forbids new scientific work.
+
+D155 -- Re-execute only from owned scientific evidence and a fresh admitted worker
+--------------------------------------------------------------------------------
+
+Serious alternatives:
+A. Retry any generic failure frame or exception while the count remains. Actual
+   NMRPeak code catches computation, result construction and encoding together;
+   a frame alone can mean science returned and its result could not be delivered.
+B. Require proof that no computation started. This avoids recomputation but makes
+   a positive scientific retry setting ineffective for real failed calculations.
+C. Establish eligibility at the scientific authority, preserve what is known or
+   uncertain, then perform a genuinely new calculation only after the exact old
+   owner retires and a replacement admits the same frozen inputs/model.
+
+Choice: C. A positively completed failed computation can be eligible even if
+partial scientific work happened. It must be a closed fact produced at the actual
+scientific call boundary, not diagnostic-text matching or a catch around encoding.
+Returned-result assembly/serialization failures do not authorize rerunning science;
+retain the returned evidence and report the independent delivery/assembly problem.
+Process-control exceptions, stopped/cancelled Attempts and unconfirmed retirement
+never gain retry permission from the count.
+
+Use fresh-boot recovery, not an assumed healthy resident model after exceptions.
+Join the exact original scientific operation and confirm native/scratch retirement;
+then admit replacement READY, unchanged model/config facts and revalidated exact
+materialized input. A consumed old handle is never reused, and interpretation is
+not repeated. Adopt the replacement in the existing lane/lifetime owner before
+new effects; shutdown must follow actual current/staged owners, not stale locals.
+
+Eligibility remains model-owned. Preserve the existing expressly reviewed pure-
+computation indeterminate-reply retry only for NMRNet/Magnet E01/E02, under their
+positive configured budget and qualified original retirement/no-external-effects
+contract. Its diagnostics must state that the first computation may have completed:
+same seed/input is not a bitwise result guarantee or an exact-byte replay. Do not
+extend that higher-risk permission to newly supported models by symmetry. New
+SECS/NMRPeak/G01 positive retries require explicit completed computation-failure
+evidence. Unknown/lost/malformed replies remain indeterminate there.
+
+An observed unannounced native crash follows the existing crash-to-FAIL contract;
+a dark death causes no reconstructed action. A matched computation-failure frame
+followed by the worker's declared failure termination must not erase that frame or
+be confused with an unrelated crash; preserve independent native exit evidence.
+A later uncertain execution cannot be replaced by an earlier known failure when
+reporting the final outcome.
+
+D156 -- Retain uncertainty without fabricating FAIL or restarting the provider
+----------------------------------------------------------------------------
+
+Actual source inspection found a service consequence: NMRNet propagates ordinary
+prediction failures through ControllerFailed and its service can stop/restart.
+Magnet already distinguishes a public classified failure from its local
+AnalysisOutcomeUnresolved exception. Core already retains quiescent held claims,
+Job exclusion and live capacity; it does not need another claim state.
+
+Serious alternatives:
+A. Publish FAIL on every exhausted count. A timeout/lost result does not establish
+   a failed calculation, and exhaustion only ends retry admission.
+B. Keep propagating every such condition as an arbitrary runtime failure. This
+   can restart an otherwise useful provider and hides the deliberate distinction
+   between unresolved science and programming/cleanup faults.
+C. Add a third normal AnalysisSession return value. That would populate the core
+   outcome field and require a new publication/disposition state machine.
+D. Promote the existing narrow unresolved-analysis exception contract into core,
+   retaining original protected evidence, and reuse existing held ownership.
+
+Choice: D. Shared AnalysisOutcomeUnresolved is an exceptional no-publishable-outcome
+signal, not a public scientific failure or release permission. Bindings raise it
+only for the current owned scientific operation after their retry policy ends.
+Keep original cause/evidence and distinguish independent cleanup/cancellation.
+Service continuation is allowed only for this deliberate typed signal after
+positive original work/API/delivery retirement, clean independent cleanup,
+current readiness and exact retained claim/Job ownership checks. Never catch all
+scientific or retired exceptions and continue.
+
+A final validated execution-failure response, where the scientific owner confirms
+no usable result for that request, becomes the model's reviewed AnalysisFailure
+with a fixed safe public explanation and protected first/latest native facts.
+That response alone does not prove numerical/model failure or zero completed work.
+NMRNet needs that explicit classification for its validated execution_failed path;
+ordinary timeout/lost-channel uncertainty must not be relabelled as model failure.
+No new science is started to recover returned results or report failures. Existing
+shared delivery owns exact terminal bytes and retries independently.
+
+The unresolved Job/Attempt remains held against finite live capacity and excludes
+the same Job across lanes; unrelated work may continue only through the existing
+qualified admission/lifetime policy. Do not release it on elapsed time, restart,
+discovery absence or merely stopping the worker. This prevents babysitting by a
+crash loop while preserving the original uncertainty and ownership honestly.
+
+D157 -- Deploy the affected zero-retry path before implementing new retries
+-------------------------------------------------------------------------
+
+The user superseded retry-first ordering: deploy first, possibly without retry;
+defer problematic retry paths, reject those selections with NotImplementedError
+during startup, then resume retry development. The correction explicitly applies
+to affected providers, not blanket startup failure for every provider.
+
+Serious alternatives:
+A. Hold deployment for the full shared retry value, scientific failure protocol,
+   worker replacement and unresolved-outcome work. This ignores the new priority.
+B. Raise an unconditional startup NotImplementedError across all providers. This
+   stops working zero-retry services and invents failures in unaffected providers.
+C. Qualify the affected existing deployments with explicit zero retry, reject an
+   unsupported positive selection before effects, deploy via their maintained
+   owners, then resume the joint positive-retry contract.
+
+Choice: C. Current source proves affected NMRNet and Magnet E01/E02 failure frames
+can include completed computation/prefix or post-computation projection; their
+existing retry path is not a qualified implementation of D155. For the immediate
+slice, require [scientific_retry] max_retries in their existing model/provider
+TOML and select zero explicitly. Interim startup admission requires an exact
+nonnegative integer: zero is usable; any unsupported positive selection raises a narrow reviewed NotImplementedError at startup before native
+acquisition, network/Hello/START or incumbent replacement. Zero starts normally;
+missing/malformed configuration fails its owning configuration admission. No
+implicit legacy default or silent operator-file rewrite.
+
+Do not introduce a new SDK dependency or wait for a release merely to disable the
+unsafe automatic path. D153's shared value/ownership workshop and D154's eventual
+model defaults remain future work after this deployment; zero is the explicit
+interim selection for affected paths. Remove/deactivate the actual automatic
+re-execution, not merely its diagnostic callback. Preserve original prepare/execute
+and native retirement budgets; NMRNet's factor two is not a retry multiplier.
+
+Existing scientific failures still need honest propagation: a validated failed
+request can report that no complete verified result was obtained, with its original
+protected facts. Do not assert no partial calculation occurred. Timeout/lost result
+remains uncertain; independent cleanup/cancellation must not disappear or become
+false retirement. Use existing receiving contracts and bounded diagnostics; defer
+new general shared outcome machinery rather than fabricate terminal certainty.
+
+The already authorized NMRNet/Magnet deployment owners qualify before replacing
+working services, preserve retained inputs/queue/IPC and use actual original drain
+and resumed-runtime evidence. No new scientific Job or repeated numerical campaign
+is needed merely to disable retry. SECS/NMRPeak currently have no retry feature and
+no newly selected production target: preserve their qualified zero-retry code;
+do not add gates or deployment targets solely for symmetry.
+
+D158 -- Workshop a shared shape without moving scientific permission into core
+----------------------------------------------------------------------------
+
+The user also explicitly requested a common configuration-shape workshop, including
+whether it belongs in the shared package. The sources support three alternatives:
+A. One whole-provider TOML parser and generic scientific retry controller in core.
+   That over-owns different provider documents, prepared capabilities and models.
+B. Same operator-facing table/unit, with each provider admitting/capturing its
+   complete document. Share only a small immutable count/value contract if real
+   consumers require the same admission semantics.
+C. Independent local scalar policies forever. This avoids a release dependency
+   but risks semantic drift across fields with the same user-facing meaning.
+
+Choice for the workshop: B. The first deployment does not depend on publishing
+that small shared type. The eventual shared type must have no implicit default,
+mutable execution state, scientific purity assertion or exception-text classifier.
+Model owners retain eligible outcomes, same-input/model proof, original retirement,
+new-boot admission, failure disclosure and exhaustion/uncertainty decisions. A
+common scalar cannot turn a consumed old handle into valid replay authority.
+
+Error-reporting acceptance is explicit: follow write-helpful-errors at the owning
+boundary and test actual rendered startup/operation failures. Name the blocked
+operation and selected key/value, explain the supported capability, preserve
+original causes and independent cleanup, and keep raw payload/credential text out
+of public errors. Do not hide unresolved science behind a generic error or silently
+restart it. Unsupported selection is reported at startup, not after the first
+scientific effect.
+
+D159 -- Preserve failure truth without claiming durable operator history
+------------------------------------------------------------------------
+
+Review of the actual receiving path found that core sends AnalysisFailure's
+public code/message and disposes of its in-memory outcome after acknowledgement.
+Protected evidence on that outcome is not an enduring operator record. NMRNet's
+existing bounded operator-notice path can expose reviewed native facts before
+disposal, separately from the fixed safe public failure message.
+
+Serious alternatives:
+A. Send native diagnostics in the public FAIL. This discloses private input or
+   credentials and confuses an operator explanation with the API contract.
+B. Call the in-memory evidence durable, or require logging success before FAIL.
+   The former is false; the latter makes a diagnostic sink control the scientific
+   outcome and retirement.
+C. Add a persistent diagnostic store to this deployment slice. This introduces
+   retention, access and lifecycle obligations beyond the chosen live bookkeeping.
+D. Use the existing bounded, nonblocking operator notice and state its limits.
+
+Choice for this slice: D. Keep the original failure distinct from independent
+encoding, output and cleanup failures. A validated failed reply establishes that
+no complete verified result was returned; it does not establish zero computation
+or a mathematical failure. Unknown/lost replies remain unknown. The public API
+receives only the reviewed failure explanation, never raw native diagnostic text.
+
+This notice is best-effort observation, not durable history. Known credentials
+are redacted before output bounds. Truncation is explicit when a record is emitted.
+An oversized record or full/broken pipe can prevent emission; the existing owner
+retains only the latest failed notice and output cause for final reporting. A
+persistently unavailable sink can prevent that report too. Do not claim every
+private fact is retained or that renderer tests prove production log delivery.
+Do not silently replace the scientific failure with a logging failure.
+
+Qualification locators: NMRNet f05e49e, process.py::report_operator_notice,
+session.py::execute, process_reports.py; normative/test_nmrnet_reports.py's
+bounded-secret-redaction control and test_nmrnet_runtime.py's actual relay/API
+failure separation control. SECS independently reviewed the receiving path and
+the retirement-phase guard. These establish source and focused receiving behavior,
+not durable log storage or scientific accuracy.
+
+D160 -- Admit all configured lanes before startup effects from one snapshot
+-------------------------------------------------------------------------
+
+Independent Magnet review found that normal startup could send Hello or acquire
+another lane before an affected lane rejected its retry setting. A standalone
+validate-startup command did not establish the ordering of normal startup.
+
+Serious alternatives:
+A. Leave admission inside concurrent lane activation. A positive selection can
+   then fail after effects, contradicting the startup contract.
+B. Validate a document early and reread it during activation. A changed document
+   can invalidate the proof and produces two configuration authorities.
+C. Prepare each lane's admitted activation and run authority once, before opening
+   the lifetime/API owners, then activate those exact captured objects.
+
+Choice: C, using existing preparation and activation owners. No additional parser,
+global configuration registry or generic startup framework is warranted. Prove
+the normal receiving path rejects a positive selection with the reviewed setting,
+selected value and capability explanation, before Hello/native acquisition. Zero
+must still start normally and send at most one scientific request. A parser-only
+test or the validate-startup command alone cannot prove that ordering.
+
+D161 -- Diagnostic size must not change an established scientific outcome
+------------------------------------------------------------------------
+
+NMRNet admits a worker frame up to two MiB, while core ProtectedEvidence accepts
+at most 262144 bytes. Embedding the whole native failure diagnostic in evidence
+can therefore reject an otherwise valid failed response; ASCII JSON expansion can
+also exceed the evidence bound. This is a diagnostic-capacity failure, not a new
+uncertainty about whether the validated failed reply was received.
+
+Serious alternatives:
+A. Raise the shared evidence cap to the native frame cap. Different encodings and
+   consumers still differ, and this enlarges live memory without owning disclosure.
+B. Propagate diagnostic overflow instead of the known public failure. This lets
+   explanation size veto terminal truth and can stop a useful provider.
+C. Silently truncate the protected diagnostic. This falsely implies complete
+   retention and leaves no reliable description of what was omitted.
+D. Carry fixed-size protected metadata identifying the admitted diagnostic, and
+   use the existing separate bounded redacted operator projection for readable facts.
+
+Choice: D, implemented by the NMRNet owner in 98c7c0b. Length and SHA-256 refer to
+an explicitly named ASCII JSON-string encoding, with no raw diagnostic sample in
+the outcome evidence. This has a fixed evidence cost even for escaped Unicode and
+avoids retaining sensitive samples in an outcome that will be discarded. A bounded
+first/last window with explicit omission was a viable alternative; the final owner
+choice leaves readable facts to the existing operator projection. The digest
+identifies the diagnostic representation; it is not stored original content or
+scientific proof.
+Keep the original exception available to its live owner and preserve independent
+diagnostic/cleanup failures. Select the fixed public failure from the admitted
+response, independently of optional explanation size. No new persistent store or
+public raw diagnostic is authorized by this choice. Oversized and Unicode controls
+must demonstrate actual FAIL handoff and absence of private payload disclosure,
+not merely successful construction of the metadata object.
+
+D162 -- Isolate the full-pipe test's unrelated debug logger
+---------------------------------------------------------
+
+A controlled NMRNet process-test reproduction established that asyncio's debug
+slow-callback logger can block on the fixture's deliberately full blocking stderr
+pipe. The captured stack identifies logging.StreamHandler.flush/emit reached from
+asyncio._run_once. The unchanged single test passed; forcing a zero slow-callback
+threshold reproduced the logger block. This does not retroactively identify the
+writer in earlier stalled runs whose stacks were not captured.
+
+Serious alternatives:
+A. Change the provider's nonblocking diagnostic writer. The reproduced blocked
+   writer is the independent stdlib logger, so that would target the wrong owner.
+B. Drain the test pipe or disable the full-pipe check. This removes the adverse
+   condition whose provider shutdown/recovery behavior needs qualification.
+C. Bind only the unrelated asyncio debug logger to the original test sink for
+   this fixture, restoring its configuration afterward.
+
+Choice: C. Keep the provider's real stderr path redirected to the full pipe and
+retain its recovery/shutdown assertions. No production logger or SDK writer change
+follows from this reproduction. The owning fixture is NMRNet's normative process
+test test_full_retry_notice_pipe_does_not_prevent_recovery_or_shutdown; the existing
+container lane, original-descriptor watchdog and forced slow-callback threshold
+provide a reproducible causal control rather than an assumption about slow CI.
+
+D163 -- Explain partial computation without dumping numerical results into logs
+-----------------------------------------------------------------------------
+
+NMRNet source review found two explicit payload paths: release.py added full
+completed_outcomes to an exception note after a later geometry failed; worker.py
+added the complete result to a send-failure note. Traceback formatting can carry
+these numerical scientific payloads into the failure frame and Docker stderr.
+Windowing that text does not make the payload an appropriate operator diagnostic.
+Large prefixes can also prevent the failed response fitting the native frame.
+
+Serious alternatives:
+A. Keep the payload because the channel is private. Protected access does not
+   establish a need to copy scientific results into general container logs.
+B. Remove all partial-work evidence. This conceals completed work and undermines
+   transparent explanations of failure and result-send uncertainty.
+C. Store full partial results separately. This requires a defined result/recovery
+   owner and retention contract; a diagnostic cleanup does not authorize it.
+D. Report bounded completion counts and admitted request identities instead of
+   numerical values, retaining original causes separately from numerical output.
+
+Choice: D, implemented by NMRNet in 0207bc6. It records failed_geometry,
+completed_geometries and completed_request_sha256 with artifact observations;
+the send-failure note records completed_geometries and result_delivery=unconfirmed.
+There is no separate omission flag or claim of retained numerical content.
+Never infer zero computation
+from the absence of numerical payload in a report. A failed send remains uncertain
+about receipt; a completed prefix does not authorize replay or mixed-run results.
+Preserve independent evidence-recording/cleanup failures and prevent a diagnostic
+summary from replacing the original exception. A numerical canary must be absent
+from the actual failed-frame and send-failure stderr paths while useful cause,
+phase and completion facts remain. This changes native diagnostic code and hence
+requires qualified native-image rebuild/replacement through existing deployment
+owners; it does not require another scientific Job or a numerical campaign.
+
+D164 -- Preserve indeterminate-generation causes through the existing exception chain
+----------------------------------------------------------------------------------
+
+Independent source review confirmed an existing Magnet gap: the E01/E02 processor
+catches GenerationIndeterminate, returns an empty AnalysisIndeterminate value, and
+the session subsequently raises a generic AnalysisOutcomeUnresolved. The backend's
+original RunnerRequestIndeterminate cause is lost at that conversion. The final
+uncertain classification is correct; its explanatory provenance is incomplete.
+
+Serious alternatives:
+A. Add a cause field to the empty value and propagate both through another mapping.
+   This repairs provenance but preserves an unnecessary carrier/conversion layer.
+B. Make unresolved analysis a third shared return outcome. That requires new
+   executor disposition semantics and does not address the existing minimal seam.
+C. Raise the shared unresolved exception directly from the original generation
+   exception, removing the displaced local exception/value after consumers migrate.
+
+Choice for the post-deployment D156 migration: C. Use ordinary Python __cause__,
+already traversed by core diagnostics. No mirrored cause field, replay controller
+or automatic terminal action belongs on the shared marker. A fixed reviewed core
+projection can explain the retained uncertainty without rendering arbitrary
+exception text. The receiving recovery event must carry the safe outer failure
+diagnostic; preserving an invisible chain alone does not inform the operator.
+
+Continuation still needs positive original settlement, shutdown readiness, current
+resource readiness and exact retained claim/Job exclusion, with independent cleanup,
+control and caller cancellation respected. Do not call a release-oriented settle
+solely to manufacture a release refusal for an intentionally held claim and then
+call that refusal a cleanup failure. Original timeout/channel exception identity,
+no extra scientific dispatch, no fabricated FAIL, retained finite capacity and
+private-text exclusion are the consequential receiving-path proof obligations.
+This migration remains after the first affected deployment; it is not a prerequisite
+or new SDK dependency for the zero-retry rollout.
+
+D165 -- Bound SECS worker configuration acquisition at the child reader
+---------------------------------------------------------------------
+
+SECS's host preflight checks worker.toml size, but the scientific child later
+calls Path.read_bytes() on the mounted file. An intervening edit can invalidate
+the earlier size check. The actual acquisition owner must enforce its own byte cap.
+
+Serious alternatives:
+A. Rely on the earlier host stat. This leaves the child read unbounded and does
+   not remove the time between admission and acquisition.
+B. Introduce a new configuration snapshot/retry system now. Captured identity
+   will matter for positive retries, but is a larger independent obligation.
+C. Use the existing installed core bounded startup-file reader at the child,
+   retaining the current worker schema and 65536-byte limit.
+
+Choice: C, a SECS-owned correction under its user's direction to improve that
+repository. Retain safe cause reporting and verify descriptor cleanup on refusal;
+do not dump configuration contents into diagnostics. This bounds the actual read.
+It does not prove the config matches an earlier snapshot, authorize scientific
+replay or establish a new production target. No duplicate reader, schema fallback
+or extra version is required solely to enforce the existing acquisition bound.
+
+D166 -- Share count meaning, keep scientific capability and permission model-owned
+--------------------------------------------------------------------------------
+
+All four responsible provider owners accepted the post-deployment contract below.
+The user subsequently preferred a clean cut without versioning for the fast track.
+The already deployed NMRNet v3/Magnet v2 config bumps preceded that preference;
+they are not evidence of compliance with it. Do not add more versioned schemas,
+aliases or parser generations to implement this contract, or interrupt healthy
+services merely to rename an already admitted configuration.
+
+Serious alternatives:
+A. D153's shared exact 0..1 count. This places today's scientific implementation
+   ceiling in the model-independent value and couples future capability to SDK edits.
+B. Independent scalar parsers indefinitely. This duplicates the meaning and basic
+   admission of the same setting across actual consumers.
+C. One immutable exact nonnegative integer count, with no SDK default or scientific
+   engine. Bindings admit their own qualified capability at startup.
+
+Coordinated proposal: C, superseding D153's shared 0..1 ceiling if the user approves
+the shared change. Peer agreement is not user approval; core remains unchanged.
+The common TOML shape remains
+[scientific_retry] max_retries, counting extra full scientific executions. Retain
+explicit default zero; never silently restore the older capable-provider default
+one. A binding may support one extra execution only after its real path qualifies;
+larger or otherwise unsupported selections raise the reviewed startup
+NotImplementedError before effects. A common count does not assert model purity,
+new-worker readiness, a shared Attempt clock or a retry implementation.
+
+Eligibility alternatives were to preserve the old reviewed pure-computation
+indeterminate replay permission, or require a closed attributable computation-failure
+fact. All four chose the latter for this joint implementation, superseding that
+permission in D155. A broad validated failed response proves no verified request
+result; it is not enough to authorize another calculation. Classify at the actual
+owned computation/device-completion boundary, separately from input admission,
+result assembly, provenance and encoding. Arbitrary whole-algorithm exceptions
+or diagnostic prose do not provide this fact.
+
+Timeout/lost/malformed reply, cancellation, observed unannounced crash and
+post-computation assembly failure do not authorize scientific retry. Unknown science
+uses the shared unresolved marker and held ownership, never fabricated FAIL.
+Retire the exact old worker, admit fresh actual input/model/config identity, and
+use the same captured materialized input in the same Attempt without another
+interpretation or START. Whole-batch replay must not splice outputs from separate
+runs. Binding-owned phase limits remain explicit; independent retirement obligations
+are never shortened just to make a scientific admission deadline appear satisfied.
+NMRPeak's own user leaves its positive consumer path for a later authorized step;
+agreement on a shared value does not itself authorize that implementation or target.
+
+D167 -- Keep the scientific cause if its failed-response send also fails
+----------------------------------------------------------------------
+
+Independent SECS review found that worker_protocol.py built a failed response in
+an exception handler, then sent it after leaving that handler. If sendall failed,
+the original scientific exception was no longer in the context chain, and its
+structural response had not reached the provider. The outer worker diagnostic
+therefore reported only the send failure.
+
+Serious alternatives:
+A. Retry the frame send. Partial transmission makes another frame unsafe.
+B. Add a new failure envelope or duplicate cause field. Existing Python context
+   already represents failure while reporting an earlier failure.
+C. Keep the single failure-response send inside the handler, preserving original
+   context if sending fails, and continue only after a successful send.
+
+Choice: C, at the SECS-owned protocol boundary. No second frame, local payload dump
+or new version is needed. A closed-socket control must retain the actual scientific
+and send exceptions through the real outer structural diagnostic, excluding their
+private text. Sending failure does not establish receipt or change uncertain
+delivery into a known scientific outcome at the provider.
+
+D168 -- Classify the actual model operation before granting retry permission
+--------------------------------------------------------------------------
+
+The provider owners found that existing failed-response categories span several
+stages. Magnet's response includes input acceptance, model inference/device fence
+and result assembly; NMRNet's Python model call also invokes PyTorch Module hooks;
+SECS's whole elucidator includes parsing, embedding, retrieval and optimization.
+None of these broad exceptions alone proves the narrow event proposed in D166.
+
+Serious alternatives:
+A. Treat any validated failure response as a computation failure. This grants
+   replay authority to pre-computation and post-result failures.
+B. Infer the stage from exception text or an earlier successful return. Text is
+   not authority; asynchronous device errors and post-call hooks defeat that proof.
+C. Add an owned closed distinction at the actual operation boundary, with negative
+   controls for surrounding stages, and qualify replay separately.
+
+Choice: C for independent consumer groundwork. Magnet proposes required closed
+failure_stage values input/computation/result on its existing correlated failed
+response, with the device fence inside computation and no versioned fallback.
+NMRNet's initial fact is precisely that the model call raised before returning to
+its caller; that is not proof forward produced nothing, failed intrinsically or
+encountered a transient problem. Audit pinned hooks before treating it as retry
+eligibility. SECS must include the actual forward/device materialization boundary
+and exclude tokenizer, retrieval, optimizer and later wire/projection failures.
+
+These distinctions can improve current zero-retry diagnostics without enabling
+another execution. Positive retry still needs frozen input/model/config proof,
+original retirement, new-owner admission and explicit startup capability. CPU fake
+tests establish classification/order, not recovery from a poisoned CUDA context.
+No placeholder shared type or unapproved SDK redesign is needed for this groundwork.
+
+D169 -- Pause the shared redesign for coordinated user review and approval
+------------------------------------------------------------------------
+
+The user's exact instruction reported by the NMRNet owner was: "If you do need
+to change the shared package, pause." The subsequent coordinated instruction
+explicitly requires user review/approval of the shared redesign. All four peer
+ACKs establish design discussion; they do not lift that boundary. No shared runtime
+source or published package has changed since the qualified 0.5.1 release.
+
+Serious alternatives for the user's decision:
+A. Keep core unchanged. Repair cause preservation, failure-stage evidence and
+   configuration locally. This avoids a package release/adoption dependency, but
+   leaves the same count and unresolved-outcome contracts with several owners.
+B. Add only a shared unresolved marker. This gives the controller/session boundary
+   one named exceptional contract; count admission remains repeated locally.
+C. Add the small immutable count and unresolved marker, with a fixed safe operator
+   projection. Bindings retain every scientific permission and execution effect.
+D. Add a shared TOML loader/retry controller. Provider documents, input capabilities,
+   model/device health and replacement ownership differ; there is no qualified
+   common engine to extract. This over-owns the scientific repositories.
+
+Initial proposal (superseded by D170): C, subject to explicit user approval. The concrete review
+diff adds ScientificRetryPolicy(max_retries) and AnalysisOutcomeUnresolved in
+provider_core.analysis, plus exact-type fixed explanatory text in failure_projection.
+There is no constructor default/global capability ceiling, copied cause field,
+third return outcome, new registry, execution loop, versioned schema or automatic
+FAIL/release action. Existing Python cause traversal retains original exceptions;
+arbitrary original/binding messages are not automatically exposed to operators.
+
+Proposed proof includes count admission/immutability and a real executor control:
+an unresolved scientific call retains original cause identity and the held claim,
+retires original work, sends no terminal FAIL and renders safe explanatory evidence.
+Consumer qualification must additionally prove exact held-Job exclusion/capacity,
+readiness and independent cleanup/cancellation gates, and the actual receiving event.
+
+The initial review-only patch is /tmp/provider-core-retry-contracts-proposal.patch, generated
+from current source by its adjacent proposal.py. It has been parsed, not applied,
+executed or qualified. It is a concrete review aid, not a durable release artifact.
+The durable proposed interface and obligations are stated above; current runtime
+work remains in the responsible consumer repositories.
+
+Consequences if approved: qualify actual consumers against the installed candidate,
+remove displaced local contracts where migrated, publish new immutable GitHub
+artifacts through normal release tooling, then adopt explicit release pins and
+qualify affected provider images. Never replace the contents of 0.5.1. Unchanged
+delivery IPC does not itself require restarting shared delivery; qualify mixed
+installed-client/daemon compatibility before claiming that no replacement is needed.
+Independent consumer fixes continue while this SDK change awaits user approval.
+
+D170 -- Aggregate judgment: share the held-owner proof, defer the integer wrapper
+-----------------------------------------------------------------------------
+
+All four responsible providers supplied scope assessments. NMRNet found immediate
+two-consumer value in a shared unresolved marker but questioned a generic gate and
+integer-only API. Magnet supported the marker and a count only with real consumers;
+its actual cleanup regression showed the danger of independently composing core
+settlement facts. SECS initially favored both small contracts, then identified the
+missing exact relation between the held controller and selected Job. NMRPeak first
+supported both contracts, then supported a core-owned exact proof and deferring
+the count when that concrete ownership gap was exposed. None authorized SDK changes
+on the user's behalf.
+
+Serious alternatives:
+A. Keep the SDK unchanged and retain the qualified consumer fixes. This is usable
+   today and avoids release coupling, but repeats core ownership adjudication.
+B. Share only the marker. It names the exceptional contract but does not prevent
+   each consumer repeating the same claim/cleanup mistakes.
+C. Add the marker and immutable count, as D169 initially recommended. The scalar
+   is modest admission deduplication; planned consumers alone do not establish that
+   an extra public wrapper earns its place.
+D. Add the marker and a narrow core-owned held-ownership check. Use existing
+   claims, failure records and readiness; do not add state or a new disposition.
+E. Expose another owner-index view or more properties. Consumers would still
+   combine several predicates themselves and couple to lifecycle details.
+F. Add a generic continuation/retry engine or third normal outcome. This over-owns
+   provider policy and creates unneeded executor/disposition machinery.
+
+Coordinator recommendation for approval: D, superseding D169's recommendation.
+Keep [scientific_retry].max_retries meaning, explicit zero defaults and binding-owned
+caps as a common documented contract. Defer ScientificRetryPolicy code until actual
+shared behavior justifies it. This is a reasoned scope reduction, not permission
+to use different count units or hidden defaults in consumers.
+
+The concrete proposed API is AnalysisOutcomeUnresolved plus
+AttemptController.require_held_unresolved(pending). The latter returns the actual
+retained ControllerFailed only after checking the original controller/executor and
+failure relation, current quiescence, and the active claim's exact selected START,
+Job/input/key/scope and registered Attempt. Existing claim.require_start links these
+facts on the owning event loop. Separate queries saying controller A is live and
+Job B is owned do not prove that A owns B. Use the actual executor record and original
+nested admission, not a copied diagnostic identity or another registry.
+
+The check performs no settlement, release, new claim, terminal send or science. A
+settled executor has already called claim.finish(self); the claim's operation_owner
+is therefore None while its lifecycle owner remains the controller. Return the
+original failure for protected reporting; do not mint a new proof object or copy
+its state. Provider stop/control/resource readiness and the decision to select an
+unrelated Job remain provider-owned. This check alone never authorizes continuation.
+
+Independent-failure adjudication:
+- Recorded cleanup failure or interruption blocks this check even if later cleanup
+  succeeds. In particular, timeout followed by native retirement does not erase
+  the original timeout or convert it into permission.
+- Current api_failure, condition_failure/latest_condition_failure and delivery_failure
+  also block the narrow check. Source clears recovered API/condition failures;
+  non-None current fields are not equivalent to historical retry logs. Paired
+  unresolved control/report failures require their own explicit policy and are
+  not silently accepted by this initial API.
+- A condition receipt alone is a success fact, not a failure. A diagnostic observer
+  failure alone does not veto scientific truth; keep it in the full returned
+  failure graph rather than treating it as a terminal effect or hiding it.
+- shutdown_ready remains the authority for unhanded outcomes/reports and original
+  work/API/delivery retirement. Do not recreate its internal phase model.
+- Claim-property reads can themselves refuse stale/wrong-loop ownership. Include
+  those reads in the authority boundary and preserve both the original retained
+  failure and independent ownership refusal, without relabelling either as cleanup.
+
+ObservationGapExpired is deliberately outside this marker-specific API. Magnet
+must preserve and qualify its existing observation-gap branch separately; a shared
+name must not silently merge these conditions or strand that path. NMRNet's existing
+source-exhaustion policy is likewise not reclassified as unresolved science.
+
+The revised review-only diff is /tmp/provider-core-held-contract-proposal.patch,
+generated by /tmp/provider-core-held-contract-proposal.py. It proposes changes only
+to analysis.py, controller.py and failure_projection.py. The earlier four-file
+count/marker diff remains an alternative, not the recommended implementation.
+Both are unapplied; parsing and static peer review are not runtime qualification.
+The recommended marker has fixed safe operator wording; ordinary Python chaining
+keeps original causes without printing arbitrary binding/native message text.
+
+Required qualification after approval: crossed controllers/Jobs and distinct START
+bodies/keys/scopes; mismatched executor/record/admission/registered Attempt; released,
+stale and wrong-loop claims; cleanup timeout or failure followed by later readiness;
+caller/operation interruption; current API/condition/delivery failure and recovered
+controls; unhanded outcome/report; observation-gap rejection and its preserved
+consumer branch. Positive receiving controls must retain finite capacity and exact
+Job exclusion, allow a separately admitted unrelated Job through the consumer's own
+gates, send no fabricated FAIL or repeat calculation, and preserve the original
+exception identity plus readable bounded cause/errno while excluding private text.
+These controls are planned, not claimed as passed for the candidate.
+
+Existing evidence explains the need without qualifying the proposed API. Magnet
+473bee2 fixes original-cause loss and swallowed retirement failure; 57f7c70 tests a
+scripted unresolved execute through the real SDK controller, then a separate Job
+delivery and exclusion of the first. That proves its local orchestration, not
+physical model/device retirement, crossed helper arguments, capacity exhaustion
+or all observation-gap/cancellation cases. NMRNet/SECS source investigations expose
+real model/config identity gaps; no scalar or marker makes those retry-safe.
+
+Implementation remains blocked only at the shared redesign approval boundary;
+independent consumer work continues. Publication/adoption consequences in D169
+still apply: new immutable GitHub artifacts and installed-consumer qualification,
+no replacement of 0.5.1 and no assumed need to restart shared delivery. This proposal
+does not authorize new SECS/NMRPeak production targets or their deferred positive
+retry implementations.
+
 Supporting qualification references
 -----------------------------------
 
@@ -4554,9 +5387,18 @@ The authored scope is notes/017_release_v0.5.1.md. Treat installed-artifact and
 source-rebuild evidence separately from a consumer image or live deployment.
 
 Consumer ownership fixes can be located in NMRPeak adoption 84549c8 and request
-budget correction 7e9f160, and SECS original scientific observation 78a5bec and
-operator projection 9740d95. Their actual original-owner, cancellation, privacy
-and physical-retirement tests remain with their repositories. SECS's remaining
+budget correction 7e9f160. Its privacy-edited handoff is f0431ca and notes007–009;
+raw qualification/replay artifacts were removed at the user's request and are
+not a current locator. Preserve the distinction between released-checkpoint warm
+validation/retirement and generation/numerical comparisons. The maintenance TLS
+fixture checks signing headers, CA and hostname, not cryptographic signature validity.
+
+SECS original scientific observation 78a5bec and operator projection 9740d95 are
+qualified with the clean handoff at 6d1dfc1. Locate its causal original-task and
+cleanup controls in tests/integration/test_native_worker.py, and the actual
+framed/rendered privacy and positive-cause controls in tests/provider/test_main_cleanup.py.
+Their original-owner, cancellation, privacy and physical-retirement tests remain
+with their repositories. SECS's remaining
 non-authoritative diagnostic graph-reference coherence limit is tracked by its
 existing deferred note009; it confers no cleanup or result authority.
 

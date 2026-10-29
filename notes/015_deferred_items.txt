@@ -51,3 +51,27 @@ must supply the allowance remaining after their own framing. Do not add another
 provider-local serializer. D125, D131 and D136 in the running decision note retain
 the design obligations. This work does not block the independently qualified
 availability, deadline and cancellation corrections in 0.5.1.
+
+Absolute caller deadlines through the chat carrier
+-------------------------------------------------
+
+Owner: provider-core ChatEndpoint, with the model caller supplying its deadline.
+Trigger: a caller needs an explicit no-dispatch-after-turn-expiry contract, or
+the next change to the chat deadline interface.
+
+ChatEndpoint.complete currently constructs JSON and an HTTP request before the
+transport starts its relative exchange allowance. It exposes no absolute cap;
+an outer asyncio.timeout cannot preempt synchronous construction. A constructed
+installed-package witness shows the original transport task can enter after that
+outer allowance expires. A stronger witness uses the actual _perform and records
+the request reaching a fake connection pool after expiry. These authored schedules
+do not prove bytes reaching a network peer, a live incident or a violated explicit
+absolute carrier contract. Existing transport I/O bounds remain a separate guarantee.
+
+If that stricter caller contract is adopted, pass one explicit absolute deadline
+through the existing chat/transport owner, checking after construction and before
+dispatch and retaining it for original cleanup observation. Do not infer timeout
+contexts dynamically, copy the carrier into a provider or add another Task owner.
+Qualify actual dispatch refusal under controlled slow construction/pacing before
+claiming the effect boundary. D151 records the alternatives and deferral rationale;
+the existing qualified deployment and published artifacts remain unchanged.
