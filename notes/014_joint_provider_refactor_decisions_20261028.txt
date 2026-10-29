@@ -3990,3 +3990,46 @@ SDK rendering owns safe causes and omission behavior. No new transport retry
 permission follows from a diagnostic change. The outage/deadline release remains
 the critical path; optional presentation refinements must not become a framework
 or hold an otherwise qualified reliability fix indefinitely.
+
+
+D132 -- Give deployment refusal types one canonical module identity (2026-10-29 05:29 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet's actual -m review found that classes defined in a CLI module become
+__main__ types, distinct from the same module imported by failure_projection.
+D127's CLI-local imports alone cannot make exact-type projection work there.
+
+Serious alternatives:
+A. Add another __main__ type special case or keep CLI-only message adapters.
+   This repeats projection policy for the same shared admission error.
+B. Replace module CLI entrypoints or move the whole renderer behind another
+   wrapper module. That is more caller/churn impact than this identity requires.
+C. Define the two deployment refusal types in one small canonical owner module,
+   imported and re-exported from their existing public module paths.
+
+Choice: C. Stable imported types work both for ordinary library calls and actual
+python -m entrypoints. Preserve existing public imports and messages; no duplicate
+classes, dynamic registry or guessed callback arity. Default projection admits
+only these reviewed types. Qualify both real CLI entrypoints and actual input
+refusals, not only constructed imported exceptions. Native Python cause/context
+already preserves their causes; these ValueErrors have no separate .cause field.
+Audit actual raise sites and inner code-owned messages for privacy; exact type is
+an ownership contract, not permission to render arbitrary unknown text.
+
+D133 -- Keep CLI reporting failure separate without leaking a fallback traceback (2026-10-29 05:29 UTC)
+--------------------------------------------------------------------------------
+
+SECS's receiving-surface RED shows its error writer can raise out of the existing
+BaseException handler, letting Python print the private original exception chain.
+
+Serious alternatives:
+A. Return exit1 and silently discard the independent output failure.
+B. Raise an ordinary exception group. The CLI can print its raw private traceback.
+C. Exit with numeric SystemExit1 whose cause retains the original operation and
+   independent reporting errors, without another output sink.
+
+Choice: C at the consumer CLI boundary only. Preserve exact original references
+inside a static-message group and nonzero status; embedding can inspect them,
+while ordinary CLI handling must not print the private chain. No fallback file,
+new registry or change to ordinary shared writer exception behavior. SECS owns
+actual subprocess and exact-cause RED/GREEN before claiming disclosure fixed.
