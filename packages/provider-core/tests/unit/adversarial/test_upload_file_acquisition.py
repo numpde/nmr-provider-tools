@@ -596,7 +596,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_file_transfer_spends_the_byte_path_budget_and_removes_unverified_file(self):
         owner, api, _, client = file_sources(total_bytes=8)
-        client.headers = []
+        client.stream.chunks = [b"tampered"]
         await owner.inspect()
         with (
             private_source_directory() as (root, directory),
@@ -629,7 +629,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_byte_transfer_cannot_regain_budget_by_switching_to_file_output(self):
         owner, api, _, client = file_sources(total_bytes=8)
-        client.headers = []
+        client.stream.chunks = [b"tampered"]
         await owner.inspect()
         with (
             private_source_directory() as (root, directory),

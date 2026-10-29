@@ -3146,3 +3146,97 @@ independent late failure in the existing canonical evidence, and require actual
 factory/controller readiness before continuation. No new task, resource budget
 or scientific replay permission follows. NMRNet reports focused passing checks;
 the final installed-artifact consumer qualification remains pending.
+
+D105 -- Require retirement evidence from the original worker generation (2026-10-29 03:49 UTC)
+--------------------------------------------------------------------------------
+
+SECS reports that its retirement proof matches endpoint, role and lock but not
+the original runner generation. A replacement worker with new scratch could
+therefore appear to discharge the old worker's cleanup obligation.
+
+Serious alternatives:
+A. Accept a healthy replacement at the same endpoint. Availability of another
+   worker does not prove retirement of the worker that owned the Attempt.
+B. Add a second cleanup registry or infer death from elapsed time. Neither
+   establishes the missing original-owner fact.
+C. Compare the proof with the original runner generation at the existing serial
+   owner; retain the old obligation when identity or retirement is unknown.
+
+Choice: C. SECS owns this scientific-adapter correction. Require a real
+replacement-worker RED witness and a same-generation GREEN/control before
+claiming the boundary is fixed. Shared SDK retirement APIs are unchanged. This
+is an approved correction; implementation and qualification remain pending.
+
+D106 -- Check idle-worker readiness before creating a new Attempt (2026-10-29 03:49 UTC)
+--------------------------------------------------------------------------------
+
+SECS reports that its current runtime reaches START before SecsSession.prepare
+checks readiness, contrary to its earlier readiness-before-START design. An idle
+worker exit can then be attributed to the next Attempt's preparation.
+
+Serious alternatives:
+A. Keep the late check and report the idle crash against the new Attempt. This
+   misstates when the observed failure happened.
+B. Add another execution controller or restart/replay policy. The missing check
+   belongs at the existing serial scientific owner.
+C. Establish readiness before START under that owner's ordering, then retain
+   the normal per-Attempt checks for failures after admission.
+
+Choice: C. Preserve the distinction between an observed idle infrastructure
+failure and a failure during an actual Attempt. SECS must qualify the ordering
+with its actual adapter, including a worker that exits while idle. Do not infer
+FAIL for an Attempt that was never started, or introduce automatic scientific
+replay. This correction is approved; the exact implementation proof is pending.
+
+D107 -- Check that a complete source retry fits the remaining request allowance (2026-10-29 03:53 UTC)
+--------------------------------------------------------------------------------
+
+The D099 worker identified a concrete boundary: after two failed acquisitions,
+an eight-request session can have one request left. Starting another acquisition
+would spend it on membership, then fail locally before grant issuance. That local
+budget failure is not itself a new eligible network outage.
+
+Serious alternatives:
+A. Start the partial attempt and classify its local failure by inspecting older
+   causes. This risks converting unrelated failures into eligible exhaustion.
+B. Carry another eligibility token through nested request guards. This adds
+   state solely to recognize an attempt that could not finish within its budget.
+C. After retiring and classifying the current eligible outage, check the known
+   minimum requests for the next complete logical operation before sending it.
+
+Choice: C. The existing JobUploads composition requires one request for inspect
+and three for acquisition: membership refresh, fresh grant and whole-file fetch.
+Check that minimum at the existing recovery owner, without reserving/refunding
+requests or changing the per-send accounting. Check remaining selected-byte and
+time allowances there too. A classified, settled outage followed by insufficient
+allowance yields D099 exhaustion before another request. The eight-request
+witness now legitimately spends seven; an attempt cap never promises capacity.
+
+Preserve the exact current outage as the subtype's cause, including its original
+per-send evidence; preserve UploadFailed response/cleanup/interruption/grant facts
+when present. A later in-flight cancellation or unclassified failure must not
+inherit eligibility from that earlier outage. This is approved for the bounded
+D099 implementation; its focused and installed-consumer proofs remain pending.
+
+D108 -- Do not release a quiescent held claim merely to shut down (2026-10-29 03:54 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet found that its shutdown loop unconditionally starts controller.settle for
+every retained owner. After D099, a passive held execution can be shutdown-ready
+without a terminal disposition that would authorize releasing its claim.
+
+Serious alternatives:
+A. Force settlement and claim release for every retained owner. This confuses
+   resource quiescence with permission to forget a held Job.
+B. Add another held-owner flag/set. The shared controller already exposes the
+   relevant work/report readiness and the existing registry owns exclusion.
+C. Use the controller's existing shutdown_ready fact before starting settlement,
+   while continuing to observe any previously started settlement task.
+
+Choice: C. If no settlement task exists and that exact controller is already
+shutdown-ready, retain its registry owner and held claim without starting another
+settle call. A previous pending/failed settlement remains an obligation and is
+not skipped by this shortcut. Shared shutdown_ready explicitly permits passive
+held exclusion after all work/report duties settle; it does not permit claim
+release. NMRNet's installed two-Job proof must include clean shutdown with the
+first Job still held. This is consumer composition, not a new SDK readiness flag.

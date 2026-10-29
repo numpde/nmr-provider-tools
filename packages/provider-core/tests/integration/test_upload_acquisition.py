@@ -84,11 +84,18 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                 await store_transport.retire()
 
     async def test_deadline_and_cancellation_charge_partial_bytes_and_close_store(self):
+        body = b"x" * 100
+        fingerprint = "sha256:" + hashlib.sha256(body).hexdigest()
+        headers = [(key, value) for key, value in store_headers(body) if key != b"content-length"]
         for cancel in (False, True):
             with self.subTest(cancel=cancel):
-                async with TlsPeer("body-stall") as peer:
+                async with TlsPeer("body-stall", response_headers=headers) as peer:
                     _, api, _ = sources()
-                    api.grant = replace(api.grant, download_url=peer.origin + "/upload/v1/uploads/" + UPLOAD_REF + "/bytes")
+                    api.member = replace(api.member, byte_length=len(body), content_hash=fingerprint)
+                    api.grant = replace(
+                        api.grant, byte_length=len(body), content_hash=fingerprint,
+                        download_url=peer.origin + "/upload/v1/uploads/" + UPLOAD_REF + "/bytes",
+                    )
                     transport = HttpTransport(trust=peer.trust, exchange_seconds=2, retirement_seconds=0.3)
                     # silent-defaults: allow-contract -- The long budget lets cancellation win; the short budget exercises the separate deadline outcome.
                     owner = JobUploads(
@@ -117,8 +124,9 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(len(peer.requests), 1)
                     await transport.retire()
 
-    async def test_oversized_received_chunk_spends_budget_before_response_rejection(self):
-        async with TlsPeer("success", response_body=b"oversized") as peer:
+    async def test_oversized_store_head_is_rejected_before_body_budget_is_spent(self):
+        headers = [(key, value) for key, value in store_headers(b"geometry") if key != b"content-length"]
+        async with TlsPeer("success", response_body=b"oversized", response_headers=headers) as peer:
             _, api, _ = sources()
             api.grant = replace(api.grant, download_url=peer.origin + "/upload/v1/uploads/" + UPLOAD_REF + "/bytes")
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.3)
@@ -128,8 +136,8 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
             await owner.inspect()
             with self.assertRaises(UploadFailed) as caught:
                 await owner.acquire(UPLOAD_REF)
-            self.assertIn("8-byte budget", str(caught.exception))
-            self.assertEqual(owner.received_bytes, 9)
+            self.assertIn("content-length", str(caught.exception))
+            self.assertEqual(owner.received_bytes, 0)
             await asyncio.wait_for(peer.closed.wait(), 1)
             self.assertTrue(transport.retirement_confirmed)
             self.assertEqual(len(peer.requests), 1)

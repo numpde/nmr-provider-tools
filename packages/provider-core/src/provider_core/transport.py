@@ -22,17 +22,20 @@ import stat
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 
+import anyio
 import httpcore
 
 from provider_core.network import OwnedNetworkBackend
 
 
-def temporary_io_failure(cause, remaining):
+def temporary_io_failure(cause, remaining, *, network_failure=None):
     """Recognize bounded native/httpcore cause chains, never their error text.
 
     httpcore1.0.9 _exceptions.map_exceptions retains the native cause. AnyIO can
     group failed address attempts beneath OSError; every leaf must be temporary.
-    Unknown wrappers, TLS/protocol defects and excessive nesting remain fatal.
+    A marker-proven ReadError may retain the pinned pool's erased cause through
+    exact BrokenResourceError context and its explicit native cause. Other
+    unknown wrappers, TLS/protocol defects and excessive nesting remain fatal.
     """
     if remaining == 0:
         return False
@@ -59,6 +62,12 @@ def temporary_io_failure(cause, remaining):
     elif type(cause) not in (httpcore.ConnectError, httpcore.ReadError, httpcore.WriteError):
         return False
     preceding = cause.__cause__
+    if preceding is None and cause is network_failure and type(cause) is httpcore.ReadError:
+        context = cause.__context__
+        if type(context) is anyio.BrokenResourceError:
+            if remaining <= 2:
+                return False
+            return temporary_io_failure(context.__cause__, remaining - 2)
     if preceding is None and type(cause) is httpcore.ConnectError:
         preceding = cause.__context__
     return temporary_io_failure(preceding, remaining - 1)
@@ -319,7 +328,7 @@ class HttpTransport:
                 "Cannot start proxied HTTPS exchange: IPv6 literal destinations are not supported; use a DNS name or IPv4 address."
             )
 
-    async def _perform(self, request, maximum_bytes, account_bytes, outcome, output_fd):
+    async def _perform(self, request, maximum_bytes, account_bytes, outcome, output_fd, before_body):
         client = None
         response = None
         # silent-defaults: allow-contract -- No output descriptor selects the buffered response; a supplied descriptor selects file output.
@@ -364,6 +373,8 @@ class HttpTransport:
                 outcome.network_failure = failure
                 raise
             outcome.response_head = HttpResponseHead(response.status, tuple(response.headers))
+            if before_body is not None:
+                before_body(outcome.response_head)
             # silent-defaults: allow-contract -- Only a buffered response owns an in-memory body; file mode does not buffer it.
             body = bytearray() if file_body is None else None
             received_bytes = 0
@@ -456,13 +467,19 @@ class HttpTransport:
             self._active = None
         return outcome
 
-    async def exchange(self, request, *, maximum_bytes, account_bytes=None, owner=None):
-        """Return only complete responses after cleanup; preserve cancellation."""
+    async def exchange(self, request, *, maximum_bytes, account_bytes=None, owner=None, before_body=None):
+        """Return complete responses after cleanup; preserve cancellation.
+
+        before_body is an optional bounded synchronous head-admission callback.
+        It runs before body iteration, accounting or writes; a refusal still
+        retires the original response, connection and file I/O.
+        """
         return await self._exchange(
-            request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=None
+            request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=None,
+            before_body=before_body,
         )
 
-    async def exchange_file(self, request, *, output_fd, maximum_bytes, account_bytes=None, owner=None):
+    async def exchange_file(self, request, *, output_fd, maximum_bytes, account_bytes=None, owner=None, before_body=None):
         """Write a body without buffering it; return raw count/hash after retirement.
 
         The caller lends an exclusively used writable regular file descriptor
@@ -476,10 +493,11 @@ class HttpTransport:
         if not (type(output_fd) is int and 0 <= output_fd):
             raise ValueError("Cannot receive HTTP response in a file: output_fd must be a non-negative descriptor")
         return await self._exchange(
-            request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=output_fd
+            request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=output_fd,
+            before_body=before_body,
         )
 
-    async def _exchange(self, request, *, maximum_bytes, account_bytes, owner, output_fd):
+    async def _exchange(self, request, *, maximum_bytes, account_bytes, owner, output_fd, before_body):
         if self._active is not None:
             raise ExchangeFailed("Cannot start HTTP exchange: an earlier exchange is active or its retirement is unconfirmed")
         if not (type(maximum_bytes) is int and 0 <= maximum_bytes):
@@ -488,7 +506,7 @@ class HttpTransport:
         self.last_failure = None
         received = _Outcome()
         task = asyncio.create_task(
-            self._perform(request, maximum_bytes, account_bytes, received, output_fd), name="provider-core-http-exchange"
+            self._perform(request, maximum_bytes, account_bytes, received, output_fd, before_body), name="provider-core-http-exchange"
         )
         exchange = _Exchange(task, received, owner)
         self._active = exchange
