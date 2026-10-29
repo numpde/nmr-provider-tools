@@ -4970,6 +4970,36 @@ selected value and capability explanation, before Hello/native acquisition. Zero
 must still start normally and send at most one scientific request. A parser-only
 test or the validate-startup command alone cannot prove that ordering.
 
+D161 -- Diagnostic size must not change an established scientific outcome
+------------------------------------------------------------------------
+
+NMRNet admits a worker frame up to two MiB, while core ProtectedEvidence accepts
+at most 262144 bytes. Embedding the whole native failure diagnostic in evidence
+can therefore reject an otherwise valid failed response; ASCII JSON expansion can
+also exceed the evidence bound. This is a diagnostic-capacity failure, not a new
+uncertainty about whether the validated failed reply was received.
+
+Serious alternatives:
+A. Raise the shared evidence cap to the native frame cap. Different encodings and
+   consumers still differ, and this enlarges live memory without owning disclosure.
+B. Propagate diagnostic overflow instead of the known public failure. This lets
+   explanation size veto terminal truth and can stop a useful provider.
+C. Silently truncate the protected diagnostic. This falsely implies complete
+   retention and leaves no reliable description of what was omitted.
+D. Bound the protected diagnostic explicitly, describe the omitted portion, and
+   use the existing separate bounded redacted operator projection for readable facts.
+
+Choice: D. A bounded first/last window with an explicit omitted-character count
+preserves useful facts within the evidence cap, including worst-case JSON Unicode
+expansion. It must not claim to retain the full diagnostic when omission is nonzero.
+There is no consumer need to add a digest merely to implement this size bound.
+Keep the original exception available to its live owner and preserve independent
+diagnostic/cleanup failures. Select the fixed public failure from the admitted
+response, independently of optional explanation size. No new persistent store or
+public raw diagnostic is authorized by this choice. Oversized and Unicode controls
+must demonstrate actual FAIL handoff and absence of private payload disclosure,
+not merely successful construction of the metadata object.
+
 Supporting qualification references
 -----------------------------------
 
