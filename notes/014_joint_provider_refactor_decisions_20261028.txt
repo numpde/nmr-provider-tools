@@ -3389,3 +3389,34 @@ endpoint credentials and operational addresses outside the scientific manifest;
 the existing digest-bound logical scientific resource/mount topology remains
 part of scientific identity. No extra parser, publisher or independent snapshot
 identity is introduced. Actual host integration remains to be qualified.
+
+D113 -- Use the standing end-to-end release scope without broadening rollout (2026-10-29 04:21 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet challenged D098's assumption that another publication permission was
+necessarily missing. Root inspected its actual session record: at
+2026-10-26 08:58:56 UTC the user said, "Set a goal to finish the refac end-to-end.
+QA/QC non-stop." Its subsequent active goal includes qualified immutable GitHub
+artifacts, required source/release publication and coordinated operational proof.
+That goal text is the agent's recorded implementation scope, not a new verbatim
+user request. The shared conversation also explicitly requires notifying peers,
+synchronizing the API and publishing jointly before release.
+
+Serious alternatives:
+A. Prepare reviewable artifacts, then require a fresh SDK publication instruction.
+   This is appropriate if the standing release scope ended or was narrowed;
+   the inspected ongoing goal and subsequent coordination do not establish that.
+B. Treat that scope as permission for arbitrary provider production changes.
+   This exceeds this root goal's explicit no-inferred-production boundary.
+C. Finish concrete shared release preparation and peer API acknowledgement, then
+   use the ordinary qualified GitHub/source publication path required by the
+   standing end-to-end refactor; keep each provider's rollout authority separate.
+
+Choice: C. D098's ban on candidate production overrides/cache seeding remains.
+Its dependency ordering remains: reviewable qualified SDK artifacts and authored
+notes, peer agreement on the actual API, ordinary publication, then canonical
+consumer acquisition and image qualification. Do not invent a new approval loop
+solely from D098's earlier interpretation. No newer explicit user pause was found.
+This does not authorize this coordinator to deploy the four providers; their
+owners must establish their actual rollout scope and retained obligations.
+Publication is still pending concrete final gates and peer acknowledgement.
