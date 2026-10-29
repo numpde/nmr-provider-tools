@@ -3820,52 +3820,6 @@ shared availability fix affects normal API/delivery operation and needs coordina
 consumer adoption. Native/scientific code stays unchanged; no numerical reruns
 are required merely because package metadata changes.
 
-D127 -- Project exact shared deployment refusals without CLI import cycles (2026-10-29 05:19 UTC)
---------------------------------------------------------------------------------
-
-NMRPeak's actual projection CLI supplied the one-argument owned_details function
-to failure_evidence's three-argument describe_owner hook, replacing a missing
-binding refusal with TypeError. Its owner is correcting that caller. Separately,
-the shared default projection omits BindingDefinitionRejected and
-RouteProjectionRejected, although their code-owned messages are safe. NMRNet
-and Magnet already preserve some outer CLI reasons; do not claim universal loss.
-
-Serious alternatives:
-A. Render arbitrary unknown exception text/notes. This can expose private inputs.
-B. Add another consumer-specific type/message wrapper. This duplicates the
-   shared admission owner and repeats the hook-arity hazard.
-C. Register the exact shared types in owned_details, with diagnostics imported
-   only at CLI boundaries, then delete displaced CLI-only message adapters.
-
-Choice: C. Preserve existing public error classes/imports and protected native
-causes. deployment_binding already uses CLI-local diagnostic imports; apply that
-precedent to deployment_route to avoid a projection/diagnostics import cycle.
-Do not add a dynamic registry or compatibility arity guessing. Document the
-distinct hook signatures, and qualify direct default projection plus CLI import
-orders and privacy. Unknown types and subclasses remain unreviewed.
-
-D128 -- Treat an absent configured Unix proxy socket as availability (2026-10-29 05:19 UTC)
---------------------------------------------------------------------------------
-
-The D124 worker asks about ENOENT at connect_unix: unlike a generic missing file,
-a configured API proxy socket can disappear during ordinary restart. Delivery's
-existing client already has an explicit missing-socket recovery precedent.
-
-Serious alternatives:
-A. Add ENOENT to the global temporary-I/O predicate. This can misclassify local
-   file/configuration/accounting errors as network permission.
-B. Refuse every missing proxy socket and require a process restart. This treats
-   an ordinary route-service lifecycle as a fatal provider condition.
-C. Admit ENOENT only from the original configured Unix connect stage, with the
-   same settled-owner and operation-specific permissions as other availability.
-
-Choice: C. The actual owned backend/stage must establish this is a Unix network
-connection, not a callback, disk read or copied error lookalike. Keep EACCES and
-unknown setup/config faults distinct. No direct fallback, path rewrite or promise
-that a missing socket will appear. Preserve original error evidence and test
-the real missing socket followed by recovery through the same configured path.
-This does not broaden the old generic helper or delivery's separate policy.
-
 D125 -- Bound valid structured diagnostics at the actual output allowance (2026-10-29 05:11 UTC)
 --------------------------------------------------------------------------------
 
@@ -3919,3 +3873,110 @@ Choice: C. Preserve event reason/status and the original failure; add only the
 already owned safe lane identity. This is a consumer correlation correction,
 not another renderer or execution-state change. Magnet owns the focused RED,
 source/wording audit and GREEN before its local commit.
+D127 -- Project exact shared deployment refusals without CLI import cycles (2026-10-29 05:19 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's actual projection CLI supplied the one-argument owned_details function
+to failure_evidence's three-argument describe_owner hook, replacing a missing
+binding refusal with TypeError. Its owner is correcting that caller. Separately,
+the shared default projection omits BindingDefinitionRejected and
+RouteProjectionRejected, although their code-owned messages are safe. NMRNet
+and Magnet already preserve some outer CLI reasons; do not claim universal loss.
+
+Serious alternatives:
+A. Render arbitrary unknown exception text/notes. This can expose private inputs.
+B. Add another consumer-specific type/message wrapper. This duplicates the
+   shared admission owner and repeats the hook-arity hazard.
+C. Register the exact shared types in owned_details, with diagnostics imported
+   only at CLI boundaries, then delete displaced CLI-only message adapters.
+
+Choice: C. Preserve existing public error classes/imports and protected native
+causes. deployment_binding already uses CLI-local diagnostic imports; apply that
+precedent to deployment_route to avoid a projection/diagnostics import cycle.
+Do not add a dynamic registry or compatibility arity guessing. Document the
+distinct hook signatures, and qualify direct default projection plus CLI import
+orders and privacy. Unknown types and subclasses remain unreviewed.
+
+D128 -- Treat an absent configured Unix proxy socket as availability (2026-10-29 05:19 UTC)
+--------------------------------------------------------------------------------
+
+The D124 worker asks about ENOENT at connect_unix: unlike a generic missing file,
+a configured API proxy socket can disappear during ordinary restart. Delivery's
+existing client already has an explicit missing-socket recovery precedent.
+
+Serious alternatives:
+A. Add ENOENT to the global temporary-I/O predicate. This can misclassify local
+   file/configuration/accounting errors as network permission.
+B. Refuse every missing proxy socket and require a process restart. This treats
+   an ordinary route-service lifecycle as a fatal provider condition.
+C. Admit ENOENT only from the original configured Unix connect stage, with the
+   same settled-owner and operation-specific permissions as other availability.
+
+Choice: C. The actual owned backend/stage must establish this is a Unix network
+connection, not a callback, disk read or copied error lookalike. Keep EACCES and
+unknown setup/config faults distinct. No direct fallback, path rewrite or promise
+that a missing socket will appear. Preserve original error evidence and test
+the real missing socket followed by recovery through the same configured path.
+This does not broaden the old generic helper or delivery's separate policy.
+
+D129 -- Preserve the first caller interruption through repeated cancellation (2026-10-29 05:22 UTC)
+--------------------------------------------------------------------------------
+
+Magnet found that transport retirement overwrites the first CancelledError with
+later observer cancellations. The existing single-cancel witness does not cover it.
+
+Serious alternatives:
+A. Keep the latest cancellation. This loses the original caller identity/cause.
+B. Record every later cancellation as cleanup failure or unbounded history.
+   This can falsely keep resources unsettled and creates another ledger.
+C. Retain the first captured cancellation; use a retirement observer's return
+   only when no earlier caller interruption already exists.
+
+Choice: C. Guard the two assignments at the existing owners. Do not rewrite the
+first exception's prior cause. Repeated cancellation alone is not independent
+physical cleanup failure. Preserve actual late native/cleanup/head/network facts
+on the same canonical transport failure under existing promotion rules. Qualify
+two real cancellations while original close is held, then later original work
+and independent cleanup; no new history, registry or failure subtype.
+
+D130 -- Honor Retry-After without renewing an observation gap (2026-10-29 05:22 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet found that the shared active-Attempt read loop admits HTTP429 but ignores
+the API's parsed Retry-After floor when choosing its next poll. Its idle/Hello
+consumer loop had the same separate defect and is being corrected by its owner.
+
+Serious alternatives:
+A. Clip the advised retry wait to the gap and send early. This violates the
+   server's floor to preserve local polling frequency.
+B. Wait the whole advised interval even beyond the original gap. This renews
+   the freshness/observation allowance or leaves its task waiting unnecessarily.
+C. Apply the server floor to the planned retry; if it cannot fit, keep the
+   original failure and wait only until existing gap expiry, without another read.
+
+Choice: C. Use the existing crash-interruptible wait and original absolute gap.
+Do not announce a retry that cannot fit; preserve the original failure for the
+existing gap-expiry outcome. A crash may still interrupt that wait. Recompute
+remaining allowance after the protected observer, never shorten Retry-After to
+send early, and do not change scientific deadlines or add a timer setting.
+
+D131 -- Keep the original failure in background retry diagnostics (2026-10-29 05:22 UTC)
+--------------------------------------------------------------------------------
+
+SECS's controlled signed-API RED shows its Hello/discovery warnings emit HTTP
+None/request None for a real DNS-connect failure and omit the retained native
+cause. Its separate retry notice also discards original failure/wait arguments.
+
+Serious alternatives:
+A. Print str(error) or a raw traceback. This can disclose private payloads.
+B. Add another local graph serializer/classifier. This duplicates shared policy.
+C. Use the existing shared reviewed projection and its bounded valid rendering
+   contract, retaining consumer-owned correlation, pacing and stop behavior.
+
+Choice: C. Qualify the actual logging envelope/sink allowance before composing a
+graph into it; do not repeat the known JSON slicing or oversized-record defect.
+SECS owns these narrow consumer hooks and their real rendered witnesses. Common
+SDK rendering owns safe causes and omission behavior. No new transport retry
+permission follows from a diagnostic change. The outage/deadline release remains
+the critical path; optional presentation refinements must not become a framework
+or hold an otherwise qualified reliability fix indefinitely.
