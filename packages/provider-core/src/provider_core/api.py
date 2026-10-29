@@ -11,14 +11,11 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-import errno
 import json
 import math
 import re
 import secrets
-import socket
 import time
-from builtins import ExceptionGroup
 from datetime import timezone
 from email.utils import parsedate_to_datetime
 
@@ -47,7 +44,7 @@ from provider_core.job_feed import PAGE_RESPONSE_BYTES, jobs_query, read_jobs_pa
 from provider_core.job_input import MAX_RESPONSE_BYTES, FeedInputFacts, JobInputRejected, verify_job_input
 from provider_core.response_json import ResponseRejected
 from provider_core.signing import signed_request
-from provider_core.transport import ExchangeFailed, response_request_id
+from provider_core.transport import ExchangeFailed, response_request_id, temporary_io_failure
 from provider_core.upload_response import (
     GRANT_RESPONSE_BYTES,
     MEMBERSHIP_RESPONSE_BYTES,
@@ -307,39 +304,6 @@ def _require_api_envelope(response, operation, expected_topology):
         raise _http_failure(response, operation)
 
 
-def _temporary_io_failure(cause, remaining):
-    """Recognize bounded native/httpcore cause chains, never their error text.
-
-    httpcore1.0.9 _exceptions.map_exceptions retains the native cause. AnyIO can
-    group failed address attempts beneath OSError; every leaf must be temporary.
-    Unknown wrappers, TLS/protocol defects and excessive nesting remain fatal.
-    """
-    if remaining == 0:
-        return False
-    if type(cause) in (TimeoutError, httpcore.ConnectTimeout, httpcore.ReadTimeout, httpcore.WriteTimeout):
-        return True
-    if type(cause) is socket.gaierror:
-        return cause.errno == socket.EAI_AGAIN
-    if type(cause) is ExceptionGroup:
-        return all(_temporary_io_failure(child, remaining - 1) for child in cause.exceptions)
-    if type(cause) in (OSError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
-        if cause.errno in {
-            errno.ECONNREFUSED,
-            errno.ECONNRESET,
-            errno.ECONNABORTED,
-            errno.ETIMEDOUT,
-            errno.ENETDOWN,
-            errno.ENETUNREACH,
-            errno.EHOSTUNREACH,
-            errno.EPIPE,
-        }:
-            return True
-        if cause.errno is not None:
-            return False
-    elif type(cause) not in (httpcore.ConnectError, httpcore.ReadError, httpcore.WriteError):
-        return False
-    return _temporary_io_failure(cause.__cause__, remaining - 1)
-
 
 class ProviderAPI:
     """One execution owner's authenticated operations, with retained failure context.
@@ -569,7 +533,7 @@ class ProviderAPI:
             return failure.response is not None or (
                 type(exchange) is ExchangeFailed and not exchange.cleanup_failures
                 and not isinstance(exchange.interruption, asyncio.CancelledError)
-                and _temporary_io_failure(exchange.primary, 8)
+                and temporary_io_failure(exchange.primary, 8)
             )
         return False
 
@@ -619,7 +583,7 @@ class ProviderAPI:
             return False
         if exchange.response_head is not None:
             if exchange.response_head.status in (502, 503, 504):
-                return self._retryable_gateway(exchange.response_head) and _temporary_io_failure(exchange.primary, 8)
+                return self._retryable_gateway(exchange.response_head) and temporary_io_failure(exchange.primary, 8)
             try:
                 _require_api_headers(exchange.response_head, failure.operation, self._expected_topology)
             # silent-defaults: allow-exception-outcome -- Unadmitted response headers grant no read retry
@@ -633,7 +597,7 @@ class ProviderAPI:
             # Missing status and policy refusal grant no retry permission;
             # successful CONNECT cannot authorize retry of a later TLS failure.
             return exchange.proxy_connect_status in (502, 503, 504)
-        return _temporary_io_failure(exchange.primary, 8)
+        return temporary_io_failure(exchange.primary, 8)
 
     def _retryable_gateway(self, response):
         return response.status in (502, 503, 504) and self._gateway_environment_matches(response)

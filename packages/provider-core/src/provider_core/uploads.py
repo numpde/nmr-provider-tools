@@ -23,9 +23,10 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+import httpcore
 import httpx
 
-from provider_core.transport import ExchangeFailed
+from provider_core.transport import ExchangeFailed, temporary_io_failure
 from provider_core.response_json import ResponseRejected
 from provider_core.upload_response import require_job_ref, require_read_grant, require_upload_ref
 
@@ -204,7 +205,53 @@ class UploadTransfer:
         self._exchange_owner = self if exchange_owner is None else exchange_owner
         self._file = None
         self._active = False
+        self._reset_failure()
+
+    def _reset_failure(self):
         self.last_failure = None
+        self._transfer_grant = None
+        self._store_outcome = None
+        self._interrupted = False
+
+    def can_retry_transfer(self, failure):
+        """Permit a fresh whole-file transfer after this exact settled failure.
+
+        SECS 34f5915c analysis_run.py admits complete 401/503/507 replies
+        and temporary network failures; upload_download.py validates whole-file
+        headers before reading the stream. Selection, grant renewal and bounded
+        retry pacing remain with composition. A provided grant proves no issuance.
+        """
+        if (
+            failure is not self.last_failure
+            or not isinstance(failure, UploadFailed)
+            or failure.interruption is not None
+            or self._interrupted
+            or self._active
+            or not self._store.retirement_confirmed
+            or self.file_cleanup_pending
+            or self._transfer_grant is None
+        ):
+            return False
+        outcome = self._store_outcome
+        if isinstance(outcome, ExchangeFailed):
+            if (failure.cause is not outcome or outcome is not self._store.last_failure
+                    or outcome.cleanup_failures or outcome.interruption is not None
+                    or outcome.primary is not outcome.network_failure):
+                return False
+            head = outcome.response_head
+            if head is not None:
+                try:
+                    _verify_store_headers(head, self._transfer_grant)
+                # silent-defaults: allow-exception-outcome -- Unadmitted whole-file headers grant no retry; the original transfer failure remains retained.
+                except UploadFailed:
+                    return False
+            if head is not None and any(name.lower() == b"transfer-encoding" for name, _ in head.headers):
+                return False
+            if type(outcome.primary) is httpcore.RemoteProtocolError:
+                return head is not None
+            return temporary_io_failure(outcome.primary, 8)
+        return (outcome is not None and failure.response is outcome
+                and outcome.status in {401, 503, 507})
 
     @property
     def file_cleanup_pending(self):
@@ -226,7 +273,7 @@ class UploadTransfer:
         if not self._store.retirement_confirmed:
             raise UploadFailed("previous store resource retirement is unconfirmed; retire its transport before more work")
         self._active = True
-        self.last_failure = None
+        self._reset_failure()
         try:
             yield
         finally:
@@ -280,11 +327,14 @@ class UploadTransfer:
                 self._file = None
                 return result
             except BaseException as failure:
+                if isinstance(failure, asyncio.CancelledError):
+                    self._interrupted = True
                 self._retain_file_failure(failure)
                 if self._store.retirement_confirmed:
                     try:
                         await self._abort_file()
                     except asyncio.CancelledError as interruption:
+                        self._interrupted = True
                         if isinstance(failure, asyncio.CancelledError):
                             self._link_file_interruption(failure)
                             raise failure  # noqa: B904 -- Preserve the original cancellation and its owned cause; this later cancellation remains its context.
@@ -387,6 +437,7 @@ class UploadTransfer:
         try:
             await self._abort_file()
         except asyncio.CancelledError as interruption:
+            self._interrupted = True
             self._link_file_interruption(interruption)
             raise
         except UploadFailed as failure:
@@ -427,25 +478,32 @@ class UploadTransfer:
         request = self._download_request(grant)
         self._before_request()
         deadline = asyncio.timeout(self._remaining_seconds())
+        self._transfer_grant = grant
         try:
             async with deadline:
                 if output_fd is None:
-                    return await self._store.exchange(
+                    response = await self._store.exchange(
                         request, maximum_bytes=grant.byte_length, account_bytes=self._account_bytes
                     )
-                return await self._store.exchange_file(
-                    request, output_fd=output_fd, maximum_bytes=grant.byte_length,
-                    account_bytes=self._account_bytes, owner=self._exchange_owner,
-                )
+                else:
+                    response = await self._store.exchange_file(
+                        request, output_fd=output_fd, maximum_bytes=grant.byte_length,
+                        account_bytes=self._account_bytes, owner=self._exchange_owner,
+                    )
+                self._store_outcome = response
+                return response
         except TimeoutError:
             if not deadline.expired():
                 raise
             raise UploadFailed("the source session's total deadline expired", cause=self._store.last_failure) from None
         except asyncio.CancelledError:
+            self._interrupted = True
+            self._store_outcome = self._store.last_failure
             if self.last_failure is None and self._store.last_failure is not None:
                 self.last_failure = self._store.last_failure
             raise
         except ExchangeFailed as cause:
+            self._store_outcome = cause
             reason = str(cause.primary) if isinstance(cause.primary, UploadFailed) else str(cause)
             raise UploadFailed(reason, cause=cause) from None
 
@@ -489,6 +547,10 @@ class JobUploads:
     def last_failure(self, value):
         self._transfer_owner.last_failure = value
 
+    def can_retry_transfer(self, failure):
+        """Classify the current transfer without dispatching or changing budgets."""
+        return not self._active and self._transfer_owner.can_retry_transfer(failure)
+
     @property
     def received_bytes(self):
         return self._received
@@ -507,7 +569,7 @@ class JobUploads:
             raise UploadFailed("previous store resource retirement is unconfirmed; retire its transport before more work")
         self._active = True
         self._grant_issued = False
-        self.last_failure = None
+        self._transfer_owner._reset_failure()
         try:
             yield
         except BaseException as failure:

@@ -17,6 +17,7 @@ import math
 import os
 import re
 import ssl
+import socket
 import stat
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -24,6 +25,40 @@ from dataclasses import dataclass, field
 import httpcore
 
 from provider_core.network import OwnedNetworkBackend
+
+
+def temporary_io_failure(cause, remaining):
+    """Recognize bounded native/httpcore cause chains, never their error text.
+
+    httpcore1.0.9 _exceptions.map_exceptions retains the native cause. AnyIO can
+    group failed address attempts beneath OSError; every leaf must be temporary.
+    Unknown wrappers, TLS/protocol defects and excessive nesting remain fatal.
+    """
+    if remaining == 0:
+        return False
+    if type(cause) in (TimeoutError, httpcore.ConnectTimeout, httpcore.ReadTimeout, httpcore.WriteTimeout):
+        return True
+    if type(cause) is socket.gaierror:
+        return cause.errno == socket.EAI_AGAIN
+    if type(cause) is ExceptionGroup:
+        return all(temporary_io_failure(child, remaining - 1) for child in cause.exceptions)
+    if type(cause) in (OSError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
+        if cause.errno in {
+            errno.ECONNREFUSED,
+            errno.ECONNRESET,
+            errno.ECONNABORTED,
+            errno.ETIMEDOUT,
+            errno.ENETDOWN,
+            errno.ENETUNREACH,
+            errno.EHOSTUNREACH,
+            errno.EPIPE,
+        }:
+            return True
+        if cause.errno is not None:
+            return False
+    elif type(cause) not in (httpcore.ConnectError, httpcore.ReadError, httpcore.WriteError):
+        return False
+    return temporary_io_failure(cause.__cause__, remaining - 1)
 
 
 class ExchangeFailed(RuntimeError):
@@ -37,13 +72,14 @@ class ExchangeFailed(RuntimeError):
     """
 
     # silent-defaults: allow-contract -- No observed cleanup failure is an empty tuple, separate from primary and interruption evidence.
-    def __init__(self, message, *, primary=None, cleanup_failures=(), interruption=None, response_head=None, proxy_connect_status=None):
+    def __init__(self, message, *, primary=None, cleanup_failures=(), interruption=None, response_head=None, proxy_connect_status=None, network_failure=None):
         super().__init__(message)
         self.primary = primary
         self.cleanup_failures = tuple(cleanup_failures)
         self.interruption = interruption
         self.response_head = response_head
         self.proxy_connect_status = proxy_connect_status
+        self.network_failure = network_failure
 
 
 @dataclass(frozen=True, slots=True)
@@ -182,6 +218,7 @@ class _Outcome:
     response_head: HttpResponseHead | None = None
     proxy_connect_status: int | None = None
     primary: BaseException | None = None
+    network_failure: BaseException | None = None
     cleanup_failures: list[BaseException] = field(default_factory=list)
 
 
@@ -318,12 +355,24 @@ class HttpTransport:
                 content=request.content,
                 extensions=extensions,
             )
-            response = await client.handle_async_request(wire_request)
+            try:
+                response = await client.handle_async_request(wire_request)
+            except BaseException as failure:
+                outcome.network_failure = failure
+                raise
             outcome.response_head = HttpResponseHead(response.status, tuple(response.headers))
             # silent-defaults: allow-contract -- Only a buffered response owns an in-memory body; file mode does not buffer it.
             body = bytearray() if file_body is None else None
             received_bytes = 0
-            async for chunk in response.aiter_stream():
+            iterator = response.aiter_stream().__aiter__()
+            while True:
+                try:
+                    chunk = await anext(iterator)
+                except StopAsyncIteration:
+                    break
+                except BaseException as failure:
+                    outcome.network_failure = failure
+                    raise
                 # Acquisition charges consumed work even if this chunk makes
                 # the response unusable. Accounting is synchronous and bounded.
                 if account_bytes is not None:
@@ -481,6 +530,7 @@ class HttpTransport:
             interruption=interruption,
             response_head=received.response_head,
             proxy_connect_status=received.proxy_connect_status,
+            network_failure=received.network_failure,
         )
         self.last_failure = failure
         if cancellation is not None or isinstance(primary, asyncio.CancelledError):
@@ -505,6 +555,7 @@ class HttpTransport:
         if self.last_failure is not None:
             self.last_failure.response_head = observed.response_head
             self.last_failure.proxy_connect_status = observed.proxy_connect_status
+            self.last_failure.network_failure = observed.network_failure
             # Late retirement augments the retained exchange evidence; a pending
             # task or its expected cancellation must not erase the original cause.
             if (
@@ -523,6 +574,7 @@ class HttpTransport:
                     cleanup_failures=observed.cleanup_failures,
                     response_head=observed.response_head,
                     proxy_connect_status=observed.proxy_connect_status,
+                    network_failure=observed.network_failure,
                 )
             if cancellation is None:
                 raise self.last_failure from None
