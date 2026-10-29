@@ -4628,3 +4628,68 @@ review those captured receipts independently, without making new Engine claims.
 Both provider owners were signaled to resume at 06:49 UTC. Their actual consumer
 readiness remains pending; local services stay running. These observations do not
 prove publication of a remote scientific result or replay of nonempty live queues.
+
+D145 -- Build the product selected by the retained deployment (2026-10-29 06:52 UTC)
+--------------------------------------------------------------------------------
+
+ProArt Magnet's maintained up refused before replacement: the retained deployment
+selects PRODUCT=proart, but its earlier provider image preparation selected the
+default product. Both SDK versions matched; that alone did not qualify the exact
+selected product image. NMRNet's ProArt resume is independent and has succeeded.
+
+Serious alternatives:
+A. Change the retained deployment to the default product. This changes the
+   selected offering/model configuration to accommodate a build mistake.
+B. Bypass the image/input identity check because the SDK version matches. This
+   loses the canonical product/build evidence the maintained path enforces.
+C. Build the missing canonical proart provider image from the retained product
+   selection, verify its installed inputs, then resume through the same path.
+
+Choice: C. Magnet owns the correction and is building locally from ordinary
+published inputs. No shared rollback is required: shared runtime/queue/IPC proof
+passed and NMRNet has resumed. The original Magnet provider stays cleanly stopped
+until the correct image is ready. Record the preparation mismatch explicitly;
+do not claim the earlier default image proved this product's canonical closure.
+Future readiness checks must resolve the retained product before claiming all
+selected consumer images built; the existing up refusal correctly caught it.
+
+D146 -- Preserve a validated late scientific failure frame during retirement (2026-10-29 06:52 UTC)
+--------------------------------------------------------------------------------
+
+Following D144, SECS found a concrete analogue: WorkerClient retains its original
+SCI task and refuses reuse, but retirement can discard a completed validated
+failed-outcome frame when the request caller was cancelled before observing it.
+The normal session would classify that same frame as ScientificWorkerFailed.
+A deterministic actual framed-stream RED is being captured before correction.
+
+Serious alternatives:
+A. Treat task completion and physical retirement as sufficient and discard the
+   late failed frame. This loses an independently observed scientific failure.
+B. Have the provider reinterpret the frame outside its SCI owner. This duplicates
+   protocol classification and separates it from original-call identity.
+C. Let the original WorkerClient retirement retain and expose the validated late
+   failure through the existing scientific failure contract, separately from
+   caller cancellation, after preserving physical cleanup evidence.
+
+Choice: C. Keep the original pending task/frame identity; no replay, replacement
+request or new lifecycle owner. Only an actually validated failed-outcome frame
+qualifies. Stop-induced EOF or an incomplete reply must not become a fabricated
+scientific failure. Preserve cancellation and independent retirement failures,
+and do not infer a new terminal report from this diagnostic correction. SECS owns
+the exact RED/GREEN and narrow implementation. This is consumer SCI handling,
+not a shared SDK protocol change or a demonstrated shared rollout blocker.
+
+Consumer checkpoint (2026-10-29 06:52 UTC)
+---------------------------------------
+
+NMRNet ProArt maintained install/up exited 0; its seven provider/dependency
+services are healthy, restart 0/OOM false. The owner verified 0.5.1 inputs and
+reports successful signed admission/current Hello before ready. Local remains
+healthy. Remote scientific result delivery remains a separate proof.
+
+NMRPeak reports D144 deterministic RED then GREEN: 16 analysis tests include the
+already-completed unobserved original and replacement refusal. Its existing
+RunnerSession observation identity is now the authority; no mirrored analysis
+flag. Historical codec/store/archive/inspection checks pass after displaced live
+API/replay deletion. Remaining full/native/repository and canonical image closure
+are still running; no full adoption completion claim yet.
