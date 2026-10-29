@@ -4544,3 +4544,25 @@ runtime-state.txt,installed-version.txt}. Maintained operation logs:
 Both owners were signaled to resume at 06:43 UTC. Their actual resumed consumer
 image/version/readiness results are pending; ProArt remains on the incumbent
 services until those local consumer proofs are received.
+
+Local consumer checkpoint (2026-10-29 06:46 UTC)
+----------------------------------------------
+
+Both owners now report successful maintained local resume. NMRNet's seven
+provider/dependency services are healthy with restarts 0/OOM false; initial signed
+admission and current Hello succeeded before startup-ready. Its controller,
+prediction, geometry and proxy/interpreter/store image identities match the
+qualified inputs. Magnet's running provider image is exact
+sha256:8df27f0f0740e65c5511a192bc114cce6ca89f13a57a56f022067cddf29bf6ff
+at source 859c041; installed SDK reports 0.5.1, provider healthy/restarts 0/OOM
+false and frozen startup/signed API check passed. Its E01/E02 runners run with
+restarts 0/OOM false; they have no ongoing Docker healthcheck, so do not claim a
+runner health status that is not configured. Existing lifetime/runner volumes
+remain retained. These are startup/API readiness results, not remote result proof.
+
+Root confirmed actual shared installed version 0.5.1. ProArt's unchanged neutral
+definition also renders the exact new runtime with the same five original volume
+names. Its original volume metadata is captured privately before stopping.
+At 06:45 UTC root issued the ProArt-only coordinated drain signal to both original
+owners, after both local resumes succeeded. Local services stay running; ProArt
+shared services cannot be stopped until both ProArt owners positively settle.
