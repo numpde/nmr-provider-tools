@@ -1,0 +1,129 @@
+Delivery ownership: options for joint discussion
+================================================
+
+This note compares options contributed by NMRNet, Magnet, NMRPeak and SECS after the
+ProArt cutover. It does not select a design; all four provider owners reviewed the options. The
+questions apply to delivery of an already selected terminal outcome (COMPLETE
+or FAIL), not to scientific execution or the choice of a provider's controller.
+
+The current boundary
+--------------------
+
+Shared delivery accepts and durably retains a terminal command for publication after the
+provider exits. Its acknowledgement is local durable enqueue, not API acceptance
+or a guarantee against host or storage loss. Before acknowledgement, the
+producer retains the obligation; if acknowledgement is lost, a surviving
+producer that still owns the exact command can safely replay it rather than
+assume acceptance. A producer crash before acknowledgement leaves an unresolved
+window; the current policy does not restore or automatically replay it. The delivery
+service owns its queue
+and signs requests using
+credentials granted for configured provider bindings. It needs each retained
+entry's binding to remain available; startup refuses a missing binding for
+pending work rather than silently retargeting or discarding it. Its current static configuration couples binding
+changes to shared service lifecycle. Bindings, sockets, workers and quotas provide per-provider isolation inside
+one shared service and SQLite failure domain; registration, capacity changes and removal need operator coordination.
+
+The terminal body and its idempotency/receipt relationship are distinct from
+HTTP authentication. Current signing uses fresh timestamps and nonces; an expired
+signature can require a fresh signature on a later attempt. Therefore a single
+presigned HTTP request is not established as sufficient after a long outage.
+Any option must preserve exact result bytes and receipt verification while
+providing valid authority for retries after the producing process has exited.
+
+Alternatives
+------------
+
+0. Centrally assembled static definition. This is the existing baseline: an
+   operator edits the complete shared definition and coordinates the service
+   restart. It avoids a new control plane but couples provider changes.
+
+1. Provider-supplied static fragments. Each deployment supplies a binding
+   fragment for an operator-controlled merge. This reduces central editing but
+   still needs collision rules, merge ownership, credential lifetime and a
+   shared restart unless lifecycle changes separately. It does not by itself
+   eliminate the host administrator step.
+
+2. Shared delivery with dynamically managed bindings. The shared service keeps
+   the durable queue and signing authority. Registration could avoid a host-wide
+   restart, but becomes a durable control plane: authorization, identity,
+   concurrent updates, quotas, restart recovery and audit all need explicit
+   ownership. Removal must account for pending and held entries, key rotation
+   and revocation; it cannot simply forget an identity. Shared storage and
+   service failures remain a common dependency.
+
+3. Per-provider durable publisher. Each provider has an independently managed
+   queue and sender, with its own credential and capacity. This isolates
+   lifecycle and failure domains and makes removal locally accountable. It
+   multiplies services, storage, monitoring and recovery operations. The sender
+   and its state must survive the producer's exit; putting the sender inside the
+   producer process alone does not meet that requirement.
+
+4. Provider-owned outbox with a separate signer. The queue and publisher retain
+   stable result bytes while an independently available signer refreshes request
+   authentication. This avoids giving the queue holder a permanent signing key,
+   but moves availability, authorization, rotation and recovery obligations to
+   the signer, whose availability is required until the queue drains. A remote signing service has its own network and trust boundary;
+   a local agent still needs independent lifecycle and durable credentials.
+
+5. Delegated publication authority. A renewable scoped credential, server-issued
+   capability or other delegated authority could limit what a publisher can do.
+   Its lifetime, scope, replay rules, revocation and behavior with pending work
+   would need a precise API contract. A capability that expires before delivery
+   needs renewal or an independent signer. This is a protocol proposal, not an
+   existing capability.
+
+6. A shared signing principal. Fewer credentials could simplify operations,
+   but provider attribution and isolation would collapse unless the API supplies
+   and enforces scoped delegation. Pending rows must retain their original
+   origin, provider and attempt identity, not be silently retargeted.
+
+7. Provider-signed durable terminal outcome. The provider signs an assertion
+   over the exact terminal command; an independent outbox later authenticates
+   its transport separately. The server would need a new contract to verify
+   the durable assertion and bind API origin/audience, provider, attempt, terminal
+   action, idempotency identity and exact body bytes (or an unambiguous digest
+   and encoding), with canonical envelope encoding, version and domain separation.
+   The signature provides provenance and integrity, not confidentiality from
+   the outbox or publisher; access control, at-rest protection and tenant
+   isolation remain separate requirements. It must distinguish exact replay from conflicting assertions,
+   preserve receipt verification and define verification-key and replay-record
+   retention, Attempt expiry, rotation, revocation and expiry,
+   including whether an assertion already accepted by the outbox remains
+   publishable after its signing key is revoked. A self-asserted signing time
+   alone cannot prove an assertion predates key compromise. Publisher
+   authentication and authorization remain necessary and need their own
+   renewable identity. Durable enqueue does not guarantee API acceptance; the
+   outbox still needs capacity limits and held-entry recovery. It avoids retaining the
+   provider's signing key in the outbox, but does not close the producer crash
+   window before durable enqueue acknowledgement. This is not supported today.
+
+8. API-native durable terminal-intent acceptance. The server could accept and
+   persist an authenticated terminal intent under a new explicit delivery
+   guarantee, then own further publication and recovery. The current terminal
+   API already accepts terminal reports; this option proposes a new contract,
+   not the first acceptance endpoint. It changes where obligations live and requires
+   explicit API semantics for idempotency, receipts, capacity, authentication,
+   expiry and migration. It does not remove the need to handle failure before
+   the server has durably acknowledged the intent.
+
+Questions for the workshop
+--------------------------
+
+* What exact acknowledgement transfers the obligation, and who owns it after a
+  crash at each side of that boundary?
+* Can a provider deployment supply registration data without a separate host
+  administrator edit, and who authorizes and applies that change?
+* How are a provider's registration and removal serialized with accepted,
+  retryable pending and held results? What operator recovery applies to each,
+  and what happens when credentials rotate or are revoked?
+* What per-provider and global item/byte limits, backpressure and fairness are
+  needed, and how is one provider prevented from exhausting another's capacity?
+* Which state and signing authority survive producer, publisher, host and
+  network failures, and who diagnoses or repairs each failure?
+* Which API and operational changes are required, and how can existing providers
+  migrate without losing or silently retargeting accepted work?
+
+Evidence: packages/provider-core signing, API and delivery worker implementation;
+notes/014_joint_provider_refactor_decisions_20261028.txt, especially D200-D201 and
+D209-D210. The alternatives above are proposals, not established behavior.
