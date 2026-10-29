@@ -3820,6 +3820,16 @@ shared availability fix affects normal API/delivery operation and needs coordina
 consumer adoption. Native/scientific code stays unchanged; no numerical reruns
 are required merely because package metadata changes.
 
+D124 implementation clarification (2026-10-29 05:25 UTC):
+Replace the API network-evidence branch rather than merely OR the new fact with
+the old exception predicate: otherwise local timeout/DNS lookalikes can still
+qualify through the old branch. Preserve complete status/problem and all exact
+operation gates. The generic temporary helper remains unchanged for unrelated
+callers. An aggregate SDK timeout can qualify only when captured original I/O
+was pending/cancelled by that SDK deadline and no caller interruption is present;
+a bare/local TimeoutError or cancelled caller supplies no such permission.
+Retain original I/O cause/stage and canonical timeout/cleanup evidence together.
+
 D125 -- Bound valid structured diagnostics at the actual output allowance (2026-10-29 05:11 UTC)
 --------------------------------------------------------------------------------
 
