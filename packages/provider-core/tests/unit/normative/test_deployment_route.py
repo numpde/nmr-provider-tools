@@ -22,6 +22,7 @@ class DeploymentRouteTests(unittest.TestCase):
         raw = definition(1)
         if mode == "local":
             raw = raw.replace(b'mode = "mapped"', b'mode = "local"\nnetwork_id = "' + b"b" * 64 + b'"')
+            raw = raw.replace(b"api.example=127.0.0.1", b"api.example=172.18.0.5")
         elif mode == "external":
             raw = raw.replace(b'mode = "mapped"', b'mode = "external"')
             raw = raw.replace(b'addresses = ["api.example=127.0.0.1"]', b'resolver_file = "/synthetic/resolver"')
@@ -127,7 +128,10 @@ class DeploymentRouteTests(unittest.TestCase):
                     self.assertEqual("/etc/resolv.conf", resolver["target"])
                     self.assertTrue(resolver["read_only"])
                 else:
-                    self.assertEqual("api.example=127.0.0.1", command[command.index("--address") + 1])
+                    expected = "api.example=127.0.0.1"
+                    if mode == "local":
+                        expected = "api.example=172.18.0.5"
+                    self.assertEqual(expected, command[command.index("--address") + 1])
                     self.assertEqual(1, len(proxy["volumes"]))
 
     def test_empty_relocation_map_preserves_original_admitted_resolver(self):
@@ -152,6 +156,7 @@ class DeploymentRouteTests(unittest.TestCase):
 
     def test_invalid_identity_image_namespace_storage_and_relocation_refuse(self):
         for changes in ({"uid": 0}, {"gid": True}, {"image": "mutable:latest"},
+                        {"service_name": "API"}, {"service_name": ""},
                         {"namespace": "UPPER"}, {"interpreter": "python"}, {"storage": None},
                         {"storage": RouteDirectory(Path("/runtime/../private"))},
                         {"input_sources": {"/not-granted": "/captured"}},
@@ -160,6 +165,26 @@ class DeploymentRouteTests(unittest.TestCase):
                 with self.assertRaises(RouteProjectionRejected):
                     self.render(self.binding("mapped"), **changes)
 
+    def test_explicit_service_identity_is_stable_across_binding_changes(self):
+        first = self.binding("local")
+        second = parse_deployment_bindings(definition(2)).selected("fixture-1")
+        for storage in (NamedRouteVolume(), RouteDirectory(Path("/runtime/private-api"))):
+            with self.subTest(storage=type(storage).__name__):
+                prior = self.render(first, service_name="api", storage=storage)
+                changed = self.render(second, service_name="api", storage=storage)
+                self.assertEqual({"api": {"condition": "service_healthy"}}, prior.client_depends_on)
+                self.assertEqual(prior.client_depends_on, changed.client_depends_on)
+                self.assertNotEqual(prior.client_socket, changed.client_socket)
+                self.assertIn("api", prior.compose["services"])
+                self.assertEqual({"api": {"external": True, "name": "b" * 64}}, prior.compose["networks"])
+                if type(storage) is NamedRouteVolume:
+                    self.assertEqual({"api", "api-init"}, set(prior.compose["services"]))
+                    self.assertEqual({"api-init": {"condition": "service_completed_successfully"}},
+                                     prior.compose["services"]["api"]["depends_on"])
+                    self.assertNotEqual(prior.client_mount["source"], changed.client_mount["source"])
+                else:
+                    self.assertEqual({"api"}, set(prior.compose["services"]))
+
     def test_cli_projects_selected_route_without_secret_file_access(self):
         with tempfile.TemporaryDirectory() as directory:
             source = Path(directory) / "binding.toml"
@@ -167,7 +192,7 @@ class DeploymentRouteTests(unittest.TestCase):
             source.chmod(0o600)
             result = subprocess.run(
                 [sys.executable, "-I", "-B", "-m", "provider_core.deployment_route", "render",
-                 "--definition", str(source), "--binding", "fixture-0", "--image", "sha256:" + "a" * 64,
+                 "--definition", str(source), "--binding", "fixture-0", "--service-name", "api", "--image", "sha256:" + "a" * 64,
                  "--interpreter", "/opt/provider/bin/python", "--namespace", "fixture", "--uid", "65532",
                  "--gid", "65532", "--directory", "/runtime/private-api"],
                 capture_output=True, text=True, check=False, timeout=5,
@@ -177,6 +202,7 @@ class DeploymentRouteTests(unittest.TestCase):
         projected = json.loads(result.stdout)
         self.assertEqual({"compose", "client_socket", "client_mount", "client_depends_on"}, set(projected))
         self.assertEqual("/runtime/private-api", projected["client_mount"]["source"])
+        self.assertEqual({"api": {"condition": "service_healthy"}}, projected["client_depends_on"])
 
     def test_initializer_preserves_exact_nonempty_private_root_without_opening_it(self):
         with tempfile.TemporaryDirectory() as directory:
