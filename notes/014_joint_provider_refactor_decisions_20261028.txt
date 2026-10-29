@@ -4760,6 +4760,20 @@ a provider credential as a user, reconstruct a changed case under an old key,
 or reopen a broad scientific campaign to improve a release completion claim.
 This does not undo the verified deployment authority or block completed rollout.
 
+D147 resolved by full current-goal read (2026-10-29 07:05 UTC):
+Root's targeted clause search had missed the current objective's explicit
+"one necessary API handoff/delivery smoke". Reading the complete current goal
+confirms that bounded current proof as well as practical end-to-end operation.
+The earlier request to avoid expanding the Oct23 paid case remains sound, but
+there is no need for another approval gate for this independently explicit current
+smoke. NMRNet owns one necessary current case, first checking existing post-cutover
+evidence to avoid duplication. Use the existing issued user/project and selected
+route; prefer a structured scientific fixture requiring no paid interpretation.
+No new credential/project, broad fault campaign or repeated numerics. Retain exact
+operation_ref/facts for any uncertain creation; only explicit same-case recovery
+may repeat that mutation. A remote terminal readback is required before calling
+this smoke complete. The completed rollout is not waiting on this clarification.
+
 Open question -- Magnet's late classified outcome (2026-10-29 07:00 UTC)
 --------------------------------------------------------------------
 
@@ -4786,3 +4800,43 @@ and Magnet are tracing the actual enclosing SDK path, distinguishing an ordinary
 AnalysisFailure value from an unobserved original exception/failed native frame.
 No new flag, registry, cleanup refusal or terminal-report permission is justified
 until that causal boundary is established. This is not a deployment blocker.
+
+Question narrowed and deferred (2026-10-29 07:06 UTC):
+Magnet's actual checked-in runner_execution_failed policies intentionally forward
+the reviewed failure message on a normally selected public FAIL. Its fixed-message
+synthetic fixture did not prove a normal-path deployed omission. A further actual
+public executor.run cancellation witness retained the final AnalysisFailure on
+executor.last_failure.outcome, kept shutdown_ready false and required explicit
+suppression disposition; the earlier private _cancel_task injection therefore
+did not prove that production path loses the outcome.
+
+A lower-level constructed witness still identifies a narrower diagnostic question:
+actual E01 runner/protocol validator and a synthetic framed Unix peer validate
+EXECUTION_FAILED, then public runner cancellation can race consumption while
+retirement discards the completed reply tuple. This is not a live incident,
+unconfirmed physical cleanup or authority to publish/replay. Magnet retained the
+witness and distinctions in its existing deferred note, commit 794f0ea, with no
+product change. Broader renderer work stays deferred. Do not turn this scoped
+question into a false completed-rollout blocker or a generic cleanup failure.
+
+Consumer implementation checkpoint (2026-10-29 07:06 UTC)
+------------------------------------------------------
+
+NMRPeak committed coherent adoption 84549c8 with checkout clean, deleting the
+displaced live API/replay/native-publisher stack while retaining the exact private
+journal codec. Its owner reports 443 unit, 23 integration, six historical contract
+and six model checks before commit; the added real DeliveryFull two-lane report
+retention witness raises the current integration count to 24. D144's 16 analysis
+tests pass at the original Future authority. Full maintained tests and normal
+canonical provider/HF/CHF builds are running on this clean source with public
+0.5.1 profiles. No numerical rerun, candidate override or production deployment.
+
+SECS's D146 work also covers the same startup ordering: the original opening Task
+has a validated failed readiness frame, but caller cancellation precedes normal
+check_ready consumption. It captured an actual native child/SDK failed-frame RED
+before correction. The existing original opening identity now distinguishes
+observed from completed; retain an unobserved exact scientific exception through
+cleanup, alongside independent cleanup failure when present. Already observed
+startup failures and completed success must not be duplicated or fabricated.
+Fresh critical audit and canonical rebuilds remain pending. This extends the
+same SCI observation choice, not a new lifecycle, SDK protocol or report policy.
