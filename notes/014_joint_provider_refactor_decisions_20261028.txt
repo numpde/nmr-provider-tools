@@ -6384,10 +6384,12 @@ C. Preserve the current per-provider shares and increase host totals to cover
 D. Start a separate delivery service. That introduces a second queue and owner
    where the existing service can provide isolation if its budget is sufficient.
 
-Working direction: C, subject to confirming available host capacity and the
+Choice: C for the immediate cutover, subject to confirming available host capacity and the
 provider's actual identity, credentials, drain and recovery obligations. It
 preserves existing shares and a single queue owner; its cost is a larger allowed
-host-wide backlog. The live ProArt definition currently has three bindings, with
+host-wide backlog. The user explicitly chose to deploy now under the current
+binding and discuss the redesign separately; this does not select the future
+delivery architecture. The live ProArt definition currently has three bindings, with
 eight items and 16 MiB per provider and totals of 24 items and 48 MiB. Four equal
 shares would require totals of at least 32 items and 64 MiB. These are configured
 limits, not a reservation or evidence that the host can safely accommodate them.
@@ -6503,6 +6505,95 @@ needs a new API contract; the third adds a service whose availability and lifeti
 must be owned. Current SDK signatures expire 300 seconds after creation, so a
 single pre-signed request cannot on its own guarantee delivery after an unbounded
 outage. No one of these signing mechanisms has been selected or qualified here.
+
+D202 — Prepare the existing ProArt NMRPeak replacement
+-----------------------------------------------------
+
+Serious alternatives:
+A. Reuse the incumbent's legacy configuration unchanged. The replacement expects
+   its current binding configuration and cannot assume that legacy format is valid.
+B. Replace the configuration with generic defaults. That can silently change the
+   existing provider's timing and operational behavior.
+C. Prepare the current-format configuration from the existing deployment, preserve
+   its timing values and credential/authority, validate it against the proposed
+   binding, and retain a rollback copy before a coordinated cutover.
+
+Working direction: C. It admits the new runtime while retaining the incumbent's
+selected behavior and a path back if replacement fails. The cost is an explicit
+conversion and verification; copying field names alone is not proof of equivalent
+semantics. NMRPeak's owner reports the provider image built locally on ProArt, the
+HF image building and CHF image still to build. A read-only live journal summary
+reported zero records but is provisional; after normal drain, the owner must repeat
+the authoritative inventory under the identity lock before the old runtime is
+retired. The incumbent remains running while these prerequisites are prepared.
+The owner subsequently reported that both runner builds were started without the
+Make target's WLAN interface option, so their dependency downloads used Docker's
+default network rather than the requested WLAN-bound path. Base-image bootstrap
+is separately allowed to use the default connection under the user's clarification.
+The owner is correcting the
+build and checking its route. The shared cutover has not started; this observation
+does not establish that either interrupted build or its engine work has retired.
+
+D203 — Require an explicit network interface for NMRPeak acquisition
+--------------------------------------------------------------------
+
+Serious alternatives:
+A. Continue allowing the Docker default network when no interface is supplied.
+   That silently bypasses the requested WLAN on ProArt.
+B. Implicitly choose an interface from the host's current routing table. This can
+   select the wrong device and gives the operator no clear acquisition grant.
+C. Require NETWORK_INTERFACE at the repository acquisition/build boundary, using
+   the established Magnet and NMRNet interface-bound approach, and refuse an
+   omitted or unsupported selection before dispatch.
+
+Choice: C, following the user's direction. It makes acquisition's network grant
+explicit and avoids silently using the default route. The cost is an operator
+selection and tests for its propagation and failure handling. The user directed
+the owner to sit out ProArt builds while making this change. The earlier SSH build
+clients exited 255, but that alone does not establish remote BuildKit retirement;
+the owner is not starting duplicate builds. ProArt's requested WLAN is wlp10s0.
+Review of the current image scripts found two additional proof obligations: build
+proxy arguments do not necessarily bind engine-side base-image pulls, and client
+exit alone does not establish that BuildKit stopped reading a temporary context.
+The owner must account for both when designing acquisition and cleanup; no claim
+that either issue is fixed follows from requiring the input. API routing remains
+a separate contract discussed in D200.
+
+D204 — Account for build frontend and engine-side acquisition
+--------------------------------------------------------------
+
+Serious alternatives:
+A. Assume NETWORK_INTERFACE or Docker build proxy arguments also constrain
+   engine-side frontend and FROM pulls. That is not established by the build
+   command and can silently use the daemon's route.
+B. Use the default connection for base-image bootstrap, explicitly separate from
+   interface-selected dependency acquisition. This follows the user's clarified
+   policy but still requires exact base identity and truthful failure handling.
+C. Acquire and verify every required base and frontend through the selected
+   interface before an offline build, and ensure the builder actually resolves
+   those immutable inputs locally. This needs an engine-specific provenance and
+   resolution proof; merely setting --pull=false is not that proof.
+D. Use a built-in Dockerfile frontend and qualify the supported builder/version,
+   while separately acquiring verified bases. This removes the external frontend
+   fetch but changes frontend authority and requires feature/compatibility proof.
+
+Choice for base-image bootstrap: B, as clarified by the user. Other deployment
+downloads on ProArt use WLAN; API traffic and GitHub updates use the default
+connection. No choice is made here for the separate external frontend or for
+offline base resolution. NMRPeak pins an external Dockerfile frontend and two
+FROM images for its runners; the owner is evaluating the frontend and local-base
+options without starting ProArt builds. Shared tools use Docker's default route for their base
+bootstrap; the D191 delivery build can use a separately verified local image,
+but checker and provider-core paths still expect the registry reference. They
+must not be described as interface-bound merely because later wheel acquisition
+is. Shared delivery and checker build owners retain their inputs after an
+uncertain dispatched build. NMRNet's owner has identified a separate capture
+cleanup ordering concern and is checking its actual daemon-side effects.
+NMRNet's owner subsequently documented that local client-group retirement is
+confirmed before its cleanup, but daemon-side completion and any continued access
+to host context paths are separate questions. Docker describes client-session
+context transfer; no daemon-side use-after-removal has been reproduced. Its
+deferred note records the verification trigger rather than asserting a defect.
 
 Supporting qualification references
 -----------------------------------
