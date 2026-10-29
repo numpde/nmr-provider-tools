@@ -2724,11 +2724,11 @@ Qualify gzip decoded overflow, received400 with failed optional read, close fail
 blocking retry, and cancellation/process-control failure retaining the same
 response owner before deleting the competing local lifecycle.
 
-Integrated qualification: installed SDK unit600/native33 and integration170 pass,
+Integrated qualification: installed SDK 600 unit and 33 native tests and 170 integration tests pass,
 including decoded-process-control failure with an independent close failure,
 the same retained owner and the original fatal cause. Independent source audit
 found one stale standalone test mock target, corrected before the passing run;
-it found no product ownership/resource defect. Repository quality206 passes.
+it found no product ownership/resource defect. Repository quality checks pass (206 tests).
 These are local installed-source checks; final exact-artifact qualification and
 NMRPeak's installed consumer adoption still follow.
 
@@ -3438,9 +3438,9 @@ owners must establish their actual rollout scope and retained obligations.
 Publication is still pending concrete final gates and peer acknowledgement.
 
 Publication outcome, 2026-10-29 04:28 UTC:
-All four named peers reviewed the actual API and authored note016 and reported
-no SDK release blocker before publication. Final publish/prepare passed unit600,
-contract15, integration170, rebuilt-contract15 and native33, plus six exact hash
+All four named peers reviewed the actual API and authored note 016 and reported
+no SDK release blocker before publication. Final publish/prepare passed 600 unit,
+15 contract, 170 integration, 15 rebuilt-contract and 33 native tests, plus six exact hash
 receipts. Source a8ce9e6125218a3e790d7f4be71e0aa99f91c51d was pushed normally.
 The maintained publisher then uploaded a draft, downloaded all eight public
 artifact/log files, compared every byte and published v0.5.0:
@@ -3476,7 +3476,7 @@ Evidence: /tmp/sdk-050-runtime-image.log and /tmp/sdk-050-runtime-route.log.
 This is a local shared-image proof, not canonical consumer-image or rollout proof.
 
 All four peers were sent the published release and final receipts. NMRNet
-reports local consumer commit72035f6; Magnet reports0424fea. SECS's final pin
+reports local consumer commit 72035f6; Magnet reports 0424fea. SECS's final pin
 amend and NMRPeak's remaining host/maintenance/model-HTTP integration are still
 owned by their coordinators. Canonical consumer acquisition/build qualification
 and any separately authorized live rollout remain outstanding. No shared queue,
@@ -3516,7 +3516,7 @@ D115 -- Preserve a caller's absolute HTTP cleanup deadline at the shared owner (
 While preparing the remaining NMRPeak model adapter, its owner identified a
 budget mismatch not covered by the SDK release ACK. Its existing turn owns one
 absolute deadline for requests, retries, backoff and failure-path stream cleanup.
-Published0.5.0 HttpTransport instead grants its fixed retirement_seconds after
+Published 0.5.0 HttpTransport instead grants its fixed retirement_seconds after
 caller cancellation. Independent root/worker inspection confirms that mismatch;
 the release note already distinguishes unfinished consumer adoption.
 
@@ -3536,7 +3536,7 @@ not physical ownership: preserve original cancellation/evidence and retain the
 same exchange until its actual task/resources settle. Later retire can observe
 already-completed work but cannot invent a fresh window past that original cap.
 
-This requires a new qualified patch release; published0.5.0 assets stay immutable.
+This requires a new qualified patch release; published 0.5.0 assets stay immutable.
 The current release and its same-wheel proofs remain valid within their stated
 scope. Do not perform a shared-service cutover merely to churn again before this
 known ownership gap is closed. NMRPeak keeps its model adapter's current deadline
@@ -3566,11 +3566,21 @@ backend remains consumer-owned. Qualify pip's actual merge; if it refuses, repor
 that evidence instead of editing issuer bytes. This does not introduce private
 PyPI resolution, another publisher or canonical-cache seeding.
 
+NMRPeak's actual pip proof resolved the composition detail: duplicate requirements
+for the direct URL and issued version failed, both with and without URL extras.
+The working wrapper uses a consumer-owned -c source constraint containing the
+exact published GitHub URL/hash, then -r the byte-exact issuer full/native lock.
+The consumer pyproject retains provider-core[api]. Fresh maintained full and
+native builds acquired published assets normally, passed require-hashes and
+pip check; native imports also passed as UID 65532, RO/network-none, with API
+dependencies absent. The original failed logs are retained. This is source
+selection, not another SDK dependency lock or a private PyPI fallback.
+
 D117 -- Scope the deadline-cap upgrade to consumers that need it (2026-10-29 04:38 UTC)
 --------------------------------------------------------------------------------
 
 NMRNet asks whether the additive deadline-cap patch requires it to replace the
-published0.5 wheel and redo its canonical images. Its integration does not use
+published 0.5 wheel and redo its canonical images. Its integration does not use
 the missing NMRPeak model-turn cap.
 
 Serious alternatives:
@@ -3580,9 +3590,9 @@ A. Require every consumer and shared service to move in one patch-release wave.
 B. Keep the cap private in NMRPeak to avoid another shared release. This revives
    the duplicate ownership rejected in D115.
 C. Publish the optional shared capability for NMRPeak; preserve other consumers'
-   qualified0.5 identities unless an actual changed contract requires adoption.
+   qualified 0.5 identities unless an actual changed contract requires adoption.
 
-Choice: C. NMRPeak needs the new cap. Other owners may finish their ordinary0.5
+Choice: C. NMRPeak needs the new cap. Other owners may finish their ordinary 0.5
 canonical builds and retain those exact proofs. Verify unchanged default behavior
 and wire/IPC contracts before claiming cross-version compatibility; do not invent
 a mandatory fleet-wide upgrade for package-version uniformity. Shared-runtime
@@ -3622,3 +3632,58 @@ projection/labels for teardown with existing operation/cleanup bounds; retain
 uncertain obligations instead of claiming cleanup. No orphan deletion, direct
 bypass, new registry or generic maintenance framework is introduced. Actual
 stopped-state and failed-cleanup qualification remains with NMRPeak.
+
+D119 -- Base cutover on the original owners, not empty queue snapshots (2026-10-29 04:50 UTC)
+--------------------------------------------------------------------------------
+
+Read-only deployed DeliveryClient inventories show zero pending/held items in
+all four current NMRNet/Magnet bindings. The original shared daemons/proxies are
+healthy and unchanged on both hosts. ProArt Magnet has 30 restarts; its owner
+reports DNS-connect failure chains but has not established the DNS errno/cause.
+Those observations do not establish producer quiescence or a safe cutover.
+
+Serious alternatives:
+A. Replace shared services when queue counts are zero or containers are healthy.
+   A producer can still own science, START or an uncertain handoff at that instant.
+B. Add another external idle detector or pause registry as a universal gate.
+   This duplicates the actual lifecycle owner and is unnecessary when its
+   existing admission-stop/drain path can establish the required facts.
+C. Coordinate the actual owners' existing admission/drain/settlement operations
+   and retain their exact tasks, dependencies, claims and reporting obligations.
+
+Choice: C. Signed paginated active-Attempt reads may corroborate current state;
+they neither fence new admission nor replace original-owner proof. No new pause
+mechanism is required when the original shutdown owner protects the obligations.
+For the NMRNet incumbent, the finite 120-second drain can revoke/cancel work;
+that expiry is deliberate interruption, not proof that science finished. Its
+Docker stop observer also waits 120 seconds while Engine has no kill deadline.
+An expired client wait is unconfirmed observation: preserve dependencies and
+re-observe the same stop/container, rather than repeat stop or assume failure.
+Magnet owns diagnosis of its restart history before its actual cutover.
+
+Only read-only IPC inventory and selected Docker metadata were used; no live
+SQLite queue open, result-body/log extraction or lifecycle mutation occurred.
+Shared queues, IPC identities and unconfirmed enqueue/report duties must survive
+any separately authorized replacement. Empty counts are evidence, not permission.
+
+D120 -- Keep proof listeners alive until the original provider drains (2026-10-29 04:50 UTC)
+--------------------------------------------------------------------------------
+
+Magnet reproduced a private ProArt proof race: all three exact reports were
+handed off, then the synthetic HTTPS peer exited while the provider could still
+poll. Two of four runs ended in an SSLEOF transport failure during shutdown.
+
+Serious alternatives:
+A. Accept a provider failure because the fixture already saw all results. This
+   loses the orderly-shutdown contract the proof is meant to establish.
+B. Add a sleep or broaden production TLS retry classification. A sleep still
+   races, and a fixture ordering defect grants no new production retry policy.
+C. Use a deterministic completion barrier while the peer remains available;
+   stop/drain the original provider before explicitly retiring the proof peer.
+
+Choice: C. Reuse the existing proof's owned control/hold path and fixed safe
+completion marker. Host observes completion, preserves listener availability
+through actual provider retirement, then releases/stops the peer and verifies
+its success and exact cleanup. Do not mask provider failures, add a production
+protocol, invent another timeout policy or infer completed cleanup from a marker.
+Magnet owns the narrow proof-fixture correction and its focused validation.
