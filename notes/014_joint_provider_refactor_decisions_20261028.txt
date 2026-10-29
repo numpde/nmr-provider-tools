@@ -4415,3 +4415,65 @@ SECS reports ordinary public provider/native acquisition passing with byte-exact
 qualification are running. No SECS production target is selected or required by
 the existing NMRNet/Magnet shared rollout. Root explicitly confirmed that it
 should complete qualification only, without seeking or inventing a new target.
+
+D142 -- Use verified standing rollout authorization, not another inferred grant (2026-10-29 06:36 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet challenged root's possible extra approval gate. Root read the actual user
+messages in the two responsible session logs, rather than relying on the peer's
+claim alone. NMRNet has direct "Push/deploy" at 2026-10-28T12:02:37.936Z;
+Magnet has direct "Push/deploy" at 2026-10-28T12:02:41.550Z. NMRNet's current
+end-to-end objective explicitly includes repository-owned local/production
+rollout and practical operational proof, with nmr-provider-tools as the sole
+shared delivery/proxy/host-deployment owner.
+
+Serious alternatives:
+A. Ask for another root confirmation because the shared service spans both
+   providers. That is appropriate without established authority, but repeats
+   permission here after the actual user instructions and both owners' scopes
+   have been verified.
+B. Delegate the shared replacement to a provider owner. It can use SDK tooling,
+   but separates operational ownership from the designated shared owner and adds
+   another handoff while both providers already coordinate their own drains.
+C. Let root execute the necessary shared dependency replacement within those
+   verified rollout instructions, with both provider owners retaining admission,
+   original drain/settlement, provider deployment and consumer proof.
+
+Choice: C. This resolves D141's authority condition with explicit session evidence;
+it does not infer production permission merely from root's refactor goal. No
+additional approval gate is required. D141's local-first ordering, actual owner
+readiness, queue/IPC preservation and single shared writer remain mandatory.
+SECS and NMRPeak still gain no production target or permission from this decision.
+
+Read-only preflight renders the exact new runtime against each existing operator
+definition before live stopping. Use the maintained shared tooling and original
+neutral inputs, not a copied provider deployment recipe or rewritten bindings.
+ProArt's old clean shared-tools checkout needs the published maintained source
+before that same command can run there; this preparation changes no service.
+
+Consumer checkpoint (2026-10-29 06:36 UTC)
+---------------------------------------
+
+Magnet now reports all maintained lanes PASS: 163 repository, 763 unit, 19 contract,
+135 integration. Both hosts built the provider and configured CPU runners locally
+through normal GitHub acquisition, with installed 0.5.1 verified. Its clean pushed
+source remains 859c041. No stop/drain has occurred; original-owner settlement is
+still required before shared replacement.
+
+SECS completed adoption commit ea4b3a9. API image:
+sha256:5124ac0be0fe034d44d43d71eb8bf60ccd80ff87c323078b78bbff4ad7bf8d68
+CPU image:
+sha256:511252bfa723c52a7ab9504519a37f5997d2c2afb20a57f7fef648effe0cd699
+Both contain all 55 SDK modules byte-equal to wheel 3954f220, UID 65532, Python
+3.12.16/3.12.12 respectively. Reported PASS: provider 56, native 12, deployment
+units 43 and five actual signed private-route/outage/recovery/TERM checks. No
+production target; diagnostics remain deferred in its note009. These are the
+SECS owner's receipts, not root-executed tests.
+
+NMRPeak committed ordinary 0.5.1 profiles/build/acquisition receipt in 1f1846d and
+maintenance proof in f57abf7. It reports 18 actual SDK loopback model tests, input
+19, analysis 15, main 15 and thin diagnostic 4 checks GREEN, including idle SCI
+with unsettled HTTP and independent cleanup. Its full maintained Python 3.12 image
+passes pip check; the native-only image excludes HTTPX/crypto/CFFI/http_sf and
+passes native imports. Remaining work is displaced live lifecycle/API/recovery
+removal, final repository/native integration and canonical images. No live change.
