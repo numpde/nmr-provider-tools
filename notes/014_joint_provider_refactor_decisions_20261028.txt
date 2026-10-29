@@ -4882,3 +4882,48 @@ results before deciding whether the one authorized current Job is necessary.
 Creation and remote terminal readback remain pending; do not count the successful
 read as a Job or result proof. The default-local/ProArt-WLAN routing preference
 and exact one-shot mutation/recovery contract remain in force.
+
+D149 -- Isolate the one smoke Job before opening it (2026-10-29 07:12 UTC)
+--------------------------------------------------------------------------------
+
+Both deployed NMRNet and Magnet serve peaks_from_mol. The API creates a Job closed
+by default; opening it before selecting the intended provider could allow another
+eligible provider to claim this single NMRNet proof.
+
+Serious alternatives:
+A. Open first and then narrow selection. This is a real race with the already
+   running other provider, even if the final selection eventually looks correct.
+B. Stop unrelated provider admission during the smoke. This avoids the race by
+   interrupting working deployments for a client-owned selection decision.
+C. Create one closed Job, select only provider:nmrnet-pa-a, then open that same
+   Job through the public API and observe its actual terminal/result records.
+
+Choice: C. NMRNet remained the sole submitter. No GUI, new credential/project,
+duplicate Job, broad fault campaign or repeated numerical run. The client used
+the existing authenticated project and public operation contracts; no new generic
+user-mutation framework was added to provider-core or the deployment path.
+
+Single remote smoke receipt (2026-10-29 07:12 UTC)
+-----------------------------------------------
+
+Owner-reported actual production API results:
+- Closed create: 201 committed; selection: 200; opening the same Job: 200.
+- operation_ref: nmrnet-shared-refactor-smoke:20261029-0708-a1
+- Job: job:3c211d3d0936fe162b18b1ecbfe0631699a7b50a438fd93315d1cd840d6d3e3f
+- Sole selected provider: provider:nmrnet-pa-a
+- Succeeded Attempt:
+  execution_attempt:sha256:f53a6dd2015ba532d256026ad1471dd2a911b93935a962297ed54e410f7bd2f1
+- Matching result:
+  analysis_result:sha256:5758c5d12d7c14cc35e6d71cdd6d41bc9122790bbbeae3cfd8dedc487ef675e4
+- Result GET: 6293 bytes, declared length matched, valid JSON, SHA256
+  b2991e9cf134a9c10954ea9cb1ec97fbc30661d4ff0483f832ff0d335d5b5fd0
+
+Associate this receipt with the already verified deployed NMRNet ProArt images,
+installed SDK 0.5.1 and exact d99dcac8 shared runtime/retained bindings. It proves
+one actual remote result handoff/publication/readback after cutover, beyond local
+enqueue or startup health. Root did not independently submit another Job or
+redownload the scientific payload; the sole owner read back the exact result and
+retained its length/hash facts without a payload dump. This does not prove
+scientific accuracy, all providers' numerical parity or every outage schedule.
+The one necessary current smoke is complete and must not be repeated for a
+cleaner-looking receipt. Earlier 401 caused no mutation and no additional Job.
