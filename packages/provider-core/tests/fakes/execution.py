@@ -9,8 +9,22 @@ from tests.fakes.attempt_store import admission, record, scope
 from tests.fakes.attempts import ATTEMPT_REF
 
 
-async def unexpected_condition(_condition_code):
-    raise AssertionError("This scientific fixture does not report conditions")
+class UnexpectedCondition:
+    """Standalone scientific fixtures assume permission but emit no conditions.
+
+    Actual controller/stop authority is exercised by the composed lifecycle tests.
+    This stateless fake is never a production permission fallback.
+    """
+
+    async def __call__(self, _condition_code):
+        raise AssertionError("This scientific fixture does not report conditions")
+
+    def require_execution(self):
+        pass
+
+
+# repo-check: allow-module-constant
+unexpected_condition = UnexpectedCondition()
 
 
 class LiveAttemptProbe:

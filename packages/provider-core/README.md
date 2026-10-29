@@ -44,6 +44,16 @@ owned without entering science. The `stopping` event and `request_stop()` still
 withdraw scientific permission; selected reports retain their delivery duty.
 Without a separate admission event, the supplied `stopping` event governs both.
 
+The phase-scoped `report_condition` callback also exposes
+`report_condition.require_execution()`. Call it after awaits, immediately before
+writing a scientific request or submitting work. The synchronous check reads the
+current controller, claim and phase permission, including local stop, failed or
+pending condition reports and an expired in-flight observation window. It works
+in owned child tasks on the same event loop. It makes no API request and reserves
+no permission across another await; already submitted work still needs settlement.
+Core also checks at session-task entry. Test doubles must implement this method
+explicitly; production bindings must use the supplied phase owner.
+
 A deferred START retains its exact request and any possible-commit uncertainty;
 it does not authorize a new key or another calculation. `ActiveStartReplayHeld`
 returns the verified server receipt for an already active Attempt, without

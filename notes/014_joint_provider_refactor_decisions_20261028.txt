@@ -5581,6 +5581,100 @@ launch context; READY alone cannot identify loaded weights or device. Both must
 keep model-specific byte/device admission with the actual scientific owner rather
 than invent a generic SDK model registry or assume a read-only host bind is immutable.
 
+D176 -- Check current phase permission at the actual scientific dispatch boundary
+-------------------------------------------------------------------------------
+
+NMRNet and Magnet independently reproduced a real controller stop race: a session
+awaits preparation/retirement, a stop arrives, then it starts another effect before
+the monitor's next poll. NMRNet reproduced first prediction and preparation-worker
+dispatch too; this is not solely a positive-retry problem. SECS's client schedules
+another exchange Task before socket write, so a check before that scheduling point
+does not necessarily fence the later write. NMRPeak also submits work after awaited
+interpretation. The actual effect owner must check current permission.
+
+Serious alternatives:
+A. Copy stopping Events into each binding. This misses controller.request_stop and
+   duplicates the SDK's claim/admission/phase authority.
+B. Send a progress request or add another server read before every effect. This
+   adds I/O, changes operation policy and still cannot atomically reserve future
+   server permission across a later local await.
+C. Add another mandatory control argument or redesign every session signature.
+   A phase-scoped control owner already exists, so this is unnecessary churn.
+D. Give that existing owner an explicit synchronous execution-permission method,
+   publish its callable protocol, and require checks at real effect commitment.
+
+Choice: D. The per-phase report_condition object gains require_execution(). The
+ReportCondition protocol remains callable for awaited public condition reports;
+existing keyword/signatures stay. The new method checks active phase, poisoned or
+in-flight report, original controller/claim/admission science permission, and an
+existing in-flight observation deadline. It reads actual authority, performs no
+network I/O, creates no Task and copies no stopping flag. It works in the binding's
+owned child tasks on the same loop; it is not tied to the particular receiver Task.
+Admission-only stopping remains distinct from withdrawing admitted science.
+
+Core also rechecks at its retained session Task entry, closing the scheduling gap
+after _monitor's check. Bindings must recheck after awaits immediately before the
+first and each later scientific dispatch. A check is not a reservation across a
+yield. NMRNet's writer.write occurs before its first await; Magnet's executor
+submission likewise occurs before yielding. SECS must pass the control to its
+actual exchange Task before write. For scheduled native allocation, a pre-check
+admits starting that allocation at that instant; stop afterward still requires
+settling the exact opening owner and another check before scientific dispatch.
+
+An already submitted thread or written request may proceed after a later stop;
+this capability cannot retract it or prove receipt. It does not fetch fresh server
+state, exclude an unobserved future server cancellation, renew a deadline or grant
+retry eligibility. Retired/failed phases and caught report failures cannot regain
+permission. A pending condition receipt cannot be bypassed by another child Task.
+Independent retirement remains possible and required after permission is withdrawn.
+
+Both stop authorities, admission-only drain, stale phase, failed/in-flight report,
+owned child Task use, expiry before timeout callback, and each consumer's actual
+check-to-write/submission ordering require qualification. Direct callback fakes must
+implement the public port deliberately; no getattr fallback to a private object or
+optional no-op permission is part of production. Positive replay remains gated
+until the installed SDK and native consumers demonstrate this boundary.
+
+D177 — Qualify the dispatch boundary without adding a second cancellation owner
+-----------------------------------------------------------------------------
+
+Serious alternatives:
+A. Delay publication for a general cancellation framework, copied stopping flags,
+   or a new versioned provider error envelope.
+B. Publish only source-level permission tests and let providers infer installed
+   compatibility from their previous package.
+C. Qualify the existing owner at task entry and real dispatch, issue one immutable
+   package, and keep independently owned investigations separate.
+
+Choice: C. All four provider owners accepted the final phase-permission and exact
+held-failure APIs. Their previous-package witnesses reached actual write or
+submission after local stop; these are evidence for the shared correction. Core
+controls exercise both scientific stop authorities, admission-only drain, expired
+phase, owned child Tasks, caught condition failure, in-flight report refusal and
+an actual observation window expiring before its timer callback. The independent
+source audit found no additional ownership defect in the permission change.
+
+The installed-package development lanes passed 648 unit, 33 native-only,
+15 contract and 174 integration checks; repository quality passed 206 checks.
+These controls exercise authored transports, sessions and recording dispatches,
+not model accuracy or deployment. Immutable wheel/source-rebuild qualification
+and each provider's actual receiving path remain separate release/adoption gates.
+
+An initial concern about executor cancellation leaving a phase active was
+withdrawn after tracing the existing monitor: it expires that phase before
+requesting task cancellation. Adding another cancellation flag would duplicate
+that owner without an observed gap. Independent observer cancellation still does
+not withdraw scientific permission. Provider-owned child cancellation remains a
+binding lifecycle duty; this change does not invent a new cancellation service.
+
+NMRPeak's separate intermittent delivery-read event-loop callback failure remains
+under investigation. A small selector reproduction matches a suspected dependency
+race but is not execution of that dependency and does not prove causality. Preserve
+that distinction; do not suppress event-loop errors or weaken retirement to make
+qualification pass. The provider's bounded stop witness and permission adoption
+remain independently testable. No new live scientific Job is needed for this
+release, and an SDK version change alone does not require a delivery-daemon restart.
+
 Supporting qualification references
 -----------------------------------
 

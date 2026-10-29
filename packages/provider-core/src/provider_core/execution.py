@@ -181,9 +181,26 @@ class _ConditionReporter:
 
     def require_active(self):
         if not self.active:
-            raise ExecutionRefused("Cannot report an analysis condition: its session phase has ended")
+            raise ExecutionRefused("Cannot continue analysis: its session phase has ended")
         if self.failure is not None:
             raise self.failure
+
+    def require_execution(self):
+        """Check the actual phase owner before the caller commits another effect."""
+        self.require_active()
+        try:
+            if self.reporting:
+                raise ExecutionRefused("Cannot continue analysis while its condition report is awaiting completion")
+            self.executor._require_live_permission()
+            deadline = self.executor._observation_deadline
+            if deadline is not None and asyncio.get_running_loop().time() >= deadline:
+                raise ObservationGapExpired(self.executor._observation_recovery.gap_seconds, executor=self.executor)
+        except Exception as cause:
+            # A caught refusal must not let the binding return an otherwise
+            # publishable outcome. Keep this same original phase failure.
+            self.failure = cause
+            self.executor._remember(cause)
+            raise
 
     async def __call__(self, condition_code):
         self.require_active()
@@ -523,6 +540,7 @@ class AttemptExecutor:
     async def _call_session(self, operation, reporter, *args):
         try:
             try:
+                reporter.require_execution()
                 result = await contain_task_exit(operation, *args, report_condition=reporter)
             except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cause:
                 if reporter.failure is not None and cause is not reporter.failure:
