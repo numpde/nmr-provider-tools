@@ -4477,3 +4477,70 @@ with unsettled HTTP and independent cleanup. Its full maintained Python 3.12 ima
 passes pip check; the native-only image excludes HTTPX/crypto/CFFI/http_sf and
 passes native imports. Remaining work is displaced live lifecycle/API/recovery
 removal, final repository/native integration and canonical images. No live change.
+
+D143 -- Keep producer drain distinct from the durable publisher's stop policy (2026-10-29 06:44 UTC)
+--------------------------------------------------------------------------------
+
+SECS's bounded canary critique questioned the maintained shared daemon's finite
+Docker stop grace, then withdrew the proposed blocker after tracing its durable
+obligations. D119's no-kill producer rule cannot be applied mechanically to every
+process: shared delivery commits before intake acceptance and deletes only after
+a matching validated API receipt, with queue volumes preserved across stopping.
+
+Serious alternatives:
+A. Require unbounded stopping for both producers and the durable publisher.
+   This gives one uniform rule but ignores their different ownership: science
+   and an unhanded report can exist only in a producer, while accepted delivery
+   bytes already have an independent durable owner.
+B. Keep each existing owner's stop policy, requiring positive original producer
+   settlement before shared replacement and preserving the publisher's durable
+   queue and exact receipt/delete contract through its finite final grace.
+C. Add a general durable Engine-operation registry before proceeding. That
+   would require a separate design and qualification; no lost durable obligation
+   or harmful replay has been reproduced in the current bounded execution.
+
+Choice: B. No source change or new registry. If a mutating Engine client observer
+expires, root retains the original production IDs and reobserves those containers;
+it must not rerun down or dispatch up while settlement is uncertain. Local client
+or reservation cleanup is not proof that an Engine-side stop finished. No such
+timeout occurred in the actual local switch. The separate operator-held resolution
+is explicit; the critique found no current canary blocker.
+
+Local canary checkpoint (2026-10-29 06:44 UTC)
+-------------------------------------------
+
+Both original provider owners confirmed their single graceful stop completed:
+Magnet incumbent ddd4db7de828817d99d2a258cbb4a03c2045932fc7f7e4b7c09723cc8bdc2d1e
+exited 0/OOM false; NMRNet's exact original provider exited 0/OOM false/restarts 0
+and its lifecycle reported service settled. The owners retained dependencies;
+NMRNet subsequently used its maintained down/install with volumes preserved.
+Passive held exclusions were not interpreted as a queue-empty claim.
+
+After both producer drains, original live IPC GET inventories showed both
+nmrnet-fw-a and magnet-fw-a at 0 pending/0 held, publisher running, capacity
+8 items/16 MiB each. Root did not open SQLite or run the stopped held CLI.
+
+Maintained local shared down completed positively, exact old project containers
+were absent, then up used the unchanged original neutral definition and qualified
+runtime. New daemon:
+4a832a4d36935760e6ed320f51b1b443f788386f65ba935580d6ec89fb23c46c
+New proxies:
+8ef91aed54e22189637e235fa0834ba547a48fb01aad5b99fdd4f42f34610126
+0139658f842593041b0174338299cc3341b0f8b3714347a232e2e552fb32f0c0
+All three run exact d99dcac8 shared image, are healthy, restart count 0, OOM false.
+Both new API initializers and the shared initializer exited 0. Post-switch IPC
+inventories retain both binding names, capacities and running publisher state.
+
+All five original queue/IPC/route volume metadata records match exactly before
+and after for Name, CreatedAt, Driver, Options, Labels, Scope and Mountpoint.
+A recreated socket inode is not confused with a replaced volume. SECS independently
+reviewed these captured metadata/IPC/runtime receipts and found no mismatch; it
+made no separate Engine or live-state claim.
+
+Receipts: /tmp/provider-core-0.5.1-cutover-preflight/local-{receipt.json,
+pending-before.json,pending-after.json,volumes-before.json,volumes-after.json,
+runtime-state.txt,installed-version.txt}. Maintained operation logs:
+/tmp/sdk-051-local-shared-down.log and /tmp/sdk-051-local-shared-up.log.
+Both owners were signaled to resume at 06:43 UTC. Their actual resumed consumer
+image/version/readiness results are pending; ProArt remains on the incumbent
+services until those local consumer proofs are received.
