@@ -1718,3 +1718,134 @@ The shared tooling currently renders delivery proxies; inspect actual provider
 host recipes and agree the common projection before adding code. Do not copy the
 API schema into four host parsers or install the SDK into host Python. The exact
 provider route projection remains under joint review.
+
+D059 -- Give fresh read-capability renewal its own narrow permission (2026-10-29 00:06 UTC)
+--------------------------------------------------------------------------------
+
+Serious alternatives:
+A. Reuse can_retry_read for capability POSTs or copy SDK-private classifiers into
+   SECS. This confuses safe GET repetition with a new retention-changing mutation.
+B. Permit any settled 500/429 using the fresh-Hello analogy. SECS and independent
+   review found a route-specific contraindication: capability 500 requires
+   operator diagnosis, and this route does not declare 429.
+C. Expose can_renew_read_grant for the exact current settled issuance failure,
+   selected Job/Upload and POST target, using only reviewed recovery evidence.
+
+Choice: C. Preserve fresh-signing/temporary transport/gateway evidence and admit
+only the complete correlated upload_read_not_finalized conflict. Removal, purge,
+authorization, 404, malformed/incomplete pending replies, 500 and undeclared 429
+do not gain automatic renewal permission. The caller still owns bounded request
+count, pacing, stop and source-selection policy; the SDK never sends implicitly.
+
+Authority is the pinned read-capability POST in
+packages/provider-core/tests/fixtures/nmr_api_v1/openapi/openapi.v1.json:
+x-nmr-recovery.mode=new_read_capability, with the 500 response explicitly requiring
+diagnosis and preservation of request_id. A later intentional issuance is a fresh
+capability and may extend retention further; it is not recovery of a lost bearer.
+Legacy SECS explicitly excluded capability 500 for the same reason. The broader
+Hello analogy was considered and rejected after reading this primary contract.
+
+Keep issuance_may_have_committed unchanged. Pending-code admission already relies
+on the SDK's existing bounded problem/header/correlation owner, not a new parser.
+Add pending-specific malformed/duplicate/missing request-ID, topology and JSON
+witnesses, plus incomplete-head refusal and retained uncertainty assertions.
+Any broader automated 500/edge-rate recovery requires an explicit API contract
+decision; it cannot be smuggled into provider migration as compatibility.
+
+Counterevidence considered: NMRNet pointed to the general new_read_capability
+guidance as permission for another issuance after an uncertain response. Reading
+the complete pinned 500 description resolves the scope: specific diagnosis comes
+before that general guidance. A later deliberate fresh issuance is permitted;
+automatic recovery without the required diagnosis is a different decision.
+NMRNet withdrew the claim that excluding 500 was an implementation defect.
+
+D060 -- Contain process-control exceptions at retained Task entries (2026-10-29 00:33 UTC)
+--------------------------------------------------------------------------------
+
+Magnet and NMRPeak reproduced raw SystemExit/KeyboardInterrupt escaping retained
+asyncio Tasks and aborting the loop before sibling/owner cleanup. These witnesses
+inject failures into actual SDK/consumer ports; they do not show an ordinary
+native socket failure or real OS signal behaving this way.
+
+Serious alternatives:
+A. Keep separate local guards in each provider while leaving the SDK's inner
+   scientific Task unguarded. Outer containment cannot protect an inner Task.
+B. Return new outcome objects or add a general Task/executor manager. This
+   expands scheduling and exception contracts beyond the demonstrated boundary.
+C. Use one callable-entry coroutine that contains only raw process-control
+   exceptions inside the same Task, and retain groups at actual cleanup owners.
+
+Choice: C. Public contain_task_exit(operation, /, *args, **kwargs) invokes the
+callable after entering the existing Task and groups only KeyboardInterrupt and
+SystemExit with their exact original leaves. It creates no extra Task or executor
+and preserves ordinary exceptions and cancellation. The coroutine callable is
+not invoked before task submission, avoiding an unsubmitted inner coroutine.
+Wrapping a wait for an already-created unsafe Task is not sufficient.
+
+Apply it before the SDK's inner scientific Task can exit, and within lifecycle
+try scopes that own cleanup. Explicitly retain BaseExceptionGroup while continuing
+independent native, API, source and controller cleanup; a wrapper alone does not
+settle anything. Preserve the existing primary cancellation priority and exact
+independent failure evidence. Do not broaden diagnostic-sink suppression, invent
+worker_crashed/FAIL, release claims early or add scientific replay.
+
+CLI owners must handle the contained group after cleanup through existing safe
+failure projection. The helper does not grant a successful process exit or define
+an OS signal. Raw group tracebacks can disclose private messages; the process owner
+must retain original evidence without rendering it verbatim. Stop this fault slice
+after the bounded shared/consumer proof; ordinary delivery/outage recovery and the
+shared route remain the next priorities.
+
+D061 -- Keep NMRPeak's scientific I/O scheduling with its loaded streams (2026-10-29 00:33 UTC)
+-------------------------------------------------------------------------------------
+
+Serious alternatives:
+A. Preserve its manual result Future plus a default-pool dispatch Task. This
+   retains a reservation/cancellation race and two overlapping operation handles.
+B. Add a shared science scheduler to the SDK. Model-stream policy is provider-owned.
+C. Give each of the two loaded streams one serial scientific executor, submit
+   the actual operation before observation, and use shared await_original.
+
+Choice: C, following NMRPeak's source review. Reject overlap before submission,
+keep blocking frame bodies private, and retain warm workers across ordinary
+Attempts. Native setup/read remain with the SDK's separate control owner.
+Retirement joins the actual scientific Future and observes physical executor
+release before claiming it; timeout/cancellation retains the same owners and
+exclusion. Two scientific/two native owners are not a proof of the whole process's
+OS-thread count; include service, held and proof work in actual resource checks.
+
+D062 -- Share provider API route rendering, preserve private grants (2026-10-29 00:33 UTC)
+-------------------------------------------------------------------------------
+
+All four providers reviewed the actual permission problem. Delivery's route
+directory/socket are owner0700/0600; a different provider UID cannot borrow that
+socket merely by receiving delivery's IPC group or a read-only mount.
+
+Serious alternatives:
+A. Widen the existing delivery route to a shared group-socket contract. This
+   changes current trust, stale-socket and upgrade semantics.
+B. Generate a separate private provider API proxy from the selected binding
+   using one SDK renderer, under the actual provider UID/GID.
+C. Keep four independent route renderers, direct API egress or copied parsers.
+   This leaves routing intent and interface enforcement inconsistent.
+
+Choice: B, jointly supported by all four peers. Move the existing delivery proxy
+rendering authority into the SDK and use it from delivery and provider tooling.
+Keep credentials out of the proxy, the exact API authority/TLS origin unchanged,
+and model/chat/store egress separately owned. Inputs include the selected binding,
+immutable image/interpreter, explicit deployment namespace and actual UID/GID.
+
+Support two existing grant owners: caller-owned private bind directories and
+initialized named volumes. Do not force NMRNet's private bind into a named volume.
+Named volumes need narrow shared initialization; binds retain their existing
+ownership/capture authority. A source-relocation map from the generic capture
+boundary preserves frozen resolver bytes without adding another route setting.
+The proxy uses only its resolver relocation, never credential/CA contents.
+
+Return exact service/network/storage and read-only client socket grants, with
+readiness/dependency and stop ordering. Qualify actual UID traversal/connect,
+read-only borrower access, two deployment namespaces, no-clobber/restart, route
+loss without direct fallback, local/mapped/external routing and signed HTTPS.
+Magnet's current API-derived extra_hosts can also affect a model using the same
+hostname: trace and preserve or explicitly migrate that model mapping before
+deleting it. Separate transport objects alone do not prove unchanged routing.

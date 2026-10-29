@@ -403,6 +403,27 @@ class ProviderAPI:
             and failure.request_method == "GET"
         )
 
+    def can_renew_read_grant(self, failure, *, job_ref, upload_ref):
+        """Permit fresh issuance after this exact settled grant failure.
+
+        A fresh capability may extend Upload retention. This is not replay or
+        recovery of an earlier bearer and never retries the POST implicitly.
+        """
+        require_job_ref(job_ref)
+        require_upload_ref(upload_ref)
+        if (
+            type(failure) is not ApiFailure or failure is not self.last_failure
+            or not self.retirement_confirmed or failure.request_method != "POST"
+            or failure.request_target != (
+                f"/provider/v1/jobs/{job_ref}/uploads/{upload_ref}/read-capability".encode("ascii")
+            )
+        ):
+            return False
+        return self._retryable_failure(failure) or (
+            failure.response is not None and failure.status == 409
+            and failure.problem_code == "upload_read_not_finalized"
+        )
+
     def can_retry_job_discovery(self, failure):
         """Permit paced discovery reads while provider access may recover.
 
