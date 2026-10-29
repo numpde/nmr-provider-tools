@@ -2559,3 +2559,253 @@ and native cleanup proof. Concurrent exchange/aclose observe the same original
 owner, with no extra Task, Future, outcome copy or SDK scientific classifier.
 Preserve existing cancellation causal evidence when adding the late failure;
 raw process-control exceptions remain contained at the actual Task boundary.
+
+D085 -- Share NMRPeak HTTP ownership without changing scientific wire policy (2026-10-29 01:45 UTC)
+--------------------------------------------------------------------------------
+
+Source review found that NMRPeak's local response-release collector competes
+with the SDK's intended HTTP lifecycle owner, but directly replacing its model
+adapter with ChatEndpoint would change actual admitted behavior.
+
+Serious alternatives:
+A. Force ChatEndpoint adoption now. Its HTTPS-only endpoints, request fields,
+   finish_reason rules and diagnostic caps differ from NMRPeak's tested protocol.
+B. Expand the local release registry and keep a second transport lifecycle.
+   This repairs one defect while strengthening the owner intended for deletion.
+C. Preserve NMRPeak's prompt/parser/repair/status/retry policy and move its actual
+   request/body/close lifetime to qualified shared HttpTransport operations.
+
+Choice: C. The concrete gaps are explicitly admitted HTTP alongside HTTPS,
+decoded rather than raw bounded bodies (256 KiB success, 16 KiB diagnostics),
+and authoritative non200 response status when optional body/close fails. Keep
+received-head evidence separate from permission to retry: unconfirmed retirement
+must still block resend/fallback. Unexpected adapter/invariant RuntimeError must
+escape, rather than become an operational endpoint fallback.
+
+NMRPeak keeps stream=false Chat Completions and its model-specific normalization;
+HTTP body streaming here is bounded reading, not SSE. Shared ChatEndpoint's
+parallel_tool_calls=false, finish_reason admission and repair semantics are not
+silently imposed. After shared transport compatibility is qualified, delete the
+local release-task set, release scheduler/join and competing HTTPX lifecycle.
+Exact transport API and codec bounds remain under joint review before edits;
+ordinary signed provider API stays HTTPS with its existing strict defaults.
+
+D086 -- Deliver the verified source before recovery diagnostics (2026-10-29 01:45 UTC)
+--------------------------------------------------------------------------------
+
+The initially proposed on_recovered callback can raise after UploadTransfer has
+released its verified closed-file receipt. Treating that as ordinary acquisition
+failure loses the handoff even though the source is already available.
+
+Serious alternatives:
+A. Catch and suppress the callback or overload last_failure after success. This
+   hides diagnostics or changes that owner's established outcome meaning.
+B. Add a receipt-bearing exception or change the lower transfer handoff protocol.
+   This expands resource and exception contracts for a diagnostic observer.
+C. Remove the post-handoff SDK callback and expose bounded recovery evidence;
+   composition first receives the verified result, then reports that evidence.
+
+Choice: C, jointly agreed with NMRNet. Optional UploadRecovery contains
+maximum_attempts, initial_seconds, maximum_seconds, stopping and on_retry only.
+Omitted recovery preserves one-shot behavior. The attempts cap includes the
+initial attempt of one logical inspect/acquire/acquire_file call; do not nest
+independent retry counters or reset existing request/byte/deadline budgets.
+
+Read-only JobUploads.recovery_failure belongs to the current logical operation,
+including success, failure and cancellation. Retain the exact first outage and
+first potentially committed issuance; a stable group holds at most those two
+references when distinct. Reset only when the next operation is admitted. This
+is neither a public historical store nor a copied receipt/outcome flag. NMRNet
+must project this protected evidence promptly, before another source operation
+resets it, and only after adopting any returned bytes/file receipt.
+
+on_retry is a bounded synchronous observer before another request. If it raises,
+fail closed and retain both original outage and notice failure without another
+send. NMRNet's existing protected reporter normally retains sink/render errors
+itself. No new SDK sink suppression is introduced.
+
+Scientific stopping during a paced wait ends acquisition with UploadFailed and
+its observed outage; an Event is not an invented task cancellation. Actual
+caller cancellation stays the original CancelledError and is never retried.
+Apply the existing public GET predicate, including its complete500/429 policy;
+D059's 500/429 refusal is specific to fresh read-grant POSTs. Retire using the
+actual original owner: current API/buffered-store operations use owner=None,
+while file transfer uses the source owner's actual grant. Fresh issuance always
+revalidates the original selection; lost-reply uncertainty remains evidence even
+after a later fresh grant succeeds.
+
+D076 follow-up qualification: NMRPeak reproduced marking a scientific Future's
+failure observed before an awaited native observation could itself be cancelled.
+Mark it only when the failure actually reaches outward observation. A separate
+close-start fact identifies a stop-induced read wakeup; it does not establish
+successful closure. Keep that fact distinct from the existing closure-confirmed
+proof. The owner reports 13 focused analysis tests and independent review for
+these two causal corrections; native/Compose/final-image proof remains separate.
+
+Open design -- Admit API loopback according to its actual proxy namespace (2026-10-29 01:51 UTC)
+--------------------------------------------------------------------------------
+
+Magnet's old unconditional loopback-origin refusal was justified by direct
+provider-container routing. Mapped/external shared proxies use host network;
+local mode uses the selected Docker network. Those are different namespaces.
+
+Serious alternatives under review:
+A. Keep the unconditional local guard. This rejects legitimate host-network
+   loopback grants.
+B. Translate local loopback to host-gateway. The shared ServicePolicy deliberately
+   uses literal assignments; a literal authority must retain its own address.
+   Such a translation invents a different route.
+C. Let shared binding admission express mode-correct destination restrictions,
+   then remove the displaced provider guard after an actual qualified witness.
+
+Prefer C, with exact refusal/admission cases still under review. Existing shared
+code does not translate loopback. The mapped prototype proves hostname localhost
+with preserved SNI, not a literal-IP certificate or local-mode host reachability.
+Do not claim one case proves all modes, and preserve unspecified-destination
+refusal rather than treating an unspecified address as a usable API peer.
+
+D088 -- Add decoded model HTTP to the existing transport owner (2026-10-29 01:51 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak proposed the smallest explicit shared operations needed by D085.
+
+Serious alternatives:
+A. Request identity encoding only or decode in the provider. The former changes
+   accepted replies; the latter duplicates codec/lifecycle authority and can
+   allocate unbounded decompressed data before enforcing the provider's cap.
+B. Replace the scientific protocol with ChatEndpoint. This changes unrelated
+   request/parser/repair semantics documented in D085.
+C. Add an explicit decoded exchange on the same retained HttpTransport owner,
+   with plaintext opt-in and bounded codec/body policy.
+
+Choice: C. HttpTransport gains allow_http=False; only the model adapter explicitly
+opts into direct HTTP. Refuse plaintext/proxy combinations until separately
+qualified. Existing HTTPS verification and signed API defaults do not change.
+Add exchange_decoded with success_status=200, maximum_bytes and error_maximum_bytes,
+using the same original exchange, deadline, retirement and supplied owner.
+Raw exchange remains unchanged for signed API and whole-file source transfers.
+
+SDK owns incremental gzip/deflate decoding, identity bodies, status-selected
+limits, stream completion and response/client cleanup. The decoded limit must
+bound allocation inside decompression with remaining+1 output allowance, not
+merely reject an already huge yielded bytes object. Preserve actual received
+headers on decode/size/close failure and validate codec completion; unsupported
+encodings do not get silent fallback. Exact supported concatenation/trailing
+semantics and diagnostic exception surface still require source-based review.
+
+NMRPeak's adapter owns whether a received non200 status remains authoritative
+when optional diagnostics fail. That does not grant retry/fallback before actual
+retirement. Keep unexpected local RuntimeError distinct from classified network/
+body rejection. Account consumed wire work at its existing transport boundary;
+decoded-body limits are not a refund or a new scientific retry budget.
+Qualify gzip decoded overflow, received400 with failed optional read, close failure
+blocking retry, and cancellation/process-control failure retaining the same
+response owner before deleting the competing local lifecycle.
+
+D089 -- Keep provider service identity stable across API binding changes (2026-10-29 02:08 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet challenged D079/D082 with actual source and Compose evidence: every
+provider project has one selected API binding, while delivery serves several.
+Hashing the provider's service role by that binding introduced stopped orphans
+and roughly 80 lines of new incumbent-inventory/handoff machinery. A disposable
+Compose witness showed that unchanged provider/api roles let a new generation's
+recipe find and down the old containers despite different container names.
+
+Serious alternatives:
+A. Keep per-binding service names everywhere and maintain new per-provider
+   inventory/old-recipe handoff code to compensate for that changing identity.
+B. Rename returned service keys and dependencies in every consumer. This splits
+   composition authority and can miss initializer/network references.
+C. Let the shared renderer accept one explicit composition service name, while
+   preserving its identity-derived default for multi-binding delivery.
+
+Choice: C, after all four providers checked actual role collisions and an
+independent source audit traced the deletion boundary. Add service_name=None to
+render_api_route and optional --service-name to its CLI. Delivery omission keeps
+exact api-<hash>/api-init-<hash> names. Single-binding providers pass api; the SDK
+derives api-init and all service/network/dependency references coherently.
+Do not add a separate initializer override or caller-side recipe rewriting.
+
+Composition role is not API principal identity. Binding hash still owns exact
+socket/storage/TLS/route grants; namespaces still isolate production/preflight.
+D079's route-purpose labels remain useful ownership metadata, never authority by
+themselves. Existing image, volume, generation and foreign-owner checks remain.
+Magnet still needs D074's independent validation project and confirmed borrowers.
+
+Actual DNS review found API services public-api/provider-api and explicit
+nmr-provider-api aliases, not a depended-on bare api alias. NMRNet's pre-refactor
+api role already joined that network; the shared route dials frozen addresses.
+No demonstrated collision justifies an endpoint-alias API or four invented names.
+
+Supersede D082's newly introduced automatic stopped-container deletion: it was
+motivated by changing role identity, not an independent requested product effect.
+Restore NMRNet's previous install behavior (refuse running, freeze stopped) and
+ordinary down without orphan removal; retain its prior clean provider-exit,
+missing-provider/dependency, borrowed-bundle and existing-container up checks.
+Delete the new admit_stopped_incumbent/retire_stopped_incumbent schema, helpers,
+handoff and temporary --all install gate once the fixed-role cut is qualified.
+Do not keep that machinery while claiming it was simplified. Automatic deletion,
+if independently requested later, still needs its actual ownership proof.
+
+This withdraws an introduced complication; it does not grant deletion of foreign
+containers or treat a stable role as cleanup confirmation. Existing prototype
+resources are retired through their original owned recipe, not a permanent
+compatibility/migration path. Providers with named route storage retain their
+exact volume ownership checks; stable roles solve service discovery only.
+
+D052 review reminder: a peer's broad active-goal wording again suggested removing
+all scientific retries. The specific recorded pure-prediction decision remains
+authority unless explicitly superseded; goal shorthand alone cannot silently
+change it. Reconcile actual user instructions and the stated retirement/crash
+conditions before deleting scientific policy or its tests.
+
+D090 -- Recognize a real proxy connection failure through its retained context (2026-10-29 02:15 UTC)
+--------------------------------------------------------------------------------
+
+SECS's actual signed-main route witness stopped only its private proxy while the
+direct TLS peer stayed healthy. ConnectError retained native ECONNREFUSED in
+__context__, with no __cause__. Shared fresh-Hello classification rejected it,
+causing provider exit/restart even though no direct fallback occurred.
+
+Serious alternatives:
+A. Add a SECS errno retry shim. This leaves the same defect for other providers.
+B. Walk arbitrary exception context or classify error text. This can turn an
+   unrelated local failure into network recovery permission.
+C. Extend the existing bounded exact-wrapper transport predicate to use implicit
+   context only when an explicit cause is absent.
+
+Choice: C at transport.temporary_io_failure. Keep explicit-cause precedence.
+Permit context fallback only for exact httpcore.ConnectError, following
+the existing delivery-client precedent. Do not extend it to errno-less native
+OSError or other wrappers merely because an incidental context exists. NMRNet
+identified that overbroad draft during independent source review.
+Keep the existing reviewed native errno/types and depth limit; unknown wrappers,
+TLS/certificate and permission failures remain excluded. Existing API/Delivery
+callers use this one authority, with actual retirement still required. Preserve
+delivery's separate absent-IPC-socket permission; do not globally make arbitrary
+ENOENT files retryable. Qualify the same actual SECS outage without consumer
+shim, scientific retry or a provider restart.
+
+D091 -- Admit local API destinations in the proxy's actual namespace (2026-10-29 02:15 UTC)
+--------------------------------------------------------------------------------
+
+Resolve D087's mode question. The shared binding owner already controls origin,
+mode and explicit addresses; providers must not reinterpret these as host-gateway.
+
+Serious alternatives:
+A. Keep four unconditional loopback refusals. This rejects legitimate mapped/
+   host-network API endpoints.
+B. Rewrite local loopback to a host bridge address. This changes literal route
+   intent and violates ServicePolicy's literal-authority rule.
+C. Reject unusable destinations at shared binding admission, allowing valid
+   host-network loopback while local mode requires a peer on its selected network.
+
+Choice: C. Reject unspecified IPv4 origins/peer destinations, and reject loopback
+peer destinations in local mode because they refer to the dedicated proxy's own
+namespace. Mapped host-loopback remains permitted, with original authority/TLS
+identity; external routing retains its explicit interface/resolver grants.
+Use the admitted ServicePolicy address facts rather than another host parser.
+Remove displaced consumer guards only after shared admission and the appropriate
+mode witness. This is not a DNS/host-gateway discovery fallback or a claim that a
+hostname TLS witness qualifies every literal-IP certificate.
