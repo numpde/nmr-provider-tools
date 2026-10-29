@@ -3761,9 +3761,11 @@ C. Check the actual loop time when observation resumes; past the cap, retain
    timeout/failure and original cleanup evidence instead of returning new success.
 
 Choice: C. This is an opt-in absolute cap, not just another relative wait hint.
-Keep the already completed original task/result and its head/cleanup facts at
-their existing owner; retirement may confirm settlement but cannot turn deadline
-failure into a usable response. Preserve any independent native failure under
+Retain the necessary timeout, original head and cleanup evidence. Pending work
+stays with its original task; a positively settled exchange can be released.
+Late bodies are unusable and do not require another response store. Retirement
+may confirm settlement but cannot turn deadline failure into a usable response.
+Preserve any independent native failure under
 the existing failure/interruption rules. None keeps the published default timing.
 Add one causal scheduling witness before correcting this admission check; do not
 invent a new timestamp registry or change NMRNet's non-opt-in scientific policy.
@@ -3817,6 +3819,52 @@ argument no longer justifies leaving affected providers on 0.5: this newly prove
 shared availability fix affects normal API/delivery operation and needs coordinated
 consumer adoption. Native/scientific code stays unchanged; no numerical reruns
 are required merely because package metadata changes.
+
+D127 -- Project exact shared deployment refusals without CLI import cycles (2026-10-29 05:19 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's actual projection CLI supplied the one-argument owned_details function
+to failure_evidence's three-argument describe_owner hook, replacing a missing
+binding refusal with TypeError. Its owner is correcting that caller. Separately,
+the shared default projection omits BindingDefinitionRejected and
+RouteProjectionRejected, although their code-owned messages are safe. NMRNet
+and Magnet already preserve some outer CLI reasons; do not claim universal loss.
+
+Serious alternatives:
+A. Render arbitrary unknown exception text/notes. This can expose private inputs.
+B. Add another consumer-specific type/message wrapper. This duplicates the
+   shared admission owner and repeats the hook-arity hazard.
+C. Register the exact shared types in owned_details, with diagnostics imported
+   only at CLI boundaries, then delete displaced CLI-only message adapters.
+
+Choice: C. Preserve existing public error classes/imports and protected native
+causes. deployment_binding already uses CLI-local diagnostic imports; apply that
+precedent to deployment_route to avoid a projection/diagnostics import cycle.
+Do not add a dynamic registry or compatibility arity guessing. Document the
+distinct hook signatures, and qualify direct default projection plus CLI import
+orders and privacy. Unknown types and subclasses remain unreviewed.
+
+D128 -- Treat an absent configured Unix proxy socket as availability (2026-10-29 05:19 UTC)
+--------------------------------------------------------------------------------
+
+The D124 worker asks about ENOENT at connect_unix: unlike a generic missing file,
+a configured API proxy socket can disappear during ordinary restart. Delivery's
+existing client already has an explicit missing-socket recovery precedent.
+
+Serious alternatives:
+A. Add ENOENT to the global temporary-I/O predicate. This can misclassify local
+   file/configuration/accounting errors as network permission.
+B. Refuse every missing proxy socket and require a process restart. This treats
+   an ordinary route-service lifecycle as a fatal provider condition.
+C. Admit ENOENT only from the original configured Unix connect stage, with the
+   same settled-owner and operation-specific permissions as other availability.
+
+Choice: C. The actual owned backend/stage must establish this is a Unix network
+connection, not a callback, disk read or copied error lookalike. Keep EACCES and
+unknown setup/config faults distinct. No direct fallback, path rewrite or promise
+that a missing socket will appear. Preserve original error evidence and test
+the real missing socket followed by recovery through the same configured path.
+This does not broaden the old generic helper or delivery's separate policy.
 
 D125 -- Bound valid structured diagnostics at the actual output allowance (2026-10-29 05:11 UTC)
 --------------------------------------------------------------------------------
