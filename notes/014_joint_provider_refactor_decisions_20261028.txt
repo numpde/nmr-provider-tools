@@ -2809,3 +2809,340 @@ Use the admitted ServicePolicy address facts rather than another host parser.
 Remove displaced consumer guards only after shared admission and the appropriate
 mode witness. This is not a DNS/host-gateway discovery fallback or a claim that a
 hostname TLS witness qualifies every literal-IP certificate.
+
+D092 -- Keep existing admitted ACL inputs through the shared reader seam (2026-10-29 03:07 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak supplied the actual existing policy: host admission requires the
+operator-owned credential's exact named-UID65532 ACL, then grants that inode
+read-only to the provider. Its bounded regular-file reader uses nofollow/nonblock
+FD admission. Nonsecret binding/config/CA grants use the same explicit ACL model.
+
+Serious alternatives:
+A. Weaken SDK read_startup_file ownership/mode rules to admit every provider's
+   policy. This changes an existing strict reader's authority.
+B. Add a new root snapshot writer, multiplexed stdin protocol and ownership
+   transaction solely to satisfy that different reader's policy.
+C. Use the existing injected read_file API seam and public byte parser with the
+   already admitted provider filesystem grant.
+
+Choice: C. NMRPeak reads only its selected host-admitted RO inputs, then uses SDK
+parse_deployment_bindings and api_settings with that reader. SDK remains the sole
+binding/credential/signing/TLS parser; the caller owns its actual filesystem
+admission. Do not pretend ACL0640 is owner-only0400 or relax the SDK strict reader.
+Fix the existing local reader's missing initial size check and read-plus-close
+failure retention, and qualify actual UID/denial cases. No new writer/protocol,
+chown of the original credential or copied API parser is justified by this case.
+
+D093 -- Retain identity exclusion until actual process death if cleanup is unknown (2026-10-29 03:07 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's actual subprocess witness reported failure while its original SCI
+executor still held a blocked non-daemon thread. The outer with-lock scope closed
+the real FD before Python teardown finished; another process acquired the lock.
+
+Serious alternatives:
+A. Release on coroutine return/error. This confuses main's failure with actual
+   process/SCI termination.
+B. Add a holder process, lock-transfer registry, os._exit or renewed cleanup D.
+   None is needed for the existing integer FD's process lifetime.
+C. Keep that same FD at the actual root and close explicitly only after all
+   actual runner retirement and process.shutdown_ready facts confirm settlement.
+
+Choice: C. Pass the existing lock into _serve, preserving pre-runtime admission
+cleanup. On unconfirmed runtime cleanup leave its integer FD open for kernel
+process-death release; no finalizer/outer with may release it while Python remains
+alive. This is exclusion, not a positive native-cleanup claim. The measured
+RED/GREEN subprocess keeps another process Busy until the original thread is
+released and the failed CLI actually exits; a clean control explicitly releases
+while still alive. Product deadlines remain unchanged. Container/dark-crash
+containment and positively observed native retirement remain distinct evidence.
+
+D094 -- Reject a store refusal before applying the file's body allowance (2026-10-29 03:07 UTC)
+--------------------------------------------------------------------------------
+
+SECS reproduced the installed SDK's tiny-file503 defect: a one-byte grant plus a
+normal JSON503 body exceeded the file allowance before status admission, so the
+settled transfer was not retryable. Legacy SECS checked status before body.
+
+Serious alternatives:
+A. Add a guessed separate error-body budget. This reads unused error content and
+   adds a policy allowance unrelated to the declared source.
+B. Retry every response-head503 regardless of local failure origin. This can
+   hide accounting/disk failures or unresolved interruption.
+C. Admit whole-file headers at the actual transport head/body boundary and
+   retain the exact source-owner rejection evidence.
+
+Choice: C. Add synchronous before_body(head) to the existing transport exchange
+mechanism, after retaining the actual head and before stream accounting or file
+writes. UploadTransfer supplies its existing header validator and retains the
+exact exception it produced. Only that current owned refusal/head/grant can
+permit401/503/507 after confirmed transport/private-file cleanup. Network and
+header rejection are different evidence; wrong200 headers, disk/account errors,
+deadline/caller interruption and foreign/stale failures gain no permission.
+Remove displaced post-download header proofs rather than keep duplicate owners.
+Bytes already consumed remain spent; an error body intentionally not consumed
+is not a refund. No bearer replay or implicit scientific/request retry is added.
+
+D095 -- Recognize a marked real body reset without walking incidental context (2026-10-29 03:07 UTC)
+--------------------------------------------------------------------------------
+
+A real pinned-httpcore reset witness retained exact ReadError as network_failure,
+but PoolByteStream's raise-from-None cleared its explicit cause. Its context was
+exact anyio.BrokenResourceError with an explicit ConnectionResetError104 cause;
+that wrapper also contained unrelated IndexError/SSLWantRead context.
+
+Serious alternatives:
+A. Traverse every ReadError/OSError context. This repeats D090's rejected
+   incidental-context permission.
+B. Add consumer retry shims or leave a physically settled real reset fatal.
+C. Require the original exact network-failure pointer and the pinned exact
+   wrapper/explicit-native-cause shape at the shared predicate.
+
+Choice: C. Extend temporary_io_failure with optional network_failure evidence.
+Only original ReadError is that marker, has no explicit cause, and has exact
+BrokenResourceError context may use that wrapper's explicit native cause through
+the existing bounded errno/type predicate. Count both edges in its depth budget.
+Do not inspect its incidental context. Pass actual ExchangeFailed marker evidence
+from shared API/delivery/transfer callers where applicable; never a provider bool
+or copied classifier. Bare helper behavior keeps only D090's ConnectError
+context exception; TLS/permission and local disk/account lookalikes remain fatal.
+
+D096 -- Jitter source recovery at its existing backoff owner (2026-10-29 03:09 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet identified note013 U27's explicit jitter requirement. Both its existing
+service and shared delivery worker use uniform(delay/2, delay); deterministic
+source waits would synchronize providers after the same outage.
+
+Serious alternatives:
+A. Keep deterministic waits despite U27. This gives no de-synchronization benefit.
+B. Add consumer sleeps or another backoff framework. This splits the source
+   owner's original deadline and pacing authority.
+C. Sample the existing source backoff's half-to-full interval at that owner,
+   then apply the admitted server Retry-After floor.
+
+Choice: C. Use system randomness, preserving caller/model global RNG state.
+maximum_seconds caps local exponential delay; never shorten Retry-After. The
+sampled final wait must fit the same original deadline before and after the
+bounded notice. Stop/cancellation/count/byte limits are unchanged. This is one
+bounded timing policy, not a new scheduler or operator setting.
+
+NMRNet's chosen consumer cap is three logical attempts with its existing
+service.idle_seconds/api_backoff_max_seconds and scientific stop event. Its
+service already validates idle<=maximum, so no new configuration refusal is
+introduced. Existing eight-request source limits can still permit fewer actual
+downloads; do not describe the attempt cap as guaranteed capacity.
+
+D097 -- Define an explicit bounded decoded-response profile (2026-10-29 03:23 UTC)
+--------------------------------------------------------------------------------
+
+Actual HTTPX0.28.1 inspection found that gzip ignores trailing/concatenated data
+and does not require EOF; recognized stacked codings can allocate unbounded
+intermediate output. NMRPeak and the shared owner reviewed the compatibility cost.
+
+Serious alternatives:
+A. Preserve silent truncation/unknown-coding behavior and unbounded intermediate
+   allocation. This retains corrupt-response ambiguity and defeats the cap.
+B. Reject every concatenated or stacked encoding. This discards ordinary valid
+   compression without needing to do so for bounded ownership.
+C. Support complete gzip members and bounded codec stacks with an explicit
+   resource profile; reject malformed/trailing/unsupported data.
+
+Choice: C. SDK DecodedBodyRejected has closed reasons size_limit,
+invalid_encoding and unsupported_encoding; retain its original cause and received
+head. It is body-policy evidence, not network-origin evidence. Support identity,
+gzip and deflate, complete concatenated gzip members with aggregate caps, and at
+most four codings. Apply the configured decoded allowance to each intermediate
+stage as well as the final body, enforcing remaining+1 allocation limits.
+
+This deliberately tightens malformed-response behavior. It can also reject a
+valid encoding with oversized intermediate metadata (the measured large gzip
+FNAME example); do not claim HTTPX equivalence or configured-endpoint failure.
+No endpoint is known to require that edge. Prefer the documented bounded profile
+to another stage-budget knob or unbounded compatibility path. Raw SDK exchanges
+remain unchanged. NMRPeak preserves its declared non200-status policy only after
+actual resource retirement, and unexpected local RuntimeError still escapes.
+
+D091 qualification: the maintained literal-IP route lane passed against the
+f23ac0d artifact image, including actual IP-SAN verification, signed127.0.0.1
+authority, expected absent IP SNI, owner0700/socket0600, RO and wrong-UID denial,
+reachable-direct control, no fallback after proxy stop and stale-socket restart.
+The same lane then passed using stable api/api-init names. SECS independently
+passed actual signed-main stable-api RouteDirectory outage/recovery with unchanged
+provider CID/restart0. These are disposable local proofs, not production rollout
+or a local/external/storage matrix.
+
+D098 -- Keep release qualification distinct from canonical product images (2026-10-29 03:36 UTC)
+--------------------------------------------------------------------------------
+
+Magnet/NMRPeak confirmed their normal product image paths acquire published
+GitHub assets. The user rejected temporary production artifact overrides and
+hand-populated wheelhouses; isolated candidate test images are not that proof.
+
+Serious alternatives:
+A. Label a source/candidate test derivative as the canonical product image.
+   This claims a build path that did not run.
+B. Introduce another production candidate override or manually seed its cache.
+   This contradicts the stated workflow and adds a second acquisition path.
+C. Finish qualified SDK artifacts and consumer seam tests, make the release
+   reviewable, then use ordinary published acquisition for canonical image proof.
+
+Choice: C. Final source/artifact identities and release notes must be concrete
+before publication authorization; no publication or rollout is inferred here.
+After an authorized SDK release, consumers use their normal pinned GitHub
+acquisition/build paths and qualify those exact images before deployment claims.
+Keep their completed main-checkout commits reviewable; amend unpublished pins
+when the final issuer record is fixed. f23 remains an intermediate route artifact
+while source-recovery/decoded-HTTP changes remain. No fake canonical-image claim
+or new production override is needed to avoid this dependency ordering.
+
+D099 -- Expose positively classified source-recovery exhaustion (2026-10-29 03:36 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet found the remaining A11 availability gap: every ControllerFailed currently
+stops its service, even after an eligible source outage exhausts its budget and
+all original resources settle. A generic UploadFailed catch cannot distinguish
+this from disk, malformed input, diagnostic failure or programming error. The
+current SDK also checks the attempt cap before classifying the final failure.
+
+Serious alternatives:
+A. Continue after any UploadFailed/ControllerFailed. This treats unknown or
+   unsettled failures as safe operational loss.
+B. Add a consumer classifier over private API/store causes or reset its source
+   session to try again. This duplicates authority or refunds spent budgets.
+C. Let the existing source owner expose a distinct positively classified
+   exhaustion, preserving its original cause and all settlement obligations.
+
+Choice: C. Add UploadRecoveryExhausted as an UploadFailed subtype emitted only by
+explicit opt-in recovery after the current failure qualifies and all required
+original owners positively retire. Attempt/request/time/remaining-byte limits
+can end that permitted recovery; unknown/nonretryable failures, diagnostic faults
+and unconfirmed cleanup do not become this outcome. Preserve original per-send
+API flags and causes. One-shot default behavior stays unchanged. This narrowly
+supersedes D086's terminal-type preservation where a real distinct recovery
+outcome is required; do not normalize unrelated failures into it.
+
+NMRNet may continue unrelated Jobs only after that exact source-owner outcome,
+controller.work_settled/shutdown_ready and factory/resource readiness are proved.
+Keep the original Job's held claim and diagnostics; use existing owns_job and
+live_owners, not another exclusion set or scheduler. Do not infer FAIL, release
+the claim, replay science or promise unlimited continuation. Declared retained
+capacity still applies. Known-closed held-claim reconciliation is a separate
+live lifecycle question; elapsed time or absence from discovery is not proof.
+
+D086 cleanup correction: independent API retirement failure must not skip store
+retirement or a legal retained-file settlement. File settlement depends on actual
+store quiescence, not API retirement success. Retain original source and every
+independent cleanup cause; cancellation preserves its exact prior cause, and
+fatal groups expose the same canonical record without replacing it. Preserve
+that record even when no grant completed: the private file exists before grant
+issuance and may still need its original cleanup. Three causal RED paths and
+their focused GREENs establish this boundary, not another retry permission.
+
+D100 -- Choose deflate framing deterministically before decoding (2026-10-29 03:38 UTC)
+--------------------------------------------------------------------------------
+
+Actual HTTPX fallback depends on whether zlib errors during its first feed.
+NMRPeak demonstrated a valid raw deflate stream whose first two bytes also form
+a valid RFC1950 header; raw and wrapped intent cannot be inferred unambiguously.
+
+Serious alternatives:
+A. Preserve first-feed fallback. Results can depend on network chunk boundaries
+   and a corrupt wrapped stream can be reinterpreted as raw.
+B. Run two candidates until EOF, buffering/replaying outputs. This adds state
+   and still needs a preference when framing is ambiguous.
+C. Buffer the two-byte header, choose wrapped zlib for valid RFC1950 framing and
+   raw otherwise, then require that chosen codec's completion and integrity.
+
+Choice: C, as an explicit bounded profile. Check compression method8, CINFO<=7
+and header modulus31; do not switch format after malformed data, CRC failure or
+trailing bytes. The measured ambiguous valid-raw example can be rejected; record
+that compatibility cost rather than claim HTTPX equivalence or silently mask a
+corrupt zlib wrapper. No configured endpoint is known to need that ambiguity.
+Chunking must not change the decision. finish validates EOF without an unbounded
+flush; feed already returns all allowed output under the configured caps.
+
+D101 -- Bound encoded work as well as decoded output (2026-10-29 03:45 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's independent review found that a decoded-size limit alone permits
+arbitrarily large wire input containing empty members or encoding metadata.
+
+Serious alternatives:
+A. Rely only on decoded caps and the deadline. This removes the existing finite
+   received-byte bound and leaves accounting weaker than the raw transport.
+B. Add a separate operator-facing wire-budget setting. No current consumer
+   needs independently tunable wire and decoded allowances.
+C. Keep a finite wire allowance derived from the existing response allowances,
+   and charge received bytes before decoding in the original exchange task.
+
+Choice: C. exchange_decoded uses max(maximum_bytes, error_maximum_bytes) as its
+wire allowance; status selects the decoded allowance. Both limits apply, as do
+the intermediate-stage caps and original deadline. size_limit can therefore mean
+encoded or decoded overflow. This can reject valid metadata-heavy encodings;
+state that bounded profile plainly. No unlimited empty-member input, second
+exchange, budget refund or extra deployment setting is introduced. This decision
+is approved for implementation; the integrated transport proof is still pending.
+
+D102 -- Capture admitted deployment inputs with the existing publisher (2026-10-29 03:45 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak identified existing retained-tree publication and provider ACL grants.
+These already own its immutable deployment input capture.
+
+Serious alternatives:
+A. Re-read mutable host paths after deriving deployment identity. Then the
+   identity would not describe the bytes used by the running provider.
+B. Introduce another privileged writer, snapshot protocol or parallel manifest.
+   This duplicates existing publication and access authority.
+C. Reuse the retained-tree publisher and ACL transaction, and let the SDK parse
+   the captured bytes through its existing reader callback.
+
+Choice: C. Capture provider.toml, original bindings and selected inputs under
+grants/<original-absolute-path>. Runtime identity covers every captured filename
+and content hash. The callback maps selected SDK reads into that immutable tree;
+the proxy receives only its selected captured resolver input. Scientific run
+identity remains distinct from deployment routing. D092's initial-size and
+read-plus-close failure corrections still apply. This records the agreed design,
+not a claim that final canonical-image qualification has completed.
+
+D103 -- Apply the publication boundary to every provider's build tooling (2026-10-29 03:45 UTC)
+--------------------------------------------------------------------------------
+
+SECS found that its earlier D075 candidate selector was available on ordinary
+wheelhouse targets and could populate the canonical product build cache.
+
+Serious alternatives:
+A. Keep that production selector because it predates D098. This retains an
+   acquisition path the user has since rejected.
+B. Add another permanent qualification switch or candidate cache manager.
+   This replaces one temporary production interface with another.
+C. Remove the selector from ordinary targets; qualify unpublished artifacts only
+   in disposable contexts with distinct test-image identities.
+
+Choice: C. D098 supersedes that part of D075 for all providers. Preserve normal
+pinned GitHub acquisition, issuer hash locks and the independently useful atomic
+publisher. SECS reports the selector deletion and dry-run checks; those establish
+the maintained build path, not a network acquisition or canonical image build.
+Root must distinguish peer-reported work from independently inspected evidence.
+
+D104 -- Retrieve the original operation after observer cancellation (2026-10-29 03:45 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet found that cancelling a shielded observer could lose the original source
+or allocation result, or clear a later owner's task reference.
+
+Serious alternatives:
+A. Treat observer cancellation as original-operation retirement. This can lose
+   live work and its late independent failure.
+B. Start replacement work or add a second ownership registry. This duplicates
+   the outstanding operation and can spend the same grant twice.
+C. Retain the original task, retrieve its eventual result, and clear a reference
+   only while it still names that exact task.
+
+Choice: C. Keep the original cancellation identity and prior cause, retain any
+independent late failure in the existing canonical evidence, and require actual
+factory/controller readiness before continuation. No new task, resource budget
+or scientific replay permission follows. NMRNet reports focused passing checks;
+the final installed-artifact consumer qualification remains pending.
