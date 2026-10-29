@@ -394,7 +394,7 @@ class CapturedNativeTests(unittest.TestCase):
                 command, environment = self.container_policy_command(budget="10")
                 result = subprocess.run(
                     command,
-                    env=environment | {"NATIVE_BEHAVIOR": "", "NATIVE_STATUS": str(status)},
+                    env=environment | {"NATIVE_BEHAVIOR": "", "NATIVE_STATUS": str(status), "PATH": os.environ["PATH"]},
                     capture_output=True,
                     text=True,
                     timeout=5,
@@ -678,7 +678,7 @@ class CapturedNativeTests(unittest.TestCase):
                     # to observe the external scheduler's tiny signal window.
                     self.helper.write_text(source.replace(boundary, f'    kill -{int(signum)} "$BASHPID"\n' + boundary, 1))
                     command, environment = self.outcome_command(mode, next_success=False)
-                    result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=5, check=False)
+                    result = subprocess.run(command, env=environment | {"PATH": os.environ["PATH"]}, capture_output=True, text=True, timeout=5, check=False)
                     self.retain_cleanup(result.stderr)
                     status = 128 + signum
                     self.assertEqual(status, result.returncode, msg=result.stderr)
@@ -1024,25 +1024,43 @@ class CapturedNativeTests(unittest.TestCase):
 
     def test_signal_cancellation_preserves_status_and_retires_resistant_descendant(self):
         for signum in (signal.SIGHUP, signal.SIGINT, signal.SIGTERM):
-            with self.subTest(signal=signum):
-                self.observation.unlink(missing_ok=True)
-                command, environment = self.command()
-                process = subprocess.Popen(
-                    command,
-                    env=environment | {"NATIVE_BEHAVIOR": "resistant"},
-                    text=True,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    start_new_session=True,
-                )
-                self.addCleanup(self.retire_probe, process)
-                self.await_file(self.observation)
-                process.send_signal(signum)
-                stdout, stderr = process.communicate(timeout=4)
-                self.retain_cleanup(stderr)
-                self.assertEqual(128 + signum, process.returncode, msg=stderr)
-                self.assertEqual("", stdout)
-                self.assert_client_retired()
+            process = None
+            try:
+                with self.subTest(signal=signum):
+                    self.observation.unlink(missing_ok=True)
+                    command, environment = self.command()
+                    process = subprocess.Popen(
+                        command,
+                        env=environment | {"NATIVE_BEHAVIOR": "resistant", "PATH": os.environ["PATH"]},
+                        text=True,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        start_new_session=True,
+                    )
+                    self.await_file(self.observation)
+                    process.send_signal(signum)
+                    stdout, stderr = process.communicate(timeout=4)
+                    self.retain_cleanup(stderr)
+                    self.assertEqual(128 + signum, process.returncode, msg=stderr)
+                    self.assertEqual("", stdout)
+                    self.assert_client_retired()
+            finally:
+                # Settle before the next subcase can reuse its observation path.
+                # A cleanup failure outside subTest prevents another scenario.
+                try:
+                    if process is not None and process.poll() is None:
+                        process.send_signal(signal.SIGTERM)
+                        try:
+                            _, stderr = process.communicate(timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS)
+                            self.retain_cleanup(stderr)
+                        finally:
+                            self.retire_probe(process)
+                finally:
+                    if self.observation.exists():
+                        observed = json.loads(self.observation.read_text())
+                        for key in ("pid", "descendant"):
+                            if key in observed:
+                                self.kill_recorded_fixture(observed[key])
 
     def await_file(self, path):
         deadline = time.monotonic() + 3
@@ -1487,7 +1505,7 @@ class StdioNativeTests(unittest.TestCase):
         )
         self.addCleanup(self.retire_probe, process)
         for pipe, expected in ((process.stdout, b"stdout\0\r\n"), (process.stderr, b"stderr\0\r\n")):
-            self.assertEqual([pipe], select.select([pipe], [], [], 2)[0])
+            self.assertEqual([pipe], select.select([pipe], [], [], NATIVE_FIXTURE_WATCHDOG_SECONDS)[0])
             self.assertEqual(expected, os.read(pipe.fileno(), len(expected)))
         self.assertIsNone(process.poll())
         self.assertFalse((self.root / "retired").exists())
@@ -1674,7 +1692,7 @@ class StdioNativeTests(unittest.TestCase):
                         },
                         stdin=subprocess.DEVNULL,
                         capture_output=True,
-                        timeout=5,
+                        timeout=NATIVE_FIXTURE_WATCHDOG_SECONDS,
                         check=False,
                     )
                     self.assertEqual(expected, result.returncode, msg=result.stderr)
@@ -1737,7 +1755,7 @@ class StdioNativeTests(unittest.TestCase):
     def test_unknown_retirement_exit_is_not_public_pipe_eof(self):
         command, environment = self.fact_command(budget="untimed", additions={"NATIVE_BEHAVIOR": "stream-live"})
         process = subprocess.Popen(
-            command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
+            command, env=environment | {"PATH": os.environ["PATH"]}, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
         )
         self.addCleanup(self.retire_probe, process)
         self.await_file(self.observation)
