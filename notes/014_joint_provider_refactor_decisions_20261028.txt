@@ -5059,6 +5059,62 @@ phase and completion facts remain. This changes native diagnostic code and hence
 requires qualified native-image rebuild/replacement through existing deployment
 owners; it does not require another scientific Job or a numerical campaign.
 
+D164 -- Preserve indeterminate-generation causes through the existing exception chain
+----------------------------------------------------------------------------------
+
+Independent source review confirmed an existing Magnet gap: the E01/E02 processor
+catches GenerationIndeterminate, returns an empty AnalysisIndeterminate value, and
+the session subsequently raises a generic AnalysisOutcomeUnresolved. The backend's
+original RunnerRequestIndeterminate cause is lost at that conversion. The final
+uncertain classification is correct; its explanatory provenance is incomplete.
+
+Serious alternatives:
+A. Add a cause field to the empty value and propagate both through another mapping.
+   This repairs provenance but preserves an unnecessary carrier/conversion layer.
+B. Make unresolved analysis a third shared return outcome. That requires new
+   executor disposition semantics and does not address the existing minimal seam.
+C. Raise the shared unresolved exception directly from the original generation
+   exception, removing the displaced local exception/value after consumers migrate.
+
+Choice for the post-deployment D156 migration: C. Use ordinary Python __cause__,
+already traversed by core diagnostics. No mirrored cause field, replay controller
+or automatic terminal action belongs on the shared marker. A fixed reviewed core
+projection can explain the retained uncertainty without rendering arbitrary
+exception text. The receiving recovery event must carry the safe outer failure
+diagnostic; preserving an invisible chain alone does not inform the operator.
+
+Continuation still needs positive original settlement, shutdown readiness, current
+resource readiness and exact retained claim/Job exclusion, with independent cleanup,
+control and caller cancellation respected. Do not call a release-oriented settle
+solely to manufacture a release refusal for an intentionally held claim and then
+call that refusal a cleanup failure. Original timeout/channel exception identity,
+no extra scientific dispatch, no fabricated FAIL, retained finite capacity and
+private-text exclusion are the consequential receiving-path proof obligations.
+This migration remains after the first affected deployment; it is not a prerequisite
+or new SDK dependency for the zero-retry rollout.
+
+D165 -- Bound SECS worker configuration acquisition at the child reader
+---------------------------------------------------------------------
+
+SECS's host preflight checks worker.toml size, but the scientific child later
+calls Path.read_bytes() on the mounted file. An intervening edit can invalidate
+the earlier size check. The actual acquisition owner must enforce its own byte cap.
+
+Serious alternatives:
+A. Rely on the earlier host stat. This leaves the child read unbounded and does
+   not remove the time between admission and acquisition.
+B. Introduce a new configuration snapshot/retry system now. Captured identity
+   will matter for positive retries, but is a larger independent obligation.
+C. Use the existing installed core bounded startup-file reader at the child,
+   retaining the current worker schema and 65536-byte limit.
+
+Choice: C, a SECS-owned correction under its user's direction to improve that
+repository. Retain safe cause reporting and verify descriptor cleanup on refusal;
+do not dump configuration contents into diagnostics. This bounds the actual read.
+It does not prove the config matches an earlier snapshot, authorize scientific
+replay or establish a new production target. No duplicate reader, schema fallback
+or extra version is required solely to enforce the existing acquisition bound.
+
 Supporting qualification references
 -----------------------------------
 
