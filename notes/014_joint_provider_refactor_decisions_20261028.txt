@@ -1577,7 +1577,8 @@ A. Remove NMRNet's established pure-prediction retry because broad goal wording
 B. Treat every uncertain transport failure as permission to recompute. The user
    expressly rejected failure alone as such authority.
 C. Retain only the existing explicit bounded pure-prediction policy: same live
-   Attempt, frozen input/model, confirmed original retirement and remaining budget;
+   Attempt, frozen input/model, confirmed original retirement and a remaining
+   execution slot under the configured per-exchange limits;
    positively observed crashes and restart/dark reconstruction cannot use it.
 
 Choice: C, after reading the exact note021 policy, note022 cutover restriction
@@ -1586,6 +1587,20 @@ retirement facts distinguish the allowed scientific retry from error-driven
 replay. Do not add scientific retries to the shared SDK or imply the original
 calculation did not happen. A positively proved crash reports failure through the
 shared controller; a dark process death creates no reconstructed action.
+
+Budget clarification after tracing the actual owners: _predict permits at most
+two executions. PredictionClient gives each scientific exchange its configured
+prediction_seconds timeout. AttemptExecutor directly awaits session.execute;
+it does not wrap the whole Attempt in one cumulative scientific deadline. The
+deployment's prediction_lifetime_seconds is a native-operation allowance sized
+to include two prediction durations and lifecycle overhead, applied separately
+to each native operation. It is not one remaining-time budget across replacement
+workers. D052's remaining allowance means the second execution slot and those
+actual per-exchange/native limits. No new overall Attempt clock is introduced
+or claimed by this policy. Sources: NMRNet session.py::_predict,
+worker_client.py::_exchange, native_factory.py::_open_role,
+startup_capture.py::prediction_lifetime_seconds and deployment.py native command;
+shared execution.py::_execute_session.
 
 D053 -- Bind startup permission separately from warm retirement (23:39 UTC)
 -----------------------------------------------------------------------------
