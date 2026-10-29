@@ -3219,7 +3219,8 @@ Choice: C. Preserve the distinction between an observed idle infrastructure
 failure and a failure during an actual Attempt. SECS must qualify the ordering
 with its actual adapter, including a worker that exits while idle. Do not infer
 FAIL for an Attempt that was never started, or introduce automatic scientific
-replay. This correction is approved; the exact implementation proof is pending.
+replay. The actual idle-child ordering and stream-cleanup correction is qualified
+through D109/D110; those entries retain the native-versus-controller-port limits.
 
 D107 -- Check that a complete source retry fits the remaining request allowance (2026-10-29 03:53 UTC)
 --------------------------------------------------------------------------------
@@ -3420,3 +3421,48 @@ solely from D098's earlier interpretation. No newer explicit user pause was foun
 This does not authorize this coordinator to deploy the four providers; their
 owners must establish their actual rollout scope and retained obligations.
 Publication is still pending concrete final gates and peer acknowledgement.
+
+Publication outcome, 2026-10-29 04:28 UTC:
+All four named peers reviewed the actual API and authored note016 and reported
+no SDK release blocker before publication. Final publish/prepare passed unit600,
+contract15, integration170, rebuilt-contract15 and native33, plus six exact hash
+receipts. Source a8ce9e6125218a3e790d7f4be71e0aa99f91c51d was pushed normally.
+The maintained publisher then uploaded a draft, downloaded all eight public
+artifact/log files, compared every byte and published v0.5.0:
+https://github.com/numpde/nmr-provider-tools/releases/tag/v0.5.0
+
+Exact final wheel:
+a8f88effa919893c54548b9c56b60965d4f980f4f643dec9444651c434317c9a
+Full install lock:
+4a89888c77b5474f1775fc75d8f8f74f373dd6ac9de6dd114b2edbe9eb67bd9e
+Native install lock:
+91a50625fe4ff78362c86311031687547faa4dfc22eae69d3e86feda34658cb6
+Source record:
+65598628454ae7e894ef8d636bb0c9b991114a8268524e987fa295347b3907e4
+Source distribution:
+b5f80f0e77aed07fd00eb9f0f1800ea1f26b8a651616c8062c134aa356bbf765
+Manifest:
+eac8b41b4d22b255f38ecf0f58c52e6dcf792506e9632bdbfbc80cd3768d930e
+
+The earlier combined candidate's package gate stopped because its explicit
+expected-module inventory omitted decoded_body.py. The module was present in
+the wheel. The correction was folded into its owning unpublished commit before
+final preparation; the final exact gate passes. Wheel and both installation-lock
+bytes are identical across that correction, so consumers retained their actual
+same-wheel proofs rather than rerunning unaffected seams. This is not a claim
+that the earlier failed artifact gate passed.
+
+The maintained image owner built local shared runtime
+sha256:bee2c9fc3a1279efbb95fb08acd28cad1d51cade160a144772f6cbc0b5f4e10e
+from those qualified artifacts. The maintained actual hostname-route lane passed
+signed HTTPS, RO/UID isolation, reachable-direct positive control, no fallback
+after proxy loss, and owned stale-socket restart with confirmed test cleanup.
+Evidence: /tmp/sdk-050-runtime-image.log and /tmp/sdk-050-runtime-route.log.
+This is a local shared-image proof, not canonical consumer-image or rollout proof.
+
+All four peers were sent the published release and final receipts. NMRNet
+reports local consumer commit72035f6; Magnet reports0424fea. SECS's final pin
+amend and NMRPeak's remaining host/maintenance/model-HTTP integration are still
+owned by their coordinators. Canonical consumer acquisition/build qualification
+and any separately authorized live rollout remain outstanding. No shared queue,
+provider process or production deployment was changed by this SDK publication.
