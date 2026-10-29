@@ -5029,6 +5029,36 @@ test test_full_retry_notice_pipe_does_not_prevent_recovery_or_shutdown; the exis
 container lane, original-descriptor watchdog and forced slow-callback threshold
 provide a reproducible causal control rather than an assumption about slow CI.
 
+D163 -- Explain partial computation without dumping numerical results into logs
+-----------------------------------------------------------------------------
+
+NMRNet source review found two explicit payload paths: release.py added full
+completed_outcomes to an exception note after a later geometry failed; worker.py
+added the complete result to a send-failure note. Traceback formatting can carry
+these numerical scientific payloads into the failure frame and Docker stderr.
+Windowing that text does not make the payload an appropriate operator diagnostic.
+Large prefixes can also prevent the failed response fitting the native frame.
+
+Serious alternatives:
+A. Keep the payload because the channel is private. Protected access does not
+   establish a need to copy scientific results into general container logs.
+B. Remove all partial-work evidence. This conceals completed work and undermines
+   transparent explanations of failure and result-send uncertainty.
+C. Store full partial results separately. This requires a defined result/recovery
+   owner and retention contract; a diagnostic cleanup does not authorize it.
+D. Report bounded completion counts and admitted request identities, with explicit
+   omission, retaining original causes separately from numerical output.
+
+Choice: D, an immediate NMRNet-owned diagnostic fix. Never infer zero computation
+from the absence of numerical payload in a report. A failed send remains uncertain
+about receipt; a completed prefix does not authorize replay or mixed-run results.
+Preserve independent evidence-recording/cleanup failures and prevent a diagnostic
+summary from replacing the original exception. A numerical canary must be absent
+from the actual failed-frame and send-failure stderr paths while useful cause,
+phase and completion facts remain. This changes native diagnostic code and hence
+requires qualified native-image rebuild/replacement through existing deployment
+owners; it does not require another scientific Job or a numerical campaign.
+
 Supporting qualification references
 -----------------------------------
 
