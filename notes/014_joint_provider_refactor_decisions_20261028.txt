@@ -3767,3 +3767,107 @@ failure into a usable response. Preserve any independent native failure under
 the existing failure/interruption rules. None keeps the published default timing.
 Add one causal scheduling witness before correcting this admission check; do not
 invent a new timestamp registry or change NMRNet's non-opt-in scientific policy.
+
+D124 -- Apply availability evidence through each existing API recovery contract (2026-10-29 05:08 UTC)
+--------------------------------------------------------------------------------
+
+Root read the pinned x-nmr-recovery rules for GET, Hello, START, progress,
+terminal reports and read capabilities. NMRNet identified that a GET-only fix
+would still let the durable publisher pause a binding on the same TLS outage.
+SECS correctly warned that the current network_failure marker covers an entire
+httpcore request/iterator call, including possible parser or local faults.
+
+Serious alternatives:
+A. Extend only GET/Hello while leaving exact terminal/START recovery unable to
+   use the same observed outage. This leaves an actual unattended-operation gap.
+B. Widen temporary_io_failure or every tagged request exception globally. This
+   confuses network location with availability and hides operation-specific effects.
+C. Capture original I/O evidence at the existing owned backend/stream, classify
+   its causal meaning, then apply the individually reviewed recovery contracts.
+
+Choice: C, resolving D121. Keep exact original cause and stage at the existing
+network owner, including actual peer EOF; do not build another registry or infer
+availability from arbitrary callback/parser exceptions. DNS failures do not need
+an errno prediction of permanence. Typed connection loss, timeouts and TLS EOF
+can be availability evidence; certificate/hostname validation, hard TLS setup,
+admitted protocol/decoder/local faults and mixed groups containing other failures
+do not qualify. Use bounded causal classification without a required exact
+wrapper ordering, preserve full TLS verification and retain protected diagnostics.
+
+Every permission still requires this API's current exact failure, positively
+retired original resources, clean independent cleanup, correct target/topology
+and the existing caller's backoff/stop/budget. Review the resulting matrix:
+- GET: a freshly signed read; it grants no scientific action or promised recovery.
+- Hello: reconstruct the latest complete announcement, never replay an old snapshot.
+- START: same retained Job/key/canonical facts; inspect current returned state;
+  no second science or dark-restart reconstruction is authorized.
+- Progress: only still-current phase/condition facts under the existing owner.
+- COMPLETE/FAIL: the durable owner's exact unchanged terminal command/outcome.
+- Read capability: same still-needed Job/Upload, fresh issuance rather than bearer
+  recovery; preserve possible prior issuance/retention effects and source budgets.
+- Other operations: no new generic mutation permission.
+
+Existing complete-status and problem-code rules remain: this does not turn an
+unreviewed grant HTTP500, wrong environment, auth conflict or dirty cleanup into
+permission. Keep the old generic temporary predicate unchanged where unrelated
+callers rely on it. Prove actual TLS EOF/recovery and controlled original DNS
+failure paths, local lookalike/certificate/protocol/group negatives and each
+operation's exact-authority matrix before release. D117's version-uniformity
+argument no longer justifies leaving affected providers on 0.5: this newly proved
+shared availability fix affects normal API/delivery operation and needs coordinated
+consumer adoption. Native/scientific code stays unchanged; no numerical reruns
+are required merely because package metadata changes.
+
+D125 -- Bound valid structured diagnostics at the actual output allowance (2026-10-29 05:11 UTC)
+--------------------------------------------------------------------------------
+
+Magnet's source audit found json.dumps(failure_evidence(...)) sliced at 8192
+characters, which can produce invalid JSON. NMRNet's atomic notice writer can
+instead reject an oversized full graph, leaving no timely diagnostic output;
+its fatal writer can partially emit a long record to nonblocking stderr. Actual
+inspected outage records were 694–3141 characters, so current outage truncation
+has not been demonstrated. Magnet corrected its initial extraction: DNS errno
+-5 was already preserved; its earlier absence claim was false.
+
+Serious alternatives:
+A. Lower the fixed node/frame counts. That still does not prove the encoded
+   envelope fits the actual sink, and traversal can spend the budget on context
+   before preserving the original cause and independent cleanup.
+B. Slice serialized JSON or discard the whole oversized record. The first
+   corrupts structure; the second loses the available operator evidence.
+C. Use one shared byte-budgeted valid-JSON rendering policy, preserving reviewed
+   facts and causal priorities with explicit evidence of what was omitted.
+
+Choice: C. The actual total encoded allowance includes the envelope and newline,
+not just graph characters. Prioritize root operation, original cause, independent
+cleanup/interruption and group relationships before frames or lengthy safe text.
+Keep coherent IDs/references and explicit omission counts. Preserve the existing
+projection/redaction authority; apply each consumer's stricter scalar redaction
+before serialization, never regex or byte slicing over serialized JSON.
+
+Inspect actual notice and fatal paths before fixing the helper contract. Do not
+add a logging framework, alternate sink, files, history or a graph registry. A
+diagnostic failure remains independent evidence and must not veto an already
+selected report or replace its primary cause. Shared constant-derived DNS reason
+names can clarify negative EAI codes without exposing raw hostnames/messages;
+native SSL reason fields require the same bounded disclosure review. Diagnostic
+text never grants retry authority. Capture a real oversized-rendering RED and
+privacy/encoded-byte GREENs before claiming the shared output boundary fixed.
+
+D126 -- Correlate a lane's terminal diagnostic with its existing identity (2026-10-29 05:11 UTC)
+--------------------------------------------------------------------------------
+
+Magnet's multi-lane logs put implementation_ref on the preceding intake failure
+but omit it from the lane's fatal_run event, making concurrent failures harder to
+associate.
+
+Serious alternatives:
+A. Rely on temporal adjacency. Concurrent lane output can interleave.
+B. Repeat the entire diagnostic graph or introduce another correlation ID.
+   This duplicates evidence or creates another identity to maintain.
+C. Include that lane's existing implementation_ref in its fatal_run event.
+
+Choice: C. Preserve event reason/status and the original failure; add only the
+already owned safe lane identity. This is a consumer correlation correction,
+not another renderer or execution-state change. Magnet owns the focused RED,
+source/wording audit and GREEN before its local commit.
