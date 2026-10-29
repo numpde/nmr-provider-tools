@@ -14,13 +14,12 @@ from pathlib import Path
 import httpcore
 import httpx
 
-from provider_core.api import _temporary_io_failure
 from provider_core.attempt_request import require_provider_ref
 from provider_core.attempt_response import require_attempt_ref
 from provider_core.delivery_store import DeliveryConflict, DeliveryFull
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.signing import _https_origin
-from provider_core.transport import ExchangeFailed, require_unix_socket_path
+from provider_core.transport import ExchangeFailed, require_unix_socket_path, temporary_io_failure
 from provider_core.unix_http import DELIVERY_ORIGIN, UnixHttpTransport
 from provider_core.upload_response import require_job_ref
 
@@ -217,7 +216,7 @@ class DeliveryClient:
             if connect_cause is None:
                 connect_cause = primary.__context__
         return (
-            _temporary_io_failure(primary, 8)
+            temporary_io_failure(primary, 8)
             or (type(connect_cause) is FileNotFoundError and connect_cause.errno == errno.ENOENT)
             or (type(primary) is httpcore.RemoteProtocolError
                 and (exchange.response_head is None or exchange.response_head.status in (200, 503)))
