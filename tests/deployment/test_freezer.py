@@ -96,6 +96,7 @@ class InstalledDeploymentTests(unittest.TestCase):
             with self.subTest(mode=mode):
                 if mode == "local":
                     raw = self.raw.replace(b'mode = "mapped"', b'mode = "local"\nnetwork_id = "' + b"b" * 64 + b'"')
+                    raw = raw.replace(b"api.example=127.0.0.1", b"api.example=172.18.0.5")
                 else:
                     raw = self.raw.replace(b'mode = "mapped"', b'mode = "external"').replace(b'addresses = ["api.example=127.0.0.1"]', b'resolver_file = "/synthetic/resolver"')
                 plan = self.render(raw)
