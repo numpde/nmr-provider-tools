@@ -15,6 +15,47 @@ from provider_core.transport import HttpResponse
 
 
 class DeliveryDiagnosticsTests(unittest.TestCase):
+    def test_system_exit_numeric_facts_remain_exact_without_status_interpretation(self):
+        for code in (None, 0, 7, -1, -(2 ** 63), 2 ** 63 - 1, True, False):
+            with self.subTest(code=code):
+                failure = SystemExit(code)
+                report = json.loads(json.dumps(failure_evidence(failure, secrets=())))
+                self.assertEqual(report["system_exit_code"], code)
+                self.assertIs(type(report["system_exit_code"]), type(code))
+                self.assertNotIn("system_exit_code_omitted", report)
+                self.assertIs(failure.code, code)
+
+    def test_system_exit_private_or_unbounded_codes_are_omitted_without_conversion(self):
+        class PrivateCode:
+            def __str__(self):
+                raise AssertionError("Private code must not be rendered")
+
+            def __int__(self):
+                raise AssertionError("Private code must not be interpreted")
+
+        class PrivateInteger(int):
+            def __int__(self):
+                raise AssertionError("Private integer must not be interpreted")
+
+        for code in ("PRIVATE credential", PrivateCode(), PrivateInteger(7), 1 << 20000, -(2 ** 63) - 1):
+            failure = SystemExit(code)
+            rendered = json.dumps(failure_evidence(failure, secrets=()))
+            report = json.loads(rendered)
+            self.assertTrue(report["system_exit_code_omitted"])
+            self.assertNotIn("system_exit_code", report)
+            self.assertNotIn("PRIVATE", rendered)
+            self.assertIs(failure.code, code)
+
+    def test_system_exit_subclass_code_is_not_inspected(self):
+        class PrivateExit(SystemExit):
+            @property
+            def code(self):
+                raise AssertionError("Subclass code must not be inspected")
+
+        report = failure_evidence(PrivateExit(7), secrets=())
+        self.assertEqual(report["exception_type"], "PrivateExit")
+        self.assertNotIn("system_exit_code", report)
+
     def test_sqlite_native_code_and_name_survive_without_sql_or_exception_text(self):
         with sqlite3.connect(":memory:") as database:
             try:

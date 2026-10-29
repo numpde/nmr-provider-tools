@@ -129,6 +129,14 @@ def failure_evidence(error, *, secrets, describe_owner=_core_details, owner_rela
             evidence["errno"] = current.errno
             if current.errno in errno.errorcode and not isinstance(current, (ssl.SSLError, socket.gaierror, socket.herror)):
                 evidence["reason"] = os.strerror(current.errno)
+        if type(current) is SystemExit:
+            code = current.code
+            if code is None:
+                evidence["system_exit_code"] = None
+            elif type(code) in (int, bool) and -(2 ** 63) <= code < 2 ** 63:
+                evidence["system_exit_code"] = code
+            else:
+                evidence["system_exit_code_omitted"] = True
         if isinstance(current, sqlite3.Error):
             # Native result identity excludes SQL, paths and exception text.
             # https://docs.python.org/3.12/library/sqlite3.html#sqlite3.Error
