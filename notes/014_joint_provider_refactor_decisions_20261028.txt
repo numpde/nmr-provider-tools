@@ -1602,6 +1602,14 @@ worker_client.py::_exchange, native_factory.py::_open_role,
 startup_capture.py::prediction_lifetime_seconds and deployment.py native command;
 shared execution.py::_execute_session.
 
+Scope review reopened: the active consumer goal literally prohibits automatic
+scientific reruns, while this earlier choice retained a pre-existing bounded
+same-Attempt policy. Agent agreement cannot override an explicit user requirement.
+The exact original instruction and any later exception must govern. A direct user
+clarification is pending; hold policy removal/integration/rollout until the scope
+is settled. Existing service remains running, and no new scientific retry
+permission follows from this review.
+
 D053 -- Bind startup permission separately from warm retirement (23:39 UTC)
 -----------------------------------------------------------------------------
 
@@ -4143,90 +4151,6 @@ existing exact-request rules. The unchanged rule does not authorize arbitrary
 protocol-error retry. Audit agreement is source evidence, not an executed test
 result; the installed qualification lane must still pass before publication.
 
-Qualification checkpoint (2026-10-29 06:11 UTC)
----------------------------------------------
-
-The final source passes all 174 integration and 206 repository quality tests.
-The first full 628-case unit run failed four specimens in one new CLI test: its
-invocation omitted the required --all/--binding selector, so argparse prevented
-the intended admission check. Independent review caught the same fixture defect.
-The corrected installed unit/native lane is running; do not count that failed
-run as a pass. No product fallback or checker exception was introduced for it.
-
-NMRNet, Magnet and NMRPeak reviewed the actual 0.5.1 API/release prose without a
-blocking objection. NMRNet requested that the deadline wording explicitly bound
-observation rather than underlying physical lifetime; that precision is applied.
-SECS's independent API/transport source audit found no remaining concrete blocker.
-Final exact artifact/rebuild gates and the remaining release acknowledgement are
-still pending. Published 0.5.0 assets and all incumbent services remain unchanged.
-
-Qualification checkpoint (2026-10-29 06:12 UTC)
----------------------------------------------
-
-Corrected source qualification passes 628 installed unit tests, 33 dependency-free
-native tests, 174 integrations and 206 repository quality tests. The actual CLI
-privacy specimens now reach their intended refusal paths and pass. Logs:
-/tmp/sdk-051-final-unit-v2.log, /tmp/sdk-051-final-integration.log and
-/tmp/sdk-051-final-quality-v2.log. Source commit: 3299b0c.
-
-The authored release note is notes/017_release_v0.5.1.md. Next, freeze clean source
-and use the maintained publish/prepare path for exact wheel, both issued locks,
-source record, manifest, source rebuild and installed qualification. No consumer
-may treat a source test as proof of the issued wheel. Preserve the exact source
-revision during preparation; another consequential choice requires recording it
-and preparing that new source, rather than editing a supposedly frozen candidate.
-This follows D098/D113's normal acquisition/publication authority and D136's scope.
-
-Publication checkpoint (2026-10-29 06:16 UTC)
--------------------------------------------
-
-All four responsible providers explicitly acknowledged the actual 0.5.1 API and
-authored release prose before publication. SECS confirmed the observation-cap
-wording and separate published response-loss permission. The final independent
-transport/execution audit found no additional blocker; this was a source audit,
-separate from the executed qualification below.
-
-Clean release source: 529fe390d52ded042df687e11230242b0c6f5667.
-Maintained publish/prepare PASS: 628 installed unit, 15 contract, 174 integration,
-15 source-rebuilt contract and 33 native tests; all six artifact receipts match.
-Artifacts: /tmp/provider-core-0.5.1-publication/artifacts.
-Exact SHA256 values:
-- Wheel: 3954f220c72cb753c1cc87a77644f1cbd69754a4641c93ea03b9c89ebabb8c8f
-- Full lock: e210e69b8235aa179558d484bd23c3677ebd8b747a6cd02d22073019111b43d0
-- Native lock: 2a620cf2a4197f462bc75ea1dddcb07495efd1449534f7f1ca96011d1bcb0b4f
-- Release record: 73a1b962298b4ffff6a491e1d51de9015079ac57c522a9548120f665e308ff54
-- Manifest: 08647453f8a390ac6f1e476ca6b5bd93d716b44e0b339e36546bc8c6e03cc012
-- Source archive: 9a059b14b345360d2f1bf48bc677d049808c6d6c7b3829d5b349c746710fb747
-
-Maintained publish/release completed: tag pushed, all eight draft files downloaded
-and compared with qualified artifacts/logs, then the draft made public at:
-https://github.com/numpde/nmr-provider-tools/releases/tag/v0.5.1
-Publication receipts: /tmp/nmr-provider-publication.uibRvqdT and
-/tmp/sdk-051-publication.log. Existing 0.5.0 assets were not replaced.
-
-Shared candidate runtime:
-sha256:d99dcac8f6f0b539b496d2c33725ecddccc00e2b85f0974d4ba0dfce33238546
-Construction fingerprint:
-47a45c4fd360ece7b121fe2d71cffb719f75986c693883f91b35c30ffe878b78
-PASS: 34 installed deployment tests and the actual disposable signed HTTPS route,
-read-only/UID isolation, no direct fallback, stale-socket restart and cleanup.
-Logs: /tmp/sdk-051-runtime-image.log, /tmp/sdk-051-runtime-deployment.log and
-/tmp/sdk-051-runtime-route.log. No incumbent/shared service was replaced.
-
-Direct wheel comparison with 0.5.0 finds one added module, deployment_errors.py,
-and eight changed modules: api, deployment_binding, deployment_route, diagnostics,
-execution, failure_projection, network and transport. All other package modules,
-including scientific/native interfaces, are byte-identical. This bounds this
-patch's change; it does not establish a consumer image or deployment result.
-
-Consumer receipts at publication: Magnet independently verified handoff hashes,
-installed the exact wheel in an isolated container and passed 49 lane tests,
-actual TLS EOF recovery and actual untrusted-certificate refusal with retirement.
-NMRNet independently matched wheel/full/native-lock/record hashes. NMRPeak reports
-its separate disposable maintenance route/ownership checks passing on published
-0.5.0; that does not qualify its pending 0.5.1 model adapter. Consumer main pins,
-normal GitHub acquisition and canonical images remain each owner's next step.
-
 D138 -- Preserve the native-evidence boundary in consumer qualification (2026-10-29 06:20 UTC)
 --------------------------------------------------------------------------------
 
@@ -4248,29 +4172,6 @@ C. Correct only the explicitly intended network fixture at its actual evidence
 Choice: C, applying D124 rather than relaxing it. Magnet owns investigation and
 the precise fixture change; root does not claim its integration is fixed yet.
 No private provider classifier or production retry workaround is authorized.
-
-Consumer checkpoint (2026-10-29 06:20 UTC)
----------------------------------------
-
-NMRNet committed exact 0.5.1 issuer profiles/record and public asset URLs in
-d13bbf3; checkout observed clean. Normal acquisition/image qualification follows.
-It is the single owner staging the exact d99dcac8 shared runtime on ProArt and
-has confirmed Magnet is not doing a duplicate transfer. This prepares an image;
-it does not replace any incumbent service or establish cutover quiescence.
-
-NMRPeak reports its maintenance-route lifecycle and actual TLS inventory request
-proofs passing with their explicit scope. Its remaining critical path is the
-per-Attempt model HTTP owner, displaced live authority removal, normal 0.5.1
-profiles, canonical images and final contained/native qualification. The archive
-codec cut is committed fbab2a2. A large coupled adoption diff remains; coherent
-qualified subsets should be committed when their import/behavior closure permits.
-Root is reviewing native/archive and model ownership boundaries in parallel,
-read-only, while that owner implements. There is no reliable completion ETA yet.
-
-SECS's latest observed clean main is 148a78d, recording deferred retry-diagnostic
-and signal-status limits. It acknowledged the release/API and is aligning its
-consumer hook with the public default before normal 0.5.1 acquisition. These are
-consumer progress observations, not a claim of completed four-provider adoption.
 
 D139 -- Retire model HTTP even when native science is quiescent (2026-10-29 06:22 UTC)
 --------------------------------------------------------------------------------
@@ -4303,15 +4204,6 @@ used solely for retained volume identity are not a second live API owner. Unused
 old decoder/materializer code should be deleted when its displaced callers are
 gone, before claiming the adoption end state complete.
 
-Consumer checkpoint (2026-10-29 06:22 UTC)
----------------------------------------
-
-NMRNet reports d13bbf3 pushed, ordinary public GitHub acquisition successful,
-local controller/geometry/inference images built, 57 focused installed-wheel
-service checks and inference imports passing. ProArt's checkout fast-forwarded;
-the single shared-runtime transfer is running, with no service replacement.
-Exact full image identities and production qualification remain separate receipts.
-
 D140 -- Share native availability evidence without sharing model retry policy (2026-10-29 06:24 UTC)
 --------------------------------------------------------------------------------
 
@@ -4337,3 +4229,340 @@ catch. Any separately intended model response/protocol policy remains explicitly
 model-owned. Dirty cleanup and caller interruption never authorize fallback.
 No new helper, alias, copied classifier or behavioral SDK patch is needed. Clarify
 the shared documentation without holding consumer adoption for another release.
+
+D141 -- Coordinate provider owners before a host-by-host shared cutover (2026-10-29 06:27 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet confirms its earlier explicit push/deploy authorization covers its own
+maintained admission-stop/drain on both hosts. Magnet's images/checks are not yet
+ready on both hosts. Root's implementation goal does not grant new production
+authority, and an image or queue snapshot is not an owner-ready signal.
+
+Serious alternatives:
+A. Let each provider independently replace its shared dependencies as soon as
+   its image is ready. This shortens each private schedule but can interrupt
+   another binding's original producer and complicate shared resource ownership.
+B. Coordinate both hosts in one simultaneous window after all providers qualify.
+   This shortens total rollout time but removes a working host-level canary and
+   makes a shared construction defect affect both sites at once.
+C. Qualify consumer images first, coordinate both original provider owners on
+   the local host, verify one preserved shared replacement and both consumers,
+   then use that observed procedure on ProArt.
+
+Choice: C as the coordination sequence, conditional on each responsible owner's
+existing authority, actual readiness and agreement. No stop has been requested
+yet. A single designated owner must perform shared-dependency replacement through
+maintained tooling after all same-host producer owners have closed admission and
+reported original START/science/report/ACK settlement. Preserve exact bindings,
+queue volumes, retained state and IPC grants. D119 governs any expired stop
+observer: retain dependencies and observe the same original operation, never
+manufacture quiescence or initiate a second stop as a retry.
+
+After replacement, verify installed versions/image identity, health, restart/OOM,
+bindings, queue/IPC continuity and both consumer owners' outcomes before the next
+host. This is an ordered operational proposal, not permission to deploy SECS,
+NMRPeak or any provider outside its separately established scope. Magnet has been
+asked to confirm its scope and shared-dependency ownership; readiness is pending.
+
+D142 -- Use verified standing rollout authorization, not another inferred grant (2026-10-29 06:36 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet challenged root's possible extra approval gate. Root read the actual user
+messages in the two responsible session logs, rather than relying on the peer's
+claim alone. NMRNet has direct "Push/deploy" at 2026-10-28T12:02:37.936Z;
+Magnet has direct "Push/deploy" at 2026-10-28T12:02:41.550Z. NMRNet's current
+end-to-end objective explicitly includes repository-owned local/production
+rollout and practical operational proof, with nmr-provider-tools as the sole
+shared delivery/proxy/host-deployment owner.
+
+Serious alternatives:
+A. Ask for another root confirmation because the shared service spans both
+   providers. That is appropriate without established authority, but repeats
+   permission here after the actual user instructions and both owners' scopes
+   have been verified.
+B. Delegate the shared replacement to a provider owner. It can use SDK tooling,
+   but separates operational ownership from the designated shared owner and adds
+   another handoff while both providers already coordinate their own drains.
+C. Let root execute the necessary shared dependency replacement within those
+   verified rollout instructions, with both provider owners retaining admission,
+   original drain/settlement, provider deployment and consumer proof.
+
+Choice: C. This resolves D141's authority condition with explicit session evidence;
+it does not infer production permission merely from root's refactor goal. No
+additional approval gate is required. D141's local-first ordering, actual owner
+readiness, queue/IPC preservation and single shared writer remain mandatory.
+SECS and NMRPeak still gain no production target or permission from this decision.
+
+Read-only preflight renders the exact new runtime against each existing operator
+definition before live stopping. Use the maintained shared tooling and original
+neutral inputs, not a copied provider deployment recipe or rewritten bindings.
+ProArt's old clean shared-tools checkout needs the published maintained source
+before that same command can run there; this preparation changes no service.
+
+D143 -- Keep producer drain distinct from the durable publisher's stop policy (2026-10-29 06:44 UTC)
+--------------------------------------------------------------------------------
+
+SECS's bounded canary critique questioned the maintained shared daemon's finite
+Docker stop grace, then withdrew the proposed blocker after tracing its durable
+obligations. D119's no-kill producer rule cannot be applied mechanically to every
+process: shared delivery commits before intake acceptance and deletes only after
+a matching validated API receipt, with queue volumes preserved across stopping.
+
+Serious alternatives:
+A. Require unbounded stopping for both producers and the durable publisher.
+   This gives one uniform rule but ignores their different ownership: science
+   and an unhanded report can exist only in a producer, while accepted delivery
+   bytes already have an independent durable owner.
+B. Keep each existing owner's stop policy, requiring positive original producer
+   settlement before shared replacement and preserving the publisher's durable
+   queue and exact receipt/delete contract through its finite final grace.
+C. Add a general durable Engine-operation registry before proceeding. That
+   would require a separate design and qualification; no lost durable obligation
+   or harmful replay has been reproduced in the current bounded execution.
+
+Choice: B. No source change or new registry. If a mutating Engine client observer
+expires, root retains the original production IDs and reobserves those containers;
+it must not rerun down or dispatch up while settlement is uncertain. Local client
+or reservation cleanup is not proof that an Engine-side stop finished. No such
+timeout occurred in the actual local switch. The separate operator-held resolution
+is explicit; the critique found no current canary blocker.
+
+D144 -- Require observation of the original scientific Future before quiescence (2026-10-29 06:47 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's full remaining lane exposed a real race that focused timing had hidden:
+after caller cancellation, the original concurrent.Future can fail and finish
+before analysis.retire runs. runner.quiescent treated done as observed and could
+lose that independent scientific failure. A deterministic barrier RED is being
+captured before the correction; no GREEN is claimed yet.
+
+Serious alternatives:
+A. Treat Future.done as sufficient quiescence. Work has stopped, but its original
+   failure may still be unobserved and cleanup evidence lost.
+B. Restore an analysis-level mirrored flag. That duplicates the SCI owner's
+   observation authority and leaves other callers able to make the same mistake.
+C. Use RunnerSession's existing original Future and _observed_scientific_call
+   identity: require actual observation before quiescence or new SCI submission.
+
+Choice: C. NMRPeak owns the scientific Future and should correct that authority.
+Retain original cancellation and independent late failure separately. Do not
+replace either with a synthetic success or an inferred observation flag elsewhere.
+Refuse another scientific submission while the original remains unobserved,
+including when physically done. Qualify both cancellation-before-failure and
+retirement-after-completion with causal barriers, then resume the existing lane.
+No second executor, registry, retry allowance or generic lifecycle redesign.
+
+D145 -- Build the product selected by the retained deployment (2026-10-29 06:52 UTC)
+--------------------------------------------------------------------------------
+
+ProArt Magnet's maintained up refused before replacement: the retained deployment
+selects PRODUCT=proart, but its earlier provider image preparation selected the
+default product. Both SDK versions matched; that alone did not qualify the exact
+selected product image. NMRNet's ProArt resume is independent and has succeeded.
+
+Serious alternatives:
+A. Change the retained deployment to the default product. This changes the
+   selected offering/model configuration to accommodate a build mistake.
+B. Bypass the image/input identity check because the SDK version matches. This
+   loses the canonical product/build evidence the maintained path enforces.
+C. Build the missing canonical proart provider image from the retained product
+   selection, verify its installed inputs, then resume through the same path.
+
+Choice: C. Magnet owns the correction and is building locally from ordinary
+published inputs. No shared rollback is required: shared runtime/queue/IPC proof
+passed and NMRNet has resumed. The original Magnet provider stays cleanly stopped
+until the correct image is ready. Record the preparation mismatch explicitly;
+do not claim the earlier default image proved this product's canonical closure.
+Future readiness checks must resolve the retained product before claiming all
+selected consumer images built; the existing up refusal correctly caught it.
+
+D146 -- Preserve a validated late scientific failure frame during retirement (2026-10-29 06:52 UTC)
+--------------------------------------------------------------------------------
+
+Following D144, SECS found a concrete analogue: WorkerClient retains its original
+SCI task and refuses reuse, but retirement can discard a completed validated
+failed-outcome frame when the request caller was cancelled before observing it.
+The normal session would classify that same frame as ScientificWorkerFailed.
+A deterministic actual framed-stream RED is being captured before correction.
+
+Serious alternatives:
+A. Treat task completion and physical retirement as sufficient and discard the
+   late failed frame. This loses an independently observed scientific failure.
+B. Have the provider reinterpret the frame outside its SCI owner. This duplicates
+   protocol classification and separates it from original-call identity.
+C. Let the original WorkerClient retirement retain and expose the validated late
+   failure through the existing scientific failure contract, separately from
+   caller cancellation, after preserving physical cleanup evidence.
+
+Choice: C. Keep the original pending task/frame identity; no replay, replacement
+request or new lifecycle owner. Only an actually validated failed-outcome frame
+qualifies. Stop-induced EOF or an incomplete reply must not become a fabricated
+scientific failure. Preserve cancellation and independent retirement failures,
+and do not infer a new terminal report from this diagnostic correction. SECS owns
+the exact RED/GREEN and narrow implementation. This is consumer SCI handling,
+not a shared SDK protocol change or a demonstrated shared rollout blocker.
+
+D147 -- Keep an API proof within its authorized scope
+----------------------------------------------------
+
+A qualification goal can authorize one necessary API handoff/delivery smoke.
+That is narrower than permission for a repeated scientific campaign or a new
+credential/project. Historical case-specific permission is not automatically a
+standing authorization for another paid case.
+
+Serious alternatives:
+A. Create a new Job after every release regardless of existing proof. This can
+   duplicate an already completed case and broaden scientific effects.
+B. Treat startup readiness as remote result proof. This avoids another mutation
+   but claims more than the observed evidence establishes.
+C. Check existing post-change proof first; if one authorized case remains needed,
+   use its existing issued user/project/route and observe the actual remote result.
+
+Choice: C. The current goal explicitly includes one necessary smoke, so do not
+add another approval gate for that bounded case. One owner submits; retain the
+same operation_ref and facts across uncertain creation, never invent a new Job
+merely because its receipt is missing. Use the one-shot use-nmr-api contract,
+not a provider credential as a user or a new generic mutation framework. Remote
+terminal/result readback establishes delivery; it does not establish scientific
+accuracy. Operational request identities and payload hashes belong in the session
+or qualification evidence, not this decision note.
+
+Open question -- Magnet's late classified outcome (2026-10-29 07:00 UTC)
+--------------------------------------------------------------------
+
+Magnet constructed a stronger framed E01 witness: actual processor/session,
+backend and protocol validator, a synthetic Unix peer returning two validated
+EXECUTION_FAILED frames, and a fake native lifetime. A callback cancels the
+session caller after its phase task completes but before that caller observes
+the resulting AnalysisFailure; retirement returns and the value remains on the
+phase task. This is a constructed ordering, not a live lost result/crash proof.
+
+Serious alternatives under review:
+A. Treat every late AnalysisFailure as an independent cleanup failure. This
+   confuses ordinary classified outcomes with exceptions and may falsify physical
+   retirement or create a terminal duty after deliberate cancellation.
+B. Discard every such value because the caller was cancelled. This may lose
+   protected evidence the actual enclosing SDK suppression contract expects.
+C. Trace the original SDK operation and session outcome-retention boundary, then
+   preserve any demonstrated missing evidence there without granting a new report
+   or reclassifying physical cleanup. Existing terminal-selection/suppression
+   policy remains the authority.
+
+No product choice or fix is approved from the private Task result alone. Root
+and Magnet are tracing the actual enclosing SDK path, distinguishing an ordinary
+AnalysisFailure value from an unobserved original exception/failed native frame.
+No new flag, registry, cleanup refusal or terminal-report permission is justified
+until that causal boundary is established. This is not a deployment blocker.
+
+Question narrowed and deferred (2026-10-29 07:06 UTC):
+Magnet's actual checked-in runner_execution_failed policies intentionally forward
+the reviewed failure message on a normally selected public FAIL. Its fixed-message
+synthetic fixture did not prove a normal-path deployed omission. A further actual
+public executor.run cancellation witness retained the final AnalysisFailure on
+executor.last_failure.outcome, kept shutdown_ready false and required explicit
+suppression disposition; the earlier private _cancel_task injection therefore
+did not prove that production path loses the outcome.
+
+A lower-level constructed witness still identifies a narrower diagnostic question:
+actual E01 runner/protocol validator and a synthetic framed Unix peer validate
+EXECUTION_FAILED, then public runner cancellation can race consumption while
+retirement discards the completed reply tuple. This is not a live incident,
+unconfirmed physical cleanup or authority to publish/replay. Magnet retained the
+witness and distinctions in its existing deferred note, commit 794f0ea, with no
+product change. Broader renderer work stays deferred. Do not turn this scoped
+question into a false completed-rollout blocker or a generic cleanup failure.
+
+D148 -- Project scientific failure frames without changing their ownership
+--------------------------------------------------------------------------
+
+The SCI frame parser accepts a JSON object, while the child producer normally
+emits a bounded exception graph. Forwarding that arbitrary nested object through
+a custom SDK detail hook bypasses scalar-string redaction. Adversarial markers
+survived actual framed decode and rendered output, including under familiar
+exception, filename, function and TLS fields.
+
+Serious alternatives:
+A. Trust any framed dictionary because the current child emits the expected shape.
+   This grants arbitrary nested payloads permission the receiver never established.
+B. Enforce strict diagnostic admission in the failure constructor. Rejection can
+   replace the original scientific failure or misstate its physical cleanup.
+C. Validate string shape alone. Familiar fields can still carry private values.
+D. Preserve the exact private frame/task and use a nonthrowing local operator
+   projection of reviewed structure, code-owned names and bounded numeric facts.
+
+Choice: D. Retain original diagnostic and cleanup references unchanged. Project
+only the code-owned standard exception-name set, bounded exact integers and
+bounded cause/group/reference structure. Omit arbitrary child file/function/TLS/
+detail strings and unknown fields, with explicit omission evidence. Use the
+existing structural budget; do not build a new general renderer or lifecycle.
+
+Qualify unknown nested and familiar-field marker refusals through the actual
+framed/rendered surface. Positive controls must preserve reviewed failure/cause
+facts: absence of markers alone can pass if the projection accidentally returns
+nothing. Preserve exact frame identity, cancellation and independent cleanup,
+with stopped/source-release truth unchanged. D125's broad renderer remains
+deferred; this is the scientific owner's narrow trust boundary.
+
+D149 -- Isolate the one smoke Job before opening it (2026-10-29 07:12 UTC)
+--------------------------------------------------------------------------------
+
+Both deployed NMRNet and Magnet serve peaks_from_mol. The API creates a Job closed
+by default; opening it before selecting the intended provider could allow another
+eligible provider to claim this single NMRNet proof.
+
+Serious alternatives:
+A. Open first and then narrow selection. This is a real race with the already
+   running other provider, even if the final selection eventually looks correct.
+B. Stop unrelated provider admission during the smoke. This avoids the race by
+   interrupting working deployments for a client-owned selection decision.
+C. Create one closed Job, select only provider:nmrnet-pa-a, then open that same
+   Job through the public API and observe its actual terminal/result records.
+
+Choice: C. NMRNet remained the sole submitter. No GUI, new credential/project,
+duplicate Job, broad fault campaign or repeated numerical run. The client used
+the existing authenticated project and public operation contracts; no new generic
+user-mutation framework was added to provider-core or the deployment path.
+
+D150 -- Start the request budget before constructing the model HTTP request
+-------------------------------------------------------------------------
+
+NMRPeak's remaining model review found that JSON request construction preceded
+the per-request deadline. Slow construction could therefore consume time and
+still receive a fresh request allowance afterward.
+
+Serious alternatives:
+A. Budget network work only, creating the deadline after construction. This
+   excludes work that belongs to the advertised request allowance.
+B. Offload request construction behind another timeout/Task owner. This adds
+   machinery without addressing the simple authority-placement error.
+C. Establish the original absolute request deadline before construction and
+   pass that same deadline through pacing, remaining work and SDK observation.
+
+Choice: C. After construction/pacing, expiry permits zero HTTP dispatch. Preserve
+the original turn deadline over retries and backoff; add no allowance or timer.
+Use a causal slow-construction witness to show that effects do not begin after
+the request budget is exhausted. Scientific request content and parsing policy
+stay unchanged.
+
+Supporting qualification references
+-----------------------------------
+
+The immutable SDK release and its qualification logs, issued installation locks,
+source record and hash manifest are published together:
+https://github.com/numpde/nmr-provider-tools/releases/tag/v0.5.1
+The authored scope is notes/017_release_v0.5.1.md. Treat installed-artifact and
+source-rebuild evidence separately from a consumer image or live deployment.
+
+Consumer ownership fixes can be located in NMRPeak adoption 84549c8 and request
+budget correction 7e9f160, and SECS original scientific observation 78a5bec and
+operator projection 9740d95. Their actual original-owner, cancellation, privacy
+and physical-retirement tests remain with their repositories. SECS's remaining
+non-authoritative diagnostic graph-reference coherence limit is tracked by its
+existing deferred note009; it confers no cleanup or result authority.
+
+The NMRNet owning session listed above retains the single post-cutover API
+handoff/result smoke. Its observed terminal Attempt and matching result readback
+establish remote delivery beyond local enqueue or startup readiness. They do not
+establish scientific accuracy or justify another Job. Operational identities,
+payload hashes, image/status snapshots and actor-search chronology stay in that
+session and qualification records rather than being repeated in this note.
