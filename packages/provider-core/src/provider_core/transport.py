@@ -25,7 +25,7 @@ from dataclasses import dataclass, field
 import anyio
 import httpcore
 
-from provider_core.network import OwnedNetworkBackend
+from provider_core.network import NetworkIOObservation, OwnedNetworkBackend
 from provider_core.decoded_body import DecodedBody, DecodedBodyRejected, require_decoded_limit
 
 
@@ -85,7 +85,7 @@ class ExchangeFailed(RuntimeError):
     """
 
     # silent-defaults: allow-contract -- No observed cleanup failure is an empty tuple, separate from primary and interruption evidence.
-    def __init__(self, message, *, primary=None, cleanup_failures=(), interruption=None, response_head=None, proxy_connect_status=None, network_failure=None):
+    def __init__(self, message, *, primary=None, cleanup_failures=(), interruption=None, response_head=None, proxy_connect_status=None, network_failure=None, network_io=None, caller_interruption=None):
         super().__init__(message)
         self.primary = primary
         self.cleanup_failures = tuple(cleanup_failures)
@@ -93,6 +93,8 @@ class ExchangeFailed(RuntimeError):
         self.response_head = response_head
         self.proxy_connect_status = proxy_connect_status
         self.network_failure = network_failure
+        self.network_io = network_io
+        self.caller_interruption = caller_interruption
 
 
 @dataclass(frozen=True, slots=True)
@@ -236,6 +238,8 @@ class _Outcome:
     proxy_connect_status: int | None = None
     primary: BaseException | None = None
     network_failure: BaseException | None = None
+    network_io: NetworkIOObservation | None = None
+    network_backend: OwnedNetworkBackend | None = None
     cleanup_failures: list[BaseException] = field(default_factory=list)
 
 
@@ -246,6 +250,7 @@ class _Exchange:
     task: asyncio.Task
     outcome: _Outcome
     owner: object
+    not_after: float | None
 
 
 def _positive_seconds(value):
@@ -344,7 +349,10 @@ class HttpTransport:
                 "Cannot start proxied HTTPS exchange: IPv6 literal destinations are not supported; use a DNS name or IPv4 address."
             )
 
-    async def _perform(self, request, maximum_bytes, account_bytes, outcome, output_fd, before_body, decoder_factory):
+    async def _perform(self, request, maximum_bytes, account_bytes, outcome, output_fd, before_body, decoder_factory, not_after):
+        if not_after is not None and asyncio.get_running_loop().time() >= not_after:
+            outcome.primary = TimeoutError("HTTP exchange absolute deadline expired before task entry")
+            return outcome
         client = None
         response = None
         # silent-defaults: allow-contract -- No output descriptor selects the buffered response; a supplied descriptor selects file output.
@@ -353,7 +361,11 @@ class HttpTransport:
         try:
             if file_body is not None:
                 await file_body.validate()
+            if not_after is not None and asyncio.get_running_loop().time() >= not_after:
+                raise TimeoutError("HTTP exchange absolute deadline expired before request dispatch")
             network = OwnedNetworkBackend(proxy_socket=self._proxy_socket)
+            outcome.network_io = network.observation
+            outcome.network_backend = network
             options = {
                 "ssl_context": self._trust,
                 "network_backend": network,
@@ -464,9 +476,12 @@ class HttpTransport:
                 file_body.shutdown()
         return outcome
 
-    async def _observe_retirement(self, task):
-        """Observe without cancelling cleanup, even if the caller cancels again."""
+    async def _observe_retirement(self, exchange):
+        """Observe original cleanup without renewing its inherited absolute cap."""
+        task = exchange.task
         deadline = asyncio.get_running_loop().time() + self._retirement_seconds
+        if exchange.not_after is not None:
+            deadline = min(deadline, exchange.not_after)
         cancellation = None
         while not task.done():
             remaining = deadline - asyncio.get_running_loop().time()
@@ -475,7 +490,8 @@ class HttpTransport:
             try:
                 await asyncio.wait({task}, timeout=remaining)
             except asyncio.CancelledError as failure:
-                cancellation = failure
+                if cancellation is None:
+                    cancellation = failure
         return cancellation
 
     def _completed(self, exchange):
@@ -489,22 +505,25 @@ class HttpTransport:
             self._active = None
         return outcome
 
-    async def exchange(self, request, *, maximum_bytes, account_bytes=None, owner=None, before_body=None):
+    async def exchange(self, request, *, maximum_bytes, account_bytes=None, owner=None, before_body=None, not_after=None):
         """Return complete responses after cleanup; preserve cancellation.
 
         before_body is an optional bounded synchronous head-admission callback.
         It runs before body iteration, accounting or writes; a refusal still
-        retires the original response, connection and file I/O.
+        retires the original response, connection and file I/O. not_after is an
+        optional absolute running-loop deadline for request and all retirement
+        observations. Expiry retains unresolved original work; later retire
+        cannot extend that cap, but can observe work that has already finished.
         """
         return await self._exchange(
             request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=None,
-            before_body=before_body, decoder_factory=None,
+            before_body=before_body, decoder_factory=None, not_after=not_after,
         )
 
     # silent-defaults: allow-contract -- HTTP 200 selects the success limit unless the caller names another supported status.
     async def exchange_decoded(
         self, request, *, maximum_bytes, error_maximum_bytes, success_status=200,
-        account_bytes=None, owner=None, before_body=None,
+        account_bytes=None, owner=None, before_body=None, not_after=None,
     ):
         """Decode one bounded entity under the original exchange and retirement.
 
@@ -526,10 +545,10 @@ class HttpTransport:
         return await self._exchange(
             request, maximum_bytes=max(maximum_bytes, error_maximum_bytes),
             account_bytes=account_bytes, owner=owner, output_fd=None,
-            before_body=before_body, decoder_factory=decoder_for,
+            before_body=before_body, decoder_factory=decoder_for, not_after=not_after,
         )
 
-    async def exchange_file(self, request, *, output_fd, maximum_bytes, account_bytes=None, owner=None, before_body=None):
+    async def exchange_file(self, request, *, output_fd, maximum_bytes, account_bytes=None, owner=None, before_body=None, not_after=None):
         """Write a body without buffering it; return raw count/hash after retirement.
 
         The caller lends an exclusively used writable regular file descriptor
@@ -544,35 +563,50 @@ class HttpTransport:
             raise ValueError("Cannot receive HTTP response in a file: output_fd must be a non-negative descriptor")
         return await self._exchange(
             request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=output_fd,
-            before_body=before_body, decoder_factory=None,
+            before_body=before_body, decoder_factory=None, not_after=not_after,
         )
 
-    async def _exchange(self, request, *, maximum_bytes, account_bytes, owner, output_fd, before_body, decoder_factory):
+    async def _exchange(self, request, *, maximum_bytes, account_bytes, owner, output_fd, before_body, decoder_factory, not_after):
         if self._active is not None:
             raise ExchangeFailed("Cannot start HTTP exchange: an earlier exchange is active or its retirement is unconfirmed")
         if not (type(maximum_bytes) is int and 0 <= maximum_bytes):
             raise ValueError("Cannot receive HTTP response: byte limit must be a non-negative integer")
         self._require_destination(request)
+        if not_after is not None:
+            _positive_seconds(not_after)
         self.last_failure = None
+        loop = asyncio.get_running_loop()
+        if not_after is not None and loop.time() >= not_after:
+            failure = ExchangeFailed(
+                "Cannot start HTTP exchange: the original absolute deadline expired before dispatch",
+                primary=TimeoutError("HTTP exchange absolute deadline expired before dispatch"),
+            )
+            self.last_failure = failure
+            raise failure from None
         received = _Outcome()
         task = asyncio.create_task(
-            self._perform(request, maximum_bytes, account_bytes, received, output_fd, before_body, decoder_factory), name="provider-core-http-exchange"
+            self._perform(request, maximum_bytes, account_bytes, received, output_fd, before_body, decoder_factory, not_after), name="provider-core-http-exchange"
         )
-        exchange = _Exchange(task, received, owner)
+        exchange = _Exchange(task, received, owner, not_after)
         self._active = exchange
         primary = None
         cancellation = None
         try:
-            done, _ = await asyncio.wait({task}, timeout=self._exchange_seconds)
-            if not done:
+            seconds = self._exchange_seconds
+            if not_after is not None:
+                seconds = max(0, min(seconds, not_after - loop.time()))
+            done, _ = await asyncio.wait({task}, timeout=seconds)
+            if not done or not_after is not None and loop.time() >= not_after:
                 primary = TimeoutError("HTTP exchange exceeded its aggregate deadline")
         except asyncio.CancelledError as failure:
             primary = cancellation = failure
         if not task.done():
             if not task.cancelling():
+                if type(primary) is TimeoutError and received.network_backend is not None:
+                    received.network_backend.cancel_pending_for_deadline()
                 task.cancel()
-            later_cancellation = await self._observe_retirement(task)
-            if later_cancellation is not None:
+            later_cancellation = await self._observe_retirement(exchange)
+            if cancellation is None and later_cancellation is not None:
                 cancellation = later_cancellation
         outcome = self._completed(exchange)
         interruption = None
@@ -604,6 +638,8 @@ class HttpTransport:
             response_head=received.response_head,
             proxy_connect_status=received.proxy_connect_status,
             network_failure=received.network_failure,
+            network_io=received.network_io,
+            caller_interruption=cancellation,
         )
         self.last_failure = failure
         if cancellation is not None or isinstance(primary, asyncio.CancelledError):
@@ -622,13 +658,14 @@ class HttpTransport:
         task = exchange.task
         if not task.done() and not task.cancelling():
             task.cancel()
-        cancellation = await self._observe_retirement(task)
+        cancellation = await self._observe_retirement(exchange)
         outcome = self._completed(exchange)
         observed = outcome if outcome is not None else exchange.outcome
         if self.last_failure is not None:
             self.last_failure.response_head = observed.response_head
             self.last_failure.proxy_connect_status = observed.proxy_connect_status
             self.last_failure.network_failure = observed.network_failure
+            self.last_failure.network_io = observed.network_io
             # Late retirement augments the retained exchange evidence; a pending
             # task or its expected cancellation must not erase the original cause.
             if (
@@ -648,8 +685,11 @@ class HttpTransport:
                     response_head=observed.response_head,
                     proxy_connect_status=observed.proxy_connect_status,
                     network_failure=observed.network_failure,
+                    network_io=observed.network_io,
                 )
             if cancellation is None:
                 raise self.last_failure from None
         if cancellation is not None:
+            if self.last_failure is not None and self.last_failure.caller_interruption is None:
+                self.last_failure.caller_interruption = cancellation
             raise cancellation

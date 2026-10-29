@@ -36,7 +36,8 @@ class DiagnosticOutputRefused(ValueError):
     """Code-owned output limits or incomplete writes, without private payloads."""
 
 
-def _core_details(error, text, diagnostic_window):
+def describe_core_failure(error, text, diagnostic_window):
+    """Provide the default three-argument renderer hook for reviewed SDK facts."""
     if type(error) is DiagnosticOutputRefused:
         return {"message": str(error)}
     return core_owned_details(error)
@@ -78,8 +79,12 @@ def operator_redactor(*, secrets):
 
 
 # silent-defaults: allow-contract -- Core uses its canonical projections; scientific bindings supply their own reviewed details and relationships without moving scientific imports into core.
-def failure_evidence(error, *, secrets, describe_owner=_core_details, owner_relationships=core_owned_relationships):
-    """Retain a bounded causal graph and safe current facts for the private operator."""
+def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, owner_relationships=core_owned_relationships):
+    """Retain a bounded causal graph and safe current facts for the private operator.
+
+    describe_owner(error, text, diagnostic_window) returns reviewed scalar facts;
+    it is distinct from the one-argument owned_details(error) projection.
+    """
     redact = operator_redactor(secrets=secrets)
     seen, remaining = {}, _MAX_FAILURE_NODES
 

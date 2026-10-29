@@ -190,6 +190,12 @@ bounded deflate profile; see [decoded_body](src/provider_core/decoded_body.py)
 for framing and compatibility limits. Direct model HTTP requires explicit opt-in;
 signed API requests retain HTTPS verification.
 
+Supply `not_after` when the caller already owns an absolute event-loop deadline
+for both the request and cleanup observation. Expiry leaves unfinished resources
+with their original owner; later retirement cannot renew that cap. A response
+observed after the cap is not returned as success. Without a cap, the configured
+exchange and retirement allowances apply.
+
 ## Package and qualification
 
 Use the [GitHub releases](https://github.com/numpde/nmr-provider-tools/releases)

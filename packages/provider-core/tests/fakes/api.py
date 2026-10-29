@@ -5,6 +5,7 @@ import json
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from provider_core.api import ProviderAPI
+from provider_core.network import NetworkIOObservation
 from provider_core.signing import SigningIdentity
 
 from provider_core.transport import ExchangeFailed, HttpResponse
@@ -82,3 +83,9 @@ def api(transport, origin):
     return ProviderAPI(
         SigningIdentity(origin, "credential:test", Ed25519PrivateKey.generate()), transport, expected_topology="dev-local"
     )
+
+
+def io_failure(message, *, primary, stage, **facts):
+    """Explicit specimen of an owned I/O failure, never inferred by Transport."""
+    observation = NetworkIOObservation(stage=stage, error=primary, cause=primary.__cause__, context=primary.__context__)
+    return ExchangeFailed(message, primary=primary, network_failure=primary, network_io=observation, **facts)

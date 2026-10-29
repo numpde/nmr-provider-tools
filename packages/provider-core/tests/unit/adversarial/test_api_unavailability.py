@@ -24,7 +24,7 @@ from provider_core.attempt_request import complete_body, fail_body
 from provider_core.hello import AnalysisOffering
 from provider_core.signing import SigningIdentity
 from provider_core.transport import ExchangeFailed, HttpResponseHead
-from tests.fakes.api import Transport, reply, response_headers, signature_window_problem
+from tests.fakes.api import Transport, io_failure, reply, response_headers, signature_window_problem
 from tests.fakes.attempts import ATTEMPT_REF, retained_start
 from tests.fakes.job_input import facts
 from tests.fakes.uploads import UPLOAD_REF
@@ -87,8 +87,8 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             reply(signature_window_problem(code="unreviewed_code"), status=401),
             reply(b"denied", status=403), reply(b"not found", status=404), reply(b"bad request", status=400),
             reply(b"malformed page"),
-            ExchangeFailed("Cleanup failed", primary=httpcore.ReadTimeout(), cleanup_failures=(OSError(),)),
-            ExchangeFailed("Cancelled", primary=httpcore.ReadTimeout(), interruption=asyncio.CancelledError()),
+            io_failure("Cleanup failed", stage="read", primary=httpcore.ReadTimeout(), cleanup_failures=(OSError(),)),
+            io_failure("Cancelled", stage="read", primary=httpcore.ReadTimeout(), interruption=asyncio.CancelledError()),
         ):
             with self.subTest(response=type(response).__name__):
                 api, transport, failure = await self.failed_discovery(response)
@@ -114,15 +114,15 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             (reply(body_timeout_problem(), status=408, headers=response_headers(status=408, topology=b"web")), False),
             (reply(b"timeout", status=408), False),
             (reply(signature_window_problem(), status=401), True),
-            (ExchangeFailed("Interrupted internal error", primary=httpcore.ReadTimeout(),
+            (io_failure("Interrupted internal error", stage="read", primary=httpcore.ReadTimeout(),
                             response_head=HttpResponseHead(500, response_headers(status=500))), True),
-            (ExchangeFailed("Unclean internal error", primary=httpcore.ReadTimeout(),
+            (io_failure("Unclean internal error", stage="read", primary=httpcore.ReadTimeout(),
                             response_head=HttpResponseHead(500, response_headers(status=500)), cleanup_failures=(OSError(),)), False),
-            (ExchangeFailed("Cancelled internal error", primary=httpcore.ReadTimeout(),
+            (io_failure("Cancelled internal error", stage="read", primary=httpcore.ReadTimeout(),
                             response_head=HttpResponseHead(500, response_headers(status=500)), interruption=asyncio.CancelledError()), False),
-            (ExchangeFailed("Interrupted rate limit", primary=httpcore.ReadTimeout(),
+            (io_failure("Interrupted rate limit", stage="read", primary=httpcore.ReadTimeout(),
                             response_head=HttpResponseHead(429, response_headers(status=429))), True),
-            (ExchangeFailed("Interrupted timeout refusal", primary=httpcore.ReadTimeout(),
+            (io_failure("Interrupted timeout refusal", stage="read", primary=httpcore.ReadTimeout(),
                             response_head=HttpResponseHead(408, response_headers(status=408))), False),
         ):
             with self.subTest(response=type(response).__name__, expected=expected):
@@ -305,15 +305,15 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 (reply(b"internal error", status=500), True),
                 (reply(b"internal error", status=500, headers=response_headers(status=500, topology=b"web")), False),
                 (
-                    ExchangeFailed(
-                        "Interrupted error body",
+                    io_failure(
+                        "Interrupted error body", stage="read",
                         primary=httpcore.ReadTimeout(),
                         response_head=HttpResponseHead(500, response_headers(status=500)),
                     ),
                     True,
                 ),
                 (ExchangeFailed("No verified head", primary=httpcore.RemoteProtocolError("PRIVATE_WIRE")), True),
-                (ExchangeFailed("Read timed out", primary=httpcore.ReadTimeout()), True),
+                (io_failure("Read timed out", stage="read", primary=httpcore.ReadTimeout()), True),
                 (reply(b"malformed receipt"), False),
                 (reply(b"denied", status=401), False),
                 (reply(b"conflict", status=409), False),
@@ -481,7 +481,7 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             (refused, True),
             (wrapped_group, True),
             (socket.gaierror(socket.EAI_AGAIN, "PRIVATE_DNS"), True),
-            (socket.gaierror(socket.EAI_NONAME, "PRIVATE_DNS"), False),
+            (socket.gaierror(socket.EAI_NONAME, "PRIVATE_DNS"), True),
             (certificate, False),
             (FileNotFoundError(errno.ENOENT, "PRIVATE_SOCKET"), False),
             (PermissionError(errno.EACCES, "PRIVATE_SOCKET"), False),
@@ -490,11 +490,11 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
             (ExchangeFailed("body limit"), False),
         ):
             with self.subTest(cause=type(cause).__name__):
-                api, _, failure = await self.failed_read(ExchangeFailed("Exchange failed", primary=cause))
+                api, _, failure = await self.failed_read(io_failure("Exchange failed", stage="connect_tcp", primary=cause))
                 self.assertIs(api.can_retry_read(failure), expected)
 
     async def test_retirement_and_late_original_evidence_control_the_decision(self):
-        exchange = ExchangeFailed("Exchange failed", primary=TimeoutError())
+        exchange = io_failure("Exchange failed", stage="read", primary=TimeoutError())
         api, transport, failure = await self.failed_read(exchange)
         transport.retirement_confirmed = False
         self.assertFalse(api.can_retry_read(failure))
@@ -560,6 +560,13 @@ class ApiAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.subTest(head=head):
                 api, _, failure = await self.failed_read(
-                    ExchangeFailed("Exchange failed", primary=TimeoutError(), response_head=head)
+                    io_failure("Exchange failed", stage="read", primary=TimeoutError(), response_head=head)
                 )
                 self.assertIs(api.can_retry_read(failure), expected)
+
+    async def test_untagged_native_lookalikes_never_grant_network_permission(self):
+        for original in (TimeoutError(), httpcore.ReadTimeout(), socket.gaierror(socket.EAI_AGAIN, "local"),
+                         ConnectionRefusedError(errno.ECONNREFUSED, "local")):
+            with self.subTest(error=type(original).__name__):
+                api, _, failure = await self.failed_read(ExchangeFailed("Local failure", primary=original))
+                self.assertFalse(api.can_retry_read(failure))

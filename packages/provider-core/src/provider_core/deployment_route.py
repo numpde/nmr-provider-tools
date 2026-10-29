@@ -22,12 +22,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from provider_core.deployment_binding import BindingDefinitionRejected, DeploymentBinding, input_paths, load_deployment_bindings
-from provider_core.diagnostics import failure_evidence
-from provider_core.failure_projection import owned_details
-
-
-class RouteProjectionRejected(ValueError):
-    """A safe refusal of an explicit image, identity, path or storage grant."""
+from provider_core.deployment_errors import RouteProjectionRejected
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,13 +217,9 @@ def initialize_route(uid, gid, path):
         os.close(descriptor)
 
 
-def _details(error, text, diagnostic_window):
-    if type(error) in (RouteProjectionRejected, BindingDefinitionRejected):
-        return {"message": str(error)}
-    return owned_details(error)
-
-
 def main():
+    from provider_core.diagnostics import failure_evidence
+
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="action", required=True)
     renderer = commands.add_parser("render")
@@ -267,7 +258,7 @@ def main():
     # silent-defaults: allow-exception-outcome -- The CLI reports safe retained evidence and refuses the requested projection or initialization.
     except (Exception, BaseExceptionGroup) as failure:
         print(json.dumps({"operation": options.action + " API route", "failure": failure_evidence(
-            failure, secrets=(), describe_owner=_details,
+            failure, secrets=(),
         )}, ensure_ascii=True), file=sys.stderr)
         return 2
 

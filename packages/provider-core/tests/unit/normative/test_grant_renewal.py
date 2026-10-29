@@ -8,7 +8,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from provider_core.api import ApiFailure, ProviderAPI
 from provider_core.signing import SigningIdentity
 from provider_core.transport import ExchangeFailed, HttpResponseHead
-from tests.fakes.api import Transport, reply, response_headers
+from tests.fakes.api import Transport, io_failure, reply, response_headers
 from tests.fakes.uploads import UPLOAD_REF, encoded, membership
 
 
@@ -64,7 +64,7 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(self.permitted(other_route, caught.exception))
 
     async def test_unsettled_issuance_requires_original_transport_retirement(self):
-        transport = Transport(ExchangeFailed("read interrupted", primary=httpcore.ReadTimeout()))
+        transport = Transport(io_failure("read interrupted", stage="read", primary=httpcore.ReadTimeout()))
         api = self.api(transport)
         failure = await self.failure(api)
         transport.retirement_confirmed = False
@@ -97,7 +97,7 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
             replace(pending, headers=without_topology + ((b"nmr-api-topology", b"web"),)),
             replace(pending, headers=headers + ((b"nmr-api-topology", b"dev-local"),)),
             replace(pending, body=pending.body[:-1] + b',"code":"upload_read_not_finalized"}'),
-            ExchangeFailed("pending body was interrupted", primary=httpcore.ReadTimeout(),
+            io_failure("pending body was interrupted", stage="read", primary=httpcore.ReadTimeout(),
                            response_head=HttpResponseHead(pending.status, headers)),
         )
         for index, response in enumerate(responses):

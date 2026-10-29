@@ -16,7 +16,7 @@ from provider_core.job_input import verify_job_input
 from provider_core.ownership import AttemptClaims
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from provider_core.transport import ExchangeFailed
-from tests.fakes.api import Transport, api, reply
+from tests.fakes.api import Transport, api, reply, response_headers
 from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import observation, progress_response, start_response
 from tests.fakes.checkpoint_execution import RecordingDelivery
@@ -161,3 +161,27 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual([exact_body], [item.body for item in controller.delivery.items])
         self.assertEqual(4, len(transport.calls))
         self.assertNotIn("execute", session.events)
+
+    async def test_crash_interrupts_retry_after_that_cannot_fit_without_retry_notice(self):
+        session = self.session()
+
+        class CrashDuringFloor(Transport):
+            async def exchange(self, request, *, maximum_bytes, owner=None):
+                received = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+                if len(self.calls) == 4:
+                    session.begin_crash.set()
+                return received
+
+        retry, recovered = Mock(), Mock()
+        headers = (*response_headers(status=429, request_id=b"request:rate"), (b"retry-after", b"10"))
+        transport = CrashDuringFloor(*self.initial_replies(), reply(b"maintenance", status=429, headers=headers))
+        recovery = ObservationRecovery(3, .5, retry, recovered)
+        controller = self.controller(session, transport, recovery, poll_seconds=.01)
+        accepted = await asyncio.wait_for(controller.run(record()), 4)
+        self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
+        retry.assert_not_called()
+        recovered.assert_not_called()
+        self.assertEqual(len(transport.calls), 4)
+        self.assertEqual(len(controller.delivery.items), 1)
+        self.assertEqual(json.loads(controller.delivery.items[0].body)["failure_code"], "worker_crashed")
+        self.assertTrue(controller.shutdown_ready)

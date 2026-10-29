@@ -41,6 +41,8 @@ from provider_core.starting import StartFailed, StartRefused
 from provider_core.startup_file import StartupFileRejected
 from provider_core.transport import ExchangeFailed, response_request_id
 from provider_core.decoded_body import DecodedBodyRejected
+from provider_core.deployment_errors import BindingDefinitionRejected, RouteProjectionRejected
+from provider_core.network import NetworkIOObservation
 from provider_core.uploads import UploadFailed, UploadFileReadFailed, UploadInputRejected, UploadRecoveryExhausted
 
 
@@ -114,6 +116,14 @@ def owned_relationships(error):
     if kind is ExchangeFailed:
         yield "transport primary", error.primary
         yield "transport interruption", error.interruption
+        if error.caller_interruption is not None:
+            yield "transport caller interruption", error.caller_interruption
+        if type(error.network_io) is NetworkIOObservation and error.network_io.error is not None:
+            yield "network I/O error", error.network_io.error
+            if error.network_io.cause is not None:
+                yield "network I/O original cause", error.network_io.cause
+            elif error.network_io.context is not None:
+                yield "network I/O original context", error.network_io.context
     if kind in (UploadFailed, UploadInputRejected, UploadRecoveryExhausted):
         yield "acquisition interruption", error.interruption
     if kind is UploadFileReadFailed:
@@ -168,6 +178,8 @@ def owned_details(error):
         StartupFileRejected,
         ApiConfigurationRejected,
         DeliveryConfigurationRejected,
+        BindingDefinitionRejected,
+        RouteProjectionRejected,
     ):
         return {}
     details = {"message": str(error)}
@@ -228,6 +240,10 @@ def owned_details(error):
             head = error.cause.response_head
         if head is not None:
             details.update(status=head.status, request_id=response_request_id(head.headers))
+    if kind is ExchangeFailed and type(error.network_io) is NetworkIOObservation:
+        details["network_io_stage"] = error.network_io.stage
+        details["network_io_eof"] = error.network_io.eof
+        details["network_io_deadline_cancelled"] = error.network_io.deadline_cancelled
     if kind is ExchangeFailed and error.response_head is not None:
         details.update(status=error.response_head.status, request_id=response_request_id(error.response_head.headers))
     if kind is ExchangeFailed and error.proxy_connect_status is not None:
