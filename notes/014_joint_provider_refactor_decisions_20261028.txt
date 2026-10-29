@@ -4591,3 +4591,40 @@ Refuse another scientific submission while the original remains unobserved,
 including when physically done. Qualify both cancellation-before-failure and
 retirement-after-completion with causal barriers, then resume the existing lane.
 No second executor, registry, retry allowance or generic lifecycle redesign.
+
+ProArt shared checkpoint (2026-10-29 06:50 UTC)
+-------------------------------------------
+
+Both original provider owners confirmed their ProArt graceful stop positively:
+NMRNet original 86b09e83c4c79d4710b3c0d0d10da575c9102be1c8102cc729ca57b215013c65
+exited 0/OOM false/restarts 0, lifecycle reported service settled. Magnet original
+be66bc794ff44028df0f6cbc1d865bfe61ac91535d933b6252e4bc75ddadcd39 exited 0/OOM
+false after one unbounded graceful stop. Its pre-stop restart count was 33; this
+historical count is not a new-runtime failure or proof of the latest old cause.
+Both owners retained shared dependencies and handed root the settled originals.
+
+After both drains, original live IPC inventories showed nmrnet-pa-a and
+magnet-pa-a at 0 pending/0 held, publisher running, capacity 8 items/16 MiB each.
+Maintained shared down exited 0, exact old project containers were absent, then
+maintained up exited 0 using the same neutral definition and exact d99dcac8 image.
+No stop observer timed out or required a repeated mutating stop operation.
+
+New daemon:
+0f249ffd96b4b45a3dd9e2dac9d0b57d781f354a7f9d7200ef45e8ac6603eeb4
+New proxies:
+e96d50a24a2325e5b1288c1e8be6f5dc76cdb9a8134226ea31dcfbef58cb4443
+1eb81f66d53df4c738de3cdc8ab12e11faa5619822a4ad17e834f980f75b46d7
+All three run exact qualified d99dcac8 image, healthy/restarts 0/OOM false.
+The shared and two API initializers exited 0. The actual running shared daemon
+reports installed SDK 0.5.1. Original five-volume metadata equality holds for
+Name, CreatedAt, Driver, Options, Labels, Scope and Mountpoint. Post-switch IPC
+retains both binding names, capacities and running publishers at 0 pending/held.
+
+Sanitized root receipts are /tmp/provider-core-0.5.1-cutover-preflight/proart-
+{receipt.json,pending-before.json,pending-after.json,volumes-before.json,
+volumes-after.json,runtime-state.txt,installed-version.txt,final-receipt.json}.
+Operation logs: /tmp/sdk-051-proart-shared-{down,up}.log. SECS has been asked to
+review those captured receipts independently, without making new Engine claims.
+Both provider owners were signaled to resume at 06:49 UTC. Their actual consumer
+readiness remains pending; local services stay running. These observations do not
+prove publication of a remote scientific result or replay of nonempty live queues.
