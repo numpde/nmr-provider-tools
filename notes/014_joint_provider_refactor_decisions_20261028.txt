@@ -4840,3 +4840,45 @@ cleanup, alongside independent cleanup failure when present. Already observed
 startup failures and completed success must not be duplicated or fabricated.
 Fresh critical audit and canonical rebuilds remain pending. This extends the
 same SCI observation choice, not a new lifecycle, SDK protocol or report policy.
+
+D148 -- Project scientific failure frames through their reviewed structural contract (2026-10-29 07:09 UTC)
+--------------------------------------------------------------------------------
+
+Magnet's independent adversarial review found a real privacy flaw in SECS's dirty
+D146 hook: it forwards ScientificWorkerFailed.diagnostic as a nested dictionary,
+but SCI framing admits any JSON object and the SDK custom-detail hook only
+redacts scalar string values. A nested marker survived the actual framed decode,
+local error and SDK-rendered path. No live disclosure or committed fix is claimed.
+
+Serious alternatives:
+A. Trust every framed dictionary because the present child producer emits a
+   bounded structural exception graph. The receiving boundary has not established
+   that shape, and unknown nested payloads can bypass its scalar redaction.
+B. Drop all scientific failure details. This closes the leak but loses the
+   original observed failure and independent-cause evidence D146 must preserve.
+C. Admit/project only the existing reviewed scientific exception structure at
+   the SECS SCI boundary, bound it using that contract and apply the existing
+   scalar protection to every admitted string leaf before it reaches the hook.
+
+Choice: C. Preserve exact original task/frame and cleanup references privately;
+do not forward arbitrary nested maps as approved operator text. Unknown payload
+fields or malformed structures cannot gain rendering permission merely from a
+failed outcome tag. Use the actual child producer's structure as the contract;
+qualify adversarial nested input through the real rendered receiving surface.
+This is a narrow owner projection, not permission for a new general renderer,
+another protocol/lifecycle owner or the deferred D125 framework. SECS must not
+commit the raw-map hook; its owner is reproducing RED before the correction.
+
+Single API smoke checkpoint (2026-10-29 07:09 UTC)
+------------------------------------------------
+
+NMRNet is the sole submitter; root has made no API mutation. Its first production
+projects read using the suggested demo artifact returned 401 authentication_failed
+(request:c6686329-cba5-4321-a006-cf49c4d286e1), proving authentication refusal but
+not a specific cause. No Job was created. It then located an existing qualification
+user credential and obtained a 200 projects read identifying project:user-demo.
+No new credential/project was provisioned. It is checking existing post-cutover
+results before deciding whether the one authorized current Job is necessary.
+Creation and remote terminal readback remain pending; do not count the successful
+read as a Job or result proof. The default-local/ProArt-WLAN routing preference
+and exact one-shot mutation/recovery contract remain in force.
