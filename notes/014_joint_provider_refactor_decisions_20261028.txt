@@ -6045,6 +6045,11 @@ This is local intake and continuity evidence, not proof of a newly published res
 NMRPeak's provider readiness and any independent startup diagnostics remain with
 its deployment owner. ProArt's separate migration is not implied by this result.
 
+Retrospective clarification for D190–D197: the explicit choice rationales were
+added after the decisions, using the recorded user direction, implementation and
+qualification evidence. They explain the reasons supported by that evidence;
+they are not a contemporaneous transcript of the deliberation.
+
 D190 — Build on each deployment host from published source
 -----------------------------------------------------------
 
@@ -6054,7 +6059,10 @@ A. Transfer source bundles or prebuilt images between the deployment hosts.
 B. Publish source to GitHub, update each host from there, and build locally from
    the released SDK and the host's own verified dependencies.
 
-Choice: B, as directed by the user. GitHub updates use the host's default route;
+Choice: B, as directed by the user. It gives each host a repeatable path from
+published source to its own build and removes dependence on another host's build
+or a transferred bundle. The cost is that each host needs its own verified base
+and dependencies. GitHub updates use the host's default route;
 other deployment downloads on ProArt prefer WLAN, while API traffic uses its
 default route. A SECS transfer had already completed before the user stopped it;
 the temporary bundle was deleted. SECS subsequently pulled published source and
@@ -6064,8 +6072,8 @@ NMRPeak rebuilt on localhost from its published source; NMRNet and Magnet owners
 verified host-local builds from GitHub source on their existing targets. This is
 startup and integration evidence, not a new scientific qualification.
 
-ProArt's shared delivery service remains healthy, but its running image was built
-on another host before this instruction. A local rebuild is still outstanding:
+At the time of this decision, ProArt's shared delivery service was healthy, but
+its running image had been built on another host. Its local rebuild was outstanding:
 the independently verified Python base exists in Docker under a local tag, but
 the engine does not associate the imported image with the pinned registry digest.
 An offline BuildKit probe also rejected the image configuration ID as a FROM
@@ -6086,7 +6094,10 @@ D. Supply a digest-addressed OCI layout or local registry to the builder. This m
    avoid a mutable tag, but its support and lifecycle have not been established on
    this engine; it requires qualification before being selected.
 
-Choice: C, subject to implementation and qualification. The verified platform
+Choice: C. This preserves an independently verified image identity and avoids
+changing daemon-wide routing or relying on an arbitrary shared alias. It requires
+an additional platform configuration pin and operation-tag cleanup, and relies on
+the existing Docker-authorized-actor trust boundary. The verified platform
 image must be tied to the pinned manifest by acquisition evidence; neither a shared
 alias nor an arbitrary caller-selected base is sufficient. An operation-owned tag
 prevents ordinary concurrent operations from colliding; it does not defend against
@@ -6096,6 +6107,18 @@ probe verified its image blobs and platform configuration but ProArt's default
 builder rejected the OCI layout scheme before executing a build. Thus D is not
 qualified on this engine. A successful replacement still needs a qualified image
 and coordinated drain; the live queue and its volume identity must be preserved.
+The reviewed implementation uses an operation-owned tag, checks the exact base
+and a separate persistent reference before publishing the result, and retains
+operation evidence when retirement is uncertain. The local image passed 34
+deployment tests. The full repository run had two hygiene failures caused by
+bytecode from a direct Python invocation during this work; those exact files were
+removed and all 206 repository quality checks then passed. The other 341 cases
+in that full run passed. ProArt pulled the committed source from GitHub, built
+the image locally using its verified base and release inputs, and passed the same
+34 deployment tests. Its three provider owners drained before shared delivery
+was replaced. The original queue volume creation identity was preserved, and live
+IPC showed zero pending and held items with publishers running for every binding
+both before and after the replacement. Provider resumption is independently owned.
 
 D192 — Provider runtime storage review
 --------------------------------------
@@ -6112,6 +6135,12 @@ C. Keep operator-authored configuration, credentials and intentional model cache
    IPC, with explicit capture, permissions, retention, retirement and rollback.
 
 Working direction: C, after each owner identifies actual mounts and borrowers.
+It places lifecycle-generated state under the engine that owns its containers,
+while leaving operator inputs and reusable model caches with their existing owners.
+That reduces unmanaged runtime residue without treating live state as disposable.
+The tradeoff is a provider-specific migration and recovery proof, rather than an
+immediate uniform conversion. This is a direction for each owner, not evidence that
+every provider migration has been implemented.
 Shared delivery already places its queue and socket directories in named volumes;
 its operator definition and credential or CA grants remain read-only host inputs.
 NMRPeak already uses volumes for its journal and worker sockets but retains frozen
@@ -6127,6 +6156,11 @@ acquiring the identity lock proposed for snapshot deletion. That lock alone cann
 exclude those reads. All supported readers and cleanup need one shared admission
 boundary; mount enumeration does not exclude an arbitrary Docker-authorized actor.
 The other provider owners are checking their actual startup and cleanup ordering.
+NMRPeak's owner reports a tested startup-order fix that acquires the same identity
+lock used by cleanup before captured inputs are read. Its owner reports the
+published GitHub revision was pulled and built locally, and the matching image
+is deployed and healthy. Old snapshot retirement remains separate, with an owner
+and trigger recorded in that provider's deferred-items note.
 Shared delivery has no provider snapshot cleanup: it captures an operator-owned
 definition before its project reservation, then validates the original definition
 against that capture at daemon startup. Its credentials and definitions remain
@@ -6147,10 +6181,20 @@ lock before retained-generation selection. Up and preview additionally take
 exclusive per-project and secret-directory locks, serializing same-deployment
 generation reads with pruning; other deployments use distinct bundle roots. Other
 checkouts and out-of-band Docker operations do not participate in the checkout lock.
-The owner found a narrower status-observation race: status reads a route's labeled
-generation without those locks while up can prune it. The owner is reproducing it
-and assessing bounded re-observation or an explicit changed-state diagnostic;
-the observation alone does not prove a startup or cleanup mutation failure.
+The owner reproduced a narrower status-observation race: status reads a route's
+labeled generation without those locks while up can prune it. A valid route with
+a vanished snapshot was incorrectly reported as unknown. Magnet's status-only
+correction reports the observation as unavailable or changed, preserves signal
+status and continues to reject genuinely foreign routes. The owner reports a
+focused regression and independent review; this is not a startup or cleanup
+mutation failure.
+The owner also reproduced Compose reusing a correctly labeled tmpfs volume whose
+actual size differed from the Compose declaration. Live Magnet volumes were
+observed to match; its admission check and the limited repair in D194 were later
+published. Other providers checked their own volume reuse. Labels and directory
+permissions alone do not prove tmpfs capacity or mount flags. Shared delivery's
+queue and IPC volumes have no declared tmpfs or size options; its root initializer
+does not by itself prove the storage driver's durability.
 SECS subsequently completed its own quiescent volume cutover from published
 source built on ProArt. Its owner reports the old provider and worker drained,
 the old sources were empty and prior runtime evidence was retained for rollback.
@@ -6158,6 +6202,144 @@ The replacement published Hello; the provider and worker share the same native
 lock inode, their runtime mounts and the SDK API route are Docker volumes, and
 the former host runtime directories are absent. This establishes the reported
 startup and storage boundaries, not a new scientific Job or numerical result.
+SECS's owner reports that source bytes use disk-backed capacity rather than a
+fixed memory limit. Its session lock is disk-backed because a one-shot initializer
+can exit before a worker mounts a tmpfs volume; the small lifetime volume is
+tmpfs. A Docker test checked the session lock inode across stop/start. Its read-only
+config preview does not take the lifecycle lock; up reads contents under it. SECS
+continues to refuse mismatches and does not use Magnet's repair.
+
+D193 — Validate existing volume configuration before reuse
+-----------------------------------------------------------
+
+Serious alternatives:
+A. Trust Compose declarations and ownership labels. The Magnet reproduction
+   shows these do not establish the actual options on a reused volume.
+B. Recreate every volume when options differ. This can destroy live state and
+   cannot establish that owners and borrowers have retired.
+C. Inspect the actual engine driver and required options before use; refuse a
+   mismatch with a useful diagnostic, leaving any existing state untouched.
+
+Choice: C for each volume whose behavior depends on such options. The actual
+engine metadata is the authority for an existing volume, so checking it catches
+drift that Compose labels and declarations miss. Refusing a mismatch preserves
+state and gives the owner a chance to establish whether replacement is safe; the
+tradeoff is that equivalent option strings can be treated as a mismatch. D194
+separately decides when Magnet's limited automatic repair is safe.
+SECS already compares exact rendered driver/options and reports that its live
+volumes match. Magnet's corresponding host-side check is committed and deployed
+on both existing checkouts; its owner reports focused mismatch tests, independent
+review and matching actual live volumes. NMRPeak's startup now also checks the
+actual named tmpfs session volumes before reuse; its owner reports full tests and
+a healthy local deployment built from the published source. NMRNet declares no tmpfs or
+size options for its provider volumes and reports local driver with no options
+on both hosts. The shared queue likewise reports local driver with no options on
+both hosts. Queue durability, tmpfs capacity and
+lifetime-lock ownership are separate questions; a label or successful directory
+initializer is not proof of the storage driver's behavior. This admission decision
+alone does not authorize changing an existing volume; D194 records the later,
+limited authorization for Magnet.
+SECS and Magnet compare the engine's driver/options with the declared values,
+normalizing only the engine's empty-options representation. Strict comparison
+can flag a semantically equivalent reordered option string. SECS refuses it;
+Magnet may perform the limited drained repair in D194 if that volume qualifies.
+Neither path interprets unknown or conflicting flags as equivalent. The owners
+are comparing their actual-engine tests. A shared comparator would add a new
+cross-language interface to otherwise local deployment ownership; keep the checks
+local unless a stable common caller and contract justify that interface. This
+does not displace shared delivery's ownership of its own IPC volumes.
+
+D194 — Repair mismatched temporary provider volumes
+---------------------------------------------------
+
+Serious alternatives:
+A. Refuse every mismatch and require an operator to repair it by hand. This is
+   safe but leaves routine temporary IPC cleanup to the operator.
+B. Replace any volume that differs from the declaration. This could remove
+   persistent state or create a second lock while an old borrower is alive.
+C. For the specifically authorized provider-owned temporary lifetime and runner
+   IPC volumes, drain and prove retirement of their owners, then verify exact
+   volume identity, ownership, options and attachments under the lifecycle owner
+   before removal and recreation. Both actual and desired volume must use the
+   local driver with tmpfs type and device; other or ambiguous cases refuse.
+
+Choice: C for Magnet, as its owner reports the user's authorization. It removes
+routine operator intervention for temporary IPC while keeping the proof needed to
+avoid replacing an active lock or deleting persistent state. The cost is a more
+involved drain and identity check; uncertainty still stops the repair. A failed
+restart after removal can leave a partial effect and must report that fact.
+The shared delivery queue and other persistent volumes are outside this repair.
+The engine has no demonstrated immutable volume object ID. The repair rechecks
+name, labels, driver, options, creation time and all-container attachments under
+cooperative locks; these facts do not exclude an uncoordinated Docker administrator.
+The owner reports the repair is published as Magnet commit 0cfdcb6 and installed
+on both host checkouts. Focused failure tests, the maintained image-input and
+lifecycle checks, independent review, and an isolated real-Docker repair passed.
+The witness retired two disposable synthetic borrowers and recreated a mismatched temporary volume;
+no live volume was changed. Both providers remain ready. Uncoordinated Docker
+clients remain outside the supported lifecycle exclusion boundary.
+
+D195 — Protect captured startup inputs during snapshot retirement
+-----------------------------------------------------------------
+
+Serious alternatives:
+A. Keep taking NMRPeak's identity lock after reading captured inputs, and rely on
+   a mount census during cleanup. A supported startup can read before that lock;
+   a census is an observation, not exclusion against a concurrent reader.
+B. Prohibit snapshot retirement entirely. This avoids the race but leaves captured
+   credential copies without an owned retirement path.
+C. Have the NMRPeak provider process acquire the identity lock used by retirement
+   before its captured binding and frozen-generation reads, then retain it until
+   its borrowers settle. The separate SDK route remains under deployment lifecycle.
+
+Choice: C. It gives the provider process and cleanup one exclusion authority at the
+point where the race occurs, while retaining the ability to retire snapshots once
+journal references and borrowers are proved gone. It requires earlier admission and
+careful failure cleanup; it does not exclude an independently administered Docker
+client. NMRPeak's owner reports the fix tested, published and deployed. The
+supported journal-archive launcher reads its frozen generation before its own
+identity lock but holds the same deployment lifecycle lock as generation removal
+through the invocation and cleanup. Direct invocation bypasses that protection;
+an uncertain Docker cleanup is not proof of retirement. D197 records the separate
+decision on historical snapshots.
+
+D196 — Report a route observation that changes during status
+------------------------------------------------------------
+
+Serious alternatives:
+A. Treat a missing captured generation as a foreign route. A concurrent prune can
+   produce that observation for a route that was valid when inspection began.
+B. Hold the deployment's exclusive lifecycle lock throughout status. This provides
+   exclusion for participating operations but can wait up to 60 seconds behind a
+   long deployment, then fail busy.
+C. Report the observation as unavailable or changed, preserving interruption and
+   true foreign-label outcomes, and let the operator retry.
+
+Choice: C. It reports what the status command actually established and can run
+without waiting for that lifecycle lock, at the cost of a transient indeterminate
+result; Docker or route inspection can still fail. The Magnet owner reproduced the
+failure with a fake-Docker receipt and missing snapshot, not a live concurrent
+race; source ordering establishes the possible interleaving. Focused regressions,
+independent review and the published status-only correction support this outcome;
+the issue did not establish a failure in provider startup or cleanup mutation.
+
+D197 — Preserve NMRPeak's uncertain historical snapshots
+---------------------------------------------------------
+
+Serious alternatives:
+A. Delete after finding no journal references. That leaves the unexpected ACLs
+   and an inconsistent borrower census unexplained.
+B. Rewrite the old ACLs or retry the census until it happens to pass, then delete.
+   Neither action establishes historical ownership or excludes a concurrent actor.
+C. Preserve the affected snapshots and defer a reviewed one-time validator and
+   removal under a coordinated engine/filesystem maintenance boundary.
+
+Choice: C. The journal inventory removes one possible reason to retain the trees,
+but does not resolve the separate ownership and borrower questions. Preserving
+them avoids an unproved deletion; the cost is retaining historical captured data
+until the owner can establish a safe disposition. NMRPeak's deferred-items note
+records the owner and trigger. The reasons for the ACL and inventory discrepancies
+are not established.
 
 Supporting qualification references
 -----------------------------------
