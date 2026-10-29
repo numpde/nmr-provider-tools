@@ -4693,3 +4693,40 @@ RunnerSession observation identity is now the authority; no mirrored analysis
 flag. Historical codec/store/archive/inspection checks pass after displaced live
 API/replay deletion. Remaining full/native/repository and canonical image closure
 are still running; no full adoption completion claim yet.
+
+Two-host rollout checkpoint (2026-10-29 06:56 UTC)
+------------------------------------------------
+
+All four live NMRNet/Magnet provider deployments have resumed on 0.5.1. Magnet
+corrected D145 by building the retained PRODUCT=proart image locally:
+sha256:d7403d94271b02d3484768f25c3f18bd2d0dc585d9157bf821a82271666a1de6
+at source 859c041. Its maintained ProArt up exited 0, startup validation and the
+signed API check passed, status ready. Provider CID starts 47cb621c; installed SDK
+0.5.1, healthy/restarts 0/OOM false. E01/E02/G01 run with restarts 0/OOM false;
+they have no ongoing Docker healthchecks. API route healthy, initializer exited 0,
+lifetime/runner volumes retained. The owner rechecked both Magnet hosts healthy.
+
+NMRNet reports both hosts resumed through maintained install/up with all seven
+provider/dependency services healthy/restarts 0/OOM false, exact qualified images
+and installed 0.5.1. Successful signed admission and current Hello precede ready.
+Both original provider lifetimes settled before replacement; no remote scientific
+result is inferred from startup health.
+
+SECS independently compared captured ProArt continuity receipts: all five original
+volume metadata identities, both binding names/capacities, all three distinct
+healthy d99dcac8 running service identities, installed 0.5.1 and restart/OOM facts
+match the stated scope. It did not independently query the Engine or prove a
+remote result. Retained review receipts: /tmp/secs-sdk051-local-continuity-review.json
+and /tmp/secs-sdk051-proart-continuity-review.json, with source receipt hashes.
+
+The local-first shared switch and provider rollout are complete at this scope.
+The two hosts retain their original queue/IPC/route volumes and original binding
+definitions. A nonempty live-queue replay or new remote scientific result has not
+been proved by this empty-queue switch; package/contained tests and actual live
+operational observations remain distinct evidence.
+
+NMRPeak's next integration hang was diagnosed with actual task stacks as a new
+test-server teardown ordering defect: Python 3.12 Server.wait_closed waits for
+accepted peers whose fixture barriers were still held. The fixture now closes
+the listener, cancels/joins its owned handlers, then waits for server closure.
+No SDK or production change was requested. Its narrowed rerun remains pending.
