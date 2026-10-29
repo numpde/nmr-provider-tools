@@ -3687,3 +3687,449 @@ through actual provider retirement, then releases/stops the peer and verifies
 its success and exact cleanup. Do not mask provider failures, add a production
 protocol, invent another timeout policy or infer completed cleanup from a marker.
 Magnet owns the narrow proof-fixture correction and its focused validation.
+
+D121 -- Review availability policy separately from operation replay permission (2026-10-29 04:55 UTC)
+--------------------------------------------------------------------------------
+
+Magnet's reproduced settled Jobs GET failure retains CONNECT 200 followed by
+TLS handshake EOF: ConnectError, EndOfStream and SSLEOFError. Its live incumbent
+also has DNS-connect failures. NMRNet points out that an errno or wrapper shape
+does not reliably prove an outage permanent. Fixing fixture ordering alone would
+not answer that real safe-read recovery question.
+
+Serious alternatives:
+A. Add one more exact wrapper-chain exception to the shared temporary predicate.
+   This addresses one stack but keeps availability coupled to library packaging.
+B. Retry every exception after any request. This can hide local programming or
+   protocol faults and grant unreviewed capability issuance/mutation replay.
+C. Establish network-availability evidence at the actual transport boundary,
+   then let each existing operation-specific API contract grant the next request.
+
+Choice under joint review: C. Safe, settled GETs should not need proof that DNS
+or peer disconnection will recover. Preserve fresh signing, caller backoff/stop
+and exact current failure/retirement evidence; do not relax TLS verification or
+turn local/accounting/decoder defects into network permission. Keep wrong-target,
+invalid-configuration and admitted protocol failures distinct. Review Hello's
+explicit fresh-current-announcement contract too, so a GET-only change does not
+leave another background owner failing on the same outage. Shared grant/START/
+terminal permissions must not broaden accidentally through a generic helper.
+The exact class boundary and compatibility consequences remain open; no broad
+classifier change is approved before that joint review and causal witnesses.
+
+D122 -- Keep model endpoint facts separate from per-Attempt HTTP ownership (2026-10-29 04:55 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak proposes keeping its frozen interpreter configuration reusable, with one
+per-Attempt InterpretationSession adopted by AnalysisSession before HTTP effects.
+
+Serious alternatives:
+A. Keep the shared HTTPX client and private response-release Task collection.
+   This leaves the competing exchange lifecycle that D085 removes.
+B. Adopt ChatEndpoint and change the model's request/repair/parser policy.
+   That is a different scientific protocol migration.
+C. Let the actual Attempt's interpretation session own its current SDK transport,
+   while frozen endpoint facts and NMR-specific model policy remain reusable.
+
+Choice: C. Preserve the harness's existing five-second per-send pacing through
+an explicit before_request hook inside the existing request deadline. After
+pacing, derive exchange_seconds from the remaining request allowance and
+retirement_seconds from the remaining turn allowance, with D115's absolute
+not_after cap preventing renewal. Never allocate replacement transport while
+its predecessor remains unsettled. Unconfirmed cleanup escapes endpoint fallback
+and keeps the original analysis/controller/lifetime exclusion held.
+
+Retain HTTPX's actual trust_env=False/certifi trust profile, request JSON,
+finish_reason handling and endpoint retry policy. No SDK request-hook framework,
+new timeout setting or response-release Task registry is introduced. Actual
+adapter and held-cleanup qualification remain pending; source proposals do not
+establish installed behavior.
+
+D123 -- Refuse newly observed HTTP success after its absolute cap (2026-10-29 04:57 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet's integrated D115 review found a boundary the first tests did not cover:
+asyncio.wait can resume after the absolute cap with the original task already
+done. Checking only its done set could then return success past the caller's cap.
+
+Serious alternatives:
+A. Treat not_after only as the wait's scheduled timeout, accepting completed
+   responses whenever that observer eventually resumes. This leaves the model
+   turn's absolute admission boundary dependent on event-loop scheduling.
+B. Add a separate completion-time record and let the caller infer permission
+   from that timestamp. No current consumer requires that additional authority.
+C. Check the actual loop time when observation resumes; past the cap, retain
+   timeout/failure and original cleanup evidence instead of returning new success.
+
+Choice: C. This is an opt-in absolute cap, not just another relative wait hint.
+Retain the necessary timeout, original head and cleanup evidence. Pending work
+stays with its original task; a positively settled exchange can be released.
+Late bodies are unusable and do not require another response store. Retirement
+may confirm settlement but cannot turn deadline failure into a usable response.
+Preserve any independent native failure under
+the existing failure/interruption rules. None keeps the published default timing.
+Add one causal scheduling witness before correcting this admission check; do not
+invent a new timestamp registry or change NMRNet's non-opt-in scientific policy.
+
+Explicit tradeoff: a response may finish before the cap but be observed after
+it because the event loop was delayed. It is then refused. This is an observation
+deadline; the failure does not establish that the physical operation finished late.
+
+D124 -- Apply availability evidence through each existing API recovery contract (2026-10-29 05:08 UTC)
+--------------------------------------------------------------------------------
+
+Root read the pinned x-nmr-recovery rules for GET, Hello, START, progress,
+terminal reports and read capabilities. NMRNet identified that a GET-only fix
+would still let the durable publisher pause a binding on the same TLS outage.
+SECS correctly warned that the current network_failure marker covers an entire
+httpcore request/iterator call, including possible parser or local faults.
+
+Serious alternatives:
+A. Extend only GET/Hello while leaving exact terminal/START recovery unable to
+   use the same observed outage. This leaves an actual unattended-operation gap.
+B. Widen temporary_io_failure or every tagged request exception globally. This
+   confuses network location with availability and hides operation-specific effects.
+C. Capture original I/O evidence at the existing owned backend/stream, classify
+   its causal meaning, then apply the individually reviewed recovery contracts.
+
+Choice: C, resolving D121. Keep exact original cause and stage at the existing
+network owner, including actual peer EOF; do not build another registry or infer
+availability from arbitrary callback/parser exceptions. DNS failures do not need
+an errno prediction of permanence. Typed connection loss, timeouts and TLS EOF
+can be availability evidence; certificate/hostname validation, hard TLS setup,
+admitted protocol/decoder/local faults and mixed groups containing other failures
+do not qualify. Use bounded causal classification without a required exact
+wrapper ordering, preserve full TLS verification and retain protected diagnostics.
+
+Every permission still requires this API's current exact failure, positively
+retired original resources, clean independent cleanup, correct target/topology
+and the existing caller's backoff/stop/budget. Review the resulting matrix:
+- GET: a freshly signed read; it grants no scientific action or promised recovery.
+- Hello: reconstruct the latest complete announcement, never replay an old snapshot.
+- START: same retained Job/key/canonical facts; inspect current returned state;
+  no second science or dark-restart reconstruction is authorized.
+- Progress: only still-current phase/condition facts under the existing owner.
+- COMPLETE/FAIL: the durable owner's exact unchanged terminal command/outcome.
+- Read capability: same still-needed Job/Upload, fresh issuance rather than bearer
+  recovery; preserve possible prior issuance/retention effects and source budgets.
+- Other operations: no new generic mutation permission.
+
+Existing complete-status and problem-code rules remain: this does not turn an
+unreviewed grant HTTP500, wrong environment, auth conflict or dirty cleanup into
+permission. Keep the old generic temporary predicate unchanged where unrelated
+callers rely on it. Prove actual TLS EOF/recovery and controlled original DNS
+failure paths, local lookalike/certificate/protocol/group negatives and each
+operation's exact-authority matrix before release. D117's version-uniformity
+argument no longer justifies leaving affected providers on 0.5: this newly proved
+shared availability fix affects normal API/delivery operation and needs coordinated
+consumer adoption. Native/scientific code stays unchanged; no numerical reruns
+are required merely because package metadata changes.
+
+D124 implementation clarification (2026-10-29 05:25 UTC):
+Replace the API network-evidence branch rather than merely OR the new fact with
+the old exception predicate: otherwise local timeout/DNS lookalikes can still
+qualify through the old branch. Preserve complete status/problem and all exact
+operation gates. The generic temporary helper remains unchanged for unrelated
+callers. An aggregate SDK timeout can qualify only when captured original I/O
+was pending/cancelled by that SDK deadline and no caller interruption is present;
+a bare/local TimeoutError or cancelled caller supplies no such permission.
+Retain original I/O cause/stage and canonical timeout/cleanup evidence together.
+
+D125 -- Bound valid structured diagnostics at the actual output allowance (2026-10-29 05:11 UTC)
+--------------------------------------------------------------------------------
+
+Magnet's source audit found json.dumps(failure_evidence(...)) sliced at 8192
+characters, which can produce invalid JSON. NMRNet's atomic notice writer can
+instead reject an oversized full graph, leaving no timely diagnostic output;
+its fatal writer can partially emit a long record to nonblocking stderr. Actual
+inspected outage records were 694–3141 characters, so current outage truncation
+has not been demonstrated. Magnet corrected its initial extraction: DNS errno
+-5 was already preserved; its earlier absence claim was false.
+
+Serious alternatives:
+A. Lower the fixed node/frame counts. That still does not prove the encoded
+   envelope fits the actual sink, and traversal can spend the budget on context
+   before preserving the original cause and independent cleanup.
+B. Slice serialized JSON or discard the whole oversized record. The first
+   corrupts structure; the second loses the available operator evidence.
+C. Use one shared byte-budgeted valid-JSON rendering policy, preserving reviewed
+   facts and causal priorities with explicit evidence of what was omitted.
+
+Choice: C. The actual total encoded allowance includes the envelope and newline,
+not just graph characters. Prioritize root operation, original cause, independent
+cleanup/interruption and group relationships before frames or lengthy safe text.
+Keep coherent IDs/references and explicit omission counts. Preserve the existing
+projection/redaction authority; apply each consumer's stricter scalar redaction
+before serialization, never regex or byte slicing over serialized JSON.
+
+Inspect actual notice and fatal paths before fixing the helper contract. Do not
+add a logging framework, alternate sink, files, history or a graph registry. A
+diagnostic failure remains independent evidence and must not veto an already
+selected report or replace its primary cause. Shared constant-derived DNS reason
+names can clarify negative EAI codes without exposing raw hostnames/messages;
+native SSL reason fields require the same bounded disclosure review. Diagnostic
+text never grants retry authority. Capture a real oversized-rendering RED and
+privacy/encoded-byte GREENs before claiming the shared output boundary fixed.
+
+D126 -- Correlate a lane's terminal diagnostic with its existing identity (2026-10-29 05:11 UTC)
+--------------------------------------------------------------------------------
+
+Magnet's multi-lane logs put implementation_ref on the preceding intake failure
+but omit it from the lane's fatal_run event, making concurrent failures harder to
+associate.
+
+Serious alternatives:
+A. Rely on temporal adjacency. Concurrent lane output can interleave.
+B. Repeat the entire diagnostic graph or introduce another correlation ID.
+   This duplicates evidence or creates another identity to maintain.
+C. Include that lane's existing implementation_ref in its fatal_run event.
+
+Choice: C. Preserve event reason/status and the original failure; add only the
+already owned safe lane identity. This is a consumer correlation correction,
+not another renderer or execution-state change. Magnet owns the focused RED,
+source/wording audit and GREEN before its local commit.
+D127 -- Project exact shared deployment refusals without CLI import cycles (2026-10-29 05:19 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's actual projection CLI supplied the one-argument owned_details function
+to failure_evidence's three-argument describe_owner hook, replacing a missing
+binding refusal with TypeError. Its owner is correcting that caller. Separately,
+the shared default projection omits BindingDefinitionRejected and
+RouteProjectionRejected, although their code-owned messages are safe. NMRNet
+and Magnet already preserve some outer CLI reasons; do not claim universal loss.
+
+Serious alternatives:
+A. Render arbitrary unknown exception text/notes. This can expose private inputs.
+B. Add another consumer-specific type/message wrapper. This duplicates the
+   shared admission owner and repeats the hook-arity hazard.
+C. Register the exact shared types in owned_details, with diagnostics imported
+   only at CLI boundaries, then delete displaced CLI-only message adapters.
+
+Choice: C. Preserve existing public error classes/imports and protected native
+causes. deployment_binding already uses CLI-local diagnostic imports; apply that
+precedent to deployment_route to avoid a projection/diagnostics import cycle.
+Do not add a dynamic registry or compatibility arity guessing. Document the
+distinct hook signatures, and qualify direct default projection plus CLI import
+orders and privacy. Unknown types and subclasses remain unreviewed.
+
+D128 -- Treat an absent configured Unix proxy socket as availability (2026-10-29 05:19 UTC)
+--------------------------------------------------------------------------------
+
+The D124 worker asks about ENOENT at connect_unix: unlike a generic missing file,
+a configured API proxy socket can disappear during ordinary restart. Delivery's
+existing client already has an explicit missing-socket recovery precedent.
+
+Serious alternatives:
+A. Add ENOENT to the global temporary-I/O predicate. This can misclassify local
+   file/configuration/accounting errors as network permission.
+B. Refuse every missing proxy socket and require a process restart. This treats
+   an ordinary route-service lifecycle as a fatal provider condition.
+C. Admit ENOENT only from the original configured Unix connect stage, with the
+   same settled-owner and operation-specific permissions as other availability.
+
+Choice: C. The actual owned backend/stage must establish this is a Unix network
+connection, not a callback, disk read or copied error lookalike. Keep EACCES and
+unknown setup/config faults distinct. No direct fallback, path rewrite or promise
+that a missing socket will appear. Preserve original error evidence and test
+the real missing socket followed by recovery through the same configured path.
+This does not broaden the old generic helper or delivery's separate policy.
+
+D129 -- Preserve the first caller interruption through repeated cancellation (2026-10-29 05:22 UTC)
+--------------------------------------------------------------------------------
+
+Magnet found that transport retirement overwrites the first CancelledError with
+later observer cancellations. The existing single-cancel witness does not cover it.
+
+Serious alternatives:
+A. Keep the latest cancellation. This loses the original caller identity/cause.
+B. Record every later cancellation as cleanup failure or unbounded history.
+   This can falsely keep resources unsettled and creates another ledger.
+C. Retain the first captured cancellation; use a retirement observer's return
+   only when no earlier caller interruption already exists.
+
+Choice: C. Guard the two assignments at the existing owners. Do not rewrite the
+first exception's prior cause. Repeated cancellation alone is not independent
+physical cleanup failure. Preserve actual late native/cleanup/head/network facts
+on the same canonical transport failure under existing promotion rules. Qualify
+two real cancellations while original close is held, then later original work
+and independent cleanup; no new history, registry or failure subtype.
+
+D130 -- Honor Retry-After without renewing an observation gap (2026-10-29 05:22 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet found that the shared active-Attempt read loop admits HTTP429 but ignores
+the API's parsed Retry-After floor when choosing its next poll. Its idle/Hello
+consumer loop had the same separate defect and is being corrected by its owner.
+
+Serious alternatives:
+A. Clip the advised retry wait to the gap and send early. This violates the
+   server's floor to preserve local polling frequency.
+B. Wait the whole advised interval even beyond the original gap. This renews
+   the freshness/observation allowance or leaves its task waiting unnecessarily.
+C. Apply the server floor to the planned retry; if it cannot fit, keep the
+   original failure and wait only until existing gap expiry, without another read.
+
+Choice: C. Use the existing crash-interruptible wait and original absolute gap.
+Do not announce a retry that cannot fit; preserve the original failure for the
+existing gap-expiry outcome. A crash may still interrupt that wait. Recompute
+remaining allowance after the protected observer, never shorten Retry-After to
+send early, and do not change scientific deadlines or add a timer setting.
+
+D131 -- Keep the original failure in background retry diagnostics (2026-10-29 05:22 UTC)
+--------------------------------------------------------------------------------
+
+SECS's controlled signed-API RED shows its Hello/discovery warnings emit HTTP
+None/request None for a real DNS-connect failure and omit the retained native
+cause. Its separate retry notice also discards original failure/wait arguments.
+
+Serious alternatives:
+A. Print str(error) or a raw traceback. This can disclose private payloads.
+B. Add another local graph serializer/classifier. This duplicates shared policy.
+C. Use the existing shared reviewed projection and its bounded valid rendering
+   contract, retaining consumer-owned correlation, pacing and stop behavior.
+
+Choice: C. Qualify the actual logging envelope/sink allowance before composing a
+graph into it; do not repeat the known JSON slicing or oversized-record defect.
+SECS owns these narrow consumer hooks and their real rendered witnesses. Common
+SDK rendering owns safe causes and omission behavior. No new transport retry
+permission follows from a diagnostic change. The outage/deadline release remains
+the critical path; optional presentation refinements must not become a framework
+or hold an otherwise qualified reliability fix indefinitely.
+
+
+D132 -- Give deployment refusal types one canonical module identity (2026-10-29 05:29 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet's actual -m review found that classes defined in a CLI module become
+__main__ types, distinct from the same module imported by failure_projection.
+D127's CLI-local imports alone cannot make exact-type projection work there.
+
+Serious alternatives:
+A. Add another __main__ type special case or keep CLI-only message adapters.
+   This repeats projection policy for the same shared admission error.
+B. Replace module CLI entrypoints or move the whole renderer behind another
+   wrapper module. That is more caller/churn impact than this identity requires.
+C. Define the two deployment refusal types in one small canonical owner module,
+   imported and re-exported from their existing public module paths.
+
+Choice: C. Stable imported types work both for ordinary library calls and actual
+python -m entrypoints. Preserve existing public imports and messages; no duplicate
+classes, dynamic registry or guessed callback arity. Default projection admits
+only these reviewed types. Qualify both real CLI entrypoints and actual input
+refusals, not only constructed imported exceptions. Native Python cause/context
+already preserves their causes; these ValueErrors have no separate .cause field.
+Audit actual raise sites and inner code-owned messages for privacy; exact type is
+an ownership contract, not permission to render arbitrary unknown text.
+
+D133 -- Keep CLI reporting failure separate without leaking a fallback traceback (2026-10-29 05:29 UTC)
+--------------------------------------------------------------------------------
+
+SECS's receiving-surface RED shows its error writer can raise out of the existing
+BaseException handler, letting Python print the private original exception chain.
+
+Serious alternatives:
+A. Return exit1 and silently discard the independent output failure.
+B. Raise an ordinary exception group. The CLI can print its raw private traceback.
+C. Exit with numeric SystemExit1 whose cause retains the original operation and
+   independent reporting errors, without another output sink.
+
+Choice: C at the consumer CLI boundary only. Preserve exact original references
+inside a static-message group and nonzero status; embedding can inspect them,
+while ordinary CLI handling must not print the private chain. No fallback file,
+new registry or change to ordinary shared writer exception behavior. SECS owns
+actual subprocess and exact-cause RED/GREEN before claiming disclosure fixed.
+
+Measured qualification: interrupting the reporting path with SIGINT changes the
+subprocess return code from -2 to 1; SIGTERM remains -15. SECS and Magnet accept
+the failed-operation status and privacy protection for this boundary. This does
+not preserve every signal exit status. Signal-specific refinement is deferred;
+do not add a signal-tracking subsystem during the deployment reliability fix.
+
+D134 -- Keep caller cancellation on the canonical transport failure (2026-10-29 05:45 UTC)
+--------------------------------------------------------------------------------
+
+The availability implementation found a separate ordering case: an SDK timeout
+can occur first, then the caller cancels during retirement. Primary/interruption
+may already describe that timeout or a late native fault, so cancellation must
+not disappear before retry permission is checked.
+
+Serious alternatives:
+A. Infer cancellation from primary alone or overwrite the existing interruption.
+   This can lose either caller intent or independent native/deadline evidence.
+B. Put caller cancellation inside the network-I/O observation. Caller intent is
+   not a native network fact and would be hidden from ordinary diagnostics.
+C. Keep one original caller_interruption reference on the canonical ExchangeFailed,
+   filling it once from the existing first cancellation and preserving it later.
+
+Choice: C. No history or new registry. Keep primary/interruption promotion and
+the original exception causes intact. Later retire may fill an absent reference
+but cannot replace the first one. Every API recovery path rejects that caller
+interruption; protected graph traversal exposes the exact original reference.
+A timeout followed by real caller cancellation must not become unattended retry.
+
+D135 -- Expose the existing core detail hook with its actual signature (2026-10-29 05:45 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak needs to add its own reviewed refusal facts while preserving all shared
+facts, including DiagnosticOutputRefused. Calling one-argument owned_details as
+the three-argument renderer hook caused its actual TypeError; using it only as
+fallback also misses the renderer's own safe diagnostic-output refusal.
+
+Serious alternatives:
+A. Copy that special case into every consumer hook.
+B. Guess callback arity or add compatibility wrappers dynamically.
+C. Publicly name the existing default three-argument core hook and let consumer
+   hooks delegate to that one authority.
+
+Choice: C. Rename the private default to describe_core_failure(error, text,
+diagnostic_window), retaining its current behavior and making it the documented
+failure_evidence default. Keep owned_details(error) as the distinct lower-level
+one-argument projection. No alias, new registry or broad exception text is needed.
+Consumer-specific reviewed facts remain with their providers.
+
+D136 -- Release the qualified outage fix before optional diagnostic redesign (2026-10-29 06:05 UTC)
+--------------------------------------------------------------------------------
+
+The user prioritizes a working deployment and asks that minor issues be deferred
+explicitly. The shared renderer review found real constructed size failures, but
+the observed live records were valid and did not establish that outage recovery
+requires a new renderer. The outage and deadline defects have causal witnesses.
+
+Serious alternatives:
+A. Hold the reliability release for a new graph scheduler, byte-budget renderer
+   and every consumer's sink integration. This couples a working-deployment fix
+   to an unfinished design with an unjustified eight-node priority quota.
+B. Drop diagnostic findings or let each provider build its own serializer.
+   This loses evidence or repeats shared policy and future maintenance.
+C. Keep the verified outage, deadline, cancellation, Retry-After and small
+   propagation corrections in 0.5.1; retain the larger renderer work as an
+   explicit shared deferred item with its witnesses and acceptance conditions.
+
+Choice: C. The deferred item is in notes/015_deferred_items.txt. No new renderer
+framework or arbitrary node quota enters this release. Preserve original native
+facts and the reviewed public detail hook now. Consumers retain their actual
+sink constraints; do not promise that all records fit an atomic pipe write.
+Final qualification and all four consumer API/release acknowledgements remain
+publication gates. Scientific model and GPU parity are not reopened by an
+unchanged scientific implementation. Production cutover stays with its owners.
+
+D137 -- Preserve the published exact-request response-loss recovery rule (2026-10-29 06:05 UTC)
+--------------------------------------------------------------------------------
+
+SECS's source audit questioned whether a pre-head RemoteProtocolError could bypass
+D124's stricter native availability evidence. Its follow-up checked the unchanged
+0.5 branch, existing explicit tests and pinned OpenAPI recovery contract, then
+withdrew the proposed blocker. These are separate recovery permissions.
+
+Serious alternatives:
+A. Remove the established exact-request response-loss branch while tightening
+   generic availability. This silently narrows published Attempt recovery.
+B. Classify every pre-head protocol error as network availability. That would
+   grant unrelated reads and mutations permission without original I/O evidence.
+C. Retain the operation-specific rule and keep native availability classification
+   separate, under the same original retirement and cancellation checks.
+
+Choice: C. No new source change is required for this distinction. START retains
+the same key and facts; current progress and terminal recovery retain their
+existing exact-request rules. The unchanged rule does not authorize arbitrary
+protocol-error retry. Audit agreement is source evidence, not an executed test
+result; the installed qualification lane must still pass before publication.
