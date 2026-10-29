@@ -2709,6 +2709,14 @@ Qualify gzip decoded overflow, received400 with failed optional read, close fail
 blocking retry, and cancellation/process-control failure retaining the same
 response owner before deleting the competing local lifecycle.
 
+Integrated qualification: installed SDK unit600/native33 and integration170 pass,
+including decoded-process-control failure with an independent close failure,
+the same retained owner and the original fatal cause. Independent source audit
+found one stale standalone test mock target, corrected before the passing run;
+it found no product ownership/resource defect. Repository quality206 passes.
+These are local installed-source checks; final exact-artifact qualification and
+NMRPeak's installed consumer adoption still follow.
+
 D089 -- Keep provider service identity stable across API binding changes (2026-10-29 02:08 UTC)
 --------------------------------------------------------------------------------
 
@@ -3038,6 +3046,18 @@ the claim, replay science or promise unlimited continuation. Declared retained
 capacity still applies. Known-closed held-claim reconciliation is a separate
 live lifecycle question; elapsed time or absence from discovery is not proof.
 
+Qualification: clean source5aab1abd4e4948d669177579dac452bc669733c1 produced wheel
+fab5444db5e6924ae600a6b1850450a020c27d388ae9cf919301898e1d5d874b. The exact package
+gate passed unit579, contract15, integration155, rebuilt-contract15 and native33,
+with all six artifact hashes recorded in /tmp/sdk-source-recovery-package-proof.log.
+NMRNet independently reports its installed signed503 two-Job witness passing:
+A stays held through shutdown, no FAIL is sent, status/request-ID evidence is
+retained and B executes once. SECS reports its prior one-byte grant/nonempty503
+RED now GREEN on these same issuer bytes. Magnet's isolated candidate tests also
+pass; none of these claims establishes canonical images or production rollout.
+The retained-capacity limit is recorded in NMRNet's deferred note022. This is an
+intermediate candidate, preceding the decoded-HTTP addition.
+
 D086 cleanup correction: independent API retirement failure must not skip store
 retirement or a legal retained-file settlement. File settlement depends on actual
 store quiescence, not API retirement success. Retain original source and every
@@ -3302,4 +3322,70 @@ observed idle failure in protected diagnostics. Unknown errors, descriptor-close
 uncertainty, unfinished SCI operations or unconfirmed native retirement still
 block replacement. Do not broaden this into generic OSError suppression or a
 new SDK retry classifier. This records the narrow proposed correction before
-implementation; qualification and exact standard-library evidence are pending.
+implementation. SECS subsequently reports its real idle-death GREEN at
+/tmp/secs-idle-readiness-final-green.log: new PID at controller-port entry,
+original read done, original scratch released and original native exit -9.
+Its pinned asyncio3.12.16 inspection in /tmp/secs-asyncio-close-ordering.txt
+shows connection_lost completes the stream waiter, then the selector callback's
+finally closes the socket before that waiter can resume. Protected idle failure
+evidence remains. This is peer-reported actual native/stream proof with bounded
+controller ports, not a new end-to-end signed START or production claim.
+
+D111 -- Separate scientific generation from the captured deployment grant (2026-10-29 04:12 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's host deployment still mixes model generation with operational inputs.
+Its shared-binding adoption also displaces host credential parsing and special
+localhost CA/host-gateway overrides.
+
+Serious alternatives:
+A. Keep operational credentials/routes inside the scientific generation identity.
+   Then a route change appears to change the scientific input/model generation.
+B. Keep the old host parser and overrides beside the shared binding. This leaves
+   two credential, trust and route authorities after the supposed adoption.
+C. Keep scientific manifest/files with RenderedGeneration; let the existing
+   DeploymentPlan own the captured private runtime tree and its complete identity.
+
+Choice: C. The private runtime tree contains v2 configuration, original binding
+and selected opaque grants. Public previews show only public settings and hashes,
+never credential bytes. Use the immutable image's SDK to select/parse inputs and
+render the shared route; capture through the existing publisher/ACL transaction,
+then validate the captured binding and grants before any installation effects.
+Mutable source discovery cannot substitute for final captured-input validation.
+
+Merge the SDK route unchanged with stable api/api-init roles; grant the provider
+only its RO runtime tree, SDK client mount/dependencies and separate delivery IPC
+grant. Resolver mapping points only at the selected captured leaf. Delete the
+displaced host credential parser/installer and special direct-route overrides.
+Keep existing deployment ownership, digest, stopped-container and volume guards.
+Legacy archive/retirement API reads use contained SDK commands with their
+existing narrow authenticated-closed-state policy; no new migration schema,
+replay authority or orphan deletion is added. Host wiring and final installed
+artifact qualification remain pending; the earlier real-UID ACL seam proof alone
+does not establish them.
+
+D112 -- Include interpreter configuration in the same deployment capture (2026-10-29 04:13 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's host review found that interpreter endpoint TOMLs would otherwise stay
+mutable separate startup grants outside the newly captured runtime tree.
+
+Serious alternatives:
+A. Keep those separate mutable grants and explicitly limit deployment identity
+   to API/config capture. Endpoint keys/config could then change independently
+   of the recorded deployment revision.
+B. Parse and rewrite those files on the host or introduce a second publisher.
+   This duplicates the interpreter's format authority and capture transaction.
+C. Capture bounded opaque interpreter/<name>.toml leaves in the same existing
+   tree and include their names/content hashes in its runtime identity.
+
+Choice: C. Point the contained interpreter reader at that captured directory.
+Keep semantic parsing with the existing contained interpreter implementation;
+the host owns bounded file admission and the existing publication/ACL transaction.
+Final contained validation uses captured inputs before installation effects.
+Source projection runs as the operator UID needed for admitted owner-only binding
+inputs; this is distinct from the provider's later read-only UID grant. Keep
+endpoint credentials and operational addresses outside the scientific manifest;
+the existing digest-bound logical scientific resource/mount topology remains
+part of scientific identity. No extra parser, publisher or independent snapshot
+identity is introduced. Actual host integration remains to be qualified.
