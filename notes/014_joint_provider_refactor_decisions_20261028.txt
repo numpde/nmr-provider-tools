@@ -3466,3 +3466,31 @@ amend and NMRPeak's remaining host/maintenance/model-HTTP integration are still
 owned by their coordinators. Canonical consumer acquisition/build qualification
 and any separately authorized live rollout remain outstanding. No shared queue,
 provider process or production deployment was changed by this SDK publication.
+
+D114 -- Admit teardown's route volume from its original grant (2026-10-29 04:30 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's existing teardown admits only project-owned scientific session volumes.
+Its SDK route adds a private named volume that the same teardown must account
+for without admitting unrelated or shared delivery storage.
+
+Serious alternatives:
+A. Copy the SDK's route-volume naming algorithm into the provider. This creates
+   another format authority and can miss D077's hashed long-namespace names.
+B. Render the current mutable binding and accept only that volume. A changed
+   binding can differ from the original generation that teardown must retire.
+C. Use the original captured SDK projection/grant, or the already inspected owned
+   route containers' actual mount references, corroborated by exact Engine facts.
+
+Choice: C. Keep the existing inspection/teardown transaction and its fixed
+api/api-init roles. Require matching Compose project/volume labels, local driver
+without driver options, the actual selected mount source and no foreign borrower.
+The SDK's original namespace/binding labels corroborate the route roles; do not
+derive ownership from a similar-looking volume name. Route borrowers are only
+the original provider, api and api-init grants, not arbitrary scientific roles.
+Only admitted inspected route/session volumes enter the temporary teardown
+projection; preserve external networks and shared delivery/journal volumes.
+No --remove-orphans, current-binding rewrite, incumbent schema or new ownership
+registry is introduced. Missing/ambiguous original evidence remains a refusal;
+the owning peer must qualify both ordinary and long-namespace grants before
+claiming this teardown boundary is complete.
