@@ -5990,6 +5990,136 @@ Positive GPU retry, new targets and scientific artifact qualification remain
 separate model-owner work; this closure grants none of them. No additional shared
 API, outcome schema or scientific retry engine is needed for the completed slice.
 
+D188 — Add the existing provider identities to shared delivery
+--------------------------------------------------------------
+
+Serious alternatives:
+A. Start another delivery project to avoid cycling the existing daemon. This adds
+   a second queue and service owner without a demonstrated need.
+B. Modify a running daemon or its queue directly. That bypasses the single-writer
+   and deployment ownership contract and cannot establish continuity.
+C. Prepare and validate complete definitions with the two existing bindings plus
+   the respective new binding, then use each host's normal drain and down/up path.
+
+Choice: C. Preserve project, original queue/socket volumes, bindings, credentials,
+API routes and pending work. The existing lifecycle refuses up while its containers
+remain; the required service interruption must be planned with the current provider
+owners. First prepare each provider's replacement and binding definition, establish
+credential admission and actual drain readiness, and stop before mutation on any
+unsettled owner or unresolved queue observation. A successful local signed jobs read
+proves only the credential's authority for that read, not START, Hello or delivery.
+
+After the existing providers have drained under their own lifecycle, stop shared
+delivery with its owner, install the validated definition, restore the same project
+and volumes, and verify original bindings and the new socket. Resume providers using
+their own lifecycle and verify installed version, image identity, health, restarts,
+OOM and connectivity. SECS's legacy journal must be drained and retained by its own
+runtime before its cutover. No queue bodies or secrets are printed. API connections
+use the host's default route; remote downloads prefer WLAN. No Job is created merely
+for this migration. This is a deployment of the issued package, not a new retry or
+artifact-identity qualification.
+
+D189 — Preserve the credential's actual consumer grant
+------------------------------------------------------
+
+Serious alternatives:
+A. Enforce the one-shot client's owner-only file mode on the running provider's
+   credential, overlooking a named ACL required by its separate container UID.
+B. Make the credential broadly readable to satisfy both readers.
+C. Preserve the existing narrowly scoped provider read ACL and validate it through
+   the deployment owner; use a one-shot owner-only read only before activation.
+
+Choice: C. The API read helper correctly refused the original group-readable mode.
+Tightening that mode for the one-shot read also masked an existing named-user ACL,
+which would have blocked the provider's non-owner credential reader. The provider
+owner restored the original mode and narrow read-only grant before its deployment;
+its normal plan then validated the grant. The one-shot signed read returned HTTP 200
+for the selected jobs route; it does not establish other API operations. A running
+consumer's credential grant must not be changed merely to repeat that inspection.
+No key material was displayed or copied.
+
+The local shared-delivery migration used the existing owner lifecycle after both
+providers drained. The original queue volume was retained and live IPC reported zero
+pending and held items before and after the cycle; all three intakes became healthy.
+This is local intake and continuity evidence, not proof of a newly published result.
+NMRPeak's provider readiness and any independent startup diagnostics remain with
+its deployment owner. ProArt's separate migration is not implied by this result.
+
+D190 — Build on each deployment host from published source
+-----------------------------------------------------------
+
+Serious alternatives:
+A. Transfer source bundles or prebuilt images between the deployment hosts.
+   This would leave the receiving host dependent on another host's build.
+B. Publish source to GitHub, update each host from there, and build locally from
+   the released SDK and the host's own verified dependencies.
+
+Choice: B, as directed by the user. GitHub updates use the host's default route;
+other deployment downloads on ProArt prefer WLAN, while API traffic uses its
+default route. A SECS transfer had already completed before the user stopped it;
+the temporary bundle was deleted. SECS subsequently pulled published source and
+built its replacement images on ProArt. Its old runtime drained cleanly, its
+empty legacy journal was preserved, and the replacement published Hello.
+NMRPeak rebuilt on localhost from its published source; NMRNet and Magnet owners
+verified host-local builds from GitHub source on their existing targets. This is
+startup and integration evidence, not a new scientific qualification.
+
+ProArt's shared delivery service remains healthy, but its running image was built
+on another host before this instruction. A local rebuild is still outstanding:
+the independently verified Python base exists in Docker under a local tag, but
+the engine does not associate the imported image with the pinned registry digest.
+An offline BuildKit probe also rejected the image configuration ID as a FROM
+reference. Neither observation establishes a successful host-local delivery build.
+
+D191 — Admit a locally acquired build base without changing host routing
+------------------------------------------------------------------------
+
+Serious alternatives:
+A. Change Docker daemon proxy or host routing, then pull the registry reference.
+   That affects unrelated services and conflicts with the selected network policy.
+B. Accept an arbitrary local image tag as the base. A tag alone does not prove
+   which image was acquired and can silently change.
+C. Declare the verified platform image configuration alongside the registry
+   manifest, admit that exact image, and give the offline builder an operation-owned
+   local tag. Retain that tag and inputs whenever build retirement is uncertain.
+D. Supply a digest-addressed OCI layout or local registry to the builder. This may
+   avoid a mutable tag, but its support and lifecycle have not been established on
+   this engine; it requires qualification before being selected.
+
+Working direction: evaluate C and D before changing the build. The platform image
+must be tied to the pinned manifest by acquisition evidence, and neither a shared
+alias nor an arbitrary caller-selected base is sufficient. An operation-owned tag
+prevents ordinary concurrent operations from colliding; it does not defend against
+another Docker-authorized actor deliberately retargeting the tag. The offline
+BuildKit probe rejected a configuration ID in FROM, so claiming immutable FROM
+support would be wrong. A successful replacement still needs a qualified image and
+coordinated drain; the live queue and its volume identity must be preserved.
+
+D192 — Provider runtime storage review
+--------------------------------------
+
+Serious alternatives:
+A. Keep generated runtime snapshots and sockets on the host. This preserves
+   current behavior but leaves lifecycle-owned material outside Docker management
+   and may retain old copies of captured credentials.
+B. Move every host path into a volume immediately. Operator inputs and model
+   caches have different owners, and an unplanned move risks recovery and live
+   borrowers.
+C. Keep operator-authored configuration, credentials and intentional model caches
+   as host inputs; design Docker-managed storage for generated runtime state and
+   IPC, with explicit capture, permissions, retention, retirement and rollback.
+
+Working direction: C, after each owner identifies actual mounts and borrowers.
+Shared delivery already places its queue and socket directories in named volumes;
+its operator definition and credential or CA grants remain read-only host inputs.
+NMRPeak already uses volumes for its journal and worker sockets but retains frozen
+runtime snapshots on the host. NMRNet has host-managed runtime sockets and
+generation snapshots as well as intentional model caches. The shared route
+projection currently accepts relocated inputs as host paths; a volume-based
+capture needs a real grant design. None of these observations proves an existing
+snapshot or live socket safe to delete. Preserve journal references, atomic
+publication, access restrictions, lifecycle locks and rollback during any cutover.
+
 Supporting qualification references
 -----------------------------------
 
