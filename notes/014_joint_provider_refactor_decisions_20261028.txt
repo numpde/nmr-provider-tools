@@ -2033,6 +2033,12 @@ existing safe projection for that relationship. No additional failure registry
 or generic task manager is needed. Qualify original cancellation identity,
 previous causal evidence and later cleanup visibility in the focused correction.
 
+Contract consequence: the chosen controller contract follows the executor's causal shape.
+The original CancelledError stays the escaping object, its direct cause becomes
+the canonical record, and that record retains the previous cause by identity in
+interruption_cause. Preserve the old test's evidence obligation through that
+owned relationship; do not assert that the former direct-cause shape is unchanged.
+
 Open design -- Reuse transfer recovery through JobUploads (2026-10-29 00:56 UTC)
 -------------------------------------------------------------------------------
 
@@ -2054,3 +2060,158 @@ across both entry paths, and never treat a predicate as implicit dispatch.
 Preserve the different existing budgets: JobUploads counts every received byte,
 including failed transfer bytes; SECS charges its admitted successful bytes.
 Fresh issuance must revalidate the original membership and selected Upload.
+
+D069 -- Give shared API route projection one concrete composition seam (2026-10-29 00:58 UTC)
+--------------------------------------------------------------------------------
+
+D062 needs an installed helper that all actual host launchers can call without
+importing the SDK into host Python. The existing delivery renderer is the donor.
+
+Serious alternatives:
+A. Copy its service dictionaries into each provider or expose arbitrary service
+   modules, ports and network definitions. This duplicates authority or creates
+   a generic framework beyond the actual route contract.
+B. Require all consumers to adopt delivery's UID, named volume and interpreter.
+   This discards NMRNet's admitted bind directory and provider image identities.
+C. Render the same fixed API proxy role from one admitted binding, with explicit
+   image/interpreter, namespace, UID/GID, storage grant and captured input map.
+
+Choice: C. Use render_api_route in provider_core.deployment_route, returning the
+Compose fragment, client socket, read-only client mount and healthy dependency.
+Support explicit named-volume and existing private-directory grants. Derive the
+api-<identity-prefix> role from the existing full API/provider identity hash;
+namespace the private storage by the caller's project. Consumers update their
+exact role inventories using this output rather than rename the role locally.
+
+Preserve delivery's current resource/permission posture and API origin. Move its
+proxy rendering authority rather than leave a parallel private implementation.
+Named route-volume initialization belongs to the shared route owner; existing
+private bind directories retain their host preparation authority. The proxy gets
+only its explicit resolver input. Capture owners must freeze and relocate that
+input: NMRNet's bundle/api-resolv.conf is the actual precedent. Magnet currently
+captures credential/CA only, so its resolver capture must join that transaction.
+
+This projection does not read or transfer credential bytes and does not decide
+the open cross-UID credential-admission question. Actual Compose/UID/socket,
+signed HTTPS and consumer lifecycle proof remain necessary after implementation.
+
+Initializer composition alternatives: keep delivery's global initializer and make
+each route caller override its dependency/volume fragments, or generate one
+api-init-<identity-prefix> service for each named route volume. Choose the latter:
+the shared route owner then supplies its complete narrow initialization grant.
+Delivery's global initializer retains queue and IPC only. Its exact lifecycle
+inventory must include these generated initializer roles; existing admitted
+deployment proxy/socket/volume names remain stable. Candidate preflight gets its
+own namespace and grants. Directory grants generate no root initializer.
+
+Integration constraint discovered in Magnet: its frozen candidate performs
+validate-startup and signed check-api before stopping the incumbent, using
+Compose run --no-deps, and later starts the provider with up --no-deps. Neither
+command starts a new dependency implicitly. A candidate must get its own admitted
+proxy/grant for preflight, with explicit cleanup and cutover; replacing the live
+proxy before validation would disrupt the incumbent. The shared renderer alone
+does not settle this lifecycle choice. Preserve pre-stop validation and the
+incumbent; no direct-egress fallback is acceptable. Magnet's coordinator owns the
+concrete proposal and must bring its serious alternatives here before changing
+the launcher.
+
+D070 -- Preserve bounded SystemExit facts without exposing private code (2026-10-29 00:59 UTC)
+--------------------------------------------------------------------------------
+
+All four consumers want the shared protected renderer to retain a failed
+operation's numeric SystemExit code after the process ends. D063 still determines
+CLI failure; this is evidence projection, not interpretation of an exit status.
+
+Serious alternatives:
+A. Render str(exception) or arbitrary code values. Strings/objects can contain
+   credentials, paths or private request data; huge integers can break rendering.
+B. Omit every code and require the live exception object. This discards useful
+   safe evidence from ordinary numeric failures.
+C. Project None and bounded genuine integer/bool facts; explicitly mark other
+   values omitted without calling their string or integer conversion hooks.
+
+Choice: C in the existing failure_evidence renderer, for exact built-in
+SystemExit only. Preserve None as null, genuine bool as bool, and signed 64-bit
+integers exactly. The 64-bit limit
+bounds serialized evidence and is not a claim about OS exit-code interpretation.
+For strings, arbitrary objects, integer subclasses and out-of-range integers,
+emit system_exit_code_omitted=true. Retain the original exception/code unchanged.
+No separate exit parser, store, provider copies or raw traceback is introduced.
+
+Review correction before qualification: Magnet identified that converting bool
+to 0/1 loses its original type, and equality assertions conceal that difference.
+Retain its exact JSON type instead. Do not read code from a SystemExit subclass:
+that new attribute access can invoke provider-defined behavior. Subclasses keep
+the ordinary structural exception evidence without this built-in code projection.
+
+D071 -- Keep observed transfer interruption separate from prior causes (2026-10-29 01:04 UTC)
+--------------------------------------------------------------------------------
+
+Installed transfer witnesses found that a caller cancellation during private-file
+abort can leave both retained interruption-cause fields empty after settlement.
+The exact CancelledError already points to UploadFailed; that existing causal
+link proves no admission fact to the later retry predicate.
+
+Serious alternatives:
+A. Infer interruption only from retained prior causes. A cause-less cancellation
+   then incorrectly permits retry after cleanup finishes.
+B. Retain one operation-local interrupted fact at actual cancellation handlers,
+   reset only with the next acquisition's other provenance.
+C. Redesign the public diagnostic graph to retain a new cancellation relationship
+   solely for retry admission. This changes more contract than the decision needs.
+
+Choice: B. This is an observed event, not a guessed state or cleanup-completion
+mirror. Check it before granting transfer retry; settle_file must not clear it.
+Keep exact existing causal evidence and file/exchange owners unchanged. Cover
+the actual pending-close cancellation witness, deadline interruption and buffered
+JobUploads acquisition reset; a public delegation must not bypass the outer
+owner's active-operation exclusion. Do not add retry dispatch or a phase ledger.
+
+D072 -- Put optional JobUploads recovery inside its existing source owner (2026-10-29 01:04 UTC)
+--------------------------------------------------------------------------------
+
+Resolve the earlier JobUploads B/C question in favor of C. NMRNet and Magnet both
+reviewed the actual snapshot, membership and budget ownership and favored it.
+SECS uses the lower-level transfer owner with its own scientific selection policy.
+
+Serious alternatives:
+A. Expose/copy the private snapshot and add independent consumer retry loops.
+   This splits the facts needed to establish unchanged selection and spent work.
+B. Publish only transfer predicates. This is useful for SECS but insufficient for
+   NMRNet, whose outer JobUploads operation invalidates its snapshot on failure.
+C. Add explicit opt-in bounded recovery within JobUploads, while it retains its
+   original selection and cumulative request, byte and deadline authorities.
+
+Choice: C for JobUploads. Preserve current one-shot behavior unless composition
+supplies the explicit recovery policy. Retire the exact original API/store/file
+owners before another request, then re-read and compare the original membership
+and selection before each fresh grant. Never refund failed received bytes or
+requests, extend the deadline, retry on cancellation or start science here.
+
+Retain cumulative uncertainty when a prior issuance may have committed even if
+its reply was lost; _grant_issued alone means a completed grant and is insufficient.
+Use D059's route-specific permission, including its refusal of automatic 500/429.
+The small policy's exact callable surface remains to be reviewed against NMRNet's
+existing pacing/stop/reporting needs before implementation. No generic retry
+framework or historical attempt store is authorized by this choice.
+
+D073 -- Restart private route volumes without broader root capability (2026-10-29 01:06 UTC)
+--------------------------------------------------------------------------------
+
+The route initializer's proposed descriptor-first admission exposed a concrete
+permission constraint: root with CHOWN alone cannot open an existing runtime-UID
+mode-0700 directory. Restart must accept the already initialized private grant.
+
+Serious alternatives:
+A. Add DAC_OVERRIDE to the initializer. This grants broader read authority merely
+   to inspect a volume whose desired ownership/mode are already established.
+B. Chown or chmod an existing private volume before inspecting it. This mutates
+   a live or retained grant and defeats refusal of unexpected contents.
+C. Preserve the donor's exact lstat ownership/mode fast path; only open a real
+   root-owned directory when an empty-volume ownership change is required.
+
+Choice: C. Accept an exact UID:GID0700 real directory unchanged, including retained
+route contents. For an ownership change, use O_NOFOLLOW and descriptor admission,
+require the root-owned empty state and retain independent close failures. Wrong
+owner/mode/content/type must fail without mutation. Verify the actual CHOWN-only
+posture in a disposable container: a mocked nonroot initializer is insufficient.
