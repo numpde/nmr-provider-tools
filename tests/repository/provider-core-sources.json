@@ -1199,7 +1199,10 @@
         "UploadAcquisitionIntegrationTests.test_oversized_received_chunk_spends_budget_before_response_rejection",
         "UploadAcquisitionIntegrationTests.test_signed_api_to_bearer_store_hands_off_exact_private_closed_file",
         "UploadAcquisitionIntegrationTests.test_signed_api_to_bearer_store_returns_exact_verified_bytes"
-      ]
+      ],
+      "retired_test_methods": {
+        "UploadAcquisitionIntegrationTests.test_oversized_received_chunk_spends_budget_before_response_rejection": "The real transport now refuses the invalid response head before consuming a body; test_oversized_store_head_is_rejected_before_body_budget_is_spent covers that receiving boundary. Consumed oversized-body charging remains covered by tests/unit/adversarial/test_upload_file_acquisition.py::UploadFileAcquisitionTests.test_short_and_oversized_bodies_never_hand_off_files_and_keep_actual_byte_charges."
+      }
     },
     {
       "path": "packages/provider-core/tests/integration/test_upload_api.py",

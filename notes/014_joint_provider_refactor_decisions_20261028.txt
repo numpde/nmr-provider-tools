@@ -5675,6 +5675,76 @@ qualification pass. The provider's bounded stop witness and permission adoption
 remain independently testable. No new live scientific Job is needed for this
 release, and an SDK version change alone does not require a delivery-daemon restart.
 
+D178 — Require current permission at preparation effects as well as prediction
+-----------------------------------------------------------------------------
+
+Serious alternatives:
+A. Require the callback only for positive retries, leaving zero-retry execution
+   and preparation on their earlier caller checks.
+B. Add optional callback probing and treat its absence as permission.
+C. Require the actual phase capability at every Attempt-owned scientific
+   submission, including inspect, prepare and native validation after awaits.
+
+Choice: C. A zero count forbids replay; it does not relax stop or phase ownership.
+All four providers must apply the same rule to first execution and preparation.
+Magnet's standalone model proof is a real non-Attempt caller and supplies explicit
+proof-owned authority; it does not justify a production binding fallback.
+SECS threads the preparing capability per request to the actual write. Startup
+before START is a separate provider lifetime, with no invented Attempt capability.
+For startup within active preparation, check after awaited identity lookup before
+submitting native setup. A later stop still requires settling already-submitted
+setup; the check is not a reservation across future scheduling.
+
+The shared observation-gap exception must retain its original identity through
+consumer timeout handlers. SECS demonstrated an overlapping interpreter deadline
+that otherwise reclassified the gap as an interpretation failure. Preserve the
+shared cause explicitly, and qualify ordinary timeout and cancellation separately.
+
+D179 — Repair failing fixture ownership before issuing the frozen SDK artifact
+-----------------------------------------------------------------------------
+
+Serious alternatives:
+A. Ignore the broader repository failures because exact installed-package gates
+   pass. This leaves the actual failed gate unexplained.
+B. Increase every timeout or retry until green. This weakens fault-response
+   checks without correcting unnecessary work or scenario ownership.
+C. Correct the specific fixture boundaries, preserve all behavior assertions,
+   account explicitly for evolved donor coverage, then prepare the final source.
+
+Choice: C. The first exact package passed, but the broader repository gate failed
+in shell lifecycle fixtures and a stale donor-test inventory. The shell source
+and these fixtures are byte-identical to the previous published release; that
+narrows the source change but does not prove environmental causality. Independent
+focused runs reproduced five-second watchdog expiry. Reusing the existing bounded
+fixture watchdog retained all functional assertions. A separate probe that removed
+unused Python file-fault shims passed the three affected status/signal cases with
+their original timing limits. Use native utilities where no file fault is injected;
+keep the shim in cleanup-failure cases and the binary stream case that actually
+consume its fault controls or ownership receipt. Their startup/completion waits
+use the existing fixture watchdog; their stream/status/retirement assertions stay.
+
+The resistant-signal test also deferred cleanup until all signal subcases ended
+while reusing its observation path. A failed readiness wait could let one scenario
+publish into the next scenario's evidence. Retire each original scenario before
+advancing and keep the actual PID/descendant retirement assertion. The captured
+remaining-PID failure is not sufficient to attribute a product cleanup defect.
+
+The Upload receiving test now rejects an oversized response head before consuming
+body budget. Retire the old integration case explicitly in the existing donor inventory; do
+not treat the new head check as equivalent proof of charged body consumption.
+Actual oversized-body charges and refused file handoff remain covered by
+test_upload_file_acquisition.py::test_short_and_oversized_bodies_never_hand_off_files_and_keep_actual_byte_charges.
+Do not restore later admission merely to preserve an old test name. Reprepare
+the release from the new coherent source; preserve the first candidate's successful
+receipts and compare actual package payloads before reusing consumer evidence.
+No issued asset is replaced and no live service changes for this fixture repair.
+The eight focused checks covering every failed source scenario now pass, including
+all original stream/status/retirement assertions; repository quality passes 206.
+The initial full-run failures remain recorded as failures, not a green aggregate.
+Unaffected checks passed in that run; the final exact-package release gate is
+repeated against the committed source. No scientific model campaign is repeated
+for this repository-only correction.
+
 Supporting qualification references
 -----------------------------------
 
