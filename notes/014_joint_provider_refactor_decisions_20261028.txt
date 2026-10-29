@@ -1581,7 +1581,8 @@ C. Retain only the existing explicit bounded pure-prediction policy: same live
    execution slot under the configured per-exchange limits;
    positively observed crashes and restart/dark reconstruction cannot use it.
 
-Choice: C, after reading the exact note021 policy, note022 cutover restriction
+Historical choice, now under direct user scope review: C, after reading the
+exact note021 policy, note022 cutover restriction
 and note010 uncertainty/crash conditions with NMRNet. These additional policy and
 retirement facts distinguish the allowed scientific retry from error-driven
 replay. Do not add scientific retries to the shared SDK or imply the original
@@ -4581,9 +4582,18 @@ The authored scope is notes/017_release_v0.5.1.md. Treat installed-artifact and
 source-rebuild evidence separately from a consumer image or live deployment.
 
 Consumer ownership fixes can be located in NMRPeak adoption 84549c8 and request
-budget correction 7e9f160, and SECS original scientific observation 78a5bec and
-operator projection 9740d95. Their actual original-owner, cancellation, privacy
-and physical-retirement tests remain with their repositories. SECS's remaining
+budget correction 7e9f160, with its final qualified source and artifact locator
+at 17053c1: qualification/shared-adoption-20261029/final-qualification.json.
+That evidence distinguishes released-checkpoint warm validation and actual
+retirement from generation/numerical comparisons; its maintenance TLS fixture
+checks signing headers, CA and hostname, not cryptographic signature validity.
+
+SECS original scientific observation 78a5bec and operator projection 9740d95 are
+qualified with the clean handoff at 6d1dfc1. Locate its causal original-task and
+cleanup controls in tests/integration/test_native_worker.py, and the actual
+framed/rendered privacy and positive-cause controls in tests/provider/test_main_cleanup.py.
+Their original-owner, cancellation, privacy and physical-retirement tests remain
+with their repositories. SECS's remaining
 non-authoritative diagnostic graph-reference coherence limit is tracked by its
 existing deferred note009; it confers no cleanup or result authority.
 

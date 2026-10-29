@@ -63,9 +63,10 @@ ChatEndpoint.complete currently constructs JSON and an HTTP request before the
 transport starts its relative exchange allowance. It exposes no absolute cap;
 an outer asyncio.timeout cannot preempt synchronous construction. A constructed
 installed-package witness shows the original transport task can enter after that
-outer allowance expires. Only _perform was stubbed to record entry: this does
-not prove real network dispatch, a live incident or a violated explicit absolute
-carrier contract. Existing transport I/O bounds remain a separate guarantee.
+outer allowance expires. A stronger witness uses the actual _perform and records
+the request reaching a fake connection pool after expiry. These authored schedules
+do not prove bytes reaching a network peer, a live incident or a violated explicit
+absolute carrier contract. Existing transport I/O bounds remain a separate guarantee.
 
 If that stricter caller contract is adopted, pass one explicit absolute deadline
 through the existing chat/transport owner, checking after construction and before
