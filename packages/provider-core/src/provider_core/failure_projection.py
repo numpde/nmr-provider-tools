@@ -40,7 +40,7 @@ from provider_core.runner_protocol import LifecycleRejected, RetirementUnconfirm
 from provider_core.starting import StartFailed, StartRefused
 from provider_core.startup_file import StartupFileRejected
 from provider_core.transport import ExchangeFailed, response_request_id
-from provider_core.uploads import UploadFailed, UploadFileReadFailed, UploadInputRejected
+from provider_core.uploads import UploadFailed, UploadFileReadFailed, UploadInputRejected, UploadRecoveryExhausted
 
 
 def owned_relationships(error):
@@ -69,6 +69,7 @@ def owned_relationships(error):
         StartFailed,
         ChatFailed,
         UploadFailed,
+        UploadRecoveryExhausted,
         UploadInputRejected,
         UploadFileReadFailed,
         ConversationFailed,
@@ -86,6 +87,7 @@ def owned_relationships(error):
         ExecutionFailed,
         ExchangeFailed,
         UploadFailed,
+        UploadRecoveryExhausted,
         UploadInputRejected,
         UploadFileReadFailed,
         DeliveryWorkerFailed,
@@ -111,7 +113,7 @@ def owned_relationships(error):
     if kind is ExchangeFailed:
         yield "transport primary", error.primary
         yield "transport interruption", error.interruption
-    if kind in (UploadFailed, UploadInputRejected):
+    if kind in (UploadFailed, UploadInputRejected, UploadRecoveryExhausted):
         yield "acquisition interruption", error.interruption
     if kind is UploadFileReadFailed:
         yield "source reader interruption", error.interruption
@@ -147,6 +149,7 @@ def owned_details(error):
         ConversationRetirementFailed,
         ToolRejected,
         UploadFailed,
+        UploadRecoveryExhausted,
         UploadInputRejected,
         UploadFileReadFailed,
         ExchangeFailed,
@@ -204,7 +207,7 @@ def owned_details(error):
     if kind is ExecutionFailed:
         details["outcome_in_memory"] = error.outcome is not None
         details["condition_receipt_received"] = error.condition_receipt is not None
-    if kind in (UploadFailed, UploadInputRejected):
+    if kind in (UploadFailed, UploadInputRejected, UploadRecoveryExhausted):
         details["grant_issued"] = error.grant_issued
         if error.response is not None:
             details.update(status=error.response.status, request_id=response_request_id(error.response.headers))

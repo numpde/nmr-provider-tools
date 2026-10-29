@@ -14,7 +14,7 @@ from provider_core.execution import ExecutionFailed
 from provider_core.failure_projection import owned_details, owned_relationships
 from provider_core.starting import StartFailed
 from provider_core.transport import ExchangeFailed, HttpResponse, HttpResponseHead
-from provider_core.uploads import UploadFailed, UploadFileReadFailed, UploadInputRejected
+from provider_core.uploads import UploadFailed, UploadFileReadFailed, UploadInputRejected, UploadRecoveryExhausted
 from tests.fakes.attempt_store import admission, record
 from tests.fakes.attempts import ATTEMPT_REF
 
@@ -94,7 +94,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
 
     def test_acquisition_and_reader_failures_keep_separate_grant_and_interruption_facts(self):
         cause, cleanup, interrupted = OSError(), OSError(), asyncio.CancelledError()
-        for kind in (UploadFailed, UploadInputRejected):
+        for kind in (UploadFailed, UploadInputRejected, UploadRecoveryExhausted):
             with self.subTest(kind=kind):
                 failure = kind(
                     "Source transfer did not finish", cause=cause, cleanup_failures=(cleanup,), interruption=interrupted

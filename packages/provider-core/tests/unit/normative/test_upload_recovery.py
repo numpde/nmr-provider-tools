@@ -16,7 +16,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from provider_core.api import ApiFailure, ProviderAPI
 from provider_core.signing import SigningIdentity
 from provider_core.transport import HttpTransport
-from provider_core.uploads import JobUploads, UploadFailed, UploadInputRejected, UploadLimits, UploadRecovery
+from provider_core.uploads import JobUploads, UploadFailed, UploadInputRejected, UploadLimits, UploadRecovery, UploadRecoveryExhausted
 from tests.fakes.acquisition import private_source_directory, store_headers
 from tests.fakes.api import response_headers
 from tests.fakes.transport import Client, Stream
@@ -136,15 +136,15 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                    api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error()), api_reply(MEMBERSHIP)]
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
-            with self.assertRaisesRegex(UploadFailed, "request limit"):
+            with self.assertRaisesRegex(UploadRecoveryExhausted, "3 requests.*1 remain"):
                 await owner.acquire(UPLOAD_REF)
-        self.assertEqual(owner.requests_started, 8)
+        self.assertEqual(owner.requests_started, 7)
         self.assertEqual(owner.received_bytes, 2)
         owner, _, _ = self.owner(recovery=self.policy(), total=8)
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error())]
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
-            with self.assertRaisesRegex(UploadFailed, "remaining byte budget"):
+            with self.assertRaisesRegex(UploadRecoveryExhausted, "remaining byte budget"):
                 await owner.acquire(UPLOAD_REF)
         self.assertEqual(owner.requests_started, 4)
         self.assertEqual(owner.received_bytes, 1)
@@ -153,7 +153,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         owner, _, _ = self.owner(recovery=self.policy(attempts=2))
         clients = [refusal(503, "service_unavailable"), refusal(503, "service_unavailable")]
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
-            with self.assertRaises(ApiFailure):
+            with self.assertRaises(UploadRecoveryExhausted):
                 await owner.inspect()
         self.assertEqual(owner.requests_started, 2)
         self.assertIsInstance(owner.recovery_failure, ApiFailure)
@@ -235,7 +235,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                    api_reply(MEMBERSHIP), lost, api_reply(MEMBERSHIP), refusal(409, "upload_read_not_finalized")]
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
-            with self.assertRaises(ApiFailure) as caught:
+            with self.assertRaises(UploadRecoveryExhausted) as caught:
                 await owner.acquire(UPLOAD_REF)
         record = owner.recovery_failure
         self.assertIsInstance(record, BaseExceptionGroup)
@@ -244,7 +244,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first.problem_code, "upload_read_not_finalized")
         self.assertFalse(first.issuance_may_have_committed)
         self.assertTrue(uncertain.issuance_may_have_committed)
-        self.assertFalse(caught.exception.issuance_may_have_committed)
+        self.assertFalse(caught.exception.cause.issuance_may_have_committed)
         self.assertIs(owner.recovery_failure, record)
         self.assertEqual(owner.requests_started, 7)
         self.assertEqual(owner.received_bytes, 0)
@@ -377,10 +377,11 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(owner.inspect(), 0.5)
         self.assertEqual(notices, [])
         self.assertEqual(owner.requests_started, 1)
-        outage, budget = caught.exception.cause.exceptions
+        self.assertIs(type(caught.exception), UploadRecoveryExhausted)
+        outage = caught.exception.cause
         self.assertIs(outage, owner.recovery_failure)
         self.assertEqual(outage.retry_after_seconds, 1)
-        self.assertIn("1", budget.reason)
+        self.assertIn("1", caught.exception.reason)
         self.assertEqual(clients[1].calls, [])
 
     async def test_retry_notice_cannot_extend_original_wait_budget(self):
@@ -397,7 +398,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(owner.inspect(), 0.5)
         self.assertEqual(len(notices), 1)
         self.assertEqual(notices[0][1], 0.2)
-        outage, budget = caught.exception.cause.exceptions
-        self.assertIs(outage, notices[0][0])
-        self.assertIn("remaining", budget.reason)
+        self.assertIs(type(caught.exception), UploadRecoveryExhausted)
+        self.assertIs(caught.exception.cause, notices[0][0])
+        self.assertIn("remaining", caught.exception.reason)
         self.assertEqual(owner.requests_started, 1)
