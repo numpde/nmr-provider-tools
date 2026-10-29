@@ -4908,6 +4908,68 @@ of public errors. Do not hide unresolved science behind a generic error or silen
 restart it. Unsupported selection is reported at startup, not after the first
 scientific effect.
 
+D159 -- Preserve failure truth without claiming durable operator history
+------------------------------------------------------------------------
+
+Review of the actual receiving path found that core sends AnalysisFailure's
+public code/message and disposes of its in-memory outcome after acknowledgement.
+Protected evidence on that outcome is not an enduring operator record. NMRNet's
+existing bounded operator-notice path can expose reviewed native facts before
+disposal, separately from the fixed safe public failure message.
+
+Serious alternatives:
+A. Send native diagnostics in the public FAIL. This discloses private input or
+   credentials and confuses an operator explanation with the API contract.
+B. Call the in-memory evidence durable, or require logging success before FAIL.
+   The former is false; the latter makes a diagnostic sink control the scientific
+   outcome and retirement.
+C. Add a persistent diagnostic store to this deployment slice. This introduces
+   retention, access and lifecycle obligations beyond the chosen live bookkeeping.
+D. Use the existing bounded, nonblocking operator notice and state its limits.
+
+Choice for this slice: D. Keep the original failure distinct from independent
+encoding, output and cleanup failures. A validated failed reply establishes that
+no complete verified result was returned; it does not establish zero computation
+or a mathematical failure. Unknown/lost replies remain unknown. The public API
+receives only the reviewed failure explanation, never raw native diagnostic text.
+
+This notice is best-effort observation, not durable history. Known credentials
+are redacted before output bounds. Truncation is explicit when a record is emitted.
+An oversized record or full/broken pipe can prevent emission; the existing owner
+retains only the latest failed notice and output cause for final reporting. A
+persistently unavailable sink can prevent that report too. Do not claim every
+private fact is retained or that renderer tests prove production log delivery.
+Do not silently replace the scientific failure with a logging failure.
+
+Qualification locators: NMRNet f05e49e, process.py::report_operator_notice,
+session.py::execute, process_reports.py; normative/test_nmrnet_reports.py's
+bounded-secret-redaction control and test_nmrnet_runtime.py's actual relay/API
+failure separation control. SECS independently reviewed the receiving path and
+the retirement-phase guard. These establish source and focused receiving behavior,
+not durable log storage or scientific accuracy.
+
+D160 -- Admit all configured lanes before startup effects from one snapshot
+-------------------------------------------------------------------------
+
+Independent Magnet review found that normal startup could send Hello or acquire
+another lane before an affected lane rejected its retry setting. A standalone
+validate-startup command did not establish the ordering of normal startup.
+
+Serious alternatives:
+A. Leave admission inside concurrent lane activation. A positive selection can
+   then fail after effects, contradicting the startup contract.
+B. Validate a document early and reread it during activation. A changed document
+   can invalidate the proof and produces two configuration authorities.
+C. Prepare each lane's admitted activation and run authority once, before opening
+   the lifetime/API owners, then activate those exact captured objects.
+
+Choice: C, using existing preparation and activation owners. No additional parser,
+global configuration registry or generic startup framework is warranted. Prove
+the normal receiving path rejects a positive selection with the reviewed setting,
+selected value and capability explanation, before Hello/native acquisition. Zero
+must still start normally and send at most one scientific request. A parser-only
+test or the validate-startup command alone cannot prove that ordering.
+
 Supporting qualification references
 -----------------------------------
 
