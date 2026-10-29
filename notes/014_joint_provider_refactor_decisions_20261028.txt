@@ -6552,6 +6552,14 @@ selection and tests for its propagation and failure handling. The user directed
 the owner to sit out ProArt builds while making this change. The earlier SSH build
 clients exited 255, but that alone does not establish remote BuildKit retirement;
 the owner is not starting duplicate builds. ProArt's requested WLAN is wlp10s0.
+The owner reports the selector published as 809d619, with interactive
+no-default selection, explicit system or named-device input and unattended
+omission refusal. Networkless unit and repository tests passed; the change has
+not been deployed to ProArt. A later read-only check found both earlier runner
+logs ended in successful export and launcher receipts, matching images and no
+matching launcher process. This supports completion of those invocations despite
+the SSH 255 exits; it does not prove all daemon BuildKit activity stopped or make
+the earlier dependency downloads WLAN-bound. The user-directed build pause remains.
 Review of the current image scripts found two additional proof obligations: build
 proxy arguments do not necessarily bind engine-side base-image pulls, and client
 exit alone does not establish that BuildKit stopped reading a temporary context.
@@ -6594,6 +6602,104 @@ confirmed before its cleanup, but daemon-side completion and any continued acces
 to host context paths are separate questions. Docker describes client-session
 context transfer; no daemon-side use-after-removal has been reproduced. Its
 deferred note records the verification trigger rather than asserting a defect.
+SECS's owner also found its existing acquisition proxy resolved names using host
+getaddrinfo before binding destination TCP to the selected device. A selected
+interface therefore did not establish the route used for DNS. The owner is
+evaluating its correction separately from base-image bootstrap; no corrected
+behavior is claimed until it is tested and published.
+For SECS's cold start, a preloaded released SDK wheel would avoid a second proxy
+owner but must already be present before interface-bound acquisition. A pinned
+release-derived helper or vendored exact source can make the host self-sufficient
+but creates generated duplication and needs mechanical provenance checking; a
+separately published bootstrap artifact centralizes ownership but needs a release
+and a clear acquisition route. A Git submodule adds its own source dependency.
+The owner has not selected an option or copied another provider's implementation.
+SECS preserved its unselected local evaluation separately and restored its main
+checkout; its deferred note records the DNS/bootstrap ownership and proof limits.
+The separately qualified stage-preservation change was published without deploying
+the unselected proxy candidate.
+
+D205 — Retire SECS networked acquisition on cancellation
+---------------------------------------------------------
+
+Serious alternatives:
+A. Rely on termination of the Docker CLI. A disposable witness showed that a
+   TERM sent to the running wrapper left its workload container running while
+   the wrapper waited; only explicit removal of that container let it exit.
+B. Kill containers selected by a broad image or name. That risks affecting other
+   work and does not prove which object the invocation created.
+C. Have the acquisition owner capture an exact container identity, offer bounded
+   cooperative retirement, verify the original object has stopped or been removed,
+   and preserve inputs and diagnostics when retirement cannot be established.
+
+Working direction: C, subject to the SECS owner's implementation and tests. It
+ties cleanup to the actual invocation rather than an ambient container set and
+preserves uncertainty when Docker does not confirm effects. The cost is explicit
+identity and cancellation ownership. The witness used disposable work and was
+cleaned up; it did not establish an effect on a running provider or prove a
+BuildKit context-retirement defect. No shared-package change is selected here.
+The SECS owner later tested a separate caller-owned staging boundary: after TERM,
+the stage remained while a disposable container still held it, and the diagnostic
+named the retained stage. The exact probe container was then removed. This proves
+stage preservation in that case, not workload or BuildKit retirement; the wrapper
+still needs its own qualified exact-container retirement owner. The owner reports
+the staging-preservation slice published as 5ddf70a and fast-forwarded on ProArt
+without a build or restart. The owner reports 49 deployment tests passed on the
+clean checkout; the separate runtime-volume borrower check passed seven Docker
+tests. The stage slice is separate from the unselected proxy/bootstrap work.
+Magnet's related wheelhouse cancellation candidate initially sent TERM to its
+local client and then waited without a bound; its cooperative stand-in did not
+prove retirement of a resistant child or a failed-removal case. Independent review
+requested a bounded owner for the full client group, preservation of inputs on
+uncertainty, and tests for resistant processes and repeated signals. This is a
+candidate review finding that was subsequently addressed. Magnet reports the
+owned process-group and exact-container paths tested, independently reviewed and
+published through a5b518e. Its ProArt checkout was fast-forwarded and the runner
+selector check passed without restarting services. The proof does not cover
+deliberately escaped descendants or daemon-side BuildKit completion.
+
+D206 — Admit runner-proof resources before reconciliation
+------------------------------------------------------------
+
+Serious alternatives:
+A. Treat the deterministic Compose project name and cooperative lock as proof
+   that every existing container and volume in the project belongs to the proof.
+   They do not establish the ownership of a pre-existing Docker object.
+B. Reconcile all same-project objects with Compose down and remove-orphans.
+   A disposable test confirmed that Compose removes a foreign container carrying
+   the same project labels.
+C. Establish ownership of actual resources before reconciling, and refuse or
+   retain evidence on an unrecognized object. Matching labels, names and images
+   alone do not prove who created a resource.
+
+Working direction: C, subject to the Magnet owner's reproduction and review.
+It aligns the runner proof's authority with the existing provider-proof checks
+instead of treating a name or lock as ownership. The cost is additional engine
+inspection and a safe refusal when existing evidence is insufficient. Source
+review found runner proof calls down --volumes --remove-orphans before such
+admission and also uses broad down during cleanup. A disposable foreign
+same-project container was removed in the owner's test; no live harm is claimed.
+The owner is assessing a fail-closed correction and its effect on unattended
+recovery of resources from interrupted proofs. A durable operation receipt might
+restore that recovery, but needs its own design and evidence.
+
+D207 — Acquisition cancellation cleanup diagnostics
+---------------------------------------------------
+
+Serious alternatives:
+A. Synchronously print cleanup uncertainty on stderr during cancellation. This
+   can block indefinitely when the caller does not drain the pipe.
+B. Preserve the signal exit and retain receipts silently, as the launcher does
+   now. Cancellation remains responsive, but the operator may not know cleanup
+   is uncertain or where the receipts are.
+C. Provide bounded, discoverable evidence independently of a blocking stderr
+   sink. Its publication, failure behavior and access contract need design and
+   qualification; simply writing another file does not establish discovery.
+
+Decision: retain B during the current deployment and defer a qualified C to
+the shared acquisition owner. Tests explicitly cover silent cancellation after
+identity refusal; that witness establishes the reporting gap, not a live leaked
+container. The deferred-items note names the trigger and required properties.
 
 Supporting qualification references
 -----------------------------------

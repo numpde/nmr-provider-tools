@@ -75,3 +75,23 @@ contexts dynamically, copy the carrier into a provider or add another Task owner
 Qualify actual dispatch refusal under controlled slow construction/pacing before
 claiming the effect boundary. D151 records the alternatives and deferral rationale;
 the existing qualified deployment and published artifacts remain unchanged.
+
+Cancellation cleanup diagnostics for acquisition
+------------------------------------------------
+
+Owner: shared acquisition launcher (tools/docker.sh).
+Trigger: next change to launcher cancellation or an incident requiring retained
+cleanup evidence; review after the current provider deployment.
+
+On actual signal cancellation, the launcher preserves the signal exit status
+and deliberately suppresses cleanup diagnostics to avoid blocking on an unread
+stderr pipe. If worker or proxy identity cannot be admitted or removal cannot be
+confirmed, its private scratch receipts are retained, but the caller is not told
+that cleanup is uncertain or where to find them. Repository tests explicitly
+exercise this silence. This is an observed diagnostic gap, not evidence that a
+container survived or that a deployment failed.
+
+Find a bounded, discoverable operator evidence channel that preserves prompt
+cancellation and truthful uncertainty, including when stderr is blocked and
+when evidence publication itself fails. Do not print sensitive configuration or
+claim removal without engine evidence. D207 records the tradeoff.
