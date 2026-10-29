@@ -3253,3 +3253,28 @@ not skipped by this shortcut. Shared shutdown_ready explicitly permits passive
 held exclusion after all work/report duties settle; it does not permit claim
 release. NMRNet's installed two-Job proof must include clean shutdown with the
 first Job still held. This is consumer composition, not a new SDK readiness flag.
+
+D109 -- Replace a positively observed idle worker before admission (2026-10-29 04:00 UTC)
+--------------------------------------------------------------------------------
+
+For D106, SECS proposes using its existing serial WorkerClient before constructing
+the controller. An actual idle child can have exited since the previous request.
+
+Serious alternatives:
+A. Stop the whole provider after every idle child exit. This is truthful but
+   requires intervention even when the original worker is confirmed retired.
+B. Start a fresh worker for every Attempt. This discards the existing qualified
+   warm-worker policy and performs unnecessary model initialization.
+C. When the existing owner positively observes NativeWorkerExited while
+   unallocated, retire that exact worker and perform the normal fresh readiness
+   operation before START, within the same original startup allowance.
+
+Choice: C. Catch only the positively observed native exit in this pre-admission
+path. Confirm original worker.stop before replacement; unknown/unclean retirement
+blocks START. Anchor the startup deadline before the first readiness check and do
+not renew it after retirement. A fresh startup failure remains a startup failure,
+not permission for another recovery loop. Keep ordinary session readiness checks
+after admission too. No scientific work is replayed, no Attempt is fabricated,
+and no new pool/controller/registry is introduced. SECS will qualify actual idle
+child death and PID state at the controller boundary; port fakes alone do not
+prove real signed START behavior.
