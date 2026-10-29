@@ -3187,3 +3187,56 @@ failure and a failure during an actual Attempt. SECS must qualify the ordering
 with its actual adapter, including a worker that exits while idle. Do not infer
 FAIL for an Attempt that was never started, or introduce automatic scientific
 replay. This correction is approved; the exact implementation proof is pending.
+
+D107 -- Check that a complete source retry fits the remaining request allowance (2026-10-29 03:53 UTC)
+--------------------------------------------------------------------------------
+
+The D099 worker identified a concrete boundary: after two failed acquisitions,
+an eight-request session can have one request left. Starting another acquisition
+would spend it on membership, then fail locally before grant issuance. That local
+budget failure is not itself a new eligible network outage.
+
+Serious alternatives:
+A. Start the partial attempt and classify its local failure by inspecting older
+   causes. This risks converting unrelated failures into eligible exhaustion.
+B. Carry another eligibility token through nested request guards. This adds
+   state solely to recognize an attempt that could not finish within its budget.
+C. After retiring and classifying the current eligible outage, check the known
+   minimum requests for the next complete logical operation before sending it.
+
+Choice: C. The existing JobUploads composition requires one request for inspect
+and three for acquisition: membership refresh, fresh grant and whole-file fetch.
+Check that minimum at the existing recovery owner, without reserving/refunding
+requests or changing the per-send accounting. Check remaining selected-byte and
+time allowances there too. A classified, settled outage followed by insufficient
+allowance yields D099 exhaustion before another request. The eight-request
+witness now legitimately spends seven; an attempt cap never promises capacity.
+
+Preserve the exact current outage as the subtype's cause, including its original
+per-send evidence; preserve UploadFailed response/cleanup/interruption/grant facts
+when present. A later in-flight cancellation or unclassified failure must not
+inherit eligibility from that earlier outage. This is approved for the bounded
+D099 implementation; its focused and installed-consumer proofs remain pending.
+
+D108 -- Do not release a quiescent held claim merely to shut down (2026-10-29 03:54 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet found that its shutdown loop unconditionally starts controller.settle for
+every retained owner. After D099, a passive held execution can be shutdown-ready
+without a terminal disposition that would authorize releasing its claim.
+
+Serious alternatives:
+A. Force settlement and claim release for every retained owner. This confuses
+   resource quiescence with permission to forget a held Job.
+B. Add another held-owner flag/set. The shared controller already exposes the
+   relevant work/report readiness and the existing registry owns exclusion.
+C. Use the controller's existing shutdown_ready fact before starting settlement,
+   while continuing to observe any previously started settlement task.
+
+Choice: C. If no settlement task exists and that exact controller is already
+shutdown-ready, retain its registry owner and held claim without starting another
+settle call. A previous pending/failed settlement remains an obligation and is
+not skipped by this shortcut. Shared shutdown_ready explicitly permits passive
+held exclusion after all work/report duties settle; it does not permit claim
+release. NMRNet's installed two-Job proof must include clean shutdown with the
+first Job still held. This is consumer composition, not a new SDK readiness flag.
