@@ -93,7 +93,7 @@ def owned_relationships(error):
     ):
         for cause in error.cleanup_failures:
             yield "independent cleanup", cause
-    if kind in (ConversationRetirementFailed, ChatFailed, ExecutionFailed):
+    if kind in (ConversationRetirementFailed, ChatFailed, ExecutionFailed, ControllerFailed):
         yield "interruption cause", error.interruption_cause
     if kind is ExecutionFailed:
         yield "local delivery failure", error.delivery_failure

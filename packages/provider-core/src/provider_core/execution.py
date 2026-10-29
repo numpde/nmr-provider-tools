@@ -25,6 +25,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 
+from provider_core.task_boundary import contain_task_exit
 from provider_core.analysis import AnalysisFailure, AnalysisSuccess, ObservedWorkerCrash, PreparedAnalysis, retire_session
 from provider_core.api import ApiFailure
 from provider_core.attempt_record import (
@@ -194,8 +195,8 @@ class _ConditionReporter:
             raise self.failure
         self.reporting = True
         try:
-            await self.executor._report_condition(self, condition_code)
-        except (Exception, asyncio.CancelledError) as cause:
+            await contain_task_exit(self.executor._report_condition, self, condition_code)
+        except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cause:
             # Waiting for the API lock is part of the awaited report too. Keep
             # its first failure even when a binding catches the interruption.
             if self.active and self.failure is None:
@@ -429,40 +430,7 @@ class AttemptExecutor:
         self._acknowledged = acknowledged
         self._checkpoint = AcknowledgedCheckpoint(acknowledged.start, acknowledged.admission)
         try:
-            await self._observe_active()
-            instructions = self._preverified_input
-            if instructions is None:
-                instructions = await self._api(
-                    self.api.job_input, acknowledged.start.input, analysis_kind_ref=acknowledged.start.analysis_kind_ref
-                )
-            await self._progress("preparing")
-            prepared = await self._monitor("preparing", self._prepare_session, acknowledged, instructions)
-            if type(prepared) is AnalysisFailure:
-                self._outcome = prepared
-            else:
-                if type(prepared) is not PreparedAnalysis:
-                    raise TypeError(
-                        "Cannot execute analysis: preparation must return its handle and protected candidate identity."
-                    )
-                entered = mark_execution_entered(acknowledged, prepared.identity)
-                await self._progress("running")
-                await self._write_entry(entered)
-                await self._observe_active()
-                await self._monitor("running", self._execute_session, prepared)
-            # Both original tasks start before either is observed. Relay
-            # backpressure cannot defer native cleanup.
-            self._begin_retirement()
-            self._handoff_wait = asyncio.create_task(self._handoff())
-            self._handoff_wait.add_done_callback(_observe_task_failure)
-            await asyncio.wait({self._handoff_wait, self._retirement_task}, timeout=self._task_settle_seconds,
-                               return_when=asyncio.FIRST_EXCEPTION)
-            if self._handoff_wait.done():
-                await self._settle_handoff()
-            await self._retire_session()
-            if self._handoff_wait is not None:
-                await asyncio.shield(self._handoff_wait)
-                await self._settle_handoff()
-            return self._checkpoint
+            return await contain_task_exit(self._run_effects, acknowledged)
         except asyncio.CancelledError as cause:
             # A native cleanup coroutine can itself finish cancelled. Only a
             # cancellation directed at this caller withdraws handoff authority;
@@ -480,22 +448,62 @@ class AttemptExecutor:
             if self._interruption_has_evidence():
                 self._link_interruption(cause)
             raise
-        except Exception as cause:
+        except (Exception, BaseExceptionGroup) as cause:
             # This is the execution boundary: retain even unexpected binding or
             # codec failures, stop owned work, and never classify them as bad input.
             # An approved handoff remains independently owned if cleanup fails;
             # settlement observes that original delivery rather than vetoing it.
             self._remember(cause)
             try:
-                await self._retire_after_failure()
+                cleanup_fatal = await self._retire_after_failure()
             except asyncio.CancelledError as interruption:
                 self._link_interruption(interruption)
                 raise
+            if not isinstance(cause, Exception):
+                raise BaseExceptionGroup("Analysis lifecycle raised a process-control exception", (cause, self.last_failure)) from None
+            if cleanup_fatal is not None:
+                raise BaseExceptionGroup("Analysis cleanup raised a process-control exception", (cleanup_fatal, self.last_failure)) from None
             raise self.last_failure from None
         finally:
             self._observing = False
             self._refresh_failure()
             self._finish_if_settled()
+
+    async def _run_effects(self, acknowledged):
+        await self._observe_active()
+        instructions = self._preverified_input
+        if instructions is None:
+            instructions = await self._api(
+                self.api.job_input, acknowledged.start.input, analysis_kind_ref=acknowledged.start.analysis_kind_ref
+            )
+        await self._progress("preparing")
+        prepared = await self._monitor("preparing", self._prepare_session, acknowledged, instructions)
+        if type(prepared) is AnalysisFailure:
+            self._outcome = prepared
+        else:
+            if type(prepared) is not PreparedAnalysis:
+                raise TypeError(
+                    "Cannot execute analysis: preparation must return its handle and protected candidate identity."
+                )
+            entered = mark_execution_entered(acknowledged, prepared.identity)
+            await self._progress("running")
+            await self._write_entry(entered)
+            await self._observe_active()
+            await self._monitor("running", self._execute_session, prepared)
+        # Both original tasks start before either is observed. Relay
+        # backpressure cannot defer native cleanup.
+        self._begin_retirement()
+        self._handoff_wait = asyncio.create_task(contain_task_exit(self._handoff))
+        self._handoff_wait.add_done_callback(_observe_task_failure)
+        await asyncio.wait({self._handoff_wait, self._retirement_task}, timeout=self._task_settle_seconds,
+                           return_when=asyncio.FIRST_EXCEPTION)
+        if self._handoff_wait.done():
+            await self._settle_handoff()
+        await self._retire_session()
+        if self._handoff_wait is not None:
+            await asyncio.shield(self._handoff_wait)
+            await self._settle_handoff()
+        return self._checkpoint
 
     async def _prepare_session(self, acknowledged, instructions, *, report_condition):
         prepared = await self.session.prepare(acknowledged, instructions, report_condition=report_condition)
@@ -515,8 +523,8 @@ class AttemptExecutor:
     async def _call_session(self, operation, reporter, *args):
         try:
             try:
-                result = await operation(*args, report_condition=reporter)
-            except (Exception, asyncio.CancelledError) as cause:
+                result = await contain_task_exit(operation, *args, report_condition=reporter)
+            except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cause:
                 if reporter.failure is not None and cause is not reporter.failure:
                     # Re-raising inside this handler keeps the later binding
                     # failure as context. An explicit chain would overwrite the
@@ -579,7 +587,7 @@ class AttemptExecutor:
         self._require_live_permission()
         self._cancel_requested = False
         reporter = _ConditionReporter(self, phase)
-        self._task = asyncio.create_task(self._call_session(operation, reporter, *args))
+        self._task = asyncio.create_task(contain_task_exit(self._call_session, operation, reporter, *args))
         self._task.add_done_callback(_observe_task_failure)
         try:
             while not self._task.done():
@@ -733,7 +741,7 @@ class AttemptExecutor:
             self._observation_read_started = False
             deadline = asyncio.get_running_loop().time() + recovery.gap_seconds
             self._observation_deadline = deadline
-            self._observation_wait = asyncio.create_task(self._observe_with_interruption_evidence(deadline))
+            self._observation_wait = asyncio.create_task(contain_task_exit(self._observe_with_interruption_evidence, deadline))
             self._observation_wait.add_done_callback(_observe_task_failure)
             try:
                 # wait() returns without awaiting cancellation cleanup. HTTP's
@@ -982,7 +990,7 @@ class AttemptExecutor:
     def _begin_retirement(self):
         if self._retirement is not _Retirement.CONFIRMED and self._retirement_task is None:
             self._retirement = _Retirement.UNCONFIRMED
-            self._retirement_task = asyncio.create_task(retire_session(self.session))
+            self._retirement_task = asyncio.create_task(contain_task_exit(retire_session, self.session))
             self._retirement_task.add_done_callback(_observe_task_failure)
 
     async def _retire_session(self):
@@ -1011,19 +1019,23 @@ class AttemptExecutor:
             # Do not retry failed normal retirement while handling its own error.
             operations.insert(0, self._retire_session)
         cancellation = None
+        fatal = None
         for operation in operations:
             try:
-                await operation()
+                await contain_task_exit(operation)
             except asyncio.CancelledError as cause:
                 # Retirement records cancellation from its own wait and child.
                 # Other cleanup ports transfer their evidence here.
                 if operation != self._retire_session:
                     self._remember(cause, cleanup=True)
                 cancellation = cause
-            except Exception as cause:
+            except (Exception, BaseExceptionGroup) as cause:
                 self._remember(cause, cleanup=True)
+                if not isinstance(cause, Exception) and fatal is None:
+                    fatal = cause
         if cancellation is not None:
             raise cancellation
+        return fatal
 
     async def _retire_api(self):
         if self._observation_wait is not None:
@@ -1040,6 +1052,7 @@ class AttemptExecutor:
             raise ExecutionRefused("No unobserved execution lifecycle is available to settle")
         self._observing = True
         cancellation = None
+        fatal = None
         failed = False
         try:
             self._cancel_task()
@@ -1055,18 +1068,22 @@ class AttemptExecutor:
                 self._retire_api,
             ):
                 try:
-                    await operation()
+                    await contain_task_exit(operation)
                 except asyncio.CancelledError as cause:
                     cancellation = cause
                     failed = True
                     if operation != self._retire_session:
                         self._remember(cause, cleanup=True)
-                except Exception as cause:
+                except (Exception, BaseExceptionGroup) as cause:
                     failed = True
                     self._remember(cause, cleanup=True)
+                    if not isinstance(cause, Exception) and fatal is None:
+                        fatal = cause
             if cancellation is not None:
                 self._link_interruption(cancellation)
                 raise cancellation
+            if fatal is not None:
+                raise BaseExceptionGroup("Analysis settlement raised a process-control exception", (fatal, self.last_failure)) from None
             if self._outcome_unretained():
                 failed = True
                 message = "Observed outcome requires explicit disposition; the claim remains held"

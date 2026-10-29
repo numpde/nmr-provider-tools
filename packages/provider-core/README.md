@@ -85,6 +85,13 @@ stop, then join that reader within the native session's aggregate cleanup budget
 Use `not_after` when an existing cleanup owner already has an earlier deadline.
 The failure accessors retain exact native causes. Science exchange and confirmed
 reader quiescence remain the provider's responsibility.
+
+Use `contain_task_exit(callable, ...)` at retained Task entries so an unexpected
+`SystemExit` or `KeyboardInterrupt` reaches the supervising owner as a group
+containing the original failure. Independent cleanup must still run. This creates
+no extra Task and grants no scientific failure report or cleanup confirmation.
+The CLI reports a failed background operation through its safe error renderer
+after settlement; it must not print the raw group's private exception text.
 Runner retirement messages must include an explicit supported reason; messages
 without one are rejected and cannot establish an observed crash.
 
