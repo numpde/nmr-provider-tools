@@ -2215,3 +2215,60 @@ route contents. For an ownership change, use O_NOFOLLOW and descriptor admission
 require the root-owned empty state and retain independent close failures. Wrong
 owner/mode/content/type must fail without mutation. Verify the actual CHOWN-only
 posture in a disposable container: a mocked nonroot initializer is insufficient.
+
+D074 -- Validate a candidate API route without disturbing the incumbent (2026-10-29 01:08 UTC)
+--------------------------------------------------------------------------------
+
+Magnet's actual launcher must complete signed API preflight from its frozen new
+bundle before stopping the incumbent. Its explicit --no-deps calls make startup
+ordering alone insufficient. The existing bundle generation and validation
+project already provide a concrete temporary resource owner.
+
+Serious alternatives:
+A. Start or replace the production proxy before preflight. The old provider can
+   lose its still-required route before the candidate has proved usable.
+B. Borrow delivery's proxy or the incumbent's route. This violates private UID
+   grants or validates the wrong frozen route configuration.
+C. Render a separate validation proxy from the same frozen candidate binding and
+   resolver using its own project/volume namespace, then retire it explicitly.
+
+Choice: C, proposed by Magnet and reviewed against the real launcher. Reuse the
+shared renderer, actual UID:GID65532 and existing unique bundle generation; mount
+that validation socket at the validator's expected in-container location. Wait
+for the exact proxy's health, run signed check-api, and retain the incumbent
+unchanged until preflight succeeds. The proxy never receives credentials.
+
+Retire validation containers before removing their exact owned volume or bundle;
+if any borrower remains, preserve its input and grant. Never remove external
+delivery storage/networks. After the incumbent has actually stopped, reconcile
+the production proxy from the candidate's frozen composition and verify its
+immutable image and health before provider up --no-deps. Matching API identity
+alone does not prove matching route configuration or safe socket reuse.
+
+Qualify startup/cleanup failures, unchanged incumbent, route mismatch and retained
+ownership. This is the chosen design, not a claim that the launcher or an actual
+deployment already implements it. Other provider launchers must preserve their
+corresponding incumbent/preflight duties using the same shared route authority.
+
+D075 -- Keep the selected candidate the sole SDK wheel input (2026-10-29 01:12 UTC)
+--------------------------------------------------------------------------------
+
+SECS's real offline install failed closed because its candidate directory and
+shared cache both supplied provider-core 0.5.0 with different hashes. Pip selected
+the old cached wheel, then correctly rejected the issuer lock's new hash.
+
+Serious alternatives:
+A. Delete older cache entries or edit the issuer lock. This changes another
+   owner's immutable inputs or removes the exact artifact's qualification.
+B. Give each unpublished candidate a new package version. This couples private
+   qualification iterations to release/version policy and does not admit which
+   source directory is authorized to supply the SDK.
+C. Build a private install input pool containing the exact selected SDK wheel
+   and only the hash-locked third-party cache files it needs.
+
+Choice: C, following the SDK's existing core_environment install/capture pattern.
+The candidate directory is the sole SDK source; the cache contributes third-party
+wheels only. Native-only installation needs no dependency cache. Keep issuer
+full/native locks unchanged, require hashes, and leave the shared cache intact.
+Use this in maintained local-candidate lanes, not manual cache surgery or a new
+provider-specific lock generator. SECS owns its installer correction and proof.
