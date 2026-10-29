@@ -4393,3 +4393,25 @@ record hashes, byte-exact issuer profiles and 34 preserved host deployment check
 passing on the exact installed wheel. Only the SDK version/hash changed in the
 full dependency profile. D122 is code-integrated and under critical audit/tests;
 it is not yet qualified final consumer adoption.
+
+Coordination checkpoint (2026-10-29 06:30 UTC)
+-------------------------------------------
+
+Magnet confirms its earlier explicit push/deploy scope and accepts the local-first
+sequence. It prefers the shared SDK owner to retain exclusive shared replacement
+ownership. Root retains that tooling/source ownership but does not treat the two
+provider scopes as an inferred new root production grant. Finish the concrete
+image/check/readiness preparation before resolving that final action's authority;
+do not stop providers while their shared replacement is not ready to proceed.
+
+Read-only Engine inspection confirms the original nmr-api-delivery project on
+both hosts remains running with its two healthy API proxies and exited-success
+initializer. Local daemon ID still starts f1c1f0bc, ProArt 2b38401b; the original
+queue and per-binding IPC/route volumes remain attached. This is ownership and
+continuity evidence, not producer quiescence or permission to open live SQLite.
+
+SECS reports ordinary public provider/native acquisition passing with byte-exact
+0.5.1 profiles and unchanged dependency inputs; canonical builds and consumer
+qualification are running. No SECS production target is selected or required by
+the existing NMRNet/Magnet shared rollout. Root explicitly confirmed that it
+should complete qualification only, without seeking or inventing a new target.
