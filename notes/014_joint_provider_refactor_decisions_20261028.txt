@@ -4337,3 +4337,59 @@ catch. Any separately intended model response/protocol policy remains explicitly
 model-owned. Dirty cleanup and caller interruption never authorize fallback.
 No new helper, alias, copied classifier or behavioral SDK patch is needed. Clarify
 the shared documentation without holding consumer adoption for another release.
+
+D141 -- Coordinate provider owners before a host-by-host shared cutover (2026-10-29 06:27 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet confirms its earlier explicit push/deploy authorization covers its own
+maintained admission-stop/drain on both hosts. Magnet's images/checks are not yet
+ready on both hosts. Root's implementation goal does not grant new production
+authority, and an image or queue snapshot is not an owner-ready signal.
+
+Serious alternatives:
+A. Let each provider independently replace its shared dependencies as soon as
+   its image is ready. This shortens each private schedule but can interrupt
+   another binding's original producer and complicate shared resource ownership.
+B. Coordinate both hosts in one simultaneous window after all providers qualify.
+   This shortens total rollout time but removes a working host-level canary and
+   makes a shared construction defect affect both sites at once.
+C. Qualify consumer images first, coordinate both original provider owners on
+   the local host, verify one preserved shared replacement and both consumers,
+   then use that observed procedure on ProArt.
+
+Choice: C as the coordination sequence, conditional on each responsible owner's
+existing authority, actual readiness and agreement. No stop has been requested
+yet. A single designated owner must perform shared-dependency replacement through
+maintained tooling after all same-host producer owners have closed admission and
+reported original START/science/report/ACK settlement. Preserve exact bindings,
+queue volumes, retained state and IPC grants. D119 governs any expired stop
+observer: retain dependencies and observe the same original operation, never
+manufacture quiescence or initiate a second stop as a retry.
+
+After replacement, verify installed versions/image identity, health, restart/OOM,
+bindings, queue/IPC continuity and both consumer owners' outcomes before the next
+host. This is an ordered operational proposal, not permission to deploy SECS,
+NMRPeak or any provider outside its separately established scope. Magnet has been
+asked to confirm its scope and shared-dependency ownership; readiness is pending.
+
+Consumer checkpoint (2026-10-29 06:27 UTC)
+---------------------------------------
+
+NMRNet reports the exact shared d99dcac8 runtime staged and verified linux/amd64
+on ProArt with no running service change. Its production controller, geometry
+and inference images are built and imports pass; rollout remains on hold.
+
+Magnet reports 763 unit, 19 contract and all 135 integration tests passing on the
+exact wheel, plus actual TLS recovery/refusal. Pins are committed ce0ac2c. A stale
+G01 test delimiter was corrected in 859c041 with 17 focused tests passing. Its
+current committed local canonical image is
+sha256:8df27f0f0740e65c5511a192bc114cce6ca89f13a57a56f022067cddf29bf6ff,
+revision 859c0413486b70cd0d5ca2db536bb76e6cf4cf4b. Full maintained checks are still
+running. This supersedes its intermediate 888304a7 image receipt. ProArt normal
+consumer acquisition/build and original-owner readiness are still pending.
+
+NMRPeak reports ordinary GitHub 0.5.1 acquisition and matching wheel/full/native/
+record hashes, byte-exact issuer profiles and 34 preserved host deployment checks
+passing on the exact installed wheel. Only the SDK version/hash changed in the
+full dependency profile. D122 is code-integrated and under critical audit/tests;
+it is not yet qualified final consumer adoption.
