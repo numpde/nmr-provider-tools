@@ -6701,6 +6701,89 @@ the shared acquisition owner. Tests explicitly cover silent cancellation after
 identity refusal; that witness establishes the reporting gap, not a live leaked
 container. The deferred-items note names the trigger and required properties.
 
+D208 — ProArt NMRPeak replacement readiness
+------------------------------------------
+
+Serious alternatives for runner retirement:
+A. Preserve the legacy 10-second setting. Current v2 admission rejects it: the
+   termination, cleanup and observation budget requires at least 20 seconds.
+B. Use the current template's 20-second setting. It satisfies admission and keeps
+   the template's explicit retirement budget.
+C. Choose a larger value. It can provide more scheduling margin but may also
+   prolong recovery when a runner does not retire.
+
+Pending choice: B passed schema admission in the owner's temporary v2
+configuration with the proposed binding and existing credential, but 20 seconds
+exactly equals the sum of the native stage budgets (5 + 5 + 5 + 4 + 1). That
+leaves no explicit extra scheduling margin. The owner found no measured ProArt retirement latency and recommends 30
+seconds as a conservative allowance, not a measured guarantee. The final choice
+and plan remain pending. Live configuration remains unchanged.
+
+For the images, the alternatives are to reuse the locally completed ae1999b
+builds or rebuild with the current checkout and selected WLAN. The owner's
+read-only checks found all three pass the checkout's exact local image admission
+and match published 809d619 image-input identities. Their labels still say
+ae1999b, and dependency downloads used the default route, not WLAN. These
+checks establish admission and input identity, not live behavior or WLAN
+provenance. The runner Dockerfiles also acquire OS packages from external apt
+repositories, so matching committed context hashes alone cannot identify the
+built bytes. The owner inspected exact image IDs: all three report provider-core
+0.5.2; both runners report torch 2.3.0+cpu, scipy 1.11.4, rdkit 2024.9.6 and
+numpy 1.26.4, and ten explicitly pinned OS package versions match declarations.
+This does not prove all transitive OS artifact bytes or new runtime behavior. The user's ProArt build pause remains in force; no rebuild is
+authorized by this decision. Networkless verification of both existing HF and
+CHF checkpoint volume bytes, markers and ownership passed against selected
+release digests. The final plan, stopped journal inventory and coordinated
+four-binding cutover are still outstanding.
+
+D209 — Restore service after four-binding startup failure
+---------------------------------------------------------
+
+Alternatives: keep all providers down while diagnosing the new binding; restore
+the original shared definition and existing providers first; or weaken credential
+admission. We chose restoration first to shorten the outage and preserve the
+existing security contract. Weakening admission was not justified.
+
+All four providers drained; NMRPeak's stopped journal inventory under locks was
+empty. The four-binding shared startup failed: delivery rejected a signing
+credential's ownership or mode. Metadata inspection found the new NMRPeak file
+owned by UID 1000 with mode 0640, while the SDK requires 0400 or 0600; the three
+existing credentials are 0600. The prior signed read used a private temporary
+copy and did not qualify the original file for delivery startup. This was a
+preflight omission; a rendered plan was insufficient to prove credential
+admission. No key material was printed.
+
+The prior definition was restored from a private byte-for-byte backup and shared
+delivery and its three proxies became healthy. SECS and NMRNet normal up passed;
+Magnet startup validation failed its signed API read, with the precise cause still
+under investigation. Legacy NMRPeak restoration is in progress. Queue volumes,
+credentials and NMRPeak journal were retained. Options for the new credential
+include changing the owner-controlled file permissions or maintaining a separate
+private copy, which adds rotation synchronization. No choice is settled.
+
+D210 — Complete ProArt four-binding cutover
+------------------------------------------
+
+Alternatives: retain a second private credential copy; change the original
+credential to owner-only after draining legacy; or loosen SDK admission. We chose
+the original file: a second copy would need rotation synchronization, and
+loosening admission changes the shared security boundary. Legacy needed its
+named ACL, so the owner first drained it, verified the locked journal empty and
+retained the ACL temporarily for recovery. The original inode and key bytes were
+unchanged; the actual file, now mode 0600, passed SDK admission. Obsolete
+rollback artifacts are to be removed after verification, per user direction.
+
+The second coordinated drain succeeded. Shared delivery restarted with four
+bindings using the existing image and queue; on host proart delivery and all
+four route proxies are healthy with zero restarts and no OOM. NMRNet and SECS
+reported successful restore; NMRPeak reported its new provider healthy using
+provider-core 0.5.2 and nmrpeak-pa-a, with both runners running. Magnet reported
+ready after transient proxy DNS timeout/502; its underlying DNS cause is not
+proved. Provider checks and legacy cleanup continue; no synthetic Job was run.
+
+The NMRPeak 30-second retirement setting gives ten seconds beyond the 20-second
+minimum; this is an operational allowance, not measured latency assurance.
+
 Supporting qualification references
 -----------------------------------
 
