@@ -4226,3 +4226,48 @@ NMRNet independently matched wheel/full/native-lock/record hashes. NMRPeak repor
 its separate disposable maintenance route/ownership checks passing on published
 0.5.0; that does not qualify its pending 0.5.1 model adapter. Consumer main pins,
 normal GitHub acquisition and canonical images remain each owner's next step.
+
+D138 -- Preserve the native-evidence boundary in consumer qualification (2026-10-29 06:20 UTC)
+--------------------------------------------------------------------------------
+
+Magnet's exact-wheel wide run passes 763 unit and 19 contract tests; one of 135
+integrations times out. Its scripted Hello transport supplies an ExchangeFailed
+with ConnectionRefusedError but no original native-I/O observation. The actual
+TLS EOF recovery and certificate-refusal checks already pass on the exact wheel.
+The synthetic failure therefore needs its intended contract established before
+treating it as a new runtime recovery defect.
+
+Serious alternatives:
+A. Restore class-only product retry permission to accommodate the old fixture.
+   This reopens the proved local-lookalike/certificate boundary fixed in D124.
+B. Skip the integration or label all scripted faults as native network failures.
+   That hides either the intended contract or unrelated negative specimens.
+C. Correct only the explicitly intended network fixture at its actual evidence
+   boundary, retaining local negatives and independent physical recovery proofs.
+
+Choice: C, applying D124 rather than relaxing it. Magnet owns investigation and
+the precise fixture change; root does not claim its integration is fixed yet.
+No private provider classifier or production retry workaround is authorized.
+
+Consumer checkpoint (2026-10-29 06:20 UTC)
+---------------------------------------
+
+NMRNet committed exact 0.5.1 issuer profiles/record and public asset URLs in
+d13bbf3; checkout observed clean. Normal acquisition/image qualification follows.
+It is the single owner staging the exact d99dcac8 shared runtime on ProArt and
+has confirmed Magnet is not doing a duplicate transfer. This prepares an image;
+it does not replace any incumbent service or establish cutover quiescence.
+
+NMRPeak reports its maintenance-route lifecycle and actual TLS inventory request
+proofs passing with their explicit scope. Its remaining critical path is the
+per-Attempt model HTTP owner, displaced live authority removal, normal 0.5.1
+profiles, canonical images and final contained/native qualification. The archive
+codec cut is committed fbab2a2. A large coupled adoption diff remains; coherent
+qualified subsets should be committed when their import/behavior closure permits.
+Root is reviewing native/archive and model ownership boundaries in parallel,
+read-only, while that owner implements. There is no reliable completion ETA yet.
+
+SECS's latest observed clean main is 148a78d, recording deferred retry-diagnostic
+and signal-status limits. It acknowledged the release/API and is aligning its
+consumer hook with the public default before normal 0.5.1 acquisition. These are
+consumer progress observations, not a claim of completed four-provider adoption.
