@@ -817,11 +817,20 @@ class AttemptExecutor:
                     if not self.api.can_retry_read(failure):
                         raise
                     outage = failure
-                    remaining = deadline - asyncio.get_running_loop().time()
+                    now = asyncio.get_running_loop().time()
+                    remaining = deadline - now
                     if remaining <= 0:
                         raise ObservationGapExpired(recovery.gap_seconds, executor=self) from None
                     wait = random.uniform(min(delay, remaining) / 2, min(delay, remaining))
-                    recovery.on_retry(self._record, failure, wait)
+                    advised = failure.retry_after_seconds
+                    if advised is not None:
+                        wait = max(wait, advised)
+                    retry_at = now + wait
+                    if retry_at < deadline:
+                        recovery.on_retry(self._record, failure, wait)
+                    wait = min(retry_at, deadline) - asyncio.get_running_loop().time()
+                    if wait <= 0:
+                        continue
                     try:
                         await asyncio.wait_for(self._crash_notice.wait(), timeout=wait)
                     except TimeoutError:

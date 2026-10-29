@@ -8,11 +8,14 @@ from provider_core.attempt_record import ProtectedEvidence, acknowledge_start
 from provider_core.analysis import AnalysisSuccess
 from provider_core.delivery_worker import DeliveryWorkerFailed
 from provider_core.decoded_body import DecodedBodyRejected
+from provider_core.deployment_binding import BindingDefinitionRejected
+from provider_core.deployment_route import RouteProjectionRejected
 from provider_core.producer_checkpoint import AcknowledgedCheckpoint
 from provider_core.chat import ChatFailed
 from provider_core.conversation import ConversationRetirementFailed, ToolRejected
 from provider_core.execution import ExecutionFailed
 from provider_core.failure_projection import owned_details, owned_relationships
+from provider_core.diagnostics import failure_evidence
 from provider_core.starting import StartFailed
 from provider_core.transport import ExchangeFailed, HttpResponse, HttpResponseHead
 from provider_core.uploads import UploadFailed, UploadFileReadFailed, UploadInputRejected, UploadRecoveryExhausted
@@ -21,6 +24,27 @@ from tests.fakes.attempts import ATTEMPT_REF
 
 
 class CoreFailureProjectionTests(unittest.TestCase):
+    def test_unknown_network_observation_cannot_run_properties_during_projection(self):
+        class HostileObservation:
+            @property
+            def stage(self):
+                raise RuntimeError("PRIVATE_PROPERTY_CANARY")
+
+            @property
+            def error(self):
+                raise RuntimeError("PRIVATE_PROPERTY_CANARY")
+
+        failure = ExchangeFailed("Observed failure", network_io=HostileObservation())
+        self.assertEqual(owned_details(failure), {"message": "Observed failure"})
+        self.assertNotIn("PRIVATE_PROPERTY_CANARY", repr(failure_evidence(failure, secrets=())))
+
+    def test_shared_deployment_refusals_have_their_safe_default_message(self):
+        for kind in (BindingDefinitionRejected, RouteProjectionRejected):
+            with self.subTest(kind=kind):
+                failure = kind("Selected deployment input was refused")
+                failure.__cause__ = ValueError("PRIVATE_PARSE_DETAIL")
+                self.assertEqual(owned_details(failure), {"message": str(failure)})
+
     def test_decoded_rejection_projects_only_the_closed_reason_and_safe_message(self):
         failure = DecodedBodyRejected("invalid_encoding")
         failure.__cause__ = ValueError("PRIVATE_ENCODING_DETAIL")

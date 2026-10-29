@@ -25,12 +25,9 @@ from provider_core.api_config import ApiConfigurationRejected, require_api_field
 from provider_core.bound_http_proxy import require_interface_name
 from provider_core.delivery_client import DeliveryEndpoint, delivery_volume_name
 from provider_core.delivery_store import MAX_BINDINGS, QueueLimits
+from provider_core.deployment_errors import BindingDefinitionRejected
 from provider_core.provider_proxy import ServicePolicy, ServiceRefused
 from provider_core.startup_file import StartupFileRejected, read_startup_file
-
-
-class BindingDefinitionRejected(ValueError):
-    """A safe definition refusal; native/parser evidence remains its cause."""
 
 
 def _fields(table, expected, label):
@@ -209,19 +206,12 @@ def input_paths(bindings):
     return tuple(sorted(paths))
 
 
-def _binding_details(error, text, diagnostic_window):
-    if type(error) is BindingDefinitionRejected:
-        return {"message": str(error)}
-    from provider_core.failure_projection import owned_details
-    return owned_details(error)
-
-
 def _report_definition_failure(failure):
     # Native/parser nodes expose safe facts through the existing protected graph.
     from provider_core.diagnostics import failure_evidence
 
     print(json.dumps({"operation": "inspect delivery binding", "failure": failure_evidence(
-        failure, secrets=(), describe_owner=_binding_details,
+        failure, secrets=(),
     )}, ensure_ascii=True), file=sys.stderr)
 
 

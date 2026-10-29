@@ -230,10 +230,22 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_first_outage_and_first_uncertain_issuance_are_bounded_exact_references(self):
         owner, _, _ = self.owner(recovery=self.policy(attempts=3))
-        lost = Client(Stream([], failure=httpcore.ReadTimeout("protected lost reply")), headers=response_headers())
+        original = httpcore.ReadTimeout("protected lost reply")
+        class LostReply(Stream):
+            async def __aiter__(self):
+                with self.network.io("read"):
+                    raise original
+                yield b"unreachable"
+        lost = Client(LostReply([]), headers=response_headers())
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), refusal(409, "upload_read_not_finalized"),
                    api_reply(MEMBERSHIP), lost, api_reply(MEMBERSHIP), refusal(409, "upload_read_not_finalized")]
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
+        replies = iter(clients)
+        def pool(**options):
+            client = next(replies)
+            if client is lost:
+                client.stream.network = options["network_backend"]
+            return client
+        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=pool):
             await owner.inspect()
             with self.assertRaises(UploadRecoveryExhausted) as caught:
                 await owner.acquire(UPLOAD_REF)
@@ -257,17 +269,24 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         original = httpcore.ReadTimeout("protected late network failure")
         class LateReply(Stream):
             async def __aiter__(self):
-                try:
-                    await asyncio.Event().wait()
-                except asyncio.CancelledError:
-                    await released.wait()
-                    raise original
+                with self.network.io("read"):
+                    try:
+                        await asyncio.Event().wait()
+                    except asyncio.CancelledError:
+                        await released.wait()
+                        raise original
                 yield b"unreachable"
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=0.03, retirement_seconds=0.02)
         owner, api, _ = self.owner(recovery=self.policy(on_retry=lambda failure, _: notices.append(failure)),
                                    api_transport=transport)
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), Client(LateReply([]), headers=response_headers()),
                    api_reply(MEMBERSHIP), api_reply(GRANT), store_reply()]
+        replies = iter(clients)
+        def pool(**options):
+            client = next(replies)
+            if client is clients[2]:
+                client.stream.network = options["network_backend"]
+            return client
         retire = api.retire
         async def observe_retirement(*, owner=None):
             self.assertIsNone(owner)
@@ -275,7 +294,7 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
             released.set()
             await retire(owner=owner)
             self.assertTrue(transport.retirement_confirmed)
-        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients), patch.object(
+        with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=pool), patch.object(
             api, "retire", side_effect=observe_retirement
         ):
             try:

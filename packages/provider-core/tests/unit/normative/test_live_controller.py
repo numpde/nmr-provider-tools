@@ -15,7 +15,7 @@ from provider_core.delivery_store import DeliveryFull
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from provider_core.transport import ExchangeFailed
-from tests.fakes.api import Transport, api, reply, response_headers, signature_window_problem
+from tests.fakes.api import Transport, api, io_failure, reply, response_headers, signature_window_problem
 from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import observation, progress_response, start_response
 from tests.fakes.checkpoint_execution import RecordingDelivery
@@ -398,7 +398,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
     async def test_original_retirement_and_late_evidence_precede_replay(self):
         for late in ("certificate", "cleanup", "availability"):
             with self.subTest(late=late):
-                lost = ExchangeFailed("Unconfirmed START", primary=httpcore.ReadTimeout())
+                lost = io_failure("Unconfirmed START", stage="read", primary=httpcore.ReadTimeout())
                 transport = Transport(lost, reply(start_response(state="failed", replayed=True)))
                 exchange, retire = transport.exchange, transport.retire
                 entered, release = asyncio.Event(), asyncio.Event()

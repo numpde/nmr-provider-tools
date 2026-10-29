@@ -44,7 +44,8 @@ from provider_core.job_feed import PAGE_RESPONSE_BYTES, jobs_query, read_jobs_pa
 from provider_core.job_input import MAX_RESPONSE_BYTES, FeedInputFacts, JobInputRejected, verify_job_input
 from provider_core.response_json import ResponseRejected
 from provider_core.signing import signed_request
-from provider_core.transport import ExchangeFailed, response_request_id, temporary_io_failure
+from provider_core.transport import ExchangeFailed, response_request_id
+from provider_core.network import network_availability
 from provider_core.upload_response import (
     GRANT_RESPONSE_BYTES,
     MEMBERSHIP_RESPONSE_BYTES,
@@ -533,7 +534,8 @@ class ProviderAPI:
             return failure.response is not None or (
                 type(exchange) is ExchangeFailed and not exchange.cleanup_failures
                 and not isinstance(exchange.interruption, asyncio.CancelledError)
-                and temporary_io_failure(exchange.primary, 8, network_failure=exchange.network_failure)
+                and exchange.caller_interruption is None
+                and network_availability(exchange.primary, exchange.network_io, network_failure=exchange.network_failure)
             )
         return False
 
@@ -564,6 +566,7 @@ class ProviderAPI:
             type(exchange) is not ExchangeFailed
             or exchange.cleanup_failures
             or isinstance(exchange.interruption, asyncio.CancelledError)
+            or exchange.caller_interruption is not None
         ):
             return False
         return exchange.response_head is None and type(exchange.primary) is httpcore.RemoteProtocolError
@@ -579,11 +582,12 @@ class ProviderAPI:
             type(exchange) is not ExchangeFailed
             or exchange.cleanup_failures
             or isinstance(exchange.interruption, asyncio.CancelledError)
+            or exchange.caller_interruption is not None
         ):
             return False
         if exchange.response_head is not None:
             if exchange.response_head.status in (502, 503, 504):
-                return self._retryable_gateway(exchange.response_head) and temporary_io_failure(exchange.primary, 8, network_failure=exchange.network_failure)
+                return self._retryable_gateway(exchange.response_head) and network_availability(exchange.primary, exchange.network_io, network_failure=exchange.network_failure)
             try:
                 _require_api_headers(exchange.response_head, failure.operation, self._expected_topology)
             # silent-defaults: allow-exception-outcome -- Unadmitted response headers grant no read retry
@@ -597,7 +601,7 @@ class ProviderAPI:
             # Missing status and policy refusal grant no retry permission;
             # successful CONNECT cannot authorize retry of a later TLS failure.
             return exchange.proxy_connect_status in (502, 503, 504)
-        return temporary_io_failure(exchange.primary, 8, network_failure=exchange.network_failure)
+        return network_availability(exchange.primary, exchange.network_io, network_failure=exchange.network_failure)
 
     def _retryable_gateway(self, response):
         return response.status in (502, 503, 504) and self._gateway_environment_matches(response)
