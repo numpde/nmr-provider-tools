@@ -4176,3 +4176,53 @@ may treat a source test as proof of the issued wheel. Preserve the exact source
 revision during preparation; another consequential choice requires recording it
 and preparing that new source, rather than editing a supposedly frozen candidate.
 This follows D098/D113's normal acquisition/publication authority and D136's scope.
+
+Publication checkpoint (2026-10-29 06:16 UTC)
+-------------------------------------------
+
+All four responsible providers explicitly acknowledged the actual 0.5.1 API and
+authored release prose before publication. SECS confirmed the observation-cap
+wording and separate published response-loss permission. The final independent
+transport/execution audit found no additional blocker; this was a source audit,
+separate from the executed qualification below.
+
+Clean release source: 529fe390d52ded042df687e11230242b0c6f5667.
+Maintained publish/prepare PASS: 628 installed unit, 15 contract, 174 integration,
+15 source-rebuilt contract and 33 native tests; all six artifact receipts match.
+Artifacts: /tmp/provider-core-0.5.1-publication/artifacts.
+Exact SHA256 values:
+- Wheel: 3954f220c72cb753c1cc87a77644f1cbd69754a4641c93ea03b9c89ebabb8c8f
+- Full lock: e210e69b8235aa179558d484bd23c3677ebd8b747a6cd02d22073019111b43d0
+- Native lock: 2a620cf2a4197f462bc75ea1dddcb07495efd1449534f7f1ca96011d1bcb0b4f
+- Release record: 73a1b962298b4ffff6a491e1d51de9015079ac57c522a9548120f665e308ff54
+- Manifest: 08647453f8a390ac6f1e476ca6b5bd93d716b44e0b339e36546bc8c6e03cc012
+- Source archive: 9a059b14b345360d2f1bf48bc677d049808c6d6c7b3829d5b349c746710fb747
+
+Maintained publish/release completed: tag pushed, all eight draft files downloaded
+and compared with qualified artifacts/logs, then the draft made public at:
+https://github.com/numpde/nmr-provider-tools/releases/tag/v0.5.1
+Publication receipts: /tmp/nmr-provider-publication.uibRvqdT and
+/tmp/sdk-051-publication.log. Existing 0.5.0 assets were not replaced.
+
+Shared candidate runtime:
+sha256:d99dcac8f6f0b539b496d2c33725ecddccc00e2b85f0974d4ba0dfce33238546
+Construction fingerprint:
+47a45c4fd360ece7b121fe2d71cffb719f75986c693883f91b35c30ffe878b78
+PASS: 34 installed deployment tests and the actual disposable signed HTTPS route,
+read-only/UID isolation, no direct fallback, stale-socket restart and cleanup.
+Logs: /tmp/sdk-051-runtime-image.log, /tmp/sdk-051-runtime-deployment.log and
+/tmp/sdk-051-runtime-route.log. No incumbent/shared service was replaced.
+
+Direct wheel comparison with 0.5.0 finds one added module, deployment_errors.py,
+and eight changed modules: api, deployment_binding, deployment_route, diagnostics,
+execution, failure_projection, network and transport. All other package modules,
+including scientific/native interfaces, are byte-identical. This bounds this
+patch's change; it does not establish a consumer image or deployment result.
+
+Consumer receipts at publication: Magnet independently verified handoff hashes,
+installed the exact wheel in an isolated container and passed 49 lane tests,
+actual TLS EOF recovery and actual untrusted-certificate refusal with retirement.
+NMRNet independently matched wheel/full/native-lock/record hashes. NMRPeak reports
+its separate disposable maintenance route/ownership checks passing on published
+0.5.0; that does not qualify its pending 0.5.1 model adapter. Consumer main pins,
+normal GitHub acquisition and canonical images remain each owner's next step.
