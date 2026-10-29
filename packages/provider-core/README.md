@@ -204,6 +204,14 @@ provider needs its own source selection, cache or retry policy. `JobUploads` use
 that same owner with its existing request, byte and deadline limits. A closed
 file receipt still requires verified readback before scientific parsing.
 
+With `JobUploads`, supply `UploadRecovery` to enable retries within those same
+limits. Take ownership of returned data before reporting `recovery_failure`,
+which lasts until the next source operation.
+
+Use [deployment_route](src/provider_core/deployment_route.py) to render a selected
+binding's API proxy and read-only socket grant. Single-binding providers can
+request the stable `api` service name; delivery retains its per-binding names.
+
 The source distribution carries generic test helpers and pinned API fixtures.
 Those fixtures establish recorded contract/content compatibility, not publisher
 authentication or live API availability. Synthetic provider adaptations qualify

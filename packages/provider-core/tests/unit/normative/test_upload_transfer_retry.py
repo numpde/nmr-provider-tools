@@ -97,7 +97,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(caught.exception, failure)
             self.assertFalse(transfer.can_retry_transfer(failure))
 
-    async def test_complete_refusals_are_distinct_from_interrupted_refusals(self):
+    async def test_owned_header_refusals_precede_any_error_body_delivery(self):
         for status in (200, 401, 403, 404, 429, 500, 503, 507):
             for incomplete in (False, True):
                 with self.subTest(status=status, incomplete=incomplete), private_source_directory() as (_, directory):
@@ -109,7 +109,7 @@ class UploadTransferRetryTests(unittest.IsolatedAsyncioTestCase):
                     client = Client(Stream([], failure=stream_failure), status=status, headers=[])
                     failure = await self.failed(transfer, api.grant, client, directory=directory)
                     self.assertEqual(transfer.can_retry_transfer(failure),
-                                     status in {401, 503, 507} and not incomplete)
+                                     status in {401, 503, 507})
 
     async def test_protocol_truncation_requires_exact_valid_whole_file_head(self):
         for header in ("valid", "missing", "wrong-digest", "duplicate", "partial", "transfer-encoding"):

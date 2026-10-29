@@ -20,12 +20,14 @@ import stat
 import time
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
 import httpcore
 import httpx
 
+from provider_core.api import ApiFailure
+from provider_core.task_boundary import contain_task_exit
 from provider_core.transport import ExchangeFailed, temporary_io_failure
 from provider_core.response_json import ResponseRejected
 from provider_core.upload_response import require_job_ref, require_read_grant, require_upload_ref
@@ -52,6 +54,34 @@ class UploadLimits:
                 raise ValueError("Cannot configure Upload acquisition: byte and request limits must be positive integers")
         if not (type(self.seconds) in (int, float) and math.isfinite(self.seconds) and 0 < self.seconds):
             raise ValueError("Cannot configure Upload acquisition: duration must be finite positive seconds")
+
+
+@dataclass(frozen=True, slots=True)
+class UploadRecovery:
+    """Bound logical source attempts within the owner's original spent budgets.
+
+    stopping is the scientific stop event, not admission stop. on_retry is a
+    bounded synchronous protected observer accepting (failure, wait_seconds).
+    Composition receives a verified result before reading recovery_failure for
+    its protected recovery notice; no observer runs after file handoff here.
+    """
+
+    maximum_attempts: int
+    initial_seconds: float
+    maximum_seconds: float
+    stopping: asyncio.Event = field(repr=False)
+    on_retry: object = field(repr=False)
+
+    def __post_init__(self):
+        if not (type(self.maximum_attempts) is int and 0 < self.maximum_attempts):
+            raise ValueError("Upload recovery requires a positive integer attempt limit including the initial attempt")
+        for seconds in (self.initial_seconds, self.maximum_seconds):
+            if not (type(seconds) in (int, float) and math.isfinite(seconds) and 0 < seconds):
+                raise ValueError("Upload recovery pacing requires finite positive seconds")
+        if not (self.initial_seconds <= self.maximum_seconds):
+            raise ValueError("Upload recovery initial wait cannot exceed its maximum wait")
+        if not isinstance(self.stopping, asyncio.Event) or not callable(self.on_retry):
+            raise TypeError("Upload recovery requires a scientific stop Event and protected synchronous retry observer")
 
 
 def require_store_origin(value):
@@ -211,12 +241,13 @@ class UploadTransfer:
         self.last_failure = None
         self._transfer_grant = None
         self._store_outcome = None
+        self._header_failure = None
         self._interrupted = False
 
     def can_retry_transfer(self, failure):
         """Permit a fresh whole-file transfer after this exact settled failure.
 
-        SECS 34f5915c analysis_run.py admits complete 401/503/507 replies
+        SECS 34f5915c analysis_run.py admits 401/503/507 refusals
         and temporary network failures; upload_download.py validates whole-file
         headers before reading the stream. Selection, grant renewal and bounded
         retry pacing remain with composition. A provided grant proves no issuance.
@@ -235,10 +266,14 @@ class UploadTransfer:
         outcome = self._store_outcome
         if isinstance(outcome, ExchangeFailed):
             if (failure.cause is not outcome or outcome is not self._store.last_failure
-                    or outcome.cleanup_failures or outcome.interruption is not None
-                    or outcome.primary is not outcome.network_failure):
+                    or outcome.cleanup_failures or outcome.interruption is not None):
                 return False
             head = outcome.response_head
+            if self._header_failure is not None and outcome.primary is self._header_failure:
+                return (head is not None and self._header_failure.response is head
+                        and head.status in {401, 503, 507})
+            if outcome.primary is not outcome.network_failure:
+                return False
             if head is not None:
                 try:
                     _verify_store_headers(head, self._transfer_grant)
@@ -249,9 +284,8 @@ class UploadTransfer:
                 return False
             if type(outcome.primary) is httpcore.RemoteProtocolError:
                 return head is not None
-            return temporary_io_failure(outcome.primary, 8)
-        return (outcome is not None and failure.response is outcome
-                and outcome.status in {401, 503, 507})
+            return temporary_io_failure(outcome.primary, 8, network_failure=outcome.network_failure)
+        return False
 
     @property
     def file_cleanup_pending(self):
@@ -315,7 +349,6 @@ class UploadTransfer:
                         interruption=failure,
                     ) from None
                 response = await self._transfer(grant, output_fd=file.fd)
-                _verify_store_headers(response, grant)
                 if response.byte_length != grant.byte_length:
                     raise UploadFailed("downloaded byte length differs from the grant")
                 if response.content_hash != grant.content_hash:
@@ -450,7 +483,6 @@ class UploadTransfer:
 
     async def _download(self, grant):
         response = await self._transfer(grant)
-        _verify_store_headers(response, grant)
         verified = VerifiedUpload(self.job_ref, grant.upload_ref, grant.byte_length, grant.content_hash, response.body)
         self._remaining_seconds()
         return verified
@@ -479,16 +511,22 @@ class UploadTransfer:
         self._before_request()
         deadline = asyncio.timeout(self._remaining_seconds())
         self._transfer_grant = grant
+        def admit(head):
+            try:
+                _verify_store_headers(head, grant)
+            except UploadFailed as failure:
+                self._header_failure = failure
+                raise
         try:
             async with deadline:
                 if output_fd is None:
                     response = await self._store.exchange(
-                        request, maximum_bytes=grant.byte_length, account_bytes=self._account_bytes
+                        request, maximum_bytes=grant.byte_length, account_bytes=self._account_bytes, before_body=admit,
                     )
                 else:
                     response = await self._store.exchange_file(
                         request, output_fd=output_fd, maximum_bytes=grant.byte_length,
-                        account_bytes=self._account_bytes, owner=self._exchange_owner,
+                        account_bytes=self._account_bytes, owner=self._exchange_owner, before_body=admit,
                     )
                 self._store_outcome = response
                 return response
@@ -509,7 +547,7 @@ class UploadTransfer:
 
 
 class JobUploads:
-    """One serial source session, with no byte cache or implicit grant retry.
+    """One serial source session, with explicit optional bounded recovery.
 
     Composition supplies separate API/store transport authority and owns retirement.
     Successful calls return immutable bytes or a closed private-file receipt.
@@ -517,17 +555,25 @@ class JobUploads:
     Metadata responses have their API route ceilings; the byte budget counts raw
     store response bodies, including failures. The request/deadline limits cover
     membership, issuance and store calls together, starting at construction.
+    Recovery requires an explicit UploadRecovery; its attempt cap cannot refund
+    work or extend these budgets. Composition adopts each verified result before
+    reporting the current recovery_failure through its protected diagnostic sink.
     """
 
-    def __init__(self, job_ref, *, api, store, store_origin, limits):
+    def __init__(self, job_ref, *, api, store, store_origin, limits, recovery=None):
         require_job_ref(job_ref)
         if type(limits) is not UploadLimits:
             raise TypeError("Cannot configure Upload acquisition: explicit UploadLimits are required")
+        if recovery is not None and type(recovery) is not UploadRecovery:
+            raise TypeError("Cannot configure Upload acquisition: recovery must be an explicit UploadRecovery policy")
         self.job_ref = job_ref
         self._api = api
         self._store = store
         self._origin = require_store_origin(store_origin)
         self._limits = limits
+        self._recovery = recovery
+        self._recovery_failure = None
+        self._uncertain_issuance = None
         self._deadline = time.monotonic() + limits.seconds
         self._requests = 0
         self._received = 0
@@ -546,6 +592,31 @@ class JobUploads:
     @last_failure.setter
     def last_failure(self, value):
         self._transfer_owner.last_failure = value
+
+    @property
+    def recovery_failure(self):
+        """Current operation's first outage and first uncertain issuance, if any.
+
+        These are exact original exceptions, retained across result handoff or
+        cancellation until the next operation. This is no permission to retry.
+        """
+        return self._recovery_failure
+
+    def _remember_recovery_failure(self, failure):
+        if self._recovery_failure is None:
+            self._recovery_failure = failure
+        if (type(failure) is ApiFailure and failure.issuance_may_have_committed
+                and self._uncertain_issuance is None):
+            self._uncertain_issuance = failure
+            if self._recovery_failure is not failure:
+                self._recovery_failure = BaseExceptionGroup(
+                    "Source acquisition recovery observations", (self._recovery_failure, failure)
+                )
+
+    def _retain_grant_issuance(self, failure):
+        if self._grant_issued and isinstance(failure, UploadFailed) and not failure.grant_issued:
+            failure.grant_issued = True
+            failure.add_note("Read access was issued before this failure and may have extended Upload retention.")
 
     def can_retry_transfer(self, failure):
         """Classify the current transfer without dispatching or changing budgets."""
@@ -569,12 +640,18 @@ class JobUploads:
             raise UploadFailed("previous store resource retirement is unconfirmed; retire its transport before more work")
         self._active = True
         self._grant_issued = False
+        self._recovery_failure = None
+        self._uncertain_issuance = None
         self._transfer_owner._reset_failure()
         try:
             yield
         except BaseException as failure:
+            self._remember_recovery_failure(failure)
             self._snapshot = None
-            if self._grant_issued:
+            if (isinstance(failure, BaseExceptionGroup) and isinstance(self.last_failure, UploadFailed)
+                    and any(cause is self.last_failure for cause in failure.exceptions)):
+                self._retain_grant_issuance(self.last_failure)
+            elif self._grant_issued:
                 # Successful issuance remains true even if later local checks,
                 # transfer, or cancellation prevent a usable byte handoff.
                 if isinstance(failure, UploadFailed):
@@ -584,9 +661,7 @@ class JobUploads:
                 else:
                     cause = self.last_failure if isinstance(failure, asyncio.CancelledError) else failure
                     evidence = UploadFailed("transfer did not complete after read access was issued", cause=cause)
-                if not evidence.grant_issued:
-                    evidence.grant_issued = True
-                    evidence.add_note("Read access was issued before this failure and may have extended Upload retention.")
+                self._retain_grant_issuance(evidence)
                 self.last_failure = evidence
             elif not isinstance(failure, asyncio.CancelledError):
                 self.last_failure = failure
@@ -617,30 +692,154 @@ class JobUploads:
         try:
             async with deadline:
                 return await operation(*args, **kwargs)
+        except ApiFailure as failure:
+            self._remember_recovery_failure(failure)
+            raise
         except asyncio.CancelledError:
             self.last_failure = resource_owner.last_failure
+            if type(resource_owner.last_failure) is ApiFailure:
+                self._remember_recovery_failure(resource_owner.last_failure)
             raise
         except TimeoutError:
             if not deadline.expired():
                 raise
+            if type(resource_owner.last_failure) is ApiFailure:
+                self._remember_recovery_failure(resource_owner.last_failure)
             raise UploadFailed("the source session's total deadline expired", cause=resource_owner.last_failure) from None
+
+    def _require_recovery_wait(self, seconds, failure):
+        try:
+            remaining = self._require_request_capacity()
+        except UploadFailed as exhausted:
+            raise UploadFailed(
+                "source recovery has no request capacity or time remaining",
+                cause=BaseExceptionGroup("Source outage and exhausted acquisition budget", (failure, exhausted)),
+            ) from None
+        if seconds >= remaining:
+            budget = UploadFailed(
+                f"the required wait of {seconds:g} seconds cannot fit with only {remaining:g} seconds "
+                "remaining before the original deadline"
+            )
+            raise UploadFailed(
+                "source recovery wait cannot fit before the original deadline",
+                cause=BaseExceptionGroup("Source outage and recovery wait budget", (failure, budget)),
+            ) from None
+
+    async def _retire_recovery(self, failure, *, store_owner):
+        failures = []
+        for operation in (self._api.retire, lambda: self._store.retire(owner=store_owner)):
+            try:
+                await contain_task_exit(operation)
+            except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cleanup:
+                failures.append(cleanup)
+        if self._store.retirement_confirmed and self._transfer_owner.file_cleanup_pending:
+            try:
+                await contain_task_exit(self._transfer_owner.settle_file)
+            except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cleanup:
+                failures.append(cleanup)
+        if not failures and (
+            not self._api.retirement_confirmed or not self._store.retirement_confirmed
+            or self._transfer_owner.file_cleanup_pending
+        ):
+            failures.append(UploadFailed("original source exchange or private file retirement remains unconfirmed"))
+        if not failures:
+            return
+        cancellation = next((cause for cause in failures if isinstance(cause, asyncio.CancelledError)), None)
+        previous_cause = None
+        if cancellation is not None:
+            previous_cause = cancellation.__cause__
+        record = UploadFailed(
+            "source recovery could not retire the original exchange or private file",
+            cause=failure,
+            cleanup_failures=[cause for cause in failures if cause is not cancellation],
+            interruption=previous_cause,
+        )
+        self.last_failure = record
+        if cancellation is not None:
+            raise cancellation from record
+        fatal = [cause for cause in failures if not isinstance(cause, Exception)]
+        if fatal:
+            raise BaseExceptionGroup("Source recovery retirement raised process-control exceptions", (*fatal, record)) from None
+        raise record from None
+
+    async def _recover_source(self, operation, *, upload_ref=None, store_owner=None):
+        policy = self._recovery
+        if policy is None:
+            return await operation()
+        delay = policy.initial_seconds
+        for attempt in range(policy.maximum_attempts):
+            if policy.stopping.is_set():
+                raise UploadFailed("source acquisition stopped before another request", cause=self.recovery_failure)
+            if attempt:
+                self._transfer_owner._reset_failure()
+                if upload_ref is not None:
+                    self._select(upload_ref)
+            try:
+                return await operation()
+            except Exception as failure:
+                self._retain_grant_issuance(failure)
+                self._remember_recovery_failure(failure)
+                self.last_failure = failure
+                if attempt + 1 == policy.maximum_attempts:
+                    raise
+                await self._retire_recovery(failure, store_owner=store_owner)
+                api_failure = failure
+                if isinstance(failure, UploadFailed) and type(failure.cause) is ApiFailure:
+                    api_failure = failure.cause
+                api_permitted = (
+                    type(api_failure) is ApiFailure and (
+                        self._api.can_retry_read(api_failure)
+                        or upload_ref is not None and self._api.can_renew_read_grant(
+                            api_failure, job_ref=self.job_ref, upload_ref=upload_ref,
+                        )
+                    )
+                )
+                if not (api_permitted or self._transfer_owner.can_retry_transfer(failure)):
+                    raise
+                floor = None
+                if api_permitted:
+                    floor = api_failure.retry_after_seconds
+                local_wait = secrets.SystemRandom().uniform(delay / 2, delay)
+                seconds = local_wait if floor is None else max(local_wait, floor)
+                self._require_recovery_wait(seconds, failure)
+                if policy.stopping.is_set():
+                    raise UploadFailed("source acquisition stopped before another request", cause=self.recovery_failure)
+                try:
+                    policy.on_retry(failure, seconds)
+                except Exception as notice:
+                    raise UploadFailed(
+                        "source recovery notification failed before another request",
+                        cause=BaseExceptionGroup("Source outage and notification failure", (self.recovery_failure, notice)),
+                    ) from None
+                if policy.stopping.is_set():
+                    raise UploadFailed("source acquisition stopped before another request", cause=self.recovery_failure)
+                self._require_recovery_wait(seconds, failure)
+                try:
+                    await asyncio.wait_for(policy.stopping.wait(), timeout=seconds)
+                except TimeoutError:
+                    delay = min(policy.maximum_seconds, delay * 2)
+                    continue
+                raise UploadFailed("source acquisition stopped before another request", cause=self.recovery_failure)
 
     async def inspect(self):
         """Refresh the source list; callers choose from this observation."""
         async with self._operation():
-            self._snapshot = await self._call(self._api, self._api.uploads, self.job_ref)
-            return self._snapshot
+            async def observe():
+                self._snapshot = await self._call(self._api, self._api.uploads, self.job_ref)
+                return self._snapshot
+            return await self._recover_source(observe)
 
     async def acquire(self, upload_ref):
-        """Require unchanged Job membership, obtain access, and verify source bytes.
+        """Verify a selected source, optionally recovering within original budgets.
 
-        Re-read the inspected membership before requesting a fresh read grant;
-        reject changes rather than silently selecting from the new list.
+        Every fresh grant requires the original inspected membership unchanged.
         """
         async with self._operation():
             selected = self._select(upload_ref)
-            grant = await self._grant(selected)
-            return await self._transfer_owner._download(grant)
+            async def acquire():
+                grant = await self._grant(selected)
+                return await self._transfer_owner._download(grant)
+            return await self._recover_source(acquire, upload_ref=selected.upload_ref)
 
     def _select(self, upload_ref):
         require_upload_ref(upload_ref)
@@ -677,12 +876,14 @@ class JobUploads:
         return grant
 
     async def acquire_file(self, upload_ref, *, directory_fd, retirement_seconds):
-        """Acquire and verify a file while retaining this Job's selection policy."""
+        """Verify a closed file, optionally recovering the same selected Upload."""
         async with self._operation():
             selected = self._select(upload_ref)
-            return await self._transfer_owner.acquire_file(
-                lambda: self._grant(selected), directory_fd=directory_fd, retirement_seconds=retirement_seconds,
-            )
+            async def acquire():
+                return await self._transfer_owner.acquire_file(
+                    lambda: self._grant(selected), directory_fd=directory_fd, retirement_seconds=retirement_seconds,
+                )
+            return await self._recover_source(acquire, upload_ref=selected.upload_ref, store_owner=self)
 
     async def settle_file(self):
         """Observe the original private-file cleanup without starting a new transfer."""

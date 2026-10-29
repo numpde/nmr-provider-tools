@@ -533,7 +533,7 @@ class ProviderAPI:
             return failure.response is not None or (
                 type(exchange) is ExchangeFailed and not exchange.cleanup_failures
                 and not isinstance(exchange.interruption, asyncio.CancelledError)
-                and temporary_io_failure(exchange.primary, 8)
+                and temporary_io_failure(exchange.primary, 8, network_failure=exchange.network_failure)
             )
         return False
 
@@ -583,7 +583,7 @@ class ProviderAPI:
             return False
         if exchange.response_head is not None:
             if exchange.response_head.status in (502, 503, 504):
-                return self._retryable_gateway(exchange.response_head) and temporary_io_failure(exchange.primary, 8)
+                return self._retryable_gateway(exchange.response_head) and temporary_io_failure(exchange.primary, 8, network_failure=exchange.network_failure)
             try:
                 _require_api_headers(exchange.response_head, failure.operation, self._expected_topology)
             # silent-defaults: allow-exception-outcome -- Unadmitted response headers grant no read retry
@@ -597,7 +597,7 @@ class ProviderAPI:
             # Missing status and policy refusal grant no retry permission;
             # successful CONNECT cannot authorize retry of a later TLS failure.
             return exchange.proxy_connect_status in (502, 503, 504)
-        return temporary_io_failure(exchange.primary, 8)
+        return temporary_io_failure(exchange.primary, 8, network_failure=exchange.network_failure)
 
     def _retryable_gateway(self, response):
         return response.status in (502, 503, 504) and self._gateway_environment_matches(response)

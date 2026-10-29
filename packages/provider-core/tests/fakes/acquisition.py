@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
-from provider_core.transport import HttpResponse, HttpTransport
+from provider_core.transport import HttpResponse, HttpResponseHead, HttpTransport
 from provider_core.upload_response import ReadGrant, UploadMember, UploadSet
 from provider_core.uploads import JobUploads, UploadLimits, VerifiedUploadFile
 from tests.fakes.transport import Client, Stream
@@ -45,9 +45,11 @@ class Store:
         self.calls = []
         self.headers = ()
 
-    async def exchange(self, request, *, maximum_bytes, account_bytes):
+    async def exchange(self, request, *, maximum_bytes, account_bytes, before_body=None):
         self.calls.append(request)
         self.maximum_bytes = maximum_bytes
+        if before_body is not None:
+            before_body(HttpResponseHead(200, tuple(self.headers)))
         account_bytes(len(self.body))
         return HttpResponse(200, self.headers, self.body)
 

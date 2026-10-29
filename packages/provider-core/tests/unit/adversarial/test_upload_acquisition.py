@@ -127,7 +127,9 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_failed_download_bytes_are_charged_and_not_refunded(self):
         owner, api, store = sources(total_bytes=8)
         await owner.inspect()
-        # The malformed store headers make these bytes unusable, but still spent.
+        store.headers = store_headers(store.body)
+        store.body = b"tampered"
+        # The admitted body is corrupt, so consumed bytes remain spent.
         with self.assertRaises(UploadFailed):
             await owner.acquire(UPLOAD_REF)
         self.assertEqual(owner.received_bytes, 8)
