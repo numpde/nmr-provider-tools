@@ -10,7 +10,6 @@ from provider_core.container_guard import require_container
 
 require_container()
 
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -18,7 +17,19 @@ from provider_core.attempt_record import AcknowledgedAttempt, ProtectedEvidence
 from provider_core.job_input import VerifiedJobInput
 from provider_core.runner_session import RunnerSession
 
-ReportCondition = Callable[[str | None], Awaitable[None]]
+
+class ReportCondition(Protocol):
+    """One phase's awaited condition reporting and current local permission.
+
+    Call require_execution immediately before committing a binding effect, after
+    any intervening await. It samples the actual phase/controller authority; it
+    does not fetch server state, reserve future permission or retract submitted
+    work. Owned child tasks on the same loop may use this same phase capability.
+    """
+
+    async def __call__(self, condition_code: str | None) -> None: ...
+
+    def require_execution(self) -> None: ...
 
 
 class AnalysisOutcomeUnresolved(RuntimeError):
@@ -120,6 +131,11 @@ class AnalysisSession(Protocol):
     expires when its phase finishes or core stops observing that phase. Bindings
     own and await any child work. Calls are sequential; detached or concurrent
     reporting is outside this contract.
+
+    Check report_condition.require_execution() immediately before native work or
+    scientific submission, including after awaited preparation or retirement.
+    Scheduled child work must check at its actual effect boundary; a check before
+    scheduling does not reserve permission across the later task handoff.
 
     Retire must observe that this exact Attempt's work stopped and required grants
     were released, including partially prepared or interrupted work. It returns
