@@ -4544,6 +4544,33 @@ Use a causal slow-construction witness to show that effects do not begin after
 the request budget is exhausted. Scientific request content and parsing policy
 stay unchanged.
 
+D151 -- Make stricter chat deadlines explicit rather than infer outer timeouts
+----------------------------------------------------------------------------
+
+ChatEndpoint.complete constructs JSON and an HTTP request before entering the
+transport's relative exchange allowance. It has no absolute deadline parameter.
+A composed installed-package witness delays synchronous construction beyond an
+outer asyncio.timeout and records transport-task entry afterward. This establishes
+scheduling behavior; it does not prove a real HTTP request or a live incident.
+
+Serious alternatives:
+A. Infer an arbitrary caller's timeout inside the carrier. This hides authority
+   and cannot reliably make synchronous Python work preemptible.
+B. Reopen the completed deployment/release immediately from a stubbed task-entry
+   witness. That treats an unqualified effect boundary as an established incident
+   and changes an API before its stricter contract is selected.
+C. Keep the current relative transport contract, retain the precise limitation,
+   and make any future strict caller cap explicit through the same original owner.
+
+Choice: C for current scope. The existing carrier does not expose an absolute
+no-dispatch-after-outer-timeout guarantee. A stricter interface should carry the
+caller's original deadline through construction, dispatch checks and retirement,
+not create a provider-local carrier or another Task registry. Record it in the
+existing shared deferred note015 with owner, trigger and required physical proof.
+No new release, rollout or broad renderer work follows from this constructed
+witness. D150's explicit NMRPeak request-budget correction remains independently
+necessary under that caller's selected contract.
+
 Supporting qualification references
 -----------------------------------
 
