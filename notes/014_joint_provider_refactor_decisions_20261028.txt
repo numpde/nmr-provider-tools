@@ -4986,13 +4986,17 @@ B. Propagate diagnostic overflow instead of the known public failure. This lets
    explanation size veto terminal truth and can stop a useful provider.
 C. Silently truncate the protected diagnostic. This falsely implies complete
    retention and leaves no reliable description of what was omitted.
-D. Bound the protected diagnostic explicitly, describe the omitted portion, and
+D. Carry fixed-size protected metadata identifying the admitted diagnostic, and
    use the existing separate bounded redacted operator projection for readable facts.
 
-Choice: D. A bounded first/last window with an explicit omitted-character count
-preserves useful facts within the evidence cap, including worst-case JSON Unicode
-expansion. It must not claim to retain the full diagnostic when omission is nonzero.
-There is no consumer need to add a digest merely to implement this size bound.
+Choice: D, implemented by the NMRNet owner in 98c7c0b. Length and SHA-256 refer to
+an explicitly named ASCII JSON-string encoding, with no raw diagnostic sample in
+the outcome evidence. This has a fixed evidence cost even for escaped Unicode and
+avoids retaining sensitive samples in an outcome that will be discarded. A bounded
+first/last window with explicit omission was a viable alternative; the final owner
+choice leaves readable facts to the existing operator projection. The digest
+identifies the diagnostic representation; it is not stored original content or
+scientific proof.
 Keep the original exception available to its live owner and preserve independent
 diagnostic/cleanup failures. Select the fixed public failure from the admitted
 response, independently of optional explanation size. No new persistent store or
