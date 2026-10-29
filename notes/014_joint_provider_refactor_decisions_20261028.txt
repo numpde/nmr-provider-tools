@@ -4271,3 +4271,43 @@ SECS's latest observed clean main is 148a78d, recording deferred retry-diagnosti
 and signal-status limits. It acknowledged the release/API and is aligning its
 consumer hook with the public default before normal 0.5.1 acquisition. These are
 consumer progress observations, not a claim of completed four-provider adoption.
+
+D139 -- Retire model HTTP even when native science is quiescent (2026-10-29 06:22 UTC)
+--------------------------------------------------------------------------------
+
+Parallel review of NMRPeak's unfinished D122 cut found that analysis_session.retire
+currently returns when its scientific flag and runner.quiescent are both true.
+Before the first candidate validation, model HTTP can be active while both are
+true. Native quiescence cannot prove retirement of another resource owner.
+
+Serious alternatives:
+A. Keep native quiescence as sufficient for whole-session retirement. This can
+   release an Attempt session while its original model exchange is unresolved.
+B. Flip the generic scientific flag before HTTP and infer later HTTP retirement
+   from that flag. This mirrors the transport's physical evidence incompletely.
+C. Adopt the per-Attempt InterpretationSession before model dispatch, retain it
+   across interpreter retries and include its original retirement in the session
+   boundary, independently of whether native science has started.
+
+Choice: C, completing D122. Check the actual transport's retirement result; no
+second Task registry, new timeout or inferred cleanup success. Unconfirmed model
+cleanup cannot become InterpreterUnavailable followed by another exchange or
+endpoint fallback. Science-only quiescence may still preserve a healthy warm
+worker, but it cannot skip model HTTP retirement. The NMRPeak owner has this
+specific review before final integration; no deployed defect or GREEN is claimed.
+
+Read-only native/archive review separately found no competing active child owner:
+the native launcher uses the SDK; the remaining serial SCI executor and scientific
+protocol have distinct responsibilities. Historical API authority identifiers
+used solely for retained volume identity are not a second live API owner. Unused
+old decoder/materializer code should be deleted when its displaced callers are
+gone, before claiming the adoption end state complete.
+
+Consumer checkpoint (2026-10-29 06:22 UTC)
+---------------------------------------
+
+NMRNet reports d13bbf3 pushed, ordinary public GitHub acquisition successful,
+local controller/geometry/inference images built, 57 focused installed-wheel
+service checks and inference imports passing. ProArt's checkout fast-forwarded;
+the single shared-runtime transfer is running, with no service replacement.
+Exact full image identities and production qualification remain separate receipts.
