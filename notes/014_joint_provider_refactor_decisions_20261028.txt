@@ -6406,9 +6406,13 @@ HTTP 400. The coordinator did not retain its response diagnostic, so the result
 does not establish authentication or authorization and its cause is unknown. The
 route contract requires an analysis-kind query that this request omitted; that is
 a definite request defect consistent with the response, not proof of its cause.
-credential was copied only to a private temporary in-memory file for the read and
+The credential was copied only to a private temporary in-memory file for the read and
 that copy was removed; the original permissions were unchanged. The provider owner
 is checking the supported route/query contract before any further request.
+A distinct, correctly filtered signed GET using the existing credential then returned
+HTTP 200. This proves authority for that provider read only, not START, Hello or
+publication. Its private in-memory credential copy was also removed; the original
+grant was not changed.
 
 D200 — API routing and intermittent ProArt DNS
 -----------------------------------------------
@@ -6444,6 +6448,61 @@ binding would not establish correct use of a systemd stub or a changing resolver
 file. A blocking system resolver call also needs an explicit deadline and owner.
 The owners are comparing semantics and evidence.
 No shared package, resolver or host route change is authorized by this entry.
+
+D201 — Who supplies a provider's delivery binding?
+--------------------------------------------------
+
+The user objects to the current central binding and restart model and expects
+provider-supplied information. The exact referent and required contract are being
+clarified. Today the provider owns its credential, but an operator lists that file,
+identity, route and socket in the shared delivery definition. The deployment
+renderer grants each credential read-only, and DeliveryService constructs a fixed
+binding tuple at startup. DeliveryClient submits through an already configured
+endpoint; it has no dynamic registration or credential handoff. Adding a binding
+therefore changes the shared definition and currently cycles the service.
+
+Serious alternatives to workshop, not a decision:
+A. Keep a centrally assembled static definition, with provider-owned inputs
+   supplied during deployment. This has a single queue owner and explicit grants,
+   but adding a provider coordinates and interrupts existing consumers.
+B. Let providers register their own binding with the shared service, which owns
+   durable binding and delivery authority after the provider exits. This avoids a
+   restart but needs an authenticated registration lifecycle, durable credential
+   access, per-provider isolation, quotas, revocation and crash recovery.
+C. Give each provider its own independently durable delivery service and queue.
+   Provider deployment then supplies its own configuration, but service lifecycle,
+   storage, resource limits and operational burden multiply; shared code can still
+   implement the delivery contract.
+D. Have providers supply fragments that a host owner composes into the current
+   definition. This reduces central hand editing but by itself does not remove the
+   current restart or solve durable authority when a provider disappears.
+
+No redesign selected or authorized here. The owners must compare actual lifecycle,
+credential grant, retained-outcome recovery, backpressure and security semantics,
+including whether a service can publish after its provider has exited. The already
+authorized ProArt NMRPeak cutover continues under the existing contract while that
+discussion proceeds; its proposed configuration has not yet been installed.
+NMRNet favors evaluating B; Magnet favors evaluating C first; SECS supports
+comparing both rather than selecting one. They agree that enqueue acknowledgement
+must leave a durable publication owner independent of the scientific provider, and
+revocation or credential rotation must preserve pending outcomes with an explicit
+recoverable state. B needs authenticated registration and durable credential grants;
+a path sent by a client cannot itself grant a new container mount. C needs separate
+service lifetimes and a finite host-wide capacity policy despite per-provider
+queues. Fragments alone do not remove the shared restart. For any migration, the
+old queue and binding must retain their outcomes until settled or moved through a
+separately qualified single-owner transfer; the existing service refuses startup
+when outstanding bindings are missing. No live database copy is justified.
+
+Signing authority has its own alternatives, independent of where configuration
+is assembled. The provider could grant delivery durable, scoped access to its
+credential; delivery could hold an API-issued delegated per-result authority if
+the API defines one; or delivery could call an independently available signer.
+The first needs explicit secret grants and rotation/revocation handling; the second
+needs a new API contract; the third adds a service whose availability and lifetime
+must be owned. Current SDK signatures expire 300 seconds after creation, so a
+single pre-signed request cannot on its own guarantee delivery after an unbounded
+outage. No one of these signing mechanisms has been selected or qualified here.
 
 Supporting qualification references
 -----------------------------------
