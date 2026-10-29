@@ -4720,11 +4720,13 @@ B. Ship one everywhere. This enables new behavior in models that currently run
 C. Write meaningful model-owned values in TOML, preserving current behavior while
    every supported implementation gains a real, explicit off/on count.
 
-Choice: C. NMRNet and Magnet E01/E02 select one extra retry in their shipped
-configurations. SECS, NMRPeak HF/CHF and Magnet G01 select zero. All supported
+Choice before the later deploy-first supersession: NMRNet and Magnet E01/E02
+select one extra retry in their capable shipped configurations. SECS, NMRPeak HF/CHF and Magnet G01 select zero. All supported
 positive values must actually work after qualification; zero-only inert fields
 are not an acceptable substitute. These are explicit configuration selections,
-not constructor/parser fallback defaults.
+not constructor/parser fallback defaults. D157 supersedes the immediate affected
+selection with zero. Do not restore one automatically after later implementation;
+re-adjudicate the eventual enabled default against the explicit current policy.
 
 Require the table/key in the next admitted scientific configuration. Update tracked
 examples and tracked deployment selections; existing separately maintained operator
@@ -4815,8 +4817,10 @@ positive original work/API/delivery retirement, clean independent cleanup,
 current readiness and exact retained claim/Job ownership checks. Never catch all
 scientific or retired exceptions and continue.
 
-A final validated computation failure becomes the model's reviewed AnalysisFailure
+A final validated execution-failure response, where the scientific owner confirms
+no usable result for that request, becomes the model's reviewed AnalysisFailure
 with a fixed safe public explanation and protected first/latest native facts.
+That response alone does not prove numerical/model failure or zero completed work.
 NMRNet needs that explicit classification for its validated execution_failed path;
 ordinary timeout/lost-channel uncertainty must not be relabelled as model failure.
 No new science is started to recover returned results or report failures. Existing
@@ -4849,8 +4853,8 @@ Choice: C. Current source proves affected NMRNet and Magnet E01/E02 failure fram
 can include completed computation/prefix or post-computation projection; their
 existing retry path is not a qualified implementation of D155. For the immediate
 slice, require [scientific_retry] max_retries in their existing model/provider
-TOML, select zero explicitly, and admit exact integers 0 or 1. Unsupported positive
-selection raises a narrow reviewed NotImplementedError at startup before native
+TOML and select zero explicitly. Interim startup admission requires an exact
+nonnegative integer: zero is usable; any unsupported positive selection raises a narrow reviewed NotImplementedError at startup before native
 acquisition, network/Hello/START or incumbent replacement. Zero starts normally;
 missing/malformed configuration fails its owning configuration admission. No
 implicit legacy default or silent operator-file rewrite.
