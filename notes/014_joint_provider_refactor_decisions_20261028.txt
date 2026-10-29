@@ -5242,7 +5242,7 @@ D. Add a shared TOML loader/retry controller. Provider documents, input capabili
    model/device health and replacement ownership differ; there is no qualified
    common engine to extract. This over-owns the scientific repositories.
 
-Recommended proposal: C, subject to explicit user approval. The concrete review
+Initial proposal (superseded by D170): C, subject to explicit user approval. The concrete review
 diff adds ScientificRetryPolicy(max_retries) and AnalysisOutcomeUnresolved in
 provider_core.analysis, plus exact-type fixed explanatory text in failure_projection.
 There is no constructor default/global capability ceiling, copied cause field,
@@ -5256,7 +5256,7 @@ retires original work, sends no terminal FAIL and renders safe explanatory evide
 Consumer qualification must additionally prove exact held-Job exclusion/capacity,
 readiness and independent cleanup/cancellation gates, and the actual receiving event.
 
-The review-only patch is /tmp/provider-core-retry-contracts-proposal.patch, generated
+The initial review-only patch is /tmp/provider-core-retry-contracts-proposal.patch, generated
 from current source by its adjacent proposal.py. It has been parsed, not applied,
 executed or qualified. It is a concrete review aid, not a durable release artifact.
 The durable proposed interface and obligations are stated above; current runtime
@@ -5269,6 +5269,113 @@ qualify affected provider images. Never replace the contents of 0.5.1. Unchanged
 delivery IPC does not itself require restarting shared delivery; qualify mixed
 installed-client/daemon compatibility before claiming that no replacement is needed.
 Independent consumer fixes continue while this SDK change awaits user approval.
+
+D170 -- Aggregate judgment: share the held-owner proof, defer the integer wrapper
+-----------------------------------------------------------------------------
+
+All four responsible providers supplied scope assessments. NMRNet found immediate
+two-consumer value in a shared unresolved marker but questioned a generic gate and
+integer-only API. Magnet supported the marker and a count only with real consumers;
+its actual cleanup regression showed the danger of independently composing core
+settlement facts. SECS initially favored both small contracts, then identified the
+missing exact relation between the held controller and selected Job. NMRPeak first
+supported both contracts, then supported a core-owned exact proof and deferring
+the count when that concrete ownership gap was exposed. None authorized SDK changes
+on the user's behalf.
+
+Serious alternatives:
+A. Keep the SDK unchanged and retain the qualified consumer fixes. This is usable
+   today and avoids release coupling, but repeats core ownership adjudication.
+B. Share only the marker. It names the exceptional contract but does not prevent
+   each consumer repeating the same claim/cleanup mistakes.
+C. Add the marker and immutable count, as D169 initially recommended. The scalar
+   is modest admission deduplication; planned consumers alone do not establish that
+   an extra public wrapper earns its place.
+D. Add the marker and a narrow core-owned held-ownership check. Use existing
+   claims, failure records and readiness; do not add state or a new disposition.
+E. Expose another owner-index view or more properties. Consumers would still
+   combine several predicates themselves and couple to lifecycle details.
+F. Add a generic continuation/retry engine or third normal outcome. This over-owns
+   provider policy and creates unneeded executor/disposition machinery.
+
+Coordinator recommendation for approval: D, superseding D169's recommendation.
+Keep [scientific_retry].max_retries meaning, explicit zero defaults and binding-owned
+caps as a common documented contract. Defer ScientificRetryPolicy code until actual
+shared behavior justifies it. This is a reasoned scope reduction, not permission
+to use different count units or hidden defaults in consumers.
+
+The concrete proposed API is AnalysisOutcomeUnresolved plus
+AttemptController.require_held_unresolved(pending). The latter returns the actual
+retained ControllerFailed only after checking the original controller/executor and
+failure relation, current quiescence, and the active claim's exact selected START,
+Job/input/key/scope and registered Attempt. Existing claim.require_start links these
+facts on the owning event loop. Separate queries saying controller A is live and
+Job B is owned do not prove that A owns B. Use the actual executor record and original
+nested admission, not a copied diagnostic identity or another registry.
+
+The check performs no settlement, release, new claim, terminal send or science. A
+settled executor has already called claim.finish(self); the claim's operation_owner
+is therefore None while its lifecycle owner remains the controller. Return the
+original failure for protected reporting; do not mint a new proof object or copy
+its state. Provider stop/control/resource readiness and the decision to select an
+unrelated Job remain provider-owned. This check alone never authorizes continuation.
+
+Independent-failure adjudication:
+- Recorded cleanup failure or interruption blocks this check even if later cleanup
+  succeeds. In particular, timeout followed by native retirement does not erase
+  the original timeout or convert it into permission.
+- Current api_failure, condition_failure/latest_condition_failure and delivery_failure
+  also block the narrow check. Source clears recovered API/condition failures;
+  non-None current fields are not equivalent to historical retry logs. Paired
+  unresolved control/report failures require their own explicit policy and are
+  not silently accepted by this initial API.
+- A condition receipt alone is a success fact, not a failure. A diagnostic observer
+  failure alone does not veto scientific truth; keep it in the full returned
+  failure graph rather than treating it as a terminal effect or hiding it.
+- shutdown_ready remains the authority for unhanded outcomes/reports and original
+  work/API/delivery retirement. Do not recreate its internal phase model.
+- Claim-property reads can themselves refuse stale/wrong-loop ownership. Include
+  those reads in the authority boundary and preserve both the original retained
+  failure and independent ownership refusal, without relabelling either as cleanup.
+
+ObservationGapExpired is deliberately outside this marker-specific API. Magnet
+must preserve and qualify its existing observation-gap branch separately; a shared
+name must not silently merge these conditions or strand that path. NMRNet's existing
+source-exhaustion policy is likewise not reclassified as unresolved science.
+
+The revised review-only diff is /tmp/provider-core-held-contract-proposal.patch,
+generated by /tmp/provider-core-held-contract-proposal.py. It proposes changes only
+to analysis.py, controller.py and failure_projection.py. The earlier four-file
+count/marker diff remains an alternative, not the recommended implementation.
+Both are unapplied; parsing and static peer review are not runtime qualification.
+The recommended marker has fixed safe operator wording; ordinary Python chaining
+keeps original causes without printing arbitrary binding/native message text.
+
+Required qualification after approval: crossed controllers/Jobs and distinct START
+bodies/keys/scopes; mismatched executor/record/admission/registered Attempt; released,
+stale and wrong-loop claims; cleanup timeout or failure followed by later readiness;
+caller/operation interruption; current API/condition/delivery failure and recovered
+controls; unhanded outcome/report; observation-gap rejection and its preserved
+consumer branch. Positive receiving controls must retain finite capacity and exact
+Job exclusion, allow a separately admitted unrelated Job through the consumer's own
+gates, send no fabricated FAIL or repeat calculation, and preserve the original
+exception identity plus readable bounded cause/errno while excluding private text.
+These controls are planned, not claimed as passed for the candidate.
+
+Existing evidence explains the need without qualifying the proposed API. Magnet
+473bee2 fixes original-cause loss and swallowed retirement failure; 57f7c70 tests a
+scripted unresolved execute through the real SDK controller, then a separate Job
+delivery and exclusion of the first. That proves its local orchestration, not
+physical model/device retirement, crossed helper arguments, capacity exhaustion
+or all observation-gap/cancellation cases. NMRNet/SECS source investigations expose
+real model/config identity gaps; no scalar or marker makes those retry-safe.
+
+Implementation remains blocked only at the shared redesign approval boundary;
+independent consumer work continues. Publication/adoption consequences in D169
+still apply: new immutable GitHub artifacts and installed-consumer qualification,
+no replacement of 0.5.1 and no assumed need to restart shared delivery. This proposal
+does not authorize new SECS/NMRPeak production targets or their deferred positive
+retry implementations.
 
 Supporting qualification references
 -----------------------------------
