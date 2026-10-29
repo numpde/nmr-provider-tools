@@ -3278,3 +3278,28 @@ after admission too. No scientific work is replayed, no Attempt is fabricated,
 and no new pool/controller/registry is introduced. SECS will qualify actual idle
 child death and PID state at the controller boundary; port fakes alone do not
 prove real signed START behavior.
+
+D110 -- Distinguish a closed-stream notification from unknown native cleanup (2026-10-29 04:05 UTC)
+--------------------------------------------------------------------------------
+
+SECS's actual idle-death witness reaches confirmed native retirement and joins
+the original SCI operation, but StreamWriter.wait_closed re-raises the earlier
+BrokenPipe after its connection-lost close waiter completes. Treating that
+notification as unknown native retirement prevents D109's safe replacement.
+
+Serious alternatives:
+A. Remain blocked despite completed original native and stream obligations.
+   This requires intervention without identifying an unsettled resource.
+B. Ignore arbitrary close errors. This could turn an actual cleanup failure
+   into permission to admit replacement work.
+C. Recognize only the standard stream's exact BrokenPipeError/ConnectionResetError
+   close notification after positive native retirement and original SCI joins.
+
+Choice: C, subject to the actual stream-close witness. The adapter must establish
+that the original writer was closed and its own wait_closed completed with that
+notification; an exception alone is not physical cleanup proof. Preserve the
+observed idle failure in protected diagnostics. Unknown errors, descriptor-close
+uncertainty, unfinished SCI operations or unconfirmed native retirement still
+block replacement. Do not broaden this into generic OSError suppression or a
+new SDK retry classifier. This records the narrow proposed correction before
+implementation; qualification and exact standard-library evidence are pending.

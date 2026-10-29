@@ -184,6 +184,12 @@ owns offering uniqueness and the total request budget. CA loading distinguishes
 non-ASCII input from OpenSSL certificate-loading failures, preserving protected
 causes; the selected file reader owns file and byte-limit admission.
 
+`HttpTransport.exchange_decoded` bounds wire bytes and each decoding stage under
+the original exchange owner. It supports identity, complete gzip members and a
+bounded deflate profile; see [decoded_body](src/provider_core/decoded_body.py)
+for framing and compatibility limits. Direct model HTTP requires explicit opt-in;
+signed API requests retain HTTPS verification.
+
 ## Package and qualification
 
 Use the [GitHub releases](https://github.com/numpde/nmr-provider-tools/releases)

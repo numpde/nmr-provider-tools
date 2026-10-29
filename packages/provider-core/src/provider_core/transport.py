@@ -26,6 +26,7 @@ import anyio
 import httpcore
 
 from provider_core.network import OwnedNetworkBackend
+from provider_core.decoded_body import DecodedBody, DecodedBodyRejected, require_decoded_limit
 
 
 def temporary_io_failure(cause, remaining, *, network_failure=None):
@@ -112,7 +113,11 @@ class HttpResponseHead:
 
 @dataclass(frozen=True, slots=True)
 class HttpResponse:
-    """Complete raw response bytes; no automatic decoding or status interpretation."""
+    """Complete response bytes with original headers and no status interpretation.
+
+    exchange returns raw bytes; exchange_decoded returns bounded decoded bytes.
+    Content-Encoding and Content-Length still describe the received wire entity.
+    """
 
     status: int
     headers: tuple[tuple[bytes, bytes], ...] = field(repr=False)
@@ -262,10 +267,15 @@ def require_unix_socket_path(path):
         raise ValueError("Cannot configure Unix socket: its pathname must fit Linux's 107-byte limit.")
 
 
-def require_transport_settings(*, trust, exchange_seconds, retirement_seconds, proxy_socket=None):
+# silent-defaults: allow-contract -- Existing signed/API transports require HTTPS; direct model HTTP needs explicit opt-in.
+def require_transport_settings(*, trust, exchange_seconds, retirement_seconds, proxy_socket=None, allow_http=False):
     """Admit TLS and deadlines before composition acquires any transport."""
     if not isinstance(trust, ssl.SSLContext) or trust.verify_mode != ssl.CERT_REQUIRED or not trust.check_hostname:
         raise ValueError("Cannot configure HTTPS exchange: TLS must verify the certificate and hostname")
+    if type(allow_http) is not bool:
+        raise ValueError("Cannot configure HTTP exchange: allow_http must be a boolean")
+    if allow_http and proxy_socket is not None:
+        raise ValueError("Cannot configure HTTP exchange: plain HTTP admission requires a direct transport without a proxy")
     _positive_seconds(exchange_seconds)
     _positive_seconds(retirement_seconds)
     if proxy_socket is not None:
@@ -280,13 +290,17 @@ class HttpTransport:
     constructing another owner does not discharge the old owner's obligations.
     An explicit proxy_socket routes HTTPS CONNECT through that fixed Unix path;
     None selects direct TCP. A configured proxy never falls back to direct I/O.
+    Plain HTTP requires explicit allow_http=True and cannot use a proxy.
+    TLS certificate and hostname verification remain required for HTTPS.
     """
 
-    def __init__(self, *, trust, exchange_seconds, retirement_seconds, proxy_socket=None):
+    # silent-defaults: allow-contract -- HTTPS remains required unless a direct model transport explicitly admits HTTP.
+    def __init__(self, *, trust, exchange_seconds, retirement_seconds, proxy_socket=None, allow_http=False):
         require_transport_settings(
-            trust=trust, exchange_seconds=exchange_seconds, retirement_seconds=retirement_seconds, proxy_socket=proxy_socket
+            trust=trust, exchange_seconds=exchange_seconds, retirement_seconds=retirement_seconds, proxy_socket=proxy_socket, allow_http=allow_http
         )
         self._trust = trust
+        self._allow_http = allow_http
         self._exchange_seconds = exchange_seconds
         self._retirement_seconds = retirement_seconds
         self._proxy_socket = proxy_socket
@@ -320,6 +334,8 @@ class HttpTransport:
         return httpcore.AsyncHTTPProxy(proxy_url="http://unix-proxy.invalid", **options)
 
     def _require_destination(self, request):
+        if request.url.scheme == "http" and self._allow_http:
+            return
         if request.url.scheme != "https":
             raise ValueError("Cannot start HTTPS exchange: destination must use HTTPS")
         # httpcore 1.0.9 emits an unbracketed IPv6 CONNECT authority.
@@ -328,7 +344,7 @@ class HttpTransport:
                 "Cannot start proxied HTTPS exchange: IPv6 literal destinations are not supported; use a DNS name or IPv4 address."
             )
 
-    async def _perform(self, request, maximum_bytes, account_bytes, outcome, output_fd, before_body):
+    async def _perform(self, request, maximum_bytes, account_bytes, outcome, output_fd, before_body, decoder_factory):
         client = None
         response = None
         # silent-defaults: allow-contract -- No output descriptor selects the buffered response; a supplied descriptor selects file output.
@@ -375,6 +391,8 @@ class HttpTransport:
             outcome.response_head = HttpResponseHead(response.status, tuple(response.headers))
             if before_body is not None:
                 before_body(outcome.response_head)
+            # silent-defaults: allow-contract -- Raw/file exchanges have no decoder; only exchange_decoded supplies one.
+            decoder = None if decoder_factory is None else decoder_factory(outcome.response_head)
             # silent-defaults: allow-contract -- Only a buffered response owns an in-memory body; file mode does not buffer it.
             body = bytearray() if file_body is None else None
             received_bytes = 0
@@ -393,11 +411,15 @@ class HttpTransport:
                     account_bytes(len(chunk))
                 received_bytes += len(chunk)
                 if received_bytes > maximum_bytes:
+                    if decoder is not None:
+                        raise DecodedBodyRejected("size_limit")
                     raise ExchangeFailed(f"Cannot receive HTTP response: raw body exceeds the {maximum_bytes}-byte limit")
                 if file_body is None:
-                    body.extend(chunk)
+                    body.extend(chunk if decoder is None else decoder.feed(chunk))
                 else:
                     await file_body.write(chunk)
+            if decoder is not None:
+                decoder.finish()
             head = outcome.response_head
             if file_body is None:
                 outcome.response = HttpResponse(head.status, head.headers, bytes(body))
@@ -476,7 +498,35 @@ class HttpTransport:
         """
         return await self._exchange(
             request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=None,
-            before_body=before_body,
+            before_body=before_body, decoder_factory=None,
+        )
+
+    # silent-defaults: allow-contract -- HTTP 200 selects the success limit unless the caller names another supported status.
+    async def exchange_decoded(
+        self, request, *, maximum_bytes, error_maximum_bytes, success_status=200,
+        account_bytes=None, owner=None, before_body=None,
+    ):
+        """Decode one bounded entity under the original exchange and retirement.
+
+        The actual success_status head selects maximum_bytes; every other head
+        selects error_maximum_bytes. Both limits apply to each decoded stage.
+        Wire bytes are charged before decoding and bounded by the larger limit.
+        before_body admits the original head before constructing any decoder.
+        Original headers are retained even though the returned body is decoded.
+        """
+        require_decoded_limit(maximum_bytes)
+        require_decoded_limit(error_maximum_bytes)
+        if type(success_status) is not int or not 100 <= success_status <= 599:
+            raise ValueError("Cannot decode HTTP response: success_status must be an integer HTTP status from 100 through 599")
+
+        def decoder_for(head):
+            limit = maximum_bytes if head.status == success_status else error_maximum_bytes
+            return DecodedBody(head.headers, maximum_bytes=limit)
+
+        return await self._exchange(
+            request, maximum_bytes=max(maximum_bytes, error_maximum_bytes),
+            account_bytes=account_bytes, owner=owner, output_fd=None,
+            before_body=before_body, decoder_factory=decoder_for,
         )
 
     async def exchange_file(self, request, *, output_fd, maximum_bytes, account_bytes=None, owner=None, before_body=None):
@@ -494,10 +544,10 @@ class HttpTransport:
             raise ValueError("Cannot receive HTTP response in a file: output_fd must be a non-negative descriptor")
         return await self._exchange(
             request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=output_fd,
-            before_body=before_body,
+            before_body=before_body, decoder_factory=None,
         )
 
-    async def _exchange(self, request, *, maximum_bytes, account_bytes, owner, output_fd, before_body):
+    async def _exchange(self, request, *, maximum_bytes, account_bytes, owner, output_fd, before_body, decoder_factory):
         if self._active is not None:
             raise ExchangeFailed("Cannot start HTTP exchange: an earlier exchange is active or its retirement is unconfirmed")
         if not (type(maximum_bytes) is int and 0 <= maximum_bytes):
@@ -506,7 +556,7 @@ class HttpTransport:
         self.last_failure = None
         received = _Outcome()
         task = asyncio.create_task(
-            self._perform(request, maximum_bytes, account_bytes, received, output_fd, before_body), name="provider-core-http-exchange"
+            self._perform(request, maximum_bytes, account_bytes, received, output_fd, before_body, decoder_factory), name="provider-core-http-exchange"
         )
         exchange = _Exchange(task, received, owner)
         self._active = exchange
@@ -538,6 +588,8 @@ class HttpTransport:
             message = "Cannot complete HTTP exchange: resource retirement is unconfirmed; this transport cannot accept more work"
         elif isinstance(primary, TimeoutError):
             message = "Cannot complete HTTP exchange: the aggregate deadline expired; resources were retired"
+        elif type(primary) is DecodedBodyRejected:
+            message = "Cannot complete HTTP exchange: " + str(primary) + " Resources were retired."
         elif isinstance(primary, ExchangeFailed):
             message = str(primary)
         else:
