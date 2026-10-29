@@ -3494,3 +3494,59 @@ No --remove-orphans, current-binding rewrite, incumbent schema or new ownership
 registry is introduced. Missing/ambiguous original evidence remains a refusal;
 the owning peer must qualify both ordinary and long-namespace grants before
 claiming this teardown boundary is complete.
+
+D115 -- Preserve a caller's absolute HTTP cleanup deadline at the shared owner (2026-10-29 04:35 UTC)
+--------------------------------------------------------------------------------
+
+While preparing the remaining NMRPeak model adapter, its owner identified a
+budget mismatch not covered by the SDK release ACK. Its existing turn owns one
+absolute deadline for requests, retries, backoff and failure-path stream cleanup.
+Published0.5.0 HttpTransport instead grants its fixed retirement_seconds after
+caller cancellation. Independent root/worker inspection confirms that mismatch;
+the release note already distinguishes unfinished consumer adoption.
+
+Serious alternatives:
+A. Allocate a new cleanup duration or reuse forced_join as another model-turn
+   allowance. This silently changes the existing scientific resource policy.
+B. Hide SDK calls behind another provider Task/registry to bound observation.
+   This recreates private generic exchange ownership that D085 removes.
+C. Let the shared original exchange retain an optional absolute not_after cap,
+   clipping request and every later retirement observation without renewing it.
+
+Choice: C, following the implemented AsyncRunnerSession absolute-cap precedent.
+Add the optional cap consistently to raw/file/decoded exchanges; omit it to keep
+the published default behavior. Validate the cap before dispatch, and do not
+allow an already expired cap to begin network/file work. Expiry ends observation,
+not physical ownership: preserve original cancellation/evidence and retain the
+same exchange until its actual task/resources settle. Later retire can observe
+already-completed work but cannot invent a fresh window past that original cap.
+
+This requires a new qualified patch release; published0.5.0 assets stay immutable.
+The current release and its same-wheel proofs remain valid within their stated
+scope. Do not perform a shared-service cutover merely to churn again before this
+known ownership gap is closed. NMRPeak keeps its model adapter's current deadline
+and must qualify cancellation, stalled close and later original settlement before
+deleting its competing response lifecycle. No consumer-side timeout invention is
+approved. Implementation, release identity and final adoption remain pending.
+
+D116 -- Compose consumer requirements from byte-exact issuer locks (2026-10-29 04:35 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's existing dependency acquisition uses ordinary pinned GitHub wheel URLs
+through pip, while SDK full/native locks own the reviewed dependency profiles.
+
+Serious alternatives:
+A. Rewrite issuer locks or maintain another hand-derived SDK dependency list.
+   This creates another dependency authority.
+B. Seed an unpublished wheel into the canonical cache or add an artifact override.
+   This conflicts with D098 and is unnecessary after publication.
+C. Retain the issued locks byte-exact and compose the consumer's existing root
+   requirements with the same published URL/hash and its own build requirements.
+
+Choice: C. API consumers name provider-core[api]; native consumers use the native
+profile. Keep the issuer's version/hash requirements and explicit GitHub source
+consistent, preserve require-hashes and the one selected wheelhouse, and capture
+nested issuer files as maintained Docker inputs. The retained consumer build
+backend remains consumer-owned. Qualify pip's actual merge; if it refuses, report
+that evidence instead of editing issuer bytes. This does not introduce private
+PyPI resolution, another publisher or canonical-cache seeding.
