@@ -23,3 +23,31 @@ Evidence: /tmp/sdk-owned-driver-green.log (480 cases, one error) and
 /tmp/sdk-owned-driver-races-green.log (486 cases, all passed). These temporary
 logs identify the observed runs; the shared decision note preserves their
 interpretation if the files are later removed.
+
+Bounded diagnostic rendering across actual consumer sinks
+--------------------------------------------------------
+
+Owner: provider-core rendering, with each provider owning its logging envelope.
+Priority: follow-up after the qualified outage/deadline release and deployment;
+revisit sooner if a real incident loses protected diagnostic evidence.
+
+Constructed witnesses produced a 43,290-byte record, an atomic 4,096-byte pipe
+refusal, and invalid JSON after a consumer's 8,192-character slice. The inspected
+live incident records were 694-3,141 bytes and valid; those observations do not
+prove the general case safe. Retain valid JSON, bounded UTF-8 bytes including
+the actual envelope, coherent references, explicit omissions, and primary and
+independent cleanup evidence. Never substitute raw exception text or tracebacks.
+
+The existing proposal at /tmp/provider-core-bounded-diagnostics-proposal is an
+experiment, not an accepted implementation. Its fixed eight-node priority quota
+has no established justification. Review cause/group versus incidental-context
+ordering and repeated-reference accounting without making traversal unbounded.
+Include safe symbolic DNS reasons without copying raw private exception text.
+
+Qualification must use actual sinks: NMRNet's atomic pipe allowance, Magnet's
+logging envelope and escaping, and SECS's blocking handler and fatal writer have
+different contracts. A shared renderer must expose its budget clearly; consumers
+must supply the allowance remaining after their own framing. Do not add another
+provider-local serializer. D125, D131 and D136 in the running decision note retain
+the design obligations. This work does not block the independently qualified
+availability, deadline and cancellation corrections in 0.5.1.

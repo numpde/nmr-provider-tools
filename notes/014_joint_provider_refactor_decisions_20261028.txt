@@ -3770,6 +3770,10 @@ the existing failure/interruption rules. None keeps the published default timing
 Add one causal scheduling witness before correcting this admission check; do not
 invent a new timestamp registry or change NMRNet's non-opt-in scientific policy.
 
+Explicit tradeoff: a response may finish before the cap but be observed after
+it because the event loop was delayed. It is then refused. This is an observation
+deadline; the failure does not establish that the physical operation finished late.
+
 D124 -- Apply availability evidence through each existing API recovery contract (2026-10-29 05:08 UTC)
 --------------------------------------------------------------------------------
 
@@ -4034,6 +4038,12 @@ while ordinary CLI handling must not print the private chain. No fallback file,
 new registry or change to ordinary shared writer exception behavior. SECS owns
 actual subprocess and exact-cause RED/GREEN before claiming disclosure fixed.
 
+Measured qualification: interrupting the reporting path with SIGINT changes the
+subprocess return code from -2 to 1; SIGTERM remains -15. SECS and Magnet accept
+the failed-operation status and privacy protection for this boundary. This does
+not preserve every signal exit status. Signal-specific refinement is deferred;
+do not add a signal-tracking subsystem during the deployment reliability fix.
+
 D134 -- Keep caller cancellation on the canonical transport failure (2026-10-29 05:45 UTC)
 --------------------------------------------------------------------------------
 
@@ -4075,3 +4085,51 @@ diagnostic_window), retaining its current behavior and making it the documented
 failure_evidence default. Keep owned_details(error) as the distinct lower-level
 one-argument projection. No alias, new registry or broad exception text is needed.
 Consumer-specific reviewed facts remain with their providers.
+
+D136 -- Release the qualified outage fix before optional diagnostic redesign (2026-10-29 06:05 UTC)
+--------------------------------------------------------------------------------
+
+The user prioritizes a working deployment and asks that minor issues be deferred
+explicitly. The shared renderer review found real constructed size failures, but
+the observed live records were valid and did not establish that outage recovery
+requires a new renderer. The outage and deadline defects have causal witnesses.
+
+Serious alternatives:
+A. Hold the reliability release for a new graph scheduler, byte-budget renderer
+   and every consumer's sink integration. This couples a working-deployment fix
+   to an unfinished design with an unjustified eight-node priority quota.
+B. Drop diagnostic findings or let each provider build its own serializer.
+   This loses evidence or repeats shared policy and future maintenance.
+C. Keep the verified outage, deadline, cancellation, Retry-After and small
+   propagation corrections in 0.5.1; retain the larger renderer work as an
+   explicit shared deferred item with its witnesses and acceptance conditions.
+
+Choice: C. The deferred item is in notes/015_deferred_items.txt. No new renderer
+framework or arbitrary node quota enters this release. Preserve original native
+facts and the reviewed public detail hook now. Consumers retain their actual
+sink constraints; do not promise that all records fit an atomic pipe write.
+Final qualification and all four consumer API/release acknowledgements remain
+publication gates. Scientific model and GPU parity are not reopened by an
+unchanged scientific implementation. Production cutover stays with its owners.
+
+D137 -- Preserve the published exact-request response-loss recovery rule (2026-10-29 06:05 UTC)
+--------------------------------------------------------------------------------
+
+SECS's source audit questioned whether a pre-head RemoteProtocolError could bypass
+D124's stricter native availability evidence. Its follow-up checked the unchanged
+0.5 branch, existing explicit tests and pinned OpenAPI recovery contract, then
+withdrew the proposed blocker. These are separate recovery permissions.
+
+Serious alternatives:
+A. Remove the established exact-request response-loss branch while tightening
+   generic availability. This silently narrows published Attempt recovery.
+B. Classify every pre-head protocol error as network availability. That would
+   grant unrelated reads and mutations permission without original I/O evidence.
+C. Retain the operation-specific rule and keep native availability classification
+   separate, under the same original retirement and cancellation checks.
+
+Choice: C. No new source change is required for this distinction. START retains
+the same key and facts; current progress and terminal recovery retain their
+existing exact-request rules. The unchanged rule does not authorize arbitrary
+protocol-error retry. Audit agreement is source evidence, not an executed test
+result; the installed qualification lane must still pass before publication.
