@@ -196,6 +196,12 @@ with their original owner; later retirement cannot renew that cap. A response
 observed after the cap is not returned as success. Without a cap, the configured
 exchange and retirement allowances apply.
 
+`provider_core.network.network_availability` classifies original native I/O
+evidence from SDK-owned API or model HTTP exchanges. A positive result grants no
+retry by itself. The caller still owns operation policy, confirmed retirement,
+cancellation, pacing and the original deadline; model adapters retain their own
+response and endpoint-fallback rules.
+
 ## Package and qualification
 
 Use the [GitHub releases](https://github.com/numpde/nmr-provider-tools/releases)

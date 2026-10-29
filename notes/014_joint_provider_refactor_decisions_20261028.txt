@@ -4176,3 +4176,164 @@ may treat a source test as proof of the issued wheel. Preserve the exact source
 revision during preparation; another consequential choice requires recording it
 and preparing that new source, rather than editing a supposedly frozen candidate.
 This follows D098/D113's normal acquisition/publication authority and D136's scope.
+
+Publication checkpoint (2026-10-29 06:16 UTC)
+-------------------------------------------
+
+All four responsible providers explicitly acknowledged the actual 0.5.1 API and
+authored release prose before publication. SECS confirmed the observation-cap
+wording and separate published response-loss permission. The final independent
+transport/execution audit found no additional blocker; this was a source audit,
+separate from the executed qualification below.
+
+Clean release source: 529fe390d52ded042df687e11230242b0c6f5667.
+Maintained publish/prepare PASS: 628 installed unit, 15 contract, 174 integration,
+15 source-rebuilt contract and 33 native tests; all six artifact receipts match.
+Artifacts: /tmp/provider-core-0.5.1-publication/artifacts.
+Exact SHA256 values:
+- Wheel: 3954f220c72cb753c1cc87a77644f1cbd69754a4641c93ea03b9c89ebabb8c8f
+- Full lock: e210e69b8235aa179558d484bd23c3677ebd8b747a6cd02d22073019111b43d0
+- Native lock: 2a620cf2a4197f462bc75ea1dddcb07495efd1449534f7f1ca96011d1bcb0b4f
+- Release record: 73a1b962298b4ffff6a491e1d51de9015079ac57c522a9548120f665e308ff54
+- Manifest: 08647453f8a390ac6f1e476ca6b5bd93d716b44e0b339e36546bc8c6e03cc012
+- Source archive: 9a059b14b345360d2f1bf48bc677d049808c6d6c7b3829d5b349c746710fb747
+
+Maintained publish/release completed: tag pushed, all eight draft files downloaded
+and compared with qualified artifacts/logs, then the draft made public at:
+https://github.com/numpde/nmr-provider-tools/releases/tag/v0.5.1
+Publication receipts: /tmp/nmr-provider-publication.uibRvqdT and
+/tmp/sdk-051-publication.log. Existing 0.5.0 assets were not replaced.
+
+Shared candidate runtime:
+sha256:d99dcac8f6f0b539b496d2c33725ecddccc00e2b85f0974d4ba0dfce33238546
+Construction fingerprint:
+47a45c4fd360ece7b121fe2d71cffb719f75986c693883f91b35c30ffe878b78
+PASS: 34 installed deployment tests and the actual disposable signed HTTPS route,
+read-only/UID isolation, no direct fallback, stale-socket restart and cleanup.
+Logs: /tmp/sdk-051-runtime-image.log, /tmp/sdk-051-runtime-deployment.log and
+/tmp/sdk-051-runtime-route.log. No incumbent/shared service was replaced.
+
+Direct wheel comparison with 0.5.0 finds one added module, deployment_errors.py,
+and eight changed modules: api, deployment_binding, deployment_route, diagnostics,
+execution, failure_projection, network and transport. All other package modules,
+including scientific/native interfaces, are byte-identical. This bounds this
+patch's change; it does not establish a consumer image or deployment result.
+
+Consumer receipts at publication: Magnet independently verified handoff hashes,
+installed the exact wheel in an isolated container and passed 49 lane tests,
+actual TLS EOF recovery and actual untrusted-certificate refusal with retirement.
+NMRNet independently matched wheel/full/native-lock/record hashes. NMRPeak reports
+its separate disposable maintenance route/ownership checks passing on published
+0.5.0; that does not qualify its pending 0.5.1 model adapter. Consumer main pins,
+normal GitHub acquisition and canonical images remain each owner's next step.
+
+D138 -- Preserve the native-evidence boundary in consumer qualification (2026-10-29 06:20 UTC)
+--------------------------------------------------------------------------------
+
+Magnet's exact-wheel wide run passes 763 unit and 19 contract tests; one of 135
+integrations times out. Its scripted Hello transport supplies an ExchangeFailed
+with ConnectionRefusedError but no original native-I/O observation. The actual
+TLS EOF recovery and certificate-refusal checks already pass on the exact wheel.
+The synthetic failure therefore needs its intended contract established before
+treating it as a new runtime recovery defect.
+
+Serious alternatives:
+A. Restore class-only product retry permission to accommodate the old fixture.
+   This reopens the proved local-lookalike/certificate boundary fixed in D124.
+B. Skip the integration or label all scripted faults as native network failures.
+   That hides either the intended contract or unrelated negative specimens.
+C. Correct only the explicitly intended network fixture at its actual evidence
+   boundary, retaining local negatives and independent physical recovery proofs.
+
+Choice: C, applying D124 rather than relaxing it. Magnet owns investigation and
+the precise fixture change; root does not claim its integration is fixed yet.
+No private provider classifier or production retry workaround is authorized.
+
+Consumer checkpoint (2026-10-29 06:20 UTC)
+---------------------------------------
+
+NMRNet committed exact 0.5.1 issuer profiles/record and public asset URLs in
+d13bbf3; checkout observed clean. Normal acquisition/image qualification follows.
+It is the single owner staging the exact d99dcac8 shared runtime on ProArt and
+has confirmed Magnet is not doing a duplicate transfer. This prepares an image;
+it does not replace any incumbent service or establish cutover quiescence.
+
+NMRPeak reports its maintenance-route lifecycle and actual TLS inventory request
+proofs passing with their explicit scope. Its remaining critical path is the
+per-Attempt model HTTP owner, displaced live authority removal, normal 0.5.1
+profiles, canonical images and final contained/native qualification. The archive
+codec cut is committed fbab2a2. A large coupled adoption diff remains; coherent
+qualified subsets should be committed when their import/behavior closure permits.
+Root is reviewing native/archive and model ownership boundaries in parallel,
+read-only, while that owner implements. There is no reliable completion ETA yet.
+
+SECS's latest observed clean main is 148a78d, recording deferred retry-diagnostic
+and signal-status limits. It acknowledged the release/API and is aligning its
+consumer hook with the public default before normal 0.5.1 acquisition. These are
+consumer progress observations, not a claim of completed four-provider adoption.
+
+D139 -- Retire model HTTP even when native science is quiescent (2026-10-29 06:22 UTC)
+--------------------------------------------------------------------------------
+
+Parallel review of NMRPeak's unfinished D122 cut found that analysis_session.retire
+currently returns when its scientific flag and runner.quiescent are both true.
+Before the first candidate validation, model HTTP can be active while both are
+true. Native quiescence cannot prove retirement of another resource owner.
+
+Serious alternatives:
+A. Keep native quiescence as sufficient for whole-session retirement. This can
+   release an Attempt session while its original model exchange is unresolved.
+B. Flip the generic scientific flag before HTTP and infer later HTTP retirement
+   from that flag. This mirrors the transport's physical evidence incompletely.
+C. Adopt the per-Attempt InterpretationSession before model dispatch, retain it
+   across interpreter retries and include its original retirement in the session
+   boundary, independently of whether native science has started.
+
+Choice: C, completing D122. Check the actual transport's retirement result; no
+second Task registry, new timeout or inferred cleanup success. Unconfirmed model
+cleanup cannot become InterpreterUnavailable followed by another exchange or
+endpoint fallback. Science-only quiescence may still preserve a healthy warm
+worker, but it cannot skip model HTTP retirement. The NMRPeak owner has this
+specific review before final integration; no deployed defect or GREEN is claimed.
+
+Read-only native/archive review separately found no competing active child owner:
+the native launcher uses the SDK; the remaining serial SCI executor and scientific
+protocol have distinct responsibilities. Historical API authority identifiers
+used solely for retained volume identity are not a second live API owner. Unused
+old decoder/materializer code should be deleted when its displaced callers are
+gone, before claiming the adoption end state complete.
+
+Consumer checkpoint (2026-10-29 06:22 UTC)
+---------------------------------------
+
+NMRNet reports d13bbf3 pushed, ordinary public GitHub acquisition successful,
+local controller/geometry/inference images built, 57 focused installed-wheel
+service checks and inference imports passing. ProArt's checkout fast-forwarded;
+the single shared-runtime transfer is running, with no service replacement.
+Exact full image identities and production qualification remain separate receipts.
+
+D140 -- Share native availability evidence without sharing model retry policy (2026-10-29 06:24 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak asks whether network_availability may classify its original SDK model
+exchange, rather than copying the native classifier. Root's warning that API
+availability is not model policy was ambiguous. The helper in provider_core.network
+has no API operation/effect/status authority; it classifies captured native facts.
+Its current docstring describes the API caller, not an API-only evidence type.
+
+Serious alternatives:
+A. Duplicate native error/group/EOF classification inside NMRPeak. This forks
+   shared infrastructure and repeats future certificate/cancellation fixes.
+B. Treat the helper's true result as permission for model retry or endpoint
+   fallback. This silently imports a policy decision the helper cannot make.
+C. Reuse the shared native-evidence classifier with the original ExchangeFailed
+   facts, while the model adapter owns its existing retry/fallback semantics,
+   status handling, deadlines, physical-retirement and cancellation checks.
+
+Choice: C. The released helper is supported as native availability evidence for
+SDK-owned model HTTP too. It does not grant API or model effects. A false result
+must not become an unknown operational retry through a blanket ExchangeFailed
+catch. Any separately intended model response/protocol policy remains explicitly
+model-owned. Dirty cleanup and caller interruption never authorize fallback.
+No new helper, alias, copied classifier or behavioral SDK patch is needed. Clarify
+the shared documentation without holding consumer adoption for another release.
