@@ -3575,3 +3575,35 @@ image selection remains explicit and immutable. D115's cutover hold prevents an
 unplanned replacement wave; it is not a reason to rebuild unaffected providers
 or block their preparation. Any actual shared-service replacement still requires
 the existing owners' work/queue/binding coordination and their real authorization.
+
+D118 -- Give stopped-provider maintenance its own narrow temporary API route (2026-10-29 04:41 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's inventory/archive commands must work while its provider and ordinary
+API proxy are stopped. The remaining old host/API path cannot become a direct
+network bypass merely because the scientific deployment is absent.
+
+Serious alternatives:
+A. Require the scientific deployment's normal proxy/configuration to be running.
+   This couples stopped-state maintenance to resources it deliberately excludes.
+B. Send maintenance reads directly from the host or weaken stopped-state guards.
+   This bypasses the selected binding's route and existing journal ownership.
+C. Render a temporary route with the existing shared SDK, under the existing
+   host maintenance operation and cleanup owner, with only its actual grants.
+
+Choice: C. No separate SDK temporary-route lifecycle owner currently exists or
+is required: reuse render_api_route's exact projection and the provider's existing
+bounded host operation. The temporary namespace contains only api/api-init and a
+network-none one-shot reader/archiver, selected captured binding/key/CA/resolver,
+RO client socket and the journal access the actual command requires. Grant no
+model/checkpoint/scientific allocation or shared delivery authority.
+
+Factor captured-binding/api_settings admission from the scientific runtime
+envelope, preserving one SDK parser. Maintenance must not need a fake frozen ID,
+current scientific images or interpreter keys. Archive still uses its actual
+retained generation and authenticated closed-state policy. Preserve existing
+stopped-provider, identity, digest and journal guards. Use exact original
+projection/labels for teardown with existing operation/cleanup bounds; retain
+uncertain obligations instead of claiming cleanup. No orphan deletion, direct
+bypass, new registry or generic maintenance framework is introduced. Actual
+stopped-state and failed-cleanup qualification remains with NMRPeak.
