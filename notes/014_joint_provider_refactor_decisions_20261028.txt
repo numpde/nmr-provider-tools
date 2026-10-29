@@ -3834,6 +3834,15 @@ was pending/cancelled by that SDK deadline and no caller interruption is present
 a bare/local TimeoutError or cancelled caller supplies no such permission.
 Retain original I/O cause/stage and canonical timeout/cleanup evidence together.
 
+D124 qualification clarification (2026-10-29 06:11 UTC):
+Magnet's actual pending-read witness raised the original SDK cancellation from
+SSLCertVerificationError. The first timeout fast path admitted recovery despite
+that explicit certificate cause. Following choice C above, classify the retained
+cancellation's cause before permission; do not treat the timeout marker alone as
+sufficient. The witness now rejects recovery after confirmed retirement. This is
+source-level GREEN, not yet a claim about the issued wheel. The final installed
+lane also covers the all-operation matrix and local lookalike negatives.
+
 D125 -- Bound valid structured diagnostics at the actual output allowance (2026-10-29 05:11 UTC)
 --------------------------------------------------------------------------------
 
@@ -4133,3 +4142,37 @@ the same key and facts; current progress and terminal recovery retain their
 existing exact-request rules. The unchanged rule does not authorize arbitrary
 protocol-error retry. Audit agreement is source evidence, not an executed test
 result; the installed qualification lane must still pass before publication.
+
+Qualification checkpoint (2026-10-29 06:11 UTC)
+---------------------------------------------
+
+The final source passes all 174 integration and 206 repository quality tests.
+The first full 628-case unit run failed four specimens in one new CLI test: its
+invocation omitted the required --all/--binding selector, so argparse prevented
+the intended admission check. Independent review caught the same fixture defect.
+The corrected installed unit/native lane is running; do not count that failed
+run as a pass. No product fallback or checker exception was introduced for it.
+
+NMRNet, Magnet and NMRPeak reviewed the actual 0.5.1 API/release prose without a
+blocking objection. NMRNet requested that the deadline wording explicitly bound
+observation rather than underlying physical lifetime; that precision is applied.
+SECS's independent API/transport source audit found no remaining concrete blocker.
+Final exact artifact/rebuild gates and the remaining release acknowledgement are
+still pending. Published 0.5.0 assets and all incumbent services remain unchanged.
+
+Qualification checkpoint (2026-10-29 06:12 UTC)
+---------------------------------------------
+
+Corrected source qualification passes 628 installed unit tests, 33 dependency-free
+native tests, 174 integrations and 206 repository quality tests. The actual CLI
+privacy specimens now reach their intended refusal paths and pass. Logs:
+/tmp/sdk-051-final-unit-v2.log, /tmp/sdk-051-final-integration.log and
+/tmp/sdk-051-final-quality-v2.log. Source commit: 3299b0c.
+
+The authored release note is notes/017_release_v0.5.1.md. Next, freeze clean source
+and use the maintained publish/prepare path for exact wheel, both issued locks,
+source record, manifest, source rebuild and installed qualification. No consumer
+may treat a source test as proof of the issued wheel. Preserve the exact source
+revision during preparation; another consequential choice requires recording it
+and preparing that new source, rather than editing a supposedly frozen candidate.
+This follows D098/D113's normal acquisition/publication authority and D136's scope.
