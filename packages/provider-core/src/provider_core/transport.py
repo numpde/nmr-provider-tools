@@ -58,7 +58,10 @@ def temporary_io_failure(cause, remaining):
             return False
     elif type(cause) not in (httpcore.ConnectError, httpcore.ReadError, httpcore.WriteError):
         return False
-    return temporary_io_failure(cause.__cause__, remaining - 1)
+    preceding = cause.__cause__
+    if preceding is None and type(cause) is httpcore.ConnectError:
+        preceding = cause.__context__
+    return temporary_io_failure(preceding, remaining - 1)
 
 
 class ExchangeFailed(RuntimeError):
