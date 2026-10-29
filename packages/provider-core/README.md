@@ -65,6 +65,21 @@ merely because its I/O stopped. Preserve the shared private lifetime
 root with `ProviderLifetime`; a container-private directory cannot exclude a
 second container.
 
+Raise `AnalysisOutcomeUnresolved` when science produced neither a verified result
+nor a reviewed public failure, chaining the original exception. Core keeps the
+Attempt held without sending FAIL or repeating science. It requests retirement
+of the original work; cleanup may remain pending or fail.
+In a service that can continue with unrelated Jobs, call
+`controller.require_held_failure(pending, failure)` with the selected START and
+original `ControllerFailed`. It checks that this exact Job and Attempt remain
+quiescent and owned, then returns that same failure for protected reporting.
+
+The check admits unresolved analysis, exhausted Upload recovery and an observation
+gap under their distinct rules. Independent failures and unhanded outcomes still
+block it. It does not settle or release the claim; the provider must also check its
+own stop state and resource readiness before selecting another Job. Bindings relay
+original errors; an exception type alone does not authenticate its source.
+
 Only an original worker exit correlated to the current Attempt and scientific
 phase can become `ObservedWorkerCrash`. Keep the exact acknowledgement received
 by `AnalysisSession.prepare` for later execution. Timeouts, EOF and our own stop

@@ -21,6 +21,15 @@ from provider_core.runner_session import RunnerSession
 ReportCondition = Callable[[str | None], Awaitable[None]]
 
 
+class AnalysisOutcomeUnresolved(RuntimeError):
+    """No publishable outcome was established; retain this Attempt's live owner.
+
+    Chain the original exception when one exists. This marker authorizes neither
+    FAIL, scientific replay nor claim release. Provider resource readiness and
+    the decision to continue unrelated work remain with the binding.
+    """
+
+
 @dataclass(frozen=True, slots=True)
 class AnalysisSuccess:
     result_schema_id: str
@@ -117,6 +126,11 @@ class AnalysisSession(Protocol):
     None only after confirmation, otherwise raises. Warm worker reuse additionally
     requires the binding's qualified quiescence policy; core grants no such reuse.
     A stop request, closed channel or cancelled Python task is not confirmation.
+
+    Raise AnalysisOutcomeUnresolved when no result or reviewed public failure can
+    be established. Preserve its original cause; never return it as an outcome.
+    Core retains ownership without fabricating FAIL; original retirement must be
+    confirmed before continuation.
     """
 
     async def prepare(

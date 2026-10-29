@@ -1,0 +1,11 @@
+# provider-core 0.5.2
+
+This release adds a shared way to retain an Attempt when no publishable analysis outcome is known. Bindings raise `AnalysisOutcomeUnresolved` with the original cause. Core requests retirement and retains ownership without inventing FAIL or repeating science; cleanup can still fail or remain pending.
+
+`AttemptController.require_held_failure(pending, failure)` checks the selected Job, START, admitted Attempt and actual retained controller/executor/claim together. It supports three distinct holds: unresolved analysis, exhausted Upload recovery and an observation gap. The check returns the original `ControllerFailed` for protected reporting; it does not settle, release or authorize another calculation. Providers still own stop/control checks, resource readiness and whether unrelated work may continue.
+
+Independent cleanup, interruption, control failures and unhanded outcomes block the check, including recorded cleanup errors after later successful retirement. An observation gap may retain its own exact API outage; the original API owner's read-admission rules also reject nested transport cleanup or interruption. Protected diagnostics use fixed unresolved-outcome wording; original causes remain private, with safe facts available to the operator.
+
+Scientific retry policy, model-operation eligibility, frozen input/model identity and replacement workers remain provider-owned. This release adds no retry engine, count default, persistent Attempt history or new wire schema. Use the [GitHub release assets](https://github.com/numpde/nmr-provider-tools/releases/tag/v0.5.2) with the existing Python 3.12 API and native-only installation profiles.
+
+Qualification distinguishes installed-package and controlled integration behavior from actual model/device behavior. Publishing this package does not establish consumer adoption or deployment. See the [package documentation](https://github.com/numpde/nmr-provider-tools/blob/v0.5.2/packages/provider-core/README.md) for the integration contract.

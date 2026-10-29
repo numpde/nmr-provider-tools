@@ -21,7 +21,7 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 
 from provider_core.task_boundary import contain_task_exit
-from provider_core.analysis import retire_session
+from provider_core.analysis import AnalysisOutcomeUnresolved, retire_session
 from provider_core.api import ApiFailure
 from provider_core.attempt_record import AcknowledgedAttempt, RecoveryScope, StartPending
 from provider_core.delivery_worker import require_delivery_retry_settings
@@ -29,7 +29,9 @@ from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint, Suppre
 from provider_core.job_input import VerifiedJobInput
 from provider_core.execution import (
     AttemptExecutor,
+    ExecutionFailed,
     ExecutionStopRequested,
+    ObservationGapExpired,
     _observe_task_failure,
     require_condition_recovery,
     require_execution_settings,
@@ -37,6 +39,8 @@ from provider_core.execution import (
     require_phase_progress_observer,
 )
 from provider_core.starting import AttemptStarter, StartFailed
+from provider_core.ownership import OwnershipRefused
+from provider_core.uploads import UploadRecoveryExhausted
 
 
 class ControllerRefused(RuntimeError):
@@ -241,6 +245,77 @@ class AttemptController:
         return self.work_settled and (
             not isinstance(self._operation, AttemptExecutor) or self._operation.shutdown_ready
         )
+
+    def require_held_failure(self, pending, failure):
+        """Confirm this selected START's quiescent held failure, without release.
+
+        Return the actual retained failure for protected reporting. Only the
+        reviewed scientific, source-exhaustion and observation-gap holds qualify.
+        Composition still owns resource readiness, stop/control checks and the
+        decision to continue. This check settles, releases and dispatches nothing.
+        Bindings must relay original owned errors without changing their evidence;
+        this in-process contract does not authenticate an exception's producer.
+        """
+        executor = self._operation
+        if (self._lifetime is not _Lifetime.HELD
+                or failure is not self.last_failure
+                or type(failure) is not ControllerFailed
+                or type(executor) is not AttemptExecutor
+                or type(failure.cause) is not ExecutionFailed
+                or failure.cause is not executor.last_failure):
+            raise ControllerRefused("Cannot confirm a held Attempt: this controller has no matching retained execution failure.") from self.last_failure
+        execution = failure.cause
+        reason = execution.cause
+        if type(reason) not in (AnalysisOutcomeUnresolved, UploadRecoveryExhausted, ObservationGapExpired):
+            raise ControllerRefused("Cannot confirm a held Attempt: this failure is not an admitted unresolved analysis, source exhaustion or observation gap.") from failure
+        admitted_api_failure = None
+        if type(reason) is ObservationGapExpired:
+            if reason._executor is not executor or (not reason.read_started and reason.cause is not None):
+                raise ControllerRefused("Cannot confirm an observation-gap hold: its original observation does not belong to this executor.") from failure
+            admitted_api_failure = reason.cause
+        if type(reason) is UploadRecoveryExhausted and (reason.cleanup_failures or reason.interruption is not None):
+            raise failure
+        if (failure.cleanup_failures or execution.cleanup_failures
+                or execution.api_failure is not admitted_api_failure
+                or execution.condition_failure is not None
+                or execution.latest_condition_failure is not None
+                or execution.delivery_failure is not None
+                or failure.interruption_cause is not None
+                or execution.interruption_cause is not None
+                or execution.operation_interruption is not None
+                or execution.handoff_interruption is not None
+                or not self.shutdown_ready):
+            # Positive later retirement does not erase a recorded independent
+            # failure. Preserve that original graph rather than manufacture a
+            # claim-release refusal and call it a cleanup failure.
+            raise failure
+        if (type(reason) is ObservationGapExpired and admitted_api_failure is not None
+                and not self.api.can_retry_read(admitted_api_failure)):
+            # Gap expiry can interrupt read retirement before its recovery loop
+            # consults API admission. The original API owner also rejects nested
+            # transport cleanup/interruption and non-recoverable read failures.
+            raise failure
+        claim = self._claim
+        if claim is None or executor.claim is not claim:
+            raise ControllerRefused("Cannot confirm a held Attempt: its exact lifecycle claim is unavailable.") from failure
+        try:
+            if claim.lifecycle_owner is not self or claim.operation_owner is not None:
+                raise ControllerRefused("Cannot confirm a held Attempt: its exact lifecycle claim is unavailable.") from failure
+            # This owning-loop check binds Job, START key and input to THIS
+            # active claim; two separate inventory queries cannot prove that link.
+            claim.require_start(pending)
+            if (type(execution.attempt) is not AcknowledgedAttempt
+                    or type(self._acknowledged) is not AcknowledgedAttempt
+                    or execution.attempt is not executor._record
+                    or execution.attempt.start != pending
+                    or execution.attempt.admission is not self._acknowledged.admission):
+                raise ControllerRefused("Cannot confirm a held Attempt: its retained admission differs from this selected Attempt.") from failure
+            claim.require(self.scope, execution.attempt.admission.execution_attempt_ref)
+        except OwnershipRefused as cause:
+            raise ControllerRefused("Cannot confirm a held Attempt: the selected START is not held by this controller.") from ExceptionGroup(
+                "Retained execution failure and independent ownership refusal", (failure, cause),
+            )
+        return failure
 
     async def run(self, pending):
         """Start once and observe the retained driver without transferring ownership.
