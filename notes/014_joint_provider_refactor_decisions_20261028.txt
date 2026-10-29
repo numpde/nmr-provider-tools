@@ -6341,6 +6341,110 @@ until the owner can establish a safe disposition. NMRPeak's deferred-items note
 records the owner and trigger. The reasons for the ACL and inventory discrepancies
 are not established.
 
+D198 — Verify deployment on the physical ProArt host
+----------------------------------------------------
+
+Serious alternatives:
+A. Infer the execution host from a deployment identifier or API hostname. Those
+   names describe configuration and do not prove where a process is running.
+B. Connect to the selected physical host, inspect the actual running services,
+   their configured bindings and image/version evidence, and have each provider
+   owner verify or deploy its own target. Refuse to invent missing credentials or
+   treat a local development instance as proof of a remote deployment.
+
+Choice: B, following the user's instruction. It makes the host and each provider's
+actual deployment independently observable, at the cost of host-specific checks
+and coordination. A read-only check over ssh ra@proart returned hostname proart;
+shared delivery and its three proxies were healthy with no restarts or OOM kills,
+and the installed SDK reported 0.5.2. Live IPC reported the NMRNet, Magnet and
+SECS bindings with running publishers and zero pending or held items. This proves
+shared intake on ProArt, not a scientific Job or that an unlisted provider is
+deployed there. The tools checkout was fast-forwarded from GitHub through
+documentation-only commits; no shared service restart was needed for that update.
+Further read-only inventory found an existing NMRPeak provider and two runners on
+ProArt, running for approximately ten days. Its clean checkout was on an older
+revision; the provider's actual Python interpreter reported provider-core absent.
+The three containers had no restarts or OOM kills, but their health does not prove
+the new SDK or shared delivery. NMRPeak's owner is inspecting its actual journal,
+bindings and credentials and preparing the cutover. Preserve the existing service
+until its drain and recovery obligations are established; adding its binding needs
+coordination with the existing shared-delivery owners. The other provider owners
+are independently verifying their targets and any missing inputs.
+
+D199 — Prepare shared capacity for a possible ProArt NMRPeak binding
+--------------------------------------------------------------------
+
+Serious alternatives:
+A. Add a fourth binding without changing capacity. The existing totals cover
+   only the three configured provider shares, so admission would reject it.
+B. Reduce the existing per-provider shares to fit the current host total. That
+   changes the backpressure contract for the three running providers.
+C. Preserve the current per-provider shares and increase host totals to cover
+   four shares, after confirming the host budget and NMRPeak's actual binding.
+D. Start a separate delivery service. That introduces a second queue and owner
+   where the existing service can provide isolation if its budget is sufficient.
+
+Working direction: C, subject to confirming available host capacity and the
+provider's actual identity, credentials, drain and recovery obligations. It
+preserves existing shares and a single queue owner; its cost is a larger allowed
+host-wide backlog. The live ProArt definition currently has three bindings, with
+eight items and 16 MiB per provider and totals of 24 items and 48 MiB. Four equal
+shares would require totals of at least 32 items and 64 MiB. These are configured
+limits, not a reservation or evidence that the host can safely accommodate them.
+No definition, queue or service has been changed on the basis of this calculation.
+One host observation reported about 166 GiB available memory and 538 GiB free on
+the filesystem containing Docker. This is a point-in-time capacity signal, not
+a sustained workload or storage durability qualification.
+A private four-binding proposal has since been prepared on ProArt: the original
+three definitions and per-provider limits remain unchanged, the existing NMRPeak
+credential is selected, and host totals cover four shares. The installed renderer
+accepted the proposal. The NMRPeak owner must still verify the credential,
+authority, socket grant and legacy/replacement readiness before any drain; rendering
+does not prove credential authorization or a safe cutover.
+One signed GET of the provider jobs route using the existing credential returned
+HTTP 400. The coordinator did not retain its response diagnostic, so the result
+does not establish authentication or authorization and its cause is unknown. The
+route contract requires an analysis-kind query that this request omitted; that is
+a definite request defect consistent with the response, not proof of its cause.
+credential was copied only to a private temporary in-memory file for the read and
+that copy was removed; the original permissions were unchanged. The provider owner
+is checking the supported route/query contract before any further request.
+
+D200 — API routing and intermittent ProArt DNS
+-----------------------------------------------
+
+Serious alternatives:
+A. Keep the explicit interface bound to the device currently selected by the
+   host's default route and require an operator update when that route changes.
+   This preserves the current explicit interface grant but does not follow a
+   future default-route change automatically.
+B. Add a default-route mode that leaves API DNS and connections to host routing.
+   This can follow host routing changes but changes the current SDK route contract
+   and requires review of DNS, network isolation, failure and recovery behavior.
+C. Change host-wide routing or resolver settings to make the existing binding
+   appear reliable. That affects unrelated workloads and the observed failures do
+   not yet establish which change, if any, would fix their cause.
+
+No choice made. The user directed API traffic to use the default connection;
+the current SDK external/mapped route requires an explicit interface and binds
+both DNS and TCP to it. On ProArt the selected interface currently matches the
+host default, but that is not a dynamic default-route contract. Magnet's owner
+observed resolver timeouts corresponding to intermittent proxy 502s and also
+observed timeouts in comparison DNS probes; this does not establish the root
+cause or exonerate the proxy. Its external route also mounts a resolver file
+captured in the deployment generation: it matches the present default-link DNS,
+but later DHCP resolver changes are not followed until a new deployment. A
+dynamic mode would need explicit treatment of systemd stubs, atomic resolver
+replacement, DNS and TCP routing, egress grants and bounded failure handling.
+NMRNet and SECS owners favor an explicit unbound API mode, retaining the fixed
+interface mode where it is required. This is a design recommendation, not a
+qualified implementation or user approval. Current bounded DNS intentionally
+rejects loopback resolvers and binds both UDP and TCP; simply omitting the device
+binding would not establish correct use of a systemd stub or a changing resolver
+file. A blocking system resolver call also needs an explicit deadline and owner.
+The owners are comparing semantics and evidence.
+No shared package, resolver or host route change is authorized by this entry.
+
 Supporting qualification references
 -----------------------------------
 
