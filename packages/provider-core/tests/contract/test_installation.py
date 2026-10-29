@@ -62,6 +62,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/bound_http_proxy.py",
                 "provider_core/provider_proxy.py",
                 "provider_core/deployment_binding.py",
+                "provider_core/deployment_route.py",
                 "provider_core/container_guard.py",
                 "provider_core/runner.py",
                 "provider_core/runner_protocol.py",

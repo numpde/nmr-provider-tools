@@ -59,14 +59,19 @@ class InstalledDeploymentTests(unittest.TestCase):
         daemon, initializer = plan["services"]["delivery"], plan["services"]["init"]
         self.assertEqual("none", daemon["network_mode"])
         self.assertEqual(["CHOWN"], initializer["cap_add"])
-        self.assertEqual(3, len(initializer["volumes"]))
+        self.assertEqual(2, len(initializer["volumes"]))
         self.assertNotIn("--control", initializer["command"])
         self.assertTrue(all("-control-" not in name for name in plan["volumes"]))
-        proxy = next(service for name, service in plan["services"].items() if name.startswith("api-"))
+        proxy = next(service for name, service in plan["services"].items() if name.startswith("api-") and not name.startswith("api-init-"))
         self.assertEqual("host", proxy["network_mode"])
         self.assertEqual("INFO", proxy["command"][proxy["command"].index("--log-level") + 1])
         self.assertEqual(["/route"], [mount["target"] for mount in proxy["volumes"]])
-        self.assertEqual({"init": {"condition": "service_completed_successfully"}}, proxy["depends_on"])
+        route_init_name = next(name for name in plan["services"] if name.startswith("api-init-"))
+        self.assertEqual({route_init_name: {"condition": "service_completed_successfully"}}, proxy["depends_on"])
+        route_initializer = plan["services"][route_init_name]
+        self.assertEqual("0:0", route_initializer["user"])
+        self.assertEqual(["CHOWN"], route_initializer["cap_add"])
+        self.assertEqual(["/route"], [mount["target"] for mount in route_initializer["volumes"]])
         self.assertTrue(all(mount["type"] == "volume" for mount in initializer["volumes"]))
         inputs = [mount for mount in daemon["volumes"] if mount["type"] == "bind"]
         self.assertEqual({str(self.binding_file), "/synthetic/signing.json"}, {mount["source"] for mount in inputs})
@@ -94,7 +99,7 @@ class InstalledDeploymentTests(unittest.TestCase):
                 else:
                     raw = self.raw.replace(b'mode = "mapped"', b'mode = "external"').replace(b'addresses = ["api.example=127.0.0.1"]', b'resolver_file = "/synthetic/resolver"')
                 plan = self.render(raw)
-                proxy = next(service for name, service in plan["services"].items() if name.startswith("api-"))
+                proxy = next(service for name, service in plan["services"].items() if name.startswith("api-") and not name.startswith("api-init-"))
                 if mode == "local":
                     self.assertNotIn("network_mode", proxy)
                     self.assertEqual([{"external": True, "name": "b" * 64}], list(plan["networks"].values()))
@@ -102,19 +107,19 @@ class InstalledDeploymentTests(unittest.TestCase):
                     self.assertIn("/etc/resolv.conf", [mount["target"] for mount in proxy["volumes"]])
                     self.assertTrue(all(mount["source"] != "/synthetic/resolver" for mount in plan["services"]["delivery"]["volumes"]))
 
-    def test_initializer_preserves_correct_nonempty_queue_ipc_and_proxy_roots(self):
-        queue, ipc, route = self.root / "queue", self.root / "ipc", self.root / "route"
-        for path, mode in ((queue, 0o700), (ipc, 0o710), (route, 0o700)):
+    def test_initializer_preserves_correct_nonempty_queue_and_ipc_roots(self):
+        queue, ipc = self.root / "queue", self.root / "ipc"
+        for path, mode in ((queue, 0o700), (ipc, 0o710)):
             path.mkdir(mode=mode)
             (path / "retained").write_bytes(b"retained state")
         with patch.object(freezer.os, "geteuid", return_value=0), patch.object(freezer.os, "fchown") as chown:
-            freezer.initialize(self.uid, self.gid, queue, [ipc], [route])
+            freezer.initialize(self.uid, self.gid, queue, [ipc])
         chown.assert_not_called()
         ipc.chmod(0o700)
         with patch.object(freezer.os, "geteuid", return_value=0):
             with self.assertRaisesRegex(freezer.DeliveryDeploymentRejected, "Refusing to change"):
-                freezer.initialize(self.uid, self.gid, queue, [ipc], [route])
-        for path in (queue, ipc, route):
+                freezer.initialize(self.uid, self.gid, queue, [ipc])
+        for path in (queue, ipc):
             self.assertEqual(b"retained state", (path / "retained").read_bytes())
 
     def test_runtime_refuses_changed_definition_before_materializing_sdk_input(self):

@@ -52,7 +52,7 @@ project_containers() {
             || { refuse 'a project container belongs to another owner; retire it with that owner first.'; return 2; }
         if [[ $kind == delivery ]]; then
             daemon_identifiers+=("$identifier")
-        elif [[ $kind == init || $kind =~ ^api-[0-9a-f]{16}$ ]]; then
+        elif [[ $kind == init || $kind =~ ^api-(init-)?[0-9a-f]{16}$ ]]; then
             other_identifiers+=("$identifier")
         else
             refuse 'a project container has an unsupported service identity; inspect it before mutation.'; return 2
