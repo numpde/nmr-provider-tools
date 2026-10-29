@@ -11,6 +11,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import argparse
+import ipaddress
 import json
 import math
 import re
@@ -116,7 +117,11 @@ def _route(table, origin):
     port = parsed.port
     if port is None:
         port = 443
-    ServicePolicy.admit(mode, [f"{parsed.hostname}:{port}"], addresses)
+    policy = ServicePolicy.admit(mode, [f"{parsed.hostname}:{port}"], addresses)
+    if parsed.hostname == "0.0.0.0" or any(ipaddress.IPv4Address(address).is_unspecified for _, address in policy.addresses):
+        raise BindingDefinitionRejected("Cannot admit API route: an unspecified address is not an API destination; select the intended peer address.")
+    if mode == "local" and any(ipaddress.IPv4Address(address).is_loopback for _, address in policy.addresses):
+        raise BindingDefinitionRejected("Cannot admit local API route: loopback belongs to this proxy; select the API peer on the declared network or mapped routing for host loopback.")
     return dict(table)
 
 

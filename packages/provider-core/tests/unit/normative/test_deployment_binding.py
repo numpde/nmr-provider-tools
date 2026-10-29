@@ -46,6 +46,31 @@ addresses = ["api.example=127.0.0.1"]
 
 
 class DeploymentBindingTests(unittest.TestCase):
+    def test_loopback_is_admitted_only_for_host_network_routing(self):
+        raw = definition(1)
+        literal = raw.replace(b"api.example", b"127.0.0.1")
+        self.assertEqual("mapped", parse_deployment_bindings(literal).bindings[0].route["mode"])
+        external = literal.replace(b'mode = "mapped"', b'mode = "external"').replace(
+            b'addresses = ["127.0.0.1=127.0.0.1"]', b'resolver_file = "/synthetic/resolver"',
+        )
+        self.assertEqual("external", parse_deployment_bindings(external).bindings[0].route["mode"])
+        local = raw.replace(b'mode = "mapped"', b'mode = "local"\nnetwork_id = "' + b"b" * 64 + b'"')
+        with self.assertRaisesRegex(BindingDefinitionRejected, "loopback belongs to this proxy"):
+            parse_deployment_bindings(local)
+        peer = local.replace(b"api.example=127.0.0.1", b"api.example=172.18.0.5")
+        self.assertEqual(["api.example=172.18.0.5"], parse_deployment_bindings(peer).bindings[0].route["addresses"])
+
+    def test_unspecified_api_origin_or_peer_is_not_a_route_destination(self):
+        peer = definition(1).replace(b"api.example=127.0.0.1", b"api.example=0.0.0.0")
+        literal = definition(1).replace(b"api.example", b"0.0.0.0").replace(b"=127.0.0.1", b"=0.0.0.0")
+        external = literal.replace(b'mode = "mapped"', b'mode = "external"').replace(
+            b'addresses = ["0.0.0.0=0.0.0.0"]', b'resolver_file = "/synthetic/resolver"',
+        )
+        for raw in (peer, literal, external):
+            with self.subTest(raw=raw):
+                with self.assertRaisesRegex(BindingDefinitionRejected, "unspecified address"):
+                    parse_deployment_bindings(raw)
+
     def test_cli_projects_only_selected_host_grants_without_opening_inputs(self):
         selected = parse_deployment_bindings(definition(2)).selected("fixture-1")
         with tempfile.TemporaryDirectory() as directory:
