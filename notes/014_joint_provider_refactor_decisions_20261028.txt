@@ -4543,3 +4543,26 @@ the original turn deadline over retries and backoff; add no allowance or timer.
 Use a causal slow-construction witness to show that effects do not begin after
 the request budget is exhausted. Scientific request content and parsing policy
 stay unchanged.
+
+Supporting qualification references
+-----------------------------------
+
+The immutable SDK release and its qualification logs, issued installation locks,
+source record and hash manifest are published together:
+https://github.com/numpde/nmr-provider-tools/releases/tag/v0.5.1
+The authored scope is notes/017_release_v0.5.1.md. Treat installed-artifact and
+source-rebuild evidence separately from a consumer image or live deployment.
+
+Consumer ownership fixes can be located in NMRPeak adoption 84549c8 and request
+budget correction 7e9f160, and SECS original scientific observation 78a5bec and
+operator projection 9740d95. Their actual original-owner, cancellation, privacy
+and physical-retirement tests remain with their repositories. SECS's remaining
+non-authoritative diagnostic graph-reference coherence limit is tracked by its
+existing deferred note009; it confers no cleanup or result authority.
+
+The NMRNet owning session listed above retains the single post-cutover API
+handoff/result smoke. Its observed terminal Attempt and matching result readback
+establish remote delivery beyond local enqueue or startup readiness. They do not
+establish scientific accuracy or justify another Job. Operational identities,
+payload hashes, image/status snapshots and actor-search chronology stay in that
+session and qualification records rather than being repeated in this note.
