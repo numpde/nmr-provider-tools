@@ -5745,11 +5745,261 @@ Unaffected checks passed in that run; the final exact-package release gate is
 repeated against the committed source. No scientific model campaign is repeated
 for this repository-only correction.
 
+D180 — Issue one artifact and carry evidence only across identical bytes
+-----------------------------------------------------------------------
+
+Serious alternatives:
+A. Publish from each consumer's source overlay or treat source review as proof of
+   installed adoption. This obscures which package each owner actually executes.
+B. Invalidate every consumer test after a repository-only source correction, even
+   when the wheel, source archive and installation locks are identical.
+C. Qualify the final immutable package, compare bytes, then acquire the issued
+   GitHub assets normally and update each consumer's source record.
+
+Choice: C. Provider-core 0.5.2 is public with authored release notes. All four
+owners accepted the final API and qualified their actual receiving/submission
+paths against the exact candidate. Final preparation produced byte-identical
+wheel, source archive and API/native installation locks. Only the release record
+and hash manifest changed to identify the corrected committed source. Keep the
+valid installed-package evidence; still update and verify the final provenance
+record before adopting it. Publication does not establish deployment.
+
+The owned publication gate qualified the installed wheel's unit, contract and
+integration suites, rebuilt the source archive and compared payloads, qualified
+the rebuilt wheel's contract and tested the native-only profile. Publication
+then downloaded all eight draft assets and compared their bytes before making
+the release public. The earlier broad repository run remains a failed run; D179
+records the narrow corrections and focused evidence. The subsequent complete repository
+check passed all 343 tests after those corrections; the failed run is not erased.
+
+Deployment alternatives were to restart shared delivery with every SDK release,
+leave consumers on private candidate inputs, or replace only the components that
+actually changed. Choose the last. Only analysis, controller, execution and
+failure projection changed in the SDK since the preceding release. Delivery
+client/IPC/store, proxy and native runner sources did not change. The new shared
+runtime built from issued assets passes installed proxy/deployment qualification;
+consumers use it for their updated proxy construction. Existing delivery daemon,
+queue ownership and bindings remain in place, with actual consumer startup and
+delivery readiness checked during normal rollout.
+
+The authorized NMRNet and Magnet owners proceed local first, then the existing
+remote target after qualification, preserving explicit zero retry defaults. No
+new live scientific Job or repeated model-accuracy campaign is needed for this
+wiring. SECS and NMRPeak adopt and qualify their installed images without inventing
+new production targets. Model-specific retry eligibility, readiness, frozen
+inputs and configured limits remain with those owners.
+
+D181 — Keep unknown preparation communication out of public failure reports
+----------------------------------------------------------------------------
+
+Serious alternatives:
+A. Publish a scientific failure whenever preparation returns no handle, because
+   the controller has not entered execute.
+B. Add another phase/outcome taxonomy and duplicate dispatch or cleanup state in
+   each binding before deciding whether communication uncertainty is reportable.
+C. Keep validated worker failures distinct and reuse the existing unresolved
+   outcome contract for lost, malformed or otherwise unknown preparation replies.
+
+Choice: C. SECS demonstrated through its actual controller and durable inbox that
+an unrecognized preparation reply queued FAIL despite establishing no child
+exception. The absence of PreparedAnalysis prevents execute; it does not prove a
+reviewed scientific failure or physical reader retirement. Core starts retirement
+and terminal handoff independently, so a later cleanup failure does not repair
+that classification. Unknown WorkerError/TimeoutError in preparation therefore
+retains the original cause through AnalysisOutcomeUnresolved and sends no invented
+terminal report. Preserve the exact shared observation-gap exception separately.
+
+A validated ScientificWorkerFailed still follows its reviewed public failure
+contract. Semantic input/interpretation failures remain with their existing owners;
+an actually observed correlated native exit still follows the crash bridge.
+Qualify the preparation path through the real controller/queue, including an
+independent cleanup failure. This extends the same ownership rule already applied
+to execution; it adds no SDK API, retry engine or new result schema.
+
+D182 — Defer a resolved acquisition diagnostic gap without inventing causality
+-----------------------------------------------------------------------------
+
+Serious alternatives:
+A. Treat a successful repeat as proof that the original acquisition was harmless
+   or attribute it to an interface, DNS server or upstream without evidence.
+B. Stop the SDK rollout to introduce general retry or proxy-log infrastructure.
+C. Preserve the failed acquisition evidence, record the missing causal diagnostic
+   with its actual tool owner and trigger, and continue the verified acquisition.
+
+Choice: C. An ordinary acquisition-worker failure can retire its proxy without
+capturing that proxy's diagnostics. A later successful acquisition does not explain
+the first failure. NMRNet records this in its deferred-items note under the local
+acquisition tool, to address on the next acquisition-tooling change. Consider
+common ownership when comparing the actual shared tooling; do not add speculative
+SDK machinery or claim network causality. No scientific Job is repeated for this.
+
+D183 — Keep aggregate deadlines distinct from unresolved native operations
+--------------------------------------------------------------------------
+
+Serious alternatives:
+A. Always convert an outer interpretation deadline into a reviewed input/chat
+   failure, even when it cancelled an in-flight native callback.
+B. Add a parallel generic state machine or infer native effects from exception
+   names, elapsed time or the fact that execute was never entered.
+C. Ask the existing operation owner what remains unresolved and keep that exact
+   original work/evidence distinct from the enclosing semantic deadline.
+
+Choice: C, extending D181 at the actual callback boundary. SECS's real child and
+controller demonstrate that an interpreter timeout can interrupt active inspect
+and otherwise select FAIL. Retain AnalysisOutcomeUnresolved with the original
+cause when that native operation remains unconfirmed; preserve ordinary reviewed
+interpretation/source deadlines when no such operation is unresolved. No overlap
+is necessary to demonstrate this defect: preventing a second submission does not
+by itself justify a terminal report for the first one.
+
+The four owners compare their actual deadline/cancellation paths and add bounded
+receiving/controller witnesses where needed. NMRPeak is investigating native
+validation on this basis; do not call it reproduced until its actual terminal
+behavior is shown. Do not freeze a healthy rollout for an unsupported theory,
+add a new SDK API, or launch another numerical campaign. An independent cleanup
+failure and every retained native owner remain visible and prevent false reuse.
+
+D184 — A coincident deadline must not downgrade an independent native failure
+-----------------------------------------------------------------------------
+
+Serious alternatives:
+A. Render the independent failure into the existing safe timeout diagnostic, then
+   retain ordinary preparation pacing. This repairs visibility but still treats
+   a distinct native validation failure as ordinary interpreter unavailability.
+B. Add a mirrored failure field to every unavailable outcome and teach each
+   downstream consumer to reconstruct its authority.
+C. Preserve the original operational failure graph through the existing controller
+   boundary when cancellation carries an independent native failure; keep clean
+   interpreter deadlines on their existing unavailability path.
+
+Choice: C. Magnet's actual native exchange owner joins the original future and
+boot retirement before returning cancellation. Its later validation failure is
+retained on that cancellation, then the enclosing timeout preserves the chain.
+The interpreter/processor projection subsequently drops that independent cause
+and permits ordinary preparation pacing. Both owner investigation and independent
+source review confirm the loss; the owner has a focused interpreter witness.
+
+Logging alone is a serious transparency alternative, but it would leave an error
+that otherwise propagates downgraded only because a timer coincided with it.
+No qualified policy authorizes that automatic continuation. Preserve the original
+TimeoutError/cancellation/native-failure graph and let the existing operational
+controller boundary retain ownership; do not fabricate a public FAIL or wrap the
+error merely to qualify it for held continuation. Ordinary clean aggregate timeout
+and reviewed endpoint unavailability retain their existing behavior. No new error
+framework, outcome schema, SDK release or scientific retry policy is required.
+
+D185 — Distinguish an owned preparation abort from an unknown scientific reply
+-----------------------------------------------------------------------------
+
+Serious alternatives:
+A. Hold every preparation deadline whenever a native return value was not consumed,
+   even when the provider deliberately aborts its whole preparation operation and
+   confirms original retirement before selecting its reviewed deadline outcome.
+B. Treat physical retirement alone as permission to report any unknown operation
+   as failed. This would wrongly turn lost execution replies into scientific FAIL.
+C. Keep a reviewed owned preparation deadline distinct from communication/result
+   uncertainty, and require its actual cancellation and settlement contract.
+
+Choice: C. NMRNet's InputSelectionTimeLimit is the preparation owner's own declared
+limit. It deliberately cancels that operation, joins its source/chooser/native and
+transport owners, and only then returns the reviewed preparation-deadline failure.
+That reports inability to prepare within the selected budget; it does not assert
+a kernel failure, observed crash, no partial calculation or a confirmed lost reply.
+Independent retirement, source or chooser failures stay operational and propagate.
+Existing tests cover those failures; an added in-flight generation/failed-retirement
+witness confirms that they cannot become a public time-limit outcome.
+
+D181/D183 therefore do not require changing this already settled owned-abort policy.
+They do prohibit an outer interpreter deadline from erasing an original validation
+or inspect operation that remains unobserved/unsettled while interpretation retries
+or selects a different public outcome. Confirming physical retirement alone also
+does not resolve a lost scientific execute result; that still follows the shared
+unresolved-outcome contract. Never label our deliberate stop as an observed crash.
+The model/provider owns the reviewed preparation policy; core adds no generic
+policy, state mirror or exception-name classifier.
+
+D186 — Report a proved pre-dispatch deadline without pretending it was sent
+-----------------------------------------------------------------------------
+
+Serious alternatives:
+A. Retain every worker timeout as unresolved, including the branch whose owner
+   proves its deadline expired before the first write. This is conservative but
+   unnecessarily consumes the provider's single live claim and obscures effect state.
+B. Infer no dispatch from generic TimeoutError text, elapsed time or later cleanup.
+   None of those facts proves the request was never written.
+C. Let the existing exchange owner raise a narrow local pre-dispatch deadline
+   exception at that exact branch, keeping in-flight timeouts distinct.
+
+Choice: C. SECS can establish the fact immediately before writer.write, without a
+new flag mirrored through the session or any wire change. Only that local exception
+permits the reviewed work-deadline failure for a request that was never dispatched.
+In-flight/lost replies remain unresolved; shared phase/condition expiry retains its
+original identity. Preserve independent retirement failures and keep the actual
+controller disposition and zero-write witness separate from model/native proof.
+
+This closes the concrete pre-write availability distinction using the actual owner;
+it adds no retry engine, implicit default, new public SDK API or worker-reuse claim.
+Finish this bounded correction in the same qualified consumer slice. Additional
+unrelated improvement ideas remain in their deferred-items notes with owners and
+triggers, rather than continually widening the joint refactor.
+
+D187 — Close the agreed end state with distinct qualification and deployment facts
+--------------------------------------------------------------------------------
+
+Serious alternatives:
+A. Treat SDK publication as completion without the four receiving owners' actual
+   adoption and failure-path evidence.
+B. Keep expanding into new deployment targets, GPU/numerical campaigns or publishing
+   unrelated unpublished consumer history before allowing this refactor to finish.
+C. Close the qualified shared contract and agreed consumer corrections, retaining
+   exact deployment scope and explicit owner-based deferred work.
+
+Choice: C. Provider-core 0.5.2 is issued through the GitHub release workflow. Final
+installed-package qualification passed 648 unit, 15 contract and 174 integration
+checks; source rebuild parity and its 15 contract checks passed, as did 33 native
+checks. The corrected complete repository run passed 343 checks and the issued
+shared runtime passed 34 installed deployment/proxy checks. Earlier failed runs
+remain evidence of the specific corrections, not green runs.
+
+NMRNet and Magnet adopted the issued SDK and completed their existing local and
+remote rollouts, preserving explicit max_retries = 0. Their provider/route/native
+components are healthy with no observed restart or OOM; the original shared delivery
+daemon, queues and shared proxies stayed in place. Host-local image builds have
+distinct identities. Image input identity, build-receipt source, deployment checkout
+and later test-only commits are different facts: never infer a source-revision
+label where the image records only its input digest. Exact operational receipts
+remain with the responsible owners rather than being copied into this design note.
+No new live scientific Job or numerical-accuracy claim was made for this wiring.
+
+SECS completed the unknown-preparation and pre-dispatch corrections with 98 provider
+and 25 native checks, including actual controller/queue, real-child and competing
+phase/observer controls. NMRPeak completed the validation-timeout correction with
+448 unit and 31 integration checks; its issued-SDK adoption also passed 6 contract
+and 41 repository checks. Both have clean local committed adoption and independent
+reviews. Their unpublished histories were not pushed under inferred authorization,
+and no new production deployment or positive scientific retry target was invented.
+The actual worker fixtures, controller/queue evidence and real model/device proof
+remain distinct in those repositories' notes.
+
+Minor deferred work has explicit owners and triggers in the respective notes:
+NMRNet's post-up image inventory race and missing acquisition proxy diagnostics;
+NMRPeak's intermittent dependency callback and short interpreter-fixture budget;
+and SECS's realistic large-artifact identity/resource qualification and raw
+retirement-cancellation limits. Those are not hidden by a later successful run.
+Positive GPU retry, new targets and scientific artifact qualification remain
+separate model-owner work; this closure grants none of them. No additional shared
+API, outcome schema or scientific retry engine is needed for the completed slice.
+
 Supporting qualification references
 -----------------------------------
 
-The immutable SDK release and its qualification logs, issued installation locks,
-source record and hash manifest are published together:
+The current shared-contract release and its exact qualification logs, issued
+installation locks, source record and hash manifest are published together:
+https://github.com/numpde/nmr-provider-tools/releases/tag/v0.5.2
+The authored scope is notes/018_release_v0.5.2.md. This package proof is separate
+from the consumer and deployment receipts summarized in D187.
+
+The preceding SDK release and its qualification records remain available:
 https://github.com/numpde/nmr-provider-tools/releases/tag/v0.5.1
 The authored scope is notes/017_release_v0.5.1.md. Treat installed-artifact and
 source-rebuild evidence separately from a consumer image or live deployment.
