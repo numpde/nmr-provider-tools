@@ -112,7 +112,7 @@ endif
 .PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
 .PHONY: delivery/deployment/up delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard
-.PHONY: publish/prepare publish/release tests/deployment delivery/image/build tests/package
+.PHONY: publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
 
 help:
@@ -139,6 +139,8 @@ help:
 	  'make package/build WHEELHOUSE=... OUTPUT=... Build clean committed source into an empty owned directory.' \
 	  'make tests/package WHEELHOUSE=... ARTIFACTS=... Qualify exact release files and the source rebuild.' \
 	  'make delivery/image/build WHEELHOUSE=... ARTIFACTS=... Build shared delivery from qualified wheel inputs.' \
+	  'make tests/deployment/route SHARED_RUNTIME_IMAGE=sha256:... Qualify private API routes with disposable local services.' \
+	  'make tests/deployment/route/literal SHARED_RUNTIME_IMAGE=sha256:... Qualify mapped IP authority through private API routes.' \
 	  'make tests/deployment SHARED_RUNTIME_IMAGE=sha256:... Qualify installed deployment rendering and proxy boundaries.' \
 	  'make delivery/deployment/up DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... Start directly from operator config and secrets.' \
 	  'make delivery/deployment/down PROJECT=... Stop shared delivery and preserve all volumes.' \
@@ -154,6 +156,12 @@ packages/provider-core/download:
 
 packages/provider-core/check:
 	bash tools/provider_core.sh check
+
+tests/deployment/route:
+	bash tools/delivery_route_tests.sh
+
+tests/deployment/route/literal:
+	bash tools/delivery_route_tests.sh --literal-ip
 
 tests/deployment:
 	bash tools/delivery_tests.sh
