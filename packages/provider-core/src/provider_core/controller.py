@@ -20,6 +20,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum, auto
 
+from provider_core.task_boundary import contain_task_exit
 from provider_core.analysis import retire_session
 from provider_core.api import ApiFailure
 from provider_core.attempt_record import AcknowledgedAttempt, RecoveryScope, StartPending
@@ -51,6 +52,7 @@ class ControllerFailed(RuntimeError):
         )
         self.cause = cause
         self.cleanup_failures = cleanup_failures
+        self.interruption_cause = None
 
 
 class _Lifetime(Enum):
@@ -255,14 +257,25 @@ class AttemptController:
             self._reserve_start(pending)
             self._driver = _create_owned_task(self._drive(pending))
             self._driver.add_done_callback(_observe_task_failure)
-        except (Exception, asyncio.CancelledError) as cause:
+        except (Exception, BaseExceptionGroup, asyncio.CancelledError, KeyboardInterrupt, SystemExit) as cause:
             self._remember(cause)
             try:
-                await self._retire_after_failure()
+                cleanup_fatal = await self._retire_after_failure()
+            except asyncio.CancelledError as interruption:
+                if isinstance(cause, asyncio.CancelledError):
+                    self._link_interruption(cause)
+                    raise cause from self.last_failure
+                self._link_interruption(interruption)
+                raise
             finally:
                 self._lifetime = _Lifetime.HELD
             if isinstance(cause, asyncio.CancelledError):
+                self._link_interruption(cause)
                 raise
+            if not isinstance(cause, Exception):
+                raise BaseExceptionGroup("Attempt admission raised a process-control exception", (cause, self.last_failure)) from None
+            if cleanup_fatal is not None:
+                raise BaseExceptionGroup("Attempt admission failed during cleanup", (cleanup_fatal, self.last_failure)) from None
             raise self.last_failure from None
         return await self.join()
 
@@ -306,7 +319,7 @@ class AttemptController:
 
     async def _drive(self, pending):
         try:
-            return await self._run_lifetime(pending)
+            return await contain_task_exit(self._run_lifetime, pending)
         except asyncio.CancelledError as cause:
             # Task observation reconstructs CancelledError; retain the original
             # exception so its independent cleanup evidence is not erased.
@@ -316,7 +329,7 @@ class AttemptController:
     async def _run_lifetime(self, pending):
         self._start_deferred = None
         try:
-            result = await self._run_effects(pending)
+            result = await contain_task_exit(self._run_effects, pending)
             if (type(result) is StartDeferred and result.may_have_committed) or type(result) is ActiveStartReplayHeld:
                 return result
             self._claim.release(owner=self)
@@ -324,11 +337,24 @@ class AttemptController:
             return result
         except asyncio.CancelledError as cause:
             self._remember(cause)
-            await self._retire_after_failure()
+            try:
+                await self._retire_after_failure()
+            except asyncio.CancelledError:
+                self._link_interruption(cause)
+                raise cause from self.last_failure
+            self._link_interruption(cause)
             raise
-        except Exception as cause:
+        except (Exception, BaseExceptionGroup) as cause:
             self._remember(cause)
-            await self._retire_after_failure()
+            try:
+                cleanup_fatal = await self._retire_after_failure()
+            except asyncio.CancelledError as interruption:
+                self._link_interruption(interruption)
+                raise
+            if not isinstance(cause, Exception):
+                raise BaseExceptionGroup("Attempt lifecycle raised a process-control exception", (cause, self.last_failure)) from None
+            if cleanup_fatal is not None:
+                raise BaseExceptionGroup("Attempt cleanup raised a process-control exception", (cleanup_fatal, self.last_failure)) from None
             raise self.last_failure from None
         finally:
             if self._lifetime is _Lifetime.RUNNING:
@@ -495,8 +521,11 @@ class AttemptController:
         except asyncio.CancelledError as cause:
             self._remember(cause, cleanup=True)
             raise
-        except Exception as cause:
+        except (Exception, BaseExceptionGroup) as cause:
             self._remember(cause, cleanup=True)
+            if not isinstance(cause, Exception):
+                return cause
+        return None
 
     async def settle(self):
         """Settle exact owners and release only after confirmed session retirement."""
@@ -516,18 +545,32 @@ class AttemptController:
                 operations = (self._retire_session, self._settle_operation)
             for operation in operations:
                 try:
-                    value = await operation()
+                    value = await contain_task_exit(operation)
                     if value is not None:
                         result = value
-                except (Exception, asyncio.CancelledError) as cause:
+                except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cause:
                     failures.append(cause)
                     self._remember(cause, cleanup=True)
             if failures:
                 for cause in failures:
                     if isinstance(cause, asyncio.CancelledError):
+                        self._link_interruption(cause)
                         raise cause
+                for cause in failures:
+                    if not isinstance(cause, Exception):
+                        raise BaseExceptionGroup("Attempt settlement raised a process-control exception", (cause, self.last_failure)) from None
                 raise self.last_failure from None
-            await self.delivery.retire()
+            try:
+                await contain_task_exit(self.delivery.retire)
+            except asyncio.CancelledError as cause:
+                self._remember(cause, cleanup=True)
+                self._link_interruption(cause)
+                raise
+            except (Exception, BaseExceptionGroup) as cause:
+                self._remember(cause, cleanup=True)
+                if not isinstance(cause, Exception):
+                    raise BaseExceptionGroup("Attempt delivery retirement raised a process-control exception", (cause, self.last_failure)) from None
+                raise self.last_failure from None
             if self._claim is not None:
                 if (
                     not isinstance(self._operation, AttemptExecutor)
@@ -555,7 +598,7 @@ class AttemptController:
             return
         if isinstance(self._operation, AttemptExecutor) and self._operation.retirement_confirmed:
             return
-        await retire_session(self.session)
+        await contain_task_exit(retire_session, self.session)
         # Record only this controller's cleanup confirmation. Execution retains
         # its own confirmation; an approved handoff can finish independently.
         self._retired_by_controller = True
@@ -570,11 +613,19 @@ class AttemptController:
 
     # silent-defaults: allow-contract -- Ordinary call failures are primary; cleanup callers explicitly add an independent failure while preserving the primary cause.
     def _remember(self, cause, *, cleanup=False):
-        original = self.last_failure
-        cleanup_failures = ()
-        if original is not None and cleanup:
-            cleanup_failures = (*original.cleanup_failures, cause)
-        self.last_failure = ControllerFailed(
-            original.cause if original is not None else cause,
-            cleanup_failures,
-        )
+        if self.last_failure is None:
+            self.last_failure = ControllerFailed(cause, ())
+        elif cleanup:
+            self.last_failure.cleanup_failures = (*self.last_failure.cleanup_failures, cause)
+
+    def _link_interruption(self, interruption):
+        """Keep original interruption evidence and this owner's current cleanup."""
+        previous = interruption.__cause__
+        if previous is self.last_failure:
+            return
+        retained = self.last_failure.interruption_cause
+        if retained is None:
+            self.last_failure.interruption_cause = previous
+        elif previous is not None and previous is not retained:
+            self.last_failure.interruption_cause = BaseExceptionGroup("Attempt interruption observations", (retained, previous))
+        interruption.__cause__ = self.last_failure

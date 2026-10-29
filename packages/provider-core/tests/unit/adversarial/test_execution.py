@@ -57,7 +57,8 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(asyncio.CancelledError) as second:
             await controller.settle()
         self.assertIs(second.exception, interruption)
-        self.assertIs(interruption.__cause__, previous)
+        self.assertIs(interruption.__cause__, controller.last_failure)
+        self.assertIs(controller.last_failure.interruption_cause, previous)
         self.assertEqual(len(transport.calls), 1)
         session.retirement_failure = None
         await controller.settle()

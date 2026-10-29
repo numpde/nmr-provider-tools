@@ -67,6 +67,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/runner_protocol.py",
                 "provider_core/runner_session.py",
                 "provider_core/async_runner_session.py",
+                "provider_core/task_boundary.py",
                 "provider_core/process_status.py",
                 "provider_core/result_verbosity.py",
                 "provider_core/chat.py",
