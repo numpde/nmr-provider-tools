@@ -3687,3 +3687,83 @@ through actual provider retirement, then releases/stops the peer and verifies
 its success and exact cleanup. Do not mask provider failures, add a production
 protocol, invent another timeout policy or infer completed cleanup from a marker.
 Magnet owns the narrow proof-fixture correction and its focused validation.
+
+D121 -- Review availability policy separately from operation replay permission (2026-10-29 04:55 UTC)
+--------------------------------------------------------------------------------
+
+Magnet's reproduced settled Jobs GET failure retains CONNECT 200 followed by
+TLS handshake EOF: ConnectError, EndOfStream and SSLEOFError. Its live incumbent
+also has DNS-connect failures. NMRNet points out that an errno or wrapper shape
+does not reliably prove an outage permanent. Fixing fixture ordering alone would
+not answer that real safe-read recovery question.
+
+Serious alternatives:
+A. Add one more exact wrapper-chain exception to the shared temporary predicate.
+   This addresses one stack but keeps availability coupled to library packaging.
+B. Retry every exception after any request. This can hide local programming or
+   protocol faults and grant unreviewed capability issuance/mutation replay.
+C. Establish network-availability evidence at the actual transport boundary,
+   then let each existing operation-specific API contract grant the next request.
+
+Choice under joint review: C. Safe, settled GETs should not need proof that DNS
+or peer disconnection will recover. Preserve fresh signing, caller backoff/stop
+and exact current failure/retirement evidence; do not relax TLS verification or
+turn local/accounting/decoder defects into network permission. Keep wrong-target,
+invalid-configuration and admitted protocol failures distinct. Review Hello's
+explicit fresh-current-announcement contract too, so a GET-only change does not
+leave another background owner failing on the same outage. Shared grant/START/
+terminal permissions must not broaden accidentally through a generic helper.
+The exact class boundary and compatibility consequences remain open; no broad
+classifier change is approved before that joint review and causal witnesses.
+
+D122 -- Keep model endpoint facts separate from per-Attempt HTTP ownership (2026-10-29 04:55 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak proposes keeping its frozen interpreter configuration reusable, with one
+per-Attempt InterpretationSession adopted by AnalysisSession before HTTP effects.
+
+Serious alternatives:
+A. Keep the shared HTTPX client and private response-release Task collection.
+   This leaves the competing exchange lifecycle that D085 removes.
+B. Adopt ChatEndpoint and change the model's request/repair/parser policy.
+   That is a different scientific protocol migration.
+C. Let the actual Attempt's interpretation session own its current SDK transport,
+   while frozen endpoint facts and NMR-specific model policy remain reusable.
+
+Choice: C. Preserve the harness's existing five-second per-send pacing through
+an explicit before_request hook inside the existing request deadline. After
+pacing, derive exchange_seconds from the remaining request allowance and
+retirement_seconds from the remaining turn allowance, with D115's absolute
+not_after cap preventing renewal. Never allocate replacement transport while
+its predecessor remains unsettled. Unconfirmed cleanup escapes endpoint fallback
+and keeps the original analysis/controller/lifetime exclusion held.
+
+Retain HTTPX's actual trust_env=False/certifi trust profile, request JSON,
+finish_reason handling and endpoint retry policy. No SDK request-hook framework,
+new timeout setting or response-release Task registry is introduced. Actual
+adapter and held-cleanup qualification remain pending; source proposals do not
+establish installed behavior.
+
+D123 -- Refuse newly observed HTTP success after its absolute cap (2026-10-29 04:57 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet's integrated D115 review found a boundary the first tests did not cover:
+asyncio.wait can resume after the absolute cap with the original task already
+done. Checking only its done set could then return success past the caller's cap.
+
+Serious alternatives:
+A. Treat not_after only as the wait's scheduled timeout, accepting completed
+   responses whenever that observer eventually resumes. This leaves the model
+   turn's absolute admission boundary dependent on event-loop scheduling.
+B. Add a separate completion-time record and let the caller infer permission
+   from that timestamp. No current consumer requires that additional authority.
+C. Check the actual loop time when observation resumes; past the cap, retain
+   timeout/failure and original cleanup evidence instead of returning new success.
+
+Choice: C. This is an opt-in absolute cap, not just another relative wait hint.
+Keep the already completed original task/result and its head/cleanup facts at
+their existing owner; retirement may confirm settlement but cannot turn deadline
+failure into a usable response. Preserve any independent native failure under
+the existing failure/interruption rules. None keeps the published default timing.
+Add one causal scheduling witness before correcting this admission check; do not
+invent a new timestamp registry or change NMRNet's non-opt-in scientific policy.
