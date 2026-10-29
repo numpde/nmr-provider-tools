@@ -3550,3 +3550,28 @@ nested issuer files as maintained Docker inputs. The retained consumer build
 backend remains consumer-owned. Qualify pip's actual merge; if it refuses, report
 that evidence instead of editing issuer bytes. This does not introduce private
 PyPI resolution, another publisher or canonical-cache seeding.
+
+D117 -- Scope the deadline-cap upgrade to consumers that need it (2026-10-29 04:38 UTC)
+--------------------------------------------------------------------------------
+
+NMRNet asks whether the additive deadline-cap patch requires it to replace the
+published0.5 wheel and redo its canonical images. Its integration does not use
+the missing NMRPeak model-turn cap.
+
+Serious alternatives:
+A. Require every consumer and shared service to move in one patch-release wave.
+   This simplifies version inventory but repeats image acquisition/qualification
+   for consumers whose existing declared behavior is already proved.
+B. Keep the cap private in NMRPeak to avoid another shared release. This revives
+   the duplicate ownership rejected in D115.
+C. Publish the optional shared capability for NMRPeak; preserve other consumers'
+   qualified0.5 identities unless an actual changed contract requires adoption.
+
+Choice: C. NMRPeak needs the new cap. Other owners may finish their ordinary0.5
+canonical builds and retain those exact proofs. Verify unchanged default behavior
+and wire/IPC contracts before claiming cross-version compatibility; do not invent
+a mandatory fleet-wide upgrade for package-version uniformity. Shared-runtime
+image selection remains explicit and immutable. D115's cutover hold prevents an
+unplanned replacement wave; it is not a reason to rebuild unaffected providers
+or block their preparation. Any actual shared-service replacement still requires
+the existing owners' work/queue/binding coordination and their real authorization.
