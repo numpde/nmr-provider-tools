@@ -1849,3 +1849,208 @@ loss without direct fallback, local/mapped/external routing and signed HTTPS.
 Magnet's current API-derived extra_hosts can also affect a model using the same
 hostname: trace and preserve or explicitly migrate that model mapping before
 deleting it. Separate transport objects alone do not prove unchanged routing.
+
+D063 -- Unexpected background process exits are provider failures (2026-10-29 00:35 UTC)
+-----------------------------------------------------------------------------
+
+The consumers proposed different CLI meanings for a contained SystemExit:
+Magnet preserved a sole integer/None status, while SECS/NMRPeak treated a failed
+owned operation as an infrastructure failure. Preserving the original exception
+alone does not choose the process outcome.
+
+Serious alternatives:
+A. Preserve direct Python exit semantics for any sole grouped SystemExit,
+   including status0/None. This can report success after an unexpected scientific
+   or lifecycle operation failed to produce its required outcome.
+B. Use the CLI's existing nonzero infrastructure-failure status after its owners
+   settle, preserving the original fatal object/code in protected evidence.
+C. Special-case selected numerical values and mixed-group combinations. This
+   adds status parsing without establishing a legitimate clean shutdown.
+
+Choice: B for unexpected exceptions from retained background operations. The
+AnalysisSession contract returns an admitted handle/outcome; SystemExit is not
+its normal stop protocol. Background SystemExit(0) cannot establish successful
+provider completion. Mixed independent failures also remain failures. Use existing
+safe diagnostic projection, never a raw private group traceback.
+
+This does not change true top-level CLI exits such as help, or actual operator
+signal/normal admission-stop behavior. Scripted KeyboardInterrupt is not evidence
+that an OS SIGINT occurred. No shared exit-code parser is needed: each CLI keeps
+its ordinary failure code and retains failed/held owners until actual proof.
+
+D064 -- Preserve original fatal causes and outward cleanup evidence (2026-10-29 00:55 UTC)
+--------------------------------------------------------------------------------
+
+Independent probes from the SDK, Magnet and NMRNet found two defects in the
+uncommitted D060 implementation: assigning the owner's record as the original
+fatal group's cause can create a cycle, while preserving an existing cause by
+raising only that group hides independent cleanup failures from outward evidence.
+Settlement can likewise raise the first fatal group and hide a later one.
+
+Serious alternatives:
+A. Replace the original group's cause with the owner record. This discards an
+   existing causal relationship and can point back to the same group.
+B. Preserve the original group alone and require callers to inspect last_failure.
+   The escaping failure then gives an incomplete account of failed cleanup.
+C. Raise a new group containing the original fatal group and the canonical owner
+   record. Keep the original objects and their existing causes unchanged.
+
+Choice: C. The owner record remains the authority for primary and independent
+cleanup evidence; the new envelope makes that record reachable without mutating
+the original cause. Apply the same rule at run, failed admission and settlement
+escapes. Keep ordinary exception behavior and cancellation precedence. Retain
+delivery cleanup failure only where cleanup is already permitted: this does not
+authorize closing delivery while a selected report still needs its original owner.
+
+Evidence: the installed SDK probes and Magnet's two actual AttemptExecutor
+witnesses lose independent retirement/delivery evidence in the current candidate.
+These are correction witnesses, not proof that the correction has landed. Close
+this slice with those focused witnesses and issue the next consumer candidate.
+
+D065 -- Never retry an uncertain lifetime-lock descriptor close (2026-10-29 00:55 UTC)
+--------------------------------------------------------------------------------
+
+SECS exposed the same descriptor-ownership defect in ProviderLifetime: close can
+release its descriptor and still report failure. The integer may already belong
+to an unrelated file when a later close retries it.
+
+Serious alternatives:
+A. Keep the descriptor and retry close. This risks closing an unrelated reused FD.
+B. Clear it and treat the lifetime as clean. This claims release despite failure.
+C. Detach the descriptor before the syscall, retain the exact close failure, and
+   refuse reuse of this lifetime owner after an uncertain release.
+
+Choice: C. Repeated close reports the original failure without another syscall;
+open refuses with that retained cause. Failed admission plus failed close keeps
+both failures in a group. Do not add a consumer workaround or a descriptor ledger.
+
+The proposal's real FD-reuse witness fails before the change. Its isolated
+installed lane passes five lifetime tests and 33 native tests; root integration
+and verification are still required. Descriptor detachment is not proof that
+other API, delivery or scientific owners have settled.
+
+D066 -- Retry source transfer only from the exact settled exchange (2026-10-29 00:55 UTC)
+--------------------------------------------------------------------------------
+
+SECS needs its established bounded source retry behavior during SDK adoption.
+An error type alone cannot distinguish a failed network read from the same
+exception raised by accounting, private-file I/O or another local callback.
+
+Serious alternatives:
+A. Classify any familiar exception anywhere in the chain as retryable. This can
+   retry local failures and corrupted input.
+B. Keep a private SECS classifier inspecting SDK internals. This duplicates the
+   exchange owner and leaves other consumers unable to use the same evidence.
+C. Retain exact network-origin evidence at the actual transport await, then let
+   UploadTransfer classify only its current failure after all exchange/file
+   cleanup is confirmed.
+
+Choice: C. Preserve exact grant and outcome identity. A marker is provenance,
+not retry permission. Admit SECS's complete 401/503/507 responses and the reviewed
+temporary network causes. A truncated-stream protocol error requires the exact
+valid whole-file response head; bad headers, hashes, TLS, disk, accounting,
+interruption and unsettled owners do not qualify. Request count, pacing, fresh
+grant issuance, source selection and aggregate budgets remain provider-owned.
+
+Move the existing temporary-I/O predicate to its shared transport owner and update
+all three actual consumers, including delivery_client; do not copy it. Preserve
+the existing bounded eight-level cause traversal: exact native/httpcore timeout
+types, DNS EAI_AGAIN, and the reviewed connection/reset/abort/timeout/network-down/
+unreachable/broken-pipe errno set in api._temporary_io_failure. Unknown wrappers,
+TLS and other protocol failures remain outside that predicate. The proposed
+transport.temporary_io_failure is a move of that authority, not a broader policy.
+Its separate RemoteProtocolError permission is constrained as described above.
+Preserve JobUploads policy and validation. For this predicate, reject Transfer-Encoding
+heads as legacy SECS did. Broadening the common response validator is a separate
+contract change and is not necessary to preserve this migration's behavior.
+
+The reviewed proposal passed 521 installed unit and 33 native tests before that
+last conservative header restriction; its final focused run passed 11 retry and
+33 native tests. These qualify the isolated proposal, not the repository tree.
+
+D067 -- Keep scientific evidence with its scientific owner (2026-10-29 00:55 UTC)
+--------------------------------------------------------------------------------
+
+SECS found that the shared safe renderer cannot discover a worker's arbitrary
+diagnostic attribute. The child already produces a protected structural graph.
+
+Serious alternatives:
+A. Teach the generic renderer to inspect arbitrary provider attributes. This
+   creates an implicit provider-specific protocol at the SDK boundary.
+B. Add a second child diagnostic schema and re-project the same graph. This
+   duplicates the scientific evidence authority.
+C. Give the provider's scientific failure an explicit carrier and retain the
+   child's existing projected graph beside shared lifecycle evidence.
+
+Choice: C, as implemented by the SECS owner in
+src/secs_inference/provider/worker_protocol.py::ScientificWorkerFailed and
+src/secs_inference/provider/session.py. Keep science-specific projection
+local and the shared renderer structural. Its focused witness covers the missing
+RuntimeError-to-OSError chain without private messages. That witness does not
+replace proof of the actual child process fault; SECS owns that remaining check.
+
+Open design -- Project credentials across actual runtime identities (2026-10-29 00:55 UTC)
+--------------------------------------------------------------------------------
+
+D062's private API proxy does not solve credential-file admission. SDK runtime
+admission requires its own UID and mode 0400/0600; NMRPeak currently grants a
+different runtime UID access through an ACL on the operator's source file.
+
+Serious alternatives under review:
+A. Weaken runtime admission or change the original credential's ownership/mode.
+   This changes an existing security boundary and may disrupt another runtime.
+B. Run all consumers under the source owner's UID. This removes their currently
+   explicit runtime-identity boundary and has not been jointly justified.
+C. Capture a separate private, immutable startup snapshot for each declared
+   runtime UID, using an actor actually authorized to read the source and create
+   that destination. Preserve the strict runtime reader.
+
+No implementation choice is final. Prefer C only after establishing the actual
+reader, destination ownership grant and existing ACL policy from repository code.
+A plain copy cannot grant cross-UID ownership, and a root initializer with CHOWN
+alone cannot traverse an operator-private source directory. Do not put secrets
+in the proxy, invent four parsers or claim proxy qualification proves credential
+admission. Record the settled capture design here before implementing it.
+
+D068 -- Preserve the controller's canonical failure record (2026-10-29 00:56 UTC)
+-------------------------------------------------------------------------------
+
+D064 must also preserve caller cancellation and its existing cause while making
+independent cleanup evidence reachable. Controller currently replaces its record
+when later cleanup fails, unlike AttemptExecutor's retained record.
+
+Serious alternatives:
+A. Change cancellation into an exception group. This loses the established
+   cancellation outcome and original CancelledError identity.
+B. Link cancellation to a replaceable snapshot. Later independent cleanup then
+   belongs to a different record and can disappear from outward evidence.
+C. Retain the first ControllerFailed record, append independent observations to
+   it, and use the executor's existing interruption-link pattern.
+
+Choice: C. Preserve any previous cancellation cause in an explicit owned
+interruption_cause relationship before linking the canonical record. Extend the
+existing safe projection for that relationship. No additional failure registry
+or generic task manager is needed. Qualify original cancellation identity,
+previous causal evidence and later cleanup visibility in the focused correction.
+
+Open design -- Reuse transfer recovery through JobUploads (2026-10-29 00:56 UTC)
+-------------------------------------------------------------------------------
+
+D066 alone does not complete NMRNet's ordinary source-outage recovery. Its caller
+uses JobUploads; the transfer owner is private, and the current outer operation
+clears its inspected membership after failure. Its buffered download also bypasses
+UploadTransfer._operation, so resetting provenance only there is insufficient.
+
+Serious alternatives under review:
+A. Copy the transfer policy and selected membership into each consumer. This
+   mirrors shared facts and risks refunding already-consumed request/byte work.
+B. Add public delegation and retain an explicit original selection at the
+   existing owner, requiring each retry to revalidate that selection.
+C. Offer bounded, opt-in recovery inside JobUploads while it still owns the
+   original snapshot and all cumulative budgets.
+
+No choice between B and C is final. Reset provenance at each real acquisition
+across both entry paths, and never treat a predicate as implicit dispatch.
+Preserve the different existing budgets: JobUploads counts every received byte,
+including failed transfer bytes; SECS charges its admitted successful bytes.
+Fresh issuance must revalidate the original membership and selected Upload.
