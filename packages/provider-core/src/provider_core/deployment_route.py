@@ -135,12 +135,13 @@ def _proxy_route(service, binding, interpreter, input_sources, role):
     return networks
 
 
-def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storage, input_sources):
+def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storage, input_sources, service_name=None):
     """Render an admitted binding without reading secrets or preparing host paths.
 
     Captured input paths relocate only existing grants. Frozen launchers supply
     their capture map; an explicit empty map uses the original admitted sources.
     The consumer drains its API owner before retiring the returned proxy roles.
+    Omitted service_name preserves delivery's identity-derived service roles.
     """
     if type(binding) is not DeploymentBinding:
         raise RouteProjectionRejected("Cannot render API route: select an admitted DeploymentBinding.")
@@ -148,6 +149,8 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
         raise RouteProjectionRejected("Cannot render API route: select an immutable full image ID.")
     if type(namespace) is not str or re.fullmatch(r"[a-z0-9][a-z0-9_-]*", namespace) is None:
         raise RouteProjectionRejected("Cannot render API route: select a lowercase Compose namespace containing letters, digits, hyphens or underscores.")
+    if service_name is not None and (type(service_name) is not str or re.fullmatch(r"[a-z0-9][a-z0-9_-]*", service_name) is None):
+        raise RouteProjectionRejected("Cannot render API route: an explicit service name requires lowercase letters, digits, hyphens or underscores.")
     _identity(uid, gid)
     interpreter = _path(interpreter)
     if type(input_sources) is not dict or not set(input_sources) <= set(input_paths((binding,))):
@@ -156,6 +159,8 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
         _path(target)
     key = binding.ipc_volume.removeprefix(binding.project + "-ipc-")
     role = "api-" + key[:16]
+    if service_name is not None:
+        role = service_name
     service = _service(image, interpreter, namespace, key, uid, gid)
     services, volumes = {role: service}, {}
     target = "/routes/" + key
@@ -168,6 +173,8 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
         service["volumes"] = [_volume(volume, "/route", readonly=False)]
         client_mount = _volume(volume, target, readonly=True)
         initializer = "api-init-" + key[:16]
+        if service_name is not None:
+            initializer = service_name + "-init"
         services[initializer] = _named_initializer(image, interpreter, namespace, key, uid, gid, volume)
         service["depends_on"] = {initializer: {"condition": "service_completed_successfully"}}
     elif type(storage) is RouteDirectory:
@@ -227,6 +234,7 @@ def main():
     renderer = commands.add_parser("render")
     renderer.add_argument("--definition", type=Path, required=True)
     renderer.add_argument("--binding", required=True)
+    renderer.add_argument("--service-name")
     for name in ("image", "interpreter", "namespace"):
         renderer.add_argument("--" + name, required=True)
     for command in (renderer, commands.add_parser("initialize")):
@@ -253,7 +261,7 @@ def main():
                 grant = RouteDirectory(options.directory)
             projection = render_api_route(selected, image=options.image, interpreter=options.interpreter,
                                           namespace=options.namespace, uid=options.uid, gid=options.gid,
-                                          storage=grant, input_sources=sources)
+                                          storage=grant, input_sources=sources, service_name=options.service_name)
             print(json.dumps(asdict(projection), ensure_ascii=True, sort_keys=True))
         return 0
     # silent-defaults: allow-exception-outcome -- The CLI reports safe retained evidence and refuses the requested projection or initialization.
