@@ -207,6 +207,8 @@ file receipt still requires verified readback before scientific parsing.
 With `JobUploads`, supply `UploadRecovery` to enable retries within those same
 limits. Take ownership of returned data before reporting `recovery_failure`,
 which lasts until the next source operation.
+`UploadRecoveryExhausted` identifies a retryable outage whose bounded recovery
+ended after its original resources retired; its cause retains the current outage.
 
 Use [deployment_route](src/provider_core/deployment_route.py) to render a selected
 binding's API proxy and read-only socket grant. Single-binding providers can

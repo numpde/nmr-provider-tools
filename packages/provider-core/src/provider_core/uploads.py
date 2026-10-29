@@ -56,6 +56,10 @@ class UploadLimits:
             raise ValueError("Cannot configure Upload acquisition: duration must be finite positive seconds")
 
 
+class UploadRecoveryExhausted(UploadFailed):
+    """An eligible source outage exhausted opt-in recovery after exact retirement."""
+
+
 @dataclass(frozen=True, slots=True)
 class UploadRecovery:
     """Bound logical source attempts within the owner's original spent budgets.
@@ -707,22 +711,44 @@ class JobUploads:
                 self._remember_recovery_failure(resource_owner.last_failure)
             raise UploadFailed("the source session's total deadline expired", cause=resource_owner.last_failure) from None
 
+    def _recovery_exhausted(self, reason, failure):
+        if isinstance(failure, UploadFailed):
+            exhausted = UploadRecoveryExhausted(
+                reason, response=failure.response, cause=failure, cleanup_failures=failure.cleanup_failures,
+                interruption=failure.interruption,
+            )
+            exhausted.grant_issued = failure.grant_issued
+        else:
+            exhausted = UploadRecoveryExhausted(reason, cause=failure)
+        self._retain_grant_issuance(exhausted)
+        return exhausted
+
+    def _require_recovery_capacity(self, failure, selected):
+        try:
+            self._require_request_capacity()
+            minimum_requests = 1
+            if selected is not None:
+                minimum_requests = 3
+                self._require_remaining_bytes(selected)
+            available = self._limits.requests - self._requests
+            if available < minimum_requests:
+                raise UploadFailed(
+                    f"the next source attempt requires {minimum_requests} requests but only {available} remain"
+                )
+        except UploadFailed as budget:
+            raise self._recovery_exhausted("source recovery exhausted its original budgets: " + budget.reason, failure) from None
+
     def _require_recovery_wait(self, seconds, failure):
         try:
             remaining = self._require_request_capacity()
         except UploadFailed as exhausted:
-            raise UploadFailed(
-                "source recovery has no request capacity or time remaining",
-                cause=BaseExceptionGroup("Source outage and exhausted acquisition budget", (failure, exhausted)),
+            raise self._recovery_exhausted(
+                "source recovery exhausted its original budgets: " + exhausted.reason, failure,
             ) from None
         if seconds >= remaining:
-            budget = UploadFailed(
-                f"the required wait of {seconds:g} seconds cannot fit with only {remaining:g} seconds "
-                "remaining before the original deadline"
-            )
-            raise UploadFailed(
-                "source recovery wait cannot fit before the original deadline",
-                cause=BaseExceptionGroup("Source outage and recovery wait budget", (failure, budget)),
+            raise self._recovery_exhausted(
+                f"source recovery wait of {seconds:g} seconds cannot fit with only {remaining:g} seconds "
+                "remaining before the original deadline", failure,
             ) from None
 
     async def _retire_recovery(self, failure, *, store_owner):
@@ -762,26 +788,25 @@ class JobUploads:
             raise BaseExceptionGroup("Source recovery retirement raised process-control exceptions", (*fatal, record)) from None
         raise record from None
 
-    async def _recover_source(self, operation, *, upload_ref=None, store_owner=None):
+    async def _recover_source(self, operation, *, selected=None, store_owner=None):
         policy = self._recovery
         if policy is None:
             return await operation()
         delay = policy.initial_seconds
+        retired_outage = None
         for attempt in range(policy.maximum_attempts):
             if policy.stopping.is_set():
                 raise UploadFailed("source acquisition stopped before another request", cause=self.recovery_failure)
             if attempt:
+                self._require_recovery_capacity(retired_outage, selected)
                 self._transfer_owner._reset_failure()
-                if upload_ref is not None:
-                    self._select(upload_ref)
+                retired_outage = None
             try:
                 return await operation()
             except Exception as failure:
                 self._retain_grant_issuance(failure)
                 self._remember_recovery_failure(failure)
                 self.last_failure = failure
-                if attempt + 1 == policy.maximum_attempts:
-                    raise
                 await self._retire_recovery(failure, store_owner=store_owner)
                 api_failure = failure
                 if isinstance(failure, UploadFailed) and type(failure.cause) is ApiFailure:
@@ -789,13 +814,19 @@ class JobUploads:
                 api_permitted = (
                     type(api_failure) is ApiFailure and (
                         self._api.can_retry_read(api_failure)
-                        or upload_ref is not None and self._api.can_renew_read_grant(
-                            api_failure, job_ref=self.job_ref, upload_ref=upload_ref,
+                        or selected is not None and self._api.can_renew_read_grant(
+                            api_failure, job_ref=self.job_ref, upload_ref=selected.upload_ref,
                         )
                     )
                 )
                 if not (api_permitted or self._transfer_owner.can_retry_transfer(failure)):
                     raise
+                if policy.stopping.is_set():
+                    raise UploadFailed("source acquisition stopped before another request", cause=self.recovery_failure)
+                retired_outage = failure
+                if attempt + 1 == policy.maximum_attempts:
+                    raise self._recovery_exhausted("source recovery exhausted its configured attempt limit", failure) from None
+                self._require_recovery_capacity(failure, selected)
                 floor = None
                 if api_permitted:
                     floor = api_failure.retry_after_seconds
@@ -839,7 +870,7 @@ class JobUploads:
             async def acquire():
                 grant = await self._grant(selected)
                 return await self._transfer_owner._download(grant)
-            return await self._recover_source(acquire, upload_ref=selected.upload_ref)
+            return await self._recover_source(acquire, selected=selected)
 
     def _select(self, upload_ref):
         require_upload_ref(upload_ref)
@@ -850,14 +881,17 @@ class JobUploads:
         if selected is None:
             raise UploadInputRejected("selected Upload is not in the inspected Job membership; inspect and select again")
         # Correction cannot revive spent work. Neither refusal issues a grant.
-        if selected.byte_length > self._limits.total_bytes - self._received:
-            raise UploadFailed("selected Upload exceeds the source session's remaining byte budget")
+        self._require_remaining_bytes(selected)
         if selected.byte_length > self._limits.per_source_bytes:
             raise UploadInputRejected(
                 f"selected Upload has {selected.byte_length} bytes and exceeds the fixed "
                 f"{self._limits.per_source_bytes}-byte per-source limit; select a smaller Upload"
             )
         return selected
+
+    def _require_remaining_bytes(self, selected):
+        if selected.byte_length > self._limits.total_bytes - self._received:
+            raise UploadFailed("selected Upload exceeds the source session's remaining byte budget")
 
     async def _grant(self, selected):
         refreshed = await self._call(self._api, self._api.uploads, self.job_ref)
@@ -883,7 +917,7 @@ class JobUploads:
                 return await self._transfer_owner.acquire_file(
                     lambda: self._grant(selected), directory_fd=directory_fd, retirement_seconds=retirement_seconds,
                 )
-            return await self._recover_source(acquire, upload_ref=selected.upload_ref, store_owner=self)
+            return await self._recover_source(acquire, selected=selected, store_owner=self)
 
     async def settle_file(self):
         """Observe the original private-file cleanup without starting a new transfer."""
