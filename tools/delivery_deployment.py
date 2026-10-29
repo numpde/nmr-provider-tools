@@ -18,12 +18,12 @@ import re
 import stat
 import sys
 from pathlib import Path
-from urllib.parse import urlsplit
 
 import tomli_w
 
 from provider_core.deployment_binding import BindingDefinitionRejected, parse_deployment_bindings
 from provider_core.delivery_client import DeliveryClient, DeliveryEndpoint
+from provider_core.deployment_route import NamedRouteVolume, RouteProjectionRejected, render_api_route
 from provider_core.diagnostics import failure_evidence
 from provider_core.failure_projection import owned_details
 from provider_core.startup_file import read_startup_file
@@ -39,7 +39,7 @@ class DeliveryDeploymentRejected(ValueError):
 
 
 def _details(error, text, diagnostic_window):
-    if type(error) in (DeliveryDeploymentRejected, BindingDefinitionRejected):
+    if type(error) in (DeliveryDeploymentRejected, BindingDefinitionRejected, RouteProjectionRejected):
         return {"message": str(error)}
     return owned_details(error)
 
@@ -96,39 +96,6 @@ def admit_listeners(definition):
     return listeners
 
 
-def _proxy(binding, definition, image, key, route_volume):
-    route = binding.route
-    service = _service(image, "provider_core.provider_proxy", definition, 15)
-    service["depends_on"] = {"init": {"condition": "service_completed_successfully"}}
-    service["labels"]["org.nmr-provider-tools.binding"] = key
-    parsed = urlsplit(binding.api["origin"])
-    port = parsed.port
-    if port is None:
-        port = 443
-    command = ["--mode", route["mode"], "--interface", route["interface"], "--log-level", route["log_level"],
-               "--socket", "/route/proxy.sock", "--ready-file", "/route/ready", "--status-directory", "/run",
-               "--authority", f"{parsed.hostname}:{port}"]
-    service["volumes"] = [_volume(route_volume, "/route")]
-    networks = {}
-    if route["mode"] == "local":
-        network = "api-" + key[:16]
-        del service["network_mode"]
-        service["networks"] = [network]
-        networks[network] = {"external": True, "name": route["network_id"]}
-    else:
-        service["network_mode"] = "host"
-    if route["mode"] == "external":
-        service["volumes"].append(_bind(route["resolver_file"], "/etc/resolv.conf"))
-    else:
-        for address in route["addresses"]:
-            command.extend(("--address", address))
-    service["command"] = command
-    service["healthcheck"] = {"test": ["CMD", CORE_PYTHON, "-I", "-B", "-m", "provider_core.process_status",
-                                         "/run/status.json", "proxy"],
-                              "interval": "5s", "timeout": "2s", "retries": 3, "start_period": "5s"}
-    return service, networks
-
-
 def daemon_configuration(definition):
     """Project one neutral definition into the existing SDK daemon contract."""
     configuration = {"schema_id": "provider-core.delivery.v1", "state_directory": "/state",
@@ -166,19 +133,20 @@ def render(definition, source, image, checksum):
     roots = [("queue", queue, "/volumes/queue")]
     for binding in definition.bindings:
         key, listener = listeners[binding.name]
-        route_volume = definition.project + "-route-" + key
-        proxy, attached = _proxy(binding, definition, image, key, route_volume)
-        role = "api-" + key[:16]
-        if role in services:
+        route = render_api_route(binding, image=image, interpreter=CORE_PYTHON,
+                                 namespace=definition.project, uid=definition.uid, gid=definition.gid,
+                                 storage=NamedRouteVolume(), input_sources={})
+        if set(services) & set(route.compose["services"]):
             raise DeliveryDeploymentRejected("Delivery proxy identities collide; no ambiguous recipe was published.")
-        services[role] = proxy
-        networks.update(attached)
-        for volume in (binding.ipc_volume, route_volume):
-            volumes[volume] = {"name": volume}
-        roots.extend((("ipc", binding.ipc_volume, "/volumes/ipc-" + key), ("route", route_volume, "/volumes/route-" + key)))
-        daemon["volumes"].extend((_volume(binding.ipc_volume, "/ipc/" + key),
-                                  _volume(route_volume, "/routes/" + key, readonly=True)))
-        daemon["depends_on"][role] = {"condition": "service_healthy"}
+        for proxy in route.compose["services"].values():
+            proxy["labels"]["org.nmr-provider-tools.delivery"] = definition.project
+        services.update(route.compose["services"])
+        networks.update(route.compose["networks"])
+        volumes.update(route.compose["volumes"])
+        volumes[binding.ipc_volume] = {"name": binding.ipc_volume}
+        roots.append(("ipc", binding.ipc_volume, "/volumes/ipc-" + key))
+        daemon["volumes"].extend((_volume(binding.ipc_volume, "/ipc/" + key), route.client_mount))
+        daemon["depends_on"].update(route.client_depends_on)
     trust_paths = {binding.api[field] for binding in definition.bindings for field in ("credential_file", "ca_file") if field in binding.api}
     daemon["volumes"].extend(_bind(path, "/grants" + path) for path in sorted(trust_paths))
     initializer = _service(image, "provider_core.delivery_main", definition, 10)
@@ -232,10 +200,10 @@ async def health(definition):
         raise BaseExceptionGroup("Delivery intake is not ready for every configured binding.", failures)
 
 
-def initialize(uid, gid, queue, ipc, routes):
+def initialize(uid, gid, queue, ipc):
     if os.geteuid() != 0 or uid <= 0 or gid <= 0:
         raise DeliveryDeploymentRejected("Volume initialization requires root with CHOWN and explicit nonzero target UID/GID.")
-    for target, mode in [(queue, 0o700), *((path, 0o710) for path in ipc), *((path, 0o700) for path in routes)]:
+    for target, mode in [(queue, 0o700), *((path, 0o710) for path in ipc)]:
         path = _path(target)
         observed = path.lstat()
         if not stat.S_ISDIR(observed.st_mode):
@@ -271,14 +239,13 @@ def main():
         initializer.add_argument("--" + name, type=int, required=True)
     initializer.add_argument("--queue", type=Path, required=True)
     initializer.add_argument("--ipc", type=Path, action="append", required=True)
-    initializer.add_argument("--route", type=Path, action="append", required=True)
     options = parser.parse_args()
     if options.command == "render":
         definition, checksum = read_definition(options.definition)
         plan = render(definition, options.source, options.image, checksum)
         print(json.dumps(plan, sort_keys=True, indent=2).replace("$", "$$"))
     elif options.command == "initialize":
-        initialize(options.uid, options.gid, options.queue, options.ipc, options.route)
+        initialize(options.uid, options.gid, options.queue, options.ipc)
     elif options.command == "health":
         asyncio.run(health(runtime_definition(options.definition, options.sha256)))
     else:
