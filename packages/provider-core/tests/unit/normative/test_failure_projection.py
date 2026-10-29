@@ -7,6 +7,7 @@ from provider_core.api import ApiFailure
 from provider_core.attempt_record import ProtectedEvidence, acknowledge_start
 from provider_core.analysis import AnalysisSuccess
 from provider_core.delivery_worker import DeliveryWorkerFailed
+from provider_core.decoded_body import DecodedBodyRejected
 from provider_core.producer_checkpoint import AcknowledgedCheckpoint
 from provider_core.chat import ChatFailed
 from provider_core.conversation import ConversationRetirementFailed, ToolRejected
@@ -20,6 +21,17 @@ from tests.fakes.attempts import ATTEMPT_REF
 
 
 class CoreFailureProjectionTests(unittest.TestCase):
+    def test_decoded_rejection_projects_only_the_closed_reason_and_safe_message(self):
+        failure = DecodedBodyRejected("invalid_encoding")
+        failure.__cause__ = ValueError("PRIVATE_ENCODING_DETAIL")
+        self.assertEqual(owned_details(failure), {"message": str(failure), "reason": "invalid_encoding"})
+        self.assertNotIn("PRIVATE", repr(owned_details(failure)))
+
+        class Unreviewed(DecodedBodyRejected):
+            pass
+
+        self.assertEqual(owned_details(Unreviewed("invalid_encoding")), {})
+
     def test_api_projects_received_correlation_and_distinct_effect_flags_without_payloads(self):
         response = HttpResponse(
             503,

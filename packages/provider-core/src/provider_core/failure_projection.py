@@ -40,6 +40,7 @@ from provider_core.runner_protocol import LifecycleRejected, RetirementUnconfirm
 from provider_core.starting import StartFailed, StartRefused
 from provider_core.startup_file import StartupFileRejected
 from provider_core.transport import ExchangeFailed, response_request_id
+from provider_core.decoded_body import DecodedBodyRejected
 from provider_core.uploads import UploadFailed, UploadFileReadFailed, UploadInputRejected, UploadRecoveryExhausted
 
 
@@ -154,6 +155,7 @@ def owned_details(error):
         UploadFileReadFailed,
         ExchangeFailed,
         LifecycleRejected,
+        DecodedBodyRejected,
         RetirementUnconfirmed,
         DeliveryRejected,
         DeliveryRequestRejected,
@@ -169,6 +171,8 @@ def owned_details(error):
     ):
         return {}
     details = {"message": str(error)}
+    if kind is DecodedBodyRejected:
+        details["reason"] = error.reason
     if kind is ObservedWorkerCrash:
         details.update({
             "phase": error.phase, "returncode": error.native_exit.returncode,
