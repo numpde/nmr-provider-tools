@@ -2272,3 +2272,290 @@ wheels only. Native-only installation needs no dependency cache. Keep issuer
 full/native locks unchanged, require hashes, and leave the shared cache intact.
 Use this in maintained local-candidate lanes, not manual cache surgery or a new
 provider-specific lock generator. SECS owns its installer correction and proof.
+
+D076 -- Retain a scientific failure observed only after waiter cancellation (2026-10-29 01:14 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's real witness cancels the observer while its original scientific Future
+is still running, then lets that Future fail independently. Retirement currently
+discards the late error on the assumption that the original caller already saw
+it; that caller actually saw cancellation alone.
+
+Serious alternatives:
+A. Always rethrow the scientific Future's failure during retirement. This labels
+   already-observed primary failures and expected scientific stop as new cleanup
+   failures.
+B. Discard every scientific result during retirement. This loses the unobserved
+   independent cause in the demonstrated cancellation sequence.
+C. Record which actual scientific Future result was observed, and retain an
+   unobserved independent failure when retirement first obtains it.
+
+Choice: C, with NMRPeak owning its scientific stop classification. Keep the exact
+Future as authority; do not copy its outcome or add another Future, scheduler or
+shared scientific policy. Confirm physical closure only from actual native/SCI
+proof, independently of whether the late error must still escape. No fabricated
+Attempt failure or new calculation follows from that evidence.
+
+Open design -- Admit existing provider project names (2026-10-29 01:16 UTC)
+-------------------------------------------------------------------------------
+
+Magnet's actual project-name validator admits arbitrarily long normalized names;
+the proposed helper copied the binding document's 63-character project limit.
+Those are different input authorities. A previously admitted provider project
+must not acquire a new unexplained refusal during shared route adoption.
+
+Serious alternatives under review:
+A. Impose 63 characters on every provider deployment name. This changes existing
+   admitted inputs and needs more justification than the donor schema's limit.
+B. Derive one explicit collision-resistant resource namespace from the complete
+   admitted project identity at the shared owner.
+C. Preserve complete normalized project names, enforcing only demonstrated
+   engine/filesystem limits where the generated resources require them.
+
+The choice remains open pending actual four-caller and Compose/engine evidence.
+Do not silently truncate names or create four local hashing conventions. The
+prototype's 63-character check is not a settled common contract.
+
+D077 -- Preserve full project identity; bound only generated route storage (2026-10-29 01:20 UTC)
+--------------------------------------------------------------------------------
+
+Resolve the namespace question using actual caller evidence: NMRNet's project is
+27 characters; SECS/NMRPeak accept projects up to 69/72 after their prefixes;
+Magnet admits unbounded normalized names. Installed Compose 5.5.1 preserved
+64-, 72-, 185- and 300-character project names. The binding document's existing
+63-character schema limit is not a Compose limit.
+
+Serious alternatives:
+A. Apply the donor's 63-character input refusal everywhere. This breaks admitted
+   provider names without a demonstrated engine requirement.
+B. Hash all namespaces at every caller. This creates four derivations and would
+   rename existing delivery route volumes if applied indiscriminately.
+C. Accept full normalized namespaces at the shared renderer, preserve established
+   delivery resource names, and bound generated storage at that same owner.
+
+Choice: C. For namespaces of up to 63 characters, retain the existing
+<namespace>-route-<full binding identity> name exactly. For longer namespaces,
+use r-<full SHA256 of the complete ASCII namespace>-<full binding identity>.
+That generated name is 131 characters, below the donor's previous maximum134;
+this is a bounded projection rule, not a universal filesystem NAME_MAX claim.
+Preserve the complete namespace in labels and leave actual Compose project names
+and the binding document schema unchanged. No caller truncation/hash convention
+or rewritten identity document is needed.
+
+Magnet can supply its complete production namespace and a distinct namespace
+derived from its existing unique validation generation; the common renderer owns
+storage-name compression. Test deterministic full-identity distinction and long
+namespace admission as well as unchanged legacy volume names. Exact service-role
+inventory for configuration-free shutdown remains a separate question.
+
+Open design -- Discover route roles during configuration-free shutdown (2026-10-29 01:20 UTC)
+--------------------------------------------------------------------------------
+
+SECS currently admits fixed provider/worker service roles; down/status must not
+read mutable API configuration or credentials to recompute a hashed proxy role.
+
+Serious alternatives under review:
+A. Add a narrow explicit caller service-role seam to the shared renderer.
+B. Discover the actual generated roles from the existing owned frozen Compose
+   artifact or stable role labels, without reinterpreting API/binding identity.
+C. Mechanically rename returned service/dependency keys in each caller.
+
+No choice is final until SECS checks its actual persisted recipe and inventory
+authority. Avoid another binding store or local hash-format parser. Mechanical
+renaming can leave health/dependency/initializer references inconsistent and is
+not the preferred end state.
+
+D078 -- Prove no direct fallback with an actually reachable canary (2026-10-29 01:20 UTC)
+--------------------------------------------------------------------------------
+
+The existing tests/deployment lane intentionally grants no Engine or network to
+its test container. Real emitted Compose/UID/socket/TLS proof needs a separate
+host-owned disposable-resource lane; widening that existing container grant would
+erase its boundary.
+
+Serious alternatives:
+A. Give the existing test container a Docker socket. This delegates broad host
+   authority unnecessarily.
+B. Test route loss only with a network-none client. It can show failure but
+   cannot distinguish absent fallback from an attempted direct request denied
+   by the kernel.
+C. Keep a network-none success client and add a separate test-only host-network
+   canary for which the synthetic TLS peer is actually reachable directly.
+
+Choice: C in a distinct repository-owned tests/deployment/route host lane using
+checker_operation and exact disposable resources. Use the emitted shared
+projection, actual UID65532 and read-only client mount. Prove direct reachability
+as the positive control, then route loss must fail without a direct request.
+The host-network grant belongs only to this canary, not the production recipe.
+Keep credentials synthetic, proxy credential-free, and cleanup limited to the
+owned containers/volumes/networks. Actual signed HTTPS, restart and permissions
+remain qualification work, not claims established by rendering tests.
+
+D079 -- Discover owned route roles without reopening configuration (2026-10-29 01:23 UTC)
+--------------------------------------------------------------------------------
+
+SECS inspection established that its temporary normalized Compose recipe is not
+persisted. Status/down use the actual Engine inventory, project/service/working
+directory labels and immutable image identity. Re-reading a mutable binding to
+recompute proxy roles would weaken that existing shutdown boundary.
+
+Serious alternatives:
+A. Add caller service-name overrides to the renderer. This solves naming but adds
+   a composition knob when the running objects already identify their owner.
+B. Define stable route-purpose labels and admit actual owned route containers
+   through the caller's existing inventory checks.
+C. Rename returned service/dependency keys locally. This duplicates composition
+   semantics and risks missing initializer or dependency references.
+
+Choice: B. The shared renderer supplies org.nmr-provider-tools.route as the full
+namespace, org.nmr-provider-tools.route-role as proxy or initializer, and the
+existing full binding identity label. These labels complement, never replace,
+the caller's project, working-directory, service and image ownership checks.
+Directory storage has one proxy and no initializer. Down/status need neither
+credential bytes nor current API configuration to settle those actual owners.
+
+SECS must stop the provider/native owners before their proxy and remove only
+admitted retired/stopped orphan route containers before replacement. Never use
+broad orphan removal to bypass foreign/running-owner refusal. No second binding
+record, service-hash parser or local recipe renaming is required.
+
+D080 -- Keep SECS's forwarded scientific services independent of API routing (2026-10-29 01:23 UTC)
+--------------------------------------------------------------------------------
+
+SECS's existing forwarded-api network mode supplies a host bridge/alias that can
+also serve configured interpreter/store HTTPS. Giving control API the shared
+proxy does not prove that scientific egress grant is redundant.
+
+Serious alternatives:
+A. Delete the bridge/alias with the API migration. This can remove legitimate
+   forwarded source/model access.
+B. Keep using it for signed API requests too. This leaves duplicate routing
+   authority contrary to the selected shared binding.
+C. Retain its scientific-service grant, name it forwarded-services in the new
+   configuration cut, and require the projected socket for control API.
+
+Choice: C. Standard remains the default; no compatibility alias or second API
+route setting is introduced. SECS updates its admitted configuration examples,
+documentation and checks together. Its actual API settings use the existing
+validated settings plus dataclasses.replace(http, proxy_socket=projected_socket),
+not a copied HttpsSettings schema. Qualify interpreter/store access separately
+from signed control API; do not claim one transport proves the other's route.
+
+D072 budget clarification: NMRNet's current eight-request source budget ordinarily
+permits initial inspection plus two complete download attempts (four requests,
+then three), not three promised downloads. A configured attempts cap is only an
+upper bound; prior inspections/failed bytes and the original deadline remain
+spent. Recovery callbacks and documentation must preserve that distinction.
+
+D081 -- Publish a completed local wheelhouse atomically (2026-10-29 01:27 UTC)
+--------------------------------------------------------------------------------
+
+SECS found a real publication gap in both make/provider.mk and make/packages.mk:
+removing the old cache before moving the completed stage can leave no usable
+cache if that move fails and the exit trap deletes the stage.
+
+Serious alternatives:
+A. Keep delete-then-move and reacquire after failure. This loses an existing
+   valid offline input and requires operator recovery.
+B. Add backup/rollback directories or a symlink version manager. These introduce
+   more state and recovery rules than this same-filesystem publication needs.
+C. Atomically exchange the completed stage and existing directory on Linux;
+   use ordinary rename for first publication.
+
+Choice: C in the existing host publication owner, shared by both SECS targets.
+Use renameat2(RENAME_EXCHANGE), fail closed without copying on unsupported/error
+paths, and keep the old published directory intact if the exchange fails. After
+success, the existing stage cleanup removes only the old cache now at that path.
+Prove actual same-filesystem exchange and injected syscall failure. This promises
+atomic visibility, not new power-loss durability. It changes no issuer lock,
+dependency version, scientific input or model. The SDK's per-file immutable
+wheel publisher has a different owner and is not replaced by this directory rule.
+
+D082 -- Keep NMRNet cleanup tied to retained incumbent ownership (2026-10-29 01:27 UTC)
+--------------------------------------------------------------------------------
+
+Correction to the initial peer report: NMRNet install already refuses when any
+project container is running. It can nevertheless select a new bundle while old
+containers are stopped, because that check currently omits --all. Down using the
+new recipe can then miss the previous binding's hashed proxy service role.
+
+Serious alternatives:
+A. Permanently refuse install whenever any stopped project container exists.
+   This is a safe guard but adds a manual down-before-install requirement rather
+   than establishing the incumbent's cleanup authority.
+B. Select the actual provider's retained generation bundle from its existing
+   checkout/deployment/generation labels and mount, admit the complete project
+   inventory against that recipe, then drain and retire those owned services.
+C. Add Compose --remove-orphans to down with the current selected recipe.
+   Project membership alone can remove an unexpected foreign/orphan service.
+
+Choice: B for the long-term end state. Existing container-borrowed generations
+are already retained; no new API record, labels-only inference or handoff file
+is needed. Check the actual full provider ID, project, working directory,
+checkout, generation and mounted bundle under the deployment's bundles root
+before stopping anything. Admit each actual service's role/image/generation and
+refuse duplicate/unexpected members. Preserve the existing refusal when provider
+is absent but dependencies remain. Proxy retirement follows confirmed provider
+and native/API settlement; do not use broad orphan removal.
+
+NMRNet has already implemented and qualified A as an unpublished safety guard
+(30 launcher tests). Retain it only as an intermediate guard until B is qualified;
+it is not the selected final least-babysitting solution. No live deployment or
+production stop is authorized by this refactor decision.
+
+D082 clarification before implementation: preserve install's existing refusal of
+any running project; this decision does not introduce automatic live shutdown.
+For an entirely stopped admitted project, clean up the actual retained incumbent
+recipe before selecting the new bundle. This closes the demonstrated gap without
+requiring another manual down step or broadening install's live authority.
+
+D083 -- Make Magnet's runtime API socket grant explicit (2026-10-29 01:31 UTC)
+--------------------------------------------------------------------------------
+
+Magnet's frozen process-policy schema is closed at v1-6. Its signing/TLS input
+must remain distinct from the deployment-derived Unix socket, while both run and
+check-api must consume the exact shared projection.
+
+Serious alternatives:
+A. Put a proxy socket into the operator API binding or use an optional direct
+   fallback. This duplicates grant authority or ignores the selected route.
+B. Silently change v1-6 or retain two readers for old/new frozen policy. This
+   obscures the new required contract.
+C. Advance the generated internal policy to v1-7, require the projected API
+   socket, and wire it through the existing shared HTTPS settings path.
+
+Choice: C. Keep the operator signing/TLS schema unchanged; the frozen internal
+server_a contract receives proxy_socket from the actual ApiRouteProjection,
+validated by the SDK Unix-socket path contract. Use dataclasses.replace on the
+validated HTTPS settings rather than copy their fields. Update generated policy
+fixtures and readers together, with no compatibility facade. Existing deployed
+bundles retain their original image; no live migration is implied.
+
+The real projection must reach the freeze owner: do not independently recompute
+the socket hash or call the renderer with a fabricated image/namespace merely to
+obtain its path. Both run and preflight consume this required grant. Scientific
+chat transport and its unresolved hostname mapping stay separately owned.
+
+D084 -- Identify Magnet's independent post-frame validation failure (2026-10-29 01:31 UTC)
+--------------------------------------------------------------------------------
+
+Magnet reproduced a complete real socket response followed by a gated validator:
+the observer is cancelled, validation later raises ValueError, and retirement
+currently drops that independent failure. A blocked read closed by the same stop
+is the separate expected-cancellation control.
+
+Serious alternatives:
+A. Treat every late socket/scientific exception as independent failure. This
+   mislabels the provider's own stop-induced close.
+B. Filter by exception type. A validator can independently raise that same type,
+   so type alone loses origin and may erase a real failure.
+C. Retain the exact original exception in a private carrier at the already
+   existing post-frame validator boundary.
+
+Choice: C, owned by Magnet's scientific protocol adapter. Normal observation
+rethrows the exact original; cancellation/timeout joins retain the independent
+validation cause while physical close succeeds only on actual original Future
+and native cleanup proof. Concurrent exchange/aclose observe the same original
+owner, with no extra Task, Future, outcome copy or SDK scientific classifier.
+Preserve existing cancellation causal evidence when adding the late failure;
+raw process-control exceptions remain contained at the actual Task boundary.
