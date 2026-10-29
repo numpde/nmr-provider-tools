@@ -14,7 +14,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 from provider_core.api import ApiFailure
-from provider_core.analysis import ObservedWorkerCrash
+from provider_core.analysis import AnalysisOutcomeUnresolved, ObservedWorkerCrash
 from provider_core.api_config import ApiConfigurationRejected
 from provider_core.attempt_record import AcknowledgedAttempt
 from provider_core.chat import ChatFailed
@@ -138,6 +138,8 @@ def owned_details(error):
     header admission. Redaction and display truncation remain with the consumer.
     """
     kind = type(error)
+    if kind is AnalysisOutcomeUnresolved:
+        return {"message": "No publishable analysis outcome was established; retain this Attempt."}
     if kind not in (
         CredentialRejected,
         ObservedWorkerCrash,

@@ -5227,8 +5227,9 @@ D169 -- Pause the shared redesign for coordinated user review and approval
 The user's exact instruction reported by the NMRNet owner was: "If you do need
 to change the shared package, pause." The subsequent coordinated instruction
 explicitly requires user review/approval of the shared redesign. All four peer
-ACKs establish design discussion; they do not lift that boundary. No shared runtime
-source or published package has changed since the qualified 0.5.1 release.
+ACKs established design discussion; they did not lift that boundary. At this review
+stage no shared runtime source or published package had changed since 0.5.1.
+The subsequent user approval is recorded in D171.
 
 Serious alternatives for the user's decision:
 A. Keep core unchanged. Repair cause preservation, failure-stage evidence and
@@ -5370,12 +5371,215 @@ physical model/device retirement, crossed helper arguments, capacity exhaustion
 or all observation-gap/cancellation cases. NMRNet/SECS source investigations expose
 real model/config identity gaps; no scalar or marker makes those retry-safe.
 
-Implementation remains blocked only at the shared redesign approval boundary;
-independent consumer work continues. Publication/adoption consequences in D169
+Implementation at this stage awaited explicit shared-design approval; D171 records
+that approval. Independent consumer work continued. Publication/adoption consequences in D169
 still apply: new immutable GitHub artifacts and installed-consumer qualification,
 no replacement of 0.5.1 and no assumed need to restart shared delivery. This proposal
 does not authorize new SECS/NMRPeak production targets or their deferred positive
 retry implementations.
+
+D171 -- Approved shared work; extend exact proof to three existing hold reasons
+----------------------------------------------------------------------------
+
+The user approved the D170 design, implementation/qualification and coordinated
+release/adoption, then said: "If anything, consider increasing scope." This lifts
+the SDK pause for this work. It does not convert a peer proposal or synthetic
+scientific test into permission to replay an unqualified model or invent a target.
+
+Actual additional consumers exist: NMRNet holds an Attempt after source recovery
+exhaustion before science; Magnet holds one after an observation gap. They share
+the same exact claim/controller/executor/admission proof but different failure
+rules. NMRNet's source-503 integration and Magnet's pre-science observation-503
+control exercise these existing holds. Neither establishes active GPU interruption.
+
+Serious alternatives:
+A. Implement the narrow scientific marker check only. This meets D170 but leaves
+   the same exact-owner gap and cleanup composition in two existing hold paths.
+B. Allow every physically quiescent failure or caller-supplied exception type list.
+   This silently grants eligibility to programming faults and moves policy into
+   a generic error classifier.
+C. Reuse the core proof for a closed set of three actual SDK-owned hold reasons,
+   with explicit reason-specific control/error admission and provider-owned vetoes.
+D. Introduce another registry/disposition state or general continuation engine.
+   The existing held claim is already the authority; extra state does not fix it.
+
+Choice: C, reviewed with the responsible owners, extending the approved ownership
+boundary. The unpublished narrow name becomes
+AttemptController.require_held_failure(pending, failure); no compatibility alias.
+It requires the ACTUAL retained ControllerFailed and current executor failure,
+not an arbitrary matching exception. It returns that same failure for protected
+reporting after verifying the selected START, actual acknowledged receipt/Attempt
+index, owning-loop active claim, lifecycle owner, completed borrower and shutdown
+readiness. It performs no settlement/release/terminal effect and grants no science
+or unrelated-selection authority.
+
+The closed reasons and their distinct rules:
+- AnalysisOutcomeUnresolved retains the binding's original cause and publishes
+  neither a fabricated failure nor another calculation. Independent current API,
+  condition/delivery, cleanup or interruption evidence blocks the proof.
+- UploadRecoveryExhausted remains an input-source recovery condition, not unknown
+  science. Its nested admitted source 503 is not an independent executor API error.
+  Preserve and veto its own recorded cleanup_failures/interruption as well as outer
+  failures; SDK owns these source-error fields. A later successful source settlement
+  may prove physical retirement while the prior error remains recorded. This veto
+  is the approved conservative independent-error policy, with an availability cost;
+  do not describe it as proof that current cleanup is unconfirmed.
+- ObservationGapExpired remains the SDK observation condition. It must belong to
+  this actual executor; its borrowed current observation failure may be the SAME
+  object as execution.api_failure. Allow that exact outage, not arbitrary ApiFailure.
+  Expiry while waiting for exchange access may have no started read and cause None;
+  invent no failed read. Require retired original waiter/API/work and no unrelated
+  condition, delivery, cleanup or interruption failure. An unhanded returned outcome
+  still blocks shutdown_ready after the gap and must not be suppressed or resent.
+
+Provider resource readiness, stop/control checks and classification/diagnostics
+remain with their owners. This proof cannot infer scientific purity, input/model
+identity, retryability or a healthy GPU. Preserve first failures even after later
+successful cleanup; do not report recovered physical work as still running merely
+to explain a conservative veto. Distinct scientific/source/observation tests must
+exercise the common relation and these separate rules, including crossed Jobs,
+foreign failure/admission, matching vs unrelated outage, gap-before-read, nested
+source cleanup, late cleanup, cancellation and pending outcomes. Qualification is
+in progress; these are obligations, not claimed candidate results.
+
+D172 -- A failed named model operation is not an intrinsic-kernel diagnosis
+------------------------------------------------------------------------
+
+All four owners agreed in principle on a more precise feasible meaning of D166.
+The owned named model operation raised before returning its usable output. That
+does not prove zero work, absence of a produced internal tensor, intrinsic kernel
+origin, transience or deterministic replay. PyTorch module hooks and delayed device
+errors make those stronger claims invalid. Defaults remain zero; this agreement
+does not itself qualify or enable a provider's positive path.
+
+Serious alternatives:
+A. Demand proof of an intrinsic kernel failure. Current Python model APIs do not
+   provide it; hooking or bypassing __call__ changes the scientific contract.
+B. Retry any failed public inference facade. Magnet's facade includes conversion,
+   scoring/tokenization and result assembly, so this overstates the observed event.
+C. Qualify an actual named model operation, with explicit partial-work disclosure,
+   no externally visible scientific publication/update, and all existing ownership,
+   input/model identity, configured-count and original-budget requirements.
+
+Choice for model-owned positive implementation: C. Caller conversion before the
+operation and validation/scaling/provenance/token/result assembly after it returned
+remain ineligible. Context-manager/RNG restoration errors after returned output
+also remain outside it. Keep device completion in the owned operation; its failure
+names the observation point, not the origin of an earlier asynchronous error.
+Never retry an unknown reply, cancellation, unannounced crash or returned result
+merely to recover reporting. Whole-batch replay may repeat completed heads/geometries
+or work before a post-hook failed; retain those facts and never mix outputs across
+runs. Same input/seed is not a bitwise-result promise.
+
+NMRNet's actual model-call marker is useful at that named boundary without modifying
+the model instance or bypassing PyTorch hooks. Independent evidence-recording failure
+must remain a separate grouped failure, not be stamped retryable merely because
+the outer model exception survives. Magnet needs a small upstream-owned boundary
+at actual encode/decode calls and their completion, not edits to generated closures
+or copied inference code. A code-owned wrapper preserves original __cause__; qualify
+its deliberate exception-type change for ordinary scientific callers. Do not add
+an opt-in callback framework solely to preserve undocumented exception types.
+
+No-external-scientific-effects qualification is narrower than purity: actual
+container grants restrict network/root/model writes, but native scratch, logs,
+trusted dependencies/checkpoints and hooks remain part of the owned path. A negative
+source search alone does not prove it. SECS/NMRPeak retain their unqualified positive
+paths as deferred; config snapshots/checkpoint fixes do not establish whole-model
+identity or authorize replay.
+
+D173 -- Trust in-process owners; validate remote failure evidence at the receiver
+-------------------------------------------------------------------------------
+
+The shared held proof links the actual controller, executor, receipt, failure and
+claim. It does not authenticate where a freely constructible exception was raised.
+Bindings and their in-process exception records are trusted; core itself refreshes
+current evidence as original operations settle.
+
+Serious alternatives:
+A. Add tokens, immutable copied failure snapshots or hostile-mutation defenses.
+   This creates another authority and does not authenticate the scientific producer.
+B. Treat every exact exception type as proof of its producer. That is false.
+C. State the trusted original-error relay contract, use existing owner relations,
+   and qualify actual producing/receiving paths rather than claiming type provenance.
+
+Choice: C. Do not mutate errors toward eligibility or replace original evidence.
+Preserve original cause identity and independent cleanup/control facts. Source tests
+constructing an exhaustion error qualify the guard, not actual acquisition. Add
+actual Upload recovery exhaustion and returned-analysis/final-observation controls.
+
+Remote data is a different boundary. SECS's actual session/runner tests confirmed
+that malformed failed frames, unknown replies and post-dispatch timeouts could be
+mapped to AnalysisFailure and even a queued FAIL. A validated received child failure
+must be distinguished from those uncertain paths. The receiving worker protocol owns
+framing/shape validation; the binding must preserve unknown outcome and original
+retirement, then adopt the shared marker without granting replay. A service that
+still stops afterward must say so; raising a marker alone does not prove continued
+live Job exclusion across process death. Live-only restart semantics remain intact.
+
+D174 -- A matching gap outage can still retain an independent cleanup failure
+----------------------------------------------------------------------------
+
+The expanded check initially admitted an observation gap when its executor/API
+cause identity matched and outer cleanup was empty. Magnet's controlled transport
+race showed a missing case: gap expiry interrupts retirement; the transport finally
+confirms closure, but its original ExchangeFailed retains an independent cleanup
+error. The controller is shutdown-ready and outer cleanup empty. Identity does
+not erase the nested failure. A ported actual-controller test reproduced the
+admission bug as the sole failure in an installed 638-test run; the equivalent
+clean-timeout control remained admissible.
+
+Serious alternatives:
+A. Reject every failed-read observation gap. This breaks the qualified source-
+   outage hold and treats an admitted outage as an independent defect.
+B. Walk nested exceptions and duplicate transport admission policy in controller.
+   This creates a second classifier and risks drifting from the actual API owner.
+C. After confirmed quiescence, require the original API owner's can_retry_read
+   admission for a non-None matching gap outage.
+
+Choice: C. The existing API authority checks current failure identity, retirement,
+read operation and original transport cleanup/interruption/provenance. The check
+sends no request and grants no scientific retry. A gap with no failed read does
+not invent one. Refusal propagates the original full ControllerFailed, including
+the nested error, rather than manufacturing a new cleanup failure.
+
+The corrected installed suite passed its real JobUploads/controlled-503 exhaustion,
+returned-analysis/final-gap, nested transport-cleanup race and clean controls. The
+scientific/delivery ports are recording fixtures; source transport is controlled,
+not a live network. Native and consumer proof remain separately qualified. Final
+exact release-artifact qualification will bind these tests to the published bytes.
+
+D175 -- Preserve artifact authority without pretending path equality freezes bytes
+--------------------------------------------------------------------------------
+
+SECS improved its actual child reader, then captured the bounded worker TOML once
+into an owner-only temporary filesystem snapshot before the native runner starts.
+All children in that container lifetime use those same bytes; container restart
+captures a new configuration. Its actual runner/two-child/restart and installed
+image tests establish that limited contract, not Attempt survival or model identity.
+
+Its checkpoint loader formerly hashed paths then reopened them to decode. The
+owned correction hashes and decodes the same spec/weight buffers; weight capture
+uses the existing manifest's declared byte count. Alternatives were path/fd-only
+pinning, which permits in-place changes, or immutable backing storage, which needs
+an actual owner/grant. Real checkpoint tests measured approximately 257 MiB added
+peak memory within the existing three-GiB CPU qualification limit. The cost is
+explicit; this is not a claimed performance benchmark or GPU proof.
+
+Full SECS artifact continuity remains unproved. FAISS/parquet were loaded without
+tying actual consumed bytes to a captured original bundle. Hashing and reopening
+large files or copying manifest bytes does not solve that relation. Synthetic
+streaming FAISS and small Parquet probes show possible seams, not full-index
+throughput/memory/identity. Do not duplicate a separately owned scientific loader
+in the provider or claim positive retry from these partial improvements; the
+respective deferred note records the scientific owner and qualification trigger.
+
+NMRNet instead binds its worker's prepared declaration to the provider's existing
+startup digest, computed from the SAME cached bounded bytes the worker parses.
+Actual member/archive verification remains separate and required. Magnet's same-
+supervisor generation/role/lock and fresh operation can establish a retained native
+launch context; READY alone cannot identify loaded weights or device. Both must
+keep model-specific byte/device admission with the actual scientific owner rather
+than invent a generic SDK model registry or assume a read-only host bind is immutable.
 
 Supporting qualification references
 -----------------------------------
