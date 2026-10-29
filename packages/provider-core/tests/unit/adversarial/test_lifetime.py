@@ -1,11 +1,14 @@
 """Independent live supervisors contend for the same lifetime lock."""
 
+import errno
+import os
 from pathlib import Path
 import select
 import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from provider_core.lifetime import LifetimeRefused, ProviderLifetime
 
@@ -63,3 +66,58 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
         lock.touch(mode=0o644)
         with self.assertRaises(LifetimeRefused):
             ProviderLifetime(self.root).open()
+
+    async def test_failed_close_does_not_retry_a_reused_descriptor_or_allow_reopening(self):
+        lifetime = ProviderLifetime(self.root).open()
+        close_failure = OSError(errno.EIO, "fixture close reported failure after releasing the descriptor")
+        real_close = os.close
+        reused = None
+
+        def close_then_reuse(descriptor):
+            nonlocal reused
+            real_close(descriptor)
+            reused = os.open(self.root / "unrelated", os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o600)
+            self.assertEqual(descriptor, reused)
+            raise close_failure
+
+        try:
+            with patch("provider_core.lifetime.os.close", side_effect=close_then_reuse):
+                with self.assertRaises(OSError) as first:
+                    lifetime.close()
+            self.assertIs(close_failure, first.exception)
+            with patch("provider_core.lifetime.os.close", wraps=real_close) as close:
+                with self.assertRaises(OSError) as repeated:
+                    lifetime.close()
+                self.assertIs(close_failure, repeated.exception)
+                close.assert_not_called()
+            os.fstat(reused)
+            with self.assertRaises(LifetimeRefused) as reopened:
+                lifetime.open()
+            self.assertIs(close_failure, reopened.exception.__cause__)
+            os.fstat(reused)
+        finally:
+            if reused is not None:
+                try:
+                    real_close(reused)
+                except OSError as failure:
+                    if failure.errno != errno.EBADF:
+                        raise
+
+    async def test_admission_and_close_failures_are_preserved_independently(self):
+        lifetime = ProviderLifetime(self.root)
+        admission_failure = BlockingIOError(errno.EAGAIN, "fixture lock admission refused")
+        close_failure = OSError(errno.EIO, "fixture lock close reported failure")
+        real_close = os.close
+
+        def close_then_fail(descriptor):
+            real_close(descriptor)
+            raise close_failure
+
+        with (patch("provider_core.lifetime.fcntl.flock", side_effect=admission_failure),
+              patch("provider_core.lifetime.os.close", side_effect=close_then_fail)):
+            with self.assertRaises(BaseExceptionGroup) as failed:
+                lifetime.open()
+        self.assertEqual((admission_failure, close_failure), failed.exception.exceptions)
+        with self.assertRaises(LifetimeRefused) as reopened:
+            lifetime.open()
+        self.assertIs(close_failure, reopened.exception.__cause__)
