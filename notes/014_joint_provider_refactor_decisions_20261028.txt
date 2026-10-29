@@ -5004,6 +5004,31 @@ public raw diagnostic is authorized by this choice. Oversized and Unicode contro
 must demonstrate actual FAIL handoff and absence of private payload disclosure,
 not merely successful construction of the metadata object.
 
+D162 -- Isolate the full-pipe test's unrelated debug logger
+---------------------------------------------------------
+
+A controlled NMRNet process-test reproduction established that asyncio's debug
+slow-callback logger can block on the fixture's deliberately full blocking stderr
+pipe. The captured stack identifies logging.StreamHandler.flush/emit reached from
+asyncio._run_once. The unchanged single test passed; forcing a zero slow-callback
+threshold reproduced the logger block. This does not retroactively identify the
+writer in earlier stalled runs whose stacks were not captured.
+
+Serious alternatives:
+A. Change the provider's nonblocking diagnostic writer. The reproduced blocked
+   writer is the independent stdlib logger, so that would target the wrong owner.
+B. Drain the test pipe or disable the full-pipe check. This removes the adverse
+   condition whose provider shutdown/recovery behavior needs qualification.
+C. Bind only the unrelated asyncio debug logger to the original test sink for
+   this fixture, restoring its configuration afterward.
+
+Choice: C. Keep the provider's real stderr path redirected to the full pipe and
+retain its recovery/shutdown assertions. No production logger or SDK writer change
+follows from this reproduction. The owning fixture is NMRNet's normative process
+test test_full_retry_notice_pipe_does_not_prevent_recovery_or_shutdown; the existing
+container lane, original-descriptor watchdog and forced slow-callback threshold
+provide a reproducible causal control rather than an assumption about slow CI.
+
 Supporting qualification references
 -----------------------------------
 
