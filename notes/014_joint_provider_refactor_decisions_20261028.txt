@@ -4566,3 +4566,28 @@ names. Its original volume metadata is captured privately before stopping.
 At 06:45 UTC root issued the ProArt-only coordinated drain signal to both original
 owners, after both local resumes succeeded. Local services stay running; ProArt
 shared services cannot be stopped until both ProArt owners positively settle.
+
+D144 -- Require observation of the original scientific Future before quiescence (2026-10-29 06:47 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak's full remaining lane exposed a real race that focused timing had hidden:
+after caller cancellation, the original concurrent.Future can fail and finish
+before analysis.retire runs. runner.quiescent treated done as observed and could
+lose that independent scientific failure. A deterministic barrier RED is being
+captured before the correction; no GREEN is claimed yet.
+
+Serious alternatives:
+A. Treat Future.done as sufficient quiescence. Work has stopped, but its original
+   failure may still be unobserved and cleanup evidence lost.
+B. Restore an analysis-level mirrored flag. That duplicates the SCI owner's
+   observation authority and leaves other callers able to make the same mistake.
+C. Use RunnerSession's existing original Future and _observed_scientific_call
+   identity: require actual observation before quiescence or new SCI submission.
+
+Choice: C. NMRPeak owns the scientific Future and should correct that authority.
+Retain original cancellation and independent late failure separately. Do not
+replace either with a synthetic success or an inferred observation flag elsewhere.
+Refuse another scientific submission while the original remains unobserved,
+including when physically done. Qualify both cancellation-before-failure and
+retirement-after-completion with causal barriers, then resume the existing lane.
+No second executor, registry, retry allowance or generic lifecycle redesign.
