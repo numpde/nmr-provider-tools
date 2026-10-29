@@ -1606,10 +1606,11 @@ shared execution.py::_execute_session.
 Scope review reopened: the active consumer goal literally prohibits automatic
 scientific reruns, while this earlier choice retained a pre-existing bounded
 same-Attempt policy. Agent agreement cannot override an explicit user requirement.
-The exact original instruction and any later exception must govern. A direct user
-clarification is pending; hold policy removal/integration/rollout until the scope
-is settled. Existing service remains running, and no new scientific retry
-permission follows from this review.
+The exact original instruction and any later exception must govern. The user
+has now clarified that scientific retry policy must be configurable in TOML,
+and requested comparison before implementation; see D152. This supersedes the
+binary retain/remove question, not the need to admit an explicit policy and its
+failure outcomes. Existing service is unchanged during that design review.
 
 D053 -- Bind startup permission separately from warm retirement (23:39 UTC)
 -----------------------------------------------------------------------------
@@ -4572,6 +4573,112 @@ No new release, rollout or broad renderer work follows from this constructed
 witness. D150's explicit NMRPeak request-budget correction remains independently
 necessary under that caller's selected contract.
 
+D152 -- Configure scientific retries explicitly in model-owned TOML
+------------------------------------------------------------------
+
+The user clarified that scientific retries must be configurable in a .toml,
+usually under config/, and requested an evidence-based comparison before edits.
+This is the accepted direction. It does not yet choose the key, shipped value,
+upper bound, failure classification or migration behavior.
+
+Actual current provider practice, read from committed code and tracked templates:
+- NMRNet: config/provider.toml.example has explicit preparation counts under
+  preparation and native timing fields under service. No scientific retry setting
+  exists. Committed
+  session.py::_predict permits initial execution plus one retry; preparation is
+  outside that retry catch, the current observer's presence also gates retry,
+  and a proved native exit takes the crash path. Do not
+  mistake the pending uncommitted removal candidate for committed behavior.
+- Magnet: each implementation has a separate runner/interpreter TOML template and
+  closed binding reader. E01/E02 generation backends hard-code initial plus one
+  retry after eligible execution failure/indeterminate reply and original boot
+  retirement. G01 has one prediction call. Provider-wide analysis_unavailable
+  delays are not a scientific retry count.
+- SECS: provider.toml controls execution/interpretation budgets; worker.toml owns
+  the scientific algorithm. max_generations is search depth within one GA run,
+  not repeat execution after failure. One consumed prepared handle invokes one
+  full search at most; no scientific retry loop/count is configured.
+- NMRPeak: provider.toml separates process, runner and interpreter settings. The
+  generation path consumes its prepared handle and sends one GenerateFrame.
+  Up to two model-HTTP attempts per endpoint turn and interpretation retries belong to preparation,
+  not repeat scientific generation. No scientific retry setting exists.
+
+Configuration admission and application differ:
+- All four have closed TOML schemas and typed admitted policies, but acquisition
+  bounds differ. SECS's provider reader caps bytes; its worker file is size-checked
+  by host preflight, then the child uses plain read_bytes without a runtime byte
+  cap. Do not describe that child read as bounded. Specific optional/default fields
+  differ, so do not claim every allowed key is universally required.
+- NMRNet, Magnet and NMRPeak capture selected operator configuration for the
+  deployment. Templates initialize absent operator files; adding an example key
+  does not update already retained configurations automatically.
+- SECS binds operator TOML read-only and parses it at process/child startup.
+  Read-only mount is not content freezing: same-inode host edits can reach a
+  replacement child. Atomic host file replacement need not reach an existing file
+  bind until remount/recreation. Neither behavior is an immutable operation snapshot.
+  A future retry policy must have an explicit operation snapshot, not drift midway.
+
+Other-repository precedents inspected:
+- Agent-mail config/mail.toml.example and agent_mail/_config/mail.py use strict
+  bounded TOML and immutable operation snapshots. storage_recovery.py requires
+  a positive finite backoff ceiling; delivery_maintenance.py retries fresh DB
+  observations until shutdown. There is no attempt-count/exhaustion policy to
+  copy for science. The examples explicitly are selections, not parser defaults.
+- Dapp32's refund worker uses strict JSON, not runtime TOML. Its config.ts rejects
+  missing/unknown fields and validates count/cross-field bounds; runner.ts sets
+  RPC retryCount to zero in code. Transfer admission/ownership practice, not a
+  nonexistent TOML scientific retry schema or numeric cap.
+- Pay-to-play src/api/settings.py loads complete bounded JSON into frozen
+  settings and rejects duplicate/missing/unknown fields. It configures operation
+  timeouts, not an automatic retry loop. Packaging/lint TOML is not runtime policy.
+
+Serious placement alternatives:
+A. Put a global scientific retry table in shared delivery/SDK configuration.
+   This unifies syntax but moves model-specific eligibility into an unrelated
+   owner and implies replay support for models that currently have none.
+B. Extend each affected implementation's existing operator TOML and admitted
+   runner/native policy, keeping shared scalar semantics and model-owned gates.
+C. Introduce a separate scientific retry-policy file/schema across all providers.
+   This can separate release scientific policy, but adds capture/validation inputs
+   where existing scoped configuration already owns the affected runtime facts.
+
+Current preference for the next design slice: B. This comparison does not yet
+approve implementation. Use one documented notion of extra retries (zero means
+one execution) rather than confuse total attempts, concurrency, GA generations,
+START replay or input interpretation. Explicit zero in shipped configurations is
+proposed as a conservative new policy; it would disable existing NMRNet/E01/E02
+retries and is not their current behavior or an implicit parser fallback.
+Default and upper bounds still need joint selection from actual owner,
+failure-retention and resource contracts, not an arbitrary borrowed constant.
+
+Preserve these constraints before implementation:
+- A numeric count is a limit, not permission: frozen input/model, exact original
+  retirement, current Attempt/session permission and crash/dark exclusions remain
+  model-owned. Closing new-Job admission is distinct from cancelling an admitted
+  Attempt; provider-shutdown retry behavior must be selected explicitly.
+- Scientific retry is another computation, not exact-byte delivery replay.
+  Identical inputs/seed are provenance, not a guarantee of bitwise-identical GPU
+  output or proof that a lost first result was never produced.
+- An admitted retry count must own the decision; do not leave diagnostic callback
+  presence as an independent hidden switch for scientific re-execution.
+- NMRNet's native-lifetime factor two must not automatically scale with retry
+  count: prepare and execute are separate timed exchanges, and a replacement is
+  a distinct native operation. No aggregate Attempt clock is invented.
+- More than one extra retry needs explicit first/latest failure-retention review;
+  the present two-execution path is not evidence that arbitrary counts are safe.
+- Zero/exhaustion must have a truthful outcome. A validated model execution_failed
+  is distinct from transport uncertainty or a proved worker crash. NMRNet currently
+  propagates ordinary prediction exceptions locally rather than classifying all
+  as terminal AnalysisFailure. Decide that boundary explicitly; do not strand an
+  Attempt or fabricate remote failure merely by replacing range(2) with a setting.
+
+Relevant sources: NMRNet config.py/session.py/startup_capture.py; Magnet per-model
+binding_config/binding_policy/unix_runner_backend; SECS provider config.py,
+worker_model.py/session.py and compose/provider.yml; NMRPeak provider_config.py,
+analysis_session.py/runner_session.py and deployment/provider_deployment.py.
+No retry policy, runtime configuration, deployment or scientific workload was
+changed for this comparison.
+
 Supporting qualification references
 -----------------------------------
 
@@ -4582,11 +4689,11 @@ The authored scope is notes/017_release_v0.5.1.md. Treat installed-artifact and
 source-rebuild evidence separately from a consumer image or live deployment.
 
 Consumer ownership fixes can be located in NMRPeak adoption 84549c8 and request
-budget correction 7e9f160, with its final qualified source and artifact locator
-at 17053c1: qualification/shared-adoption-20261029/final-qualification.json.
-That evidence distinguishes released-checkpoint warm validation and actual
-retirement from generation/numerical comparisons; its maintenance TLS fixture
-checks signing headers, CA and hostname, not cryptographic signature validity.
+budget correction 7e9f160. Its privacy-edited handoff is f0431ca and notes007–009;
+raw qualification/replay artifacts were removed at the user's request and are
+not a current locator. Preserve the distinction between released-checkpoint warm
+validation/retirement and generation/numerical comparisons. The maintenance TLS
+fixture checks signing headers, CA and hostname, not cryptographic signature validity.
 
 SECS original scientific observation 78a5bec and operator projection 9740d95 are
 qualified with the clean handoff at 6d1dfc1. Locate its causal original-task and
