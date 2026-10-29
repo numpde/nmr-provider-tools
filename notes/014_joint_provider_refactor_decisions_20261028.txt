@@ -6086,14 +6086,16 @@ D. Supply a digest-addressed OCI layout or local registry to the builder. This m
    avoid a mutable tag, but its support and lifecycle have not been established on
    this engine; it requires qualification before being selected.
 
-Working direction: evaluate C and D before changing the build. The platform image
-must be tied to the pinned manifest by acquisition evidence, and neither a shared
+Choice: C, subject to implementation and qualification. The verified platform
+image must be tied to the pinned manifest by acquisition evidence; neither a shared
 alias nor an arbitrary caller-selected base is sufficient. An operation-owned tag
 prevents ordinary concurrent operations from colliding; it does not defend against
 another Docker-authorized actor deliberately retargeting the tag. The offline
-BuildKit probe rejected a configuration ID in FROM, so claiming immutable FROM
-support would be wrong. A successful replacement still needs a qualified image and
-coordinated drain; the live queue and its volume identity must be preserved.
+BuildKit probe rejected a configuration ID in FROM. A separate local OCI layout
+probe verified its image blobs and platform configuration but ProArt's default
+builder rejected the OCI layout scheme before executing a build. Thus D is not
+qualified on this engine. A successful replacement still needs a qualified image
+and coordinated drain; the live queue and its volume identity must be preserved.
 
 D192 — Provider runtime storage review
 --------------------------------------
@@ -6119,6 +6121,43 @@ projection currently accepts relocated inputs as host paths; a volume-based
 capture needs a real grant design. None of these observations proves an existing
 snapshot or live socket safe to delete. Preserve journal references, atomic
 publication, access restrictions, lifecycle locks and rollback during any cutover.
+
+NMRPeak identified a cleanup race: provider startup reads captured inputs before
+acquiring the identity lock proposed for snapshot deletion. That lock alone cannot
+exclude those reads. All supported readers and cleanup need one shared admission
+boundary; mount enumeration does not exclude an arbitrary Docker-authorized actor.
+The other provider owners are checking their actual startup and cleanup ordering.
+Shared delivery has no provider snapshot cleanup: it captures an operator-owned
+definition before its project reservation, then validates the original definition
+against that capture at daemon startup. Its credentials and definitions remain
+operator inputs and its owned volumes are preserved by normal down.
+SECS reports that its supported up, down and credential installation paths hold
+the deployment parent-directory lock while reading inputs and mutating lifecycle;
+it currently has no owned snapshot cleanup. A future cleanup must use the same
+lock and revalidate under it. Out-of-band shell or Docker activity remains outside
+that cooperative exclusion. NMRNet reports its supported launcher takes its
+deployment-root lock before bundle selection and configuration reads, holding it
+through Compose startup and generation retirement; its cleanup retains generations
+mounted by existing containers. ProviderLifetime itself is acquired later, after
+some configuration reads, and is not the exclusion authority for those reads.
+Out-of-band Docker/Compose is outside the launcher lock.
+These are source audits rather than concurrent live proofs. Magnet reports its
+same-checkout up and image-retirement paths acquire a shared or exclusive checkout
+lock before retained-generation selection. Up and preview additionally take
+exclusive per-project and secret-directory locks, serializing same-deployment
+generation reads with pruning; other deployments use distinct bundle roots. Other
+checkouts and out-of-band Docker operations do not participate in the checkout lock.
+The owner found a narrower status-observation race: status reads a route's labeled
+generation without those locks while up can prune it. The owner is reproducing it
+and assessing bounded re-observation or an explicit changed-state diagnostic;
+the observation alone does not prove a startup or cleanup mutation failure.
+SECS subsequently completed its own quiescent volume cutover from published
+source built on ProArt. Its owner reports the old provider and worker drained,
+the old sources were empty and prior runtime evidence was retained for rollback.
+The replacement published Hello; the provider and worker share the same native
+lock inode, their runtime mounts and the SDK API route are Docker volumes, and
+the former host runtime directories are absent. This establishes the reported
+startup and storage boundaries, not a new scientific Job or numerical result.
 
 Supporting qualification references
 -----------------------------------

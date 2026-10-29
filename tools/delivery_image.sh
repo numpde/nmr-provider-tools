@@ -38,7 +38,15 @@ if [[ $captured != "$expected" ]]; then
     operation_diagnostic+=$'Cannot build shared delivery: construction sources changed during capture; retry after edits finish.\n'
     exit 2
 fi
-build_base_image=$(bash -eu -c 'source "$1"; printf "%s" "$base_image"' bash "$context/tools/base_image.sh")
+build_base_image=$(bash -eu -c 'source "$1"; printf "%s" "$base_image_config"' bash "$context/tools/base_image.sh")
+if checker_metadata "$operation_directory/base-image" image inspect --format '{{.Id}}' "$build_base_image"; then :; else
+    base_status=$?
+    operation_diagnostic+=$'Cannot inspect the pinned Linux/amd64 base image; verify Docker and acquire the base before building shared delivery.\n'
+    exit "$base_status"
+fi
+if ! cmp -s "$operation_directory/base-image" <(printf '%s\n' "$build_base_image"); then
+    operation_diagnostic+=$'Cannot build shared delivery: the pinned Linux/amd64 base image is not available locally.\n'; exit 2
+fi
 checker_run 120 --pull never --network none --read-only --user "$uid:$gid" --cap-drop ALL --security-opt no-new-privileges:true \
     --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m \
     --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
@@ -54,11 +62,32 @@ for path in "$context"/wheels/*.whl; do
 done
 checker_input_paths+=(provider-core-install.lock)
 fingerprint=$(root=$context checker_fingerprint)
-# Failure after dispatch retains build inputs: client retirement does not prove
-# that BuildKit has stopped reading them.
+# BuildKit cannot resolve a config ID in FROM. Give this operation a private tag
+# for that exact image; the tag and inputs remain if build retirement is uncertain.
+base_tag="nmr-provider-tools/base-operation:${operation_directory##*.}"
+checker_metadata "$operation_directory/base-references" image inspect --format '{{range .RepoTags}}{{println .}}{{end}}{{range .RepoDigests}}{{println .}}{{end}}' "$build_base_image"
+base_reference=
+while IFS= read -r reference; do
+    [[ -n $reference && $reference != nmr-provider-tools/base-operation:* ]] || continue
+    base_reference=$reference
+    break
+done < "$operation_directory/base-references"
+if [[ -z $base_reference ]]; then
+    operation_diagnostic+=$'Cannot build shared delivery: the pinned base needs a persistent image reference before temporary tagging.\n'; exit 2
+fi
+checker_metadata "$operation_directory/base-tag-existing" image ls --quiet --no-trunc "$base_tag"
+if [[ -s $operation_directory/base-tag-existing ]]; then
+    operation_diagnostic+=$'Cannot build shared delivery: the operation base tag already exists.\n'; exit 2
+fi
+printf '%s\n' "$base_tag" > "$operation_directory/base-tag-name"
 retain_operation=true
+checker_call 'tag verified shared delivery base' 30 stdio "${engine[@]}" image tag "$build_base_image" "$base_tag"
+checker_metadata "$operation_directory/base-tag" image inspect --format '{{.Id}}' "$base_tag"
+if ! cmp -s "$operation_directory/base-tag" <(printf '%s\n' "$build_base_image"); then
+    operation_diagnostic+=$'Cannot build shared delivery: the operation base tag does not identify the pinned image.\n'; exit 2
+fi
 checker_call 'offline shared delivery image build' 900 stdio "${engine[@]}" build --builder default --platform linux/amd64 \
-    --network none --pull=false --build-arg "BASE_IMAGE=$build_base_image" --label "org.nmr-provider-tools.inputs=$fingerprint" --label org.nmr-provider-tools.role=delivery \
+    --network none --pull=false --build-arg "BASE_IMAGE=$base_tag" --label "org.nmr-provider-tools.inputs=$fingerprint" --label org.nmr-provider-tools.role=delivery \
     --iidfile "$operation_directory/built-image" --file "$context/containers/delivery/Dockerfile" "$context"
 image=
 if [[ -f $operation_directory/built-image && ! -L $operation_directory/built-image && $(stat -c %s -- "$operation_directory/built-image") -le 72 ]]; then
@@ -72,6 +101,13 @@ checker_metadata "$operation_directory/built-label" image inspect --format '{{in
 if ! cmp -s "$operation_directory/built-label" <(printf '%s\n' "$fingerprint"); then
     operation_diagnostic+=$'Cannot admit shared delivery build: image label differs from captured construction inputs.\n'; exit 2
 fi
+checker_metadata "$operation_directory/base-tag-after-build" image inspect --format '{{.Id}}' "$base_tag"
+checker_metadata "$operation_directory/base-reference-after-build" image inspect --format '{{.Id}}' "$base_reference"
+if ! cmp -s "$operation_directory/base-tag-after-build" <(printf '%s\n' "$build_base_image") \
+    || ! cmp -s "$operation_directory/base-reference-after-build" <(printf '%s\n' "$build_base_image"); then
+    operation_diagnostic+=$'Cannot retire the shared delivery base tag: the tag or persistent base reference changed; inspect the retained operation.\n'; exit 2
+fi
 checker_call 'shared delivery image publication' 30 stdio "${engine[@]}" image tag "$image" "nmr-provider-tools/delivery:$fingerprint"
+checker_call 'remove shared delivery operation base tag' 30 stdio "${engine[@]}" image rm --no-prune "$base_tag"
 retain_operation=false
 printf -v operation_success 'Prepared shared delivery %s with input fingerprint %s.\n' "$image" "$fingerprint"
