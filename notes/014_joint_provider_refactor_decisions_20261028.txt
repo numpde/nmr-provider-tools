@@ -6779,10 +6779,30 @@ four route proxies are healthy with zero restarts and no OOM. NMRNet and SECS
 reported successful restore; NMRPeak reported its new provider healthy using
 provider-core 0.5.2 and nmrpeak-pa-a, with both runners running. Magnet reported
 ready after transient proxy DNS timeout/502; its underlying DNS cause is not
-proved. Provider checks and legacy cleanup continue; no synthetic Job was run.
+proved. Live IPC subsequently returned HTTP 200 for all four bindings, each with zero
+pending/held items and a running publisher. This is a point-in-time inventory,
+not proof of past delivery or host-loss durability. NMRPeak owner removed its
+exact temporary rollback files; shared owner removed the temporary delivery
+backup and proposal. No synthetic Job was run.
 
 The NMRPeak 30-second retirement setting gives ten seconds beyond the 20-second
 minimum; this is an operational allowance, not measured latency assurance.
+
+D211 — Final provider provenance and remaining observation
+--------------------------------------------------------
+
+All four provider owners checked ProArt after the cutover: their running
+provider-core version is 0.5.2, pinned to the published GitHub release wheel
+SHA256 5611ff7acef3dc720e6d6a07533c29343586e0fb9e481de02d6c491be192cfec
+and source 0d6fad324233367f75dc78e57a56028fa59d36b6. NMRNet, Magnet and
+NMRPeak reported clean restart/OOM status; SECS likewise reported zero restarts
+and OOM, with its provider and worker running and API healthy. Their intended
+bindings were observed; the four IPC inventories were empty and publishing.
+These are current state observations, not scientific result or host-loss proof.
+
+Magnet's DNS timeout and proxy 502 recovered without restart; the reason for
+the intermittent timeout remains unproved. The options-only joint note 019
+was reviewed by all four owners and does not select a redesign.
 
 Supporting qualification references
 -----------------------------------
