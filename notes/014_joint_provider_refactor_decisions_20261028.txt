@@ -4311,3 +4311,29 @@ local controller/geometry/inference images built, 57 focused installed-wheel
 service checks and inference imports passing. ProArt's checkout fast-forwarded;
 the single shared-runtime transfer is running, with no service replacement.
 Exact full image identities and production qualification remain separate receipts.
+
+D140 -- Share native availability evidence without sharing model retry policy (2026-10-29 06:24 UTC)
+--------------------------------------------------------------------------------
+
+NMRPeak asks whether network_availability may classify its original SDK model
+exchange, rather than copying the native classifier. Root's warning that API
+availability is not model policy was ambiguous. The helper in provider_core.network
+has no API operation/effect/status authority; it classifies captured native facts.
+Its current docstring describes the API caller, not an API-only evidence type.
+
+Serious alternatives:
+A. Duplicate native error/group/EOF classification inside NMRPeak. This forks
+   shared infrastructure and repeats future certificate/cancellation fixes.
+B. Treat the helper's true result as permission for model retry or endpoint
+   fallback. This silently imports a policy decision the helper cannot make.
+C. Reuse the shared native-evidence classifier with the original ExchangeFailed
+   facts, while the model adapter owns its existing retry/fallback semantics,
+   status handling, deadlines, physical-retirement and cancellation checks.
+
+Choice: C. The released helper is supported as native availability evidence for
+SDK-owned model HTTP too. It does not grant API or model effects. A false result
+must not become an unknown operational retry through a blanket ExchangeFailed
+catch. Any separately intended model response/protocol policy remains explicitly
+model-owned. Dirty cleanup and caller interruption never authorize fallback.
+No new helper, alias, copied classifier or behavioral SDK patch is needed. Clarify
+the shared documentation without holding consumer adoption for another release.
