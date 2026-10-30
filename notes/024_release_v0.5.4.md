@@ -12,3 +12,9 @@ reports observed local shutdown without inferring an in-flight API outcome.
 
 Provider adoption and running deployment are verified separately from this
 package release.
+
+Known limitation: when the proxy is saturated, its immediate connection close
+can make a discovery read appear non-retryable. The failing saturation witness
+is retained under `tests/resilience_proposals` and excluded from this release's
+package qualification; see the shared resilience audit for the evidence. This
+release does not change that behavior.

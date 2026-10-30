@@ -139,7 +139,7 @@ Findings
    malformed or unheaded response as transient. Assess a bounded, explicit
    overload response or another narrowly evidenced mechanism at the proxy and
    client boundary, without unbounded retries or extra configuration.
-   `tests/integration/delivery/normative/test_resilience_proxy_capacity.py` is
+   `tests/resilience_proposals/test_resilience_proxy_capacity.py` is
    intentionally red: it requires this particular full
    proxy case to permit a fresh discovery read after retirement, and confirms a
    later read succeeds after capacity returns. On its own, this assertion does
@@ -298,6 +298,11 @@ Further isolated controller tests using mocked delivery cover a mismatched
 acknowledgement retaining the selected checkpoint and Job claim without
 repeating science, and cleanup failure after accepted handoff without
 resubmission. These also do not establish pre-acknowledgement crash survival.
+
+The failing saturation witness was moved to `tests/resilience_proposals` for
+the 0.5.4 release after its original inclusion made exact-package qualification
+fail. Its behavior remains unresolved and is disclosed in the release notes;
+the release qualification no longer executes that witness.
 
 The intentionally red policy probes are kept in `tests/resilience_proposals`,
 outside the maintained default test selections. Their assertions are proposals,
