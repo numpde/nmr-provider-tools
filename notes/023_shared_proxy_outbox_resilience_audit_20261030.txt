@@ -1,0 +1,100 @@
+Shared proxy and outbox resilience audit
+========================================
+
+Purpose
+-------
+
+Jointly review the deployed shared API proxy, push-only outbox, SDK handoff and
+provider integrations against the responsibilities in note 020. Prioritize
+failure modes that can lose or duplicate results, misrepresent an outcome,
+interrupt unrelated providers, expose private data, or leave recovery unclear.
+Keep the running proxy stable; use read-only inspection and isolated, bounded
+tests rather than disrupting the joint deployment.
+
+Record findings here, not separate provider audit notes. For each finding give
+the triggering scenario, concrete source or test evidence, consequence, owning
+boundary, and a proportionate correction. Distinguish verified defects from
+unverified concerns and optional improvements. Merge duplicate findings; do not
+turn hypothetical validation machinery into a prerequisite. Record useful
+existing guarantees and their proof limits where they affect the assessment.
+
+This public note must not contain credentials, signed headers, scientific
+payloads, raw transcripts, session identifiers, or private host, account, path,
+and resource values. Use relative source references and privacy-safe evidence.
+Avoid recording discussion or acknowledgements. Coordinate concurrent edits;
+if direct editing is unavailable, send findings to the shared owner to integrate.
+
+Findings
+--------
+
+1. Queue byte limits exclude retained publication material (verified).
+
+   `packages/provider-core/src/provider_core/delivery_store.py` sums only
+   `length(body)` when enforcing provider and total byte limits, but stores a
+   separate publication blob with each row. That blob includes the original
+   credential and optional CA, encoded for retention; `api_config.py` admits
+   up to 1 MiB of CA bytes. An isolated run admitted a 263-byte body at a
+   263-byte limit while retaining another 742 bytes of publication material.
+   SQLite and its journal also require space. Thus the settings bound result
+   bodies, not disk usage, and a full filesystem can stop shared intake. The
+   item limits still bound the number of rows. The queue owner should either
+   document and expose a conservative disk allowance or add a separately named
+   material budget. Preserve the existing body-budget meaning unless an
+   operator-facing change is deliberately coordinated.
+
+2. One binding's unexpected failure stops the shared outbox (verified code
+   path; impact and alternatives need a focused two-provider witness).
+
+   `shared_delivery_worker.py` reports a binding's unexpected API or retirement
+   failure to `shared_delivery_service.py`; `_worker_done` sets the shared
+   inbox failure, and `delivery_service.py` ends the whole service. The queued
+   handoffs remain durable, but unrelated providers lose intake and publication
+   until recovery. This is an intentional fail-stop posture: the cancellation
+   test in `tests/integration/delivery/adversarial/test_shared_service_cancellation.py`
+   expects service failure while retaining the original handoff. Assess whether
+   a settled binding-local failure can be quarantined while other bindings run;
+   an unsettled original API or storage owner must not be discarded or replaced.
+   Shared storage and inbox failures can still require a global stop.
+
+3. Persistent authorization refusals block later work for the same provider
+   (verified code path; operational recovery needs review).
+
+   `api.py` permits exact replay after correlated authentication or
+   authorization refusals, and `delivery_worker.py` retries them with backoff.
+   `shared_delivery_worker.py` processes one provider's rows serially. If an
+   original retained credential is permanently unusable, its oldest row can
+   therefore block later rows, including rows with newly supplied credentials.
+   A refusal does not by itself prove permanent revocation, and exact replay
+   must keep the original publication material. The delivery owner should make
+   persistent refusals actionable for operators and consider a reconciliation
+   path that preserves original evidence without silently substituting keys.
+
+4. SECS reports recovery as a retry (verified adapter mismatch).
+
+   In `secs-repro/src/secs_inference/provider/main.py`, the same warning callback
+   is passed as both the START retry and recovery callback; the controller calls
+   the latter after START succeeds. After an outage, logs therefore say retrying
+   when the operation has recovered. The SECS adapter should use separate,
+   privacy-safe retry and recovered messages. This does not change Attempt or
+   outbox ownership.
+
+Existing guarantees and limits
+------------------------------
+
+`delivery_store.py` holds an exclusive database-owner lock and uses SQLite's
+DELETE journal with `synchronous=EXTRA`; it stores the terminal body and its
+original publication material in one transaction. The delivery handoff and
+store tests cover reopening and exact replay, and the IPC layer bounds request
+size and concurrent clients and refuses full queues. These are source and test
+guarantees, not proof of power-loss durability, disk-space sufficiency, or
+fairness among providers.
+
+The producer's `execution.py` retains its selected terminal outcome until a
+matching acknowledgement, settles the original IPC owner before retry and
+retries the same handoff after eligible loss or full-queue refusal. SDK tests
+cover lost acknowledgement, identical replay, full capacity and cancellation
+boundaries. They do not prove result survival if the producer process dies
+before acknowledgement; note 020 explicitly leaves that window unresolved.
+
+The initial shared-owner and four provider-owner reviews are complete. They do
+not establish that every failure mode has been reviewed.
