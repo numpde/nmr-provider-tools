@@ -3,7 +3,7 @@
 set -euo pipefail
 umask 077
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
-[[ $# == 1 && $1 =~ ^(up|down|status|logs|held|discard)$ ]] || exit 2
+[[ $# == 1 && $1 =~ ^(up|proxy-restart|down|status|logs|held|discard)$ ]] || exit 2
 action=$1
 uid=$(id -u) gid=$(id -g)
 [[ $uid != 0 && $gid != 0 ]] || { printf '%s\n' 'Run shared delivery as its nonzero installing UID/GID.' >&2; exit 2; }
@@ -115,6 +115,67 @@ select_shared_definition() {
         [[ -v PROJECT_INPUT && $PROJECT_INPUT == "$project" ]] || { refuse 'PROJECT differs from the shared settings.'; exit 2; }
     fi
 }
+
+if [[ $action == proxy-restart ]]; then
+    select_shared_definition
+    proxy_identity=$(jq -er '.services.proxy.user' "$operation_directory/proxy.json")
+    settings_directory=$(dirname -- "$definition")
+    settings_name=$(basename -- "$definition")
+    checker_run 30 --pull never --network none --read-only --user "$proxy_identity" --cap-drop ALL \
+        --security-opt no-new-privileges:true --cpus 1 --memory 64m --memory-swap 64m --pids-limit 16 \
+        --mount "type=bind,src=$settings_directory,dst=/settings,readonly" \
+        --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B -c \
+        'import sys; f = open(sys.argv[1], "rb"); f.read(1); f.close()' "/settings/$settings_name" \
+        || { refuse 'the proxy UID cannot read the shared settings; restore its read access before replacement.'; exit 2; }
+    reserve_project
+    checker_metadata "$operation_directory/proxy-containers" ps --all --quiet --no-trunc \
+        --filter "label=com.docker.compose.project=$proxy_project" --filter 'label=com.docker.compose.service=proxy'
+    mapfile -t proxy_identifiers < "$operation_directory/proxy-containers"
+    [[ ${#proxy_identifiers[@]} == 1 && ${proxy_identifiers[0]} =~ ^[0-9a-f]{64}$ ]] \
+        || { refuse 'the existing proxy must have one exact container identity.'; exit 2; }
+    proxy_id=${proxy_identifiers[0]}
+    checker_metadata "$operation_directory/proxy-owner" inspect --type container --format \
+        '{{.Id}}|{{.State.Running}}|{{index .Config.Labels "org.nmr-provider-tools.delivery"}}|{{range .Mounts}}{{if eq .Destination "/route"}}{{.Name}}{{end}}{{end}}' "$proxy_id"
+    cmp -s "$operation_directory/proxy-owner" <(printf '%s|true|%s|%s\n' "$proxy_id" "$proxy_project" "$project-proxy-socket") \
+        || { refuse 'the running proxy does not own the expected shared socket volume.'; exit 2; }
+    checker_metadata "$operation_directory/proxy-grants" inspect --type container --format \
+        '[{{json .Config.User}},{{json .Config.Cmd}},{{json .HostConfig.NetworkMode}},{{range .Mounts}}{{if eq .Destination "/settings"}}{{json .Source}}{{end}}{{end}}]' "$proxy_id"
+    jq -e --slurpfile actual "$operation_directory/proxy-grants" '
+        (.services.proxy | [.user, .command, (.network_mode // ""),
+            (.volumes[] | select(.target == "/settings") | .source)] ) as $expected |
+        $actual[0][0] == $expected[0] and $actual[0][1] == $expected[1] and
+        ($expected[2] == "" or $actual[0][2] == $expected[2]) and $actual[0][3] == $expected[3]
+    ' "$operation_directory/proxy.json" > /dev/null \
+        || { refuse 'the running proxy has different fixed grants; inspect it before replacement.'; exit 2; }
+    expected_network=$(jq -r '.networks.api.name // empty' "$operation_directory/proxy.json")
+    if [[ -n $expected_network ]]; then
+        checker_metadata "$operation_directory/proxy-networks" inspect --type container --format '{{range .NetworkSettings.Networks}}{{.NetworkID}}{{"\n"}}{{end}}' "$proxy_id"
+        [[ $(cat "$operation_directory/proxy-networks") == "$expected_network" ]] \
+            || { refuse 'the running proxy has a different network; inspect it before replacement.'; exit 2; }
+    fi
+    expected_resolver=$(jq -r '.services.proxy.volumes[] | select(.target == "/etc/resolv.conf") | .source' "$operation_directory/proxy.json")
+    if [[ -n $expected_resolver ]]; then
+        checker_metadata "$operation_directory/proxy-resolver" inspect --type container --format '{{range .Mounts}}{{if eq .Destination "/etc/resolv.conf"}}{{.Source}}{{end}}{{end}}' "$proxy_id"
+        [[ $(cat "$operation_directory/proxy-resolver") == "$expected_resolver" ]] \
+            || { refuse 'the running proxy has a different resolver; inspect it before replacement.'; exit 2; }
+    fi
+    checker_metadata "$operation_directory/socket-volume" volume inspect --format '{{.Name}}' "$project-proxy-socket"
+    cmp -s "$operation_directory/socket-volume" <(printf '%s\n' "$project-proxy-socket") \
+        || { refuse 'the existing proxy socket volume could not be confirmed.'; exit 2; }
+    checker_call 'replace the independent shared API proxy' 180 stdio "${engine[@]}" compose --env-file /dev/null \
+        --project-name "$proxy_project" --project-directory / --file "$operation_directory/proxy.json" \
+        up --detach --no-deps --force-recreate --no-build --pull never --wait --wait-timeout 120 proxy
+    checker_metadata "$operation_directory/new-proxy" ps --quiet --no-trunc --filter "label=com.docker.compose.project=$proxy_project" \
+        --filter 'label=com.docker.compose.service=proxy' --filter 'health=healthy'
+    mapfile -t new_proxy < "$operation_directory/new-proxy"
+    [[ ${#new_proxy[@]} == 1 && ${new_proxy[0]} =~ ^[0-9a-f]{64}$ && ${new_proxy[0]} != "$proxy_id" ]] \
+        || { refuse 'the replacement proxy was not uniquely observed healthy.'; exit 2; }
+    checker_metadata "$operation_directory/new-proxy-image" inspect --type container --format '{{.Image}}|{{range .Mounts}}{{if eq .Destination "/route"}}{{.Name}}{{end}}{{end}}' "${new_proxy[0]}"
+    cmp -s "$operation_directory/new-proxy-image" <(printf '%s|%s\n' "$image" "$project-proxy-socket") \
+        || { refuse 'the replacement image or socket volume does not match the requested deployment.'; exit 2; }
+    printf -v operation_success 'Replaced the independent proxy for %s; its socket volume remains in place.\n' "$project"
+    exit
+fi
 
 if [[ $action == up ]]; then
     select_shared_definition

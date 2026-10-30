@@ -111,7 +111,7 @@ endif
 
 .PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
-.PHONY: delivery/deployment/up delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
+.PHONY: delivery/deployment/up delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
 
@@ -143,6 +143,7 @@ help:
 	  'make tests/deployment/route/literal SHARED_RUNTIME_IMAGE=sha256:... Qualify mapped IP authority through private API routes.' \
 	  'make tests/deployment SHARED_RUNTIME_IMAGE=sha256:... Qualify installed deployment rendering and proxy boundaries.' \
 	  'make delivery/deployment/up DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... Start from the shared operator settings file.' \
+	  'make delivery/deployment/proxy/restart DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... Replace only the independent proxy and keep its socket volume.' \
 	  'make delivery/deployment/down PROJECT=... Stop shared delivery and preserve all volumes.' \
 	  'make delivery/deployment/status PROJECT=... Inspect installed service state.' \
 	  'make delivery/deployment/logs PROJECT=... Show bounded recent service logs.' \
@@ -222,6 +223,9 @@ tests/repository/command:
 
 delivery/deployment/up:
 	bash tools/delivery.sh up
+
+delivery/deployment/proxy/restart:
+	bash tools/delivery.sh proxy-restart
 
 delivery/deployment/down:
 	bash tools/delivery.sh down
