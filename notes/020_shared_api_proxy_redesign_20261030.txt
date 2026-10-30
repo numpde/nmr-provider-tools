@@ -46,6 +46,12 @@ Later corrections and completed work supersede older proposals and deferrals.
    GitHub and build there through maintained targets. Avoid bundle transfers and
    private source overlays. Respect host acquisition/routing choices, keep runtime
    state with its existing owner and keep private operational details out of notes.
+10. Work in each repo's main checkout. Deliver through maintained repo-native build,
+    deployment, recovery and cleanup paths. No side working copies, one-off scripts
+    or hidden manual repairs as the implementation. Prefer the long-term design
+    with the least maintenance and babysitting: clear ownership, fewer moving
+    parts and routine operations. Make the first milestone a small, durable slice
+    of that design; defer optional enhancements.
 
 Status: working design and joint rollout plan, revised after discussion on
 30 October 2026. No implementation, release or deployment change is claimed.
@@ -225,7 +231,9 @@ Give every agent this assignment:
   Get all four providers AND shared delivery running through one independent
   host API proxy, and retire the replaced proxies and unused private route
   resources after their clients settle. Deliver your owned part through existing
-  workflows, preserving signing/TLS, queue ownership and request/retry semantics.
+  workflows in the main checkout, preserving signing/TLS, queue ownership and
+  request/retry semantics. Use maintained paths and a durable design with minimal
+  maintenance and babysitting; avoid one-off implementation and operator repairs.
   Keep the agreed shared interface. Fix concrete blockers; leave unrelated
   improvements and excluded projects outside this rollout. Correctly retained
   retries may remain pending after cutover. Report observed progress, the next
