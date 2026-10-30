@@ -104,6 +104,8 @@ def _socket_grant(path, socket_group_id):
 class DeliveryInbox:
     """Own listeners, client handlers and original offloaded SQLite operations."""
 
+    max_request_bytes = MAX_REQUEST_BYTES
+
     def __init__(self, queue, endpoints, *, request_seconds, on_accepted, on_failure, binding_status):
         self.queue, self.endpoints = queue, endpoints
         self.request_seconds = request_seconds
@@ -166,8 +168,8 @@ class DeliveryInbox:
                 elif isinstance(event, h11.Request):
                     request = event
                 elif isinstance(event, h11.Data):
-                    if len(body) + len(event.data) > MAX_REQUEST_BYTES:
-                        raise DeliveryRequestRejected("Delivery request exceeds the terminal body limit.")
+                    if len(body) + len(event.data) > self.max_request_bytes:
+                        raise DeliveryRequestRejected("Delivery request exceeds the supported body limit.")
                     body.extend(event.data)
                 elif isinstance(event, h11.EndOfMessage):
                     return request, bytes(body)
