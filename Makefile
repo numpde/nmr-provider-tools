@@ -111,7 +111,7 @@ endif
 
 .PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
-.PHONY: delivery/deployment/up delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard
+.PHONY: delivery/deployment/up delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
 
@@ -148,6 +148,7 @@ help:
 	  'make delivery/deployment/logs PROJECT=... Show bounded recent service logs.' \
 	  'make delivery/deployment/held DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... List pending and held metadata while stopped.' \
 	  'make delivery/deployment/discard DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... EXECUTION_ATTEMPT_REF=... BODY_SHA256=... Discard exactly one stopped held item.' \
+	  'make delivery/deployment/retire-old PROJECT=... SHARED_RUNTIME_IMAGE=sha256:... Retire unused old per-provider socket volumes.' \
 	  'make publish/prepare TAG=vX.Y.Z WHEELHOUSE=... OUTPUT=... Prepare exact artifacts, logs and authored release notes.' \
 	  'make publish/release TAG=vX.Y.Z ARTIFACTS=... Publish reviewed inputs through a verified GitHub draft.'
 
@@ -236,6 +237,10 @@ delivery/deployment/held:
 
 delivery/deployment/discard:
 	bash tools/delivery.sh discard
+
+delivery/deployment/retire-old:
+	[[ $${PROJECT_INPUT_ORIGIN} == 'command line' && $${SHARED_RUNTIME_IMAGE_INPUT_ORIGIN} == 'command line' ]] || { printf '%s\n' 'Select PROJECT and SHARED_RUNTIME_IMAGE on the Make command line.' >&2; exit 2; }
+	bash tools/delivery_retire_old.sh "$$PROJECT_INPUT" "$$SHARED_RUNTIME_IMAGE_INPUT"
 
 publish/prepare:
 	bash tools/publish.sh prepare
