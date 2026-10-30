@@ -1,0 +1,20 @@
+{
+  "install_lock_sha256": "2a7cd005d5bb3430562e9f2e2a5cfce874035961f0848daf56c5a54ab84e8db0",
+  "runtime_wheels": {
+    "anyio-4.15.1-py3-none-any.whl": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
+    "certifi-2026.10.23-py3-none-any.whl": "e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1",
+    "cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl": "c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf",
+    "cryptography-50.0.0-cp311-abi3-manylinux_2_34_x86_64.whl": "82148ec5bddac30b51a5b3c1945075f896fa022cb93f8e4a01e9f6ee95292c5f",
+    "h11-0.16.0-py3-none-any.whl": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+    "http_sf-1.2.1-py3-none-any.whl": "63f9c761e58d9a35646bb9ab253a802a51a60423bab5495d9710d148f9dbe5a7",
+    "httpcore-1.0.9-py3-none-any.whl": "2d400746a40668fc9dec9810239072b40b4484b640a8c38fd654a024c7a1bf55",
+    "httpx-0.28.1-py3-none-any.whl": "d909fcccc110f8c7faf814ca82a9a4d816bc5a6dbfea25d6591d6985b8ba59ad",
+    "idna-3.20-py3-none-any.whl": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+    "pycparser-3.11-py3-none-any.whl": "51d5a8ba2be0bbe440b99d2112604c95bbbc3c2748a64260186c541e1729cd80",
+    "tomli_w-1.2.0-py3-none-any.whl": "188306098d013b691fcadc011abd66727d3c414c571bb01b1a174ba8c983cf90",
+    "typing_extensions-4.16.0-py3-none-any.whl": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
+  },
+  "source_revision": "324d8583ac5e238709a9b22803fbac0334cdb388",
+  "version": "0.5.6",
+  "wheel_sha256": "b6eea9dfc4524a89ed96ae862165196efe4df2a273a20a70b4d7868adbf65195"
+}

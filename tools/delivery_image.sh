@@ -11,23 +11,17 @@ uid=$(id -u) gid=$(id -g)
 if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot build shared delivery: use a nonzero caller and repository path without mount delimiters.' >&2; exit 2
 fi
-if [[ ! -v ARTIFACTS_INPUT_ORIGIN || $ARTIFACTS_INPUT_ORIGIN != 'command line' || ! -v ARTIFACTS_INPUT || -z $ARTIFACTS_INPUT || -L $ARTIFACTS_INPUT ]]; then
-    printf '%s\n' 'Cannot build shared delivery: select ARTIFACTS as the qualified release directory on the Make command line.' >&2; exit 2
-fi
-if ! IFS= read -r -d '' artifacts < <(realpath -ze -- "$ARTIFACTS_INPUT"); then
-    printf '%s\n' 'Cannot resolve delivery ARTIFACTS: select an existing release directory.' >&2; exit 2
-fi
-if [[ $artifacts == / || $artifacts =~ [[:cntrl:],] || ! -d $artifacts || $(stat -c %u -- "$artifacts") != "$uid" ]]; then
-    printf '%s\n' 'Cannot grant delivery ARTIFACTS: select a caller-owned directory below the filesystem root without mount delimiters.' >&2; exit 2
-fi
 inputs=(tools/base_image.sh tools/container_guard.py tools/artifacts.py tools/wheelhouse.py tools/core_environment.py
-    tools/delivery_image.py tools/delivery_deployment.py requirements/provider-core.lock
+    tools/delivery_image.py tools/delivery_deployment.py requirements/provider-core.lock requirements/delivery-release.json
     containers/delivery/Dockerfile containers/delivery/check_runtime.py)
 source "$root/tools/checker_operation.sh"
 source "$root/tools/checker_inputs.sh"
+source "$root/tools/delivery_identity.sh"
+recipe=$(delivery_recipe_identity)
 checker_begin
 checker_input_paths=("${inputs[@]}")
 expected=$(checker_fingerprint)
+[[ $recipe == "$expected" ]] || { printf '%s\n' 'Delivery recipe changed before capture; retry.' >&2; exit 2; }
 context=$operation_directory/context
 mkdir -- "$context"
 for path in "${inputs[@]}"; do
@@ -52,10 +46,10 @@ checker_run 120 --pull never --network none --read-only --user "$uid:$gid" --cap
     --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
     --mount "type=bind,src=$context/tools,dst=/workspace/tools,readonly" \
     --mount "type=bind,src=$context/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" \
-    --mount "type=bind,src=$artifacts,dst=/artifacts,readonly" \
+    --mount "type=bind,src=$context/requirements/delivery-release.json,dst=/release.json,readonly" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
     --mount "type=bind,src=$context,dst=/capture" \
-    --entrypoint python3 "$build_base_image" -B -m tools.delivery_image --artifacts /artifacts --pool /wheelhouse --destination /capture
+    --entrypoint python3 "$build_base_image" -B -m tools.delivery_image capture --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --destination /capture
 for path in "$context"/wheels/*.whl; do
     [[ -f $path && ! -L $path && ${path##*/} =~ ^[A-Za-z0-9_.+-]+\.whl$ ]] || exit 2
     checker_input_paths+=("${path#"$context/"}")
@@ -87,7 +81,7 @@ if ! cmp -s "$operation_directory/base-tag" <(printf '%s\n' "$build_base_image")
     operation_diagnostic+=$'Cannot build shared delivery: the operation base tag does not identify the pinned image.\n'; exit 2
 fi
 checker_call 'offline shared delivery image build' 900 stdio "${engine[@]}" build --builder default --platform linux/amd64 \
-    --network none --pull=false --build-arg "BASE_IMAGE=$base_tag" --label "org.nmr-provider-tools.inputs=$fingerprint" --label org.nmr-provider-tools.role=delivery \
+    --network none --pull=false --build-arg "BASE_IMAGE=$base_tag" --label "org.nmr-provider-tools.inputs=$fingerprint" --label "org.nmr-provider-tools.recipe=$recipe" --label org.nmr-provider-tools.role=delivery \
     --iidfile "$operation_directory/built-image" --file "$context/containers/delivery/Dockerfile" "$context"
 image=
 if [[ -f $operation_directory/built-image && ! -L $operation_directory/built-image && $(stat -c %s -- "$operation_directory/built-image") -le 72 ]]; then
@@ -108,6 +102,7 @@ if ! cmp -s "$operation_directory/base-tag-after-build" <(printf '%s\n' "$build_
     operation_diagnostic+=$'Cannot retire the shared delivery base tag: the tag or persistent base reference changed; inspect the retained operation.\n'; exit 2
 fi
 checker_call 'shared delivery image publication' 30 stdio "${engine[@]}" image tag "$image" "nmr-provider-tools/delivery:$fingerprint"
+checker_call 'shared delivery recipe publication' 30 stdio "${engine[@]}" image tag "$image" "nmr-provider-tools/delivery-recipe:$recipe"
 checker_call 'remove shared delivery operation base tag' 30 stdio "${engine[@]}" image rm --no-prune "$base_tag"
 retain_operation=false
 printf -v operation_success 'Prepared shared delivery %s with input fingerprint %s.\n' "$image" "$fingerprint"

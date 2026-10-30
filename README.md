@@ -6,6 +6,24 @@ Get `provider_core` and its lock file from [GitHub Releases](https://github.com/
 
 Shared delivery stores results and retries sending them to the API. Start with the [example config](config/delivery.toml.example) and save the host's copy under `config/deployments/<name>/settings.toml`. Named deployment settings are local and ignored by Git. Providers use their own repository's deployment settings to identify the shared socket grants; they do not read this file.
 
+Prepare the checked-in delivery release in the shared wheelhouse, then start the
+named deployment:
+
+```sh
+make delivery/prepare WHEELHOUSE=/path/to/wheelhouse NETWORK_INTERFACE=system
+make delivery/deployment/up DEPLOYMENT=localhost
+```
+
+On a new host, first run `make checks/base-image/download` to acquire the pinned
+container base through Docker. Preparation downloads missing pinned wheels,
+verifies them, and builds offline.
+`system` uses the host's normal network routing; an interface name binds
+acquisition to that interface. Updating the checked-in release pin and preparing
+it again selects a new image. Starting the outbox retains its queue and leaves an
+existing proxy running. `make delivery/deployment/proxy/restart DEPLOYMENT=localhost`
+updates the proxy separately. Status, logs, and down use `PROJECT` from the
+settings file so they remain available for recovery without a prepared image.
+
 Outbox byte limits count terminal request bodies, not all disk use. Allow space
 for each retained handoff's encoded credential and CA (up to 16 KiB and 1 MiB
 before encoding), plus SQLite database and journal overhead. Item limits bound

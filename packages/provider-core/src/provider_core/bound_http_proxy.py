@@ -258,7 +258,8 @@ def _query_ipv4(
     question = _dns_name(host) + struct.pack("!HH", 1, 1)
     request = struct.pack("!HHHHHH", transaction, 0x0100, 1, 0, 0, 0) + question
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as resolver:
-        resolver.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode() + b"\0")
+        if interface != "system":
+            resolver.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode() + b"\0")
         resolver.settimeout(_remaining(query_deadline, "DNS query"))
         resolver.connect((server, 53))
         resolver.settimeout(_remaining(query_deadline, "DNS query"))
@@ -361,7 +362,8 @@ def connect_bound(host: str, port: int, interface: str) -> socket.socket:
         _remaining(deadline, "connection")
         outbound = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            outbound.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode() + b"\0")
+            if interface != "system":
+                outbound.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, interface.encode() + b"\0")
             outbound.settimeout(_remaining(deadline, "connection"))
             outbound.connect((address, port))
             # A late successful connect still owns an open socket; reject it
@@ -607,13 +609,15 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        require_interface(args.interface)
+        if args.interface != "system":
+            require_interface(args.interface)
     except ValueError as error:
         raise SystemExit(str(error)) from None
 
     # Prove interface binding before publishing readiness, without any transfer.
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
-        probe.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, args.interface.encode() + b"\0")
+    if args.interface != "system":
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, args.interface.encode() + b"\0")
 
     with ProxyServer(("127.0.0.1", args.port), args.interface) as server:
         publish_readiness(args.ready_file, f"{server.server_address[1]}\n")

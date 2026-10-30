@@ -37,6 +37,15 @@ override ARTIFACTS_INPUT := $(value ARTIFACTS)
 export ARTIFACTS_INPUT
 endif
 
+unexport DEPLOYMENT
+unexport DEPLOYMENT_INPUT
+unexport DEPLOYMENT_INPUT_ORIGIN
+override export DEPLOYMENT_INPUT_ORIGIN := $(origin DEPLOYMENT)
+ifeq ($(origin DEPLOYMENT),command line)
+override DEPLOYMENT_INPUT := $(value DEPLOYMENT)
+export DEPLOYMENT_INPUT
+endif
+
 unexport SHARED_SETTINGS
 unexport SHARED_SETTINGS_INPUT
 unexport SHARED_SETTINGS_INPUT_ORIGIN
@@ -112,7 +121,7 @@ endif
 .PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
 .PHONY: delivery/deployment/up delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
-.PHONY: publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
+.PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
 
 help:
@@ -138,17 +147,18 @@ help:
 	  'make tests/integration/provider-core/delivery WHEELHOUSE=... Qualify real delivery IPC and recovery.' \
 	  'make package/build WHEELHOUSE=... OUTPUT=... Build clean committed source into an empty owned directory.' \
 	  'make tests/package WHEELHOUSE=... ARTIFACTS=... Qualify exact release files and the source rebuild.' \
-	  'make delivery/image/build WHEELHOUSE=... ARTIFACTS=... Build shared delivery from qualified wheel inputs.' \
+	  'make delivery/prepare WHEELHOUSE=... NETWORK_INTERFACE=system Acquire the pinned release and build shared delivery.' \
+	  'make delivery/image/build WHEELHOUSE=... Build the pinned delivery image from a complete wheelhouse.' \
 	  'make tests/deployment/route SHARED_RUNTIME_IMAGE=sha256:... Qualify private API routes with disposable local services.' \
 	  'make tests/deployment/route/literal SHARED_RUNTIME_IMAGE=sha256:... Qualify mapped IP authority through private API routes.' \
 	  'make tests/deployment SHARED_RUNTIME_IMAGE=sha256:... Qualify installed deployment rendering and proxy boundaries.' \
-	  'make delivery/deployment/up SHARED_SETTINGS=... SHARED_RUNTIME_IMAGE=sha256:... Start or replace the outbox; retain its queue and the running proxy.' \
-	  'make delivery/deployment/proxy/restart SHARED_SETTINGS=... SHARED_RUNTIME_IMAGE=sha256:... Replace the proxy; active connections can be interrupted and its socket volume is retained.' \
+	  'make delivery/deployment/up DEPLOYMENT=... Start or replace the outbox; retain its queue and the running proxy.' \
+	  'make delivery/deployment/proxy/restart DEPLOYMENT=... Replace the proxy; active connections can be interrupted and its socket volume is retained.' \
 	  'make delivery/deployment/down PROJECT=... Stop shared delivery and preserve all volumes.' \
 	  'make delivery/deployment/status PROJECT=... Inspect installed service state.' \
 	  'make delivery/deployment/logs PROJECT=... Show bounded recent service logs.' \
-	  'make delivery/deployment/held SHARED_SETTINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... List pending and held metadata while stopped.' \
-	  'make delivery/deployment/discard SHARED_SETTINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... EXECUTION_ATTEMPT_REF=... BODY_SHA256=... Discard exactly one stopped held item.' \
+	  'make delivery/deployment/held DEPLOYMENT=... API_ORIGIN=... PROVIDER_REF=... List pending and held metadata while stopped.' \
+	  'make delivery/deployment/discard DEPLOYMENT=... API_ORIGIN=... PROVIDER_REF=... EXECUTION_ATTEMPT_REF=... BODY_SHA256=... Discard exactly one stopped held item.' \
 	  'make delivery/deployment/retire-old PROJECT=... SHARED_RUNTIME_IMAGE=sha256:... Retire unused old per-provider socket volumes.' \
 	  'make publish/prepare TAG=vX.Y.Z WHEELHOUSE=... OUTPUT=... Prepare exact artifacts, logs and authored release notes.' \
 	  'make publish/release TAG=vX.Y.Z ARTIFACTS=... Publish reviewed inputs through a verified GitHub draft.'
@@ -167,6 +177,9 @@ tests/deployment/route/literal:
 
 tests/deployment:
 	bash tools/delivery_tests.sh
+
+delivery/prepare:
+	bash tools/delivery_prepare.sh
 
 delivery/image/build:
 	bash tools/delivery_image.sh

@@ -94,13 +94,21 @@ select_project() {
     project=$PROJECT_INPUT
 }
 select_shared_definition() {
-    [[ -v SHARED_RUNTIME_IMAGE_INPUT_ORIGIN && $SHARED_RUNTIME_IMAGE_INPUT_ORIGIN == 'command line' && -v SHARED_RUNTIME_IMAGE_INPUT ]] \
-        || { refuse 'select SHARED_RUNTIME_IMAGE from delivery/image/build.'; exit 2; }
-    image=$SHARED_RUNTIME_IMAGE_INPUT
+    [[ $SHARED_RUNTIME_IMAGE_INPUT_ORIGIN != 'command line' && $SHARED_SETTINGS_INPUT_ORIGIN != 'command line' ]] \
+        || { refuse 'use DEPLOYMENT and the prepared release; SHARED_SETTINGS and SHARED_RUNTIME_IMAGE are not used for this command.'; exit 2; }
+    [[ -v DEPLOYMENT_INPUT_ORIGIN && $DEPLOYMENT_INPUT_ORIGIN == 'command line' && -v DEPLOYMENT_INPUT
+        && $DEPLOYMENT_INPUT =~ ^[a-z0-9][a-z0-9_-]{0,48}$ ]] \
+        || { refuse 'select DEPLOYMENT on the Make command line.'; exit 2; }
+    definition="$root/config/deployments/$DEPLOYMENT_INPUT/settings.toml"
+    source "$root/tools/delivery_identity.sh"
+    recipe=$(delivery_recipe_identity)
+    if ! checker_metadata "$operation_directory/recipe-image" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.recipe"}}' "nmr-provider-tools/delivery-recipe:$recipe"; then
+        refuse 'the pinned delivery image is not prepared; run make delivery/prepare.'; exit 2
+    fi
+    IFS=' ' read -r image actual_recipe < "$operation_directory/recipe-image"
+    [[ $actual_recipe == "$recipe" ]] && cmp -s "$operation_directory/recipe-image" <(printf '%s %s\n' "$image" "$recipe") \
+        || { refuse 'the prepared image does not match the current release recipe; run make delivery/prepare.'; exit 2; }
     admit_image
-    [[ -v SHARED_SETTINGS_INPUT_ORIGIN && $SHARED_SETTINGS_INPUT_ORIGIN == 'command line' && -v SHARED_SETTINGS_INPUT ]] \
-        || { refuse 'select SHARED_SETTINGS as the shared operator settings file.'; exit 2; }
-    definition=$SHARED_SETTINGS_INPUT
     mountable_path "$definition"
     [[ -f $definition && $(stat -c %s -- "$definition") -le 65536 ]] \
         || { refuse 'the shared settings must be a regular file of at most 65536 bytes.'; exit 2; }

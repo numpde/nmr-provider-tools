@@ -10,6 +10,7 @@ acquisition_interface_available() {
 }
 
 acquisition_interface_description() {
+    if [[ $1 == system ]]; then printf '%s' 'normal system routing'; return; fi
     local path=/sys/class/net/$1 state type kind=interface
     # Linux include/uapi/linux/if_arp.h defines the sysfs ARPHRD type values:
     # ARPHRD_ETHER=1 and ARPHRD_LOOPBACK=772.
@@ -39,7 +40,7 @@ select_acquisition_interface() {
                 if [[ -e $path/device ]]; then adapters+=("$name"); else other+=("$name"); fi
             fi
         done
-        choices=("${adapters[@]}" "${other[@]}")
+        choices=("${adapters[@]}" "${other[@]}" system)
         if ! { exec {tty_fd}<>/dev/tty; } 2>/dev/null; then
             printf '%s\n' 'Cannot acquire artifacts or packages without an interactive terminal: supply NETWORK_INTERFACE=<interface> on the make command line.' >&2
             for name in "${choices[@]}"; do
@@ -53,10 +54,10 @@ select_acquisition_interface() {
             return 2
         fi
         printf 'Select NETWORK_INTERFACE (no default):\n' >&"$tty_fd"
-        printf 'All entries are local interfaces. Link state does not establish connectivity.\n' >&"$tty_fd"
+        printf 'Choose an interface or system routing. Link state does not establish connectivity.\n' >&"$tty_fd"
         if [[ ${#adapters[@]} != 0 ]]; then printf 'Adapters (hardware or VM):\n' >&"$tty_fd"; fi
         for index in "${!choices[@]}"; do
-            if [[ $index == "${#adapters[@]}" ]]; then printf 'Other interfaces (including virtual links and loopback):\n' >&"$tty_fd"; fi
+            if [[ $index == "${#adapters[@]}" ]]; then printf 'Other interfaces and system routing:\n' >&"$tty_fd"; fi
             printf '  %d) %s [%s]\n' "$((index + 1))" "${choices[index]}" \
                 "$(acquisition_interface_description "${choices[index]}")" >&"$tty_fd"
         done
@@ -78,7 +79,7 @@ select_acquisition_interface() {
             return 2
         fi
     fi
-    if ! acquisition_interface_available "$interface"; then
+    if [[ $interface != system ]] && ! acquisition_interface_available "$interface"; then
         printf 'Cannot acquire artifacts or packages: NETWORK_INTERFACE=%q is not an available network interface.\n' "$interface" >&2
         return 2
     fi
