@@ -80,7 +80,9 @@ checker_call() {
                 env=environment, text=True, capture_output=True, check=False,
             )
             remaining = (root / 'volumes').read_text().splitlines()
-            removed = (root / 'removed').read_text().splitlines() if (root / 'removed').exists() else []
+            removed = []
+            if (root / 'removed').exists():
+                removed = (root / 'removed').read_text().splitlines()
             result.reservation_retained = (root / 'reservation').exists()
             return result, remaining, removed
 
@@ -89,7 +91,7 @@ checker_call() {
         old = [f'{project}-ipc-{digest}', f'{project}-route-{digest}']
         protected = [f'{project}-queue', f'{project}-proxy-socket', f'{project}-outbox-socket']
         result, remaining, removed = self.run_retirement('normal', old + protected)
-        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual(old, removed)
         self.assertEqual(protected, remaining)
 
@@ -129,6 +131,6 @@ checker_call() {
 
     def test_no_old_volumes_is_idempotent(self):
         result, remaining, removed = self.run_retirement('normal', ['delivery-test-queue'])
-        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual(['delivery-test-queue'], remaining)
         self.assertEqual([], removed)

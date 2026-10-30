@@ -6,9 +6,9 @@ from pathlib import Path
 from unittest.mock import Mock
 
 from provider_core.api_config import api_settings_with_material
-from provider_core.delivery_client import DeliveryClient, DeliveryEndpoint, DeliveryRejected
+from provider_core.delivery_client import DeliveryClient, DeliveryEndpoint, DeliveryRejected, DeliveryUnavailable
 from provider_core.delivery_handoff import DeliveryHandoff
-from provider_core.delivery_store import DeliveryConflict, DeliveryQueue, QueueLimits
+from provider_core.delivery_store import DeliveryConflict, DeliveryFull, DeliveryQueue, QueueLimits
 from provider_core.shared_delivery_client import SharedDeliveryClient
 from provider_core.shared_delivery_ipc import SharedDeliveryInbox, SharedDeliverySocket
 from tests.fakes.credential import document, encoded
@@ -65,3 +65,39 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.inbox.failed.is_set())
         self.assertIsInstance(self.inbox.failure, OSError)
         self.assertEqual(self.queue.next_pending_handoff(item.api_origin, item.provider_ref).outcome, item)
+
+    async def test_lost_ack_replays_the_same_retained_result_and_material(self):
+        client = self.client("provider:first")
+        item = outcome(provider="provider:first")
+        expected = DeliveryHandoff(item, client.publication)
+        respond = self.inbox._respond
+        dropped = False
+
+        async def lose_first(connection, writer, status, document):
+            nonlocal dropped
+            if not dropped and status == 200 and document == expected.acceptance():
+                dropped = True
+                writer.close()
+                await writer.wait_closed()
+                return
+            await respond(connection, writer, status, document)
+
+        self.inbox._respond = lose_first
+        with self.assertRaises(DeliveryUnavailable):
+            await client.submit(item)
+        await client.retire()
+        self.assertEqual(expected.acceptance(), await client.submit(item))
+        retained = self.queue.next_pending_handoff(item.api_origin, item.provider_ref)
+        self.assertEqual(item, retained.outcome)
+        self.assertEqual(client.publication, retained.publication)
+        self.assertEqual(1, len(self.queue.inventory(item.api_origin, item.provider_ref)))
+
+    async def test_full_queue_refuses_new_handoff_but_accepts_identical_replay(self):
+        client = self.client("provider:first")
+        first, second, third = (outcome(provider="provider:first", suffix=suffix) for suffix in ("0", "1", "2"))
+        accepted = await client.submit(first)
+        await client.submit(second)
+        with self.assertRaises(DeliveryFull):
+            await client.submit(third)
+        self.assertEqual(accepted, await client.submit(first))
+        self.assertEqual(2, len(self.queue.inventory(first.api_origin, first.provider_ref)))
