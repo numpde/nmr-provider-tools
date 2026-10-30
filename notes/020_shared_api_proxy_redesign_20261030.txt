@@ -1,6 +1,52 @@
 One shared API proxy for the four providers
 ==========================================
 
+Governing guidelines from the joint refactor
+--------------------------------------------
+
+These summarize the agreed engineering directions for the joint refactor.
+Later corrections and completed work supersede older proposals and deferrals.
+
+1. Privacy: treat repository notes and commits as public. Read logs in place and
+   carry forward necessary, sanitized decisions. Keep credentials, signed headers,
+   scientific payloads, raw transcripts, session IDs and private deployment
+   addresses, accounts, paths and resource identifiers out of public artifacts.
+   Document public interface constants/defaults, relative source references and
+   clearly marked examples; keep instance-specific private values in existing
+   operator inputs or private handoffs. Review the exact diff before publication.
+2. Read the recent joint Codex logs before designing, especially the user's
+   recurrent directions. Read actual peer notes and thread progress; distinguish
+   user decisions, peer suggestions, hypothetical probes and observed results.
+3. Prioritize a speedy first joint live deployment: one good shared API router,
+   all four providers AND delivery using it, and the eight old proxies retired.
+   Fix material blockers through existing workflows; keep checks proportionate.
+   A green build, an ACK or a ready listener does not complete the deployment.
+4. Hard constraint: the shared proxy stays stable after its first joint deployment.
+   Its client contract, socket/group, destination/network settings, storage and
+   independent lifecycle form the baseline. Later provider improvements must not
+   require proxy reconfiguration, replacement, restart or socket-volume recreation.
+   Settle the proxy capabilities needed by later tiers during the first tier.
+5. The shared-package owner owns the proxy and convergence of this note. Each
+   provider owner writes a new repo-specific design from 020, reads the other
+   designs and converges on one shared contract and rollout. Local integration
+   and deployment stay with that provider; shared service changes stay with their
+   owner. Coordinate shared interfaces before release.
+6. Raise the common floor: apply peer findings to your own package, use the
+   existing owning mechanisms and choose practical, consistent configuration.
+   Preserve signing/TLS, transparent errors, effect uncertainty and durable work.
+   Prefer a clean cut over legacy fallbacks, aliases and speculative frameworks.
+7. Record consequential choices with serious alternatives and reasons in the
+   appropriate design note. Put legitimate minor concerns in the relevant deferred
+   note with an owner and trigger; do not turn every suggestion into a deployment
+   gate. Check later logs before carrying an old concern forward as open work.
+8. Reduce cross-thread chatter. Prefer reading notes and thread progress; send
+   messages only for critical or important questions, corrections and blockers
+   requiring another owner's action. Work on your own repo while peers progress.
+9. Each deployment host is self-sufficient: acquire issued artifacts/source from
+   GitHub and build there through maintained targets. Avoid bundle transfers and
+   private source overlays. Respect host acquisition/routing choices, keep runtime
+   state with its existing owner and keep private operational details out of notes.
+
 Status: working design and joint rollout plan, revised after discussion on
 30 October 2026. No implementation, release or deployment change is claimed.
 Scope: Magnet, NMRNet, NMRPeak, SECS and provider-core in nmr-provider-tools.
@@ -51,11 +97,12 @@ obligations can continue through the publisher on the shared route.
 
 Tier 2 -- Follow up after the joint deployment works.
 
-Improve status/help text, simplify awkward code exposed by integration, and add
-small regression cases for problems found during the refactor. Tune capacity
-from actual use. Finish documentation and incidental cleanup that does not affect
-the running topology. If a small improvement directly helps the current cutover,
-do it there; do not turn these follow-ups into a second prerequisite project.
+Improve client status/help text, simplify client code exposed by integration, and add
+small regression cases for problems found during the refactor. Improve clients
+within the deployed proxy's stable contract and capacity. Finish documentation
+and incidental cleanup that does not affect the running topology. If a small
+improvement directly helps the current cutover, do it there; do not turn these
+follow-ups into a second prerequisite project.
 
 Tier 3 -- Leave out unless a concrete need emerges.
 
@@ -113,8 +160,9 @@ finished. They address deviations seen in agent roadmap exercises.
 
 * Pattern: keep one shared router and diagnose actual overload. Control a known
   maintenance burst with its existing concurrency setting before increasing
-  shared capacity. If normal combined traffic needs more capacity, adjust the
-  bounded limit with its thread, PID and memory budgets.
+  shared capacity during initial bringup. Settle the bounded limit for normal
+  combined traffic with its thread, PID and memory budgets in that first tier;
+  later provider improvements use the deployed baseline.
   Anti-pattern: restore per-provider listeners or proxies to avoid sharing, or
   require 8x32 connections just because the previous topology had eight listeners.
 
@@ -156,9 +204,10 @@ through the single host proxy, with the old proxies retired. Assign ownership:
 * One coordinator resolves cross-repository blockers and drives the whole graph
   to completion. This can be the SDK/delivery owner.
 
-Agree and record the actual volume name, socket path, proxy UID, access GID and
-SDK interface early, using the note or existing handoff. Coordinate changes to
-that interface with the affected owners. Keep the other agents moving on work
+Agree the volume name, socket path, proxy UID, access GID and SDK interface early.
+Keep private instance values in existing operator inputs or a private handoff;
+this note records the public contract and intentionally public defaults.
+Coordinate interface changes with the affected owners. Keep other agents on work
 that does not depend on the change. Keep working shared names and interfaces
 stable during cutover; cosmetic renames and dual-name compatibility add no
 deployment capability.
@@ -183,10 +232,12 @@ Give every agent this assignment:
   live milestone and any blocker needing another owner. State what remains for
   the whole deployment, including old-proxy retirement.
 
-Pass that assignment with partial handoffs. Add only the owner's task, actual
-shared socket settings and SDK release, observed state, next runnable milestone
-and concrete blocker. Use the existing note or handoff; no new tracking service
-is needed. Distinguish source changes, passing builds and observed live results.
+Pass that assignment and the relevant provider paragraph below with partial
+handoffs. Include the owner's task, SDK release, observed state, next runnable
+milestone and concrete blocker. Use a private handoff for instance-specific
+settings and diagnostic evidence; keep shared public notes at the contract and
+sanitized-summary level. No new tracking service is needed. Distinguish source
+changes, passing builds and observed live results.
 Mark unknown peer status as unknown and release estimates as estimates. Carry
 confirmed live milestones forward; do not invent work to redeploy the API or
 repeat a completed cutover without evidence of a problem.
@@ -284,6 +335,8 @@ supervised by the Docker engine with restart policy. Proposed maintained command
 make api-proxy/deployment/{config,up,status,down}; provider and delivery commands
 never invoke its up/down operations. A host reboot must restore the proxy and
 clients must tolerate startup ordering and temporary unavailability.
+Keep its deployed image and settings as the host baseline; a provider SDK upgrade
+does not redeploy or reconfigure the shared proxy.
 
 Use the ordinary SDK release path and existing artifact/version records. Each
 host acquires the release and builds its proxy image through maintained tooling;
@@ -297,7 +350,9 @@ and deployment_binding. Keep the transport interface small: a shared volume,
 socket path and access group. Configure the router's destination and network
 settings once using the existing deployment inputs. Each binding keeps its own
 API identity, credential and trust inputs. A new provider for this API borrows
-the same socket and adds no proxy or host registration step.
+the same socket and adds no proxy or API-router registration step. Its delivery
+binding still uses the existing static operator workflow described in note 019;
+socket access does not register a publisher or transfer a terminal obligation.
 
 Use one named socket volume, writable only by the proxy and initialized for a
 dedicated nonroot proxy UID and operator-selected shared access GID. The proxy
@@ -324,23 +379,55 @@ authentication still distinguishes providers; delivery retains its own quotas.
 Consumers and lifecycle
 -----------------------
 
-Magnet: replace production render_api_route in deployment_inputs with the shared
-client grant. Remove production api/api-init generation and corresponding
-launch, teardown and capture of router network settings. Existing candidate
-startup/API checks use the shared socket before stopping the incumbent. Private
-routes for disposable test APIs belong only in test infrastructure.
+Magnet: replace render_api_route in deployment_inputs with the shared client
+grant. Its api/api-init roles are the old proxy and initializer: remove them from
+production and real-API validation compositions, including launch and teardown.
+Keep candidate startup and signed API reads before stopping the incumbent; give
+those clients the same shared mount/group. Capture client credentials and trust,
+not the router's network settings. Private disposable test-API routes stay in
+test infrastructure. Build the product selected by the retained deployment
+through the existing build target; preserve its image/input identity checks.
+Status diagnostics that expose this selection more clearly are a follow-up in
+note 015, not a reason to retag the wrong product or delay a correct build.
+Within the provider's existing deployment authorization, carry the candidate
+through maintained up and report the running image/grant and retired old roles;
+a green source commit or build is readiness, not completed deployment.
 
 NMRNet: deployment.py projects the external client mount/socket instead of
 merging route services. Its generation retirement must never remove shared
-storage. Interpreter, store, reader and scientific network routes are separate
-capabilities and remain independently owned.
+storage. Add the shared API mount and GID to existing grants; replacing entire
+volumes or group_add lists can break delivery intake and scientific interfaces.
+Keep interpreter, store, reader and scientific routes independently owned, and
+preserve the provider's existing network isolation. Check the affected projection
+and existing connections rather than switching the client to host networking.
+Coordinate its original delivery binding/intake with the shared owner; a working
+API read does not establish delivery readiness or permit using another identity.
+Ownership admission must recognize the specifically borrowed host API volume
+without relabeling it or dropping guards on owned journal/worker storage. Keep
+the borrowed volume excluded from both ordinary and custom retirement paths.
 
 NMRPeak: deployment_runtime and generation/maintenance tooling borrow the same
-shared API grant. Journal inspection or maintenance cannot create a hidden
-provider-owned API proxy. Removal of a provider generation leaves the route live.
+shared API grant. Put client socket/group settings in the existing operational
+capture with its credentials and trust; keep scientific generation identity and
+model products unchanged. Resolver and interface inputs stay with the host
+router, without per-generation copies. Journal/archive and maintenance API reads
+use the shared grant too. Removal of a provider generation leaves the route live.
+An already running old archive retains its generation lock and borrowed route
+until its original work settles; preserve unacknowledged work and report old-route
+cleanup as pending. Other providers can continue their own conversions meanwhile.
+Historical scientific snapshot housekeeping is separate from API proxy retirement.
+Check the owner's latest private status before treating an old deferral as open;
+retain the applicable design lesson without publishing instance cleanup history.
 
 SECS: _apply_api_route grants the shared volume, group and socket path; it no
 longer merges proxy services. Interpreter and upload-store routes remain distinct.
+The shared proxy grants the NMR API destination; scientific source/store origins
+keep their own existing routes and access limits, as scoped in note 021.
+An absent external socket volume blocks client launch, not source conversion;
+report it to the shared owner, who creates and initializes it. SECS adds neither
+a replacement root initializer nor direct-network fallback.
+Safe API/store failure context in existing client logs is a follow-up in note
+015; it does not require identifying providers inside the shared listener.
 
 Delivery: all four bindings select the shared route while retaining their own
 signers and pending rows. Remove its four rendered proxies and initializers.
@@ -367,10 +454,11 @@ Caveats during cutover
 -----------------------
 
 Eight present listeners each have a 32-connection cap. One current listener has
-32 total. Start with that existing bounded limit and observe the joint deployment.
-If it causes overload, fix capacity as part of getting the deployment working,
-accounting for thread, PID and memory limits. A saturation benchmark or a new
-capacity configuration framework is not required before the first live cutover.
+32 total. Start with that existing bounded limit during initial joint bringup.
+Resolve observed overload and select the deployed limit in that tier, accounting
+for thread, PID and memory limits. Later provider improvements work within that
+baseline. A saturation benchmark or a new capacity configuration framework is not
+required before the first live cutover.
 If a shared-router failure is disrupting clients, pause further affected cutovers
 while its owner fixes the cause and checks recovery through existing means.
 Resume ready consumers after recovery; a client-local configuration failure
@@ -379,6 +467,8 @@ blocks that client rather than the whole rollout.
 Route or resolver changes are deliberate host operations. A stopped-and-replaced
 proxy interrupts all API clients; that shared resource and failure domain is
 accepted. Provider deployments never silently rewrite its network settings.
+A later change to this host baseline is separate from the provider-improvement
+tiers; those tiers must leave the deployed proxy undisturbed.
 
 The host is controlled and collisions are unlikely. Choose distinct runtime
 identities and clear resource names, and retain existing filesystem safety.

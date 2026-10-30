@@ -19,10 +19,9 @@ passed, with no native runner implementation or timeout change. A product defect
 has not been established; avoid rewriting the runner or extending its deadline
 merely to suppress a one-off test result.
 
-Evidence: /tmp/sdk-owned-driver-green.log (480 cases, one error) and
-/tmp/sdk-owned-driver-races-green.log (486 cases, all passed). These temporary
-logs identify the observed runs; the shared decision note preserves their
-interpretation if the files are later removed.
+The intermediate 480-case run had one error; the later 486-case run passed.
+Detailed qualification logs remain private. The shared decision note retains
+the interpretation independently of temporary evidence-file locations.
 
 Bounded diagnostic rendering across actual consumer sinks
 --------------------------------------------------------
@@ -38,9 +37,9 @@ prove the general case safe. Retain valid JSON, bounded UTF-8 bytes including
 the actual envelope, coherent references, explicit omissions, and primary and
 independent cleanup evidence. Never substitute raw exception text or tracebacks.
 
-The existing proposal at /tmp/provider-core-bounded-diagnostics-proposal is an
-experiment, not an accepted implementation. Its fixed eight-node priority quota
-has no established justification. Review cause/group versus incidental-context
+The previously discussed bounded-diagnostics proposal is an experiment, not an
+accepted implementation. Its fixed eight-node priority quota has no established
+justification. Review cause/group versus incidental-context
 ordering and repeated-reference accounting without making traversal unbounded.
 Include safe symbolic DNS reasons without copying raw private exception text.
 
@@ -51,6 +50,14 @@ must supply the allowance remaining after their own framing. Do not add another
 provider-local serializer. D125, D131 and D136 in the running decision note retain
 the design obligations. This work does not block the independently qualified
 availability, deadline and cancellation corrections in 0.5.1.
+
+Provider roadmap exercises suggested preserving API CONNECT/TLS versus scientific
+source-acquisition context in the existing client logging envelope. Keep bounded
+operation labels and safe native status/request identifiers within the same
+rendering budget, without signed headers, payloads or a second serializer. This
+is a proposed improvement, not a newly observed incident or API-router deployment
+gate; separate listeners or a registration protocol solely for attribution are
+outside that follow-up.
 
 Absolute caller deadlines through the chat carrier
 -------------------------------------------------
@@ -95,3 +102,18 @@ Find a bounded, discoverable operator evidence channel that preserves prompt
 cancellation and truthful uncertainty, including when stderr is blocked and
 when evidence publication itself fails. Do not print sensitive configuration or
 claim removal without engine evidence. D207 records the tradeoff.
+
+Retained-product image mismatch diagnostics
+-------------------------------------------
+
+Owner: Magnet deployment tooling.
+Trigger: next change to image-input diagnostics or a repeated operator mismatch;
+nonblocking for the shared API proxy cutover.
+
+Provider roadmap exercises suggested showing the selected retained product and
+safe expected/observed image-input identities in a mismatch diagnostic. This is
+a usability proposal, not evidence of an observed live misbuild. Verify the
+current diagnostic before implementation and use the existing captured deployment
+as authority. A correct selected-product build can proceed through the maintained
+target now; this does not justify editing expected fingerprints or introducing
+a general multi-product image manager.

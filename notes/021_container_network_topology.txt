@@ -25,6 +25,15 @@ Use three roles when planning the deployment:
 3. Workers without external networking
    Use network mode "none" when computation needs only local inputs and outputs. This leaves loopback networking but no ordinary external interface or route. Arrange required work exchange separately, and avoid mounting network-control sockets or granting privileges that could undo the intended isolation.
 
+Scope of the shared provider API router
+
+Note 020 consolidates the NMR API tunnel only. Scientific source/store origins
+and interpreter services keep their separately required grants. A client
+borrowing the API Unix socket does not need to adopt the router's network mode
+or gain general networking. Use existing deployment inspection for the affected
+grants during cutover and fix demonstrated regressions at their owner. A new
+host-wide audit is separate work, not an API-router cutover prerequisite.
+
 Why namespace boundaries matter
 
 A network namespace has its own interfaces, routes, listening ports, and many network settings. A bridge-networked container normally has a separate namespace. A host-networked container shares the host's namespace. A container using another container's network namespace shares that owner's settings and reachability.
@@ -39,7 +48,12 @@ The useful lesson is to preserve and verify the topology split, rather than to a
 
 Verification and limits
 
-Record each component's network mode, namespace owner, listener addresses, published ports, allowed destinations, and communication mechanism. Compare the running configuration with that record after deployment changes. Test reachability from the relevant network locations, including whether workers can reach destinations they should not.
+Keep each deployment's actual network modes, namespace owners, listener addresses,
+published ports, allowed destinations and communication mechanisms in private
+operator records. Public design notes describe roles and use clearly marked
+examples. Compare the running configuration with the private record after
+deployment changes. Test reachability from the relevant network locations,
+including whether workers can reach destinations they should not.
 
 Network mode "none" reduces direct network reachability; it does not establish that a worker receives only trusted input. Inputs can still arrive through files, sockets, or another component. Separate namespaces also share the host kernel and do not provide the isolation of separate virtual machines.
 
