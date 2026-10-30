@@ -2,13 +2,13 @@
 # The proxy, outbox and provider socket grants use the same file.
 [deployment]
 # Compose project name shared by the delivery deployment commands.
-project = "nmr-api-delivery"
+project = "example-project"
 # The deploying user's UID owns the outbox.
-uid = 1000
+uid = 12345
 # Use a different non-root UID for the independent proxy.
-proxy_uid = 1001
+proxy_uid = 12346
 # Clients need this nonzero GID as a primary or supplementary group.
-gid = 1000
+gid = 12347
 # Seconds allowed separately to read an intake request and send its reply.
 request_seconds = 30
 
