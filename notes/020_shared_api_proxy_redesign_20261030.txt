@@ -258,7 +258,18 @@ into the services so an atomic replacement of the file is visible; providers do
 not receive its write authority. Use existing operator paths and deployment
 inputs; do not add a second configuration model or host-specific public values.
 
-The proxy periodically reloads max_connections, log_level and allowed_authorities.
+The proxy periodically reloads max_connections, max_admission_delay_seconds,
+admission_order, log_level and allowed_authorities. The admission delay is zero through 50% of
+active forwarding capacity, then rises linearly to the configured maximum at
+100%; its default is seven seconds. Each waiting connection keeps the delay
+calculated on arrival. Waiting sockets do not occupy forwarding slots, their
+number is bounded by max_connections, and disconnected or expired waiters are
+closed. The wait uses the caller's existing exchange timeout, and a full waiting
+queue can still refuse a connection. A delay change affects new waiters.
+The default `ready` order starts the oldest connection whose delay has elapsed;
+`fifo` keeps arrival order even when an older delay holds up ready connections.
+Order changes apply to the current waiting queue. Delay is configurable from
+zero to 30 seconds; waiters expire 30 seconds after their scheduled start.
 For mapped/local routing, it reloads the corresponding hostname/address mappings
 from the same file with the authority policy; an unmapped allowed hostname is
 not silently resolved through another route. Existing tunnels keep their original
@@ -286,6 +297,8 @@ Illustrative shape, not an implementation or private host configuration:
 
     [api_proxy]
     max_connections = 32
+    max_admission_delay_seconds = 7
+    admission_order = "ready"
     log_level = "INFO"
     allowed_authorities = ["api.example.invalid:443"]
 

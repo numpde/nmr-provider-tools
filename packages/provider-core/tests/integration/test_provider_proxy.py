@@ -5,6 +5,7 @@ launcher, named peer network, external interface, or physical relay retirement.
 """
 
 import asyncio
+import json
 import tempfile
 import threading
 import unittest
@@ -14,6 +15,8 @@ from urllib.parse import urlsplit
 
 import httpx
 from tests.fakes.tls_peer import TlsPeer
+from tests.fakes.api import api
+from tests.fakes.api_tls import api_tls_peer
 
 from provider_core.transport import HttpTransport
 from provider_core import bound_http_proxy
@@ -21,6 +24,85 @@ from provider_core.provider_proxy import LiveProxyConfiguration, ServicePolicy, 
 
 
 class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
+    async def test_discovery_waits_for_a_busy_proxy_without_retrying(self):
+        kind = "mol_from_1h_spectrum_formula"
+
+        async def response(_request, _body):
+            return json.dumps({"schema_id": "nmr.provider.jobs.list.response.v1", "analysis_kind_ref": kind,
+                               "has_provider_execution_attempt": False, "next_cursor": None, "jobs": []}).encode()
+
+        async with api_tls_peer("success", response_factory=response) as peer:
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                policy = ServicePolicy.admit("mapped", [urlsplit(peer.origin).netloc], ["127.0.0.1=127.0.0.1"])
+                with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root, shared_socket=True) as server:
+                    server._slots.set_limit(1)
+                    server.max_admission_delay_seconds = 0.2
+                    self.assertTrue(server._slots.acquire())
+                    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+                    thread.start()
+                    client = api(HttpTransport(trust=peer.trust, exchange_seconds=2, retirement_seconds=1,
+                                               proxy_socket=str(root / "proxy.sock")), peer.origin)
+                    try:
+                        request = asyncio.create_task(client.jobs(analysis_kind_ref=kind,
+                            has_provider_execution_attempt=False, limit=1, cursor=None))
+                        await asyncio.sleep(0.05)
+                        self.assertFalse(request.done())
+                        server._slots.release()
+                        page = await asyncio.wait_for(request, 2)
+                        self.assertEqual(page.jobs, ())
+                        self.assertEqual(len(peer.requests), 1)
+                    finally:
+                        await client.retire()
+                        await asyncio.to_thread(server.shutdown)
+                        await asyncio.to_thread(thread.join, 2)
+
+    async def test_full_proxy_waits_for_capacity_without_changing_the_client(self):
+        async def echo(reader, writer):
+            try:
+                while data := await reader.read(1024):
+                    writer.write(data)
+                    await writer.drain()
+            finally:
+                writer.close()
+                await writer.wait_closed()
+
+        peer = await asyncio.start_server(echo, "127.0.0.1", 0)
+        port = peer.sockets[0].getsockname()[1]
+        policy = ServicePolicy.admit("mapped", [f"api.example:{port}"], ["api.example=127.0.0.1"])
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root, shared_socket=True) as server:
+                    server._slots.set_limit(1)
+                    server.max_admission_delay_seconds = 0.3
+                    self.assertTrue(server._slots.acquire())
+                    thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
+                    thread.start()
+                    writer = None
+                    try:
+                        reader, writer = await asyncio.open_unix_connection(server.server_address)
+                        started = asyncio.get_running_loop().time()
+                        writer.write(f"CONNECT api.example:{port} HTTP/1.1\r\n\r\n".encode())
+                        await writer.drain()
+                        await asyncio.sleep(0.05)
+                        server._slots.release()
+                        response = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 2)
+                        self.assertIn(b"200", response)
+                        self.assertGreaterEqual(asyncio.get_running_loop().time() - started, 0.28)
+                        writer.write(b"still works")
+                        await writer.drain()
+                        self.assertEqual(await asyncio.wait_for(reader.readexactly(11), 2), b"still works")
+                    finally:
+                        if writer is not None:
+                            writer.close()
+                            await writer.wait_closed()
+                        await asyncio.to_thread(server.shutdown)
+                        await asyncio.to_thread(thread.join, 2)
+        finally:
+            peer.close()
+            await peer.wait_closed()
+
     async def test_live_reload_changes_new_tunnels_without_interrupting_existing_tunnel(self):
         async def echo(reader, writer):
             try:

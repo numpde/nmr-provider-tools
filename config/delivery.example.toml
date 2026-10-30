@@ -1,9 +1,11 @@
 # Copy this file into an operator-owned directory and replace the examples.
 # The proxy, outbox and provider socket grants use the same file.
 [deployment]
+# Compose project name shared by the delivery deployment commands.
 project = "nmr-api-delivery"
-# uid is the deploying user's UID; proxy_uid must be a different non-root UID.
+# The deploying user's UID owns the outbox.
 uid = 1000
+# Use a different non-root UID for the independent proxy.
 proxy_uid = 1001
 # Clients need this nonzero GID as a primary or supplementary group.
 gid = 1000
@@ -11,25 +13,41 @@ gid = 1000
 request_seconds = 30
 
 [api_proxy]
+# Maximum number of simultaneous forwarding connections.
 max_connections = 32
+# Starts at 50% of active capacity and reaches this delay at 100%.
+max_admission_delay_seconds = 7
+# ready starts the oldest connection whose delay has elapsed; fifo keeps arrival order.
+admission_order = "ready"
+# Proxy diagnostic verbosity.
 log_level = "INFO"
+# CONNECT destinations the proxy may contact.
 allowed_authorities = ["api.example.invalid:443"]
 
 # Mapped mode uses an explicit IPv4 address through the host interface.
 # For local mode also provide network_id; for external mode remove addresses
 # and provide resolver_file. See note 020 for the route and socket ownership.
 [api_proxy.route]
+# Select explicitly mapped addresses.
 mode = "mapped"
+# Host network interface for outbound traffic.
 interface = "eth0"
+# Frozen address for each admitted hostname.
 addresses = ["api.example.invalid=192.0.2.1"]
 
 [outbox]
 # Item limits include held work. Byte limits count terminal request bodies,
 # not the publication material, database, journal, free disk or memory.
 provider_items = 8
+# Per-provider terminal body budget in bytes.
 provider_bytes = 16777216
+# Total retained handoff count across providers.
 total_items = 32
+# Total terminal body budget in bytes.
 total_bytes = 67108864
+# Initial delay for retrying publication.
 retry_initial_seconds = 1
+# Maximum local retry delay before server advice.
 retry_max_seconds = 30
+# Outbox diagnostic verbosity.
 log_level = "INFO"

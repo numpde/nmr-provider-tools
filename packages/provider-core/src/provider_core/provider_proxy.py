@@ -20,11 +20,13 @@ import ipaddress
 import logging
 import os
 import re
+import select
 import socket
 import stat
 import sys
 import time
 import tomllib
+from collections import deque
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -145,6 +147,8 @@ class LiveProxySettings:
     policy: ServicePolicy
     max_connections: int
     log_level: str
+    max_admission_delay_seconds: float
+    admission_order: str
 
 
 class LiveProxyConfiguration:
@@ -178,9 +182,17 @@ class LiveProxyConfiguration:
             raise ServiceRefused("Proxy configuration requires an api_proxy table.")
         maximum = table.get("max_connections")
         level = table.get("log_level")
+        # silent-defaults: allow-contract -- Existing settings gain the seven-second ramp when the runtime is updated.
+        delay = table.get("max_admission_delay_seconds", 7.0)
+        # silent-defaults: allow-contract -- Existing settings use the ready-first order when the runtime is updated.
+        order = table.get("admission_order", "ready")
         authorities = table.get("allowed_authorities")
         if type(maximum) is not int or maximum <= 0:
             raise ServiceRefused("Proxy max_connections must be a positive integer.")
+        if type(delay) not in (int, float) or not 0 <= delay <= bound_http_proxy.HEADER_SECONDS:
+            raise ServiceRefused("Proxy max_admission_delay_seconds must be between 0 and 30 seconds.")
+        if order not in ("ready", "fifo"):
+            raise ServiceRefused("Proxy admission_order must be ready or fifo.")
         if level not in ("INFO", "DEBUG", "WARNING"):
             raise ServiceRefused("Proxy log_level must be INFO, DEBUG or WARNING.")
         if type(authorities) is not list or any(type(value) is not str for value in authorities):
@@ -200,11 +212,13 @@ class LiveProxyConfiguration:
                     [address for address in addresses if address.partition("=")[0] in hosts])
         policy = (ServicePolicy.admit(self.mode, authorities, selected) if authorities
                   else ServicePolicy(frozenset(), ()))
-        return LiveProxySettings(policy, maximum, level)
+        return LiveProxySettings(policy, maximum, level, delay, order)
 
     def apply(self, server, settings):
         server.policy = settings.policy
         server._slots.set_limit(settings.max_connections)
+        server.max_admission_delay_seconds = settings.max_admission_delay_seconds
+        server.admission_order = settings.admission_order
         logging.getLogger("provider_core.proxy").setLevel(settings.log_level)
 
     def refresh(self, server):
@@ -270,6 +284,9 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
         self.policy = policy
         self.live_configuration = live_configuration
         self.shared_socket = shared_socket
+        self.max_admission_delay_seconds = 0.0
+        self.admission_order = "ready"
+        self.pending = deque()
         super().__init__(str(path), interface)
         try:
             self.process_status = ProcessStatus(status_directory, "proxy")
@@ -282,6 +299,63 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
         self.process_status.refresh("ready")
         if self.live_configuration is not None:
             self.live_configuration.refresh(self)
+        self._start_waiting()
+
+    def process_request(self, request, client_address):
+        if self.live_configuration is None and not self.shared_socket:
+            return super().process_request(request, client_address)
+        self._start_waiting()
+        active, capacity = self._slots.load()
+        if active * 2 <= capacity:
+            fraction = 0.0
+        elif active >= capacity:
+            fraction = 1.0
+        else:
+            fraction = 2 * active / capacity - 1
+        delay_seconds = self.max_admission_delay_seconds * fraction
+        if delay_seconds == 0 and self.admission_order == "ready" and self._slots.acquire():
+            self._start_reserved(request, client_address)
+            return
+        if len(self.pending) >= capacity:
+            self.shutdown_request(request)
+            return
+        ready_at = time.monotonic() + delay_seconds
+        self.pending.append((ready_at, ready_at + bound_http_proxy.HEADER_SECONDS, request, client_address))
+        self._start_waiting()
+
+    def _start_waiting(self):
+        poller = select.poll()
+        for _, _, request, _ in self.pending:
+            poller.register(request, select.POLLHUP | select.POLLERR)
+        closed = {fd for fd, events in poller.poll(0) if events & (select.POLLHUP | select.POLLERR | select.POLLNVAL)}
+        blocked = False
+        for _ in range(len(self.pending)):
+            ready_at, expires_at, request, client_address = self.pending.popleft()
+            now = time.monotonic()
+            if request.fileno() in closed or now >= expires_at:
+                self.shutdown_request(request)
+                continue
+            if blocked or ready_at > now or not self._slots.acquire():
+                self.pending.append((ready_at, expires_at, request, client_address))
+                if self.admission_order == "fifo":
+                    blocked = True
+                continue
+            self._start_reserved(request, client_address)
+
+    def _start_reserved(self, request, client_address):
+        try:
+            self.start_reserved_request(request, client_address)
+        except BaseException as error:
+            self.shutdown_request(request)
+            if not isinstance(error, Exception):
+                raise
+            self.handle_error(request, client_address)
+
+    def server_close(self):
+        while self.pending:
+            _, _, request, _ = self.pending.popleft()
+            self.shutdown_request(request)
+        super().server_close()
 
     def server_bind(self):
         # Birth must be private too: a crash before a later chmod would leave

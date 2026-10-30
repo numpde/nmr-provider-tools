@@ -18,4 +18,14 @@ every five seconds; the output includes their age. Inspect available space on
 the volume's host filesystem separately. An unavailable observation means
 unknown, not an empty queue, and queue status does not prove API acceptance.
 
+The shared proxy delays new connections as its forwarding slots fill: no
+intentional delay through 50% occupancy, rising linearly to seven seconds at
+100%. Change `api_proxy.max_admission_delay_seconds` in the same settings file
+to adjust the maximum for new connections, from zero (no ramp) to 30 seconds.
+Waiting is bounded and consumes the caller's existing timeout, so sustained
+overload can still fail a connection.
+`api_proxy.admission_order` selects `ready` (the default, start the oldest
+connection whose delay has elapsed) or `fifo` (preserve arrival order, even
+when an earlier connection's delay holds up others). Both settings reload live.
+
 Run `make help` to see the available commands. Builds, tests and deployments use Docker on Linux/amd64.

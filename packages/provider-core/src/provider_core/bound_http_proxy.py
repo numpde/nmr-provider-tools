@@ -485,6 +485,10 @@ class ConnectionAdmission:
             self._active += 1
             return True
 
+    def load(self):
+        with self._lock:
+            return self._active, self._limit
+
     def release(self):
         with self._lock:
             if self._active == 0:
@@ -513,6 +517,10 @@ class ProxyServer(socketserver.ThreadingTCPServer):
         if not self._slots.acquire():
             self.shutdown_request(request)
             return
+        self.start_reserved_request(request, client_address)
+
+    def start_reserved_request(self, request, client_address):
+        """Transfer an already reserved slot to a worker, or release it on failure."""
         try:
             super().process_request(request, client_address)
         except BaseException:
