@@ -56,9 +56,12 @@ class DeliveryHandoff:
                 "ca": None if self.publication.ca_bytes is None else _encoded(self.publication.ca_bytes)}
 
     def acceptance(self):
-        publication = json.dumps(self.publication_document(), sort_keys=True, separators=(",", ":"),
-                                 ensure_ascii=True, allow_nan=False).encode("ascii")
+        publication = self.publication_bytes()
         return self.outcome.acceptance() | {"publication_sha256": "sha256:" + hashlib.sha256(publication).hexdigest()}
+
+    def publication_bytes(self):
+        return json.dumps(self.publication_document(), sort_keys=True, separators=(",", ":"),
+                          ensure_ascii=True, allow_nan=False).encode("ascii")
 
     def encode(self):
         item = self.outcome

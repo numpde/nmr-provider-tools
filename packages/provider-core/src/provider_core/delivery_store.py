@@ -12,6 +12,7 @@ require_container()
 
 import fcntl
 import hashlib
+import json
 import os
 import re
 import sqlite3
@@ -172,7 +173,7 @@ class DeliveryQueue:
 
     def _initialize(self):
         version = self._db.execute("PRAGMA user_version").fetchone()[0]
-        if version not in (0, 1):
+        if version not in (0, 1, 2):
             raise DeliveryStorageFailed("Cannot open delivery storage: its database version is unsupported.")
         if version == 0:
             if self._db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchone() is not None:
@@ -186,8 +187,13 @@ class DeliveryQueue:
                     created_at REAL NOT NULL, held_reason TEXT,
                     PRIMARY KEY(api_origin, provider_ref, attempt_ref))""")
                 self._db.execute("PRAGMA user_version=1")
+            version = 1
+        if version == 1:
+            with self._transaction("upgrade"):
+                self._db.execute("ALTER TABLE outstanding ADD COLUMN publication BLOB")
+                self._db.execute("PRAGMA user_version=2")
         # Detect incompatible/corrupt schema before serving any publication.
-        self._db.execute("SELECT api_origin,provider_ref,attempt_ref,job_ref,operation,body,digest,state,created_at,held_reason FROM outstanding LIMIT 0")
+        self._db.execute("SELECT api_origin,provider_ref,attempt_ref,job_ref,operation,body,digest,state,created_at,held_reason,publication FROM outstanding LIMIT 0")
 
     @contextmanager
     def _access(self, operation):
@@ -212,14 +218,23 @@ class DeliveryQueue:
             yield
 
     def enqueue(self, item):
+        return self._enqueue(item, None, item.acceptance())
+
+    def enqueue_handoff(self, handoff):
+        from provider_core.delivery_handoff import DeliveryHandoff
+        if type(handoff) is not DeliveryHandoff:
+            raise ValueError("Delivery requires a complete publication handoff.")
+        return self._enqueue(handoff.outcome, handoff.publication_bytes(), handoff.acceptance())
+
+    def _enqueue(self, item, publication, acceptance):
         with self._transaction("enqueue into"):
             existing = self._db.execute(
-                "SELECT job_ref,operation,body FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?", item.key
+                "SELECT job_ref,operation,body,publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?", item.key
             ).fetchone()
             if existing is not None:
-                if existing != (item.job_ref, item.operation.value, item.body):
+                if existing != (item.job_ref, item.operation.value, item.body, publication):
                     raise DeliveryConflict("This Attempt already has a different outstanding terminal request; the original remains unchanged.")
-                return item.acceptance()
+                return acceptance
             for where, parameters, maximum_items, maximum_bytes in (
                 (" WHERE api_origin=? AND provider_ref=?", item.key[:2], self.limits.provider_items, self.limits.provider_bytes),
                 ("", (), self.limits.total_items, self.limits.total_bytes),
@@ -227,9 +242,43 @@ class DeliveryQueue:
                 count, size = self._db.execute("SELECT COUNT(*),COALESCE(SUM(length(body)),0) FROM outstanding" + where, parameters).fetchone()
                 if count >= maximum_items or size + len(item.body) > maximum_bytes:
                     raise DeliveryFull("Delivery capacity is full. Keep this outcome, wait for space and stop admitting more computation.")
-            self._db.execute("INSERT INTO outstanding VALUES (?,?,?,?,?,?,?,'pending',?,NULL)",
-                             (*item.key, item.job_ref, item.operation.value, item.body, item.body_sha256, time.time()))
-        return item.acceptance()
+            self._db.execute("INSERT INTO outstanding (api_origin,provider_ref,attempt_ref,job_ref,operation,body,digest,state,created_at,held_reason,publication) VALUES (?,?,?,?,?,?,?,'pending',?,NULL,?)",
+                             (*item.key, item.job_ref, item.operation.value, item.body, item.body_sha256, time.time(), publication))
+        return acceptance
+
+    def next_pending_handoff(self, api_origin, provider_ref):
+        """Return the oldest publishable row with its own original signing material."""
+        from provider_core.delivery_handoff import DeliveryHandoffRejected, read_delivery_handoff
+        with self._access("read a publication from"):
+            item = self.next_pending(api_origin, provider_ref)
+            if item is None:
+                return None
+            publication = self._db.execute(
+                "SELECT publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?", item.key
+            ).fetchone()[0]
+            if publication is None:
+                raise DeliveryStorageFailed("Cannot publish a legacy delivery without its original publication material; preserve and hold the row for reconciliation.")
+            try:
+                document = json.loads(publication)
+                # Reuse the wire admission path to validate retained inputs and identity.
+                import base64
+                document["outcome"] = {"api_origin": item.api_origin, "provider_ref": item.provider_ref,
+                    "job_ref": item.job_ref, "execution_attempt_ref": item.execution_attempt_ref,
+                    "operation": item.operation.value, "body": base64.b64encode(item.body).decode("ascii")}
+                handoff = read_delivery_handoff(json.dumps(document, sort_keys=True, separators=(",", ":")).encode("ascii"))
+                if handoff.publication_bytes() != publication:
+                    raise ValueError("Noncanonical publication material")
+                return handoff
+            except (DeliveryHandoffRejected, TypeError, ValueError, UnicodeError):
+                raise DeliveryStorageFailed("Cannot publish corrupted retained publication material; preserve the row for operator reconciliation.") from None
+
+    def hold_legacy_rows(self):
+        """Retain old rows without material while allowing other work to publish."""
+        with self._transaction("hold legacy requests in"):
+            return self._db.execute(
+                "UPDATE outstanding SET state='held',held_reason=? WHERE publication IS NULL AND state='pending'",
+                ("Original publication material is unavailable; retain for operator reconciliation.",),
+            ).rowcount
 
     def next_pending(self, api_origin, provider_ref):
         with self._access("read"):

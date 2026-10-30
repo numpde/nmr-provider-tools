@@ -30,7 +30,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
             if index == 0:
                 state, reason = "pending", None
             queue._db.execute(
-                "INSERT INTO outstanding VALUES(?,?,?,?,?,?,?,?,?,?)",
+                "INSERT INTO outstanding VALUES(?,?,?,?,?,?,?,?,?,?,NULL)",
                 (item.api_origin, item.provider_ref, item.execution_attempt_ref, item.job_ref, item.operation.value,
                  item.body, item.body_sha256, state, 1.0, reason),
             )
