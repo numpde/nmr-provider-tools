@@ -451,7 +451,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
     def test_overload_does_not_start_a_thread(self):
         server = _server_without_listener()
         for _ in range(_PROXY.MAX_CONNECTIONS):
-            self.assertTrue(server._slots.acquire(blocking=False))
+            self.assertTrue(server._slots.acquire())
         server.shutdown_request = Mock()
         request = Mock()
         with patch.object(_PROXY.socketserver.ThreadingTCPServer, "process_request") as start:
@@ -464,7 +464,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             with self.subTest(startup_failure=startup_failure):
                 server = _server_without_listener()
                 for _ in range(_PROXY.MAX_CONNECTIONS - 1):
-                    self.assertTrue(server._slots.acquire(blocking=False))
+                    self.assertTrue(server._slots.acquire())
                 if startup_failure:
                     with (
                         patch.object(
@@ -476,11 +476,11 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                     ):
                         server.process_request(Mock(), ("127.0.0.1", 1))
                 else:
-                    self.assertTrue(server._slots.acquire(blocking=False))
+                    self.assertTrue(server._slots.acquire())
                     with patch.object(_PROXY.socketserver.ThreadingTCPServer, "process_request_thread"):
                         server.process_request_thread(Mock(), ("127.0.0.1", 1))
-                self.assertTrue(server._slots.acquire(blocking=False))
-                self.assertFalse(server._slots.acquire(blocking=False))
+                self.assertTrue(server._slots.acquire())
+                self.assertFalse(server._slots.acquire())
 
     def test_private_pre_forwarding_error_has_fixed_http_and_safe_log(self):
         request = Mock()
