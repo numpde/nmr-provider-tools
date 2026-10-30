@@ -1,11 +1,12 @@
 # Private operator inputs
 
-Keep private operator settings and provider-owned signing credentials and trust
-files here, or use equivalent operator-owned locations. Everything under this
+Keep provider-owned signing credentials and trust files here, or use equivalent
+operator-owned locations. Everything under this
 directory except this README is ignored by Git. The public settings template is
 [config/delivery.example.toml](../config/delivery.example.toml).
 
-The shared settings do not contain provider bindings or signing credentials.
+Keep the shared settings under `config/deployments/<name>/settings.toml`; they
+are ignored by Git and do not contain provider bindings or signing credentials.
 Each provider supplies its own credential and optional CA with each outcome;
 the outbox retains those exact publication inputs with the accepted work. The
 proxy and outbox reload their supported settings while running. Keep the settings

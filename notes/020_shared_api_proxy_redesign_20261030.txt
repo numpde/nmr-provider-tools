@@ -250,8 +250,8 @@ work, not a general migration framework.
 Operator configuration and live reload
 ---------------------------------------
 
-Use one existing operator-owned TOML input for both shared services, outside the
-public repository. It contains host/proxy and outbox settings, not provider
+Use one operator-owned TOML input for both shared services under the ignored
+`config/deployments/<name>/settings.toml` path. It contains host/proxy and outbox settings, not provider
 bindings, identities, credentials or CA files. Each service owns and applies its
 own settings. Mount the containing dedicated configuration directory read-only
 into the services so an atomic replacement of the file is visible; providers do

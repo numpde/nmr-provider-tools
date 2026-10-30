@@ -140,11 +140,11 @@ if [[ $action == proxy-restart ]]; then
         || { refuse 'the running proxy does not own the expected shared socket volume.'; exit 2; }
     checker_metadata "$operation_directory/proxy-grants" inspect --type container --format \
         '[{{json .Config.User}},{{json .Config.Cmd}},{{json .HostConfig.NetworkMode}},{{range .Mounts}}{{if eq .Destination "/settings"}}{{json .Source}}{{end}}{{end}}]' "$proxy_id"
+    # The selected settings directory may intentionally move; other fixed grants stay the same.
     jq -e --slurpfile actual "$operation_directory/proxy-grants" '
-        (.services.proxy | [.user, .command, (.network_mode // ""),
-            (.volumes[] | select(.target == "/settings") | .source)] ) as $expected |
+        (.services.proxy | [.user, .command, (.network_mode // "")] ) as $expected |
         $actual[0][0] == $expected[0] and $actual[0][1] == $expected[1] and
-        ($expected[2] == "" or $actual[0][2] == $expected[2]) and $actual[0][3] == $expected[3]
+        ($expected[2] == "" or $actual[0][2] == $expected[2]) and ($actual[0][3] | type == "string")
     ' "$operation_directory/proxy.json" > /dev/null \
         || { refuse 'the running proxy has different fixed grants; inspect it before replacement.'; exit 2; }
     expected_network=$(jq -r '.networks.api.name // empty' "$operation_directory/proxy.json")

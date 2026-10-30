@@ -2,6 +2,7 @@
 .aws/
 .codex/
 .vscode/
+/config/deployments/
 /secrets/**
 !/secrets/
 !/secrets/README.md
