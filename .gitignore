@@ -2,7 +2,9 @@
 .aws/
 .codex/
 .vscode/
-/config/deployments/
+/config/deployments/**
+!/config/deployments/**/
+!/config/deployments/**/*.toml.example
 /secrets/**
 !/secrets/
 !/secrets/README.md

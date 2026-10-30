@@ -3,7 +3,7 @@
 Keep provider-owned signing credentials and trust files here, or use equivalent
 operator-owned locations. Everything under this
 directory except this README is ignored by Git. The public settings template is
-[config/delivery.example.toml](../config/delivery.example.toml).
+[config/delivery.toml.example](../config/delivery.toml.example).
 
 Keep the shared settings under `config/deployments/<name>/settings.toml`; they
 are ignored by Git and do not contain provider bindings or signing credentials.
