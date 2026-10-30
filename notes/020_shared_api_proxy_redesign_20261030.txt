@@ -35,10 +35,12 @@ Governing guidelines
    consequential alternatives and reasons. Defer optional enhancements; fix a
    demonstrated blocker in the first tier regardless of its category.
 
-Status: authoritative joint design unless a serious objection requires a change;
-not implemented or deployed. This note supersedes its previous static provider-
-binding and per-provider delivery-socket proposal. Provider-specific designs
-must align with it before they are used as implementation instructions.
+Status: authoritative joint design unless a serious objection requires a change.
+The shared services are deployed locally; the first joint milestone remains in
+progress until all four providers and delivery are verified. This note supersedes
+its previous static provider-binding and per-provider delivery-socket proposal.
+Provider-specific designs must align with it before they are used as
+implementation instructions.
 
 Decision: two shared services
 -----------------------------
