@@ -43,18 +43,29 @@ Findings
    operator-facing change is deliberately coordinated.
 
 2. One binding's unexpected failure stops the shared outbox (verified code
-   path; impact and alternatives need a focused two-provider witness).
+   path and isolated two-provider witness).
 
    `shared_delivery_worker.py` reports a binding's unexpected API or retirement
    failure to `shared_delivery_service.py`; `_worker_done` sets the shared
    inbox failure, and `delivery_service.py` ends the whole service. The queued
    handoffs remain durable, but unrelated providers lose intake and publication
-   until recovery. This is an intentional fail-stop posture: the cancellation
+   until recovery. In an isolated service, an injected failure in one worker
+   stopped shared intake and a second provider's in-flight publisher; both API
+   owners retired and both exact handoffs survived queue reopening. The failure
+   was injected, not a natural transport or retirement failure. This is an
+   intentional fail-stop posture: the cancellation
    test in `tests/integration/delivery/adversarial/test_shared_service_cancellation.py`
    expects service failure while retaining the original handoff. Assess whether
    a settled binding-local failure can be quarantined while other bindings run;
    an unsettled original API or storage owner must not be discarded or replaced.
    Shared storage and inbox failures can still require a global stop.
+   `tests/resilience_proposals/test_resilience_binding_isolation.py`
+   is an intentionally red proposal: it specifies continued submission and
+   publication for another provider after the failed binding's API owner has
+   settled. Its injected generic exception does not establish that the fault
+   is local to that binding or that shared storage is sound. A settled API
+   owner alone does not justify suppressing an unknown failure. Defer this
+   assertion until a safely classifiable failure and isolation policy are chosen.
 
 3. Persistent authorization refusals block later work for the same provider
    (verified code path; operational recovery needs review).
@@ -64,10 +75,26 @@ Findings
    `shared_delivery_worker.py` processes one provider's rows serially. If an
    original retained credential is permanently unusable, its oldest row can
    therefore block later rows, including rows with newly supplied credentials.
-   A refusal does not by itself prove permanent revocation, and exact replay
-   must keep the original publication material. The delivery owner should make
+   In an isolated two-row witness, three simulated correlated 401 responses
+   caused only the original request to be retried; both rows remained pending
+   with original publication material after reopening. Existing legacy-material
+   association did not replace that material, and held-row discard did not
+   apply to the pending row. A refusal does not itself prove permanent
+   revocation, and exact replay must keep the original publication material.
+   The delivery owner should make
    persistent refusals actionable for operators and consider a reconciliation
    path that preserves original evidence without silently substituting keys.
+   Restoring original credential authority is only a conditional possibility;
+   it is not a verified recovery command. An Attempt read alone does not prove
+   acceptance of the exact retained terminal bytes.
+   `tests/resilience_proposals/test_resilience_authorization_recovery.py`
+   is intentionally red. It proposes that a later independent Attempt may
+   publish with its own material while the refused original remains recoverable;
+   this is a policy choice, not an existing ordering or fairness guarantee.
+   The deterministic test peer knows the refusal persists; the outbox cannot
+   infer permanent revocation from a 401. Deferring the row also changes
+   same-provider ordering. Defer the assertion until reconciliation and ordering
+   policy are decided; do not change production solely to satisfy it.
 
 4. SECS reports recovery as a retry (verified adapter mismatch).
 
@@ -77,6 +104,121 @@ Findings
    when the operation has recovered. The SECS adapter should use separate,
    privacy-safe retry and recovered messages. This does not change Attempt or
    outbox ownership.
+
+5. SECS stops active work on a transient observation failure (verified code
+   path; availability tradeoff).
+
+   The SECS controller in `secs-repro/src/secs_inference/provider/main.py`
+   leaves `observation_recovery` unset. In `execution.py`, an API read failure
+   while monitoring work therefore propagates instead of using the SDK's
+   bounded observation-recovery policy; the provider drains the original
+   controller and stops admission. A short proxy or API outage can interrupt
+   ongoing science even if service returns quickly. This does not establish
+   loss of acknowledged outbox work or authorize scientific replay. Assess a
+   bounded observation policy against the existing cancellation, stop, and
+   retained-owner rules before changing this fail-stop posture. The SDK's
+   `tests/unit/normative/test_execution_recovery.py` covers explicitly selected
+   bounded recovery after a simulated 503: the original read retires, science
+   executes once and a fresh observation precedes handoff. That test does not
+   exercise an actual shared-proxy restart or configure SECS to use the policy.
+   The current NMRNet, NMRPeak and Magnet compositions explicitly select bounded
+   observation recovery; this is a provider-specific difference rather than a
+   general deficiency of the shared proxy or SDK.
+
+6. Proxy saturation can look like a non-retryable failure (isolated witness).
+
+   The proxy in `bound_http_proxy.py` immediately closes excess connections
+   when its worker limit is reached. In an isolated real-proxy test with one
+   occupied slot, another `ProviderAPI.jobs` read encountered an unheaded
+   `RemoteProtocolError`; after retirement, `can_retry_job_discovery` returned
+   false. A fresh signed read succeeded after the slot was released. Thus a
+   transient capacity shortage can stop admission instead of recovering. The
+   terminal-publication path has its own exact-replay rules and was not proved
+   by this discovery probe. The result depends on the transport failure
+   observed; this is not authority to classify every
+   malformed or unheaded response as transient. Assess a bounded, explicit
+   overload response or another narrowly evidenced mechanism at the proxy and
+   client boundary, without unbounded retries or extra configuration.
+   `tests/integration/delivery/normative/test_resilience_proxy_capacity.py` is
+   intentionally red: it requires this particular full
+   proxy case to permit a fresh discovery read after retirement, and confirms a
+   later read succeeds after capacity returns. On its own, this assertion does
+   not prevent an unsafe blanket retry rule: an isolated mutation that made
+   every discovery failure retryable also made it pass. The adjacent
+   `test_resilience_proxy_malformed.py` is a green negative control: a malformed
+   Unix proxy reply without overload evidence remains non-retryable. It failed
+   when an isolated in-memory mutation broadly permitted `RemoteProtocolError`
+   retries. Neither test alone establishes a particular overload-signalling
+   design.
+
+7. Restoring a denied proxy authority does not resume its paused publisher
+   automatically (verified behavior; policy decision deferred).
+
+   A CONNECT 403 is deliberately not retryable. `delivery_worker.py` pauses the
+   affected binding, and `shared_delivery_service.py` retains its completed paused
+   worker. An isolated probe restored the live proxy allowlist and verified a
+   new CONNECT succeeded, but publication remained paused. The maintained
+   recovery is to inspect the refusal, correct the route, and stop/start the
+   outbox while preserving the queue; this temporarily interrupts its other
+   providers. CONNECT 403 can also signal a malformed or deliberately forbidden
+   request, so automatic retry and its pacing are a consequential policy choice,
+   not an established note-020 requirement. Do not treat a two-second probe
+   deadline as a production recovery objective.
+
+8. Retained legacy rows lack a maintained material-recovery operation
+   (workflow gap; conditional on such rows existing).
+
+   Shared startup holds migrated rows whose original publication material is
+   absent. `delivery_store.py` has an internal `associate_legacy_material`
+   operation, but the shared-service entry point does not supply it and the
+   initial conversion therefore holds such rows even if their original inputs
+   happen to be available. The maintained offline tools expose inspection and
+   held-row discard, not association and resumption. If the exact original
+   material is subsequently established, there is no maintained operator path
+   to attach it and retry.
+   The internal operation matches API/provider identity and updates every
+   matching row lacking material; it cannot prove the material is historically
+   original or that all those rows share it. Any recovery workflow must establish
+   provenance independently for its entire selected set and retain the original
+   outcomes and other hold reasons; direct database editing is not a resolution.
+   A read-only aggregate observation found zero outstanding rows, including zero
+   rows without publication material, at the time of review. It does not
+   reconstruct pre-cutover inventory. Assess the need and scope before adding
+   a recovery interface; no such interface is needed to drain the observed queue.
+
+9. The deployment's stop command does not prove graceful settlement
+   (verified workflow; isolated forced-stop witness).
+
+   `tools/delivery.sh` calls `docker stop --timeout 60`, describes the operation
+   as settling the owner, and then removes the stopped container before a
+   replacement. Docker can force-kill after that grace and still report a
+   successful stop. In an isolated test, an acknowledged handoff remained in
+   the queue after a deliberately forced stop with a shortened grace, and the
+   replacement replayed the exact body and material. A second queue owner was
+   refused while the original process was alive. This establishes the tested
+   local fencing and retained replay, not graceful settlement, retirement of
+   remote work, real API deduplication, or that the production grace expires.
+   The deployment should distinguish a stopped process from confirmed graceful
+   retirement in its diagnostics; exact replay still preserves the retained
+   request under the API's existing idempotency contract. Do not infer that a
+   forced stop means the earlier remote effect did not commit.
+   Separately, an isolated disposable Docker process ignored SIGTERM past a
+   shortened grace: `docker stop` returned success while inspection reported
+   exit 137. This demonstrates the stop-command distinction, not that the
+   live delivery service or its real 60-second grace behaved that way.
+   In a further isolated witness, a synthetic idempotent API recorded an effect
+   but withheld its reply before the forced stop. The replacement replayed the
+   exact bytes, received a replay receipt, and the fixture recorded one effect.
+   This does not verify deduplication by the deployed API.
+
+10. SECS background retries ignore server pacing advice (verified code path).
+
+    The Hello and discovery loops in `secs-repro` retire eligible failed API
+    exchanges and back off locally, but do not use `ApiFailure.retry_after_seconds`.
+    A contextualized HTTP 429 can therefore be retried sooner than the server's
+    requested delay, increasing pressure during throttling. The SECS owners of
+    these loops can honor the server's delay alongside their bounded local
+    backoff and prompt stop behavior; this does not grant new retry authority.
 
 Existing guarantees and limits
 ------------------------------
@@ -88,6 +230,53 @@ store tests cover reopening and exact replay, and the IPC layer bounds request
 size and concurrent clients and refuses full queues. These are source and test
 guarantees, not proof of power-loss durability, disk-space sufficiency, or
 fairness among providers.
+The four isolated `test_shared_delivery_ipc.py` cases also pass: they cover
+lost-acknowledgement replay, full-queue refusal, retained work after a publisher
+wake failure, and the absence of a borrower queue-read route. This establishes
+intake behavior, not remote publication or cryptographic provider isolation.
+
+An isolated proxy-restart witness killed the proxy after a CONNECT and a
+discovery request reached a synthetic peer that withheld its reply. The API
+owner retired, permitted a fresh discovery read, and the successor proxy
+recovered the socket and completed that read. The retained network observation
+recorded a real read EOF after CONNECT 200; this supplied the availability
+evidence for that retry. This proves that particular
+post-CONNECT interruption, not every proxy restart or every unheaded EOF;
+the pre-CONNECT saturation case above has different observed behavior.
+
+Shared process health is liveness, not proof every provider is publishing:
+the manager can report ready while a binding is paused. Pause events are
+warnings, but the deployment uses bounded non-blocking Docker logs, which may
+drop messages; choosing WARNING also suppresses successful publication notices.
+The legacy-row-held notice is INFO and is also suppressed at WARNING. The
+maintained offline held inspection requires the outbox to be stopped and reports
+pending and held metadata, but cannot identify why a pending publisher was
+paused or expose its retained publication material. A missing log does not prove
+progress; this is an operator-visibility limit, not evidence of a current stall.
+
+An isolated shared-intake storage witness acknowledged one synthetic handoff,
+then separately induced SQLite `SQLITE_FULL` during a later submission and a
+SQLite authorizer refusal at COMMIT. Each later submission returned 503 without
+confirming acceptance and failed the inbox. After close and reopen, the earlier
+acknowledged handoff and its publication material matched exactly, and the
+refused submission was absent. The authorizer refusal rolled back. These probes
+do not establish behavior for actual filesystem exhaustion, power loss, or an
+arbitrary commit-time I/O failure whose transaction outcome is uncertain.
+In a separate synthetic post-commit failure, intake returned 503 without
+confirming the second handoff; reopening retained both exact handoffs, and an
+identical resubmission received its matching acknowledgement without a
+duplicate. This injection is evidence for that window, not proof that any
+particular real filesystem error commits or rolls back.
+
+For a terminal POST, an isolated synthetic stream test observed a truncated
+HTTP 200 receipt after a possibly committed request; the retired API owner
+permitted exact replay. A separately malformed chunked response was not
+admitted for replay. This exercises SDK classification, not a real remote
+commit or a full shared-outbox integration.
+The existing isolated `test_delivery_process.py` also covers a lost API reply
+followed by an actual daemon restart and exact replay against a synthetic API.
+That test does not establish a real remote commit or specifically exercise the
+current shared push-only service.
 
 The producer's `execution.py` retains its selected terminal outcome until a
 matching acknowledgement, settles the original IPC owner before retry and
@@ -95,6 +284,17 @@ retries the same handoff after eligible loss or full-queue refusal. SDK tests
 cover lost acknowledgement, identical replay, full capacity and cancellation
 boundaries. They do not prove result survival if the producer process dies
 before acknowledgement; note 020 explicitly leaves that window unresolved.
+Further isolated controller tests using mocked delivery cover a mismatched
+acknowledgement retaining the selected checkpoint and Job claim without
+repeating science, and cleanup failure after accepted handoff without
+resubmission. These also do not establish pre-acknowledgement crash survival.
 
-The initial shared-owner and four provider-owner reviews are complete. They do
-not establish that every failure mode has been reviewed.
+The intentionally red policy probes are kept in `tests/resilience_proposals`,
+outside the maintained default test selections. Their assertions are proposals,
+not accepted contracts; the binding-isolation probe also needs more robust
+independent fixture teardown before it can be used as a routine gate. Do not
+change production merely to make them pass.
+
+The initial shared-owner and four provider-owner reviews and the requested
+follow-up audit are complete. They do not establish that every failure mode has
+been reviewed.
