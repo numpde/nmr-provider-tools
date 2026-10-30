@@ -124,8 +124,10 @@ class SharedDeliveryService(DeliveryService):
             self._reload()
             self.changed.clear()
             if self.process_status is not None and time.monotonic() - self.overview_at >= 5:
-                bindings, self.overview = await self.inbox.storage(self.queue.pending_overview)
+                bindings, self.overview, failure = await self.inbox.storage(self.queue.pending_overview)
                 self.overview_at = time.monotonic()
+                if failure is not None:
+                    self.on_notice(failure, {"event": "delivery_overview_failed"})
             else:
                 bindings = await self.inbox.storage(self.queue.pending_bindings)
             for origin, provider in bindings:
@@ -148,6 +150,7 @@ class SharedDeliveryService(DeliveryService):
                     self.on_notice(error, {"event": "delivery_status_failed", "failure_type": type(error).__name__})
                     try:
                         self.process_status.refresh("ready")
+                    # silent-defaults: allow-contract -- Failed optional status must not retire delivery; the last observation expires.
                     except (OSError, ValueError, TypeError):
                         # The previous observation expires on its own; delivery continues.
                         pass
@@ -160,10 +163,13 @@ class SharedDeliveryService(DeliveryService):
                 pass
 
     def _operator_details(self, bindings):
+        # silent-defaults: allow-contract -- A failed optional observation is unknown rather than an empty queue.
         overview = None if self.overview is None else dict(self.overview)
         if overview is not None:
             oldest = overview.pop("oldest_pending_created_at")
+            # silent-defaults: allow-contract -- Invalid stored times have no reliable age.
             age = time.time() - oldest if type(oldest) in (int, float) and math.isfinite(oldest) else None
+            # silent-defaults: allow-contract -- A future timestamp does not establish a nonnegative age.
             overview["oldest_pending_age_seconds"] = age if age is not None and age >= 0 else None
         return {"queue": overview, "queue_observation_age_seconds": time.monotonic() - self.overview_at,
                 "pending_publishers": len(bindings),

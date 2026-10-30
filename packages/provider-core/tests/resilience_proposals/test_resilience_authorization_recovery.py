@@ -97,6 +97,7 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     try:
                         try:
                             await asyncio.wait_for(published.wait(), 2)
+                        # silent-defaults: allow-contract -- Continue to inspect the retained outcome before asserting publication.
                         except TimeoutError:
                             pass
                         self.assertIn(items[0].body, peer.request_bodies, "The API never refused the first request")

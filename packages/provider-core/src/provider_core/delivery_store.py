@@ -330,6 +330,7 @@ class DeliveryQueue:
         """Observe aggregate queue usage with the pending publisher identities."""
         with self._access("inspect pending publication in"):
             bindings = tuple(self._db.execute("SELECT DISTINCT api_origin,provider_ref FROM outstanding WHERE state='pending' ORDER BY api_origin,provider_ref"))
+            overview, failure = None, None
             try:
                 pending, held, bodies, material, oldest = self._db.execute("""
                     SELECT COALESCE(SUM(state='pending'),0), COALESCE(SUM(state='held'),0),
@@ -337,11 +338,15 @@ class DeliveryQueue:
                            MIN(CASE WHEN state='pending' THEN created_at END)
                     FROM outstanding
                 """).fetchone()
-            except sqlite3.Error:
-                # Optional operator observation must not poison the queue owner.
-                return bindings, None
-            return bindings, {"pending": pending, "held": held, "body_bytes": bodies,
-                              "publication_bytes": material, "oldest_pending_created_at": oldest}
+                overview = {"pending": pending, "held": held, "body_bytes": bodies,
+                            "publication_bytes": material, "oldest_pending_created_at": oldest}
+            except sqlite3.Error as error:
+                # Do not carry SQLite text, traceback or causal context across the diagnostic boundary.
+                failure = type(error)()
+                code = getattr(error, "sqlite_errorcode", None)
+                if type(code) is int:
+                    failure.sqlite_errorcode = code
+            return bindings, overview, failure
 
     def inventory(self, api_origin, provider_ref):
         return self._inventory(api_origin, provider_ref, None, None)
