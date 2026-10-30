@@ -464,6 +464,34 @@ class ProxyHandler(socketserver.BaseRequestHandler):
             self.report_failure(phase, error)
 
 
+class ConnectionAdmission:
+    """Bound active connections while allowing the owner to change the limit."""
+
+    def __init__(self, limit):
+        self._lock = threading.Lock()
+        self._active = 0
+        self.set_limit(limit)
+
+    def set_limit(self, limit):
+        if type(limit) is not int or limit <= 0:
+            raise ValueError("Proxy connection capacity must be a positive integer.")
+        with self._lock:
+            self._limit = limit
+
+    def acquire(self):
+        with self._lock:
+            if self._active >= self._limit:
+                return False
+            self._active += 1
+            return True
+
+    def release(self):
+        with self._lock:
+            if self._active == 0:
+                raise RuntimeError("Proxy connection capacity was released without an owner.")
+            self._active -= 1
+
+
 class ProxyServer(socketserver.ThreadingTCPServer):
     """Reserve finite worker capacity before allocating a request thread."""
 
@@ -474,7 +502,7 @@ class ProxyServer(socketserver.ThreadingTCPServer):
     def __init__(self, address: tuple[str, int], interface: str):
         """Own the selected device and the bounded worker slots for this listener."""
         self.outbound_interface = interface
-        self._slots = threading.BoundedSemaphore(MAX_CONNECTIONS)
+        self._slots = ConnectionAdmission(MAX_CONNECTIONS)
         super().__init__(address, self.request_handler)
 
     def process_request(self, request: socket.socket, client_address: tuple[str, int]) -> None:
@@ -482,7 +510,7 @@ class ProxyServer(socketserver.ThreadingTCPServer):
         # Admission precedes ThreadingMixIn's allocation. A failed thread start
         # keeps ownership here, while a started worker releases in its finally.
         # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L343-L365
-        if not self._slots.acquire(blocking=False):
+        if not self._slots.acquire():
             self.shutdown_request(request)
             return
         try:

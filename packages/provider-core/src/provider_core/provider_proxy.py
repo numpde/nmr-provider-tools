@@ -23,6 +23,8 @@ import re
 import socket
 import stat
 import sys
+import time
+import tomllib
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
@@ -138,12 +140,96 @@ class ServicePolicy:
         return bound_http_proxy.connect_bound(address, port, interface)
 
 
+@dataclass(frozen=True, slots=True)
+class LiveProxySettings:
+    policy: ServicePolicy
+    max_connections: int
+    log_level: str
+
+
+class LiveProxyConfiguration:
+    """Read the host-owned proxy settings and apply changes between accepts."""
+
+    def __init__(self, path, mode):
+        self.path, self.mode = path, mode
+        self.next_poll = 0.0
+
+    def read(self):
+        descriptor = os.open(self.path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+        try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise ServiceRefused("Proxy configuration must be a regular file.")
+            raw = bytearray()
+            while len(raw) <= 65536:
+                part = os.read(descriptor, 65537 - len(raw))
+                if not part:
+                    break
+                raw.extend(part)
+        finally:
+            os.close(descriptor)
+        if len(raw) > 65536:
+            raise ServiceRefused("Proxy configuration exceeds its 65536-byte limit.")
+        try:
+            document = tomllib.loads(raw.decode("utf-8"))
+        except RecursionError:
+            raise ServiceRefused("Proxy configuration is too deeply nested.") from None
+        table = document.get("api_proxy")
+        if type(table) is not dict:
+            raise ServiceRefused("Proxy configuration requires an api_proxy table.")
+        maximum = table.get("max_connections")
+        level = table.get("log_level")
+        authorities = table.get("allowed_authorities")
+        if type(maximum) is not int or maximum <= 0:
+            raise ServiceRefused("Proxy max_connections must be a positive integer.")
+        if level not in ("INFO", "DEBUG", "WARNING"):
+            raise ServiceRefused("Proxy log_level must be INFO, DEBUG or WARNING.")
+        if type(authorities) is not list or any(type(value) is not str for value in authorities):
+            raise ServiceRefused("Proxy allowed_authorities must be a list of authorities.")
+        route = table.get("route", {})
+        if type(route) is not dict:
+            raise ServiceRefused("Proxy route settings must be a table.")
+        addresses = route.get("addresses", [])
+        if type(addresses) is not list or any(type(value) is not str for value in addresses):
+            raise ServiceRefused("Proxy route addresses must be a list of mappings.")
+        hosts = {authority_parts(value)[0] for value in authorities}
+        selected = (addresses if self.mode == "external" else
+                    tuple(address for address in addresses if address.partition("=")[0] in hosts))
+        policy = (ServicePolicy.admit(self.mode, authorities, selected) if authorities
+                  else ServicePolicy(frozenset(), ()))
+        return LiveProxySettings(policy, maximum, level)
+
+    def apply(self, server, settings):
+        server.policy = settings.policy
+        server._slots.set_limit(settings.max_connections)
+        logging.getLogger("provider_core.proxy").setLevel(settings.log_level)
+
+    def refresh(self, server):
+        now = time.monotonic()
+        if now < self.next_poll:
+            return
+        self.next_poll = now + 5
+        try:
+            settings = self.read()
+        except ServiceRefused as error:
+            logging.getLogger("provider_core.proxy").warning(
+                "Cannot reload proxy settings: %s Retaining the current settings.", error
+            )
+            return
+        except (OSError, UnicodeError, ValueError) as error:
+            logging.getLogger("provider_core.proxy").warning(
+                "Cannot reload proxy settings; retaining the current settings (%s).", type(error).__name__
+            )
+            return
+        self.apply(server, settings)
+
+
 class ServiceProxyHandler(bound_http_proxy.ProxyHandler):
     def destination(self, header):
-        return self.server.policy.destination(header)
+        self.policy = self.server.policy
+        return self.policy.destination(header)
 
     def connect(self, host, port):
-        return self.server.policy.connect(host, port, self.server.outbound_interface)
+        return self.policy.connect(host, port, self.server.outbound_interface)
 
     def admission_reply(self, error):
         if isinstance(error, ServiceRefused):
@@ -173,10 +259,11 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
     address_family = socket.AF_UNIX
     request_handler = ServiceProxyHandler
 
-    def __init__(self, path, interface, policy, *, status_directory):
+    def __init__(self, path, interface, policy, *, status_directory, live_configuration=None):
         from provider_core.process_status import ProcessStatus
 
         self.policy = policy
+        self.live_configuration = live_configuration
         super().__init__(str(path), interface)
         try:
             self.process_status = ProcessStatus(status_directory, "proxy")
@@ -187,6 +274,8 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
 
     def service_actions(self):
         self.process_status.refresh("ready")
+        if self.live_configuration is not None:
+            self.live_configuration.refresh(self)
 
     def server_bind(self):
         # Birth must be private too: a crash before a later chmod would leave
@@ -273,21 +362,42 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--interface", required=True)
     parser.add_argument("--mode", choices=("local", "mapped", "external"), required=True)
-    parser.add_argument("--authority", action="append", required=True)
+    parser.add_argument("--authority", action="append")
     parser.add_argument("--address", action="append")
     parser.add_argument("--socket", type=Path, required=True)
     parser.add_argument("--ready-file", type=Path, required=True)
     parser.add_argument("--status-directory", type=Path, required=True)
-    parser.add_argument("--log-level", choices=("INFO", "DEBUG", "WARNING"), required=True)
+    parser.add_argument("--log-level", choices=("INFO", "DEBUG", "WARNING"))
+    parser.add_argument("--live-config", type=Path)
     args = parser.parse_args()
-    _configure_proxy_logging(args.log_level)
+    if args.live_config is None and (not args.authority or not args.log_level):
+        parser.error("private routes require --authority and --log-level")
+    if args.live_config is not None and (args.authority is not None or args.log_level is not None):
+        parser.error("live routes take authorities and log level from --live-config")
+    if args.live_config is not None and args.address is not None:
+        parser.error("live routes take address mappings from --live-config")
     try:
         # Omitted --address supplies no mappings. External mode requires none;
         # local mode still requires complete coverage in ServicePolicy.admit.
         addresses = args.address
         if addresses is None:
             addresses = ()
-        policy = ServicePolicy.admit(args.mode, args.authority, addresses)
+        live = None
+        if args.live_config is None:
+            policy = ServicePolicy.admit(args.mode, args.authority, addresses)
+            _configure_proxy_logging(args.log_level)
+        else:
+            if not args.live_config.is_absolute():
+                raise ServiceRefused("Cannot configure service proxy: the live settings path must be absolute.")
+            live = LiveProxyConfiguration(args.live_config, args.mode)
+            try:
+                settings = live.read()
+            except ServiceRefused:
+                raise
+            except (UnicodeError, ValueError) as error:
+                raise ServiceRefused(f"Cannot configure service proxy: invalid live settings ({type(error).__name__}).") from None
+            policy = settings.policy
+            _configure_proxy_logging(settings.log_level)
         try:
             bound_http_proxy.require_interface(args.interface)
         except ValueError as error:
@@ -295,7 +405,10 @@ def main():
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             probe.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, args.interface.encode() + b"\0")
         with socket_grant(args.socket, args.ready_file) as parent:
-            with ServiceProxyServer(parent / args.socket.name, args.interface, policy, status_directory=args.status_directory) as server:
+            with ServiceProxyServer(parent / args.socket.name, args.interface, policy, status_directory=args.status_directory,
+                                    live_configuration=live) as server:
+                if live is not None:
+                    live.apply(server, settings)
                 bound_http_proxy.publish_readiness(parent / args.ready_file.name, "ready\n")
                 logging.getLogger("provider_core.proxy").info("Service proxy ready.")
                 server.serve_forever()

@@ -17,6 +17,30 @@ from provider_core import bound_http_proxy
 
 
 class BoundProxyTests(unittest.TestCase):
+    def test_capacity_can_change_without_displacing_active_connections(self):
+        slots = bound_http_proxy.ConnectionAdmission(2)
+        self.assertTrue(slots.acquire())
+        self.assertTrue(slots.acquire())
+        self.assertFalse(slots.acquire())
+        slots.set_limit(1)
+        slots.release()
+        self.assertFalse(slots.acquire())
+        slots.set_limit(2)
+        self.assertTrue(slots.acquire())
+        slots.release()
+        slots.release()
+        self.assertTrue(slots.acquire())
+        slots.release()
+
+    def test_failed_worker_start_releases_capacity_for_the_next_request(self):
+        with bound_http_proxy.ProxyServer(("127.0.0.1", 0), "lo") as server:
+            server._slots.set_limit(1)
+            with patch.object(bound_http_proxy.socketserver.ThreadingMixIn, "process_request", side_effect=RuntimeError("cannot start worker")):
+                with self.assertRaisesRegex(RuntimeError, "cannot start worker"):
+                    server.process_request(MagicMock(), ("127.0.0.1", 1))
+            with patch.object(bound_http_proxy.socketserver.ThreadingMixIn, "process_request") as start:
+                server.process_request(MagicMock(), ("127.0.0.1", 2))
+                start.assert_called_once()
     def test_literal_ipv4_shortcut_never_starts_dns_or_socket_transport(self):
         with (
             patch.object(bound_http_proxy, "_dns_servers") as servers,

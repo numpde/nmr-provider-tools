@@ -257,6 +257,10 @@ not receive its write authority. Use existing operator paths and deployment
 inputs; do not add a second configuration model or host-specific public values.
 
 The proxy periodically reloads max_connections, log_level and allowed_authorities.
+For mapped/local routing, it reloads the corresponding hostname/address mappings
+from the same file with the authority policy; an unmapped allowed hostname is
+not silently resolved through another route. Existing tunnels keep their original
+policy and connection. The network interface and Docker network remain fixed.
 The outbox periodically reloads its queue capacity, retry policy and log level.
 Lower capacity only constrains new admissions; it does not delete pending work.
 Retry changes apply to subsequent attempts, not an already running exchange.
