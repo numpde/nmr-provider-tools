@@ -374,22 +374,99 @@ the same socket and adds no proxy or API-router registration step. Its delivery
 binding still uses the existing static operator workflow described in note 019;
 socket access does not register a publisher or transfer a terminal obligation.
 
+The client projection must serve both Compose services and one-off candidate
+containers: external volume declaration, read-only mount, socket path and
+supplementary group, with no proxy services or service dependencies. Add these
+grants to the client's existing mounts/groups; preserve delivery intake and
+scientific grants. The agreed helper and concrete defaults below are the consumer
+implementation target; the current private-route renderer is not that interface.
+
+Agreed design contract (not yet an issued SDK interface):
+
+* Keep the existing operator binding TOML and its admission path. Move repeated
+  bindings.route settings to one top-level api_proxy.route table; add api_proxy
+  project, uid, gid and origin there. Keep delivery project/identity/limits and
+  every bindings.api identity/trust/budget unchanged. The host proxy origin is
+  the one allowed CONNECT authority; selected client API origins must agree.
+  This is one extension of the existing input, not a second configuration system.
+  Selected DeploymentBinding objects carry api_proxy with only project and gid;
+  render_api_client reads that grant, not the host's routing policy.
+* Public example project: nmr-api-proxy. Its owned socket volume is derived as
+  <api_proxy.project>-socket. UID/GID remain explicit operator choices; do not
+  infer them from a provider identity. Inside every client, mount at
+  /run/nmr-api-proxy and connect to /run/nmr-api-proxy/proxy.sock. Host project
+  selection may differ; these in-container paths need no per-provider setting.
+* In provider_core.deployment_route, render_api_client(binding) returns
+  ApiClientProjection with exactly compose, client_socket, client_mount and
+  client_group_add. compose contains only a volumes entry named shared-api,
+  external: true with the derived exact volume name. client_mount uses that
+  alias, the path above, read_only: true and volume.nocopy: true;
+  client_group_add is a list containing the API GID as a decimal string.
+  It accepts no image, provider UID, namespace or resolver relocation inputs.
+* The installed-image CLI is python -m provider_core.deployment_route client
+  --definition FILE --binding NAME, emitting those same four JSON fields.
+  This serves shell consumers without a second TOML parser. One-off clients
+  resolve the mount alias through compose.volumes and apply the same GID;
+  before docker run, their maintained launcher checks that exact volume exists.
+  Docker run can auto-create named storage even with volume-nocopy; Compose's
+  external flag does not cover it. Absence fails without launching the borrower.
+  The projection never creates a volume or starts a service.
+* input_paths for selected bindings grants only credentials and optional CA.
+  Proxy resolver acquisition moves to the host-owned render/config operation.
+  Existing operational capture retains the client grant and API inputs, without
+  requiring provider access to router-only files. SDK host rendering consumes
+  api_proxy independently; provider/delivery operations cannot invoke it.
+* In deployment_binding, client_definition_bytes(definition, *, binding_name)
+  emits the existing binding TOML with that binding and its unchanged delivery
+  settings, plus api_proxy.project/gid only. Add a client-definition CLI action
+  with --definition FILE --binding NAME, emitting those TOML bytes. This is the
+  maintained capture operation for callers that currently freeze the raw whole
+  document; they do not implement another TOML projection. The same SDK client
+  loader accepts this projection without api_proxy.uid/origin/route. Host
+  render/config requires those fields in the original operator definition; it
+  cannot use a client capture. Reparse and compare using the existing
+  frozen-input workflow.
+  Host-baseline inputs stay with their independent owner, rather than becoming
+  required files or redundant network-policy copies in every client generation.
+  This CLI emits raw TOML, not JSON: existing JSON projection wrappers must not
+  decode it or add it to ApiClientProjection. Clients that mount an operator
+  definition directly use the same maintained operation to provision their
+  client-only input; a read-only mount does not make its contents immutable.
+
+Keep the private render_api_route interface only for its remaining disposable
+authored-API fixtures; it is not a production fallback. Agree any fixture-input
+adjustment with the owning test callers when removing per-binding route fields.
+In particular, today's renderer reads binding.route: make fixture route inputs
+explicit at that test-owned boundary rather than keeping a production route
+field or accepting the old operator schema as a fallback. Fixture APIs use their
+own test proxy resources and never retarget the deployed host proxy.
+No release number is reserved or assumed by this design.
+
 Use one named socket volume, writable only by the proxy and initialized for a
 dedicated nonroot proxy UID and operator-selected shared access GID. The proxy
 UID must differ from consumer UIDs. Consumers mount that volume read-only and
 receive that supplementary group. Existing runtime UIDs stay valid. The proxy
-grants directory traversal and socket connection to the group (candidate modes:
-directory 0710/socket 0660), while its lock and readiness internals remain private. This
+grants directory traversal and socket connection to the group (directory 0710,
+socket 0660), while its lock and readiness internals remain private. This
 requires SDK changes: today's owner-only directory/socket checks must be adapted
 for shared group access. Keep the existing lifetime lock and stale-socket safety;
 clients must not be able to change route state or take the proxy's lock.
 Birth permissions must already be restricted, not repaired after exposure.
+Scope shared access to this host API grant; scientific and test-owned private
+proxy grants keep their existing ownership and permissions.
 Only the host proxy project declares ownership of the named volume. Every
 provider and delivery Compose projection declares that volume external: true
 with its exact host-owned name. A missing volume fails before client launch;
 consumers cannot auto-create or reinitialize it. Their explicit volume-cleanup
 code must exclude it as well; Compose's external flag alone does not constrain
 custom Docker removal commands.
+
+Old private storage needs explicit retirement: ordinary down commonly retains
+volumes/directories. Each owner uses retained old composition, admitted mounts
+and existing ownership evidence to remove only its unused API storage after its
+actual borrowers settle. Keep that evidence until removal succeeds; a healthy
+replacement with failed cleanup is incomplete retirement, not failed replacement.
+Do not broaden normal data-volume deletion or add a generic migration framework.
 
 All clients granted that socket have the same network destination permission.
 The proxy cannot identify a provider from encrypted HTTP or a shared Unix peer
@@ -405,7 +482,12 @@ production and real-API validation compositions, including launch and teardown.
 Keep candidate startup and signed API reads before stopping the incumbent; give
 those clients the same shared mount/group. Capture client credentials and trust,
 not the router's network settings. Private disposable test-API routes stay in
-test infrastructure. Build the product selected by the retained deployment
+test infrastructure; the authored-API fixture still calls the private renderer,
+so remove production ownership without deleting its remaining fixture use.
+Magnet's existing frozen-volume ownership check already skips external volumes;
+preserve that distinction in custom retirement and repair paths too. Its detailed
+consumer design is notes/048_shared_api_proxy_adoption_20261030.txt in Magnet.
+Build the product selected by the retained deployment
 through the existing build target; preserve its image/input identity checks.
 Status diagnostics that expose this selection more clearly are a follow-up in
 note 015, not a reason to retag the wrong product or delay a correct build.
@@ -425,6 +507,14 @@ API read does not establish delivery readiness or permit using another identity.
 Ownership admission must recognize the specifically borrowed host API volume
 without relabeling it or dropping guards on owned journal/worker storage. Keep
 the borrowed volume excluded from both ordinary and custom retirement paths.
+Its current proxy uses a private bind directory, not a named volume, and existing
+retirement only removes unused bundles. Preserve the inspected old mount/bundle
+evidence until narrow owned directory retirement succeeds. Its down/install/up
+replacement is not Magnet's candidate-preserving replacement; do not promise a
+rolling update. Convert maintained real-API staging and signed Job readback too,
+while keeping authored-API fixture routes and scientific routes test-owned or
+independently owned as appropriate. Its detailed design is
+notes/023_shared_api_proxy_adoption_20261030.txt in NMRNet.
 
 NMRPeak: deployment_runtime and generation/maintenance tooling borrow the same
 shared API grant. Put client socket/group settings in the existing operational
@@ -438,6 +528,10 @@ cleanup as pending. Other providers can continue their own conversions meanwhile
 Historical scientific snapshot housekeeping is separate from API proxy retirement.
 Check the owner's latest private status before treating an old deferral as open;
 retain the applicable design lesson without publishing instance cleanup history.
+Maintenance docker run clients need explicit --group-add and an exact borrowed
+volume existence check before launch. Ordinary down already has an owned API
+volume cleanup path; adapt that path rather than introducing another remover.
+Its detailed design is notes/010_shared_api_proxy_adoption_20261030.txt in NMRPeak.
 
 SECS: _apply_api_route grants the shared volume, group and socket path; it no
 longer merges proxy services. Interpreter and upload-store routes remain distinct.
@@ -448,6 +542,14 @@ report it to the shared owner, who creates and initializes it. SECS adds neither
 a replacement root initializer nor direct-network fallback.
 Safe API/store failure context in existing client logs is a follow-up in note
 015; it does not require identifying providers inside the shared listener.
+Current stop retains containers, and strict inventory includes api/api-init.
+Removing those roles from the new plan alone would obstruct old-topology
+admission. Retire the exact inspected old roles and their private mounts through
+a maintained operation after settlement, then use normal new-topology admission.
+SECS currently has no Magnet-style pre-stop candidate read. A narrow maintained
+check-api may help establish the actual signed path without launching science,
+hello or Job admission; it is not a new mandatory global readiness service.
+Its detailed design is notes/010_shared_api_proxy_adoption_20261030.txt in SECS.
 
 Delivery: all four bindings select the shared route while retaining their own
 signers and pending rows. Remove its four rendered proxies and initializers.
@@ -469,6 +571,40 @@ The delivery service retains and retries exact commands under its current rules.
 Health distinguishes proxy process readiness, successful API reachability and
 delivery progress; a ready listener alone cannot establish all three. Diagnostics
 preserve safe DNS/TCP/native causes without credentials or request contents.
+
+Design convergence and implementation handoff
+----------------------------------------------
+
+All four provider notes listed above have read the other three designs and
+reviewed the concrete four-field client projection, client-definition capture
+and public example paths. Their convergence records report no remaining caller
+or capability conflict. This is agreement on design, not an issued SDK or live
+deployment. Do not infer runtime status from it.
+
+Peer review changed the common plan: use the same grant in normal and one-off
+clients; prevent one-off volume creation; preserve additive delivery/scientific
+grants; capture client-only TOML through the SDK; and retire old resources through
+each repo's actual lifecycle with retained ownership evidence. No later provider
+tier identifies a need for another host proxy capability.
+
+The SDK owner implements the agreed projection/capture, host group-access and
+independent deployment path, converts delivery and issues artifacts through the
+normal release workflow. Provider owners implement their documented seams and
+retirement through their normal dependency/build paths. Prefer an early real
+candidate signed read on the local shared proxy, then move ready consumers with
+their original delivery bindings; do not wait for simultaneous provider readiness.
+The implementation handoff is these agreed symbols/fields and the per-provider
+notes. The next shared dependency is an issued SDK artifact and a usable local
+host grant, not another design framework or an assumed version number.
+
+Why these choices: one block in the existing operator input keeps host settings
+together without adding another configuration system; a small installed-SDK
+projection supports all callers without copied parsers; a fixed client path
+removes per-provider naming choices; selected client capture keeps host policy
+out of client generations; and owner-specific retirement avoids a generic
+migration tool. Keeping raw full definitions in every capture, retaining private
+production routes, or forcing every launcher into one replacement pattern would
+undo those ownership and maintenance benefits.
 
 Caveats during cutover
 -----------------------
