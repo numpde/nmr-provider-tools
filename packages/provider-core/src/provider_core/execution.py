@@ -716,7 +716,9 @@ class AttemptExecutor:
                     cause=self._latest_condition_failure,
                 ) from None
             retry_after = self._latest_condition_failure.retry_after_seconds
-            seconds = max(random.uniform(delay / 2, delay), retry_after or 0)
+            seconds = random.uniform(delay / 2, delay)
+            if retry_after is not None:
+                seconds = max(seconds, retry_after)
             if seconds < remaining:
                 policy.on_retry(self._record, reporter.phase, condition_code, self._latest_condition_failure, seconds)
             remaining = deadline - asyncio.get_running_loop().time()
