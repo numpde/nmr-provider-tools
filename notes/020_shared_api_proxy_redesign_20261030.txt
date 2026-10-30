@@ -1,691 +1,349 @@
-One shared API proxy for the four providers
-==========================================
+Shared API proxy and delivery outbox
+====================================
 
-Governing guidelines from the joint refactor
---------------------------------------------
+Governing guidelines
+--------------------
 
-These summarize the agreed engineering directions for the joint refactor.
-Later corrections and completed work supersede older proposals and deferrals.
+1. Privacy: repository notes and commits are public. Keep credentials, signed
+   headers, scientific payloads, raw transcripts, session identifiers and private
+   host, account, path and resource values out of them. Record durable decisions,
+   alternatives and relative source references, not discussion or ACK history.
+2. Read recent joint Codex logs and the other owners' designs. Distinguish actual
+   work and user decisions from proposals. Work in each repository's main checkout.
+3. Prioritize a speedy first joint deployment on this machine against the existing
+   nmr.localhost API: all four providers and delivery working through one shared
+   API proxy, with replaced API proxies and private delivery intakes retired.
+   Use maintained build, deployment and cleanup paths. Source changes and passing
+   builds are not proof of a live deployment.
+4. The shared API proxy must remain running with its socket volume intact across
+   later provider and outbox changes. Its first deployment must include the live
+   controls those changes need. An operator may change those controls without
+   replacing or restarting the proxy. Changes to process identity, network setup
+   or mounted storage are deliberate host operations, not provider operations.
+5. The shared-package owner owns the proxy, outbox, shared SDK and this design.
+   Provider owners own their integrations and scientific lifecycles. Converge on
+   one contract and rollout; raise the common floor by using findings in each repo.
+6. Use GitHub push/pull and host-local builds through maintained targets. No bundle
+   transfers, private source overlays, side checkouts or one-off operational fixes.
+   Prefer durable, low-maintenance workflows. Reduce cross-thread chatter; read
+   notes/progress and message only important corrections, questions or blockers.
+7. Configuration replacement and service interruption are acceptable during
+   this refactor, including while delivery has pending work. Do not add old/new
+   configuration staging, rollback or incumbent-continuity machinery as a gate.
+   Preserve existing queue ownership, signing/TLS and effect-uncertainty rules.
+8. Use proportionate existing checks, not a new validation project. Record
+   consequential alternatives and reasons. Defer optional enhancements; fix a
+   demonstrated blocker in the first tier regardless of its category.
 
-1. Privacy: treat repository notes and commits as public. Read logs in place and
-   carry forward necessary, sanitized decisions. Keep credentials, signed headers,
-   scientific payloads, raw transcripts, session IDs and private deployment
-   addresses, accounts, paths and resource identifiers out of public artifacts.
-   Document public interface constants/defaults, relative source references and
-   clearly marked examples; keep instance-specific private values in existing
-   operator inputs or private handoffs. Review the exact diff before publication.
-   Record durable design decisions and reasons, not discussion transcripts,
-   message/ACK history, attributed chat or coordination/completion chronology.
-2. Read the recent joint Codex logs before designing, especially the user's
-   recurrent directions. Read actual peer notes and thread progress; distinguish
-   user decisions, peer suggestions, hypothetical probes and observed results.
-3. Prioritize a speedy first joint live deployment: one good shared API router,
-   all four providers AND delivery using it, and the eight old proxies retired.
-   Fix material blockers through existing workflows; keep checks proportionate.
-   A green build, an ACK or a ready listener does not complete the deployment.
-4. Hard constraint: the shared proxy stays stable after its first joint deployment.
-   Its client contract, socket/group, destination/network settings, storage and
-   independent lifecycle form the baseline. Later provider improvements must not
-   require proxy reconfiguration, replacement, restart or socket-volume recreation.
-   Settle the proxy capabilities needed by later tiers during the first tier.
-5. The shared-package owner owns the proxy and convergence of this note. Each
-   provider owner writes a new repo-specific design from 020, reads the other
-   designs and converges on one shared contract and rollout. Local integration
-   and deployment stay with that provider; shared service changes stay with their
-   owner. Coordinate shared interfaces before release.
-6. Raise the common floor: apply peer findings to your own package, use the
-   existing owning mechanisms and choose practical, consistent configuration.
-   Preserve signing/TLS, transparent errors, effect uncertainty and durable work.
-   Prefer a clean cut over legacy fallbacks, aliases and speculative frameworks.
-7. Record consequential choices with serious alternatives and reasons in the
-   appropriate design note. Put legitimate minor concerns in the relevant deferred
-   note with an owner and trigger; do not turn every suggestion into a deployment
-   gate. Check later logs before carrying an old concern forward as open work.
-8. Reduce cross-thread chatter. Prefer reading notes and thread progress; send
-   messages only for critical or important questions, corrections and blockers
-   requiring another owner's action. Work on your own repo while peers progress.
-9. Each deployment host is self-sufficient: acquire issued artifacts/source from
-   GitHub and build there through maintained targets. Avoid bundle transfers and
-   private source overlays. Respect host acquisition/routing choices, keep runtime
-   state with its existing owner and keep private operational details out of notes.
-10. Work in each repo's main checkout. Deliver through maintained repo-native build,
-    deployment, recovery and cleanup paths. No side working copies, one-off scripts
-    or hidden manual repairs as the implementation. Prefer the long-term design
-    with the least maintenance and babysitting: clear ownership, fewer moving
-    parts and routine operations. Make the first milestone a small, durable slice
-    of that design; defer optional enhancements.
-11. Use this machine's existing local NMR API (nmr.localhost) for the first joint
-    integration lane, with the real providers and delivery using the shared proxy.
-    Check the whole local system through maintained workflows. Each remote host
-    still needs its own deployment and verification against its selected API.
-12. This refactor has no old-deployment continuity requirement. Configuration
-    may be overwritten and delivery may be interrupted while results remain
-    pending. Do not preserve old configuration or add staged old/new inputs,
-    matching-selector recovery, rollback or incumbent-protection machinery for
-    that concern. Stop, reconfigure and restart through maintained workflows as
-    needed to reach the first joint deployment quickly. Existing storage ownership,
-    signing/TLS, queue semantics and effect uncertainty stay with their owners.
+Status: authoritative joint design unless a serious objection requires a change;
+not implemented or deployed. This note supersedes its previous static provider-
+binding and per-provider delivery-socket proposal. Provider-specific designs
+must align with it before they are used as implementation instructions.
 
-Status: working design and joint rollout plan, dated
-30 October 2026. No implementation, release or deployment change is claimed.
-Scope: Magnet, NMRNet, NMRPeak, SECS and provider-core in nmr-provider-tools.
-
-Decision and purpose
----------------------
-
-Run one host-managed API proxy, independently of provider and delivery-service
-lifetimes. All four providers and the shared delivery service use its Unix
-socket. The proxy opens a tunnel to the NMR API; each client still signs its
-own requests and verifies the API's TLS certificate through that tunnel.
-The proxy receives no provider signing keys and does not choose API actions.
-
-The inspected deployment has eight such proxies: four provider-owned proxies
-and four delivery-owned proxies. All eight use the same API destination, network
-interface and resolver contents. Their storage and runtime identities differ.
-This is a controlled host environment with one target API. Sharing the router
-and its resources is desirable. Build and maintain one good router for this
-deployment; separate proxy processes per provider are unnecessary.
-
-The steady running-container count falls from 24 to 17: eight proxies become
-one. Provider, scientific worker and durable delivery boundaries stay intact.
-Obsolete proxy initializer containers disappear too; they are not included in
-the running count. A fresh shared socket volume may need one initializer.
-
-The priority is a joint refactor that reaches a working live deployment quickly.
-Use the existing SDK, release and deployment workflows. Fix concrete integration
-problems together as they appear. Keep checks proportionate to the changed code;
-building a new validation system is not a prerequisite for this deployment.
-
-Work tiers: fastest path to the joint deployment
-------------------------------------------------
-
-Tier 1 -- Do now: get the whole deployment onto one router.
-
-Make the smallest coherent SDK and consumer changes, use the existing build and
-release paths, bring up the shared proxy, and move delivery and all four providers
-onto it. Fix concrete failures that prevent that deployment from working. Keep
-socket access, durable queue ownership and existing request/retry semantics correct.
-Remove the old proxies once their clients settle. The cutover sequence below is
-the critical path; a working proxy with only one converted provider is not the
-joint deployment.
-
-Here, settling old clients means finishing or retiring their exchanges under
-existing uncertainty rules so no client process or tunnel still uses the old
-proxy. It does not mean obtaining API acceptance for every queued result; those
-obligations can continue through the publisher on the shared route.
-
-Tier 2 -- Follow up after the joint deployment works.
-
-Improve client status/help text, simplify client code exposed by integration, and add
-small regression cases for problems found during the refactor. Improve clients
-within the deployed proxy's stable contract and capacity. Finish documentation
-and incidental cleanup that does not affect the running topology. If a small
-improvement directly helps the current cutover, do it there; do not turn these
-follow-ups into a second prerequisite project.
-
-Tier 3 -- Leave out unless a concrete need emerges.
-
-Multiple-API support, route identifiers and discovery, a new configuration model,
-dynamic registration, per-provider router accounting or fairness, compatibility
-frameworks and generalized migration tooling are outside this refactor. So are
-new full-topology test environments, exhaustive collision/adversarial matrices,
-load or chaos campaigns and independent qualification infrastructure built just
-for this change. These are possible future projects, not promised follow-ups.
-
-The tiers order work by its contribution to getting the joint system live.
-New validation machinery is one possible delay, alongside extra abstractions,
-configuration, coordination and tooling. Run relevant existing checks as part
-of the normal workflow. Add a check when it answers a concrete problem cheaply;
-do not move an entire future project into Tier 1 under the label of validation.
-An observed correctness problem belongs in Tier 1 regardless of its category.
-
-Patterns and anti-patterns for choosing the remaining work
-----------------------------------------------------------
-
-Use these pairs when proposing next steps or deciding whether the deployment is
-finished. They keep the remaining work tied to the joint deployment.
-
-* Pattern: finish the transport cutover while a healthy publisher retains pending
-  commands on their original bindings and follows the existing retry rules. Fix
-  a publisher paused by incorrect route or credential inputs before calling its
-  delivery cutover working; retaining the bytes alone is not functioning delivery.
-  Anti-pattern: wait for an empty queue or every terminal receipt before calling
-  the router deployment complete, or label a paused publisher as a normal retry.
-  Never retarget queued commands or change refusal classifications to manufacture
-  progress; fix the granted inputs and resume through existing delivery rules.
-
-* Pattern: fix a demonstrated integration failure at its owner. A missing client
-  supplementary group needs a corrected client projection; an outdated CA needs
-  refreshed candidate trust inputs. Repeat the affected existing check with the
-  intended runtime identity and TLS verification, keeping other clients moving.
-  Anti-pattern: run the client as root, make the socket world-writable, disable
-  TLS verification or introduce a central trust service to bypass a local fault.
-
-* Pattern: leave nonessential status/help improvements and unrelated cleanup for
-  later; they are also outside the definition of deployment completion.
-  Anti-pattern: promote copy polishing, generic helper refactoring or speculative
-  validation infrastructure into deployment prerequisites. Correct misleading
-  instructions now only when they obstruct the actual cutover or safe operation.
-
-* Pattern: deploy a ready consumer when its own dependencies are ready and shared
-  operations are coordinated; keep other conversions moving in parallel.
-  Anti-pattern: require every provider to be ready for a simultaneous cutover or
-  let one owner's unrelated improvements hold up the others.
-
-* Pattern: keep excluded projects outside this refactor unless a concrete need
-  justifies reopening that decision.
-  Anti-pattern: turn an excluded registry, configuration model or rehearsal
-  environment into promised work merely by saying "after the first conversion."
-
-* Pattern: keep one shared router and diagnose actual overload. Control a known
-  maintenance burst with its existing concurrency setting before increasing
-  shared capacity during initial bringup. Settle the bounded limit for normal
-  combined traffic with its thread, PID and memory budgets in that first tier;
-  later provider improvements use the deployed baseline.
-  Anti-pattern: restore per-provider listeners or proxies to avoid sharing, or
-  require 8x32 connections just because the previous topology had eight listeners.
-
-* Pattern: finish with all four providers AND delivery on the shared socket,
-  old proxies retired and one independently managed proxy remaining. The planned
-  running-container reduction is 24 to 17. Count API proxy roles explicitly:
-  a stopped scientific worker can hide an extra proxy behind a total of 17.
-  Anti-pattern: declare the joint project done after one successful client, after
-  converting only the providers, or while unused old proxies remain running.
-
-* Pattern: repair maintained retirement commands so each owner removes its own
-  obsolete resources and preserves the host-owned socket volume.
-  Anti-pattern: bypass a broken command once and call lifecycle work complete,
-  or expand one provider's cleanup into a scan of every provider's resources.
-
-* Pattern: convert every maintained production API path, including preflight,
-  journal/archive and maintenance tools, to the shared grant. Remove obsolete
-  private API creation paths and copied API network settings. Remove compatibility
-  branches only for those removed API route fields. Preserve client API origins,
-  credentials and TLS trust, and required scientific interpreter/store routes.
-  Anti-pattern: call a real-API operator path "test-only" to defer its conversion,
-  or delete still-used authority and scientific routes because they repeat values
-  or contain the word "proxy" or "route".
-
-The coordinator uses these patterns to challenge proposed delays, scope changes
-and completion claims, while owners continue work that is already unblocked.
-
-Parallel agent coordination
+Decision: two shared services
 -----------------------------
 
-Give the agents one shared outcome: delivery and all four providers running
-through the single host proxy, with the old proxies retired. Assign ownership:
+Run one host-managed API CONNECT proxy and one independently managed durable
+outbox. They are separate services with separate Unix sockets and owned socket
+volumes. All four providers use the API proxy for their own API exchanges and
+submit terminal results to the outbox through its shared intake. The outbox uses
+that same API proxy to publish results. A provider restart or removal does not
+restart either shared service or remove their storage.
 
-* One SDK/delivery owner implements the shared interface, owns the SDK release,
-  and manages the host proxy and delivery cutover.
-* One owner per provider converts its repository and carries that change through
-  deployment. Each owner edits its own repository and coordinates shared-file
-  changes with the affected owner.
-* One coordinator resolves cross-repository blockers and drives the whole graph
-  to completion. This can be the SDK/delivery owner.
+The proxy opens tunnels. It does not receive provider signing keys, sign requests,
+interpret results or manage provider registration. Clients supply CONNECT
+host:port, sign their own API requests and verify API TLS. The outbox accepts
+terminal work, owns its durable queue and signs publication requests on retries.
+These responsibilities cannot be collapsed into an outbox alone: providers also
+make direct signed API calls. Running both roles in one process would couple
+provider API connectivity to outbox replacement and queue recovery; retain two
+independent services to satisfy the proxy stability requirement.
 
-Agree the volume name, socket path, proxy UID, access GID and SDK interface early.
-Keep private instance values in existing operator inputs or a private handoff;
-this note records the public contract and intentionally public defaults.
-Coordinate interface changes with the affected owners. Keep other agents on work
-that does not depend on the change. Keep working shared names and interfaces
-stable during cutover; cosmetic renames and dual-name compatibility add no
-deployment capability.
+The inspected starting topology has eight API proxies and 24 running containers.
+Replacing those eight with one yields an expected 17, assuming the other roles
+remain running; count actual proxy roles as well as containers. The outbox already
+exists, so one shared intake replaces its per-binding sockets/volumes without
+adding another steady-state service. Do not infer a live count from this design.
 
-Bring up the router with one real consumer early, giving everyone a working
-integration to follow. Prepare the other provider changes in parallel. Once the
-shared path works, move the remaining consumers onto it without waiting for
-unrelated repository improvements. The SDK/delivery owner coordinates changes
-and restarts of the shared services; provider agents manage their own services.
-A ready provider can cut over once its own dependencies and shared-service
-coordination are settled; readiness of every other provider is not a prerequisite.
+Tier 1: one joint working deployment
+------------------------------------
 
-Give every agent this assignment:
+* Add the shared proxy and client socket grant in provider-core. Use the existing
+  SDK release and host-local build paths. Include live proxy capacity, log level
+  and allowed CONNECT authorities in the first proxy deployment.
+* Replace static per-provider outbox bindings and their separate intake sockets
+  with one shared intake and a shared-SDK result handoff. Delivery retains the
+  publication material supplied by the provider, with the accepted result.
+  Include its live queue, retry and log settings in the shared operator file.
+  The provider-facing intake is push-only: submission and its acknowledgement,
+  with no pending, status, inventory or capacity-read operation.
+* Convert Magnet, NMRNet, NMRPeak and SECS, including maintained real-API
+  validation, readback and maintenance paths. Keep independently owned scientific
+  and disposable authored-API fixture routes. No consumer starts a private API
+  proxy or owns either shared socket volume.
+* Start the host proxy and outbox, use existing signed API/startup checks, then
+  bring up ready providers through maintained workflows. Providers need not wait
+  for simultaneous readiness. Fix concrete integration failures at their owner.
+* Check all four providers and the outbox against nmr.localhost: actual API
+  access, shared grants, working delivery and pending work accounted for. Observe
+  delivery progress when work exists. Retire all eight old API proxies and unused
+  private API/delivery socket resources through their owning cleanup paths.
 
-  Get all four providers AND shared delivery running through one independent
-  host API proxy, and retire the replaced proxies and unused private route
-  resources after their clients settle. Deliver your owned part through existing
-  workflows in the main checkout, preserving signing/TLS, queue ownership and
-  request/retry semantics. Use maintained paths and a durable design with minimal
-  maintenance and babysitting; avoid one-off implementation and operator repairs.
-  Keep the agreed shared interface. Fix concrete blockers; leave unrelated
-  improvements and excluded projects outside this rollout. Correctly retained
-  retries may remain pending after cutover. Report observed progress, the next
-  live milestone and any blocker needing another owner. State what remains for
-  the whole deployment, including old-proxy retirement.
+A queue need not be empty, and individual retries need not have completed, to
+finish the transport cutover. A paused publisher caused by a wrong grant or
+credential is a problem to fix, not a healthy retry. Preserve exact accepted
+commands and original API/provider identities; never overlap queue owners or
+edit rows to manufacture progress. Stop and replace services as necessary: old
+configuration or uninterrupted publication is not a deployment prerequisite.
+The intended remote hosts each require their own later observed deployment; local
+results alone do not prove those hosts are running the new topology.
 
-Pass that assignment and the relevant provider paragraph below with partial
-handoffs. Include the owner's task, SDK release, observed state, next runnable
-milestone and concrete blocker. Use a private handoff for instance-specific
-settings and diagnostic evidence; keep shared public notes at the contract and
-sanitized-summary level. No new tracking service is needed. Distinguish source
-changes, passing builds and observed live results.
-Mark unknown peer status as unknown and release estimates as estimates. Carry
-confirmed live milestones forward; do not invent work to redeploy the API or
-repeat a completed cutover without evidence of a problem.
+Tier 2 covers client help/status improvements and small follow-ups found during
+integration. Tier 3 excludes multi-API orchestration, a provider registry, dynamic
+registration, per-provider proxy processes, generalized migration/validation
+frameworks and speculative fairness or load-testing projects. A real blocker is
+Tier 1; an optional enhancement does not become one merely by being adjacent.
 
-When blocked on another owner, finish useful source or launch preparation that
-does not depend on the missing input, report that input, then wait if nothing
-useful remains. Do not fill the wait with a framework, polling service, guessed
-release pin or copied SDK source that bypasses the maintained release path.
+Shared API proxy
+----------------
 
-Report at integration milestones or when a blocker or shared decision changes.
-The coordinator reviews decisions that change scope, shared interfaces or
-deployment timing, while owners handle routine implementation. Reassess work
-that adds abstractions, tooling or checks without helping the current cutover.
-A provider owner's part is complete when its change works in the joint deployment
-and its obsolete private API route is retired; the coordinator finishes the whole
-graph, including delivery and old-proxy removal.
+One proxy socket volume is created and owned by the host proxy deployment;
+providers and outbox borrow it read-only and add its access GID to their existing
+supplementary groups. Proxy UID differs from client UIDs. Use restricted socket
+and directory permissions at creation, retain private lock/readiness state and
+stale-socket/lifetime exclusion. Do not bypass socket access with root, broad
+permissions or host networking. Consumers never create, reinitialize, relabel or
+remove the shared volume; custom cleanup must respect this too. A one-off docker
+run borrower checks the exact volume exists before launch: nocopy alone does not
+prevent Docker from creating it.
 
-Joint implementation and live cutover
--------------------------------------
+The CONNECT request supplies the destination. The operator sets a host-wide
+allowed-authority policy, not a provider or API registration list. The first
+host can allow its one API; the policy can change live. A narrowed policy affects
+new tunnels, while admitted existing tunnels finish. A policy allowing arbitrary
+destinations would broaden every socket borrower's network capability; this
+design does not require an unrestricted mode. TLS and API authorization stay at
+each client, and scientific/interpreter/store routes keep their own owners.
 
-Start joint integration here against the existing local API at nmr.localhost,
-the documented development hostname. Use the configured API origin, trust and
-credentials through the shared proxy's admitted route and client Unix socket.
-Exercise real provider and delivery paths with existing maintained checks and
-authorized local scenarios; no separate test-stack project is needed. Keep each
-host's selected API/proxy baseline independent, and distinguish local integration
-results from evidence that a remote deployment is running the new topology.
+The present proxy has a hard-coded 32-connection worker bound. Replace that with
+an operator-adjustable live limit; lowering it does not kill existing tunnels,
+but prevents new admission until use falls below the limit. Set an initial bound
+and account for the actual container PID, thread and memory budgets: the live
+limit cannot conjure capacity beyond those limits. Overload remains visible to
+clients under the existing bounded failure semantics. No per-provider proxy
+fairness or attribution is promised by a shared encrypted tunnel.
 
-1. Agree the shared socket volume, socket path and access group once. Update
-   provider-core and all four consumers around that small interface. Reuse the
-   existing deployment inputs and Compose conventions; add no route registry,
-   discovery protocol or separate configuration model.
-2. Implement the host proxy and client mount/group projection in the SDK.
-   Convert delivery and the four providers in the same joint effort, removing
-   their production proxy ownership. Use the existing focused checks while
-   making each change and the normal SDK release and consumer build paths.
-   Each deployment host builds through its maintained tooling.
-3. Start the host proxy. Use an existing signed API read
-   from an actual candidate client to check the shared path, including TLS and
-   credentials. Fix socket access or routing problems and move the remaining
-   clients through the path. Keeping the old deployment available is unnecessary.
-4. Cut over delivery and providers in an agreed order using their existing
-   drain and settlement procedures. Keep queue volumes, pending binding
-   identities and exact queued commands. Keep each old proxy until its old
-   clients have settled. Use existing startup/API checks without adding a new
-   pre-stop protection gate. Do not edit queue rows or infer drain from process
-   health.
-   Pending delivery may continue on its normal retry schedule after cutover when
-   its queue, binding and publisher remain correct. An empty queue or eventual
-   receipt for every pending item is not a prerequisite for this transport change.
-5. Check the joint deployment: all four providers and delivery use the shared
-   socket, API reads work, and delivery is running with pending/held state
-   accounted for. Observe actual delivery progress where work is available.
-   Inspect health, logs and restart counts; fix observed problems during this
-   rollout rather than waiting for a separate qualification campaign.
-6. Remove the eight old proxies, stopped initializers and unused private route
-   volumes once their clients have settled. Delete obsolete production route
-   code, copied route configuration and tests of the removed topology. Confirm
-   one shared proxy remains and ordinary consumer replacement leaves it running.
-   Fix maintained cleanup commands that would remove shared storage; bypassing a
-   broken command for this one cutover leaves the lifecycle bug unresolved.
+Shared durable outbox
+---------------------
 
-A mixed topology is a temporary cutover state. Finish all four consumers and
-delivery in this effort. Repair the new deployment through its owning workflows;
-keeping a working old topology or a rollback lane is unnecessary for this refactor.
-Consumer operations do not re-create private proxies. Recover a failed component
-with a known-compatible image on the shared socket where possible; healthy shared
-services and other providers stay in place. Fix or retire the failed candidate
-through the owning workflow instead of making a broad helper rewrite a
-prerequisite for recovery.
+All providers mount one host-owned outbox intake volume read-only and connect to
+one Unix socket with the outbox access GID. The shared SDK supplies the client
+and handoff format. Remove the per-binding intake sockets/volumes and the central
+static list of provider bindings. There is no separate registration step: a
+provider supplies the information needed to publish with its result handoff.
+A new provider uses the same two socket grants and submits through the same SDK;
+joining or leaving does not require an operator configuration edit or a proxy or
+outbox restart. Accepted work stays with the outbox when its provider leaves.
 
-Delivery software replacement uses the current queue and original binding
-identities, retaining all acknowledged commands. Stop and settle its current
-owner before starting the replacement;
-neither restoring an older queue backup nor overlapping two queue owners is a
-shortcut. Preserve existing uncertainty rules and do not duplicate scientific work.
+The shared intake accepts submissions only. Its reply reports the outcome of the
+submitted handoff, including durable acceptance or refusal; it cannot list or
+read pending results, status, capacity or other providers' information. Keep
+the actual queue and retained credentials in outbox-private storage, not the
+shared socket volume. Bind the submitted identity to its credential fields and
+keep private publication inputs out of acknowledgements, errors and logs. An
+operator may inspect held/pending work through the existing operator-owned path;
+that capability is not granted to providers by the intake socket.
 
-End state and ownership
-------------------------
+The existing credential parser checks the artifact's fields and matching key
+pair; by itself it does not prove that the API issued or still authorizes that
+credential. The API authenticates publication. The shared socket is therefore
+a trusted local submitter boundary, not cryptographic per-provider authentication.
+There is no queue-read operation, but a conflict refusal for a guessed matching
+identity can reveal limited existence information. This limited disclosure is
+accepted for the controlled host. Do not claim zero information leakage or
+cross-provider isolation beyond the absence of a read interface.
 
-* Exactly one proxy process serves this host's target NMR API.
-* Starting, replacing or stopping any provider cannot start, stop, remove or
-  recreate that proxy or its socket volume. The same applies to delivery.
-* Host deployment owns destination, interface, resolver, runtime identity and
-  socket access. Consumers receive the shared socket mount and group; they do
-  not own copies of the router's network settings. Their API origins still name
-  the same target API.
-* API credentials, TLS trust and request/result ownership remain with existing
-  clients. No shared provider identity, TLS termination or new API protocol.
-* Provider-specific delivery queues, intake sockets, quotas and acknowledgements
-  retain their current semantics. This is not the delivery-registration redesign
-  discussed in the SDK's note 019.
-* No provider composition contains an API proxy or its initializer. Delivery
-  composition contains its daemon but no per-binding API proxies.
+The handoff contains the exact terminal operation/body and its Job/Attempt and
+API/provider identity, plus the API settings, original issued signing credential
+and optional CA material needed by delivery. The SDK uses the existing issued
+credential and API settings semantics; an in-memory SSL context or private-key
+object is not a transport format, and a provider-container file path is not a
+usable credential grant for the outbox. Preserve client-side origin, topology,
+timeouts and trust as appropriate to the existing API client. Delivery owns fresh
+request signing and TLS on every attempt; an old pre-signed HTTP request alone
+cannot guarantee publication after an outage.
 
-Shared implementation
------------------------
+Keep the existing supported terminal-body size when adding publication material.
+Today's intake request ceiling is 2 MiB, and Magnet can retain a terminal body
+up to that size; placing credentials, CA data and encoding overhead in the same
+bounded envelope would otherwise reject a previously supported result. Bound
+the complete handoff for the supported body plus bounded publication inputs.
+Keep the existing result-body byte-budget meaning and account for retained
+publication material in actual storage sizing; do not truncate or silently
+reduce the supported result size to fit the old IPC ceiling.
 
-nmr-provider-tools owns the proxy implementation, client projection and host
-deployment tooling. The operator uses it to manage one separate Compose project,
-supervised by the Docker engine with restart policy. Proposed maintained commands are
-make api-proxy/deployment/{config,up,status,down}; provider and delivery commands
-never invoke its up/down operations. A host reboot must restore the proxy and
-clients must tolerate startup ordering and temporary unavailability.
-Keep its deployed image and settings as the host baseline; a provider SDK upgrade
-does not redeploy or reconfigure the shared proxy.
+Before acknowledging, the outbox durably commits the exact result and its usable
+publication inputs together. If acknowledgement is lost, the producer retains
+its obligation and may reconcile/replay the identical handoff under existing
+uncertainty rules. A replay acknowledgement must describe what the outbox
+actually retained; different publication inputs must not silently overwrite the
+original or be reported as though they were stored. After the provider exits or
+the outbox or host restarts, the outbox retains the material needed to retry
+independently; publication still depends on valid authority and API availability.
+Reconstruct the API/signing owner from retained material, preserve receipt
+verification and original identity, and never silently retarget an accepted
+result. Credential rotation/revocation must not silently substitute another
+identity: preserve pending work and report a held or failed publication through
+the existing operator path when authority cannot be used. A durable acknowledgement
+is not API acceptance or a guarantee against host/storage loss; the existing
+pre-ack producer-crash uncertainty is unchanged.
 
-Use the ordinary SDK release path and existing artifact/version records. Each
-host acquires the release and builds its proxy image through maintained tooling;
-it does not depend on another workstation's temporary artifacts or image.
+Publication material contains private signing capability. Keep it out of logs,
+status, error text and public artifacts; use outbox-owned private durable storage
+and include database, journal/WAL, backup and cleanup paths in that protection.
+The shared intake is a submission capability granted to its borrowers, not an
+identity or a queue-reading capability. Retain meaningful per-provider and total
+backpressure through the existing queue owner. A full outbox refuses new work;
+the producer retains the exact result and uses its existing retry/settlement
+rules. This is a controlled host; do not build a new identity registry or
+general control plane.
 
-Split the present deployment_route responsibilities into two explicit operations:
-render the owned host proxy, and project its socket mount and group to a client.
-Keep protocol parsing, interface-bound DNS/TCP and bounded connection handling
-with provider_proxy and bound_http_proxy. Keep credential admission with signing
-and deployment_binding. Keep the transport interface small: a shared volume,
-socket path and access group. Configure the router's destination and network
-settings once using the existing deployment inputs. Each binding keeps its own
-API identity, credential and trust inputs. A new provider for this API borrows
-the same socket and adds no proxy or API-router registration step. Its delivery
-binding still uses the existing static operator workflow described in note 019;
-socket access does not register a publisher or transfer a terminal obligation.
+Push-only changes provider admission: NMRNet and NMRPeak currently call pending()
+to check capacity and exclude queued Jobs before starting science. NMRPeak also
+reserves room for its two concurrent lanes. Replace those reads with the existing
+bounded live owners and the authenticated API's provider-relative
+has_provider_execution_attempt=false feed. That feed excludes a Job with any
+Attempt by that provider, regardless of Attempt state. The inspected API's Job
+cleanup deletes Attempts after marking the Job DELETED; the feed requires OPEN.
+Keep the original provider identity and verify the deployed API contract during
+integration. The feed is not an outbox capacity check or a recovery receipt.
 
-The client projection must serve both Compose services and one-off candidate
-containers: external volume declaration, read-only mount, socket path and
-supplementary group, with no proxy services or service dependencies. Add these
-grants to the client's existing mounts/groups; preserve delivery intake and
-scientific grants. The agreed helper and concrete defaults below are the consumer
-implementation target; the current private-route renderer is not that interface.
+NMRNet keeps its serial live controller; NMRPeak keeps its two-owner limit and
+admission lock. NMRPeak's selection can race between lanes before START claims
+the Job; treat a duplicate claim as a no-START retry only when the existing
+claims owner confirms that Job is already owned. On a full or unavailable outbox,
+an existing controller retains the exact handoff and pauses new admission;
+NMRPeak pauses both lanes while its
+blocked owners settle. Already admitted work may finish within those owner and
+body bounds. Once the matching durable acknowledgement arrives, the outbox owns
+the work and the controller can settle under its existing lifecycle. A full
+outbox can first be discovered after science, and at startup its availability
+is unknown until submission. This is an accepted loss of the former pre-start
+outbox-capacity gate, not equivalent behavior or a reservation guarantee.
 
-Working joint contract (not yet an issued SDK interface):
+After producer restart, retain the existing START/checkpoint recovery rules and
+the already unresolved producer-crash-before-acknowledgement window. Do not
+claim an unacknowledged result survived, rerun science to replace it, or add a
+new local durable queue, hidden outbox read, per-provider socket or registration
+as a shortcut. Fix demonstrated correctness blockers in Tier 1.
 
-* Keep the existing operator binding TOML and its admission path. Move repeated
-  bindings.route settings to one top-level api_proxy.route table; add api_proxy
-  project, uid, gid and origin there. Keep delivery project/identity/limits and
-  every bindings.api identity/trust/budget unchanged. The host proxy origin is
-  the one allowed CONNECT authority; selected client API origins must agree.
-  This is one extension of the existing input, not a second configuration system.
-  Selected DeploymentBinding objects carry api_proxy with only project and gid;
-  render_api_client reads that grant, not the host's routing policy.
-* Public example project: nmr-api-proxy. Its owned socket volume is derived as
-  <api_proxy.project>-socket. UID/GID remain explicit operator choices; do not
-  infer them from a provider identity. Inside every client, mount at
-  /run/nmr-api-proxy and connect to /run/nmr-api-proxy/proxy.sock. Host project
-  selection may differ; these in-container paths need no per-provider setting.
-* In provider_core.deployment_route, render_api_client(binding) returns
-  ApiClientProjection with exactly compose, client_socket, client_mount and
-  client_group_add. compose contains only a volumes entry named shared-api,
-  external: true with the derived exact volume name. client_mount uses that
-  alias, the path above, read_only: true and volume.nocopy: true;
-  client_group_add is a list containing the API GID as a decimal string.
-  It accepts no image, provider UID, namespace or resolver relocation inputs.
-* The installed-image CLI is python -m provider_core.deployment_route client
-  --definition FILE --binding NAME, emitting those same four JSON fields.
-  This serves shell consumers without a second TOML parser. One-off clients
-  resolve the mount alias through compose.volumes and apply the same GID;
-  before docker run, their maintained launcher checks that exact volume exists.
-  Docker run can auto-create named storage even with volume-nocopy; Compose's
-  external flag does not cover it. Absence fails without launching the borrower.
-  The projection never creates a volume or starts a service.
-* input_paths for selected bindings grants only credentials and optional CA.
-  Proxy resolver acquisition moves to the host-owned render/config operation.
-  Existing operational capture retains the client grant and API inputs, without
-  requiring provider access to router-only files. SDK host rendering consumes
-  api_proxy independently; provider/delivery operations cannot invoke it.
-* In deployment_binding, client_definition_bytes(definition, *, binding_name)
-  emits the existing binding TOML with that binding and its unchanged delivery
-  settings, plus api_proxy.project/gid only. Explicit binding_name=None selects
-  all bindings for the delivery client; a provider selects its existing name.
-  The client-definition CLI takes --definition FILE and exactly one of
-  --binding NAME or --all, emitting those TOML bytes. This is the
-  maintained capture operation for callers that currently freeze the raw whole
-  document; they do not implement another TOML projection. The same SDK client
-  loader accepts this projection without api_proxy.uid/origin/route. Host
-  render/config requires those fields in the original operator definition; it
-  cannot use a client capture. Reparse and compare using the existing
-  frozen-input workflow.
-  Host-baseline inputs stay with their independent owner, rather than becoming
-  required files or redundant network-policy copies in every client generation.
-  This CLI emits raw TOML, not JSON: existing JSON projection wrappers must not
-  decode it or add it to ApiClientProjection. Clients that mount an operator
-  definition directly use the same maintained operation to provision their
-  client-only input; a read-only mount does not make its contents immutable.
+For the old queue, retain accepted items and their original identity and signing
+inputs through the existing owning deployment path when converting them to the
+new representation. If required old publication inputs are unavailable, retain
+and report the affected work for recovery rather than discarding or retargeting
+it. Do not require an empty queue, a parallel old deployment or preserving old
+configuration as a rollout gate. This is a narrow conversion of actual retained
+work, not a general migration framework.
 
-Keep the private render_api_route interface only for its remaining disposable
-authored-API fixtures; it is not a production fallback. Agree any fixture-input
-adjustment with the owning test callers when removing per-binding route fields.
-In particular, today's renderer reads binding.route: make fixture route inputs
-explicit at that test-owned boundary rather than keeping a production route
-field or accepting the old operator schema as a fallback. Fixture APIs use their
-own test proxy resources and never retarget the deployed host proxy.
-No release number is reserved or assumed by this design.
+Operator configuration and live reload
+---------------------------------------
 
-Use one named socket volume, writable only by the proxy and initialized for a
-dedicated nonroot proxy UID and operator-selected shared access GID. The proxy
-UID must differ from consumer UIDs. Consumers mount that volume read-only and
-receive that supplementary group. Existing runtime UIDs stay valid. The proxy
-grants directory traversal and socket connection to the group (directory 0710,
-socket 0660), while its lock and readiness internals remain private. This
-requires SDK changes: today's owner-only directory/socket checks must be adapted
-for shared group access. Keep the existing lifetime lock and stale-socket safety;
-clients must not be able to change route state or take the proxy's lock.
-Birth permissions must already be restricted, not repaired after exposure.
-Scope shared access to this host API grant; scientific and test-owned private
-proxy grants keep their existing ownership and permissions.
-Only the host proxy project declares ownership of the named volume. Every
-provider and delivery Compose projection declares that volume external: true
-with its exact host-owned name. A missing volume fails before client launch;
-consumers cannot auto-create or reinitialize it. Their explicit volume-cleanup
-code must exclude it as well; Compose's external flag alone does not constrain
-custom Docker removal commands.
+Use one existing operator-owned TOML input for both shared services, outside the
+public repository. It contains host/proxy and outbox settings, not provider
+bindings, identities, credentials or CA files. Each service owns and applies its
+own settings. Mount the containing dedicated configuration directory read-only
+into the services so an atomic replacement of the file is visible; providers do
+not receive its write authority. Use existing operator paths and deployment
+inputs; do not add a second configuration model or host-specific public values.
 
-Old private storage needs explicit retirement: ordinary down commonly retains
-volumes/directories. Each owner uses retained old composition, admitted mounts
-and existing ownership evidence to remove only its unused API storage after its
-actual borrowers settle. Keep that evidence until removal succeeds; a healthy
-replacement with failed cleanup is incomplete retirement, not failed replacement.
-Do not broaden normal data-volume deletion or add a generic migration framework.
+The proxy periodically reloads max_connections, log_level and allowed_authorities.
+The outbox periodically reloads its queue capacity, retry policy and log level.
+Lower capacity only constrains new admissions; it does not delete pending work.
+Retry changes apply to subsequent attempts, not an already running exchange.
+Each service retains its last successfully applied settings if a reload fails and
+reports the failure without secrets. On restart, the intended file supplies the
+settings again; the new value is not merely in-memory. If the file is missing or
+invalid at startup, report the failure instead of silently inventing settings.
+Keep reload handling small and independent of provider lifecycle. Fixed socket
+paths/groups, process UIDs, network interface, resolver and mounts are deployment
+settings; changing them is
+not required for a provider to join or leave.
 
-All clients granted that socket have the same network destination permission.
-The proxy cannot identify a provider from encrypted HTTP or a shared Unix peer
-UID. Do not claim per-provider attribution or fairness at this listener. API
-authentication still distinguishes providers; delivery retains its own quotas.
+Illustrative shape, not an implementation or private host configuration:
 
-Consumers and lifecycle
------------------------
+    [api_proxy]
+    max_connections = 32
+    log_level = "INFO"
+    allowed_authorities = ["api.example.invalid:443"]
 
-Magnet: replace render_api_route in deployment_inputs with the shared client
-grant. Its api/api-init roles are the old proxy and initializer: remove them from
-production and real-API validation compositions, including launch and teardown.
-Give existing candidate startup and signed API reads the same shared mount/group.
-Capture client credentials and trust, not the router's network settings.
-Private disposable test-API routes stay in
-test infrastructure; the authored-API fixture still calls the private renderer,
-so remove production ownership without deleting its remaining fixture use.
-Magnet's existing frozen-volume ownership check already skips external volumes;
-preserve that distinction in custom retirement and repair paths too. Its detailed
-consumer design is notes/048_shared_api_proxy_adoption_20261030.txt in Magnet.
-Build the product selected by the retained deployment
-through the existing build target; preserve its image/input identity checks.
-Status diagnostics that expose this selection more clearly are a follow-up in
-note 015, not a reason to retag the wrong product or delay a correct build.
-Within the provider's existing deployment authorization, carry the candidate
-through maintained up and report the running image/grant and retired old roles;
-a green source commit or build is readiness, not completed deployment.
+    [outbox]
+    provider_items = 8
+    provider_bytes = 16777216
+    total_items = 32
+    total_bytes = 67108864
+    retry_initial_seconds = 1
+    retry_max_seconds = 30
+    log_level = "INFO"
 
-NMRNet: deployment.py projects the external client mount/socket instead of
-merging route services. Its generation retirement must never remove shared
-storage. Add the shared API mount and GID to existing grants; replacing entire
-volumes or group_add lists can break delivery intake and scientific interfaces.
-Keep interpreter, store, reader and scientific routes independently owned, and
-preserve the provider's existing network isolation. Check the affected projection
-and existing connections rather than switching the client to host networking.
-Coordinate its original delivery binding/intake with the shared owner; a working
-API read does not establish delivery readiness or permit using another identity.
-Ownership admission must recognize the specifically borrowed host API volume
-without relabeling it or dropping guards on owned journal/worker storage. Keep
-the borrowed volume excluded from both ordinary and custom retirement paths.
-Its current proxy uses a private bind directory, not a named volume, and existing
-retirement only removes unused bundles. Preserve the inspected old mount/bundle
-evidence until narrow owned directory retirement succeeds. Install automatically
-prunes unused bundles: retire the directory after down while its old recipe is
-still selected, before install can discard that recipe. Its down/install/up
-replacement is not Magnet's candidate-preserving replacement; do not promise a
-rolling update. Convert maintained real-API staging and signed Job readback too,
-while keeping authored-API fixture routes and scientific routes test-owned or
-independently owned as appropriate. Its detailed design is
-notes/023_shared_api_proxy_adoption_20261030.txt in NMRNet.
+The host deployment also supplies its fixed proxy network and both socket grants
+through the same existing operator input. The example shows the live fields only;
+it does not prescribe private host settings or a new configuration file format.
+The shared-package owner selects concrete SDK/CLI names with the provider owners
+before release, including the shared intake mount/group and exact handoff. Earlier
+020 symbols for per-binding projections and client-definition exports are not an
+agreed implementation contract for this redesign.
 
-NMRPeak: deployment_runtime and generation/maintenance tooling borrow the same
-shared API grant. Put client socket/group settings in the existing operational
-capture with its credentials and trust; keep scientific generation identity and
-model products unchanged. Resolver and interface inputs stay with the host
-router, without per-generation copies. Journal/archive and maintenance API reads
-use the shared grant too. Removal of a provider generation leaves the route live.
-An already running old archive retains its generation lock and borrowed route
-until its original work settles; preserve unacknowledged work and report old-route
-cleanup as pending. Other providers can continue their own conversions meanwhile.
-Historical scientific snapshot housekeeping is separate from API proxy retirement.
-Check the owner's latest private status before treating an old deferral as open;
-retain the applicable design lesson without publishing instance cleanup history.
-Maintenance docker run clients need explicit --group-add and an exact borrowed
-volume existence check before launch. Ordinary down already has an owned API
-volume cleanup path; adapt that path rather than introducing another remover.
-Maintenance uses the configured definition and current image; update them through
-the maintained path for the new SDK. Do not add old-policy/image preservation or
-new pre-stop read machinery to protect the incumbent. Existing journal locks and
-retained-work rules remain with their current owners.
-Its detailed design is notes/010_shared_api_proxy_adoption_20261030.txt in NMRPeak.
+Provider integration and retirement
+-----------------------------------
 
-SECS: _apply_api_route grants the shared volume, group and socket path; it no
-longer merges proxy services. Interpreter and upload-store routes remain distinct.
-The shared proxy grants the NMR API destination; scientific source/store origins
-keep their own existing routes and access limits, as scoped in note 021.
-An absent external socket volume blocks client launch, not source conversion;
-report it to the shared owner, who creates and initializes it. SECS adds neither
-a replacement root initializer nor direct-network fallback.
-Safe API/store failure context in existing client logs is a follow-up in note
-015; it does not require identifying providers inside the shared listener.
-Current stop retains containers, and strict inventory includes api/api-init.
-Removing those roles from the new plan alone would obstruct old-topology
-admission. Retire the exact inspected old roles and their private mounts through
-a maintained operation that can admit and drain the old six-role graph from the
-upgraded checkout, without re-rendering it or requiring the new SDK in its old
-image. Preserve that operation's status/logs and recovery on interruption; ordinary
-new-topology down cannot replace it. Configure and start the new topology through
-its normal admission. SECS needs no added pre-stop check-api command solely to
-protect the old deployment; use existing startup/API evidence for the cutover.
-Its detailed design is notes/010_shared_api_proxy_adoption_20261030.txt in SECS.
+Magnet converts production and real-API validation to the shared API grant and
+outbox intake, retaining its existing candidate and scientific ownership. Its
+old API-volume retirement must use its existing ownership evidence; ordinary down
+retains volumes. Authored-API test routes remain owned by disposable fixtures.
 
-Delivery: all four bindings select the shared route while retaining their own
-signers and pending rows. Remove its four rendered proxies and initializers.
-Keep queue storage and provider-specific delivery intake grants. A proxy outage
-does not transfer or discard any pending terminal obligation.
-Its maintained down/retirement must still recognize the inspected old API roles
-from the upgraded checkout. Record their exact owned /route volume mounts before
-removing containers; ordinary down currently retains every volume. Retire only
-the now-unused old API volumes using that evidence and existing Compose ownership,
-never queue/intake storage or the external host grant. Keep status and a retryable
-cleanup path if only retirement fails. No old definition parse is needed to stop
-the observed old daemon and dependencies; a new up renders only the shared grant.
+NMRNet converts its provider and maintained real-API staging/readback paths,
+preserving interpreter/store/scientific grants. Its old API route uses a bind
+directory. Install prunes unused generations, so use the old owning recipe to
+retire that directory before install removes the evidence. This is ordinary
+resource retirement, not a requirement to keep an old deployment running.
 
-Start the host proxy first during cutover; there is no cross-project depends_on
-guarantee. Use the existing client startup and API checks with the shared socket.
-Do not add a route-identity protocol or a new mandatory reachability gate to
-every launcher. Temporary proxy loss follows existing client failure/retry rules;
-delivery retains its local queue. Consumer launchers never start private fallback
-proxies.
+NMRPeak converts its provider and journal/archive/maintenance API clients; one-off
+borrowers need the shared mount/group and exact-volume existence behavior. Preserve
+journal locks and existing retained-work rules. Adapt its existing owned-volume
+teardown without granting it ownership of shared volumes.
 
-Proxy restart breaks existing tunnels. Clients retain existing effect-certainty
-and retry rules: do not add an unconditional START replay or science rerun.
-Another restart cannot establish whether the API accepted a lost request; preserve
-that uncertainty and use the existing recovery policy rather than repeating work.
-The delivery service retains and retries exact commands under its current rules.
-Health distinguishes proxy process readiness, successful API reachability and
-delivery progress; a ready listener alone cannot establish all three. Diagnostics
-preserve safe DNS/TCP/native causes without credentials or request contents.
+SECS converts only the API and delivery grants; interpreter/store and worker
+routes stay independent. Its current strict service inventory includes old API
+roles and normal stop retains containers. Its maintained retirement must admit and
+stop the observed old graph from the upgraded checkout before removing old API
+resources. A separate optional check-api command is not a first-tier prerequisite.
 
-Joint design and implementation handoff
-----------------------------------------
+The shared owner converts the existing delivery daemon and retires its old API
+roles, private route volumes and per-binding intake resources after their users
+stop. Preserve the queue and original obligations. Every owner keeps its existing
+scientific, delivery and lifetime storage out of transport cleanup. A failed
+cleanup retains enough ownership evidence for the owning workflow to finish it;
+a healthy new service alone does not establish old-resource retirement.
 
-One deployment plan spans the host proxy, delivery and all four providers. The
-shared client contract covers both normal and one-off clients. Each provider
-keeps its own replacement and retirement semantics; no later provider tier
-requires another host proxy capability.
+Working agreements and remaining decisions
+-------------------------------------------
 
-Use the maintained configuration/capture paths to replace the inputs for the
-new SDK and topology. Old clients or delivery may stop working during that
-replacement, including while results remain pending; this is acceptable for
-this refactor. No parallel old/new configuration publication or preserved old
-recovery selection is required. Keep only the ordinary ownership evidence needed
-to remove obsolete resources correctly. Retiring an observed old graph must work
-from the main checkout without asking an old SDK to parse the new definition.
-
-The shared owner provides the all-bindings client-only document for delivery
-using --all, and the same SDK export supplies each selected provider document.
-Delivery mounts the shared API volume once, receives its GID once, and gives
-every binding the same client_socket. Preserve all distinct intake volumes,
-original binding identities, signers, pending commands and the queue owner.
-Its replacement must settle the old publisher before opening that queue. Neither
-four copies of the same mount nor four new proxy services are needed.
-
-Default live order: bring up the host proxy, use an existing signed API read,
-convert delivery on its original queue/intakes, then move ready providers through
-their own replacement paths and retire their old API resources. Source/build and
-consumer preparation run in parallel. A ready provider need not wait for the other
-providers. Delivery may be stopped/reconfigured during this work; uninterrupted
-service and completion of its pending publications are not deployment gates.
-Delivery interruption follows existing producer retention/retry rules;
-never overlap queue owners or discard an acknowledged obligation to avoid delay.
-
-The SDK owner implements the agreed projection/capture, host group-access and
-independent deployment path, converts delivery and issues artifacts through the
-normal release workflow. Provider owners implement their documented seams and
-retirement through their normal dependency/build paths. Prefer an early real
-candidate signed read on the local shared proxy, then move ready consumers with
-their original delivery bindings; do not wait for simultaneous provider readiness.
-The implementation handoff is these working symbols/fields and the per-provider
-notes. The next shared dependency is an issued SDK artifact and a usable local
-host grant, not another design framework or an assumed version number.
-
-Why these choices: one block in the existing operator input keeps host settings
-together without adding another configuration system; a small installed-SDK
-projection supports all callers without copied parsers; a fixed client path
-removes per-provider naming choices; selected client capture keeps host policy
-out of client generations; and owner-specific retirement avoids a generic
-migration tool. Keeping raw full definitions in every capture, retaining private
-production routes, or forcing every launcher into one replacement pattern would
-undo those ownership and maintenance benefits.
-
-Caveats during cutover
------------------------
-
-Eight present listeners each have a 32-connection cap. One current listener has
-32 total. Start with that existing bounded limit during initial joint bringup.
-Resolve observed overload and select the deployed limit in that tier, accounting
-for thread, PID and memory limits. Later provider improvements work within that
-baseline. A saturation benchmark or a new capacity configuration framework is not
-required before the first live cutover.
-If a shared-router failure is disrupting clients, pause further affected cutovers
-while its owner fixes the cause and checks recovery through existing means.
-Resume ready consumers after recovery; a client-local configuration failure
-blocks that client rather than the whole rollout.
-
-Route or resolver changes are deliberate host operations. A stopped-and-replaced
-proxy interrupts all API clients; that shared resource and failure domain is
-accepted. Provider deployments never silently rewrite its network settings.
-A later change to this host baseline is separate from the provider-improvement
-tiers; those tiers must leave the deployed proxy undisturbed.
-
-The host is controlled and collisions are unlikely. Choose distinct runtime
-identities and clear resource names, and retain existing filesystem safety.
-Do not build a general collision detector, live configuration attestation or
-adversarial admission layer before the joint deployment works. Fix actual
-misconfiguration where it occurs.
-
-Working API reads and healthy services establish the transport cutover, not a
-scientific end-to-end result. Record what was observed without requiring a new
-synthetic science campaign to complete this router refactor.
+The shared package supplies two client grants and the handoff through the existing
+provider SDK. Agree concrete socket volume names, in-container paths, access groups,
+SDK symbols and wire representation with the four owners. Do not assume the old
+static binding parser or delivery's all-bindings client export still applies.
+Keep the host-level operator file independent of provider identities; its live
+settings and allowed-authority policy do not reconfigure the deployed proxy by
+restarting it. Provider owners should identify only concrete integration conflicts
+and necessary changes, then implement through issued SDK artifacts and their own
+main-checkout workflows. No separate provider registration or compatibility layer.
 
 Source references
 ------------------
 
-SDK: provider_core/deployment_route.py, deployment_binding.py, provider_proxy.py,
-bound_http_proxy.py, signing.py; README shared delivery/private route sections;
-notes/019_delivery_ownership_options.txt (separate unresolved delivery design).
-Magnet: magnet_provider/deployment_inputs.py and scripts/provider-deployment.sh.
-NMRNet: nmrnet_provider/deployment.py and tools/provider_deployment.sh.
-NMRPeak: nmrpeak_provider/deployment_runtime.py and deployment lifecycle tooling.
-SECS: deployment/provider_deployment.py::_apply_api_route.
+SDK: packages/provider-core/src/provider_core/{provider_proxy,bound_http_proxy,
+delivery_client,delivery_service,delivery_store,delivery_config,api_config}.py;
+tools/delivery_deployment.py and tools/delivery.sh. Note 019 records earlier
+outbox ownership alternatives; this note selects the self-contained handoff for
+this redesign. Provider owners' prior notes remain useful for source/lifecycle
+facts but their static binding contract requires revision.
