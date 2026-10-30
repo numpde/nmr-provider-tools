@@ -1,16 +1,39 @@
 """Readiness identifies a fresh observation of the current process, not a Job outcome."""
 
 import json
+import io
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from provider_core.process_status import ProcessStatus, check_status
+from provider_core.process_status import ProcessStatus, check_status, main
 
 
 class ProcessStatusTests(unittest.TestCase):
+    def test_operator_detail_ages_advance_and_writes_are_throttled(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            status = ProcessStatus(root, "delivery")
+            details = {"queue": {"oldest_pending_age_seconds": 10}, "queue_observation_age_seconds": 2}
+            status.refresh("ready", details=details)
+            before = (root / "status.json").read_bytes()
+            written = json.loads(before)["updated_monotonic"]
+            with patch("provider_core.process_status.time.monotonic", return_value=written + 3):
+                status.refresh("ready", details={"queue": None, "queue_observation_age_seconds": 0})
+                self.assertEqual((root / "status.json").read_bytes(), before)
+                output = io.StringIO()
+                with patch("sys.argv", ["status", str(root / "status.json"), "delivery", "--details"]), redirect_stdout(output):
+                    main()
+                value = json.loads(output.getvalue())
+                self.assertEqual(value["observation_age_seconds"], 3)
+                self.assertEqual(value["queue_observation_age_seconds"], 5)
+                self.assertEqual(value["queue"]["oldest_pending_age_seconds"], 13)
+                status.refresh("ready")
+                self.assertNotIn("details", check_status(root / "status.json", "delivery"))
+
     def test_ready_working_and_retirement_have_distinct_meanings(self):
         with tempfile.TemporaryDirectory() as root:
             status = ProcessStatus(Path(root), "reader")

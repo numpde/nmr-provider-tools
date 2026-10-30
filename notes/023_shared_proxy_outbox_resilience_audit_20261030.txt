@@ -223,6 +223,16 @@ Findings
 Existing guarantees and limits
 ------------------------------
 
+Follow-up implementation: the private operator status reports aggregate queue
+use, age and paused publishers without adding an intake read route. A failed
+observation is unknown and does not stop delivery. The sampled aggregate scans
+the queue while holding its owner lock, at most once per five seconds; one scan
+still takes time proportional to retained rows. Monitor that cost on real
+backlogs before adding indexes or accounting machinery. Check actual free disk
+space on the volume's host filesystem separately. Local shutdown now reports
+the observed process exit and does not infer an API outcome. These changes need
+a new runtime image and deployment before they describe the running service.
+
 `delivery_store.py` holds an exclusive database-owner lock and uses SQLite's
 DELETE journal with `synchronous=EXTRA`; it stores the terminal body and its
 original publication material in one transaction. The delivery handoff and

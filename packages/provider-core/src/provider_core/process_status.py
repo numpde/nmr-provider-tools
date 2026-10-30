@@ -39,14 +39,18 @@ class ProcessStatus:
         self.pid = os.getpid()
         self.start_ticks = _start_ticks(self.pid)
         self.phase = None
+        self.details = None
         self.updated = float("-inf")
 
-    def refresh(self, phase):
+    def refresh(self, phase, *, details=None):
         now = time.monotonic()
-        if phase == self.phase and now - self.updated < 5:
+        if (phase == self.phase and now - self.updated < 5
+                and (details == self.details or (details is not None and self.details is not None))):
             return
-        content = json.dumps(dict(role=self.role, pid=self.pid, start_ticks=self.start_ticks,
-                                  updated_monotonic=now, phase=phase), separators=(",", ":")).encode()
+        value = dict(role=self.role, pid=self.pid, start_ticks=self.start_ticks, updated_monotonic=now, phase=phase)
+        if details is not None:
+            value["details"] = details
+        content = json.dumps(value, allow_nan=False, separators=(",", ":")).encode()
         pending = self.directory / ".status.pending"
         descriptor = os.open(pending, os.O_WRONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
         try:
@@ -57,7 +61,7 @@ class ProcessStatus:
         finally:
             os.close(descriptor)
         os.replace(pending, self.directory / "status.json")
-        self.phase, self.updated = phase, now
+        self.phase, self.details, self.updated = phase, details, now
 
 
 def read_status(path, role):
@@ -71,8 +75,11 @@ def read_status(path, role):
         value = json.loads(raw)
     finally:
         os.close(descriptor)
-    if type(value) is not dict or set(value) != {"role", "pid", "start_ticks", "updated_monotonic", "phase"}:
+    fields = {"role", "pid", "start_ticks", "updated_monotonic", "phase"}
+    if type(value) is not dict or set(value) not in (fields, fields | {"details"}):
         raise ValueError("Process status has an unsupported shape.")
+    if "details" in value and type(value["details"]) is not dict:
+        raise ValueError("Process status details must be an object.")
     if value["role"] != role or any(type(value[name]) is not int or value[name] <= 0 for name in ("pid", "start_ticks")):
         raise ValueError("Process status has a different role or invalid process identity.")
     updated = value["updated_monotonic"]
@@ -91,13 +98,16 @@ def check_status(path, role):
         raise ValueError("Process status observation expired or has an invalid timestamp.")
     if value["phase"] not in ("ready", "working"):
         raise ValueError(f"Process is not ready: {value['phase']}.")
+    return value
 
 
 def main():
     parser = argparse.ArgumentParser(description="Check current private process readiness without opening an operation socket.")
     parser.add_argument("path", type=Path)
     parser.add_argument("role")
-    parser.add_argument("--describe", action="store_true")
+    display = parser.add_mutually_exclusive_group()
+    display.add_argument("--describe", action="store_true")
+    display.add_argument("--details", action="store_true")
     options = parser.parse_args()
     try:
         if options.describe:
@@ -107,7 +117,17 @@ def main():
                 raise ValueError("Process status observation has a future timestamp.")
             print(f"{value['phase']}|{int(age * 1000)}|{value['pid']}|{value['start_ticks']}")
         else:
-            check_status(options.path, options.role)
+            value = check_status(options.path, options.role)
+            if options.details:
+                if "details" not in value:
+                    raise ValueError("Process has not published operator details.")
+                age = time.monotonic() - value["updated_monotonic"]
+                details = dict(value["details"])
+                if "queue_observation_age_seconds" in details:
+                    details["queue_observation_age_seconds"] += age
+                if details.get("queue") is not None and details["queue"].get("oldest_pending_age_seconds") is not None:
+                    details["queue"]["oldest_pending_age_seconds"] += age
+                print(json.dumps({"observation_age_seconds": age, **details}, sort_keys=True, allow_nan=False))
     except (OSError, ValueError, KeyError) as cause:
         parser.exit(1, f"Process readiness not confirmed: {cause}\n")
 

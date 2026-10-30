@@ -326,6 +326,23 @@ class DeliveryQueue:
         with self._access("inspect pending publication in"):
             return tuple(self._db.execute("SELECT DISTINCT api_origin,provider_ref FROM outstanding WHERE state='pending' ORDER BY api_origin,provider_ref"))
 
+    def pending_overview(self):
+        """Observe aggregate queue usage with the pending publisher identities."""
+        with self._access("inspect pending publication in"):
+            bindings = tuple(self._db.execute("SELECT DISTINCT api_origin,provider_ref FROM outstanding WHERE state='pending' ORDER BY api_origin,provider_ref"))
+            try:
+                pending, held, bodies, material, oldest = self._db.execute("""
+                    SELECT COALESCE(SUM(state='pending'),0), COALESCE(SUM(state='held'),0),
+                           COALESCE(SUM(length(body)),0), COALESCE(SUM(length(publication)),0),
+                           MIN(CASE WHEN state='pending' THEN created_at END)
+                    FROM outstanding
+                """).fetchone()
+            except sqlite3.Error:
+                # Optional operator observation must not poison the queue owner.
+                return bindings, None
+            return bindings, {"pending": pending, "held": held, "body_bytes": bodies,
+                              "publication_bytes": material, "oldest_pending_created_at": oldest}
+
     def inventory(self, api_origin, provider_ref):
         return self._inventory(api_origin, provider_ref, None, None)
 

@@ -59,6 +59,23 @@ project_containers() {
         fi
     done
 }
+report_stopped_daemons() {
+    local identifier receipt observed process_state process_exit process_oom
+    for identifier in "${daemon_identifiers[@]}"; do
+        receipt="$operation_directory/stopped-$identifier"
+        if checker_metadata "$receipt" inspect --type container --format '{{.State.Status}}|{{.State.ExitCode}}|{{.State.OOMKilled}}' "$identifier" \
+            && IFS= read -r observed < "$receipt" \
+            && [[ $observed =~ ^exited\|[0-9]+\|(true|false)$ ]]; then
+            IFS='|' read -r process_state process_exit process_oom <<< "$observed"
+            printf 'Delivery process exited with code %s (OOM killed: %s). Its exit does not establish the outcome of an in-flight API request.\n' "$process_exit" "$process_oom"
+            if [[ $observed != 'exited|0|false' ]]; then
+                printf '%s\n' 'Graceful delivery retirement was not confirmed; the queue remains retained.' >&2
+            fi
+        else
+            printf '%s\n' 'Delivery process exit state could not be confirmed; the queue remains retained.' >&2
+        fi
+    done
+}
 reserve_project() {
     # Docker atomically reserves this name. It is never started and has no
     # mounts or Compose-project label. Existing CID/operation cleanup owns it;
@@ -150,7 +167,8 @@ if [[ $action == up ]]; then
     fi
     project_containers
     if [[ ${#daemon_identifiers[@]} != 0 ]]; then
-        checker_call 'settle the existing delivery owner' 120 stdio "${engine[@]}" stop --timeout 60 "${daemon_identifiers[@]}"
+        checker_call 'stop the existing delivery owner' 120 stdio "${engine[@]}" stop --timeout 60 "${daemon_identifiers[@]}"
+        report_stopped_daemons
     fi
     if [[ ${#other_identifiers[@]} != 0 ]]; then
         checker_call 'stop old delivery-owned proxy roles' 60 stdio "${engine[@]}" stop --timeout 15 "${other_identifiers[@]}"
@@ -204,7 +222,8 @@ if [[ $action == down && ${#identifiers[@]} != 0 ]]; then
     # Reobserve under the project reservation; mutation follows these exact IDs.
     project_containers
     if [[ ${#daemon_identifiers[@]} != 0 ]]; then
-        checker_call 'settle the exact delivery daemon before its proxies' 120 stdio "${engine[@]}" stop --timeout 60 "${daemon_identifiers[@]}"
+        checker_call 'stop the exact delivery daemon before its proxies' 120 stdio "${engine[@]}" stop --timeout 60 "${daemon_identifiers[@]}"
+        report_stopped_daemons
     fi
     if [[ ${#other_identifiers[@]} != 0 ]]; then
         checker_call 'stop exact shared API proxies and initializer' 60 stdio "${engine[@]}" stop --timeout 15 "${other_identifiers[@]}"
@@ -217,6 +236,15 @@ if [[ $action == down && ${#identifiers[@]} != 0 ]]; then
 elif [[ $action == status ]]; then
     checker_call 'shared delivery status' 30 stdio "${engine[@]}" ps --all --no-trunc --filter "label=com.docker.compose.project=$project"
     checker_call 'independent shared API proxy status' 30 stdio "${engine[@]}" ps --all --no-trunc --filter "label=com.docker.compose.project=$project-proxy"
+    if [[ ${#daemon_identifiers[@]} == 1 ]]; then
+        printf '%s\n' 'Outbox observation (not proof of API acceptance):'
+        if ! checker_call 'read outbox operator observation' 30 stdio "${engine[@]}" exec "${daemon_identifiers[0]}" \
+            /opt/provider-core/environment/bin/python -I -B -m provider_core.process_status /run/status.json delivery --details; then
+            printf '%s\n' 'Outbox observation unavailable; check the running service and its logs.' >&2
+        fi
+    else
+        printf '%s\n' 'Outbox observation unavailable: no unique delivery process was found.' >&2
+    fi
 elif [[ $action == logs ]]; then
     for identifier in "${identifiers[@]}"; do
         checker_call 'bounded shared delivery logs' 30 stdio "${engine[@]}" logs --tail 80 "$identifier"

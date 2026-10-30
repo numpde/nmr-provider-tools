@@ -35,6 +35,7 @@ class SharedDeliveryService(DeliveryService):
         self.queue, self.inbox = None, None
         self.workers, self._worker_tasks, self._manager_task = {}, {}, None
         self.worker_failures = ()
+        self.overview, self.overview_at = None, 0.0
         self._close_task, self._started, self._startup_task = None, False, None
         self.retirement_confirmed = False
 
@@ -120,11 +121,13 @@ class SharedDeliveryService(DeliveryService):
 
     async def _manage(self):
         while not self.stopping.is_set():
-            if self.process_status is not None:
-                self.process_status.refresh("ready")
             self._reload()
             self.changed.clear()
-            bindings = await self.inbox.storage(self.queue.pending_bindings)
+            if self.process_status is not None and time.monotonic() - self.overview_at >= 5:
+                bindings, self.overview = await self.inbox.storage(self.queue.pending_overview)
+                self.overview_at = time.monotonic()
+            else:
+                bindings = await self.inbox.storage(self.queue.pending_bindings)
             for origin, provider in bindings:
                 key = (origin, provider)
                 if key in self.workers:
@@ -138,6 +141,16 @@ class SharedDeliveryService(DeliveryService):
                 task = asyncio.create_task(worker.run())
                 self._worker_tasks[key] = task
                 task.add_done_callback(lambda completed, selected=key: self._worker_done(selected, completed))
+            if self.process_status is not None:
+                try:
+                    self.process_status.refresh("ready", details=self._operator_details(bindings))
+                except (OSError, ValueError, TypeError) as error:
+                    self.on_notice(error, {"event": "delivery_status_failed", "failure_type": type(error).__name__})
+                    try:
+                        self.process_status.refresh("ready")
+                    except (OSError, ValueError, TypeError):
+                        # The previous observation expires on its own; delivery continues.
+                        pass
             try:
                 async with asyncio.timeout(5):
                     await self.changed.wait()
@@ -145,6 +158,17 @@ class SharedDeliveryService(DeliveryService):
             except TimeoutError:
                 # A producer can disconnect after commit before its wake callback.
                 pass
+
+    def _operator_details(self, bindings):
+        overview = None if self.overview is None else dict(self.overview)
+        if overview is not None:
+            oldest = overview.pop("oldest_pending_created_at")
+            age = time.time() - oldest if type(oldest) in (int, float) and math.isfinite(oldest) else None
+            overview["oldest_pending_age_seconds"] = age if age is not None and age >= 0 else None
+        return {"queue": overview, "queue_observation_age_seconds": time.monotonic() - self.overview_at,
+                "pending_publishers": len(bindings),
+                "paused_publishers": sum(worker.paused for worker in self.workers.values()),
+                "limits": {"total_items": self.limits.total_items, "total_body_bytes": self.limits.total_bytes}}
 
     async def _shutdown(self):
         failures = []
