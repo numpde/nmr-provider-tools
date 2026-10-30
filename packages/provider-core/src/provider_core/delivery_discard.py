@@ -18,11 +18,17 @@ from pathlib import Path
 from provider_core.delivery_store import DeliveryQueue, QueueLimits
 from provider_core.diagnostics import failure_evidence
 from provider_core.startup_file import read_startup_file
+from provider_core.shared_delivery_config import SharedDeliveryConfiguration
+from provider_core.signing import _https_origin
+from provider_core.attempt_request import require_provider_ref
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--config", type=Path, required=True)
+    configuration = parser.add_mutually_exclusive_group(required=True)
+    configuration.add_argument("--config", type=Path)
+    configuration.add_argument("--shared-config", type=Path)
+    parser.add_argument("--state-directory", type=Path)
     parser.add_argument("--api-origin", required=True)
     parser.add_argument("--provider-ref", required=True)
     action = parser.add_mutually_exclusive_group(required=True)
@@ -33,21 +39,33 @@ def main():
     if (not options.list_held and options.body_sha256 is None) or (options.list_held and options.body_sha256 is not None):
         parser.error("Supply the exact body SHA-256 for discard; list-held needs no payload selector.")
     os.umask(0o077)
-    document = tomllib.loads(read_startup_file(
-        options.config, maximum_bytes=65536, label="delivery configuration"
-    ).decode("utf-8"))
-    if document["schema_id"] != "provider-core.delivery.v1":
-        parser.error("Cannot inspect or discard held results: use the installed delivery configuration (schema provider-core.delivery.v1).")
-    matches = [binding for binding in document["bindings"]
-               if (binding["api"]["origin"], binding["api"]["provider_ref"]) == (options.api_origin, options.provider_ref)]
-    if len(matches) != 1:
-        parser.error("Cannot inspect or discard held results: the supplied API/provider pair must match exactly one configured binding.")
-    queue = DeliveryQueue(Path(document["state_directory"]), limits=QueueLimits(**document["limits"]))
+    if options.shared_config is not None:
+        if options.state_directory is None or not options.state_directory.is_absolute():
+            parser.error("Shared delivery inspection requires its absolute state directory.")
+        if _https_origin(options.api_origin)[0] != options.api_origin:
+            parser.error("Held delivery inspection requires the canonical API origin.")
+        require_provider_ref(options.provider_ref)
+        limits = SharedDeliveryConfiguration(options.shared_config).read().limits
+        state = options.state_directory
+    else:
+        document = tomllib.loads(read_startup_file(
+            options.config, maximum_bytes=65536, label="delivery configuration"
+        ).decode("utf-8"))
+        if document["schema_id"] != "provider-core.delivery.v1":
+            parser.error("Cannot inspect or discard held results: use the installed delivery configuration (schema provider-core.delivery.v1).")
+        matches = [binding for binding in document["bindings"]
+                   if (binding["api"]["origin"], binding["api"]["provider_ref"]) == (options.api_origin, options.provider_ref)]
+        if len(matches) != 1:
+            parser.error("Cannot inspect or discard held results: the supplied API/provider pair must match exactly one configured binding.")
+        limits = QueueLimits(**document["limits"])
+        state = Path(document["state_directory"])
+    queue = DeliveryQueue(state, limits=limits)
     try:
         if options.list_held:
             items = queue.inventory(options.api_origin, options.provider_ref)
             print(json.dumps({"api_origin": options.api_origin, "provider_ref": options.provider_ref,
                               "outstanding_items": len(items),
+                              "pending": [item for item in items if item["state"] == "pending"],
                               "held": [item for item in items
                                        if item["state"] == "held"]}, sort_keys=True))
         else:

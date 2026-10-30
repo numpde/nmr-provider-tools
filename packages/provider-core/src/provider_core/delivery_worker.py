@@ -45,7 +45,7 @@ class DeliveryWorker:
         self.inbox, self.endpoint, self.api = inbox, endpoint, api
         self.retry_initial_seconds, self.retry_max_seconds = retry_initial_seconds, retry_max_seconds
         self.on_notice = on_notice
-        self.changed, self.stopping = asyncio.Event(), asyncio.Event()
+        self.changed, self.stopping, self.policy_changed = asyncio.Event(), asyncio.Event(), asyncio.Event()
         self.paused, self._running = False, False
         self.failure, self._api_receipt_received = None, False
 
@@ -71,6 +71,26 @@ class DeliveryWorker:
     def _facts(self, event, item):
         return {"event": event, **item.acceptance()}
 
+    async def _backoff(self, delay, minimum, seconds):
+        """Apply changed retry policy to the next attempt without waking for arrivals."""
+        loop = asyncio.get_running_loop()
+        started, deadline = loop.time(), loop.time() + seconds
+        while not self.stopping.is_set():
+            remaining = deadline - loop.time()
+            if remaining <= 0:
+                return
+            stop, changed = asyncio.create_task(self.stopping.wait()), asyncio.create_task(self.policy_changed.wait())
+            try:
+                await asyncio.wait((stop, changed), timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
+            finally:
+                stop.cancel()
+                changed.cancel()
+                await asyncio.gather(stop, changed, return_exceptions=True)
+            if self.policy_changed.is_set():
+                self.policy_changed.clear()
+                delay = min(max(delay, self.retry_initial_seconds), self.retry_max_seconds)
+                deadline = started + random.uniform(delay / 2, delay) + minimum
+
     async def _deliver(self, item):
         delay = self.retry_initial_seconds
         while not self.stopping.is_set():
@@ -90,12 +110,8 @@ class DeliveryWorker:
                     self.on_notice(failure, {**self._facts("delivery_retry", item), "retry_seconds": seconds})
                     # New arrivals must not bypass backoff. Only shutdown ends
                     # this wait early; no overall expiry discards a durable item.
-                    try:
-                        async with asyncio.timeout(seconds):
-                            await self.stopping.wait()
-                    # silent-defaults: allow-contract -- Backoff timer completion ends only this wait; it does not discard the pending outcome or grant another operation.
-                    except TimeoutError:
-                        pass
+                    # silent-defaults: allow-contract -- No Retry-After header adds no server-directed delay.
+                    await self._backoff(delay, 0 if minimum is None else minimum, seconds)
                     delay = min(self.retry_max_seconds, delay * 2)
                     continue
                 # A verified item conflict or receipt-shape mismatch belongs

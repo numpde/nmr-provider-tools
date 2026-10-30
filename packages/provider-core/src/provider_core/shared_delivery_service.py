@@ -18,6 +18,7 @@ from provider_core.process_status import ProcessStatus
 
 
 class SharedDeliveryService(DeliveryService):
+    # silent-defaults: allow-contract -- A fresh queue has no legacy publication inputs to associate.
     def __init__(self, directory, *, limits, socket, proxy_socket, request_seconds, retry_initial_seconds,
                  retry_max_seconds, on_notice, diagnostic_status, legacy_material=(), live_configuration=None,
                  status_directory=None):
@@ -75,7 +76,10 @@ class SharedDeliveryService(DeliveryService):
         if self.queue is not None:
             self.queue.limits = settings.limits
         for worker in self.workers.values():
+            changed = (worker.retry_initial_seconds, worker.retry_max_seconds) != (settings.retry_initial_seconds, settings.retry_max_seconds)
             worker.retry_initial_seconds, worker.retry_max_seconds = settings.retry_initial_seconds, settings.retry_max_seconds
+            if changed:
+                worker.policy_changed.set()
         self.on_notice.set_level(settings.log_level)
 
     def _reload(self):
@@ -137,6 +141,7 @@ class SharedDeliveryService(DeliveryService):
             try:
                 async with asyncio.timeout(5):
                     await self.changed.wait()
+            # silent-defaults: allow-contract -- The bounded poll finds commits whose submitter disconnected before waking the manager.
             except TimeoutError:
                 # A producer can disconnect after commit before its wake callback.
                 pass
@@ -160,6 +165,7 @@ class SharedDeliveryService(DeliveryService):
         for worker in tuple(self.workers.values()):
             worker.request_stop()
         settled = await asyncio.gather(*(asyncio.shield(task) for task in tuple(self._worker_tasks.values())), return_exceptions=True)
+        # repo-check: allow-tuple-generator -- Retain the final independent worker failures as immutable shutdown evidence.
         self.worker_failures = tuple(value for value in settled if isinstance(value, BaseException))
         for worker in tuple(self.workers.values()):
             if worker.api is not None and not worker.api.retirement_confirmed:

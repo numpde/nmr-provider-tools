@@ -27,7 +27,7 @@ class SharedDeliveryWorker(DeliveryWorker):
         self.inbox, self.endpoint, self.proxy_socket = inbox, endpoint, proxy_socket
         self.retry_initial_seconds, self.retry_max_seconds = retry_initial_seconds, retry_max_seconds
         self.on_notice = on_notice
-        self.changed, self.stopping = asyncio.Event(), asyncio.Event()
+        self.changed, self.stopping, self.policy_changed = asyncio.Event(), asyncio.Event(), asyncio.Event()
         self.paused, self._running = False, False
         self.failure, self._api_receipt_received, self.api = None, False, None
 
@@ -59,6 +59,7 @@ class SharedDeliveryWorker(DeliveryWorker):
                     cleanup_failures = (cause,)
             self._running = False
         if operation_failure is not None or cleanup_failures:
+            # silent-defaults: allow-contract -- No API failure exists if constructing the first API owner failed.
             self.failure = DeliveryWorkerFailed(
                 cause=operation_failure, api_failure=None if self.api is None else self.api.last_failure,
                 cleanup_failures=cleanup_failures, api_receipt_received=self._api_receipt_received,

@@ -2,9 +2,13 @@
 
 import tempfile
 import unittest
+import asyncio
+import contextlib
+import io
+import json
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from provider_core.api_config import api_settings_with_material
 from provider_core.delivery_handoff import DeliveryHandoff
@@ -12,11 +16,34 @@ from provider_core.delivery_store import DeliveryFull, DeliveryQueue, QueueLimit
 from provider_core.shared_delivery_config import SharedDeliveryConfiguration
 from provider_core.shared_delivery_ipc import SharedDeliverySocket
 from provider_core.shared_delivery_service import SharedDeliveryService
+from provider_core import delivery_discard
 from tests.fakes.credential import document, encoded
 from tests.fakes.delivery import outcome
 
 
 class SharedDeliveryConfigurationTests(unittest.TestCase):
+    def test_operator_can_inspect_held_legacy_rows_using_shared_settings(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = root / "settings.toml"
+            config.write_text('[outbox]\nprovider_items = 2\nprovider_bytes = 8192\ntotal_items = 4\n'
+                              'total_bytes = 16384\nretry_initial_seconds = 1\nretry_max_seconds = 5\nlog_level = "INFO"\n')
+            queue = DeliveryQueue(root, limits=QueueLimits(2, 8192, 4, 16384))
+            item = outcome()
+            queue.enqueue(item)
+            queue.hold_legacy_rows()
+            queue.enqueue(outcome(suffix="1"))
+            queue.close()
+            output = io.StringIO()
+            argv = ["delivery_discard", "--shared-config", str(config), "--state-directory", str(root),
+                    "--api-origin", item.api_origin, "--provider-ref", item.provider_ref, "--list-held"]
+            with patch("sys.argv", argv), contextlib.redirect_stdout(output):
+                delivery_discard.main()
+            result = json.loads(output.getvalue())
+            self.assertEqual(result["held"][0]["execution_attempt_ref"], item.execution_attempt_ref)
+            self.assertEqual(result["pending"][0]["execution_attempt_ref"], outcome(suffix="1").execution_attempt_ref)
+            self.assertNotIn("SCIENTIFIC_PAYLOAD_NEEDLE", output.getvalue())
+
     def test_atomic_reload_changes_admission_and_worker_retry_retains_last_good(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -38,7 +65,7 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
                 on_notice=notices, diagnostic_status=Mock(), live_configuration=live)
             service.queue = DeliveryQueue(root / "state", limits=settings.limits)
             self.addCleanup(service.queue.close)
-            worker = SimpleNamespace(retry_initial_seconds=1, retry_max_seconds=10)
+            worker = SimpleNamespace(retry_initial_seconds=1, retry_max_seconds=10, policy_changed=asyncio.Event())
             service.workers[("https://api.example", "provider:example")] = worker
             fields = {"origin": "https://api.example", "profile": "dev-local", "topology": "dev-local",
                       "provider_ref": "provider:example", "exchange_seconds": 1, "retirement_seconds": 1,
