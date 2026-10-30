@@ -52,3 +52,9 @@ class HttpsAdmissionTests(unittest.TestCase):
         self.assertIs(caught.exception, cause)
         create_context.assert_not_called()
         reader.assert_called_once_with("/PRIVATE_PATH/ca.pem", maximum_bytes=1048576, label="API CA")
+
+    def test_explicit_ca_reader_cannot_silently_select_system_roots(self):
+        with patch("provider_core.api_config.ssl.create_default_context") as roots:
+            with self.assertRaisesRegex(ApiConfigurationRejected, "reader did not return bytes"):
+                self.settings(lambda path, **selection: None)
+        roots.assert_not_called()
