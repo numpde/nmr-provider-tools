@@ -52,6 +52,10 @@ Later corrections and completed work supersede older proposals and deferrals.
     with the least maintenance and babysitting: clear ownership, fewer moving
     parts and routine operations. Make the first milestone a small, durable slice
     of that design; defer optional enhancements.
+11. Use this machine's existing local NMR API (nmr.localhost) for the first joint
+    integration lane, with the real providers and delivery using the shared proxy.
+    Check the whole local system through maintained workflows. Each remote host
+    still needs its own deployment and verification against its selected API.
 
 Status: working design and joint rollout plan, revised after discussion on
 30 October 2026. No implementation, release or deployment change is claimed.
@@ -265,6 +269,14 @@ graph, including delivery and old-proxy removal.
 
 Joint implementation and live cutover
 -------------------------------------
+
+Start joint integration here against the existing local API at nmr.localhost,
+the documented development hostname. Use the configured API origin, trust and
+credentials through the shared proxy's admitted route and client Unix socket.
+Exercise real provider and delivery paths with existing maintained checks and
+authorized local scenarios; no separate test-stack project is needed. Keep each
+host's selected API/proxy baseline independent, and distinguish local integration
+results from evidence that a remote deployment is running the new topology.
 
 1. Agree the shared socket volume, socket path and access group once. Update
    provider-core and all four consumers around that small interface. Reuse the
