@@ -1,0 +1,63 @@
+Container network topology: separate reachability by role
+
+Recommendation
+
+Give each component only the network access its role needs. Separate services that accept requests, components that make outbound API calls, and workers that need no external network. Keep those choices in the deployment configuration and verify the resulting topology at runtime.
+
+This split can reduce exposure when a networking flaw appears: a vulnerable feature in a worker with no external network path is less reachable than the same feature in a public listener. That benefit comes from the actual paths available to an attacker, rather than from the number of containers or their names.
+
+Suggested topology
+
+Remote clients -> ingress/API -> narrowly defined work interface -> worker
+Outbound provider -> explicitly permitted remote APIs
+Worker -> no external network unless its work requires it
+
+The arrows describe required communication, not a requirement that every connection use TCP. Local communication can use a deliberately shared Unix socket or another bounded mechanism. Any shared socket or mounted directory is still an access grant and should be limited to its intended purpose.
+
+Use three roles when planning the deployment:
+
+1. Request-facing services
+   Publish only the required entry points. Keep internal services private, and make listener addresses, port publication, and firewall policy explicit. Prefer a separate container network namespace when practical. Host networking is a conscious exception for a concrete requirement, because it removes network namespace isolation.
+
+2. Outbound components
+   Give providers or API clients the destinations and protocols they need. A Docker bridge provides a separate networking environment, but does not by itself restrict outbound destinations. Enforce any egress restrictions with the deployment's firewall, proxy, or network policy. Avoid publishing ports for components that only initiate connections.
+
+3. Workers without external networking
+   Use network mode "none" when computation needs only local inputs and outputs. This leaves loopback networking but no ordinary external interface or route. Arrange required work exchange separately, and avoid mounting network-control sockets or granting privileges that could undo the intended isolation.
+
+Why namespace boundaries matter
+
+A network namespace has its own interfaces, routes, listening ports, and many network settings. A bridge-networked container normally has a separate namespace. A host-networked container shares the host's namespace. A container using another container's network namespace shares that owner's settings and reachability.
+
+Consequently, a host network setting is not necessarily a deployment-wide setting. Configure and inspect the namespace that owns each socket. A terminal running inside a sandbox may also report its own namespace rather than the host's.
+
+An example of incidental protection
+
+For an MPTCP-related kernel vulnerability, this topology split can happen to be safer: host-network services use the host's disabled setting, while isolated workers may retain an enabled setting without having an external path to a listener. Separately networked components need their own inspection and configuration. An enabled setting alone does not prove that an application is listening or reachable.
+
+The useful lesson is to preserve and verify the topology split, rather than to assume that disabling one host feature protects every container. Nor does this example establish that host networking is generally safer: its shared settings and its reduced isolation are separate properties.
+
+Verification and limits
+
+Record each component's network mode, namespace owner, listener addresses, published ports, allowed destinations, and communication mechanism. Compare the running configuration with that record after deployment changes. Test reachability from the relevant network locations, including whether workers can reach destinations they should not.
+
+Network mode "none" reduces direct network reachability; it does not establish that a worker receives only trusted input. Inputs can still arrive through files, sockets, or another component. Separate namespaces also share the host kernel and do not provide the isolation of separate virtual machines.
+
+Keep the kernel patched and verify the running version after updates. Apply required network settings at their owning namespace, and retain application timeouts, safe retries, and bounded local interfaces. Topology reduces unnecessary exposure; it does not replace kernel fixes or application security.
+
+References
+
+Docker host networking:
+https://docs.docker.com/engine/network/drivers/host/
+
+Docker bridge networking:
+https://docs.docker.com/engine/network/drivers/bridge/
+
+Docker networking without external connectivity:
+https://docs.docker.com/engine/network/drivers/none/
+
+Docker Compose service configuration:
+https://docs.docker.com/reference/compose-file/services/
+
+Linux MPTCP settings and namespace scope:
+https://docs.kernel.org/networking/mptcp-sysctl.html
