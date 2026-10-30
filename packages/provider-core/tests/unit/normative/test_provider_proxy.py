@@ -83,6 +83,10 @@ class ServiceProxyTests(unittest.TestCase):
             settings = provider_proxy.LiveProxyConfiguration(path, "external").read()
             with self.assertRaises(provider_proxy.ServiceRefused):
                 settings.policy.destination(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n")
+            path.write_text('[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
+                            'allowed_authorities = []\n[api_proxy.route]\naddresses = ["invalid"]\n')
+            with self.assertRaises(provider_proxy.ServiceRefused):
+                provider_proxy.LiveProxyConfiguration(path, "external").read()
 
     def test_admitted_connection_uses_one_route_policy_across_reload(self):
         old = ServicePolicy.admit("mapped", ["api.example:443"], ["api.example=192.0.2.1"])

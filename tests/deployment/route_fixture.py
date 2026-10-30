@@ -16,6 +16,8 @@ import errno
 import json
 import os
 import shutil
+import socket
+import time
 import signal
 import ssl
 import stat
@@ -166,6 +168,51 @@ async def client(mode, path):
     print(json.dumps({"mode": mode, "settled": True, "uid": os.geteuid()}))
 
 
+def shared_group_socket(mode, path, owner_uid, access_gid):
+    if os.geteuid() in (0, owner_uid) or os.getegid() == access_gid:
+        raise AssertionError("Shared grant witness requires a distinct non-root UID and primary GID")
+    if (access_gid in os.getgroups()) != (mode == "allowed"):
+        raise AssertionError("Shared grant witness has incorrect supplementary groups")
+    mounts = Path("/proc/self/mountinfo").read_text().splitlines()
+    if not any(line.split()[4] == str(path.parent) and "ro" in line.split()[5].split(",") for line in mounts):
+        raise AssertionError("Shared proxy grant must be mounted read-only")
+    deadline = time.monotonic() + 10
+    while True:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as channel:
+            channel.settimeout(3)
+            try:
+                channel.connect(str(path))
+            except PermissionError as failure:
+                if mode != "denied" or failure.errno != errno.EACCES:
+                    raise
+                break
+            except (FileNotFoundError, ConnectionRefusedError):
+                if mode != "allowed" or time.monotonic() >= deadline:
+                    raise
+                time.sleep(0.05)
+                continue
+            if mode != "allowed":
+                raise AssertionError("A nonmember connected to the shared proxy socket")
+            channel.sendall(b"CONNECT witness.invalid:1 HTTP/1.1\r\n\r\n")
+            response = bytearray()
+            while b"\r\n\r\n" not in response and len(response) < 4096:
+                chunk = channel.recv(4096 - len(response))
+                if not chunk:
+                    break
+                response.extend(chunk)
+            if not response.startswith(b"HTTP/1.1 403 "):
+                raise AssertionError("Shared proxy did not refuse the disallowed CONNECT")
+            try:
+                path.unlink()
+            except OSError as failure:
+                if failure.errno not in (errno.EROFS, errno.EACCES, errno.EPERM):
+                    raise
+            else:
+                raise AssertionError("A read-only borrower removed the shared proxy socket")
+            break
+    print(f"Shared proxy socket access {mode}")
+
+
 def compose(projection, image, namespace, operation, fixture, support):
     plan = projection["compose"]
     plan["name"] = namespace
@@ -206,6 +253,11 @@ def main():
     selected = commands.add_parser("client")
     selected.add_argument("mode", choices=("success", "lost", "direct", "forbidden"))
     selected.add_argument("socket", type=Path)
+    shared = commands.add_parser("shared-group")
+    shared.add_argument("mode", choices=("allowed", "denied"))
+    shared.add_argument("socket", type=Path)
+    shared.add_argument("owner_uid", type=int)
+    shared.add_argument("access_gid", type=int)
     render = commands.add_parser("compose")
     render.add_argument("projection", type=Path)
     for name in ("image", "namespace", "operation", "fixture", "support"):
@@ -217,6 +269,8 @@ def main():
         asyncio.run(peer_info())
     elif args.action == "client":
         asyncio.run(client(args.mode, args.socket))
+    elif args.action == "shared-group":
+        shared_group_socket(args.mode, args.socket, args.owner_uid, args.access_gid)
     elif args.action == "received":
         print(Path("/evidence/received.json").read_text())
     else:

@@ -191,6 +191,8 @@ class LiveProxyConfiguration:
         addresses = route.get("addresses", [])
         if type(addresses) is not list or any(type(value) is not str for value in addresses):
             raise ServiceRefused("Proxy route addresses must be a list of mappings.")
+        if self.mode == "external" and addresses:
+            raise ServiceRefused("External service proxy does not accept local address mappings.")
         hosts = {authority_parts(value)[0] for value in authorities}
         selected = (addresses if self.mode == "external" else
                     tuple(address for address in addresses if address.partition("=")[0] in hosts))
@@ -259,11 +261,12 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
     address_family = socket.AF_UNIX
     request_handler = ServiceProxyHandler
 
-    def __init__(self, path, interface, policy, *, status_directory, live_configuration=None):
+    def __init__(self, path, interface, policy, *, status_directory, live_configuration=None, shared_socket=False):
         from provider_core.process_status import ProcessStatus
 
         self.policy = policy
         self.live_configuration = live_configuration
+        self.shared_socket = shared_socket
         super().__init__(str(path), interface)
         try:
             self.process_status = ProcessStatus(status_directory, "proxy")
@@ -280,7 +283,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
     def server_bind(self):
         # Birth must be private too: a crash before a later chmod would leave
         # a stale public socket that the restart owner must refuse to remove.
-        previous = os.umask(0o177)
+        previous = os.umask(0o117 if self.shared_socket else 0o177)
         try:
             super().server_bind()
         finally:
@@ -288,7 +291,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
 
 
 @contextmanager
-def socket_grant(path, ready):
+def socket_grant(path, ready, *, socket_group_id=None):
     """Hold exclusive directory ownership before replacing retired private leaves.
 
     Directory flock follows provider_workers_open's held-parent pattern at
@@ -314,14 +317,18 @@ def socket_grant(path, ready):
             if len(str(path).encode("utf-8")) > 107:
                 raise ServiceRefused("Cannot start service proxy: the Unix socket path exceeds Linux's 107-byte pathname limit.")
             parent = path.parent.lstat()
+            shared = socket_group_id is not None
+            if shared and (type(socket_group_id) is not int or socket_group_id <= 0 or socket_group_id != os.getegid()):
+                raise ServiceRefused("Cannot start service proxy: the shared socket group must be the proxy's primary GID.")
             if (
                 path.parent.resolve() != path.parent
                 or not stat.S_ISDIR(parent.st_mode)
                 or parent.st_uid != os.geteuid()
-                or stat.S_IMODE(parent.st_mode) != 0o700
+                or stat.S_IMODE(parent.st_mode) not in ((0o710, 0o2710) if shared else (0o700,))
+                or (shared and parent.st_gid != socket_group_id)
             ):
                 raise ServiceRefused(
-                    "Cannot start service proxy: its directory must be caller-owned, private (0700), and free of symlinks."
+                    "Cannot start service proxy: its directory must be caller-owned with the required private or shared-group mode, and free of symlinks."
                 )
             descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
             held = os.fstat(descriptor)
@@ -337,7 +344,10 @@ def socket_grant(path, ready):
                     observed = os.stat(leaf.name, dir_fd=descriptor, follow_symlinks=False)
                 except FileNotFoundError:
                     continue
-                if not required(observed.st_mode) or observed.st_uid != os.geteuid() or stat.S_IMODE(observed.st_mode) != 0o600:
+                mode = 0o660 if shared and leaf == path else 0o600
+                if (not required(observed.st_mode) or observed.st_uid != os.geteuid()
+                        or stat.S_IMODE(observed.st_mode) != mode
+                        or (shared and leaf == path and observed.st_gid != socket_group_id)):
                     raise ServiceRefused("Cannot start service proxy: prior route leaves have an unexpected type, owner or mode; preserve them for inspection.")
                 if leaf == ready:
                     with os.fdopen(os.open(leaf.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=descriptor), "rb") as receipt:
@@ -369,6 +379,7 @@ def main():
     parser.add_argument("--status-directory", type=Path, required=True)
     parser.add_argument("--log-level", choices=("INFO", "DEBUG", "WARNING"))
     parser.add_argument("--live-config", type=Path)
+    parser.add_argument("--socket-group-id", type=int)
     args = parser.parse_args()
     if args.live_config is None and (not args.authority or not args.log_level):
         parser.error("private routes require --authority and --log-level")
@@ -404,9 +415,9 @@ def main():
             raise ServiceRefused(str(error)) from None
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             probe.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, args.interface.encode() + b"\0")
-        with socket_grant(args.socket, args.ready_file) as parent:
+        with socket_grant(args.socket, args.ready_file, socket_group_id=args.socket_group_id) as parent:
             with ServiceProxyServer(parent / args.socket.name, args.interface, policy, status_directory=args.status_directory,
-                                    live_configuration=live) as server:
+                                    live_configuration=live, shared_socket=args.socket_group_id is not None) as server:
                 if live is not None:
                     live.apply(server, settings)
                 bound_http_proxy.publish_readiness(parent / args.ready_file.name, "ready\n")

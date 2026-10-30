@@ -26,6 +26,7 @@ project=${project//./-}
 operation=${operation_directory##*/}
 evidence_volume=$project-evidence
 route_volume=
+shared_volume=$project-shared
 
 route_finish() {
     local status=$? identifier volume
@@ -45,7 +46,7 @@ route_finish() {
         fi
         if ! "$retain_operation" && checker_metadata "$operation_directory/route-volumes" volume ls --quiet --filter "label=$operation_label"; then
             while IFS= read -r volume; do
-                if [[ $volume == "$evidence_volume" || -n $route_volume && $volume == "$route_volume" ]]; then
+                if [[ $volume == "$evidence_volume" || $volume == "$shared_volume" || -n $route_volume && $volume == "$route_volume" ]]; then
                     if checker_teardown volume rm -- "$volume" > /dev/null; then :; else retain_operation=true; fi
                 else
                     retain_operation=true
@@ -139,4 +140,29 @@ jq -e --argjson sni "$expected_sni" '.requests == 3 and .server_names == [$sni, 
 checker_call 'settle synthetic peer handlers' 30 stdio "${engine[@]}" stop --signal SIGTERM --timeout 10 "$peer"
 checker_metadata "$operation_directory/peer-exit" inspect --format '{{.State.ExitCode}}' "$peer"
 cmp -s "$operation_directory/peer-exit" <(printf '0\n') || exit 2
-printf -v operation_success '%s\n' 'Emitted private route passed signed HTTPS, read-only/UID isolation, no direct fallback and owned stale-socket restart.'
+# Qualify the shared grant with a different client UID and a supplementary GID.
+checker_metadata "$operation_directory/created-shared-volume" volume create --label "$operation_label" "$shared_volume"
+cmp -s "$operation_directory/created-shared-volume" <(printf '%s\n' "$shared_volume") || exit 2
+checker_metadata "$operation_directory/shared-volume-owner" volume inspect --format '{{.Name}} {{index .Labels "org.nmr-provider-tools.operation"}}' "$shared_volume"
+cmp -s "$operation_directory/shared-volume-owner" <(printf '%s %s\n' "$shared_volume" "$operation") || exit 2
+checker_run 30 "${worker[@]}" --network none --user 0:0 --cap-add CHOWN \
+    --mount "type=volume,src=$shared_volume,dst=/route,volume-nocopy" \
+    --entrypoint "$python" "$image" -I -B -m provider_core.deployment_route initialize --uid 65532 --gid 65529 --shared-group
+checker_create "${worker[@]}" --network none --user 65532:65529 \
+    --tmpfs /run:rw,nosuid,nodev,noexec,size=64k,mode=0700,uid=65532,gid=65529 \
+    --mount "type=volume,src=$shared_volume,dst=/route,volume-nocopy" \
+    --entrypoint "$python" "$image" -I -B -m provider_core.provider_proxy \
+    --interface lo --mode mapped --authority allowed.invalid:443 --address allowed.invalid=127.0.0.1 \
+    --socket /route/proxy.sock --ready-file /route/ready --status-directory /run \
+    --log-level INFO --socket-group-id 65529
+shared_proxy=$operation_container
+checker_call 'start shared proxy grant witness' 30 stdio "${engine[@]}" start "$shared_proxy"
+for mode in allowed denied; do
+    groups=()
+    if [[ $mode == allowed ]]; then groups=(--group-add 65529); fi
+    checker_run 30 "${worker[@]}" --network none --user 65531:65530 "${groups[@]}" "${fixture_grants[@]}" \
+        --mount "type=volume,src=$shared_volume,dst=/grant,readonly,volume-nocopy" \
+        --entrypoint "$python" "$image" -I -B /fixture.py shared-group "$mode" /grant/proxy.sock 65532 65529
+done
+checker_call 'stop shared proxy grant witness' 30 stdio "${engine[@]}" stop --signal SIGTERM --timeout 15 "$shared_proxy"
+printf -v operation_success '%s\n' 'Emitted private route passed signed HTTPS, read-only/UID isolation, no direct fallback owned stale-socket restart and shared supplementary-group access.'

@@ -182,7 +182,7 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
                               target + "/proxy.sock", client_mount, {role: {"condition": "service_healthy"}})
 
 
-def initialize_route(uid, gid, path):
+def initialize_route(uid, gid, path, *, shared_group=False):
     """Initialize an empty root-owned volume or preserve an exact private root.
 
     CHOWN-only root cannot open an existing private provider root. Preserve an
@@ -193,18 +193,19 @@ def initialize_route(uid, gid, path):
     if os.geteuid() != 0:
         raise RouteProjectionRejected("Cannot initialize API route volume: root with CHOWN and explicit target identity is required.")
     path = Path(_path(path))
+    mode = 0o710 if shared_group else 0o700
     observed = path.lstat()
     if not stat.S_ISDIR(observed.st_mode):
         raise RouteProjectionRejected("Cannot initialize API route volume: its root must be a real directory.")
-    if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) == (uid, gid, 0o700):
+    if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) == (uid, gid, mode):
         return
     descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
     try:
         observed = os.fstat(descriptor)
-        if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) != (uid, gid, 0o700):
+        if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) != (uid, gid, mode):
             if observed.st_uid != 0 or os.listdir(descriptor):
                 raise RouteProjectionRejected("Cannot initialize API route volume: unexpected ownership, permissions or retained contents require operator inspection.")
-            os.fchmod(descriptor, 0o700)
+            os.fchmod(descriptor, mode)
             os.fchown(descriptor, uid, gid)
             os.fsync(descriptor)
     except BaseException as failure:
@@ -228,7 +229,9 @@ def main():
     renderer.add_argument("--service-name")
     for name in ("image", "interpreter", "namespace"):
         renderer.add_argument("--" + name, required=True)
-    for command in (renderer, commands.add_parser("initialize")):
+    initializer = commands.add_parser("initialize")
+    initializer.add_argument("--shared-group", action="store_true")
+    for command in (renderer, initializer):
         for name in ("uid", "gid"):
             command.add_argument("--" + name, type=int, required=True)
     storage = renderer.add_mutually_exclusive_group(required=True)
@@ -238,7 +241,7 @@ def main():
     options = parser.parse_args()
     try:
         if options.action == "initialize":
-            initialize_route(options.uid, options.gid, Path("/route"))
+            initialize_route(options.uid, options.gid, Path("/route"), shared_group=options.shared_group)
         else:
             selected = load_deployment_bindings(options.definition).selected(options.binding)
             sources = {}
