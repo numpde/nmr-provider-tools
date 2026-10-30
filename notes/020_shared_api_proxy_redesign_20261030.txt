@@ -275,10 +275,22 @@ not required for a provider to join or leave.
 
 Illustrative shape, not an implementation or private host configuration:
 
+    [deployment]
+    project = "nmr-shared-example"
+    uid = 10001
+    proxy_uid = 10002
+    gid = 10003
+    request_seconds = 10
+
     [api_proxy]
     max_connections = 32
     log_level = "INFO"
     allowed_authorities = ["api.example.invalid:443"]
+
+    [api_proxy.route]
+    mode = "mapped"
+    interface = "eth0"
+    addresses = ["api.example.invalid=192.0.2.1"]
 
     [outbox]
     provider_items = 8
@@ -290,8 +302,15 @@ Illustrative shape, not an implementation or private host configuration:
     log_level = "INFO"
 
 The host deployment also supplies its fixed proxy network and both socket grants
-through the same existing operator input. The example shows the live fields only;
-it does not prescribe private host settings or a new configuration file format.
+through this same input. The UID is the installing user's UID; proxy_uid must be a
+different nonroot UID and gid is the shared socket group. The dedicated settings
+directory and replacement file must be readable by that group so the distinct
+proxy UID can start and reload. Values above are examples, not host settings.
+For project P, the maintained deployment owns the P-proxy-socket and
+P-outbox-socket volumes; clients borrow their proxy.sock and http.sock leaves,
+respectively. The proxy runs as a separate Compose project and its socket volume
+is external to the outbox project. A later outbox update must reuse the running
+proxy without replacing it; incompatible fixed grants require operator attention.
 The shared-package owner selects concrete SDK/CLI names with the provider owners
 before release, including the shared intake mount/group and exact handoff. Earlier
 020 symbols for per-binding projections and client-definition exports are not an

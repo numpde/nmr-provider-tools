@@ -41,6 +41,7 @@ def _decoded(value):
 
 
 def publication_bytes(material):
+    # silent-defaults: allow-contract -- An absent CA explicitly selects the delivery image's system trust roots.
     document = {"api": material.api_fields(), "credential": _encoded(material.credential_bytes),
                 "ca": None if material.ca_bytes is None else _encoded(material.ca_bytes)}
     return json.dumps(document, sort_keys=True, separators=(",", ":"),
@@ -59,6 +60,7 @@ class DeliveryHandoff:
             raise DeliveryHandoffRejected("Delivery outcome and publication material require the same API and provider identity.")
 
     def publication_document(self):
+        # silent-defaults: allow-contract -- An absent CA explicitly selects the delivery image's system trust roots.
         return {"api": self.publication.api_fields(), "credential": _encoded(self.publication.credential_bytes),
                 "ca": None if self.publication.ca_bytes is None else _encoded(self.publication.ca_bytes)}
 
@@ -94,6 +96,7 @@ def read_delivery_handoff(raw):
         }:
             raise DeliveryHandoffRejected("Delivery handoff requires complete API and outcome fields.")
         credential = _decoded(document["credential"])
+        # silent-defaults: allow-contract -- Preserve an explicit absence of CA bytes across the handoff.
         ca = None if document["ca"] is None else _decoded(document["ca"])
         settings, provider_ref = api_settings_from_material(api, credential_bytes=credential, ca_bytes=ca)
         material = ApiPublicationMaterial(settings.identity.origin, api["profile"], settings.expected_topology,

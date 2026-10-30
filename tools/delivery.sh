@@ -76,49 +76,100 @@ select_project() {
         || { refuse 'select PROJECT explicitly on the Make command line.'; return 2; }
     project=$PROJECT_INPUT
 }
-select_definition() {
+select_shared_definition() {
     [[ -v SHARED_RUNTIME_IMAGE_INPUT_ORIGIN && $SHARED_RUNTIME_IMAGE_INPUT_ORIGIN == 'command line' && -v SHARED_RUNTIME_IMAGE_INPUT ]] \
-        || { refuse 'select SHARED_RUNTIME_IMAGE from delivery/image/build.'; return 2; }
+        || { refuse 'select SHARED_RUNTIME_IMAGE from delivery/image/build.'; exit 2; }
     image=$SHARED_RUNTIME_IMAGE_INPUT
     admit_image
     [[ -v DELIVERY_BINDINGS_INPUT_ORIGIN && $DELIVERY_BINDINGS_INPUT_ORIGIN == 'command line' && -v DELIVERY_BINDINGS_INPUT ]] \
-        || { refuse 'select DELIVERY_BINDINGS as the complete operator binding definition.'; return 2; }
+        || { refuse 'select DELIVERY_BINDINGS as the shared operator settings file.'; exit 2; }
     definition=$DELIVERY_BINDINGS_INPUT
     mountable_path "$definition"
     [[ -f $definition && $(stat -c %s -- "$definition") -le 65536 ]] \
-        || { refuse 'the definition must be a regular file of at most 65536 bytes.'; return 2; }
-    checker_call 'capture bounded operator definition' 30 stdio head -c 65537 -- "$definition" > "$operation_directory/definition.toml"
-    grants=(--mount "type=bind,src=$operation_directory/definition.toml,dst=/input/definition.toml,readonly")
-    helper /opt/provider-tools/delivery_deployment.py render --definition /input/definition.toml --source "$definition" --image "$image" > "$operation_directory/compose.json"
-    project=$(jq -er '.name | select(type == "string")' "$operation_directory/compose.json")
-    checksum=$(jq -er '.services.delivery.command[-1]' "$operation_directory/compose.json")
-    [[ $project =~ ^[a-z0-9][a-z0-9_-]{0,62}$ && $checksum =~ ^[0-9a-f]{64}$ ]] || return 2
+        || { refuse 'the shared settings must be a regular file of at most 65536 bytes.'; exit 2; }
+    checker_call 'capture shared settings for rendering' 30 stdio head -c 65537 -- "$definition" > "$operation_directory/shared.toml"
+    grants=(--mount "type=bind,src=$operation_directory/shared.toml,dst=/input/shared.toml,readonly")
+    helper /opt/provider-tools/delivery_deployment.py render-shared --definition /input/shared.toml --source "$definition" --image "$image" > "$operation_directory/shared.json"
+    jq '.proxy' "$operation_directory/shared.json" > "$operation_directory/proxy.json"
+    jq '.outbox' "$operation_directory/shared.json" > "$operation_directory/outbox.json"
+    project=$(jq -er '.name' "$operation_directory/outbox.json")
+    proxy_project=$(jq -er '.name' "$operation_directory/proxy.json")
     if [[ -v PROJECT_INPUT_ORIGIN && $PROJECT_INPUT_ORIGIN == 'command line' ]]; then
-        [[ -v PROJECT_INPUT && $PROJECT_INPUT == "$project" ]] || { refuse 'PROJECT differs from the selected binding definition.'; return 2; }
+        [[ -v PROJECT_INPUT && $PROJECT_INPUT == "$project" ]] || { refuse 'PROJECT differs from the shared settings.'; exit 2; }
     fi
 }
 
-if [[ $action == up || $action == held || $action == discard ]]; then
-    select_definition
+if [[ $action == up ]]; then
+    select_shared_definition
+    proxy_identity=$(jq -er '.services.proxy.user' "$operation_directory/proxy.json")
+    settings_directory=$(dirname -- "$definition")
+    settings_name=$(basename -- "$definition")
+    checker_run 30 --pull never --network none --read-only --user "$proxy_identity" --cap-drop ALL \
+        --security-opt no-new-privileges:true --cpus 1 --memory 64m --memory-swap 64m --pids-limit 16 \
+        --mount "type=bind,src=$settings_directory,dst=/settings,readonly" \
+        --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B -c \
+        'import sys; f = open(sys.argv[1], "rb"); f.read(1); f.close()' "/settings/$settings_name" \
+        || { refuse 'the distinct proxy UID cannot read the shared settings directory and file; grant the shared group read access.'; exit 2; }
+    reserve_project
+    checker_metadata "$operation_directory/proxy-containers" ps --all --quiet --no-trunc --filter "label=com.docker.compose.project=$proxy_project"
+    mapfile -t proxy_identifiers < "$operation_directory/proxy-containers"
+    if [[ ${#proxy_identifiers[@]} == 0 ]]; then
+        checker_call 'start the independent shared API proxy' 180 stdio "${engine[@]}" compose --env-file /dev/null \
+            --project-name "$proxy_project" --project-directory / --file "$operation_directory/proxy.json" \
+            up --detach --no-build --pull never --wait --wait-timeout 120
+    else
+        checker_metadata "$operation_directory/proxy-running" ps --quiet --no-trunc --filter "label=com.docker.compose.project=$proxy_project" \
+            --filter 'label=com.docker.compose.service=proxy' --filter 'health=healthy'
+        mapfile -t proxy_running < "$operation_directory/proxy-running"
+        [[ ${#proxy_running[@]} == 1 ]] || { refuse 'the existing independent proxy is not uniquely healthy; leave it unchanged and inspect it.'; exit 2; }
+        checker_metadata "$operation_directory/proxy-owner" inspect --type container --format '{{index .Config.Labels "org.nmr-provider-tools.delivery"}}|{{range .Mounts}}{{if eq .Destination "/route"}}{{.Name}}{{end}}{{end}}' "${proxy_running[0]}"
+        IFS= read -r existing_proxy_owner < "$operation_directory/proxy-owner"
+        [[ $existing_proxy_owner == "$proxy_project|$project-proxy-socket" ]] \
+            || { refuse 'the existing proxy does not own the expected shared socket; leave it unchanged and inspect the deployment.'; exit 2; }
+        checker_metadata "$operation_directory/proxy-grants" inspect --type container --format '[{{json .Config.User}},{{json .Config.Cmd}},{{json .HostConfig.NetworkMode}},{{range .Mounts}}{{if eq .Destination "/settings"}}{{json .Source}}{{end}}{{end}}]' "${proxy_running[0]}"
+        jq -e --slurpfile actual "$operation_directory/proxy-grants" '
+            (.services.proxy | [.user, .command, (.network_mode // ""),
+                (.volumes[] | select(.target == "/settings") | .source)] ) as $expected |
+            $actual[0][0] == $expected[0] and $actual[0][1] == $expected[1] and
+            ($expected[2] == "" or $actual[0][2] == $expected[2]) and $actual[0][3] == $expected[3]
+        ' "$operation_directory/proxy.json" > /dev/null \
+            || { refuse 'the running proxy has different fixed grants; leave it unchanged and inspect the deployment.'; exit 2; }
+        expected_resolver=$(jq -r '.services.proxy.volumes[] | select(.target == "/etc/resolv.conf") | .source' "$operation_directory/proxy.json")
+        if [[ -n $expected_resolver ]]; then
+            checker_metadata "$operation_directory/proxy-resolver" inspect --type container --format '{{range .Mounts}}{{if eq .Destination "/etc/resolv.conf"}}{{.Source}}{{end}}{{end}}' "${proxy_running[0]}"
+            IFS= read -r existing_resolver < "$operation_directory/proxy-resolver"
+            [[ $existing_resolver == "$expected_resolver" ]] \
+                || { refuse 'the running proxy has a different resolver grant; leave it unchanged and inspect the deployment.'; exit 2; }
+        fi
+        expected_network=$(jq -r '.networks.api.name // empty' "$operation_directory/proxy.json")
+        if [[ -n $expected_network ]]; then
+            checker_metadata "$operation_directory/proxy-networks" inspect --type container --format '{{range .NetworkSettings.Networks}}{{.NetworkID}}{{"\n"}}{{end}}' "${proxy_running[0]}"
+            [[ $(cat "$operation_directory/proxy-networks") == "$expected_network" ]] \
+                || { refuse 'the running proxy uses a different network; leave it unchanged and inspect the deployment.'; exit 2; }
+        fi
+    fi
+    project_containers
+    if [[ ${#daemon_identifiers[@]} != 0 ]]; then
+        checker_call 'settle the existing delivery owner' 120 stdio "${engine[@]}" stop --timeout 60 "${daemon_identifiers[@]}"
+    fi
+    if [[ ${#other_identifiers[@]} != 0 ]]; then
+        checker_call 'stop old delivery-owned proxy roles' 60 stdio "${engine[@]}" stop --timeout 15 "${other_identifiers[@]}"
+    fi
+    if [[ ${#identifiers[@]} != 0 ]]; then
+        checker_call 'retire old delivery containers and retain their volumes' 60 stdio "${engine[@]}" rm "${identifiers[@]}"
+    fi
+    checker_call 'start shared delivery without replacing its API proxy' 180 stdio "${engine[@]}" compose --env-file /dev/null \
+        --project-name "$project" --project-directory / --file "$operation_directory/outbox.json" \
+        up --detach --no-build --pull never --wait --wait-timeout 120
+    printf -v operation_success 'Shared delivery and its independent API proxy are running for %s.\n' "$project"
+    exit
+fi
+
+if [[ $action == held || $action == discard ]]; then
+    select_shared_definition
     reserve_project
     project_containers
     [[ ${#identifiers[@]} == 0 ]] || { refuse 'run the owning down command before starting or opening its single-writer queue; volumes must remain.'; exit 2; }
-    if [[ $action == up ]]; then
-        # Check exactly the source files the rendered recipe grants, never a
-        # provider directory. Docker restarts use these original operator files.
-        jq -r '.services[].volumes[] | select(.type == "bind") | .source' "$operation_directory/compose.json" | sort -u > "$operation_directory/files"
-        while IFS= read -r file; do
-            # Rendered Compose text escapes literal dollars. This check reads
-            # host filenames, not Compose interpolation syntax.
-            file=${file//\$\$/\$}
-            mountable_path "$file"
-            [[ -f $file ]] || { refuse 'a selected config, credential, CA or resolver source is not a regular file.'; exit 2; }
-        done < "$operation_directory/files"
-        checker_call 'start shared delivery from operator inputs' 180 stdio "${engine[@]}" compose --env-file /dev/null \
-            --project-name "$project" --project-directory / --file "$operation_directory/compose.json" \
-            up --detach --no-build --pull never --wait --wait-timeout 120
-        printf -v operation_success 'Shared delivery started for %s. Status: make delivery/deployment/status PROJECT=%q.\n' "$project" "$project"
-    else
         for variable in API_ORIGIN PROVIDER_REF; do
             origin_variable=${variable}_INPUT_ORIGIN value_variable=${variable}_INPUT
             [[ -v $origin_variable && ${!origin_variable} == 'command line' && -v $value_variable && -n ${!value_variable} ]] \
@@ -133,14 +184,13 @@ if [[ $action == up || $action == held || $action == discard ]]; then
             done
             arguments=(--execution-attempt-ref "$EXECUTION_ATTEMPT_REF_INPUT" --body-sha256 "$BODY_SHA256_INPUT")
         fi
-        grants=(--mount "type=bind,src=$operation_directory/definition.toml,dst=/input/definition.toml,readonly"
+        grants=(--mount "type=bind,src=$operation_directory/shared.toml,dst=/input/shared.toml,readonly"
             --mount "type=volume,src=$project-queue,dst=/state,volume-nocopy")
         checker_metadata "$operation_directory/queue" volume inspect --format '{{.Name}}' "$project-queue"
         cmp -s "$operation_directory/queue" <(printf '%s\n' "$project-queue") \
             || { refuse 'the selected queue is absent or its name differs; no inspection helper was started.'; exit 2; }
-        helper /opt/provider-tools/delivery_deployment.py operator --definition /input/definition.toml --sha256 "$checksum" \
-            -- --api-origin "$API_ORIGIN_INPUT" --provider-ref "$PROVIDER_REF_INPUT" "${arguments[@]}"
-    fi
+        helper -m provider_core.delivery_discard --shared-config /input/shared.toml --state-directory /state \
+            --api-origin "$API_ORIGIN_INPUT" --provider-ref "$PROVIDER_REF_INPUT" "${arguments[@]}"
     exit
 fi
 
@@ -166,6 +216,7 @@ if [[ $action == down && ${#identifiers[@]} != 0 ]]; then
     [[ ${#identifiers[@]} == 0 ]] || { refuse 'project containers remain; retain state and inspect status.'; exit 2; }
 elif [[ $action == status ]]; then
     checker_call 'shared delivery status' 30 stdio "${engine[@]}" ps --all --no-trunc --filter "label=com.docker.compose.project=$project"
+    checker_call 'independent shared API proxy status' 30 stdio "${engine[@]}" ps --all --no-trunc --filter "label=com.docker.compose.project=$project-proxy"
 elif [[ $action == logs ]]; then
     for identifier in "${identifiers[@]}"; do
         checker_call 'bounded shared delivery logs' 30 stdio "${engine[@]}" logs --tail 80 "$identifier"

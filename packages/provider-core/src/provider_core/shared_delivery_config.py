@@ -38,7 +38,7 @@ class SharedDeliveryConfiguration:
                 raw.extend(part)
         finally:
             os.close(descriptor)
-        if len(raw) > 65536:
+        if not (len(raw) <= 65536):
             raise ValueError("Outbox settings exceed the supported file size.")
         try:
             document = tomllib.loads(raw.decode("utf-8"))

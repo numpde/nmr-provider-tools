@@ -142,11 +142,11 @@ help:
 	  'make tests/deployment/route SHARED_RUNTIME_IMAGE=sha256:... Qualify private API routes with disposable local services.' \
 	  'make tests/deployment/route/literal SHARED_RUNTIME_IMAGE=sha256:... Qualify mapped IP authority through private API routes.' \
 	  'make tests/deployment SHARED_RUNTIME_IMAGE=sha256:... Qualify installed deployment rendering and proxy boundaries.' \
-	  'make delivery/deployment/up DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... Start directly from operator config and secrets.' \
+	  'make delivery/deployment/up DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... Start from the shared operator settings file.' \
 	  'make delivery/deployment/down PROJECT=... Stop shared delivery and preserve all volumes.' \
 	  'make delivery/deployment/status PROJECT=... Inspect installed service state.' \
 	  'make delivery/deployment/logs PROJECT=... Show bounded recent service logs.' \
-	  'make delivery/deployment/held DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... List held metadata while stopped.' \
+	  'make delivery/deployment/held DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... List pending and held metadata while stopped.' \
 	  'make delivery/deployment/discard DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... EXECUTION_ATTEMPT_REF=... BODY_SHA256=... Discard exactly one stopped held item.' \
 	  'make publish/prepare TAG=vX.Y.Z WHEELHOUSE=... OUTPUT=... Prepare exact artifacts, logs and authored release notes.' \
 	  'make publish/release TAG=vX.Y.Z ARTIFACTS=... Publish reviewed inputs through a verified GitHub draft.'

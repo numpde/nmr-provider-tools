@@ -38,6 +38,7 @@ MAX_BINDINGS = 16
 # repo-check: allow-module-constant
 MAX_PROVIDER_ITEMS = 256
 
+# repo-check: allow-module-constant
 LEGACY_HOLD_REASON = "Original publication material is unavailable; retain for operator reconciliation."
 
 

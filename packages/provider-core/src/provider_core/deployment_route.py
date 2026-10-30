@@ -182,6 +182,7 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
                               target + "/proxy.sock", client_mount, {role: {"condition": "service_healthy"}})
 
 
+# silent-defaults: allow-contract -- Existing private routes remain private unless the caller explicitly requests the shared group grant.
 def initialize_route(uid, gid, path, *, shared_group=False):
     """Initialize an empty root-owned volume or preserve an exact private root.
 
@@ -193,6 +194,7 @@ def initialize_route(uid, gid, path, *, shared_group=False):
     if os.geteuid() != 0:
         raise RouteProjectionRejected("Cannot initialize API route volume: root with CHOWN and explicit target identity is required.")
     path = Path(_path(path))
+    # silent-defaults: allow-contract -- Directory access follows the explicitly selected shared or private grant.
     mode = 0o710 if shared_group else 0o700
     observed = path.lstat()
     if not stat.S_ISDIR(observed.st_mode):

@@ -131,17 +131,24 @@ SDK's contained tests.
 
 ## Shared result delivery
 
-The delivery client submits exact complete/fail request bytes to a configured
-provider-specific Unix socket. Its acknowledgement proves durable local enqueue;
-the shared delivery service then owns API publication and retries. It does not
-prove that the API has accepted the result. Lost acknowledgements and transport
-retirement remain explicit outcomes; a missing queue row does not prove that a
-previous request was never delivered.
+`api_settings_with_material` captures the original signing credential and optional
+CA when the provider admits its API settings. Construct `SharedDeliveryClient`
+with that material and a `DeliveryEndpoint` for the common intake socket. Its
+`submit(outcome)` hands over the exact complete/fail bytes and publication inputs;
+the acknowledgement proves durable local enqueue, not API acceptance. Delivery
+reconstructs signing and TLS from each retained handoff and owns publication and
+retries even after the provider exits. Lost acknowledgements and transport
+retirement remain explicit outcomes.
 
-The host and provider deployment select the same operator-owned neutral binding
-definition for API identity, credential and CA paths, API routing and socket
-grant. Providers own scientific configuration and selection of their private
-lifetime directory.
+The shared socket accepts submissions only: it has no queue inventory, status or
+capacity-read operation. Queue and API proxy sockets are separate group grants;
+the provider needs no other provider's credential, CA or local result store. The
+host owns one operator settings file, durable queue and independently managed API
+proxy. Providers retain their own API/scientific configuration and lifetime.
+`shared_grants(config_path)` projects external named volumes, read-only mounts
+with `nocopy`, socket paths and the supplementary GID for provider deployment.
+One-off container launchers must verify those host-owned volumes already exist
+before granting them; a Docker volume mount alone can create a missing volume.
 
 ## Runner lifecycle
 
@@ -253,9 +260,8 @@ which lasts until the next source operation.
 `UploadRecoveryExhausted` identifies a retryable outage whose bounded recovery
 ended after its original resources retired; its cause retains the current outage.
 
-Use [deployment_route](src/provider_core/deployment_route.py) to render a selected
-binding's API proxy and read-only socket grant. Single-binding providers can
-request the stable `api` service name; delivery retains its per-binding names.
+`deployment_route` continues to support isolated fixture and other private routes.
+Joint provider deployment instead borrows the one host-owned API proxy grant.
 
 The source distribution carries generic test helpers and pinned API fixtures.
 Those fixtures establish recorded contract/content compatibility, not publisher

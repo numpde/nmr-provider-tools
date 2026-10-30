@@ -185,17 +185,19 @@ class LiveProxyConfiguration:
             raise ServiceRefused("Proxy log_level must be INFO, DEBUG or WARNING.")
         if type(authorities) is not list or any(type(value) is not str for value in authorities):
             raise ServiceRefused("Proxy allowed_authorities must be a list of authorities.")
-        route = table.get("route", {})
+        # silent-defaults: allow-contract -- External routes need no mapped address table.
+        route = table.get("route", {})  # silent-defaults: allow-empty-get -- External routes need no mapping table.
         if type(route) is not dict:
             raise ServiceRefused("Proxy route settings must be a table.")
-        addresses = route.get("addresses", [])
+        # silent-defaults: allow-contract -- External routes have no mapped addresses.
+        addresses = route.get("addresses", [])  # silent-defaults: allow-empty-get -- External routes have no mapped addresses.
         if type(addresses) is not list or any(type(value) is not str for value in addresses):
             raise ServiceRefused("Proxy route addresses must be a list of mappings.")
         if self.mode == "external" and addresses:
             raise ServiceRefused("External service proxy does not accept local address mappings.")
         hosts = {authority_parts(value)[0] for value in authorities}
         selected = (addresses if self.mode == "external" else
-                    tuple(address for address in addresses if address.partition("=")[0] in hosts))
+                    [address for address in addresses if address.partition("=")[0] in hosts])
         policy = (ServicePolicy.admit(self.mode, authorities, selected) if authorities
                   else ServicePolicy(frozenset(), ()))
         return LiveProxySettings(policy, maximum, level)
@@ -261,6 +263,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
     address_family = socket.AF_UNIX
     request_handler = ServiceProxyHandler
 
+    # silent-defaults: allow-contract -- Existing private proxy callers retain their private socket unless a shared grant is requested.
     def __init__(self, path, interface, policy, *, status_directory, live_configuration=None, shared_socket=False):
         from provider_core.process_status import ProcessStatus
 
@@ -283,6 +286,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
     def server_bind(self):
         # Birth must be private too: a crash before a later chmod would leave
         # a stale public socket that the restart owner must refuse to remove.
+        # silent-defaults: allow-contract -- Socket birth mode follows the explicit private or shared grant.
         previous = os.umask(0o117 if self.shared_socket else 0o177)
         try:
             super().server_bind()
@@ -320,11 +324,13 @@ def socket_grant(path, ready, *, socket_group_id=None):
             shared = socket_group_id is not None
             if shared and (type(socket_group_id) is not int or socket_group_id <= 0 or socket_group_id != os.getegid()):
                 raise ServiceRefused("Cannot start service proxy: the shared socket group must be the proxy's primary GID.")
+            # silent-defaults: allow-contract -- Directory modes follow the selected shared or private grant.
+            parent_modes = (0o710, 0o2710) if shared else (0o700,)
             if (
                 path.parent.resolve() != path.parent
                 or not stat.S_ISDIR(parent.st_mode)
                 or parent.st_uid != os.geteuid()
-                or stat.S_IMODE(parent.st_mode) not in ((0o710, 0o2710) if shared else (0o700,))
+                or stat.S_IMODE(parent.st_mode) not in parent_modes
                 or (shared and parent.st_gid != socket_group_id)
             ):
                 raise ServiceRefused(
@@ -344,6 +350,7 @@ def socket_grant(path, ready, *, socket_group_id=None):
                     observed = os.stat(leaf.name, dir_fd=descriptor, follow_symlinks=False)
                 except FileNotFoundError:
                     continue
+                # silent-defaults: allow-contract -- Only the explicitly shared socket is group writable; readiness remains private.
                 mode = 0o660 if shared and leaf == path else 0o600
                 if (not required(observed.st_mode) or observed.st_uid != os.geteuid()
                         or stat.S_IMODE(observed.st_mode) != mode
