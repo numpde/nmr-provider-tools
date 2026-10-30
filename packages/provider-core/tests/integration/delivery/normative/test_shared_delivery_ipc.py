@@ -56,3 +56,12 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         another = self.client("provider:first")
         with self.assertRaises(DeliveryConflict):
             await another.submit(item1)
+
+    async def test_failed_publisher_wake_preserves_acknowledged_commit_and_fails_service(self):
+        client = self.client("provider:first")
+        item = outcome(provider="provider:first")
+        self.inbox.on_accepted = Mock(side_effect=OSError("wake failed"))
+        self.assertEqual(await client.submit(item), DeliveryHandoff(item, client.publication).acceptance())
+        self.assertTrue(self.inbox.failed.is_set())
+        self.assertIsInstance(self.inbox.failure, OSError)
+        self.assertEqual(self.queue.next_pending_handoff(item.api_origin, item.provider_ref).outcome, item)

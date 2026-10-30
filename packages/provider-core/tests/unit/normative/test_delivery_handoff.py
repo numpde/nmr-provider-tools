@@ -9,7 +9,9 @@ from unittest.mock import Mock
 
 from provider_core.api_config import api_settings_with_material
 from provider_core.delivery_handoff import DeliveryHandoff, DeliveryHandoffRejected, MAX_HANDOFF_BYTES, read_delivery_handoff
+from provider_core.delivery_client import DeliveryEndpoint
 from provider_core.delivery_store import DeliveryConflict, DeliveryQueue, QueueLimits
+from provider_core.shared_delivery_client import SharedDeliveryClient
 from tests.fakes.credential import document, encoded
 from tests.fakes.delivery import outcome
 
@@ -86,6 +88,23 @@ class DeliveryHandoffTests(unittest.TestCase):
             self.assertEqual(queue.inventory(item.api_origin, item.provider_ref)[0]["state"], "held")
             queue.close()
 
+    def test_old_owner_can_attach_original_material_without_overwriting_new_handoffs(self):
+        legacy = outcome(provider="provider:example")
+        material, other = self.material(), self.material()
+        new = DeliveryHandoff(outcome(provider="provider:example", suffix="1"), other)
+        with tempfile.TemporaryDirectory() as directory:
+            queue = DeliveryQueue(Path(directory), limits=QueueLimits(2, 4096, 4, 8192))
+            queue.enqueue(legacy)
+            queue.enqueue_handoff(new)
+            self.assertEqual(queue.hold_legacy_rows(), 1)
+            self.assertEqual(queue.associate_legacy_material(material), 1)
+            self.assertEqual(queue.associate_legacy_material(other), 0)
+            self.assertEqual(queue.next_pending_handoff(legacy.api_origin, legacy.provider_ref).publication, material)
+            queue.remove_published(legacy)
+            self.assertEqual(queue.next_pending_handoff(legacy.api_origin, legacy.provider_ref).publication, other)
+            self.assertEqual(queue.hold_legacy_rows(), 0)
+            queue.close()
+
     def test_invalid_input_is_refused_without_rendering_private_material(self):
         handoff = DeliveryHandoff(outcome(provider="provider:example"), self.material())
         document = json.loads(handoff.encode())
@@ -97,3 +116,8 @@ class DeliveryHandoffTests(unittest.TestCase):
             read_delivery_handoff(b"x" * (MAX_HANDOFF_BYTES + 1))
         with self.assertRaises(DeliveryHandoffRejected):
             DeliveryHandoff(outcome(provider="provider:other"), self.material())
+
+    def test_client_refuses_mismatched_material_before_admitting_work(self):
+        endpoint = DeliveryEndpoint("https://api.example", "provider:other", Path("/tmp/delivery.sock"))
+        with self.assertRaisesRegex(ValueError, "same API and provider"):
+            SharedDeliveryClient(endpoint, self.material(), exchange_seconds=1, retirement_seconds=1)

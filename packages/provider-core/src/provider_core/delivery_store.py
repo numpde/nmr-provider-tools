@@ -38,6 +38,8 @@ MAX_BINDINGS = 16
 # repo-check: allow-module-constant
 MAX_PROVIDER_ITEMS = 256
 
+LEGACY_HOLD_REASON = "Original publication material is unavailable; retain for operator reconciliation."
+
 
 class DeliveryConflict(RuntimeError):
     """An outstanding immutable request cannot be replaced by this submission."""
@@ -228,6 +230,7 @@ class DeliveryQueue:
 
     def _enqueue(self, item, publication, acceptance):
         with self._transaction("enqueue into"):
+            limits = self.limits
             existing = self._db.execute(
                 "SELECT job_ref,operation,body,publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?", item.key
             ).fetchone()
@@ -236,8 +239,8 @@ class DeliveryQueue:
                     raise DeliveryConflict("This Attempt already has a different outstanding terminal request; the original remains unchanged.")
                 return acceptance
             for where, parameters, maximum_items, maximum_bytes in (
-                (" WHERE api_origin=? AND provider_ref=?", item.key[:2], self.limits.provider_items, self.limits.provider_bytes),
-                ("", (), self.limits.total_items, self.limits.total_bytes),
+                (" WHERE api_origin=? AND provider_ref=?", item.key[:2], limits.provider_items, limits.provider_bytes),
+                ("", (), limits.total_items, limits.total_bytes),
             ):
                 count, size = self._db.execute("SELECT COUNT(*),COALESCE(SUM(length(body)),0) FROM outstanding" + where, parameters).fetchone()
                 if count >= maximum_items or size + len(item.body) > maximum_bytes:
@@ -277,7 +280,24 @@ class DeliveryQueue:
         with self._transaction("hold legacy requests in"):
             return self._db.execute(
                 "UPDATE outstanding SET state='held',held_reason=? WHERE publication IS NULL AND state='pending'",
-                ("Original publication material is unavailable; retain for operator reconciliation.",),
+                (LEGACY_HOLD_REASON,),
+            ).rowcount
+
+    def associate_legacy_material(self, material):
+        """Attach the original binding inputs supplied by the old deployment owner."""
+        from provider_core.api_config import ApiPublicationMaterial, api_settings_from_material
+        from provider_core.delivery_handoff import publication_bytes
+        if type(material) is not ApiPublicationMaterial:
+            raise ValueError("Legacy delivery requires its original publication material.")
+        settings, provider_ref = api_settings_from_material(
+            material.api_fields(), credential_bytes=material.credential_bytes, ca_bytes=material.ca_bytes
+        )
+        with self._transaction("associate original publication material in"):
+            return self._db.execute(
+                "UPDATE outstanding SET publication=?, state=CASE WHEN state='held' AND held_reason=? THEN 'pending' ELSE state END, "
+                "held_reason=CASE WHEN state='held' AND held_reason=? THEN NULL ELSE held_reason END "
+                "WHERE api_origin=? AND provider_ref=? AND publication IS NULL",
+                (publication_bytes(material), LEGACY_HOLD_REASON, LEGACY_HOLD_REASON, settings.identity.origin, provider_ref),
             ).rowcount
 
     def next_pending(self, api_origin, provider_ref):
@@ -300,6 +320,10 @@ class DeliveryQueue:
         """Derive current obligations from rows; keep no separate binding registry."""
         with self._access("inspect binding obligations in"):
             return tuple(self._db.execute("SELECT DISTINCT api_origin,provider_ref FROM outstanding ORDER BY api_origin,provider_ref"))
+
+    def pending_bindings(self):
+        with self._access("inspect pending publication in"):
+            return tuple(self._db.execute("SELECT DISTINCT api_origin,provider_ref FROM outstanding WHERE state='pending' ORDER BY api_origin,provider_ref"))
 
     def inventory(self, api_origin, provider_ref):
         return self._inventory(api_origin, provider_ref, None, None)

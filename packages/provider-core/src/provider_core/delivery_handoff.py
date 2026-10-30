@@ -40,6 +40,13 @@ def _decoded(value):
     return raw
 
 
+def publication_bytes(material):
+    document = {"api": material.api_fields(), "credential": _encoded(material.credential_bytes),
+                "ca": None if material.ca_bytes is None else _encoded(material.ca_bytes)}
+    return json.dumps(document, sort_keys=True, separators=(",", ":"),
+                      ensure_ascii=True, allow_nan=False).encode("ascii")
+
+
 @dataclass(frozen=True, slots=True, repr=False)
 class DeliveryHandoff:
     outcome: DeliveryOutcome
@@ -60,8 +67,7 @@ class DeliveryHandoff:
         return self.outcome.acceptance() | {"publication_sha256": "sha256:" + hashlib.sha256(publication).hexdigest()}
 
     def publication_bytes(self):
-        return json.dumps(self.publication_document(), sort_keys=True, separators=(",", ":"),
-                          ensure_ascii=True, allow_nan=False).encode("ascii")
+        return publication_bytes(self.publication)
 
     def encode(self):
         item = self.outcome

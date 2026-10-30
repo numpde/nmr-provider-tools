@@ -18,6 +18,10 @@ from pathlib import Path
 
 from provider_core.delivery_config import DeliveryConfigurationRejected, load_delivery_service
 from provider_core.delivery_logging import DeliveryNotices
+from provider_core.shared_delivery_config import SharedDeliveryConfiguration
+from provider_core.shared_delivery_ipc import SharedDeliverySocket
+from provider_core.shared_delivery_service import SharedDeliveryService
+from provider_core.transport import require_unix_socket_path
 
 
 async def _run(service, notices):
@@ -34,13 +38,37 @@ async def _run(service, notices):
 
 def main():
     parser = argparse.ArgumentParser(description="Deliver queued NMR API outcomes without rerunning analyses.")
-    parser.add_argument("--config", type=Path, required=True, help="Frozen deployment-generated delivery configuration.")
+    configuration = parser.add_mutually_exclusive_group(required=True)
+    configuration.add_argument("--config", type=Path, help="Frozen deployment-generated delivery configuration.")
+    configuration.add_argument("--shared-config", type=Path, help="Shared operator configuration, reloaded while running.")
+    parser.add_argument("--state-directory", type=Path)
+    parser.add_argument("--socket", type=Path)
+    parser.add_argument("--socket-group-id", type=int)
+    parser.add_argument("--proxy-socket", type=Path)
+    parser.add_argument("--request-seconds", type=float)
+    parser.add_argument("--status-directory", type=Path)
     options = parser.parse_args()
+    if options.shared_config is not None and (
+        not options.shared_config.is_absolute() or options.state_directory is None or not options.state_directory.is_absolute()
+        or options.socket is None or options.proxy_socket is None or options.request_seconds is None
+        or options.status_directory is None or not options.status_directory.is_absolute()
+    ):
+        parser.error("shared delivery requires absolute configuration, state and status directories, both socket paths and request deadline")
     os.umask(0o077)
     notices = DeliveryNotices(sys.stderr, secrets=())
     service = None
     try:
-        service = load_delivery_service(options.config, on_notice=notices, diagnostic_status=notices.status)
+        if options.config is not None:
+            service = load_delivery_service(options.config, on_notice=notices, diagnostic_status=notices.status)
+        else:
+            require_unix_socket_path(str(options.proxy_socket))
+            live = SharedDeliveryConfiguration(options.shared_config)
+            settings = live.read()
+            service = SharedDeliveryService(options.state_directory, limits=settings.limits,
+                socket=SharedDeliverySocket(options.socket, options.socket_group_id), proxy_socket=options.proxy_socket,
+                request_seconds=options.request_seconds, retry_initial_seconds=settings.retry_initial_seconds,
+                retry_max_seconds=settings.retry_max_seconds, on_notice=notices, diagnostic_status=notices.status,
+                live_configuration=live, status_directory=options.status_directory)
         asyncio.run(_run(service, notices))
         return 0
     # silent-defaults: allow-exception-outcome -- This process boundary reports the retained failure and exits nonzero

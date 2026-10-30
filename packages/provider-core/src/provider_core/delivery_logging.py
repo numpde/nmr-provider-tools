@@ -45,6 +45,9 @@ class DeliveryNotices:
         self.output_failures += 1
         self.latest_failure = (failure, facts, output_failure)
 
+    def set_level(self, level):
+        self.logger.setLevel(level)
+
     def __call__(self, failure, facts):
         # All callers emit on the service loop; StreamHandler owns serialized
         # writes. Serialization/output failure affects diagnostics, never the
@@ -54,7 +57,8 @@ class DeliveryNotices:
             if failure is not None:
                 document["failure"] = failure_evidence(failure, secrets=self.secrets)
             self.handler.last_failure = None
-            self.logger.info("%s", json.dumps(document, allow_nan=False, separators=(",", ":")))
+            log = self.logger.warning if failure is not None else self.logger.info
+            log("%s", json.dumps(document, allow_nan=False, separators=(",", ":")))
             if self.handler.last_failure is not None:
                 self._failed(failure, facts, self.handler.last_failure)
         except Exception as output_failure:

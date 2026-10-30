@@ -44,5 +44,12 @@ class SharedDeliveryInbox(DeliveryInbox):
         except DeliveryHandoffRejected:
             raise DeliveryRequestRejected("Shared delivery requires a complete publication handoff.") from None
         accepted = await self.storage(self.queue.enqueue_handoff, handoff)
-        self.on_accepted(handoff.outcome)
+        try:
+            self.on_accepted(handoff.outcome)
+        except Exception as error:
+            # The transaction already committed. A failed publisher wake is a
+            # service failure, not a refusal of this durable acknowledgement.
+            self.failure = error
+            self.failed.set()
+            self.on_failure(error, {"event": "delivery_publisher_wake_failed"})
         return accepted

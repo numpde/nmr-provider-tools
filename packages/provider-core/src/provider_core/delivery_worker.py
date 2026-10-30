@@ -82,6 +82,7 @@ class DeliveryWorker:
                 if not self.api.retirement_confirmed:
                     await self.api.retire(owner=self)
                 if self.api.can_replay_terminal(failure):
+                    delay = min(max(delay, self.retry_initial_seconds), self.retry_max_seconds)
                     seconds = random.uniform(delay / 2, delay)
                     minimum = failure.retry_after_seconds
                     if minimum is not None:
