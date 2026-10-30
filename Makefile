@@ -37,13 +37,13 @@ override ARTIFACTS_INPUT := $(value ARTIFACTS)
 export ARTIFACTS_INPUT
 endif
 
-unexport DELIVERY_BINDINGS
-unexport DELIVERY_BINDINGS_INPUT
-unexport DELIVERY_BINDINGS_INPUT_ORIGIN
-override export DELIVERY_BINDINGS_INPUT_ORIGIN := $(origin DELIVERY_BINDINGS)
-ifeq ($(origin DELIVERY_BINDINGS),command line)
-override DELIVERY_BINDINGS_INPUT := $(value DELIVERY_BINDINGS)
-export DELIVERY_BINDINGS_INPUT
+unexport SHARED_SETTINGS
+unexport SHARED_SETTINGS_INPUT
+unexport SHARED_SETTINGS_INPUT_ORIGIN
+override export SHARED_SETTINGS_INPUT_ORIGIN := $(origin SHARED_SETTINGS)
+ifeq ($(origin SHARED_SETTINGS),command line)
+override SHARED_SETTINGS_INPUT := $(value SHARED_SETTINGS)
+export SHARED_SETTINGS_INPUT
 endif
 
 unexport SHARED_RUNTIME_IMAGE
@@ -142,13 +142,13 @@ help:
 	  'make tests/deployment/route SHARED_RUNTIME_IMAGE=sha256:... Qualify private API routes with disposable local services.' \
 	  'make tests/deployment/route/literal SHARED_RUNTIME_IMAGE=sha256:... Qualify mapped IP authority through private API routes.' \
 	  'make tests/deployment SHARED_RUNTIME_IMAGE=sha256:... Qualify installed deployment rendering and proxy boundaries.' \
-	  'make delivery/deployment/up DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... Start from the shared operator settings file.' \
-	  'make delivery/deployment/proxy/restart DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... Replace only the independent proxy and keep its socket volume.' \
+	  'make delivery/deployment/up SHARED_SETTINGS=... SHARED_RUNTIME_IMAGE=sha256:... Start or replace the outbox; retain its queue and the running proxy.' \
+	  'make delivery/deployment/proxy/restart SHARED_SETTINGS=... SHARED_RUNTIME_IMAGE=sha256:... Replace the proxy; active connections can be interrupted and its socket volume is retained.' \
 	  'make delivery/deployment/down PROJECT=... Stop shared delivery and preserve all volumes.' \
 	  'make delivery/deployment/status PROJECT=... Inspect installed service state.' \
 	  'make delivery/deployment/logs PROJECT=... Show bounded recent service logs.' \
-	  'make delivery/deployment/held DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... List pending and held metadata while stopped.' \
-	  'make delivery/deployment/discard DELIVERY_BINDINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... EXECUTION_ATTEMPT_REF=... BODY_SHA256=... Discard exactly one stopped held item.' \
+	  'make delivery/deployment/held SHARED_SETTINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... List pending and held metadata while stopped.' \
+	  'make delivery/deployment/discard SHARED_SETTINGS=... SHARED_RUNTIME_IMAGE=sha256:... API_ORIGIN=... PROVIDER_REF=... EXECUTION_ATTEMPT_REF=... BODY_SHA256=... Discard exactly one stopped held item.' \
 	  'make delivery/deployment/retire-old PROJECT=... SHARED_RUNTIME_IMAGE=sha256:... Retire unused old per-provider socket volumes.' \
 	  'make publish/prepare TAG=vX.Y.Z WHEELHOUSE=... OUTPUT=... Prepare exact artifacts, logs and authored release notes.' \
 	  'make publish/release TAG=vX.Y.Z ARTIFACTS=... Publish reviewed inputs through a verified GitHub draft.'

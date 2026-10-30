@@ -98,9 +98,9 @@ select_shared_definition() {
         || { refuse 'select SHARED_RUNTIME_IMAGE from delivery/image/build.'; exit 2; }
     image=$SHARED_RUNTIME_IMAGE_INPUT
     admit_image
-    [[ -v DELIVERY_BINDINGS_INPUT_ORIGIN && $DELIVERY_BINDINGS_INPUT_ORIGIN == 'command line' && -v DELIVERY_BINDINGS_INPUT ]] \
-        || { refuse 'select DELIVERY_BINDINGS as the shared operator settings file.'; exit 2; }
-    definition=$DELIVERY_BINDINGS_INPUT
+    [[ -v SHARED_SETTINGS_INPUT_ORIGIN && $SHARED_SETTINGS_INPUT_ORIGIN == 'command line' && -v SHARED_SETTINGS_INPUT ]] \
+        || { refuse 'select SHARED_SETTINGS as the shared operator settings file.'; exit 2; }
+    definition=$SHARED_SETTINGS_INPUT
     mountable_path "$definition"
     [[ -f $definition && $(stat -c %s -- "$definition") -le 65536 ]] \
         || { refuse 'the shared settings must be a regular file of at most 65536 bytes.'; exit 2; }
