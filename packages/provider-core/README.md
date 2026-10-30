@@ -145,8 +145,9 @@ capacity-read operation. Queue and API proxy sockets are separate group grants;
 the provider needs no other provider's credential, CA or local result store. The
 host owns one operator settings file, durable queue and independently managed API
 proxy. Providers retain their own API/scientific configuration and lifetime.
-`shared_grants(config_path)` projects external named volumes, read-only mounts
-with `nocopy`, socket paths and the supplementary GID for provider deployment.
+Read the shared project name and access GID from the provider's own deployment
+settings, then use `SharedGrants(project, gid)` to project external named
+volumes, read-only mounts with `nocopy`, socket paths and the supplementary GID.
 One-off container launchers must verify those host-owned volumes already exist
 before granting them; a Docker volume mount alone can create a missing volume.
 

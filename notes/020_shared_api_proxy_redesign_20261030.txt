@@ -250,12 +250,31 @@ work, not a general migration framework.
 Operator configuration and live reload
 ---------------------------------------
 
+Common configuration practice:
+
+* Each repository owns its own named deployment settings under its existing
+  `config/deployments/<name>/` convention. A provider does not read another
+  repository's configuration file, at deployment or at runtime.
+* Keep credentials, private keys and trust files in the owning provider's
+  private secrets location. Public examples contain placeholders; host-specific
+  files are kept private or tracked only after a privacy review.
+* Keep the proxy and outbox's operational settings in their shared owner's
+  file. Each provider records only the project and group needed to borrow the
+  sockets in its own existing configuration; the shared SDK derives the volume
+  names and in-container socket paths. The operator keeps these grants aligned.
+* Document whether a value is sampled at deployment, read at startup or reloaded
+  live. Keep Make help honest about which services a command replaces and
+  which persistent volumes it retains. Do not introduce another configuration
+  layer or elaborate validation to enforce these conventions.
+
 Use one operator-owned TOML input for both shared services under the ignored
 `config/deployments/<name>/settings.toml` path. It contains host/proxy and outbox settings, not provider
 bindings, identities, credentials or CA files. Each service owns and applies its
 own settings. Mount the containing dedicated configuration directory read-only
-into the services so an atomic replacement of the file is visible; providers do
-not receive its write authority. Use existing operator paths and deployment
+into the services so an atomic replacement of the file is visible. Each provider
+uses settings in its own repository, not this shared-services file, and obtains
+the socket grant projection from the shared SDK. The operator aligns the shared
+project and access group across those deployment settings. Use existing operator paths and deployment
 inputs; do not add a second configuration model or host-specific public values.
 
 The proxy periodically reloads max_connections, max_admission_delay_seconds,

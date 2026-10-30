@@ -4,7 +4,7 @@ The code here helps NMR providers talk to the API, deliver results and deploy. E
 
 Get `provider_core` and its lock file from [GitHub Releases](https://github.com/numpde/nmr-provider-tools/releases). The [package docs](packages/provider-core/README.md) explain how to use it.
 
-Shared delivery stores results and retries sending them to the API. Start with the [example config](config/delivery.example.toml), save the host's copy under `config/deployments/<name>/settings.toml`, and use that same file for the service and its providers. Named deployment settings are local and ignored by Git.
+Shared delivery stores results and retries sending them to the API. Start with the [example config](config/delivery.example.toml) and save the host's copy under `config/deployments/<name>/settings.toml`. Named deployment settings are local and ignored by Git. Providers use their own repository's deployment settings to identify the shared socket grants; they do not read this file.
 
 Outbox byte limits count terminal request bodies, not all disk use. Allow space
 for each retained handoff's encoded credential and CA (up to 16 KiB and 1 MiB
