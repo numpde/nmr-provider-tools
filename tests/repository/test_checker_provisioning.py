@@ -24,7 +24,7 @@ class CheckerProvisioningTests(unittest.TestCase):
             shutil.copytree(ROOT / name, self.root / name)
         shutil.copyfile(ROOT / "Makefile", self.root / "Makefile")
         self.record = self.root / "arguments"
-        self.environment = os.environ | {"PROVISION_ARGUMENTS": str(self.record)}
+        self.environment = os.environ | {"PROVISION_ARGUMENTS": str(self.record), "PATH": f"{ROOT / 'tests/repository/fixtures/docker-context'}:{os.environ['PATH']}"}
 
     def shell(self, source):
         return subprocess.run(
@@ -33,7 +33,7 @@ class CheckerProvisioningTests(unittest.TestCase):
         )
 
     def invoke_make(self, target, *, wheelhouse, interface):
-        arguments = ["make", "--no-print-directory", target]
+        arguments = ["make", "--no-print-directory", target, "DOCKER_CONTEXT=default"]
         if wheelhouse is not None:
             arguments.append(f"WHEELHOUSE={wheelhouse}")
         if interface is not None:

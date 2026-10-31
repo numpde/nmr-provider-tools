@@ -16,6 +16,8 @@ fi
 uid=$(id -u)
 gid=$(id -g)
 if [[ $uid == 0 || $gid == 0 ]]; then printf '%s\n' 'Checker preparation requires a nonzero caller UID and GID.' >&2; exit 2; fi
+source "$root/tools/docker_context.sh"
+select_docker_context
 source "$root/tools/base_image.sh"
 source "$root/tools/wheelhouse_path.sh"
 select_wheelhouse

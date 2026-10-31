@@ -1,0 +1,10 @@
+#!/bin/sh
+[ "$1" = context ] || exit 9
+if [ "$2" = ls ]; then printf 'local-test\nremote-test\n'; exit; fi
+if [ -n "$FAKE_CONTEXT_LOG" ]; then printf 'inspect\n' >> "$FAKE_CONTEXT_LOG"; fi
+case "$5" in
+  default) printf '%s\n' 'unix:///tmp/selected-default.sock' ;;
+  local-test) printf '%s\n' 'unix:///run/user/1000/docker.sock' ;;
+  remote-test) printf '%s\n' 'ssh://example.invalid' ;;
+  *) exit 1 ;;
+esac

@@ -60,6 +60,9 @@ esac
             "PROBE_REPORT": str(self.directory / "report"),
             "PROBE_CLEANUP_READY": str(self.directory / "ready"),
             "PROBE_ENGINE": str(self.engine),
+            "NMR_SELECTED_DOCKER_ENDPOINT": "unix:///var/run/docker.sock",
+            "DOCKER_CONTEXT_INPUT_ORIGIN": "command line",
+            "DOCKER_CONTEXT_INPUT": "default",
         }
 
     def invocation(self, scenario):

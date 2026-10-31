@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Prepare one operation-owned Docker CLI, independent of ambient client state.
-# Docker reads endpoint/TLS settings from environment and auth/proxies from its
+# Prepare an operation-owned Docker CLI using the explicitly selected local context.
+# Other Docker endpoint/TLS settings are ignored; auth/proxies from a client
 # config directory; config proxies can inject container env and build arguments.
 # https://docs.docker.com/reference/cli/docker/#environment-variables
 # https://docs.docker.com/reference/cli/docker/#change-the-docker-directory
@@ -27,7 +27,16 @@ docker_client_prepare() {
         printf -v docker_client_diagnostic '%s\n' 'Docker client preparation requires the explicit print or run mode.'
         return 2
     fi
-    local mode=$1 preparation_status config receipt
+    local mode=$1 preparation_status config receipt endpoint
+    if [[ ! -v NMR_SELECTED_DOCKER_ENDPOINT ]]; then
+        source "$(dirname -- "${BASH_SOURCE[0]}")/docker_context.sh"
+        select_docker_context || { docker_client_diagnostic=$'Cannot select a local Docker context.\n'; return 2; }
+    fi
+    endpoint=$NMR_SELECTED_DOCKER_ENDPOINT
+    if [[ $endpoint != unix:///* || $endpoint =~ [[:cntrl:]] ]]; then
+        docker_client_diagnostic=$'Cannot use a nonlocal Docker endpoint.\n'
+        return 2
+    fi
     case "$mode" in
         print)
             docker_client_directory=
@@ -77,7 +86,7 @@ docker_client_prepare() {
         -u BUILDX_BUILDER -u BUILDX_CONFIG -u DOCKER_BUILDKIT
         -u HTTP_PROXY -u HTTPS_PROXY -u ALL_PROXY -u NO_PROXY
         -u http_proxy -u https_proxy -u all_proxy -u no_proxy
-        DOCKER_BUILDKIT=1 docker --config "$config" --host unix:///var/run/docker.sock)
+        DOCKER_BUILDKIT=1 docker --config "$config" --host "$endpoint")
 }
 
 # Remove the prepared directory; failure does not establish what remains there.

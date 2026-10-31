@@ -10,17 +10,17 @@ Prepare the checked-in delivery release in the shared wheelhouse, then start the
 named deployment:
 
 ```sh
-make delivery/prepare WHEELHOUSE=/path/to/wheelhouse NETWORK_INTERFACE=system
-make delivery/deployment/up DEPLOYMENT=localhost
+make delivery/prepare DOCKER_CONTEXT=default WHEELHOUSE=/path/to/wheelhouse NETWORK_INTERFACE=system
+make delivery/deployment/up DOCKER_CONTEXT=default DEPLOYMENT=localhost
 ```
 
-On a new host, first run `make checks/base-image/download` to acquire the pinned
+On a new host, first run `make checks/base-image/download DOCKER_CONTEXT=default` to acquire the pinned
 container base through Docker. Preparation downloads missing pinned wheels,
 verifies them, and builds offline.
 `system` uses the host's normal network routing; an interface name binds
 acquisition to that interface. Updating the checked-in release pin and preparing
 it again selects a new image. Starting the outbox retains its queue and leaves an
-existing proxy running. `make delivery/deployment/proxy/restart DEPLOYMENT=localhost`
+existing proxy running. `make delivery/deployment/proxy/restart DOCKER_CONTEXT=default DEPLOYMENT=localhost`
 updates the proxy separately. Status, logs, and down use `PROJECT` from the
 settings file so they remain available for recovery without a prepared image.
 
@@ -29,7 +29,7 @@ for each retained handoff's encoded credential and CA (up to 16 KiB and 1 MiB
 before encoding), plus SQLite database and journal overhead. Item limits bound
 the number of retained handoffs. A healthy process alone does not prove every
 provider is publishing; use the operator status and logs to inspect progress.
-`make delivery/deployment/status PROJECT=...` shows a private, fresh aggregate
+`make delivery/deployment/status DOCKER_CONTEXT=... PROJECT=...` shows a private, fresh aggregate
 observation of pending and held work, oldest pending age, paused publishers,
 and body and publication material sizes. Queue counts are sampled at most once
 every five seconds; the output includes their age. Inspect available space on
@@ -47,3 +47,9 @@ connection whose delay has elapsed) or `fifo` (preserve arrival order, even
 when an earlier connection's delay holds up others). Both settings reload live.
 
 Run `make help` to see the available commands. Builds, tests and deployments use Docker on Linux/amd64.
+
+Select a local Docker context for builds, tests and deployments with
+`DOCKER_CONTEXT=<name>` on the Make command line, or choose one interactively.
+There is no default. Contexts must use a Unix socket on the machine running
+the command. Run operations on the target machine so bind mounts and network
+interfaces refer to that host.

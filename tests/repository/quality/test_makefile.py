@@ -184,11 +184,12 @@ class MakeRecipeOwnershipTests(unittest.TestCase):
         makeflags: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
+        environment["PATH"] = f"{REPOSITORY_ROOT / 'tests/repository/fixtures/docker-context'}:{environment['PATH']}"
         if makeflags is not None:
             environment["MAKEFLAGS"] = makeflags
         command = [self.make, "--no-print-directory", "--dry-run"]
         if target is not None:
-            command.append(target)
+            command.extend((target, "DOCKER_CONTEXT=default"))
         return subprocess.run(
             command,
             cwd=REPOSITORY_ROOT,

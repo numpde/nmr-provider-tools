@@ -2,6 +2,8 @@
 # Reuse the common wheelhouse and build the explicitly pinned delivery release.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+source "$root/tools/docker_context.sh"
+select_docker_context
 source "$root/tools/base_image.sh"
 source "$root/tools/wheelhouse_path.sh"
 select_wheelhouse
@@ -26,4 +28,4 @@ if [[ $cache == missing ]]; then
 elif [[ $cache != complete ]]; then
     printf '%s\n' 'Cannot inspect the shared delivery wheelhouse.' >&2; exit 2
 fi
-make --no-print-directory delivery/image/build "WHEELHOUSE=$wheelhouse_directory"
+WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT=$wheelhouse_directory bash "$root/tools/delivery_image.sh"

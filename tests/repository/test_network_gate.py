@@ -14,6 +14,9 @@ from pathlib import Path
 class NetworkGateTests(unittest.TestCase):
     def invoke(self, interface=None):
         environment = dict(os.environ)
+        environment["NMR_SELECTED_DOCKER_ENDPOINT"] = "unix:///var/run/docker.sock"
+        environment["DOCKER_CONTEXT_INPUT_ORIGIN"] = "command line"
+        environment["DOCKER_CONTEXT_INPUT"] = "default"
         # silent-defaults: allow-pop-default -- Remove an inherited forwarded interface so omission cannot authorize routing; proof=tests/repository/test_network_gate.py::NetworkGateTests.test_networked_lanes_require_an_explicit_interface
         environment.pop("NETWORK_INTERFACE_INPUT", None)
         # silent-defaults: allow-pop-default -- Remove the ambient interface before checking that routing requires an explicit selector; proof=tests/repository/test_network_gate.py::NetworkGateTests.test_networked_lanes_require_an_explicit_interface

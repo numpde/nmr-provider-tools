@@ -100,7 +100,7 @@ case "$action" in
 esac
 source "$root/tools/checker_operation.sh"
 if "$printing"; then
-    docker_client_prepare print
+    if ! docker_client_prepare print; then printf '%s' "$docker_client_diagnostic" >&2; exit 2; fi
     printf '%q ' "${engine[@]}" create --label org.nmr-provider-tools.operation=PRINT --cidfile /tmp/nmr-provider-tools.PRINT/container.cid "${arguments[@]}"
     printf '\n'
     exit

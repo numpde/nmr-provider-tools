@@ -243,7 +243,7 @@ class SourceInventoryRepositoryTests(unittest.TestCase):
 
     def test_repository_checker_grants_complete_read_only_source_trees(self):
         result = subprocess.run(
-            ["bash", str(ROOT / "tools/repository.sh"), "--print", "tests/repository"], text=True, capture_output=True, check=True
+            ["env", "NMR_SELECTED_DOCKER_ENDPOINT=unix:///var/run/docker.sock", "DOCKER_CONTEXT_INPUT_ORIGIN=command line", "DOCKER_CONTEXT_INPUT=default", "bash", str(ROOT / "tools/repository.sh"), "--print", "tests/repository"], text=True, capture_output=True, check=True
         )
         arguments = shlex.split(result.stdout)
         mounts = [arguments[index + 1] for index, value in enumerate(arguments) if value == "--mount"]

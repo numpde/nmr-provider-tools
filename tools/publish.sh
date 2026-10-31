@@ -87,11 +87,13 @@ if [[ $action == prepare ]]; then
     source "$root/tools/wheelhouse_path.sh"
     select_wheelhouse
     require_wheelhouse_pool
+    source "$root/tools/docker_context.sh"
+    select_docker_context
     mkdir -m 700 -- "$scratch/artifacts"
     cp -- "${notes[0]}" "$scratch/release-notes.md"
-    nested 'release package build' make --no-print-directory package/build "WHEELHOUSE=$wheelhouse_directory" "OUTPUT=$scratch/artifacts" > "$scratch/release-build.log" 2>&1
+    nested 'release package build' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" OUTPUT_INPUT_ORIGIN='command line' OUTPUT_INPUT="$scratch/artifacts" bash "$root/tools/provider_core.sh" build > "$scratch/release-build.log" 2>&1
     [[ -f $scratch/artifacts/$wheel && -f $scratch/artifacts/$sdist ]] || fail 'TAG must match the built package version.'
-    nested 'exact release artifact qualification' make --no-print-directory tests/package "WHEELHOUSE=$wheelhouse_directory" "ARTIFACTS=$scratch/artifacts" > "$scratch/release-test.log" 2>&1
+    nested 'exact release artifact qualification' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" ARTIFACTS_INPUT_ORIGIN='command line' ARTIFACTS_INPUT="$scratch/artifacts" bash "$root/tools/provider_core.sh" package > "$scratch/release-test.log" 2>&1
     require_unchanged_source
     printf 'Prepared exact artifacts, logs and authored release notes at %s. Review them, then use publish/release TAG=%s ARTIFACTS=%q.\n' "$scratch" "$tag" "$scratch"
     exit
