@@ -109,8 +109,10 @@ healthy on each. The owner reports the launcher suite at 40/42: two recording-
 engine lifetime-lock fixtures bypass runtime preparation. The broader deployment
 lane has 14 missing-settings-parent fixture failures. These failures are not
 covered by the host startup result. No new scientific Job was tested. NMRPeak pushed its guard as
-ec20529 and qualified isolated host and engine probes, but has not deployed
-that source. Its 478 unit tests passed; the broader repository lane failed nine
+ec20529 and qualified isolated host and engine probes. Its owner also reports
+the maintained science deployment preview passed locally and on ProArt using the
+real guarded mapping and probe retirement path, without a service restart. This
+is not an up/cutover or scientific execution. Its 478 unit tests passed; the broader repository lane failed nine
 upstream Git fixture tests on dubious ownership, so that lane is not qualified. The earlier gaps are source-level findings, not evidence of a
 current service failure; the contract above does not claim every caller has
 already implemented or qualified it.
