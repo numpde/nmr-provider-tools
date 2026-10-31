@@ -89,6 +89,16 @@ qualification is still underway. These are scoped implementation and host
 observations, not proof of a joint deployment: startup, health, shared sockets
 and end-to-end operation must be verified on each selected engine.
 
+A subsequent source review found a qualification gap: Magnet e1e0295 and
+NMRNet 7f3178b do not establish the map reader's initial-user-namespace
+precondition in source. Magnet binds its probe with a token and rereads maps;
+NMRNet's reviewed shell probe also lacks token or PID-stability checks. SECS
+27445c7 checks the host initial map and probe token; NMRPeak checks the exact
+container and PID with host process start time. NMRNet's owner is assessing a
+fail-closed correction. This is a source-level finding, not evidence of a
+current service failure; the contract above does not claim every caller has
+already implemented or qualified it.
+
 References
 ----------
 
