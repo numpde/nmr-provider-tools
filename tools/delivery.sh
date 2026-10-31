@@ -34,15 +34,17 @@ helper() {
         --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B "$@"
 }
 grant_helper_input() {
-    local security mapped subuid_start subuid_count
-    checker_metadata "$operation_directory/engine-security" info --format '{{json .SecurityOptions}}'
-    security=$(<"$operation_directory/engine-security")
-    if jq -e 'any(.[]; . == "name=rootless")' <<< "$security" > /dev/null; then
-        IFS=: read -r _ subuid_start subuid_count < <(awk -F: -v user="$(id -un)" -v uid="$uid" '$1 == user || $1 == uid {print; exit}' /etc/subuid) \
-            || { refuse 'cannot determine the rootless helper user mapping.'; return 2; }
-        [[ $subuid_start =~ ^[0-9]+$ && $subuid_count =~ ^[0-9]+$ && $uid -gt 0 && $uid -le $subuid_count ]] \
-            || { refuse 'cannot determine the rootless helper user mapping.'; return 2; }
-        mapped=$((subuid_start + uid - 1))
+    local mapped pid running
+    checker_create --pull never --network none --read-only --user "$uid:$gid" --cap-drop ALL \
+        --security-opt no-new-privileges:true --cpus 1 --memory 64m --memory-swap 64m --pids-limit 16 \
+        --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B -c 'import time; time.sleep(30)'
+    checker_metadata "$operation_directory/map-start" start "$operation_container"
+    checker_metadata "$operation_directory/map-pid" inspect --format '{{.State.Pid}} {{.State.Running}}' "$operation_container"
+    read -r pid running < "$operation_directory/map-pid"
+    [[ $pid =~ ^[1-9][0-9]*$ && $running == true ]] || { refuse 'cannot inspect the helper user mapping.'; return 2; }
+    mapped=$(awk -v uid="$uid" '$1 <= uid && uid < $1 + $3 {printf "%.0f\n", $2 + uid - $1; found=1; exit} END {if (!found) exit 1}' "/proc/$pid/uid_map") \
+        || { refuse 'cannot read the helper user mapping.'; return 2; }
+    if [[ $mapped != "$uid" ]]; then
         setfacl -m "u:$mapped:r--" -- "$1"
     fi
 }
