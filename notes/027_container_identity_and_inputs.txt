@@ -83,10 +83,11 @@ The four provider repositories have integrated their input-identity changes on
 main: Magnet e1e0295, NMRNet 7f3178b, NMRPeak b98125a and SECS 27445c7.
 SECS verified provider and worker input reads on the selected rootless engine
 on both hosts without starting services. NMRPeak verified mapping and a local
-rootless deployment preview. The NMRNet owner reports that science started six
-healthy components, accepted Hello and passed a repeat install; ProArt
-qualification is still underway. These are scoped implementation and host
-observations, not proof of a joint deployment: startup, health, shared sockets
+rootless deployment preview. The NMRNet owner reports both science engines running six healthy components
+and accepting startup Hello from 7f3178b; repeat install passed on science.
+ProArt selected WLAN wlp10s0, but both lock checks used cache, so this run did
+not demonstrate a dependency download. These scoped observations do not prove
+a scientific result or end-to-end outbox delivery; startup, health, shared sockets
 and end-to-end operation must be verified on each selected engine.
 
 A subsequent source review found a qualification gap: Magnet e1e0295 and
