@@ -34,7 +34,7 @@ helper() {
         --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B "$@"
 }
 grant_helper_input() {
-    local mapped pid running
+    local mapped pid running host_settings_gid
     checker_create --pull never --network none --read-only --user "$uid:$gid" --cap-drop ALL \
         --security-opt no-new-privileges:true --cpus 1 --memory 64m --memory-swap 64m --pids-limit 16 \
         --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B -c 'import time; time.sleep(30)'
@@ -44,6 +44,9 @@ grant_helper_input() {
     [[ $pid =~ ^[1-9][0-9]*$ && $running == true ]] || { refuse 'cannot inspect the helper user mapping.'; return 2; }
     mapped=$(awk -v uid="$uid" '$1 <= uid && uid < $1 + $3 {printf "%.0f\n", $2 + uid - $1; found=1; exit} END {if (!found) exit 1}' "/proc/$pid/uid_map") \
         || { refuse 'cannot read the helper user mapping.'; return 2; }
+    host_settings_gid=$(stat -c %g -- "$definition")
+    settings_reader_gid=$(awk -v gid="$host_settings_gid" '$2 <= gid && gid < $2 + $3 {printf "%.0f\n", $1 + gid - $2; found=1; exit} END {if (!found) exit 1}' "/proc/$pid/gid_map") \
+        || { refuse 'the settings group is not mapped into the selected engine.'; return 2; }
     if [[ $mapped != "$uid" ]]; then
         setfacl -m "u:$mapped:r--" -- "$1"
     fi
@@ -131,8 +134,16 @@ select_shared_definition() {
     grant_helper_input "$operation_directory/shared.toml"
     grants=(--mount "type=bind,src=$operation_directory/shared.toml,dst=/input/shared.toml,readonly")
     helper /opt/provider-tools/delivery_deployment.py render-shared --definition /input/shared.toml --source "$definition" --image "$image" > "$operation_directory/shared.json"
-    jq '.proxy' "$operation_directory/shared.json" > "$operation_directory/proxy.json"
-    jq '.outbox' "$operation_directory/shared.json" > "$operation_directory/outbox.json"
+    settings_group_args=()
+    settings_service_gid=$(jq -er '.outbox.services.delivery.user | split(":")[1]' "$operation_directory/shared.json")
+    if [[ $settings_reader_gid != "$settings_service_gid" ]]; then
+        settings_group_args=(--group-add "$settings_reader_gid")
+        jq --arg group "$settings_reader_gid" '.proxy | .services.proxy.group_add = [$group]' "$operation_directory/shared.json" > "$operation_directory/proxy.json"
+        jq --arg group "$settings_reader_gid" '.outbox | .services.delivery.group_add = [$group]' "$operation_directory/shared.json" > "$operation_directory/outbox.json"
+    else
+        jq '.proxy' "$operation_directory/shared.json" > "$operation_directory/proxy.json"
+        jq '.outbox' "$operation_directory/shared.json" > "$operation_directory/outbox.json"
+    fi
     project=$(jq -er '.name' "$operation_directory/outbox.json")
     proxy_project=$(jq -er '.name' "$operation_directory/proxy.json")
     if [[ -v PROJECT_INPUT_ORIGIN && $PROJECT_INPUT_ORIGIN == 'command line' ]]; then
@@ -145,7 +156,7 @@ if [[ $action == proxy-restart ]]; then
     proxy_identity=$(jq -er '.services.proxy.user' "$operation_directory/proxy.json")
     settings_directory=$(dirname -- "$definition")
     settings_name=$(basename -- "$definition")
-    checker_run 30 --pull never --network none --read-only --user "$proxy_identity" --cap-drop ALL \
+    checker_run 30 --pull never --network none --read-only --user "$proxy_identity" "${settings_group_args[@]}" --cap-drop ALL \
         --security-opt no-new-privileges:true --cpus 1 --memory 64m --memory-swap 64m --pids-limit 16 \
         --mount "type=bind,src=$settings_directory,dst=/settings,readonly" \
         --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B -c \
@@ -206,7 +217,7 @@ if [[ $action == up ]]; then
     proxy_identity=$(jq -er '.services.proxy.user' "$operation_directory/proxy.json")
     settings_directory=$(dirname -- "$definition")
     settings_name=$(basename -- "$definition")
-    checker_run 30 --pull never --network none --read-only --user "$proxy_identity" --cap-drop ALL \
+    checker_run 30 --pull never --network none --read-only --user "$proxy_identity" "${settings_group_args[@]}" --cap-drop ALL \
         --security-opt no-new-privileges:true --cpus 1 --memory 64m --memory-swap 64m --pids-limit 16 \
         --mount "type=bind,src=$settings_directory,dst=/settings,readonly" \
         --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B -c \
@@ -228,12 +239,13 @@ if [[ $action == up ]]; then
         IFS= read -r existing_proxy_owner < "$operation_directory/proxy-owner"
         [[ $existing_proxy_owner == "$proxy_project|$project-proxy-socket" ]] \
             || { refuse 'the existing proxy does not own the expected shared socket; leave it unchanged and inspect the deployment.'; exit 2; }
-        checker_metadata "$operation_directory/proxy-grants" inspect --type container --format '[{{json .Config.User}},{{json .Config.Cmd}},{{json .HostConfig.NetworkMode}},{{range .Mounts}}{{if eq .Destination "/settings"}}{{json .Source}}{{end}}{{end}}]' "${proxy_running[0]}"
+        checker_metadata "$operation_directory/proxy-grants" inspect --type container --format '[{{json .Config.User}},{{json .Config.Cmd}},{{json .HostConfig.NetworkMode}},{{range .Mounts}}{{if eq .Destination "/settings"}}{{json .Source}}{{end}}{{end}},{{json .HostConfig.GroupAdd}}]' "${proxy_running[0]}"
         jq -e --slurpfile actual "$operation_directory/proxy-grants" '
             (.services.proxy | [.user, .command, (.network_mode // ""),
-                (.volumes[] | select(.target == "/settings") | .source)] ) as $expected |
+                (.volumes[] | select(.target == "/settings") | .source), (.group_add // [])] ) as $expected |
             $actual[0][0] == $expected[0] and $actual[0][1] == $expected[1] and
-            ($expected[2] == "" or $actual[0][2] == $expected[2]) and $actual[0][3] == $expected[3]
+            ($expected[2] == "" or $actual[0][2] == $expected[2]) and $actual[0][3] == $expected[3] and
+            ($actual[0][4] // []) == $expected[4]
         ' "$operation_directory/proxy.json" > /dev/null \
             || { refuse 'the running proxy has different fixed grants; leave it unchanged and inspect the deployment.'; exit 2; }
         expected_resolver=$(jq -r '.services.proxy.volumes[] | select(.target == "/etc/resolv.conf") | .source' "$operation_directory/proxy.json")

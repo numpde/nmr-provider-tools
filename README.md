@@ -4,7 +4,7 @@ The code here helps NMR providers talk to the API, deliver results and deploy. E
 
 Get `provider_core` and its lock file from [GitHub Releases](https://github.com/numpde/nmr-provider-tools/releases). The [package docs](packages/provider-core/README.md) explain how to use it.
 
-Shared delivery stores results and retries sending them to the API. Start with the [example config](config/delivery.toml.example) and save the host's copy under `config/deployments/<name>/settings.toml`. Named deployment settings are local and ignored by Git. Providers use their own repository's deployment settings to identify the shared socket grants; they do not read this file.
+Shared delivery stores results and retries sending them to the API. Start with the [example config](config/delivery.toml.example) and save the host's copy under `config/deployments/<name>/settings.toml`. Named deployment settings are local and ignored by Git. Providers use their own repository's deployment settings to identify the shared socket grants; they do not read this file. Keep the settings directory searchable by its group and the file readable by that group (for example, modes `0710` and `0640`). When replacing the file, preserve its group and group-read permission so live reload continues to work.
 
 Prepare the checked-in delivery release in the shared wheelhouse, then start the
 named deployment:
