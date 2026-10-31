@@ -107,7 +107,8 @@ propagation; the owner corrected it in cabc540. The maintained install and up
 then exited successfully on both hosts, and all six components were observed
 healthy on each. No new scientific Job was tested. NMRPeak pushed its guard as
 ec20529 and qualified isolated host and engine probes, but has not deployed
-that source. The earlier gaps are source-level findings, not evidence of a
+that source. Its 478 unit tests passed; the broader repository lane failed nine
+upstream Git fixture tests on dubious ownership, so that lane is not qualified. The earlier gaps are source-level findings, not evidence of a
 current service failure; the contract above does not claim every caller has
 already implemented or qualified it.
 
