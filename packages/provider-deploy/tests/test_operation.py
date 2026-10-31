@@ -10,6 +10,7 @@ import unittest
 from unittest.mock import patch
 
 from provider_deploy.model import Bounds, ProbeFailure, ProbeRequest
+from provider_deploy.journal import Journal
 from provider_deploy.operation import probe_identity
 from provider_deploy.docker import DockerError, PROBE_SCRIPT
 
@@ -71,8 +72,9 @@ class Engine:
         # Recovery identity is durably present BEFORE dispatch.
         journal = self.journal.read_text()
         assert kwargs["token"] in journal and "prepared" in journal
+        assert json.loads(journal.splitlines()[-1])["state"] == "uncertain-outcome"
         if not self.hide_creation:
-            self.container = SimpleNamespace(id=CID, name=kwargs["name"], token=kwargs["token"],
+            self.container = SimpleNamespace(cid=CID, name=kwargs["name"], token=kwargs["token"],
                 owner="identity-v1", image_id=IMAGE, user=f'{kwargs["uid"]}:{kwargs["gid"]}',
                 userns_mode="" if kwargs["userns_mode"] == "default" else "host",
                 entrypoint=("/bin/sh",), command=("-c", PROBE_SCRIPT, kwargs["token"], str(kwargs["lifetime_seconds"])),
@@ -118,7 +120,7 @@ class Engine:
 
 class Guard:
     def __init__(self):
-        self.observations = [Observation(), Observation()]
+        self.observations = [Observation(), Observation(), Observation()]
         self.retired = True
 
     def host_evidence(self):
@@ -240,6 +242,67 @@ class OperationContractTests(unittest.TestCase):
         self.assertEqual("journal", failure.category)
         self.assertEqual("prior evidence", self.path.read_text())
         self.assertNotIn("create", self.engine.events)
+
+    def test_create_not_dispatched_remains_known_not_created(self):
+        self.engine.create_failure = DockerError("engine_changed", "safe", mutation_uncertain=False)
+        self.engine.hide_creation = True
+        failure = self.failure()
+        self.assertEqual("known-not-created", failure.state)
+        self.assertNotIn("candidates", self.engine.events)
+
+    def test_local_client_cleanup_failure_is_preserved(self):
+        self.engine.create_failure = DockerError("timeout", "safe", mutation_uncertain=True)
+        self.engine.create_failure.cleanup_failures = ("client_cleanup",)
+        failure = self.failure()
+        self.assertIn("client_cleanup", failure.cleanup_failures)
+        self.assertEqual("timeout", failure.category)
+
+    def test_policy_domains_are_checked_before_creation(self):
+        for change in ({"requested_uids": [1]}, {"requested_gids": (True,)},
+                       {"user_uid": 4294967295}, {"context": "bad:context"},
+                       {"bounds": Bounds(10, 3601, 2, 30)},
+                       {"bounds": Bounds(10, 1, 2, 3601)}):
+            with self.subTest(change=change):
+                self.request = replace(self.request, **change)
+                failure = self.failure()
+                self.assertEqual("invalid-policy", failure.category)
+                self.assertNotIn("create", self.engine.events)
+                self.request = ProbeRequest("selected", "approved:local", 1000, 2000, "default",
+                    (0, 1000), (0, 2000), self.path, Bounds(10, 1, 2, 30))
+
+    def test_restart_between_observation_and_retirement_invalidates_mapping(self):
+        original = self.engine.inspect
+        count = 0
+        def inspect(cid, **kwargs):
+            nonlocal count
+            count += 1
+            if count == 4:
+                self.engine.container.pid = 999
+                self.engine.container.started_at = "restarted"
+            return original(cid, **kwargs)
+        self.engine.inspect = inspect
+        failure = self.failure()
+        self.assertIn("process-identity", failure.cleanup_failures)
+        self.assertEqual("confirmed-retired", failure.state)
+        self.assertIn("remove", self.engine.events)
+
+    def test_maps_change_at_retirement_invalidates_mapping(self):
+        self.guard.observations[2] = replace(Observation(), uid_map=Map(300000))
+        failure = self.failure()
+        self.assertIn("process-identity", failure.cleanup_failures)
+        self.assertEqual("confirmed-retired", failure.state)
+
+    def test_finished_journal_failure_withholds_mapping_after_retirement(self):
+        original = Journal.append
+        def append(journal, event):
+            if event["event"] == "finished":
+                raise OSError("private path must not escape")
+            return original(journal, event)
+        with patch("provider_deploy.operation.Journal.append", new=append):
+            failure = self.failure()
+        self.assertEqual("confirmed-retired", failure.state)
+        self.assertIn("journal", failure.cleanup_failures)
+        self.assertIsNone(self.engine.container)
 
     def test_original_error_and_cleanup_error_are_both_retained(self):
         self.engine.create_failure = DockerError("timeout", "SECRET ENGINE OUTPUT", mutation_uncertain=True)
