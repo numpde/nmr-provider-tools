@@ -6,6 +6,33 @@ Priorities and active design obligations are recorded in
 rejected runtime, report-ownership or operational compromise into an accepted
 endpoint.
 
+Shared proxy and deployment observations
+----------------------------------------
+
+During the joint deployment, one provider reported two simultaneous Job-list
+failures: one transport I/O failure and one HTTP 503. Subsequent signed,
+read-only discovery requests through the deployed shared proxy succeeded on
+both hosts. The original failures were not attributed; those later successes
+do not establish their cause or rule out recurrence.
+
+The proxy logged frequent forwarding BrokenPipeError events. A bounded live
+trace showed repeated failed writes to client sockets that had already closed.
+Normal client TLS shutdown is a plausible explanation: the client can close
+without waiting for the server's TLS closing handshake. The proxy forwards
+encrypted bytes and cannot establish from these errors whether they were TLS
+close notifications or whether any response was truncated. Its current
+diagnostic does not identify the forwarding direction or correlate a failure
+with a request. Investigate if failures recur or affect service; do not suppress
+all broken pipes or infer a shared-proxy defect from this observation alone.
+
+Startup health, provider Hello and successful discovery reads do not qualify
+the complete Job and result-delivery path. No Job was created for this deployment
+check, so scientific execution and outbox delivery remain unverified end to end.
+
+Management connections can time out during heavy network traffic. After a lost
+connection, check whether the prior build is still active before retrying or
+removing its inputs.
+
 Shared wheelhouse direct publication
 ------------------------------------
 

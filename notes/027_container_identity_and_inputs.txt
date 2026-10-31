@@ -85,8 +85,8 @@ SECS verified provider and worker input reads on the selected rootless engine
 on both hosts without starting services. NMRPeak verified mapping and a local
 rootless deployment preview. The NMRNet owner reports both science engines running six healthy components
 and accepting startup Hello from 7f3178b; repeat install passed on science.
-ProArt selected WLAN wlp10s0, but both lock checks used cache, so this run did
-not demonstrate a dependency download. These scoped observations do not prove
+Both lock checks used cache, so this run did not demonstrate a dependency
+download. These scoped observations do not prove
 a scientific result or end-to-end outbox delivery; startup, health, shared sockets
 and end-to-end operation must be verified on each selected engine.
 
