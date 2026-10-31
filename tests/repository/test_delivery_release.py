@@ -6,12 +6,13 @@ require_container()
 
 import hashlib
 import io
+import json
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from tools import delivery_image
+from tools import core_environment, delivery_image
 
 
 class DeliveryReleaseTests(unittest.TestCase):
@@ -56,3 +57,38 @@ class DeliveryReleaseTests(unittest.TestCase):
                 delivery_image.acquire_release(None, None, self.pool)
         self.assertFalse(self.wheel.exists())
         self.assertEqual([], list(self.pool.iterdir()))
+
+    def test_capture_records_pins_without_copying_wheels(self):
+        selected = {"lock_sha256": hashlib.sha256(b"lock").hexdigest(),
+                    "files": {self.wheel.name: self.digest}}
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary)
+            self.wheel.write_bytes(self.content)
+            inode = self.wheel.stat().st_ino
+            with patch.object(delivery_image, "requirements"), patch.object(
+                delivery_image, "missing_wheels", return_value=[]
+            ), patch.object(delivery_image, "select_wheels", return_value=selected):
+                delivery_image.capture_image_inputs(None, None, self.pool, destination)
+            self.assertEqual(
+                {"provider-core-install.lock", "provider-core-wheel-inputs.json"},
+                {path.name for path in destination.iterdir()},
+            )
+            self.assertEqual(b"lock", (destination / "provider-core-install.lock").read_bytes())
+            self.assertEqual(selected, json.loads((destination / "provider-core-wheel-inputs.json").read_text()))
+            self.assertEqual(inode, self.wheel.stat().st_ino)
+
+    def test_install_uses_pool_directly_and_checks_captured_identities(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "runtime"
+            root.mkdir()
+            lock = Path(temporary) / "provider-core-install.lock"
+            lock.write_bytes(b"lock")
+            selected = {"lock_sha256": hashlib.sha256(b"lock").hexdigest(),
+                        "files": {self.wheel.name: self.digest}}
+            with patch.object(core_environment, "select_wheels", return_value=selected), patch.object(
+                core_environment, "install_locked", return_value=selected
+            ) as install, patch.object(core_environment.subprocess, "run"):
+                core_environment.install_environment(root, lock, self.pool, selected)
+            self.assertEqual(self.pool, install.call_args.args[2])
+            self.assertEqual(b"lock", (root / "provider-core-install.lock").read_bytes())
+            self.assertFalse((root / "wheels").exists())

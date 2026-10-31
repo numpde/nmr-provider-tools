@@ -23,7 +23,7 @@ import tomllib
 from pathlib import Path
 
 from tools.artifacts import fsync_directory, regular_file
-from tools.wheelhouse import capture, digest, requirements, wheel_inputs_from_report
+from tools.wheelhouse import capture, digest, read_json, requirements, select_wheels, wheel_inputs_from_report
 
 
 def pip_command(python):
@@ -97,22 +97,19 @@ def build_candidate(source, runtime_lock, build_lock, pool, output):
     return wheel, lock, identities
 
 
-def install_environment(root, lock, pool):
+def install_environment(root, lock, pool, expected_inputs=None):
     """Create a pip-free runtime from one complete installation lock."""
     python = root / "environment/bin/python"
     subprocess.run([sys.executable, "-I", "-m", "venv", "--without-pip", str(python.parent.parent)], check=True)
-    with tempfile.TemporaryDirectory(prefix="core-install-") as temporary:
-        scratch = Path(temporary)
-        frozen = scratch / "install.lock"
-        shutil.copyfile(lock, frozen)
-        wheels = scratch / "wheels"
-        wheels.mkdir()
-        selected = capture(frozen, pool, wheels)
-        observed = install_locked(python, frozen, wheels, scratch / "install-report.json")
+    selected = select_wheels(lock, pool)
+    if expected_inputs is not None and selected != expected_inputs:
+        raise ValueError("Cannot admit provider-core installation: selected wheel identities differ from the pinned inputs.")
+    with tempfile.NamedTemporaryFile(prefix="core-install-report-", suffix=".json") as report:
+        observed = install_locked(python, lock, pool, Path(report.name))
         if observed != selected:
             raise ValueError("Cannot admit provider-core installation: installed wheel identities differ from captured inputs.")
-        subprocess.run([*pip_command(python), "--no-cache-dir", "check"], check=True)
-        shutil.copyfile(frozen, root / "provider-core-install.lock")
+    subprocess.run([*pip_command(python), "--no-cache-dir", "check"], check=True)
+    shutil.copyfile(lock, root / "provider-core-install.lock")
     return python
 
 
@@ -186,11 +183,13 @@ def main():
     parser.add_argument("--build-lock", type=Path)
     parser.add_argument("--output", type=Path)
     parser.add_argument("--revision")
+    parser.add_argument("--expected-inputs", type=Path)
     args = parser.parse_args()
     if args.action == "install":
         if args.root is None or args.lock is None:
             parser.error("install requires --root and --lock")
-        install_environment(args.root, args.lock, args.pool)
+        expected_inputs = read_json(args.expected_inputs) if args.expected_inputs is not None else None
+        install_environment(args.root, args.lock, args.pool, expected_inputs)
     else:
         if any(value is None for value in (args.source, args.runtime_lock, args.build_lock, args.output, args.revision)):
             parser.error("release requires --source, --runtime-lock, --build-lock, --output and --revision")

@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 
 from tools.artifacts import regular_file, require_download_proxy
-from tools.wheelhouse import capture, digest, publish_file, read_json, requirements
+from tools.wheelhouse import digest, publish_file, read_json, requirements, select_wheels
 
 
 def release_inputs(pin, runtime_lock):
@@ -78,23 +78,21 @@ def acquire_release(pin, runtime_lock, pool):
 
 def capture_image_inputs(pin, runtime_lock, pool, destination):
     release, lock_bytes = release_inputs(pin, runtime_lock)
-    with tempfile.TemporaryDirectory(prefix="delivery-inputs-") as temporary:
-        lock = Path(temporary) / "provider-core-install.lock"
-        lock.write_bytes(lock_bytes)
-        requirements(lock)
-        target = destination / "wheels"
-        target.mkdir()
-        pinned_pool = Path(temporary) / "pool"
-        pinned_pool.mkdir()
-        for name, expected in release_wheels(release).items():
-            if digest(pool / name) != expected:
-                raise ValueError(f"Cannot build delivery: {name} differs from the pinned release.")
-            shutil.copyfile(pool / name, pinned_pool / name)
-        selected = capture(lock, pinned_pool, target)
-        if selected["files"] != release_wheels(release):
-            raise ValueError("Cannot build delivery: selected wheels differ from the pinned release closure.")
-        shutil.copyfile(lock, destination / "provider-core-install.lock")
-        (destination / "provider-core-install.lock").chmod(0o644)
+    lock = destination / "provider-core-install.lock"
+    with lock.open("xb") as target:
+        target.write(lock_bytes)
+    lock.chmod(0o644)
+    requirements(lock)
+    if missing_wheels(release, pool):
+        raise ValueError("Cannot build delivery: the selected wheelhouse is missing pinned release wheels.")
+    selected = select_wheels(lock, pool)
+    if selected["files"] != release_wheels(release):
+        raise ValueError("Cannot build delivery: selected wheels differ from the pinned release closure.")
+    identities = destination / "provider-core-wheel-inputs.json"
+    with identities.open("x", encoding="utf-8") as target:
+        json.dump(selected, target, sort_keys=True)
+        target.write("\n")
+    identities.chmod(0o644)
 
 
 if __name__ == "__main__":

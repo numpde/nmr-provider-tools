@@ -53,11 +53,10 @@ checker_run 120 --pull never --network none --read-only --user "$checker_host_ui
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
     --mount "type=bind,src=$context,dst=/capture" \
     --entrypoint python3 "$build_base_image" -B -m tools.delivery_image capture --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --destination /capture
-for path in "$context"/wheels/*.whl; do
-    [[ -f $path && ! -L $path && ${path##*/} =~ ^[A-Za-z0-9_.+-]+\.whl$ ]] || exit 2
-    checker_input_paths+=("${path#"$context/"}")
+for path in provider-core-install.lock provider-core-wheel-inputs.json; do
+    [[ -f $context/$path && ! -L $context/$path ]] || exit 2
+    checker_input_paths+=("$path")
 done
-checker_input_paths+=(provider-core-install.lock)
 fingerprint=$(root=$context checker_fingerprint)
 # BuildKit cannot resolve a config ID in FROM. Give this operation a private tag
 # for that exact image; the tag and inputs remain if build retirement is uncertain.
@@ -84,7 +83,7 @@ if ! cmp -s "$operation_directory/base-tag" <(printf '%s\n' "$build_base_image")
     operation_diagnostic+=$'Cannot build shared delivery: the operation base tag does not identify the pinned image.\n'; exit 2
 fi
 checker_call 'offline shared delivery image build' 900 stdio "${engine[@]}" build --builder default --platform linux/amd64 \
-    --network none --pull=false --build-arg "BASE_IMAGE=$base_tag" --label "org.nmr-provider-tools.inputs=$fingerprint" --label "org.nmr-provider-tools.recipe=$recipe" --label org.nmr-provider-tools.role=delivery \
+    --network none --pull=false --build-context "wheelhouse=$wheelhouse_directory" --build-arg "BASE_IMAGE=$base_tag" --label "org.nmr-provider-tools.inputs=$fingerprint" --label "org.nmr-provider-tools.recipe=$recipe" --label org.nmr-provider-tools.role=delivery \
     --iidfile "$operation_directory/built-image" --file "$context/containers/delivery/Dockerfile" "$context"
 image=
 if [[ -f $operation_directory/built-image && ! -L $operation_directory/built-image && $(stat -c %s -- "$operation_directory/built-image") -le 72 ]]; then
