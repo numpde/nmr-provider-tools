@@ -1,0 +1,88 @@
+Container identity and deployment inputs
+========================================
+
+Why the same files worked on one Docker engine and failed on another
+-------------------------------------------------------------------
+
+A file has an owner and permissions on the host. A container also runs as a
+numbered user, called a UID. Those numbers do not necessarily refer to the
+same user on both sides of a container boundary. A rootless Docker engine runs
+inside a user namespace and translates container UIDs and GIDs into host UIDs
+and GIDs. A different engine can use a different translation.
+
+For example, suppose a host user's private file is owned by that user and has
+mode 0600. That mode lets only its owner read it. Giving a container the same
+numeric UID does not make it the host owner when the engine translates the UID
+to a different host number. The container gets permission denied. This is why
+selecting a different Docker context can expose a problem even when the image,
+file and numeric container UID look unchanged. GIDs, which control group
+access, are translated too.
+
+What the deployment must do
+--------------------------
+
+Each deployment uses the Docker context explicitly selected for that operation.
+When host access depends on the container identity, its deployment owner starts
+a short-lived probe on that engine and reads the probe's UID/GID maps from the
+host. It uses the mappings for the service's actual container users and groups,
+then removes the probe through its normal operation cleanup. This is a local
+engine workflow; a remote daemon is not supported by these deployment paths.
+
+The observation must be made from the host: a process reading its own map in a
+container sees its parent namespace, which is not necessarily the host. The
+mapping is an engine fact, not another operator setting. Do not hard-code host
+UIDs or assume that all engines use the same mapping.
+
+Apply the result at the owner of each input:
+
+* The shared proxy and outbox reread one operator-owned settings file. They
+  mount its directory read-only, so replacing the file remains visible. Their
+  settings-reader group is mapped for the selected engine and added to those
+  two services when needed. Keep the directory searchable by that group and
+  every replacement file readable by it, for example modes 0710 and 0640. The
+  socket access group remains separate. Settings must not contain provider
+  credentials.
+* Provider inputs that are fixed for a deployment belong to that provider's
+  existing private deployment generation. Where a secret reader requires the
+  file to be owned by its container user and have mode 0400 or 0600, stage a
+  private copy with the selected engine's mapped ownership and required mode.
+  Keep the operator's original credential private. Other bounded read-only
+  inputs may use a narrow mapped access grant when their consumer permits it.
+
+This is not a request for a second configuration file or a new registration
+service. Providers continue to own their inputs; the shared service owns its
+live settings. Source changes move through Git, while settings and credentials
+remain local to their host.
+
+Why not use a single workaround everywhere?
+------------------------------------------
+
+An engine-owned input volume can avoid host ownership arithmetic for a frozen
+snapshot, but adds a volume to initialize, retain and clean up. It does not
+automatically follow edits to the host's live settings file. Docker Compose's
+file-backed secrets are bind mounts, so their requested UID and mode do not
+solve this ownership problem. Environment-backed Compose secrets support those
+fields, but a local test with our read-only service configuration failed before
+startup; making the root filesystem writable just for that would change the
+service boundary. These alternatives may be useful for other deployments, but
+they do not replace the live file and existing deployment ownership here.
+
+Verification and remaining work
+-------------------------------
+
+The shared deployment's host-observed mapping and settings rendering have been
+checked with both rootful and rootless local engines. On the rootless engine,
+both real shared settings readers reread an atomically replaced, group-readable
+test file; the temporary per-file ACL is not needed for that live access.
+Provider owners are implementing and verifying their respective input handling.
+Copied images and volumes alone do not prove a joint deployment works: service
+startup, health, shared sockets and end-to-end operation still need verification
+on the selected engine.
+
+References
+----------
+
+* Docker UID/GID mapping: https://docs.docker.com/engine/security/rootless/uid-gid-mapping/
+* Linux user namespaces: https://man7.org/linux/man-pages/man7/user_namespaces.7.html
+* Docker storage: https://docs.docker.com/engine/storage/
+* Compose secrets: https://docs.docker.com/reference/compose-file/services/#secrets
