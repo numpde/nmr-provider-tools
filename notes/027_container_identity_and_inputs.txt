@@ -28,10 +28,15 @@ host. It uses the mappings for the service's actual container users and groups,
 then removes the probe through its normal operation cleanup. This is a local
 engine workflow; a remote daemon is not supported by these deployment paths.
 
-The observation must be made from the host: a process reading its own map in a
-container sees its parent namespace, which is not necessarily the host. The
-mapping is an engine fact, not another operator setting. Do not hard-code host
-UIDs or assume that all engines use the same mapping.
+The map-reading process must run in the host initial user namespace and have
+host PID and /proc visibility of the selected local engine's live probe.
+Otherwise, fail closed or use an explicit host-side helper. A map is interpreted
+relative to the namespace of the process that opens it, with a same-namespace
+qualification described in user_namespaces(7); reading a container's own map
+does not establish host IDs. Bind the observed maps to the probe identity and
+PID and confirm the exact probe has retired before changing ACLs or ownership.
+The mapping is an engine fact, not another operator setting. Do not hard-code
+host UIDs or assume that all engines use the same mapping.
 
 Apply the result at the owner of each input:
 
