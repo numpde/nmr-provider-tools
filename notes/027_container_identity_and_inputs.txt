@@ -74,10 +74,11 @@ The shared deployment's host-observed mapping and settings rendering have been
 checked with both rootful and rootless local engines. On the rootless engine,
 both real shared settings readers reread an atomically replaced, group-readable
 test file; the temporary per-file ACL is not needed for that live access.
-Provider owners are implementing and verifying their respective input handling.
-Copied images and volumes alone do not prove a joint deployment works: service
-startup, health, shared sockets and end-to-end operation still need verification
-on the selected engine.
+SECS has also verified provider and worker input reads on the selected rootless
+engine on both hosts, without starting services. Other providers are still
+integrating or verifying their input handling. Copied images and volumes alone
+do not prove a joint deployment works: service startup, health, shared sockets
+and end-to-end operation still need verification on the selected engine.
 
 References
 ----------
