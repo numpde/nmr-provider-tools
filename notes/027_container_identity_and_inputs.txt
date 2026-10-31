@@ -94,8 +94,11 @@ A subsequent source review found a qualification gap: Magnet e1e0295 and
 NMRNet 7f3178b do not establish the map reader's initial-user-namespace
 precondition in source. Magnet binds its probe with a token and rereads maps;
 NMRNet's reviewed shell probe also lacks token or PID-stability checks. SECS
-27445c7 checks the host initial map and probe token; NMRPeak checks the exact
-container and PID with host process start time. NMRNet's owner is assessing a
+27445c7 checks identity-looking self maps and a probe token, but those maps
+alone do not prove the caller is in the initial user namespace: a privileged
+nested namespace can have identity mappings. NMRPeak checks the exact container
+and PID with host process start time; its host-namespace precondition also
+needs qualification. NMRNet's owner is assessing a
 fail-closed correction. This is a source-level finding, not evidence of a
 current service failure; the contract above does not claim every caller has
 already implemented or qualified it.
