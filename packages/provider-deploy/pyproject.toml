@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools==84.1.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "provider-deploy"
+version = "0.1.0"
+description = "Bounded host-side NMR provider deployment operations"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+provider-deploy = "provider_deploy.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["provider_deploy", "provider_deploy.*"]
+namespaces = false
+
+[tool.setuptools]
+include-package-data = false
