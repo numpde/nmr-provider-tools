@@ -98,8 +98,9 @@ NMRNet's reviewed shell probe also lacks token or PID-stability checks. SECS
 alone do not prove the caller is in the initial user namespace: a privileged
 nested namespace can have identity mappings. NMRPeak checks the exact container
 and PID with host process start time; its host-namespace precondition also
-needs qualification. NMRNet's owner is assessing a
-fail-closed correction. This is a source-level finding, not evidence of a
+needs qualification. NMRNet has since committed f036ded with a namespace guard
+and probe identity and retirement checks; qualification on localhost and ProArt
+is pending. The earlier gap is a source-level finding, not evidence of a
 current service failure; the contract above does not claim every caller has
 already implemented or qualified it.
 
