@@ -256,8 +256,8 @@ Common configuration practice:
   `config/deployments/<name>/` convention. A provider does not read another
   repository's configuration file, at deployment or at runtime.
 * Keep credentials, private keys and trust files in the owning provider's
-  private secrets location. Public examples contain placeholders; host-specific
-  files are kept private or tracked only after a privacy review.
+  private secrets location. Track placeholder examples; keep host-specific
+  settings out of Git.
 * Keep the proxy and outbox's operational settings in their shared owner's
   file. Each provider records only the project and group needed to borrow the
   sockets in its own existing configuration; the shared SDK derives the volume
