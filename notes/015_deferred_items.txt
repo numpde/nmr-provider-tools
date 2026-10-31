@@ -23,6 +23,9 @@ The delivery image build uses the selected wheelhouse as a read-only named
 BuildKit context. The operation context contains the generated install lock and
 expected filename/hash identities, not copied wheel payloads. The build checks
 those identities against the pin and the actual install report.
+BuildKit can transfer the whole selected wheelhouse into its build cache even
+when the image needs only a few wheels; large shared pools therefore add build
+time and disk use. This remains a limitation of the direct-context approach.
 
 Native operation-deadline fixture startup timing
 ----------------------------------------------
