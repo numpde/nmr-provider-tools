@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from unittest.mock import patch
 
@@ -26,7 +27,7 @@ class MapTests(unittest.TestCase):
 
     def test_invalid_rows_and_overlap_in_either_domain_fail_closed(self):
         values = [b"", b"0 0 0\n", b"0 0 -1\n", b"+0 0 1\n", b"00 0 1\n",
-                  b"0 0 1\n\n", b"0 0 1 extra\n", b"0 4294967294 2\n",
+                  b"0 0 1\n\n", b"0 0 1 extra\n", b"0\v0 1\n", b"0 0 1\r\n", b"0 4294967294 2\n",
                   b"4294967295 0 1\n", b"0 0 4294967296\n",
                   b"0 10 2\n1 20 2\n", b"0 10 2\n2 11 2\n", b"\xff\n"]
         for raw in values:
@@ -83,6 +84,12 @@ class HostGuardTests(unittest.TestCase):
             with self.assertRaises(LinuxError):
                 LinuxGuard().host_evidence()
 
+    def test_initial_inode_requires_genuine_nsfs(self):
+        with patch("provider_deploy.linux._filesystem_type", side_effect=[0x9FA0, 0x1234]):
+            with self.assertRaises(LinuxError) as caught:
+                LinuxGuard().host_evidence()
+        self.assertEqual("host-precondition", caught.exception.category)
+
     def test_wrong_proc_self_visibility_rejected(self):
         with patch("provider_deploy.linux.os.readlink", return_value="999999999"):
             with self.assertRaises(LinuxError):
@@ -94,7 +101,9 @@ class RealProcTests(unittest.TestCase):
         self.token = "owned-probe-token-123456789"
         self.process = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(20)", self.token])
         self.guard = LinuxGuard()
-        self.host = HostEvidence(4026531837, 4026531836, 0, 0, os.getpid(), 0)
+        proc = Path("/proc").stat()
+        self.host = HostEvidence(4026531837, 4026531836, proc.st_dev, proc.st_ino,
+                                 os.getpid(), threading.get_native_id())
         # Container CI lacks the required initial namespaces. This fixture mocks
         # only the guard; all process/map reads below use the genuine /proc.
         self.guard_patch = patch.object(self.guard, "host_evidence", return_value=self.host)
@@ -145,6 +154,38 @@ class RealProcTests(unittest.TestCase):
         with patch("provider_deploy.linux._read_at", side_effect=changing):
             with self.assertRaises(LinuxError):
                 self.guard.observe(self.process.pid, self.token)
+
+    def test_unreadable_retirement_is_not_absence(self):
+        observed = self.guard.observe(self.process.pid, self.token)
+        with patch("provider_deploy.linux._read_at", side_effect=PermissionError("denied")):
+            with self.assertRaises(LinuxError):
+                self.guard.process_retired(observed)
+
+    def test_pid_starttime_change_during_observation_rejected(self):
+        from provider_deploy import linux
+        original = linux._parse_stat
+        reads = 0
+        def changing(raw, pid):
+            nonlocal reads
+            reads += 1
+            state, starttime = original(raw, pid)
+            return state, starttime + (1 if reads == 2 else 0)
+        with patch("provider_deploy.linux._parse_stat", side_effect=changing):
+            with self.assertRaises(LinuxError):
+                self.guard.observe(self.process.pid, self.token)
+
+    def test_inode_change_alone_does_not_prove_retirement(self):
+        observed = self.guard.observe(self.process.pid, self.token)
+        other_inode = ProcessObservation(observed.pid, observed.starttime, observed.proc_device,
+                                         observed.proc_inode + 1, observed.uid_map, observed.gid_map)
+        with self.assertRaises(LinuxError):
+            self.guard.process_retired(other_inode)
+
+    def test_retirement_rechecks_host_namespace(self):
+        observed = self.guard.observe(self.process.pid, self.token)
+        with patch.object(self.guard, "host_evidence", side_effect=[self.host, LinuxError("host-precondition", "changed")]):
+            with self.assertRaises(LinuxError):
+                self.guard.process_retired(observed)
 
     def test_zombie_process_is_retired_and_cannot_be_observed(self):
         observed = self.guard.observe(self.process.pid, self.token)
