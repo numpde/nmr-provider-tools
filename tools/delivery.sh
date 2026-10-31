@@ -33,6 +33,19 @@ helper() {
         --env PROVIDER_CORE_IN_CONTAINER=1 "${grants[@]}" \
         --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B "$@"
 }
+grant_helper_input() {
+    local security mapped subuid_start subuid_count
+    checker_metadata "$operation_directory/engine-security" info --format '{{json .SecurityOptions}}'
+    security=$(<"$operation_directory/engine-security")
+    if jq -e 'any(.[]; . == "name=rootless")' <<< "$security" > /dev/null; then
+        IFS=: read -r _ subuid_start subuid_count < <(awk -F: -v user="$(id -un)" -v uid="$uid" '$1 == user || $1 == uid {print; exit}' /etc/subuid) \
+            || { refuse 'cannot determine the rootless helper user mapping.'; return 2; }
+        [[ $subuid_start =~ ^[0-9]+$ && $subuid_count =~ ^[0-9]+$ && $uid -gt 0 && $uid -le $subuid_count ]] \
+            || { refuse 'cannot determine the rootless helper user mapping.'; return 2; }
+        mapped=$((subuid_start + uid - 1))
+        setfacl -m "u:$mapped:r--" -- "$1"
+    fi
+}
 project_containers() {
     checker_metadata "$operation_directory/project-containers" ps --all --quiet --no-trunc --filter "label=com.docker.compose.project=$project"
     identifiers=()
@@ -113,6 +126,7 @@ select_shared_definition() {
     [[ -f $definition && $(stat -c %s -- "$definition") -le 65536 ]] \
         || { refuse 'the shared settings must be a regular file of at most 65536 bytes.'; exit 2; }
     checker_call 'capture shared settings for rendering' 30 stdio head -c 65537 -- "$definition" > "$operation_directory/shared.toml"
+    grant_helper_input "$operation_directory/shared.toml"
     grants=(--mount "type=bind,src=$operation_directory/shared.toml,dst=/input/shared.toml,readonly")
     helper /opt/provider-tools/delivery_deployment.py render-shared --definition /input/shared.toml --source "$definition" --image "$image" > "$operation_directory/shared.json"
     jq '.proxy' "$operation_directory/shared.json" > "$operation_directory/proxy.json"
