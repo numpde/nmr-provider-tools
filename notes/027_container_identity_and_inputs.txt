@@ -105,7 +105,10 @@ and successful non-root initial-namespace and exact probe mapping/retirement
 checks on localhost and ProArt. A first full install exposed missing mapped-ID
 propagation; the owner corrected it in cabc540. The maintained install and up
 then exited successfully on both hosts, and all six components were observed
-healthy on each. No new scientific Job was tested. NMRPeak pushed its guard as
+healthy on each. The owner reports the launcher suite at 40/42: two recording-
+engine lifetime-lock fixtures bypass runtime preparation. The broader deployment
+lane has 14 missing-settings-parent fixture failures. These failures are not
+covered by the host startup result. No new scientific Job was tested. NMRPeak pushed its guard as
 ec20529 and qualified isolated host and engine probes, but has not deployed
 that source. Its 478 unit tests passed; the broader repository lane failed nine
 upstream Git fixture tests on dubious ownership, so that lane is not qualified. The earlier gaps are source-level findings, not evidence of a
