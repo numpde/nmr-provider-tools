@@ -4,6 +4,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
@@ -57,6 +58,18 @@ class CliTests(unittest.TestCase):
         self.assertEqual("uncertain-outcome", payload["state"])
         self.assertEqual("abc", payload["operation_token"])
         self.assertLess(len(out.getvalue()), 1024)
+
+    def test_sighup_requests_cancellation_and_restores_previous_handler(self):
+        previous = signal.getsignal(signal.SIGHUP)
+        def operation(request, *, cancel):
+            signal.raise_signal(signal.SIGHUP)
+            self.assertTrue(cancel.is_set())
+            raise ProbeFailure(category="cancelled", message="cancelled", state="confirmed-retired",
+                token="abc", container_id=None, journal_path=str(request.journal_path), cleanup_failures=())
+        with patch("provider_deploy.cli.probe_identity", side_effect=operation):
+            with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                self.assertEqual(130, main(self.arguments(Path("/private/record"))))
+        self.assertEqual(previous, signal.getsignal(signal.SIGHUP))
 
     def test_module_entrypoint_help_is_real(self):
         result = subprocess.run([sys.executable, "-m", "provider_deploy", "identity", "--help"],

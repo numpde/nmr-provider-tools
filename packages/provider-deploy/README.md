@@ -59,7 +59,7 @@ else:
 
 An optional `threading.Event` passed as `cancel=` cooperatively cancels the
 operation; cancellation enters its independent cleanup budget. The CLI converts
-SIGINT and SIGTERM to this cancellation request. Forced termination, interpreter
+SIGINT, SIGTERM and SIGHUP to this cancellation request. Forced termination, interpreter
 failure, host loss, filesystem stalls, or an unreachable engine cannot guarantee
 cleanup. The durable journal and finite process lifetime cover recovery evidence,
 not guaranteed container deletion. The operation does not silently retry any

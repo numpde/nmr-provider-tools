@@ -51,7 +51,7 @@ def main(argv: list[str] | None = None) -> int:
         cancellation = threading.Event()
         def request_cancellation(_number, _frame):
             cancellation.set()
-        for number in (signal.SIGINT, signal.SIGTERM):
+        for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             handlers[number] = signal.signal(number, request_cancellation)
         request = ProbeRequest(options.context, options.image, options.user_uid, options.user_gid,
             options.userns, tuple(options.map_uid), tuple(options.map_gid), options.journal,
