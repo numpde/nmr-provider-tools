@@ -79,6 +79,21 @@ checker_run() {
     checker_call 'checker container attachment' "$budget" stdio "${engine[@]}" start --attach "$operation_container"
 }
 
+# Find the container identity that writes as the calling host user. The probe
+# uses the same selected engine as the worker and carries no host mounts.
+checker_host_identity() {
+    local image=$1 python=$2 host_uid=$3 host_gid=$4 pid running
+    checker_create --pull never --network none --read-only --user 0:0 --cap-drop ALL \
+        --security-opt no-new-privileges:true --cpus 1 --memory 64m --memory-swap 64m --pids-limit 16 \
+        --entrypoint "$python" "$image" -I -B -c 'import time; time.sleep(30)'
+    checker_metadata "$operation_directory/identity-start" start "$operation_container"
+    checker_metadata "$operation_directory/identity-pid" inspect --format '{{.State.Pid}} {{.State.Running}}' "$operation_container"
+    read -r pid running < "$operation_directory/identity-pid"
+    [[ $pid =~ ^[1-9][0-9]*$ && $running == true ]] || return 2
+    checker_host_uid=$(awk -v id="$host_uid" '$2 <= id && id < $2 + $3 {printf "%.0f\n", $1 + id - $2; found=1; exit} END {if (!found) exit 1}' "/proc/$pid/uid_map") || return 2
+    checker_host_gid=$(awk -v id="$host_gid" '$2 <= id && id < $2 + $3 {printf "%.0f\n", $1 + id - $2; found=1; exit} END {if (!found) exit 1}' "/proc/$pid/gid_map") || return 2
+}
+
 checker_teardown() {
     # Repeated caller signals cannot interrupt this bounded retirement attempt.
     # A failed/expired client is not proof of daemon retirement.

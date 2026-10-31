@@ -101,14 +101,10 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual(identity["files"], {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in destination.iterdir()})
         self.assertEqual([], list(self.pool.glob(".provider-core-download-*")))
 
-    def test_conflicting_cached_bytes_are_preserved_and_private_staging_is_cleaned(self):
+    def test_conflicting_cached_bytes_are_replaced_by_pip(self):
         cached = self.pool / self.cached.name
         cached.write_bytes(b"conflicting cached bytes")
-        inode = cached.stat().st_ino
         _requests, run = self.local_index()
         with patch.object(wheelhouse, "require_download_proxy"), patch.object(wheelhouse.subprocess, "run", side_effect=run):
-            with self.assertRaises(FileExistsError):
-                wheelhouse.populate_pool(self.lock, self.pool)
-        self.assertEqual(b"conflicting cached bytes", cached.read_bytes())
-        self.assertEqual(inode, cached.stat().st_ino)
-        self.assertEqual([], list(self.pool.glob(".provider-core-download-*")))
+            wheelhouse.populate_pool(self.lock, self.pool)
+        self.assertEqual(self.cached.read_bytes(), cached.read_bytes())

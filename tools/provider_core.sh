@@ -30,9 +30,18 @@ if [[ $action == download ]]; then
     if ! "$printing"; then mkdir -p -- "$wheelhouse_directory"; fi
     network=(bash "$root/tools/docker.sh")
     if "$printing"; then network+=(--print); fi
-    exec "${network[@]}" run "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
+    if ! "$printing"; then
+        source "$root/tools/checker_operation.sh"
+        checker_begin
+        checker_host_identity "$base_image" python3 "$uid" "$gid" || {
+            printf '%s\n' 'Cannot map the wheelhouse owner into the selected engine.' >&2; exit 2;
+        }
+        worker[4]="$checker_host_uid:$checker_host_gid"
+    fi
+    "${network[@]}" run "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
         --entrypoint python3 "$base_image" -B -m tools.wheelhouse download --pool /wheelhouse \
         --lock /core-runtime.lock --lock /core-build.lock
+    exit
 fi
 require_wheelhouse_pool
 case "$action" in
@@ -106,12 +115,18 @@ if "$printing"; then
     exit
 fi
 checker_begin
+if [[ $action == build || $action == package ]]; then
+    checker_host_identity "$base_image" python3 "$uid" "$gid" || {
+        printf '%s\n' 'Cannot map the artifact owner into the selected engine.' >&2; exit 2;
+    }
+    if [[ $action == package ]]; then arguments[4]="$checker_host_uid:$checker_host_gid"; fi
+fi
 if [[ $action == build ]]; then
     mkdir -- "$operation_directory/source"
     checker_call 'committed core source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
         --output="$operation_directory/source.tar" "$revision" packages/provider-core requirements tools
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
-    arguments=(--pull never --network none --read-only --user "$uid:$gid" --cap-drop ALL --security-opt no-new-privileges:true
+    arguments=(--pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL --security-opt no-new-privileges:true
         --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m
         --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
         --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace

@@ -28,8 +28,17 @@ if [[ $action == download || $action == prepare ]]; then
 else
     require_wheelhouse_pool
 fi
+source "$root/tools/checker_operation.sh"
+checker_begin
+worker_uid=$uid worker_gid=$gid
+if [[ $action != check ]]; then
+    checker_host_identity "$base_image" python3 "$uid" "$gid" || {
+        printf '%s\n' 'Cannot map the wheelhouse owner into the selected engine.' >&2; exit 2;
+    }
+    worker_uid=$checker_host_uid worker_gid=$checker_host_gid
+fi
 
-worker=(--pull never --read-only --user "$uid:$gid" --cap-drop ALL --security-opt no-new-privileges:true
+worker=(--pull never --read-only --user "$worker_uid:$worker_gid" --cap-drop ALL --security-opt no-new-privileges:true
     --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --workdir /workspace
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace
@@ -53,9 +62,7 @@ if [[ $action == download || $action == prepare ]]; then
     if [[ $action == download ]]; then exit; fi
 fi
 
-source "$root/tools/checker_operation.sh"
 source "$root/tools/checker_inputs.sh"
-checker_begin
 if [[ $action == check ]]; then
     checker_run 60 --network none "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
         --entrypoint python3 "$base_image" -B -m tools.checker_dependencies check \
@@ -76,7 +83,7 @@ if [[ $captured != "$expected" ]]; then
 fi
 build_base_image=$(bash -eu -c 'source "$1"; printf "%s" "$base_image"' bash "$context/tools/base_image.sh")
 # All build-mounted tools and declarations now come from the captured context.
-checker_run 60 --pull never --network none --read-only --user "$uid:$gid" --cap-drop ALL --security-opt no-new-privileges:true \
+checker_run 60 --pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL --security-opt no-new-privileges:true \
     --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m \
     --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
     --mount "type=bind,src=$context/tools,dst=/workspace/tools,readonly" \

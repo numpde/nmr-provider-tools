@@ -128,20 +128,18 @@ def download(packages, pool):
         if destination.exists() or destination.is_symlink():
             verify(package, destination)
             continue
-        stage = Path(tempfile.mkdtemp(prefix=".checker-download-", dir=pool))
-        print(f"Downloading {package['file']} in {stage}; failed staging is retained.", flush=True)
-        target_path = stage / package["file"]
+        print(f"Downloading {package['file']} into the shared wheelhouse.", flush=True)
         opener = urllib.request.build_opener(HttpsRedirects())
-        with opener.open(package["url"], timeout=60) as response, target_path.open("xb") as target:
-            remaining = package["size"] + 1
-            while remaining and (chunk := response.read(min(remaining, 1024 * 1024))):
-                target.write(chunk)
-                remaining -= len(chunk)
+        with tempfile.NamedTemporaryFile(prefix=".checker-download-", suffix=".part", dir=pool) as target:
+            with opener.open(package["url"], timeout=60) as response:
+                remaining = package["size"] + 1
+                while remaining and (chunk := response.read(min(remaining, 1024 * 1024))):
+                    target.write(chunk)
+                    remaining -= len(chunk)
             target.flush()
             os.fchmod(target.fileno(), 0o644)
             os.fsync(target.fileno())
-        publish(package, target_path, destination)
-        shutil.rmtree(stage)
+            publish(package, Path(target.name), destination)
         fsync_directory(pool)
 
 

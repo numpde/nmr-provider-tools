@@ -13,9 +13,14 @@ uid=$(id -u) gid=$(id -g)
 [[ $uid != 0 && $gid != 0 && ! $root =~ [[:cntrl:],] ]] || {
     printf '%s\n' 'Cannot prepare shared delivery: use a nonzero caller and a mountable repository path.' >&2; exit 2
 }
+source "$root/tools/checker_operation.sh"
+checker_begin
+checker_host_identity "$base_image" python3 "$uid" "$gid" || {
+    printf '%s\n' 'Cannot map the wheelhouse owner into the selected engine.' >&2; exit 2;
+}
 cache=$(bash "$root/tools/delivery_cache_check.sh" "$wheelhouse_directory")
 if [[ $cache == missing ]]; then
-    bash "$root/tools/docker.sh" run --pull never --read-only --user "$uid:$gid" --cap-drop ALL \
+    bash "$root/tools/docker.sh" run --pull never --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL \
     --security-opt no-new-privileges:true --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /workspace \
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \

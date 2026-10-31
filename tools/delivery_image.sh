@@ -19,6 +19,9 @@ source "$root/tools/checker_inputs.sh"
 source "$root/tools/delivery_identity.sh"
 recipe=$(delivery_recipe_identity)
 checker_begin
+checker_host_identity "$base_image" python3 "$uid" "$gid" || {
+    printf '%s\n' 'Cannot map the wheelhouse owner into the selected engine.' >&2; exit 2;
+}
 checker_input_paths=("${inputs[@]}")
 expected=$(checker_fingerprint)
 [[ $recipe == "$expected" ]] || { printf '%s\n' 'Delivery recipe changed before capture; retry.' >&2; exit 2; }
@@ -32,16 +35,16 @@ if [[ $captured != "$expected" ]]; then
     operation_diagnostic+=$'Cannot build shared delivery: construction sources changed during capture; retry after edits finish.\n'
     exit 2
 fi
-build_base_image=$(bash -eu -c 'source "$1"; printf "%s" "$base_image_config"' bash "$context/tools/base_image.sh")
-if checker_metadata "$operation_directory/base-image" image inspect --format '{{.Id}}' "$build_base_image"; then :; else
+base_image_reference=$(bash -eu -c 'source "$1"; printf "%s" "$base_image"' bash "$context/tools/base_image.sh")
+if checker_metadata "$operation_directory/base-image" image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$base_image_reference"; then :; else
     base_status=$?
     operation_diagnostic+=$'Cannot inspect the pinned Linux/amd64 base image; verify Docker and acquire the base before building shared delivery.\n'
     exit "$base_status"
 fi
-if ! cmp -s "$operation_directory/base-image" <(printf '%s\n' "$build_base_image"); then
-    operation_diagnostic+=$'Cannot build shared delivery: the pinned Linux/amd64 base image is not available locally.\n'; exit 2
-fi
-checker_run 120 --pull never --network none --read-only --user "$uid:$gid" --cap-drop ALL --security-opt no-new-privileges:true \
+read -r build_base_image base_platform < "$operation_directory/base-image"
+[[ $build_base_image =~ ^sha256:[0-9a-f]{64}$ && $base_platform == linux/amd64 ]] \
+    || { operation_diagnostic+=$'Cannot build shared delivery: the pinned base is not a Linux/amd64 image.\n'; exit 2; }
+checker_run 120 --pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL --security-opt no-new-privileges:true \
     --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m \
     --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
     --mount "type=bind,src=$context/tools,dst=/workspace/tools,readonly" \

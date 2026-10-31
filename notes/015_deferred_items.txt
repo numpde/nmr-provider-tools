@@ -6,6 +6,25 @@ Priorities and active design obligations are recorded in
 rejected runtime, report-ownership or operational compromise into an accepted
 endpoint.
 
+Shared wheelhouse direct publication
+------------------------------------
+
+The shared wheelhouse is the package cache. Acquisition reuses suitable cached
+artifacts and downloads missing artifacts directly into that pool without a
+separate pip cache or repository-managed staging directory. Pip verifies the
+locked hashes, but its direct destination handling can replace a same-named
+file whose bytes do not match the current lock, and its final file copy is not
+atomic for concurrent readers. A failed acquisition can leave a partial file.
+Do not treat a filename alone as proof of the expected bytes. These limitations
+are accepted for the current controlled-host deployment; revisit publication
+if a real conflict or concurrent read makes it necessary.
+
+The current shared delivery image build still captures selected wheels in its
+operation-owned build context. That is temporary build input, not a second
+wheelhouse, and can remain after an uncertain build. Replacing this capture
+with direct access to the selected wheelhouse is deferred; the current build
+does not yet meet the desired no-staging end state.
+
 Native operation-deadline fixture startup timing
 ----------------------------------------------
 

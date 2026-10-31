@@ -67,13 +67,13 @@ def acquire_release(pin, runtime_lock, pool):
             if len(candidates) != 1 or urllib.parse.urlsplit(candidates[0]).hostname != "files.pythonhosted.org":
                 raise ValueError(f"Cannot acquire {name}: the pinned wheel is absent from its published index.")
             url = candidates[0]
-        with tempfile.TemporaryDirectory(prefix=".delivery-download-", dir=pool) as temporary:
-            staged = Path(temporary) / name
-            with urllib.request.urlopen(url, timeout=60) as source, staged.open("xb") as destination:
+        with tempfile.NamedTemporaryFile(prefix=".delivery-download-", suffix=".part", dir=pool) as destination:
+            with urllib.request.urlopen(url, timeout=60) as source:
                 shutil.copyfileobj(source, destination)
-            if digest(staged) != expected:
+            destination.flush()
+            if digest(Path(destination.name)) != expected:
                 raise ValueError(f"Cannot acquire {name}: downloaded bytes do not match the pinned release.")
-            publish_file(staged, pool / name, expected)
+            publish_file(Path(destination.name), pool / name, expected)
 
 
 def capture_image_inputs(pin, runtime_lock, pool, destination):
