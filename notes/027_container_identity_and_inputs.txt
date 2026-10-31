@@ -99,8 +99,11 @@ alone do not prove the caller is in the initial user namespace: a privileged
 nested namespace can have identity mappings. NMRPeak checks the exact container
 and PID with host process start time; its host-namespace precondition also
 needs qualification. NMRNet has since committed f036ded with a namespace guard
-and probe identity and retirement checks; qualification on localhost and ProArt
-is pending. The earlier gap is a source-level finding, not evidence of a
+and probe identity and retirement checks; 01bd9a4 adds exited-probe handling.
+Its owner reports eight focused tests passing, rejection in a nested sandbox,
+and successful non-root initial-namespace and exact probe mapping/retirement
+checks on localhost and ProArt. Those checks qualify the probe primitives, not
+a complete install or a new scientific Job. The earlier gap is a source-level finding, not evidence of a
 current service failure; the contract above does not claim every caller has
 already implemented or qualified it.
 
