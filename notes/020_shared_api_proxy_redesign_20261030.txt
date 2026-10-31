@@ -276,6 +276,13 @@ uses settings in its own repository, not this shared-services file, and obtains
 the socket grant projection from the shared SDK. The operator aligns the shared
 project and access group across those deployment settings. Use existing operator paths and deployment
 inputs; do not add a second configuration model or host-specific public values.
+The selected local engine determines the container group that can read the
+host settings group. Grant it only to the proxy and outbox, independently of
+their socket group. The settings directory must remain group-searchable and
+each replacement file group-readable; preserve its group and read permission
+when editing so atomic replacement remains visible to both readers. Resolve
+the mapping from a short-lived container on the selected local engine as seen
+by the host, not from a container's potentially parent-relative self map.
 
 The proxy periodically reloads max_connections, max_admission_delay_seconds,
 admission_order, log_level and allowed_authorities. The admission delay is zero through 50% of
@@ -338,8 +345,8 @@ Illustrative shape, not an implementation or private host configuration:
 The host deployment also supplies its fixed proxy network and both socket grants
 through this same input. The UID is the installing user's UID; proxy_uid must be a
 different nonroot UID and gid is the shared socket group. The dedicated settings
-directory and replacement file must be readable by that group so the distinct
-proxy UID can start and reload. Values above are examples, not host settings.
+directory and replacement file use the host settings group described above.
+Values above are examples, not host settings.
 For project P, the maintained deployment owns the P-proxy-socket and
 P-outbox-socket volumes; clients borrow their proxy.sock and http.sock leaves,
 respectively. The proxy runs as a separate Compose project and its socket volume
