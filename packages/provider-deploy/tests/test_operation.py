@@ -292,6 +292,19 @@ class OperationContractTests(unittest.TestCase):
         self.assertIn("process-identity", failure.cleanup_failures)
         self.assertEqual("confirmed-retired", failure.state)
 
+    def test_cancellation_during_retirement_withholds_mapping_but_finishes_cleanup(self):
+        event = threading.Event()
+        original = self.engine.remove
+        def remove(cid, **kwargs):
+            event.set()
+            return original(cid, **kwargs)
+        self.engine.remove = remove
+        failure = self.failure(event)
+        self.assertEqual("cancelled", failure.category)
+        self.assertEqual("confirmed-retired", failure.state)
+        self.assertIsNone(self.engine.container)
+        self.assertEqual("cancelled", json.loads(self.path.read_text().splitlines()[-1])["failure"])
+
     def test_finished_journal_failure_withholds_mapping_after_retirement(self):
         original = Journal.append
         def append(journal, event):

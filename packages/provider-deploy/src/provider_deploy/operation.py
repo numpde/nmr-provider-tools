@@ -210,6 +210,17 @@ def probe_identity(request: ProbeRequest, *, cancel: threading.Event | None = No
                 token=token, name=name, image_id=image_id, cid=cid, observation=observation, live_identity=live_identity)
         if failure is not None:
             cleanup_failures = tuple(getattr(failure, "cleanup_failures", ())) + cleanup_failures
+        if engine is not None:
+            try:
+                engine.close()
+            except BaseException as error:
+                cleanup_failures += ("client-retirement",)
+                if failure is None:
+                    failure = error
+        # Cancellation never interrupts cleanup, but still invalidates delivery
+        # of a success mapping when it arrives during retirement.
+        if failure is None and cancel is not None and cancel.is_set():
+            failure = StepError("cancelled", "operation was cancelled during retirement")
         if journal is not None:
             try:
                 journal.append({"event": "finished", "state": state, "container_id": cid,
@@ -224,13 +235,6 @@ def probe_identity(request: ProbeRequest, *, cancel: threading.Event | None = No
                     journal.close()
                 except OSError:
                     cleanup_failures += ("journal-close",)
-        if engine is not None:
-            try:
-                engine.close()
-            except BaseException as error:
-                cleanup_failures += ("client-retirement",)
-                if failure is None:
-                    failure = error
     if failure is not None or cleanup_failures or state != "confirmed-retired":
         category = _category(failure) if failure is not None else "retirement"
         raise ProbeFailure(category=category, message=f"identity probe failed ({category}); no mapping was released",
