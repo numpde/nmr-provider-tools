@@ -9,7 +9,7 @@ import unittest
 import venv
 
 from helpers import IMAGE, request
-from provider_deploy.spec import PROBE_SCRIPT, ProbeSpec
+from linux_idmap.addons.spec import PROBE_SCRIPT, ProbeSpec
 
 
 class PythonRuntimeTests(unittest.TestCase):

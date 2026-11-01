@@ -13,7 +13,7 @@ import subprocess
 import sys
 import time
 
-STATE = Path(os.environ["PROVIDER_DEPLOY_TEST_STATE"])
+STATE = Path(os.environ["LINUX_IDMAP_TEST_STATE"])
 CID = "c" * 64
 IMAGE = "sha256:" + "a" * 64
 
@@ -51,8 +51,8 @@ elif args[:2] == ["container", "create"]:
     image_index = args.index(IMAGE)
     state["container"] = {
         "cid": CID, "name": "/" + option(args, "--name"), "image_id": IMAGE,
-        "token": labels["org.nmr.provider-deploy.token"],
-        "owner": labels["org.nmr.provider-deploy.operation"], "pid": 0,
+        "token": labels["linux-idmap.token"],
+        "owner": labels["linux-idmap.operation"], "pid": 0,
         "running": False, "started_at": "",
         "user": option(args, "--user"),
         # silent-defaults: allow-contract -- The model encodes explicit host namespace selection as Docker does; otherwise inspect returns the default empty string.
@@ -92,7 +92,7 @@ elif args[:2] == ["container", "ls"]:
     container = state.get("container")
     selector = option(args, "--filter", "")
     if container and not state.get("hide_container"):
-        if selector == "id=" + CID or selector == "label=org.nmr.provider-deploy.token=" + container["token"]:
+        if selector == "id=" + CID or selector == "label=linux-idmap.token=" + container["token"]:
             result = CID
 elif args[:2] == ["container", "inspect"]:
     container = state.get("container")

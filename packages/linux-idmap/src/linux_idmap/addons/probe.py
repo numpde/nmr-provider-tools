@@ -6,8 +6,10 @@ import threading
 import time
 
 from .docker import Container, DockerEngine, DockerError
-from .linux import IdMap, LinuxError, LinuxGuard, ProcessIdentity, ProcessObservation
-from .model import Problem, ProbeFailure, ProbeHandle, ProbeRequest, ResourceState, Retirement, StepError
+from ..maps import IdMap, IdentityError
+from ..process import ProcessIdentity, ProcessMaps
+from ._process import ProbeProcesses
+from .model import Bounds, Problem, ProbeFailure, ProbeHandle, ProbeRequest, ResourceState, Retirement, StepError
 from .spec import ProbeSpec
 
 
@@ -47,7 +49,7 @@ class _Budget:
 def _problem(stage: str, error: BaseException) -> Problem:
     if isinstance(error, (KeyboardInterrupt, SystemExit)):
         return Problem(stage, "cancelled", "operation was interrupted")
-    if isinstance(error, (DockerError, LinuxError, StepError)):
+    if isinstance(error, (DockerError, IdentityError, StepError)):
         return Problem(stage, error.category, str(error))
     if isinstance(error, OSError):
         return Problem(stage, "local-io", "local operation failed; inspect the probe handle")
@@ -69,14 +71,14 @@ def _running_identity(container: Container) -> tuple[str, int, str]:
 class _Probe:
     """The sole owner of an operation's resource and its retirement protocol."""
 
-    def __init__(self, engine: DockerEngine, guard: LinuxGuard, spec: ProbeSpec):
+    def __init__(self, engine: DockerEngine, guard: ProbeProcesses, spec: ProbeSpec):
         self.engine = engine
         self.guard = guard
         self.spec = spec
         self.may_exist = False
         self.stage = "create"
         self.cid: str | None = None
-        self.observation: ProcessObservation | None = None
+        self.observation: ProcessMaps | None = None
         self.running_identity: tuple[str, int, str] | None = None
         self.processes: list[ProcessIdentity] = []
         self.unobserved_pids: list[int] = []
@@ -153,7 +155,7 @@ class _Probe:
                 try:
                     if not self.observation_is_current(container):
                         raise StepError("process-identity", "probe process or maps changed before retirement")
-                except (LinuxError, StepError, OSError) as error:
+                except (IdentityError, StepError, OSError) as error:
                     self.retirement_cause = error
                     invalid_observation = _problem("observe", error)
             # A reported PID remains a cleanup obligation even when the engine
@@ -162,7 +164,7 @@ class _Probe:
                     and (self.observation is None or invalid_observation is not None)):
                 try:
                     current = self.guard.identify(container.pid, self.spec.token)
-                except (LinuxError, OSError) as error:
+                except (IdentityError, OSError) as error:
                     if self.retirement_cause is None:
                         self.retirement_cause = error
                     problems.append(_problem("observe", error))
@@ -211,7 +213,7 @@ def probe_identity(request: ProbeRequest, *, cancel: threading.Event | None = No
         budget = _Budget(request.bounds.operation_seconds, request.bounds.command_seconds, cancel)
         budget.remaining()
         stage = "host"
-        guard = LinuxGuard()
+        guard = ProbeProcesses()
         host = guard.host_evidence()
         stage = "engine"
         engine = DockerEngine.connect(request.endpoint, executable=executable, **budget.arguments())

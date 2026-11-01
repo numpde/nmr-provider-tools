@@ -312,7 +312,7 @@ class DockerEngine:
         socket_path = endpoint[7:]
         device, inode = _socket_identity(socket_path)
         environment = _clean_environment(os.environ)
-        directory = tempfile.TemporaryDirectory(prefix="provider-deploy-client-")
+        directory = tempfile.TemporaryDirectory(prefix="linux-idmap-client-")
         try:
             argv = [executable, "--config", directory.name, "--host", endpoint, "info", "--format", INFO_FORMAT]
             fingerprint = _fingerprint(_run_command(argv, env=environment, timeout=_remaining(deadline), cancel=cancel))

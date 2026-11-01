@@ -3,19 +3,19 @@ requires = ["setuptools==84.1.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "provider-deploy"
-version = "0.2.0a1"
-description = "Bounded host-side NMR provider deployment operations"
+name = "linux-idmap"
+version = "0.3.0a1"
+description = "Host-relative Linux process maps with explicit Docker probe add-ons"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
-provider-deploy = "provider_deploy.cli:main"
+linux-idmap-probe = "linux_idmap.addons.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["provider_deploy", "provider_deploy.*"]
+include = ["linux_idmap", "linux_idmap.*"]
 namespaces = false
 
 [tool.setuptools]

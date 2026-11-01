@@ -1,4 +1,4 @@
-# provider-deploy
+# linux-idmap
 
 One shared operation for deployment callers: **measure a container's host UID/GID
 maps, retire the exact probe, then return the maps**. Providers keep their image
@@ -19,7 +19,7 @@ identities live on this same review branch. They are not installed in the wheel.
 ## Python caller
 
 ```python
-from provider_deploy import ProbeRequest, probe_identity
+from linux_idmap import ProbeRequest, probe_identity
 
 maps = probe_identity(ProbeRequest(
     endpoint="unix:///run/user/1000/docker.sock",  # already selected by the caller
@@ -44,10 +44,10 @@ provider's already-validated `/usr/bin/docker`). An optional `cancel=` accepts a
 ## Shell caller
 
 ```sh
-python3 -m provider_deploy identity \
+python3 -m linux_idmap identity \
   --endpoint "$NMRNET_DOCKER_ENDPOINT_INPUT" \
   --image "$controller_image" \
-  --interpreter /opt/provider/environment/bin/python \
+  --interpreter /opt/image/bin/python \
   --user-uid 0 --user-gid 0 \
   --uid 0 --uid "$caller_uid" --gid 0 --gid "$caller_gid" \
   --values
@@ -137,14 +137,14 @@ the original engine if its route changes; it is not permission to remove anythin
 
 ## Verification
 
-The maintained aggregate includes `make tests/unit/provider-deploy
+The maintained aggregate includes `make tests/unit/linux-idmap
 DOCKER_CONTEXT=<local-context>`, using the existing prepared checker with no
 Docker socket mount or additional container grants. That lane tests source and
 failure contracts, not a nested Docker engine. For the standalone host lane:
 
 ```sh
-PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=packages/provider-deploy/src \
-  python3 -m unittest discover -s packages/provider-deploy/tests -v
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=packages/linux-idmap/src \
+  python3 -m unittest discover -s packages/linux-idmap/tests -v
 ```
 
 Tests cover real bounded subprocesses, genuine process-map observations and a

@@ -147,7 +147,7 @@ endif
 .PHONY: delivery/deployment/up delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
-.PHONY: tests/unit/provider-deploy
+.PHONY: tests/unit/linux-idmap
 
 help:
 	@printf '%s\n' \
@@ -168,7 +168,7 @@ help:
 	  'make packages/provider-core/download WHEELHOUSE=... NETWORK_INTERFACE=... Acquire locked wheels.' \
 	  'make packages/provider-core/check WHEELHOUSE=... Verify locked wheels offline.' \
 	  'make tests/unit/provider-core WHEELHOUSE=... Build and test the isolated installed core.' \
-	  'make tests/unit/provider-deploy Run shared host identity contracts in the prepared checker.' \
+	  'make tests/unit/linux-idmap Run shared host identity contracts in the prepared checker.' \
 	  'make tests/contract/provider-core WHEELHOUSE=... Qualify installed package contracts.' \
 	  'make tests/integration/provider-core WHEELHOUSE=... Run contained package integrations.' \
 	  'make tests/integration/provider-core/delivery WHEELHOUSE=... Qualify real delivery IPC and recovery.' \
@@ -220,8 +220,8 @@ tests/package:
 tests/unit/provider-core:
 	bash tools/provider_core.sh unit
 
-tests/unit/provider-deploy:
-	bash tools/repository.sh tests/unit/provider-deploy
+tests/unit/linux-idmap:
+	bash tools/repository.sh tests/unit/linux-idmap
 
 tests/contract/provider-core:
 	bash tools/provider_core.sh contract
@@ -247,7 +247,7 @@ checks/image/build:
 checks/prepare:
 	bash tools/checker.sh prepare
 
-tests: tests/repository tests/unit/provider-core tests/unit/provider-deploy tests/contract/provider-core tests/integration/provider-core tests/deployment
+tests: tests/repository tests/unit/provider-core tests/unit/linux-idmap tests/contract/provider-core tests/integration/provider-core tests/deployment
 
 tests/repository:
 	bash tools/repository.sh tests/repository

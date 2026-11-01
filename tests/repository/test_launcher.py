@@ -21,18 +21,18 @@ from tests.repository.quality.sources import ROOT
 
 
 class LauncherTests(unittest.TestCase):
-    def test_provider_deploy_preview_reuses_checker_isolation_and_selects_package(self):
+    def test_linux_idmap_preview_reuses_checker_isolation_and_selects_package(self):
         result = subprocess.run(
-            ["bash", "tools/repository.sh", "--print", "tests/unit/provider-deploy"],
+            ["bash", "tools/repository.sh", "--print", "tests/unit/linux-idmap"],
             cwd=ROOT,
             env=os.environ | {"NMR_SELECTED_DOCKER_ENDPOINT": "unix:///fixture.sock"},
             capture_output=True, text=True, check=False,
         )
         self.assertEqual(0, result.returncode, msg=result.stderr)
         arguments = shlex.split(result.stdout.splitlines()[-1])
-        self.assertIn("PYTHONPATH=/workspace:/workspace/packages/provider-deploy/src", arguments)
+        self.assertIn("PYTHONPATH=/workspace:/workspace/packages/linux-idmap/src", arguments)
         self.assertEqual(
-            ["discover", "-s", "packages/provider-deploy/tests", "-t", "packages/provider-deploy/tests",
+            ["discover", "-s", "packages/linux-idmap/tests", "-t", "packages/linux-idmap/tests",
              "-p", "test*.py", "-v"],
             arguments[-8:],
         )

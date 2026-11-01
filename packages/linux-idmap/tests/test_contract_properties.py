@@ -7,10 +7,10 @@ import random
 import unittest
 
 from helpers import CID, IMAGE, container_for, request
-from provider_deploy.docker import Container, DockerError, INSPECT_FORMAT
-from provider_deploy.linux import IdMap, IdRange, LinuxError, parse_id_map
-from provider_deploy.model import Bounds, StepError
-from provider_deploy.spec import ProbeSpec
+from linux_idmap.addons.docker import Container, DockerError, INSPECT_FORMAT
+from linux_idmap.maps import IdMap, IdRange, IdentityError, parse_id_map
+from linux_idmap.addons.model import Bounds, StepError
+from linux_idmap.addons.spec import ProbeSpec
 
 
 class MapContractTests(unittest.TestCase):
@@ -39,7 +39,7 @@ class MapContractTests(unittest.TestCase):
                             if identifier in oracle:
                                 self.assertEqual(oracle[identifier], mapping.translate(identifier))
                             else:
-                                with self.assertRaises(LinuxError) as caught:
+                                with self.assertRaises(IdentityError) as caught:
                                     mapping.translate(identifier)
                                 self.assertEqual("unmapped-id", caught.exception.category)
 
@@ -53,7 +53,7 @@ class MapContractTests(unittest.TestCase):
             for identifier, expected in oracle.items():
                 self.assertEqual(expected, mapping.translate(identifier))
             for identifier in (-1, 3, maximum - 3, maximum + 1, maximum + 2, True, False, 1.0, "1", None):
-                with self.subTest(identifier=identifier), self.assertRaises(LinuxError) as caught:
+                with self.subTest(identifier=identifier), self.assertRaises(IdentityError) as caught:
                     mapping.translate(identifier)
                 self.assertEqual("unmapped-id", caught.exception.category)
         full = parse_id_map(b"0 0 4294967295\n")
@@ -71,10 +71,10 @@ class MapContractTests(unittest.TestCase):
             for ordering in permutations(rows):
                 raw = "\n".join(f"{row.inside} {row.outside} {row.length}" for row in ordering).encode()
                 with self.subTest(rows=ordering):
-                    with self.assertRaises(LinuxError) as caught:
+                    with self.assertRaises(IdentityError) as caught:
                         IdMap(ordering)
                     self.assertEqual("invalid-map", caught.exception.category)
-                    with self.assertRaises(LinuxError) as caught:
+                    with self.assertRaises(IdentityError) as caught:
                         parse_id_map(raw)
                     self.assertEqual("invalid-map", caught.exception.category)
 
@@ -87,17 +87,17 @@ class MapContractTests(unittest.TestCase):
         )
         for values in invalid:
             with self.subTest(values=values):
-                with self.assertRaises(LinuxError) as caught:
+                with self.assertRaises(IdentityError) as caught:
                     IdMap((IdRange(*values),))
                 self.assertEqual("invalid-map", caught.exception.category)
-                with self.assertRaises(LinuxError) as caught:
+                with self.assertRaises(IdentityError) as caught:
                     parse_id_map(" ".join(str(value) for value in values).encode())
                 self.assertEqual("invalid-map", caught.exception.category)
         for index in range(3):
             for invalid_value in (True, False, 1.0, "1", None):
                 values = [0, 100, 2]
                 values[index] = invalid_value
-                with self.subTest(index=index, value=invalid_value), self.assertRaises(LinuxError):
+                with self.subTest(index=index, value=invalid_value), self.assertRaises(IdentityError):
                     IdMap((IdRange(*values),))
 
 
@@ -106,8 +106,8 @@ class IsolationEvidenceContractTests(unittest.TestCase):
         # Independent wire oracle: neither the dataclass nor the restriction table supplies it.
         self.assertEqual(
             '{"cid":{{json .Id}},"name":{{json .Name}},"image_id":{{json .Image}},'
-            '"token":{{json (index .Config.Labels "org.nmr.provider-deploy.token")}},'
-            '"owner":{{json (index .Config.Labels "org.nmr.provider-deploy.operation")}},'
+            '"token":{{json (index .Config.Labels "linux-idmap.token")}},'
+            '"owner":{{json (index .Config.Labels "linux-idmap.operation")}},'
             '"pid":{{json .State.Pid}},"running":{{json .State.Running}},'
             '"started_at":{{json .State.StartedAt}},'
             '"user":{{json .Config.User}},"userns_mode":{{json .HostConfig.UsernsMode}},'

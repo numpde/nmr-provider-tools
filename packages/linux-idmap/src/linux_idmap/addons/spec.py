@@ -8,13 +8,13 @@ from .model import ProbeRequest, StepError
 
 # Shared owned-probe label wire name; creation and verification must agree.
 # repo-check: allow-module-constant
-OWNER_LABEL = "org.nmr.provider-deploy.operation"
+OWNER_LABEL = "linux-idmap.operation"
 # Shared operation-token label wire name; creation and verification must agree.
 # repo-check: allow-module-constant
-TOKEN_LABEL = "org.nmr.provider-deploy.token"
+TOKEN_LABEL = "linux-idmap.token"
 # Versioned owned-probe protocol identifier, not caller policy.
 # repo-check: allow-module-constant
-OWNER = "identity-v2"
+OWNER = "identity-v3"
 # Finite inert probe payload; the caller supplies its lifetime and interpreter.
 # repo-check: allow-module-constant
 PROBE_SCRIPT = "import sys,time; time.sleep(int(sys.argv[1]))"
@@ -55,7 +55,7 @@ class ProbeSpec:
 
     @property
     def name(self) -> str:
-        return "provider-deploy-" + self.token
+        return "linux-idmap-" + self.token
 
     @property
     def command(self) -> tuple[str, ...]:

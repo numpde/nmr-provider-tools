@@ -13,8 +13,8 @@ import unittest
 from unittest.mock import Mock, patch
 
 from helpers import CID, IMAGE, container_for, request
-from provider_deploy.docker import DockerEngine, DockerError, _run_command, _clean_environment, _socket_identity
-from provider_deploy.spec import ProbeSpec, PROBE_SCRIPT
+from linux_idmap.addons.docker import DockerEngine, DockerError, _run_command, _clean_environment, _socket_identity
+from linux_idmap.addons.spec import ProbeSpec, PROBE_SCRIPT
 
 
 TOKEN = "b" * 32
@@ -77,7 +77,7 @@ class CommandTests(unittest.TestCase):
     def test_parent_exit_does_not_abandon_descendant_owned_pipes(self):
         with tempfile.TemporaryDirectory() as directory:
             pidfile = Path(directory) / "descendant"
-            token = "provider-deploy-owned-pipe-test"
+            token = "linux-idmap-owned-pipe-test"
             program = (
                 "import pathlib, subprocess, sys; "
                 f"child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(20)', {token!r}]); "
@@ -148,11 +148,11 @@ class CommandTests(unittest.TestCase):
         selector = Mock()
         selector.get_map.return_value = {}  # Both streams have already closed.
         selector.select.side_effect = sleep
-        with patch("provider_deploy.docker.time.monotonic", side_effect=lambda: clock[0]), \
-             patch("provider_deploy.docker.subprocess.Popen", return_value=process), \
-             patch("provider_deploy.docker.selectors.DefaultSelector", return_value=selector), \
-             patch("provider_deploy.docker.os.set_blocking"), \
-             patch("provider_deploy.docker._terminate"):
+        with patch("linux_idmap.addons.docker.time.monotonic", side_effect=lambda: clock[0]), \
+             patch("linux_idmap.addons.docker.subprocess.Popen", return_value=process), \
+             patch("linux_idmap.addons.docker.selectors.DefaultSelector", return_value=selector), \
+             patch("linux_idmap.addons.docker.os.set_blocking"), \
+             patch("linux_idmap.addons.docker._terminate"):
             self.assertEqual("", _run_command(["fixture"], env={}, timeout=.09))
         self.assertLess(clock[0], .09)
         self.assertEqual(2, process.wait.call_count)
@@ -178,8 +178,8 @@ class CommandTests(unittest.TestCase):
         info = json.dumps(["daemon-a", [], "/var/lib/docker", "overlay2", "linux"])
         for suffix in (" ", "\u00a0", "\u2003"):
             with self.subTest(suffix=suffix):
-                with patch("provider_deploy.docker._socket_identity", return_value=(12, 34)) as socket, \
-                     patch("provider_deploy.docker._run_command", return_value=info) as run:
+                with patch("linux_idmap.addons.docker._socket_identity", return_value=(12, 34)) as socket, \
+                     patch("linux_idmap.addons.docker._run_command", return_value=info) as run:
                     with self.assertRaises(DockerError) as caught:
                         with DockerEngine.connect("unix:///tmp/engine.sock" + suffix, timeout=1):
                             pass
@@ -190,8 +190,8 @@ class CommandTests(unittest.TestCase):
     def test_percent_escape_is_a_literal_unix_socket_path(self):
         endpoint = "unix:///tmp/engine%20.sock"
         info = json.dumps(["daemon-a", [], "/var/lib/docker", "overlay2", "linux"])
-        with patch("provider_deploy.docker._socket_identity", return_value=(12, 34)) as socket, \
-             patch("provider_deploy.docker._run_command", return_value=info) as run:
+        with patch("linux_idmap.addons.docker._socket_identity", return_value=(12, 34)) as socket, \
+             patch("linux_idmap.addons.docker._run_command", return_value=info) as run:
             with DockerEngine.connect(endpoint, timeout=1) as engine:
                 self.assertEqual(endpoint, engine.identity.endpoint)
         self.assertEqual(["/tmp/engine%20.sock"] * 2, [call.args[0] for call in socket.call_args_list])
@@ -199,12 +199,12 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(endpoint, arguments[arguments.index("--host") + 1])
 
     def test_primary_timeout_preserves_client_cleanup_failure(self):
-        from provider_deploy import docker
+        from linux_idmap.addons import docker
         original = docker._terminate
         def terminate_and_report(process):
             original(process)
             raise DockerError("client_cleanup", "Docker client exit could not be confirmed.")
-        with patch("provider_deploy.docker._terminate", side_effect=terminate_and_report):
+        with patch("linux_idmap.addons.docker._terminate", side_effect=terminate_and_report):
             with self.assertRaises(DockerError) as caught:
                 _run_command([sys.executable, "-c", "import time;time.sleep(20)"],
                              env=os.environ.copy(), timeout=0.05, mutation=True)
@@ -223,14 +223,14 @@ class EndpointContinuityTests(unittest.TestCase):
         # is available in this lane. Both targets report the same daemon info
         # so only continuity of the caller's socket path can detect the change.
         identities = {self.first: (12, 34), self.second: (12, 35)}
-        self.enterContext(patch("provider_deploy.docker._socket_identity",
+        self.enterContext(patch("linux_idmap.addons.docker._socket_identity",
                                 side_effect=lambda path: identities[Path(path).resolve()]))
         self.calls = []
         def run(argv, **kwargs):
             self.calls.append(argv)
             return json.dumps(["daemon-a", [], "/var/lib/docker", "overlay2", "linux"])
         self.run = run
-        self.enterContext(patch("provider_deploy.docker._run_command", side_effect=run))
+        self.enterContext(patch("linux_idmap.addons.docker._run_command", side_effect=run))
 
     def retarget(self):
         self.selected.unlink()
@@ -248,7 +248,7 @@ class EndpointContinuityTests(unittest.TestCase):
             result = self.run(argv, **kwargs)
             self.retarget()
             return result
-        with patch("provider_deploy.docker._run_command", side_effect=retarget_after_info):
+        with patch("linux_idmap.addons.docker._run_command", side_effect=retarget_after_info):
             with self.assertRaises(DockerError) as caught:
                 with DockerEngine.connect(self.endpoint, timeout=2):
                     pass
@@ -270,7 +270,7 @@ class EngineTests(unittest.TestCase):
     def setUp(self):
         self.sockpath = Path(self.enterContext(tempfile.TemporaryDirectory())) / "engine.sock"
         self.socket_identity = (12, 34)
-        self.enterContext(patch("provider_deploy.docker._socket_identity", side_effect=lambda path: self.socket_identity))
+        self.enterContext(patch("linux_idmap.addons.docker._socket_identity", side_effect=lambda path: self.socket_identity))
         self.calls = []
         self.daemon = "daemon-a"
         self.security_options = ["name=rootless"]
@@ -288,7 +288,7 @@ class EngineTests(unittest.TestCase):
                 raise result
             return result
         self.record_run = run
-        self.enterContext(patch("provider_deploy.docker._run_command", side_effect=run))
+        self.enterContext(patch("linux_idmap.addons.docker._run_command", side_effect=run))
         self.engine = self.enterContext(DockerEngine.connect("unix://" + str(self.sockpath), timeout=2))
 
     def test_caller_endpoint_is_never_reresolved_and_ambient_settings_are_ignored(self):
@@ -353,9 +353,9 @@ class EngineTests(unittest.TestCase):
         args, kwargs = next((a, k) for a, k in self.calls if "create" in a)
         self.assertTrue(kwargs["mutation"])
         self.assertEqual([
-            "container", "create", "--pull=never", "--name", "provider-deploy-" + TOKEN,
-            "--label", "org.nmr.provider-deploy.operation=identity-v2",
-            "--label", "org.nmr.provider-deploy.token=" + TOKEN,
+            "container", "create", "--pull=never", "--name", "linux-idmap-" + TOKEN,
+            "--label", "linux-idmap.operation=identity-v3",
+            "--label", "linux-idmap.token=" + TOKEN,
             "--user", "1000:2000", "--restart", "no", "--no-healthcheck",
             "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
             "--security-opt", "no-new-privileges:true", "--pids-limit", "8",
@@ -414,7 +414,7 @@ class EngineTests(unittest.TestCase):
             self.engine.candidates(TOKEN, timeout=2)
 
     def test_remote_endpoint_rejected_before_engine_command(self):
-        with patch("provider_deploy.docker._run_command") as run:
+        with patch("linux_idmap.addons.docker._run_command") as run:
             with self.assertRaises(DockerError) as caught:
                 DockerEngine.connect("ssh://remote", timeout=2)
         self.assertEqual("unsupported_engine", caught.exception.category)
@@ -446,11 +446,11 @@ class EngineTests(unittest.TestCase):
     def test_inspect_only_returns_curated_exact_evidence(self):
         self.extra["ls"] = CID + "\n"
         evidence = asdict(container_for(ProbeSpec(TOKEN, IMAGE, request())))
-        evidence["name"] = "/provider-deploy-" + TOKEN
+        evidence["name"] = "/linux-idmap-" + TOKEN
         self.extra["inspect"] = json.dumps(evidence)
         result = self.engine.inspect(CID, timeout=2)
         self.assertEqual(CID, result.cid)
-        self.assertEqual("provider-deploy-" + TOKEN, result.name)
+        self.assertEqual("linux-idmap-" + TOKEN, result.name)
         self.assertEqual(("-I", "-S", "-B", "-c", PROBE_SCRIPT, "30", TOKEN), result.command)
         self.assertFalse(any("ls" in args for args, _ in self.calls))
         # The connection checks once; one existing-container read then costs
@@ -470,7 +470,7 @@ class EngineTests(unittest.TestCase):
         args = next(args for args, _ in self.calls if "rm" in args)
         self.assertEqual(["container", "rm", "--force", CID], args[-4:])
         with self.assertRaises(DockerError):
-            self.engine.remove("provider-deploy-" + TOKEN, timeout=2)
+            self.engine.remove("linux-idmap-" + TOKEN, timeout=2)
 
     def test_private_client_config_is_empty_and_removed_on_close(self):
         args = next(args for args, _ in self.calls if "info" in args)
@@ -489,7 +489,7 @@ class EngineTests(unittest.TestCase):
             if "create" in argv:
                 self.daemon = "replacement"
             return result
-        with patch("provider_deploy.docker._run_command", side_effect=change_on_create):
+        with patch("linux_idmap.addons.docker._run_command", side_effect=change_on_create):
             with self.assertRaises(DockerError) as caught:
                 self.engine.create(ProbeSpec(TOKEN, IMAGE, replace(request(), user_uid=0, user_gid=0)), timeout=2)
         self.assertEqual("engine_changed", caught.exception.category)

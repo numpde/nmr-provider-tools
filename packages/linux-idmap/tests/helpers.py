@@ -2,14 +2,15 @@
 
 from dataclasses import replace
 
-from provider_deploy.docker import Container, EngineIdentity
-from provider_deploy.linux import IdMap, IdRange, ProcessObservation
-from provider_deploy.model import Bounds, ProbeRequest
-from provider_deploy.spec import OWNER
+from linux_idmap.addons.docker import Container, EngineIdentity
+from linux_idmap.maps import IdMap, IdRange
+from linux_idmap.process import ProcessMaps
+from linux_idmap.addons.model import Bounds, ProbeRequest
+from linux_idmap.addons.spec import OWNER
 
 CID = "c" * 64
 IMAGE = "sha256:" + "a" * 64
-OBSERVATION = ProcessObservation(42, 123, 7, 99,
+OBSERVATION = ProcessMaps(42, 123, 7, 99,
     IdMap((IdRange(0, 100000, 65536),)), IdMap((IdRange(0, 200000, 65536),)))
 
 

@@ -8,9 +8,9 @@ import signal
 import sys
 import threading
 
-from .linux import LinuxError
+from ..maps import IdentityError
 from .model import Problem, ProbeFailure, ProbeRequest, ResourceState, Retirement, StepError
-from .operation import probe_identity
+from .probe import probe_identity
 
 
 class _Parser(argparse.ArgumentParser):
@@ -28,7 +28,7 @@ def _integer(text: str) -> int:
 
 
 def _parser():
-    parser = _Parser(prog="provider-deploy")
+    parser = _Parser(prog="linux-idmap")
     operations = parser.add_subparsers(dest="operation", required=True, parser_class=_Parser)
     identity = operations.add_parser("identity", help="measure host IDs and retire the owned probe")
     identity.add_argument("--endpoint", required=True, help="already-selected unix:/// Docker endpoint")
@@ -79,7 +79,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             projected_uids = [result.uid_map.translate(uid) for uid in options.uid]
             projected_gids = [result.gid_map.translate(gid) for gid in options.gid]
-        except LinuxError as error:
+        except IdentityError as error:
             raise ProbeFailure(Problem("project", error.category, str(error)),
                 Retirement(ResourceState.RETIRED, result.container_id)) from error
         payload = result.as_dict()
@@ -101,3 +101,7 @@ def main(argv: list[str] | None = None) -> int:
     finally:
         for number, previous in handlers.items():
             signal.signal(number, previous)
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

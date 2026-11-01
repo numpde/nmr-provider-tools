@@ -10,7 +10,7 @@ if [[ $# -gt 0 && $1 == --print ]]; then
     shift
 fi
 if [[ $# != 1 ]]; then
-    printf '%s\n' 'Cannot select checks: supply one maintained repository or provider-deploy test target.' >&2
+    printf '%s\n' 'Cannot select checks: supply one maintained repository or linux-idmap test target.' >&2
     exit 2
 fi
 pattern='test*.py'
@@ -21,10 +21,10 @@ case "$1" in
     tests/repository/quality) suite=tests/repository/quality ;;
     tests/repository/provisioning) suite=tests/repository; pattern='test_checker*.py' ;;
     tests/repository/runtime) suite=tests/repository/test_container_port_runtime.py ;;
-    tests/unit/provider-deploy)
-        suite=packages/provider-deploy/tests
+    tests/unit/linux-idmap)
+        suite=packages/linux-idmap/tests
         top_level=$suite
-        python_path=/workspace:/workspace/packages/provider-deploy/src
+        python_path=/workspace:/workspace/packages/linux-idmap/src
         ;;
     *) printf 'Cannot select repository checks: unknown target %q. Use make help.\n' "$1" >&2; exit 2 ;;
 esac

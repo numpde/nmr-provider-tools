@@ -10,8 +10,8 @@ import sys
 import unittest
 from unittest.mock import patch
 
-from provider_deploy.cli import main
-from provider_deploy import Bounds, Problem, ProbeFailure, ProbeResult, ResourceState, Retirement, ProbeHandle
+from linux_idmap.addons.cli import main
+from linux_idmap.addons.probe import Bounds, Problem, ProbeFailure, ProbeResult, ResourceState, Retirement, ProbeHandle
 from helpers import CID, OBSERVATION
 
 
@@ -48,7 +48,7 @@ class CliTests(unittest.TestCase):
         self.assertFalse(json.loads(err)["ok"])
 
     def test_complete_operation_receives_caller_selected_policy(self):
-        with patch("provider_deploy.cli.probe_identity", side_effect=self.failure()) as operation:
+        with patch("linux_idmap.addons.cli.probe_identity", side_effect=self.failure()) as operation:
             code, out, _ = self.call(self.arguments())
         request = operation.call_args.args[0]
         self.assertEqual("unix:///test.sock", request.endpoint)
@@ -58,30 +58,30 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("uid_map", out)
 
     def test_values_are_only_requested_decimal_ids_in_order(self):
-        with patch("provider_deploy.cli.probe_identity", return_value=self.result()):
+        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
             code, out, err = self.call(self.arguments(values=True))
         self.assertEqual((0, "100000 101000 202000\n", ""), (code, out, err))
 
     def test_duplicate_projections_preserve_order(self):
-        with patch("provider_deploy.cli.probe_identity", return_value=self.result()):
+        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
             code, out, _ = self.call(self.arguments(values=True) + ["--uid", "0"])
         self.assertEqual(0, code)
         self.assertEqual("100000 101000 100000 202000\n", out)
 
     def test_abbreviations_are_rejected_without_invoking_operation(self):
-        with patch("provider_deploy.cli.probe_identity") as operation:
+        with patch("linux_idmap.addons.cli.probe_identity") as operation:
             code, out, _ = self.call(self.arguments() + ["--val"])
         self.assertEqual(2, code)
         self.assertFalse(json.loads(out)["ok"])
         operation.assert_not_called()
 
     def test_cli_uses_policy_defaults_and_applies_only_explicit_overrides(self):
-        with patch("provider_deploy.cli.probe_identity", return_value=self.result()) as operation:
+        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()) as operation:
             self.call(self.arguments())
         request = operation.call_args.args[0]
         self.assertEqual(Bounds(), request.bounds)
         self.assertEqual("default", request.userns_mode)
-        with patch("provider_deploy.cli.probe_identity", return_value=self.result()) as operation:
+        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()) as operation:
             self.call(self.arguments() + ["--timeout", "7", "--userns", "host"])
         request = operation.call_args.args[0]
         self.assertEqual(replace(Bounds(), operation_seconds=7), request.bounds)
@@ -90,7 +90,7 @@ class CliTests(unittest.TestCase):
     def test_no_requested_ids_means_no_projections(self):
         arguments = ["identity", "--endpoint", "unix:///test.sock", "--image", "approved:local",
                      "--interpreter", "/usr/bin/python3", "--user-uid", "1000", "--user-gid", "2000"]
-        with patch("provider_deploy.cli.probe_identity", return_value=self.result()):
+        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
             code, out, _ = self.call(arguments)
         self.assertEqual(0, code)
         payload = json.loads(out)
@@ -100,21 +100,21 @@ class CliTests(unittest.TestCase):
     def test_empty_values_projection_prints_only_one_empty_line(self):
         arguments = ["identity", "--endpoint", "unix:///test.sock", "--image", "approved:local",
                      "--interpreter", "/usr/bin/python3", "--user-uid", "1000", "--user-gid", "2000", "--values"]
-        with patch("provider_deploy.cli.probe_identity", return_value=self.result()):
+        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
             # An earlier invocation's projections must not populate the next one.
             self.call(self.arguments(values=True))
             code, out, err = self.call(arguments)
         self.assertEqual((0, "\n", ""), (code, out, err))
 
     def test_values_failure_has_empty_stdout_and_structured_stderr(self):
-        with patch("provider_deploy.cli.probe_identity", side_effect=self.failure()):
+        with patch("linux_idmap.addons.cli.probe_identity", side_effect=self.failure()):
             code, out, err = self.call(self.arguments(values=True))
         self.assertEqual(3, code)
         self.assertEqual("", out)
         self.assertEqual("uncertain-outcome", json.loads(err)["state"])
 
     def test_unmapped_projection_does_not_print_partial_values(self):
-        with patch("provider_deploy.cli.probe_identity", return_value=self.result()):
+        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
             code, out, err = self.call(self.arguments(values=True) + ["--gid", "999999"])
         self.assertEqual((1, ""), (code, out))
         self.assertEqual("project", json.loads(err)["problem"]["stage"])
@@ -126,12 +126,12 @@ class CliTests(unittest.TestCase):
             signal.raise_signal(signal.SIGHUP)
             self.assertTrue(cancel.is_set())
             raise self.failure(ResourceState.RETIRED, "cancelled")
-        with patch("provider_deploy.cli.probe_identity", side_effect=operation):
+        with patch("linux_idmap.addons.cli.probe_identity", side_effect=operation):
             self.assertEqual(130, self.call(self.arguments())[0])
         self.assertEqual(previous, signal.getsignal(signal.SIGHUP))
 
     def test_help_is_real_and_defaults_do_not_require_timing_knobs(self):
-        result = subprocess.run([sys.executable, "-m", "provider_deploy", "identity", "--help"],
+        result = subprocess.run([sys.executable, "-m", "linux_idmap.addons.cli", "identity", "--help"],
                                 capture_output=True, text=True, timeout=5, check=False)
         self.assertEqual(0, result.returncode)
         self.assertIn("--endpoint", result.stdout)

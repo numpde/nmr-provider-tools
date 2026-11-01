@@ -6,10 +6,10 @@ import threading
 import unittest
 from unittest.mock import Mock, patch
 
-from provider_deploy import ProbeFailure, ResourceState, probe_identity
-from provider_deploy.docker import DockerError
-from provider_deploy.linux import IdMap, IdRange, LinuxError
-from provider_deploy.model import Bounds
+from linux_idmap.addons.probe import ProbeFailure, ResourceState, probe_identity
+from linux_idmap.addons.docker import DockerError
+from linux_idmap.maps import IdMap, IdRange, IdentityError
+from linux_idmap.addons.model import Bounds
 from helpers import CID, Engine, Guard, OBSERVATION, request
 
 
@@ -17,8 +17,8 @@ class OperationTests(unittest.TestCase):
     def setUp(self):
         self.request = request()
         self.engine, self.guard = Engine(), Guard()
-        for target, value in (("DockerEngine.connect", self.engine), ("LinuxGuard", self.guard)):
-            self.enterContext(patch("provider_deploy.operation." + target, return_value=value))
+        for target, value in (("DockerEngine.connect", self.engine), ("ProbeProcesses", self.guard)):
+            self.enterContext(patch("linux_idmap.addons.probe." + target, return_value=value))
 
     def failure(self, **kwargs):
         with self.assertRaises(ProbeFailure) as caught:
@@ -118,8 +118,8 @@ class OperationTests(unittest.TestCase):
             self.engine.on_inspect = change_start
             self.guard.observe = Mock(wraps=self.guard.observe)
             with self.subTest(inspection_number=inspection_number):
-                with patch("provider_deploy.operation.DockerEngine.connect", return_value=self.engine), \
-                     patch("provider_deploy.operation.LinuxGuard", return_value=self.guard):
+                with patch("linux_idmap.addons.probe.DockerEngine.connect", return_value=self.engine), \
+                     patch("linux_idmap.addons.probe.ProbeProcesses", return_value=self.guard):
                     failure = self.failure()
                 self.assertEqual("observe", failure.problem.stage)
                 self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
@@ -183,7 +183,7 @@ class OperationTests(unittest.TestCase):
         self.assertNotIn("SECRET", json.dumps(failure.as_dict()))
 
     def test_interrupted_cleanup_entry_never_claims_no_creation(self):
-        with patch("provider_deploy.operation._Probe.retire", side_effect=KeyboardInterrupt):
+        with patch("linux_idmap.addons.probe._Probe.retire", side_effect=KeyboardInterrupt):
             failure = self.failure()
         self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
         self.assertEqual(CID, failure.retirement.container_id)
@@ -230,7 +230,7 @@ class OperationTests(unittest.TestCase):
 
     def test_unidentified_pid_can_retire_without_erasing_identity_failure(self):
         self.engine.on_start = lambda engine: setattr(engine, "container", replace(engine.container, running=False))
-        self.guard.identify = Mock(side_effect=LinuxError("process-identity", "identity unavailable"))
+        self.guard.identify = Mock(side_effect=IdentityError("process-identity", "identity unavailable"))
         self.guard.pid_absent = Mock(return_value=True)
         failure = self.failure()
         self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
@@ -242,7 +242,7 @@ class OperationTests(unittest.TestCase):
 
     def test_unidentified_pid_still_present_prevents_retirement(self):
         self.engine.on_start = lambda engine: setattr(engine, "container", replace(engine.container, running=False))
-        self.guard.identify = Mock(side_effect=LinuxError("process-identity", "identity unavailable"))
+        self.guard.identify = Mock(side_effect=IdentityError("process-identity", "identity unavailable"))
         self.guard.pid_absent = Mock(return_value=False)
         failure = self.failure()
         self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)

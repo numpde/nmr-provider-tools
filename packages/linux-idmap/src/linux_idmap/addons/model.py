@@ -5,7 +5,7 @@ from enum import StrEnum
 import math
 import re
 
-from .linux import ProcessIdentity
+from ..process import ProcessIdentity
 
 
 class StepError(RuntimeError):
