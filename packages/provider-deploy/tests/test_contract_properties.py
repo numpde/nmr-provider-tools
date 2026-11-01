@@ -184,6 +184,31 @@ class IsolationEvidenceContractTests(unittest.TestCase):
                     Container.from_json(json.dumps(value), CID)
                 self.assertEqual("invalid_response", caught.exception.category)
 
+    def test_container_fields_reject_wrong_types_and_oversized_argument_vectors(self):
+        invalid = (
+            ("pid", True), ("pid", -1), ("running", 1), ("started_at", False),
+            ("entrypoint", [False]), ("command", "not-an-argument-vector"),
+            ("entrypoint", ["arg"] * 17), ("command", ["arg"] * 17),
+        )
+        for field, invalid_value in invalid:
+            value = asdict(container_for(self.spec))
+            value[field] = invalid_value
+            with self.subTest(field=field, value=invalid_value):
+                with self.assertRaises(DockerError) as caught:
+                    Container.from_json(json.dumps(value), CID)
+                self.assertEqual("invalid_response", caught.exception.category)
+
+    def test_container_parser_accepts_zero_pid_and_argument_vector_boundaries(self):
+        for count in (0, 16):
+            value = asdict(container_for(self.spec))
+            value.update(pid=0, running=False, entrypoint=["arg"] * count, command=["arg"] * count)
+            with self.subTest(argument_count=count):
+                container = Container.from_json(json.dumps(value), CID)
+                self.assertEqual(0, container.pid)
+                self.assertIs(False, container.running)
+                self.assertEqual(("arg",) * count, container.entrypoint)
+                self.assertEqual(("arg",) * count, container.command)
+
     def test_each_fixed_isolation_value_is_verified_with_its_exact_type(self):
         changed = {
             "AutoRemove": (False, 1), "NetworkMode": ("host", None),
