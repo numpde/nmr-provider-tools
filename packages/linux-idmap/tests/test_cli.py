@@ -18,7 +18,7 @@ from helpers import CID, OBSERVATION
 class CliTests(unittest.TestCase):
     # silent-defaults: allow-contract -- The test helper constructs JSON-mode arguments unless the case requests values output.
     def arguments(self, *, values=False):
-        args = ["identity", "--endpoint", "unix:///test.sock", "--image", "approved:local",
+        args = ["--endpoint", "unix:///test.sock", "--image", "approved:local",
                 "--interpreter", "/usr/bin/python3", "--user-uid", "1000", "--user-gid", "2000",
                 "--uid", "0", "--uid", "1000", "--gid", "2000"]
         # silent-defaults: allow-contract -- Only values-mode cases append the values-output request; JSON cases use the baseline argument fixture.
@@ -29,7 +29,7 @@ class CliTests(unittest.TestCase):
 
     # silent-defaults: allow-contract -- The fixture begins with an unresolved timeout; each case may select a different failure state/category.
     def failure(self, state=ResourceState.UNRESOLVED, category="timeout"):
-        return ProbeFailure(Problem("create", category, "safe explanation"), Retirement(state), ProbeHandle("unix:///test.sock", "b" * 32))
+        return ProbeFailure(Problem(category, "safe explanation"), Retirement(state), ProbeHandle("unix:///test.sock", "b" * 32))
 
     def call(self, args):
         out, err = io.StringIO(), io.StringIO()
@@ -38,12 +38,12 @@ class CliTests(unittest.TestCase):
         return code, out.getvalue(), err.getvalue()
 
     def test_missing_arguments_fail_before_creation(self):
-        code, out, _ = self.call(["identity"])
+        code, out, _ = self.call([])
         self.assertEqual(2, code)
         self.assertEqual("known-not-created", json.loads(out)["state"])
 
     def test_values_parse_failure_keeps_stdout_empty(self):
-        code, out, err = self.call(["identity", "--values"])
+        code, out, err = self.call(["--values"])
         self.assertEqual((2, ""), (code, out))
         self.assertFalse(json.loads(err)["ok"])
 
@@ -54,7 +54,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual("unix:///test.sock", request.endpoint)
         self.assertEqual("/usr/bin/python3", request.interpreter)
         self.assertEqual(3, code)
-        self.assertEqual("create", json.loads(out)["problem"]["stage"])
+        self.assertEqual("timeout", json.loads(out)["problem"]["category"])
         self.assertNotIn("uid_map", out)
 
     def test_values_are_only_requested_decimal_ids_in_order(self):
@@ -88,7 +88,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual("host", request.userns_mode)
 
     def test_no_requested_ids_means_no_projections(self):
-        arguments = ["identity", "--endpoint", "unix:///test.sock", "--image", "approved:local",
+        arguments = ["--endpoint", "unix:///test.sock", "--image", "approved:local",
                      "--interpreter", "/usr/bin/python3", "--user-uid", "1000", "--user-gid", "2000"]
         with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
             code, out, _ = self.call(arguments)
@@ -98,7 +98,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual([], payload["mapped_gids"])
 
     def test_empty_values_projection_prints_only_one_empty_line(self):
-        arguments = ["identity", "--endpoint", "unix:///test.sock", "--image", "approved:local",
+        arguments = ["--endpoint", "unix:///test.sock", "--image", "approved:local",
                      "--interpreter", "/usr/bin/python3", "--user-uid", "1000", "--user-gid", "2000", "--values"]
         with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
             # An earlier invocation's projections must not populate the next one.
@@ -117,7 +117,7 @@ class CliTests(unittest.TestCase):
         with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
             code, out, err = self.call(self.arguments(values=True) + ["--gid", "999999"])
         self.assertEqual((1, ""), (code, out))
-        self.assertEqual("project", json.loads(err)["problem"]["stage"])
+        self.assertEqual("unmapped-id", json.loads(err)["problem"]["category"])
         self.assertEqual("confirmed-retired", json.loads(err)["state"])
 
     def test_sighup_requests_cancellation_and_restores_handler(self):
@@ -131,7 +131,7 @@ class CliTests(unittest.TestCase):
         self.assertEqual(previous, signal.getsignal(signal.SIGHUP))
 
     def test_help_is_real_and_defaults_do_not_require_timing_knobs(self):
-        result = subprocess.run([sys.executable, "-m", "linux_idmap.addons.cli", "identity", "--help"],
+        result = subprocess.run([sys.executable, "-m", "linux_idmap.addons.cli", "--help"],
                                 capture_output=True, text=True, timeout=5, check=False)
         self.assertEqual(0, result.returncode)
         self.assertIn("--endpoint", result.stdout)

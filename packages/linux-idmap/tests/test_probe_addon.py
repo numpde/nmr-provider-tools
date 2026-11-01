@@ -8,7 +8,8 @@ from unittest.mock import Mock, patch
 
 from linux_idmap.addons.probe import ProbeFailure, ResourceState, probe_identity
 from linux_idmap.addons.docker import DockerError
-from linux_idmap.maps import IdMap, IdRange, IdentityError
+from linux_idmap.core import IdMap, IdRange
+from linux_idmap.addons.errors import IdentityError
 from linux_idmap.addons.model import Bounds
 from helpers import CID, Engine, Guard, OBSERVATION, request
 
@@ -39,7 +40,6 @@ class OperationTests(unittest.TestCase):
         self.engine.create_failure = DockerError("timeout", "Docker reply timed out", mutation_uncertain=True)
         failure = self.failure()
         self.assertEqual("timeout", failure.problem.category)
-        self.assertEqual("create", failure.problem.stage)
         self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
         self.assertIn("candidates", self.engine.events)
         self.assertEqual(1, self.engine.events.count("create"))
@@ -62,14 +62,14 @@ class OperationTests(unittest.TestCase):
         def weaken(engine):
             engine.container.isolation["Privileged"] = True
         self.engine.on_create = weaken
-        self.assertEqual("ownership", self.failure().problem.category)
+        self.assertEqual("confinement", self.failure().problem.category)
         self.assertNotIn("remove", self.engine.events)
 
     def test_remove_failure_cannot_release_mapping(self):
         self.engine.remove_failure = DockerError("docker_command", "removal did not report success", mutation_uncertain=True)
         failure = self.failure()
         self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
-        self.assertEqual("remove", failure.problem.stage)
+        self.assertEqual("docker_command", failure.problem.category)
         self.assertIs(self.engine.remove_failure, failure.__cause__)
 
     def test_cancellation_after_create_cleans_without_starting(self):
@@ -101,7 +101,7 @@ class OperationTests(unittest.TestCase):
                 guard.observation = replace(OBSERVATION, starttime=124)
         self.guard.on_observe = change
         failure = self.failure()
-        self.assertEqual("observe", failure.problem.stage)
+        self.assertEqual("process-identity", failure.problem.category)
         self.assertEqual("process-identity", failure.problem.category)
         self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
         self.assertEqual((), failure.retirement.problems)
@@ -121,7 +121,7 @@ class OperationTests(unittest.TestCase):
                 with patch("linux_idmap.addons.probe.DockerEngine.connect", return_value=self.engine), \
                      patch("linux_idmap.addons.probe.ProbeProcesses", return_value=self.guard):
                     failure = self.failure()
-                self.assertEqual("observe", failure.problem.stage)
+                self.assertEqual("process-identity", failure.problem.category)
                 self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
                 self.assertEqual(inspection_number - 2, self.guard.observe.call_count)
 
@@ -146,7 +146,6 @@ class OperationTests(unittest.TestCase):
         failure = self.failure()
         self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
         self.assertIn("remove", self.engine.events)
-        self.assertEqual(42, failure.handle.processes[0].pid)
 
     def test_live_process_prevents_retirement_claim(self):
         self.guard.retired = False
@@ -187,7 +186,7 @@ class OperationTests(unittest.TestCase):
             failure = self.failure()
         self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
         self.assertEqual(CID, failure.retirement.container_id)
-        self.assertEqual("retire", failure.problem.stage)
+        self.assertEqual("cancelled", failure.problem.category)
         self.assertIsNotNone(self.engine.container)
 
     def test_cancellation_during_client_close_withholds_mapping(self):
@@ -201,10 +200,10 @@ class OperationTests(unittest.TestCase):
         self.engine.create_failure = DockerError("timeout", "creation reply was lost", mutation_uncertain=True)
         self.engine.remove_failure = DockerError("docker_command", "removal failed", mutation_uncertain=True)
         failure = self.failure()
-        self.assertEqual("create", failure.problem.stage)
+        self.assertEqual("timeout", failure.problem.category)
         self.assertIs(self.engine.create_failure, failure.__cause__)
         self.assertEqual("creation reply was lost", failure.problem.message)
-        self.assertTrue(any(problem.stage == "remove" for problem in failure.retirement.problems))
+        self.assertTrue(any(problem.category == "docker_command" for problem in failure.retirement.problems))
 
     def test_close_failure_precedes_retirement_problems_without_measurement_failure(self):
         removal = DockerError("docker_command", "removal failed", mutation_uncertain=True)
@@ -212,10 +211,10 @@ class OperationTests(unittest.TestCase):
         self.engine.remove_failure = removal
         self.engine.close = Mock(side_effect=closing)
         failure = self.failure()
-        self.assertEqual("close", failure.problem.stage)
+        self.assertEqual("local-io", failure.problem.category)
         self.assertIs(closing, failure.__cause__)
         self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
-        self.assertEqual(["remove", "retire"], [p.stage for p in failure.retirement.problems])
+        self.assertEqual(["docker_command", "timeout"], [p.category for p in failure.retirement.problems])
         self.assertNotIn("private close detail", str(failure.as_dict()))
 
     def test_measurement_failure_precedes_close_failure(self):
@@ -223,10 +222,10 @@ class OperationTests(unittest.TestCase):
         self.engine.create_failure = creation
         self.engine.close = Mock(side_effect=OSError("private close detail"))
         failure = self.failure()
-        self.assertEqual("create", failure.problem.stage)
+        self.assertEqual("timeout", failure.problem.category)
         self.assertIs(creation, failure.__cause__)
         self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
-        self.assertEqual(["close"], [p.stage for p in failure.retirement.problems])
+        self.assertEqual(["local-io"], [p.category for p in failure.retirement.problems])
 
     def test_unidentified_pid_can_retire_without_erasing_identity_failure(self):
         self.engine.on_start = lambda engine: setattr(engine, "container", replace(engine.container, running=False))
@@ -234,10 +233,8 @@ class OperationTests(unittest.TestCase):
         self.guard.pid_absent = Mock(return_value=True)
         failure = self.failure()
         self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
-        self.assertEqual((42,), failure.handle.unobserved_pids)
-        self.assertEqual((), failure.handle.processes)
         self.guard.pid_absent.assert_called_once_with(42)
-        self.assertEqual(["observe"], [p.stage for p in failure.retirement.problems])
+        self.assertEqual(["process-identity"], [p.category for p in failure.retirement.problems])
         self.assertIn("remove", self.engine.events)
 
     def test_unidentified_pid_still_present_prevents_retirement(self):
@@ -246,9 +243,8 @@ class OperationTests(unittest.TestCase):
         self.guard.pid_absent = Mock(return_value=False)
         failure = self.failure()
         self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
-        self.assertEqual((42,), failure.handle.unobserved_pids)
         self.assertIsNone(self.engine.container)
-        self.assertEqual(["observe", "retire"], [p.stage for p in failure.retirement.problems])
+        self.assertEqual(["process-identity", "timeout"], [p.category for p in failure.retirement.problems])
 
     def test_multiple_candidates_never_authorize_removal(self):
         self.engine.create_failure = DockerError("timeout", "creation reply lost", mutation_uncertain=True)

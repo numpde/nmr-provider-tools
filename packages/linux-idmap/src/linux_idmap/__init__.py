@@ -1,7 +1,5 @@
-"""Host-relative Linux process identity maps; no engine or deployment dependency."""
+"""Kernel-reported Linux ID maps; stronger guarantees are explicit add-ons."""
 
-from .maps import IdMap, IdRange, IdentityError, parse_id_map
-from .process import ProcessIdentity, ProcessMaps, observe_process
+from .core import IdMap, IdRange, Maps, observe_process, parse_map, read_maps
 
-__all__ = ["IdMap", "IdRange", "IdentityError", "ProcessIdentity", "ProcessMaps",
-           "observe_process", "parse_id_map"]
+__all__ = ["IdMap", "IdRange", "Maps", "observe_process", "parse_map", "read_maps"]

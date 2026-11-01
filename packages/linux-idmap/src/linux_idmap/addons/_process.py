@@ -3,10 +3,10 @@
 import os
 import re
 
-from .. import _proc
-from .._proc import HostProcfs, ProcessIdentity, _directory, _namespace_inode, _parse_stat, _validate_pid, _DEAD_STATES
-from ..maps import IdentityError
-from ..process import ProcessMaps
+from . import host as _proc
+from .host import Procfs, ProcessIdentity, require_host, _directory, _parse_stat, _validate_pid, _DEAD_STATES
+from .errors import IdentityError
+from .observation import ProcessObservation
 
 
 def _require_token(raw: bytes, token: str):
@@ -19,9 +19,10 @@ def _require_token(raw: bytes, token: str):
 _HOST_PID_NAMESPACE = 4026531836
 
 
-class ProbeProcesses(HostProcfs):
-    def host_evidence(self):
-        host = super().host_evidence()
+class ProbeProcesses(Procfs):
+    def reader_evidence(self):
+        host = super().reader_evidence()
+        require_host(host)
         with _directory(self.proc_root) as root:
             if _proc._namespace_inode(root, "pid") != _HOST_PID_NAMESPACE:
                 raise IdentityError("host-precondition", "Docker map reader must be in the initial PID namespace")
@@ -30,7 +31,7 @@ class ProbeProcesses(HostProcfs):
     def identify(self, pid: int, token: str) -> ProcessIdentity:
         return self._observe(pid, token, read_maps=False)
 
-    def observe(self, pid: int, token: str) -> ProcessMaps:
+    def observe(self, pid: int, token: str) -> ProcessObservation:
         return self._observe(pid, token, read_maps=True)
 
     def _observe(self, pid: int, token: str, *, read_maps: bool):
@@ -39,17 +40,17 @@ class ProbeProcesses(HostProcfs):
         with self.process(pid) as process:
             _require_token(process.read("cmdline", 8192), token)
             if read_maps:
-                uid_map, gid_map = process.read_maps()
+                maps = process.read_maps()
             _require_token(process.read("cmdline", 8192), token)
             identity = process.identity
-            return (ProcessMaps(identity.pid, identity.starttime, identity.proc_device,
-                                identity.proc_inode, uid_map, gid_map) if read_maps else identity)
+            return (ProcessObservation(identity.pid, identity.starttime, identity.proc_device,
+                                identity.proc_inode, maps.uid_map, maps.gid_map) if read_maps else identity)
 
     def pid_absent(self, pid: int) -> bool:
         """Conservative retirement proof when an exact identity was unavailable."""
         _validate_pid(pid)
         try:
-            with self.root() as root:
+            with self.root() as (root, _reader):
                 try:
                     os.stat(str(pid), dir_fd=root, follow_symlinks=False)
                 except FileNotFoundError:
@@ -66,7 +67,7 @@ class ProbeProcesses(HostProcfs):
                 or type(observation.proc_inode) is not int or observation.proc_inode <= 0):
             raise IdentityError("process-identity", "Probe retirement identity is invalid")
         try:
-            with self.root() as root:
+            with self.root() as (root, _reader):
                 try:
                     with _directory(str(observation.pid), dir_fd=root) as process:
                         metadata = os.fstat(process)

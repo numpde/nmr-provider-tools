@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "linux-idmap"
 version = "0.3.0a1"
-description = "Host-relative Linux process maps with explicit Docker probe add-ons"
+description = "Linux process ID maps with explicit host qualification and Docker add-ons"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []

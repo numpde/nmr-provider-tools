@@ -2,12 +2,12 @@
 
 The code here helps NMR providers talk to the API, deliver results and deploy. Each provider brings its own scientific code.
 
-The host-side [linux-idmap package](packages/linux-idmap/README.md) shares
-identity probing and exact probe cleanup between Python and shell deployment
-callers. It takes their already-selected Docker endpoint and image interpreter;
-it does not take over deployment policy. [Candidate NMRPeak and NMRNet patches](integrations/linux-idmap/README.md)
-are kept with the shared implementation and have host-boundary tests;
-real-engine qualification and production adoption remain pending.
+The neutral [linux-idmap package](packages/linux-idmap/README.md) has a one-page
+core for sampling Linux process ID maps. Host qualification, owned Docker image
+probes and shell projections are explicit, scenario-tested add-ons—not core
+requirements. [Candidate NMRPeak and NMRNet integrations](integrations/linux-idmap/README.md)
+live outside the package. Real-engine qualification and production adoption
+remain pending.
 
 Get `provider_core` and its lock file from [GitHub Releases](https://github.com/numpde/nmr-provider-tools/releases). The [package docs](packages/provider-core/README.md) explain how to use it.
 

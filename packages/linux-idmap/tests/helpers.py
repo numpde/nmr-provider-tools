@@ -3,20 +3,20 @@
 from dataclasses import replace
 
 from linux_idmap.addons.docker import Container, EngineIdentity
-from linux_idmap.maps import IdMap, IdRange
-from linux_idmap.process import ProcessMaps
+from linux_idmap.core import IdMap, IdRange
+from linux_idmap.addons.observation import ProcessObservation
 from linux_idmap.addons.model import Bounds, ProbeRequest
 from linux_idmap.addons.spec import OWNER
 
 CID = "c" * 64
 IMAGE = "sha256:" + "a" * 64
-OBSERVATION = ProcessMaps(42, 123, 7, 99,
+OBSERVATION = ProcessObservation(42, 123, 7, 99,
     IdMap((IdRange(0, 100000, 65536),)), IdMap((IdRange(0, 200000, 65536),)))
 
 
 def request():
     return ProbeRequest("unix:///test.sock", "approved:local", "/usr/bin/python3",
-                        1000, 2000, bounds=Bounds(1, .2, .1, 30))
+                        1000, 2000, bounds=Bounds(1, .2, .1, 30), confine=True)
 
 
 def container_for(spec):
@@ -24,12 +24,13 @@ def container_for(spec):
     isolation = {
         "AutoRemove": True, "NetworkMode": "none", "ReadonlyRootfs": True,
         "CapDrop": ["ALL"], "SecurityOpt": ["no-new-privileges:true"],
-        "PidsLimit": 8, "Memory": 67108864, "MemorySwap": 67108864,
-        "NanoCpus": 250000000, "Privileged": False, "PidMode": "",
+        "Privileged": False, "PidMode": "",
         "CapAdd": None, "Devices": None, "DeviceRequests": None,
         "RestartPolicy": {"Name": "no"},
     }
-    # silent-defaults: allow-contract -- The fixture models Docker inspect encoding of explicit default versus host user namespaces; tests/test_operation.py::OperationTests.
+    if not spec.request.confine:
+        isolation.update(NetworkMode="default", ReadonlyRootfs=False, CapDrop=None, SecurityOpt=None)
+    # silent-defaults: allow-contract -- The fixture models Docker inspect encoding of explicit default versus host user namespaces; tests/test_probe_addon.py::OperationTests.
     return Container(CID, spec.name, IMAGE, spec.token, OWNER, 0, False, "not-started",
                      f"{spec.request.user_uid}:{spec.request.user_gid}", "" if spec.request.userns_mode == "default" else "host",
                      (spec.request.interpreter,), spec.command, [], isolation)
@@ -99,7 +100,7 @@ class Guard:
         self.on_observe = None
         self.retired = True
 
-    def host_evidence(self):
+    def reader_evidence(self):
         return "host-evidence"
 
     def observe(self, pid, token):

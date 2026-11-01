@@ -18,26 +18,10 @@ OWNER = "identity-v3"
 # Finite inert probe payload; the caller supplies its lifetime and interpreter.
 # repo-check: allow-module-constant
 PROBE_SCRIPT = "import sys,time; time.sleep(int(sys.argv[1]))"
-# Docker flag, argument (None for switches), inspect field, exact expected value.
-# Single isolation contract for both creation flags and removal authorization.
+# Probe lifecycle evidence plus the optional confinement profile's fields.
 # repo-check: allow-module-constant
-_RESTRICTIONS = (
-    ("--rm", None, "AutoRemove", True),
-    ("--network", "none", "NetworkMode", "none"),
-    ("--read-only", None, "ReadonlyRootfs", True),
-    ("--cap-drop", "ALL", "CapDrop", ["ALL"]),
-    ("--security-opt", "no-new-privileges:true", "SecurityOpt", ["no-new-privileges:true"]),
-    ("--pids-limit", "8", "PidsLimit", 8),
-    ("--memory", "64m", "Memory", 67108864),
-    ("--memory-swap", "64m", "MemorySwap", 67108864),
-    ("--cpus", "0.25", "NanoCpus", 250000000),
-)
-# Immutable inspect-field inventory derived from the isolation contract.
-# repo-check: allow-tuple-generator -- Freeze the shared inspect-field inventory so projection and verification cannot diverge through mutation.
-# repo-check: allow-module-constant
-ISOLATION_FIELDS = tuple(row[2] for row in _RESTRICTIONS) + (
-    "Privileged", "PidMode", "CapAdd", "Devices", "DeviceRequests", "RestartPolicy",
-)
+ISOLATION_FIELDS = ("AutoRemove", "RestartPolicy", "NetworkMode", "ReadonlyRootfs", "CapDrop",
+                    "SecurityOpt", "Privileged", "PidMode", "CapAdd", "Devices", "DeviceRequests")
 
 
 @dataclass(frozen=True)
@@ -65,11 +49,11 @@ class ProbeSpec:
         request = self.request
         args = ["container", "create", "--pull=never", "--name", self.name,
                 "--label", OWNER_LABEL + "=" + OWNER, "--label", TOKEN_LABEL + "=" + self.token,
-                "--user", f"{request.user_uid}:{request.user_gid}", "--restart", "no", "--no-healthcheck"]
-        for flag, argument, _field, _expected in _RESTRICTIONS:
-            args.append(flag)
-            if argument is not None:
-                args.append(argument)
+                "--user", f"{request.user_uid}:{request.user_gid}", "--rm", "--restart", "no", "--no-healthcheck"]
+        if request.confine:
+            from . import confinement
+
+            args.extend(confinement.arguments())
         if request.userns_mode == "host":
             args.append("--userns=host")
         return args + ["--entrypoint", request.interpreter, self.image_id, *self.command]
@@ -87,12 +71,11 @@ class ProbeSpec:
             raise StepError("ownership", "probe ownership or configuration does not match its specification")
 
         isolation = container.isolation
-        for _flag, _argument, field, expected in _RESTRICTIONS:
-            actual = isolation.get(field)
-            if type(actual) is not type(expected) or actual != expected:
-                raise StepError("ownership", "probe isolation differs from its specification")
-        if (isolation.get("Privileged") is not False or isolation.get("PidMode") not in (None, "")
-                or any(isolation.get(key) not in (None, []) for key in ("CapAdd", "Devices", "DeviceRequests"))
-                or not isinstance(isolation.get("RestartPolicy"), dict)
-                or isolation["RestartPolicy"].get("Name") not in ("", "no") or container.mounts != []):
-            raise StepError("ownership", "probe acquired unexpected privileges, devices or mounts")
+        if (isolation["AutoRemove"] is not True
+                or not isinstance(isolation["RestartPolicy"], dict)
+                or isolation["RestartPolicy"].get("Name") not in ("", "no")):
+            raise StepError("ownership", "probe cleanup or restart policy changed")
+        if request.confine:
+            from . import confinement
+
+            confinement.verify(container)

@@ -16,8 +16,9 @@ import time
 import unittest
 from unittest.mock import patch
 
-from linux_idmap._proc import HostEvidence
-from linux_idmap.maps import IdentityError, parse_id_map
+from linux_idmap.addons.host import ReaderEvidence
+from linux_idmap.core import parse_map as parse_id_map
+from linux_idmap.addons.errors import IdentityError
 from linux_idmap.addons._process import ProbeProcesses
 from linux_idmap.addons.model import Bounds, ProbeFailure, ProbeRequest, ResourceState
 from linux_idmap.addons.probe import probe_identity
@@ -39,7 +40,7 @@ class OperationFaultTests(unittest.TestCase):
             "PATH": str(self.bin) + os.pathsep + os.environ["PATH"],
             "LINUX_IDMAP_TEST_STATE": str(self.state_path),
         }))
-        self.enterContext(patch.object(ProbeProcesses, "host_evidence", new=self.host_evidence))
+        self.enterContext(patch.object(ProbeProcesses, "reader_evidence", new=self.reader_evidence))
         self.addCleanup(self.kill_fixture_processes)
         self.bounds = Bounds(operation_seconds=15, command_seconds=0.5,
                              cleanup_seconds=4, lifetime_seconds=90)
@@ -50,9 +51,9 @@ class OperationFaultTests(unittest.TestCase):
         )
 
     @staticmethod
-    def host_evidence(_guard=None):
+    def reader_evidence(_guard=None):
         proc = Path("/proc").stat()
-        return HostEvidence(4026531837, proc.st_dev, proc.st_ino,
+        return ReaderEvidence(4026531837, proc.st_dev, proc.st_ino,
                             os.getpid(), threading.get_native_id())
 
     def state(self):
@@ -101,7 +102,6 @@ class OperationFaultTests(unittest.TestCase):
         self.assertNotIn("uid_map", report)
         self.assertNotIn("gid_map", report)
         self.assertNotIn("SECRET", json.dumps(report))
-        self.assertTrue(caught.exception.problem.stage)
         self.assertTrue(caught.exception.problem.message)
         if caught.exception.retirement.state != ResourceState.NOT_CREATED:
             self.assertIsNotNone(caught.exception.handle)
@@ -178,7 +178,7 @@ class OperationFaultTests(unittest.TestCase):
         self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
         self.assertIsNone(self.state()["container"])
         self.assertEqual(1, len(self.calls("rm")))
-        self.assertTrue(failure.handle.processes)
+        self.assertTrue(self.state()["probe_processes"])
 
     def test_changed_engine_never_authorizes_removal_on_replacement(self):
         self.configure(change_engine_after_create=True)

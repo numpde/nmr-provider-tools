@@ -1,4 +1,4 @@
-"""Pinned Linux process evidence for the core and its process-owning add-ons."""
+"""Host qualification and pinned process evidence, explicitly outside the raw core."""
 
 from __future__ import annotations
 
@@ -12,7 +12,8 @@ import re
 import sys
 import threading
 
-from .maps import IdentityError, parse_id_map, _MAP_BYTES
+from ..core import read_maps
+from .errors import IdentityError
 
 
 # Linux nsfs ABI identity, checked before namespace ioctls.
@@ -39,7 +40,7 @@ _DEAD_STATES = frozenset("ZXx")
 
 
 @dataclass(frozen=True)
-class HostEvidence:
+class ReaderEvidence:
     user_namespace_inode: int
     proc_device: int
     proc_inode: int
@@ -122,80 +123,105 @@ def _parse_stat(raw: bytes, pid: int) -> tuple[str, int]:
 
 def _validate_pid(pid: int):
     if type(pid) is not int or not 1 <= pid <= 0x7FFFFFFF:
-        raise IdentityError("process-identity", "Process has no valid host PID")
+        raise IdentityError("process-identity", "Process has no valid visible PID")
 
 
-class HostProcfs:
+class Procfs:
     """Observe one genuine local Linux procfs; unsafe namespace evidence fails closed."""
 
-    # silent-defaults: allow-contract -- Linux process evidence comes from /proc unless a caller explicitly supplies a root; filesystem and namespace checks apply equally to both; tests/test_linux.py::HostGuardTests.
+    # silent-defaults: allow-contract -- Linux process evidence comes from /proc unless a caller explicitly supplies a root; filesystem and namespace checks apply equally to both; tests/test_host_addon.py::HostGuardTests.
     def __init__(self, proc_root: Path = Path("/proc")):
         self.proc_root = Path(proc_root)
 
-    def host_evidence(self) -> HostEvidence:
+    def reader_evidence(self) -> ReaderEvidence:
         if sys.platform != "linux":
-            raise IdentityError("host-precondition", "Host ID observation requires Linux")
+            raise IdentityError("host-precondition", "Process map observation requires Linux")
         try:
             with _directory(self.proc_root) as root:
                 pid, tid = os.getpid(), threading.get_native_id()
                 if (os.readlink("self", dir_fd=root) != str(pid)
                         or os.readlink("thread-self", dir_fd=root) != f"{pid}/task/{tid}"):
-                    raise IdentityError("host-precondition", "procfs does not expose the calling host process")
+                    raise IdentityError("host-precondition", "procfs does not expose the calling process")
                 user = _namespace_inode(root, "user")
-                if user != _USER_INIT_INO:
-                    raise IdentityError("host-precondition", "Map reader must be in the initial user namespace")
                 metadata = os.fstat(root)
-                return HostEvidence(user, metadata.st_dev, metadata.st_ino, pid, tid)
+                return ReaderEvidence(user, metadata.st_dev, metadata.st_ino, pid, tid)
         except OSError as cause:
-            raise IdentityError("host-precondition", "Host namespace evidence is unavailable") from cause
+            raise IdentityError("host-precondition", "Reader namespace evidence is unavailable") from cause
 
     @contextmanager
     def root(self):
-        """Keep each successful process read bound to the same host procfs."""
-        host = self.host_evidence()
+        """Keep each successful process read bound to the same reader procfs."""
+        host = self.reader_evidence()
         with _directory(self.proc_root) as root:
             metadata = os.fstat(root)
             if (metadata.st_dev, metadata.st_ino) != (host.proc_device, host.proc_inode):
                 raise IdentityError("host-precondition", "procfs changed before process evidence read")
-            yield root
-        if host != self.host_evidence():
-            raise IdentityError("host-precondition", "Host namespace evidence changed during process evidence read")
+            yield root, host
+        if host != self.reader_evidence():
+            raise IdentityError("host-precondition", "Reader namespace evidence changed during process evidence read")
 
     @contextmanager
     def process(self, pid: int):
-        """Yield one live pinned process; normal exit proves it stayed the same."""
+        """Yield a pinned live process and check its identity again on successful exit."""
         _validate_pid(pid)
         try:
-            with self.root() as root, _directory(str(pid), dir_fd=root) as fd:
+            with self.root() as (root, reader), _directory(str(pid), dir_fd=root) as fd:
                 metadata = os.fstat(fd)
                 state, starttime = _parse_stat(_read_at(fd, "stat", 4096), pid)
                 if state not in _LIVE_STATES:
                     raise IdentityError("process-identity", "Process is not live")
                 identity = ProcessIdentity(pid, starttime, metadata.st_dev, metadata.st_ino)
-                yield ProcessDirectory(fd, identity)
+                yield ProcessDirectory(fd, identity, reader)
                 state, after_starttime = _parse_stat(_read_at(fd, "stat", 4096), pid)
                 after = os.stat(str(pid), dir_fd=root, follow_symlinks=False)
                 if (state not in _LIVE_STATES or starttime != after_starttime
                         or (after.st_dev, after.st_ino) != (metadata.st_dev, metadata.st_ino)):
                     raise IdentityError("process-identity", "Process was replaced or exited during observation")
         except OSError as cause:
-            raise IdentityError("process-identity", "Cannot establish stable host process evidence") from cause
+            raise IdentityError("process-identity", "Cannot establish consistent process evidence") from cause
 
 
 @dataclass(frozen=True)
 class ProcessDirectory:
-    """A bounded reader valid only inside HostProcfs.process()."""
+    """A bounded reader valid only inside Procfs.process()."""
 
     fd: int
     identity: ProcessIdentity
+    reader: ReaderEvidence
 
-    def read(self, name: str, limit: int) -> bytes:
+    # silent-defaults: allow-contract -- Map files use a bounded read; other proc evidence supplies its own smaller bound.
+    def read(self, name: str, limit: int = 65536) -> bytes:
         return _read_at(self.fd, name, limit)
 
     def read_maps(self):
-        uid_map = parse_id_map(self.read("uid_map", _MAP_BYTES))
-        gid_map = parse_id_map(self.read("gid_map", _MAP_BYTES))
-        if (uid_map != parse_id_map(self.read("uid_map", _MAP_BYTES))
-                or gid_map != parse_id_map(self.read("gid_map", _MAP_BYTES))):
-            raise IdentityError("process-identity", "ID maps changed during observation")
-        return uid_map, gid_map
+        return consistent_maps(self.read)
+
+
+def consistent_maps(read_file):
+    """Refine a raw sample by refusing differences in two complete readings."""
+    try:
+        first = read_maps(read_file)
+        second = read_maps(read_file)
+    except ValueError as cause:
+        raise IdentityError("process-identity", "Process ID maps could not be interpreted") from cause
+    if first != second:
+        raise IdentityError("process-identity", "ID maps changed during observation")
+    return first
+
+
+def coherent_process(pid: int):
+    """A genuine procfs source with repeated reader/process identity checks."""
+    return Procfs().process(pid)
+
+
+@contextmanager
+def qualified_process(pid: int):
+    """Refine the same pinned source to initial-user-namespace coordinates."""
+    with coherent_process(pid) as source:
+        require_host(source.reader)
+        yield source
+
+
+def require_host(reader: ReaderEvidence) -> None:
+    if reader.user_namespace_inode != _USER_INIT_INO:
+        raise IdentityError("host-precondition", "Map reader must be in the initial user namespace")

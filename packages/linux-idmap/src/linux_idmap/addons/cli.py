@@ -8,15 +8,11 @@ import signal
 import sys
 import threading
 
-from ..maps import IdentityError
 from .model import Problem, ProbeFailure, ProbeRequest, ResourceState, Retirement, StepError
 from .probe import probe_identity
 
 
 class _Parser(argparse.ArgumentParser):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs, allow_abbrev=False)
-
     def error(self, _message):
         raise StepError("invalid-policy", "invalid or missing arguments; use --help")
 
@@ -28,20 +24,19 @@ def _integer(text: str) -> int:
 
 
 def _parser():
-    parser = _Parser(prog="linux-idmap")
-    operations = parser.add_subparsers(dest="operation", required=True, parser_class=_Parser)
-    identity = operations.add_parser("identity", help="measure host IDs and retire the owned probe")
-    identity.add_argument("--endpoint", required=True, help="already-selected unix:/// Docker endpoint")
-    identity.add_argument("--image", required=True, help="approved image already present on that engine")
-    identity.add_argument("--interpreter", required=True, help="absolute Python path inside that image")
-    identity.add_argument("--user-uid", required=True, type=_integer)
-    identity.add_argument("--user-gid", required=True, type=_integer)
-    identity.add_argument("--userns", choices=("default", "host"))
+    parser = _Parser(prog="linux-idmap-probe", allow_abbrev=False)
+    parser.add_argument("--endpoint", required=True, help="already-selected unix:/// Docker endpoint")
+    parser.add_argument("--image", required=True, help="approved image already present on that engine")
+    parser.add_argument("--interpreter", required=True, help="absolute Python path inside that image")
+    parser.add_argument("--user-uid", required=True, type=_integer)
+    parser.add_argument("--user-gid", required=True, type=_integer)
+    parser.add_argument("--userns", choices=("default", "host"))
+    parser.add_argument("--confine", action="store_true", help="require the restricted probe configuration")
     # silent-defaults: allow-contract -- No projection options means no requested IDs; argparse copies each list before appending; tests/test_cli.py::CliTests.test_no_requested_ids_means_no_projections.
-    identity.add_argument("--uid", action="append", type=_integer, default=[])
-    identity.add_argument("--gid", action="append", type=_integer, default=[])
-    identity.add_argument("--values", action="store_true", help="print only projected decimal IDs for shell callers")
-    identity.add_argument("--timeout", type=float, help="override the measurement time bound in seconds")
+    parser.add_argument("--uid", action="append", type=_integer, default=[])
+    parser.add_argument("--gid", action="append", type=_integer, default=[])
+    parser.add_argument("--values", action="store_true", help="print only projected decimal IDs for shell callers")
+    parser.add_argument("--timeout", type=float, help="override the measurement time bound in seconds")
     return parser
 
 
@@ -66,7 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         if len(options.uid) + len(options.gid) > 512:
             raise StepError("invalid-policy", "request at most 512 projected identities")
         request = ProbeRequest(options.endpoint, options.image, options.interpreter,
-                               options.user_uid, options.user_gid)
+                               options.user_uid, options.user_gid, confine=options.confine)
         if options.userns is not None:
             request = replace(request, userns_mode=options.userns)
         if options.timeout is not None:
@@ -79,8 +74,8 @@ def main(argv: list[str] | None = None) -> int:
         try:
             projected_uids = [result.uid_map.translate(uid) for uid in options.uid]
             projected_gids = [result.gid_map.translate(gid) for gid in options.gid]
-        except IdentityError as error:
-            raise ProbeFailure(Problem("project", error.category, str(error)),
+        except ValueError as error:
+            raise ProbeFailure(Problem("unmapped-id", str(error)),
                 Retirement(ResourceState.RETIRED, result.container_id)) from error
         payload = result.as_dict()
         payload.update(mapped_uids=projected_uids, mapped_gids=projected_gids)
@@ -95,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         return 130 if failure.problem.category == "cancelled" else 1
     # silent-defaults: allow-exception-outcome -- Invalid caller policy is a structured refusal with status 2 and known-not-created state; tests/test_cli.py::CliTests.test_missing_arguments_fail_before_creation.
     except StepError as failure:
-        _emit({"ok": False, "problem": asdict(Problem("policy", failure.category, str(failure))),
+        _emit({"ok": False, "problem": asdict(Problem(failure.category, str(failure))),
                "state": ResourceState.NOT_CREATED}, values_mode=values_mode)
         return 2
     finally:

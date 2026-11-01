@@ -356,10 +356,8 @@ class EngineTests(unittest.TestCase):
             "container", "create", "--pull=never", "--name", "linux-idmap-" + TOKEN,
             "--label", "linux-idmap.operation=identity-v3",
             "--label", "linux-idmap.token=" + TOKEN,
-            "--user", "1000:2000", "--restart", "no", "--no-healthcheck",
-            "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
-            "--security-opt", "no-new-privileges:true", "--pids-limit", "8",
-            "--memory", "64m", "--memory-swap", "64m", "--cpus", "0.25", "--userns=host",
+            "--user", "1000:2000", "--rm", "--restart", "no", "--no-healthcheck", "--network", "none", "--read-only", "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges:true", "--userns=host",
             "--entrypoint", "/usr/bin/python3", IMAGE, "-I", "-S", "-B", "-c",
             "import sys,time; time.sleep(int(sys.argv[1]))", "30", TOKEN,
         ], args[5:])

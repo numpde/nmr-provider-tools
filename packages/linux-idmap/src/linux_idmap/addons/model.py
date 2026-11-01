@@ -5,7 +5,6 @@ from enum import StrEnum
 import math
 import re
 
-from ..process import ProcessIdentity
 
 
 class StepError(RuntimeError):
@@ -41,11 +40,14 @@ class ProbeRequest:
     user_gid: int
     userns_mode: str = "default"
     bounds: Bounds = Bounds()
+    confine: bool = False
 
     def validate(self) -> None:
         if type(self.bounds) is not Bounds:
             raise StepError("invalid-policy", "invalid operation bounds")
         self.bounds.validate()
+        if type(self.confine) is not bool:
+            raise StepError("invalid-policy", "confinement selection must be a boolean")
         if (not isinstance(self.endpoint, str) or not self.endpoint.startswith("unix:///")
                 or len(self.endpoint) > 4096):
             raise StepError("invalid-policy", "use the caller-selected local Unix Docker endpoint")
@@ -70,7 +72,6 @@ class ResourceState(StrEnum):
 
 @dataclass(frozen=True)
 class Problem:
-    stage: str
     category: str
     message: str
 
@@ -89,8 +90,6 @@ class ProbeHandle:
     endpoint: str
     operation_token: str
     container_id: str | None = None
-    processes: tuple[ProcessIdentity, ...] = ()
-    unobserved_pids: tuple[int, ...] = ()
     daemon_id: str | None = None
 
 
