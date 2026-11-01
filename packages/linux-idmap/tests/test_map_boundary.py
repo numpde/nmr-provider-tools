@@ -2,6 +2,7 @@
 
 from contextlib import contextmanager
 from dataclasses import asdict
+import errno
 import json
 from pathlib import Path
 import subprocess
@@ -106,24 +107,45 @@ class MapBoundaryTests(unittest.TestCase):
         # Deliberately false affinity assertion: numeric guards cannot detect it.
         self.assertEqual(1002, IdMap(parse_map(printed_row(reader_b))).translate(2))
 
-    def test_real_isolated_unmapped_reader_preserves_sentinel_without_translation(self):
-        child = r'''
+    def _in_child_user_namespace(self, scenario):
+        """Run a scenario in a fresh child USER namespace, never the test runner's."""
+        setup = r'''
 import ctypes, errno, json, os, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from linux_idmap import observe_process, parse_map
-from linux_idmap.addons.observation import observe_host_process
+from linux_idmap import IdMap, observe_process, parse_map
 from linux_idmap.addons.errors import IdentityError
-parent = os.getppid()
-old_namespace = os.stat("/proc/self/ns/user").st_ino
+from linux_idmap.addons.observation import observe_host_process
+parent_uid = os.geteuid()
+old_namespace = os.stat('/proc/self/ns/user').st_ino
 libc = ctypes.CDLL(None, use_errno=True)
 libc.unshare.argtypes = [ctypes.c_int]
 libc.unshare.restype = ctypes.c_int
 if libc.unshare(0x10000000) != 0:
     error = ctypes.get_errno()
-    print(json.dumps({'errno': error, 'reason': os.strerror(error)}))
+    print(json.dumps({'blocked': 'unshare', 'errno': error, 'reason': os.strerror(error)}))
     raise SystemExit(77 if error in (errno.EPERM, errno.ENOSYS) else 1)
 assert os.stat('/proc/self/ns/user').st_ino != old_namespace
+'''
+        import linux_idmap
+        source = str(Path(linux_idmap.__file__).parent.parent)
+        result = subprocess.run([sys.executable, "-I", "-S", "-B", "-c", setup + scenario, source],
+                                capture_output=True, text=True, timeout=10)
+        if result.returncode == 77:
+            evidence = json.loads(result.stdout)
+            unavailable = {
+                'unshare': (errno.EPERM, errno.ENOSYS),
+                'isolated child uid_map setup': (errno.EPERM, errno.EACCES),
+            }
+            self.assertIn(evidence['blocked'], unavailable)
+            self.assertIn(evidence['errno'], unavailable[evidence['blocked']])
+            self.skipTest(f"isolated user namespace setup unavailable: {evidence}")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        return json.loads(result.stdout)
+
+    def test_real_isolated_unmapped_reader_preserves_sentinel_without_translation(self):
+        evidence = self._in_child_user_namespace(r'''
+parent = os.getppid()
 assert Path('/proc/self/uid_map').read_bytes() == b''
 assert Path('/proc/self/gid_map').read_bytes() == b''
 assert observe_process(os.getpid()).uid_map == ()
@@ -140,44 +162,16 @@ except IdentityError as error:
 else:
     raise AssertionError('Unmapped reader was host-qualified')
 print(json.dumps({'raw': raw.decode(), 'raw_has_translation': hasattr(mapping, 'translate')}))
-'''
-        import linux_idmap
-        source = str(Path(linux_idmap.__file__).parent.parent)
-        result = subprocess.run([sys.executable, "-I", "-S", "-B", "-c", child, source],
-                                capture_output=True, text=True, timeout=10)
-        if result.returncode == 77:
-            import errno
-            evidence = json.loads(result.stdout)
-            self.assertIn(evidence["errno"], (errno.EPERM, errno.ENOSYS))
-            self.skipTest(f"unshare unavailable: {evidence}")
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        evidence = json.loads(result.stdout)
+''')
         self.assertFalse(evidence["raw_has_translation"])
 
     def test_real_self_map_supports_explicit_nonhost_parent_conversion(self):
-        # All namespace creation and map setup occur in this short-lived child.
-        child = r'''
-import ctypes, errno, json, os, sys
-from pathlib import Path
-sys.path.insert(0, sys.argv[1])
-from linux_idmap import IdMap, observe_process
-from linux_idmap.addons.errors import IdentityError
-from linux_idmap.addons.observation import observe_host_process
-parent_uid = os.geteuid()
-old_namespace = os.stat('/proc/self/ns/user').st_ino
-libc = ctypes.CDLL(None, use_errno=True)
-libc.unshare.argtypes = [ctypes.c_int]
-libc.unshare.restype = ctypes.c_int
-if libc.unshare(0x10000000) != 0:
-    error = ctypes.get_errno()
-    print(json.dumps({'blocked': 'unshare', 'errno': error, 'reason': os.strerror(error)}))
-    raise SystemExit(77 if error in (errno.EPERM, errno.ENOSYS) else 1)
+        evidence = self._in_child_user_namespace(r'''
 try:
     Path('/proc/self/uid_map').write_text(f'0 {parent_uid} 1\n')
 except OSError as error:
     print(json.dumps({'blocked': 'isolated child uid_map setup', 'errno': error.errno, 'reason': str(error)}))
     raise SystemExit(77 if error.errno in (errno.EPERM, errno.EACCES) else 1)
-assert os.stat('/proc/self/ns/user').st_ino != old_namespace
 assert os.geteuid() == 0
 rows = observe_process(os.getpid()).uid_map
 # This source relationship, not the bytes alone, establishes parent affinity:
@@ -194,16 +188,7 @@ else:
 print(json.dumps({'raw': Path('/proc/self/uid_map').read_text(),
                   'inside_uid': os.geteuid(), 'recorded_parent_uid': parent_uid,
                   'translated_parent_uid': translated, 'host_qualified': False}))
-'''
-        import linux_idmap
-        source = str(Path(linux_idmap.__file__).parent.parent)
-        result = subprocess.run([sys.executable, "-I", "-S", "-B", "-c", child, source],
-                                capture_output=True, text=True, timeout=10)
-        if result.returncode == 77:
-            evidence = json.loads(result.stdout)
-            self.skipTest(f"isolated user namespace setup unavailable: {evidence}")
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        evidence = json.loads(result.stdout)
+''')
         self.assertEqual(evidence["recorded_parent_uid"], evidence["translated_parent_uid"])
         self.assertFalse(evidence["host_qualified"])
 
