@@ -22,9 +22,7 @@ from provider_deploy.operation import probe_identity
 
 class OperationFaultTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.state_path = self.root / "engine.json"
         self.state_path.write_text(json.dumps({"calls": [], "container": None}))
         self.bin = self.root / "bin"
@@ -34,18 +32,12 @@ class OperationFaultTests(unittest.TestCase):
         def fixture_socket_identity(path):
             metadata = Path(path).stat()
             return metadata.st_dev, metadata.st_ino
-        socket_identity = patch("provider_deploy.docker._socket_identity", side_effect=fixture_socket_identity)
-        socket_identity.start()
-        self.addCleanup(socket_identity.stop)
-        environment = patch.dict(os.environ, {
+        self.enterContext(patch("provider_deploy.docker._socket_identity", side_effect=fixture_socket_identity))
+        self.enterContext(patch.dict(os.environ, {
             "PATH": str(self.bin) + os.pathsep + os.environ["PATH"],
             "PROVIDER_DEPLOY_TEST_STATE": str(self.state_path),
-        })
-        environment.start()
-        self.addCleanup(environment.stop)
-        host = patch.object(LinuxGuard, "host_evidence", new=self.host_evidence)
-        host.start()
-        self.addCleanup(host.stop)
+        }))
+        self.enterContext(patch.object(LinuxGuard, "host_evidence", new=self.host_evidence))
         self.addCleanup(self.kill_fixture_processes)
         self.bounds = Bounds(operation_seconds=15, command_seconds=0.5,
                              cleanup_seconds=4, lifetime_seconds=90)

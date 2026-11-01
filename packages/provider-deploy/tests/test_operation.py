@@ -18,9 +18,7 @@ class OperationTests(unittest.TestCase):
         self.request = request()
         self.engine, self.guard = Engine(), Guard()
         for target, value in (("DockerEngine.connect", self.engine), ("LinuxGuard", self.guard)):
-            patched = patch("provider_deploy.operation." + target, return_value=value)
-            patched.start()
-            self.addCleanup(patched.stop)
+            self.enterContext(patch("provider_deploy.operation." + target, return_value=value))
 
     def failure(self, **kwargs):
         with self.assertRaises(ProbeFailure) as caught:

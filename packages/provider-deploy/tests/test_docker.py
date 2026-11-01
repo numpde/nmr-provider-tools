@@ -196,9 +196,7 @@ class CommandTests(unittest.TestCase):
 
 class EndpointContinuityTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        root = Path(self.tmp.name)
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.first, self.second = root / "first.sock", root / "second.sock"
         self.selected = root / "selected.sock"
         self.selected.symlink_to(self.first)
@@ -207,18 +205,14 @@ class EndpointContinuityTests(unittest.TestCase):
         # is available in this lane. Both targets report the same daemon info
         # so only continuity of the caller's socket path can detect the change.
         identities = {self.first: (12, 34), self.second: (12, 35)}
-        identity_patch = patch("provider_deploy.docker._socket_identity",
-                               side_effect=lambda path: identities[Path(path).resolve()])
-        identity_patch.start()
-        self.addCleanup(identity_patch.stop)
+        self.enterContext(patch("provider_deploy.docker._socket_identity",
+                                side_effect=lambda path: identities[Path(path).resolve()]))
         self.calls = []
         def run(argv, **kwargs):
             self.calls.append(argv)
             return json.dumps(["daemon-a", [], "/var/lib/docker", "overlay2", "linux"])
         self.run = run
-        runner = patch("provider_deploy.docker._run_command", side_effect=run)
-        runner.start()
-        self.addCleanup(runner.stop)
+        self.enterContext(patch("provider_deploy.docker._run_command", side_effect=run))
 
     def retarget(self):
         self.selected.unlink()
@@ -256,13 +250,9 @@ class EndpointContinuityTests(unittest.TestCase):
 
 class EngineTests(unittest.TestCase):
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.sockpath = Path(self.tmp.name) / "engine.sock"
+        self.sockpath = Path(self.enterContext(tempfile.TemporaryDirectory())) / "engine.sock"
         self.socket_identity = (12, 34)
-        socket_patch = patch("provider_deploy.docker._socket_identity", side_effect=lambda path: self.socket_identity)
-        socket_patch.start()
-        self.addCleanup(socket_patch.stop)
+        self.enterContext(patch("provider_deploy.docker._socket_identity", side_effect=lambda path: self.socket_identity))
         self.calls = []
         self.daemon = "daemon-a"
         self.security_options = ["name=rootless"]
@@ -280,11 +270,8 @@ class EngineTests(unittest.TestCase):
                 raise result
             return result
         self.record_run = run
-        self.runner = patch("provider_deploy.docker._run_command", side_effect=run)
-        self.runner.start()
-        self.addCleanup(self.runner.stop)
-        self.engine = DockerEngine.connect("unix://" + str(self.sockpath), timeout=2)
-        self.addCleanup(self.engine.close)
+        self.enterContext(patch("provider_deploy.docker._run_command", side_effect=run))
+        self.engine = self.enterContext(DockerEngine.connect("unix://" + str(self.sockpath), timeout=2))
 
     def test_caller_endpoint_is_never_reresolved_and_ambient_settings_are_ignored(self):
         self.extra["inspect"] = json.dumps([IMAGE, None])
