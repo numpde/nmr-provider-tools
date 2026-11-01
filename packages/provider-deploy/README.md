@@ -129,9 +129,10 @@ outcomes require operator review on the same engine, not blind retry or pruning.
 Successful maps are point-in-time evidence, not permanent permission authority.
 The provider must keep its selected engine and namespace policy consistent with
 the subsequent deployment steps.
-The endpoint spelling is preserved, including socket aliases. Guards detect
-observed target changes; separate CLI requests are not an atomic transaction
-against concurrent endpoint reconfiguration. The diagnostic daemon ID identifies
+The endpoint spelling is preserved, including socket aliases. Spellings Docker
+would trim are refused; percent escapes remain literal socket-path characters.
+Guards detect observed target changes; separate CLI requests are not an atomic
+transaction against concurrent endpoint reconfiguration. The diagnostic daemon ID identifies
 the original engine if its route changes; it is not permission to remove anything.
 
 ## Verification

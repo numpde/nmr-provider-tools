@@ -306,6 +306,9 @@ class DockerEngine:
         deadline = _deadline(timeout)
         if not _text(endpoint) or not endpoint.startswith("unix:///") or "?" in endpoint or "#" in endpoint:
             raise DockerError("unsupported_engine", "The selected Docker endpoint must be a local Unix socket.")
+        # Docker trims its host option; do not stat one path and dial another.
+        if endpoint != endpoint.strip():
+            raise DockerError("unsupported_engine", "The selected Docker endpoint must not have surrounding whitespace.")
         # Keep the caller's absolute path, including symlinks: subsequent
         # caller commands use this spelling, so every guard must follow it.
         socket_path = endpoint[7:]
