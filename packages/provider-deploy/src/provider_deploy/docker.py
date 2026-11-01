@@ -134,8 +134,6 @@ def _run_command(argv: list[str], *, env: Mapping[str, str], timeout: float,
         while True:
             if cancel is not None and cancel.is_set():
                 raise DockerError("cancelled", "Docker operation was cancelled.")
-            if time.monotonic() >= deadline:
-                raise DockerError("timeout", "The bounded Docker command timed out.")
             wait = min(0.05, _remaining(deadline))
             if not selector.get_map():
                 try:
