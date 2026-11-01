@@ -102,6 +102,35 @@ class MapContractTests(unittest.TestCase):
 
 
 class IsolationEvidenceContractTests(unittest.TestCase):
+    def test_inspect_projection_requests_the_complete_evidence_contract(self):
+        # Independent wire oracle: neither the dataclass nor the restriction table supplies it.
+        self.assertEqual(
+            '{"cid":{{json .Id}},"name":{{json .Name}},"image_id":{{json .Image}},'
+            '"token":{{json (index .Config.Labels "org.nmr.provider-deploy.token")}},'
+            '"owner":{{json (index .Config.Labels "org.nmr.provider-deploy.operation")}},'
+            '"pid":{{json .State.Pid}},"running":{{json .State.Running}},'
+            '"started_at":{{json .State.StartedAt}},'
+            '"user":{{json .Config.User}},"userns_mode":{{json .HostConfig.UsernsMode}},'
+            '"entrypoint":{{json .Config.Entrypoint}},"command":{{json .Config.Cmd}},'
+            '"mounts":{{json .Mounts}},"isolation":{'
+            '"AutoRemove":{{json .HostConfig.AutoRemove}},'
+            '"NetworkMode":{{json .HostConfig.NetworkMode}},'
+            '"ReadonlyRootfs":{{json .HostConfig.ReadonlyRootfs}},'
+            '"CapDrop":{{json .HostConfig.CapDrop}},'
+            '"SecurityOpt":{{json .HostConfig.SecurityOpt}},'
+            '"PidsLimit":{{json .HostConfig.PidsLimit}},'
+            '"Memory":{{json .HostConfig.Memory}},'
+            '"MemorySwap":{{json .HostConfig.MemorySwap}},'
+            '"NanoCpus":{{json .HostConfig.NanoCpus}},'
+            '"Privileged":{{json .HostConfig.Privileged}},'
+            '"PidMode":{{json .HostConfig.PidMode}},'
+            '"CapAdd":{{json .HostConfig.CapAdd}},'
+            '"Devices":{{json .HostConfig.Devices}},'
+            '"DeviceRequests":{{json .HostConfig.DeviceRequests}},'
+            '"RestartPolicy":{{json .HostConfig.RestartPolicy}}}}',
+            INSPECT_FORMAT,
+        )
+
     def setUp(self):
         self.spec = ProbeSpec("b" * 32, IMAGE, replace(request(), userns_mode="host"))
 
