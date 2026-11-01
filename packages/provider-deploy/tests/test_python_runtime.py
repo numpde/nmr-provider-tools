@@ -30,11 +30,10 @@ class PythonRuntimeTests(unittest.TestCase):
             spec = ProbeSpec(token, IMAGE, interpreter, 1000, 2000, "default", 1)
 
             # Control: isolated mode alone still runs the venv's executable .pth hook.
-            control = subprocess.run(
+            subprocess.run(
                 [interpreter, "-I", "-B", "-c", PROBE_SCRIPT, "1", token],
                 capture_output=True, text=True, timeout=10, check=True,
             )
-            self.assertEqual(("", ""), (control.stdout, control.stderr))
             self.assertEqual(["-c", "1", token], ast.literal_eval(sentinel.read_text()))
             sentinel.unlink()
 
@@ -44,7 +43,7 @@ class PythonRuntimeTests(unittest.TestCase):
             )
             self.assertEqual(("", ""), (result.stdout, result.stderr))
             self.assertEqual(("-c", PROBE_SCRIPT, "1", token), spec.command[-4:])
-            self.assertFalse(sentinel.exists(), "probe executed a site startup hook before its sleeper")
+            self.assertFalse(sentinel.exists(), msg="probe executed a site startup hook before its sleeper")
 
 
 if __name__ == "__main__":

@@ -120,6 +120,66 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(("client_cleanup",), caught.exception.cleanup_failures)
 
 
+class EndpointContinuityTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        self.first, self.second = root / "first.sock", root / "second.sock"
+        self.selected = root / "selected.sock"
+        self.selected.symlink_to(self.first)
+        self.endpoint = "unix://" + str(self.selected)
+        # Real symlink traversal, modeled socket identities: no AF_UNIX daemon
+        # is available in this lane. Both targets report the same daemon info
+        # so only continuity of the caller's socket path can detect the change.
+        identities = {self.first: (12, 34), self.second: (12, 35)}
+        identity_patch = patch("provider_deploy.docker._socket_identity",
+                               side_effect=lambda path: identities[Path(path).resolve()])
+        identity_patch.start()
+        self.addCleanup(identity_patch.stop)
+        self.calls = []
+        def run(argv, **kwargs):
+            self.calls.append(argv)
+            return json.dumps(["daemon-a", [], "/var/lib/docker", "overlay2", "linux"])
+        self.run = run
+        runner = patch("provider_deploy.docker._run_command", side_effect=run)
+        runner.start()
+        self.addCleanup(runner.stop)
+
+    def retarget(self):
+        self.selected.unlink()
+        self.selected.symlink_to(self.second)
+
+    def test_symlink_endpoint_spelling_is_preserved_for_identity_and_commands(self):
+        with DockerEngine.connect(self.endpoint, timeout=2) as engine:
+            self.assertEqual(self.endpoint, engine.identity.endpoint)
+            engine.assert_unchanged(timeout=2)
+        for argv in self.calls:
+            self.assertEqual(self.endpoint, argv[argv.index("--host") + 1])
+
+    def test_symlink_retarget_during_connect_is_rejected(self):
+        def retarget_after_info(argv, **kwargs):
+            result = self.run(argv, **kwargs)
+            self.retarget()
+            return result
+        with patch("provider_deploy.docker._run_command", side_effect=retarget_after_info):
+            with self.assertRaises(DockerError) as caught:
+                with DockerEngine.connect(self.endpoint, timeout=2):
+                    pass
+        self.assertEqual("engine_changed", caught.exception.category)
+        self.assertEqual(1, len(self.calls))
+
+    def test_symlink_retarget_after_connect_stops_before_further_mutation(self):
+        with DockerEngine.connect(self.endpoint, timeout=2) as engine:
+            self.retarget()
+            self.calls.clear()
+            with self.assertRaises(DockerError) as caught:
+                engine.start(CID, timeout=2)
+        self.assertEqual("engine_changed", caught.exception.category)
+        self.assertFalse(caught.exception.mutation_uncertain)
+        self.assertEqual([], self.calls)
+
+
 class EngineTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

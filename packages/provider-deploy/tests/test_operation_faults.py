@@ -191,8 +191,10 @@ class OperationFaultTests(unittest.TestCase):
         failure = self.failure()
         self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
         self.assertEqual(1, len(self.calls("create")))
+        self.assertFalse(self.calls("start"))
         self.assertFalse(self.calls("rm"))
         self.assertIsNotNone(self.state()["container"])
+        self.assertEqual("fixture-engine", failure.handle.daemon_id)
 
     def test_cancellation_after_creation_still_retires_owned_resource(self):
         self.configure(hang_after="create")

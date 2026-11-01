@@ -33,6 +33,7 @@ class OperationTests(unittest.TestCase):
         result = probe_identity(self.request)
         self.assertEqual(101000, result.uid_map.translate(1000))
         self.assertEqual(202000, result.gid_map.translate(2000))
+        self.assertEqual((1000, 2000), (self.engine.spec.uid, self.engine.spec.gid))
         self.assertIsNone(self.engine.container)
         self.assertEqual(["remove"], [x for x in self.engine.events if x == "remove"])
 
