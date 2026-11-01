@@ -2,9 +2,12 @@
 
 The code here helps NMR providers talk to the API, deliver results and deploy. Each provider brings its own scientific code.
 
-The experimental host-side [provider-deploy package](packages/provider-deploy/README.md)
-implements a complete selected-local-engine identity probe. Real-engine
-qualification and provider migrations remain pending.
+The host-side [provider-deploy package](packages/provider-deploy/README.md) shares
+identity probing and exact probe cleanup between Python and shell deployment
+callers. It takes their already-selected Docker endpoint and image interpreter;
+it does not take over deployment policy. Candidate NMRPeak and NMRNet adapters
+have host-boundary tests; real-engine qualification and production adoption
+remain pending.
 
 Get `provider_core` and its lock file from [GitHub Releases](https://github.com/numpde/nmr-provider-tools/releases). The [package docs](packages/provider-core/README.md) explain how to use it.
 

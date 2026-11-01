@@ -1,161 +1,97 @@
-Provider-deploy: shared deployment operations
-=============================================
+Provider-deploy: extract the operation, not a deployment framework
+================================================================
 
-Status and purpose
-------------------
+Revised 2026-11-01 after implementing adapters for NMRPeak and NMRNet.
+The original proposal was too broad and its interface did not fit either caller.
+This revision replaces that proposal; it is not a release-readiness claim.
 
-Proposal, 2026-10-31. This note defines an extraction boundary and first slice,
-not an implemented package or a qualification claim.
+Goal
+----
 
-Add a sibling package at packages/provider-deploy in nmr-provider-tools, with
-Python import provider_deploy and a thin provider-deploy CLI. Keep it separate
-from provider-core: its charter is to prepare, verify and retire host/container
-deployment resources under explicit provider policy.
+A new provider should supply its deployment policy, not copy host identity
+probing, Linux map validation, process supervision and probe cleanup. The first
+shared operation measures a selected container namespace's host UID/GID maps.
+It returns them only after its exact owned probe has retired.
 
-The first implementation is Docker-specific, including its module boundary.
-Do not introduce a backend abstraction, a new deployment framework or a package
-publication commitment. Distribution and versioning can be decided when real
-consumers establish the useful interface.
+The test of this boundary is two small real caller adapters. Package features
+and internal abstractions are not accomplishments by themselves.
 
-Why extract this boundary?
+What the callers taught us
 -------------------------
 
-Note 027, Container identity and deployment inputs, describes a shared safety
-contract currently implemented in several repositories. Rootful and rootless
-engines can map the same container UID/GID to different host identities.
-Incorrect assumptions can make private inputs unreadable or grant access to
-the wrong identity.
+NMRPeak (numpde/nmrpeak-repro, ec205295) already selects a local Unix endpoint,
+uses host Python 3.11+, and probes its image with /usr/local/bin/python3.12 as
+65532:65532. It translates UID 65532 and the installing user's UID before
+applying its own ACL and projection-helper policy.
 
-The reusable unit is a complete operation with its validation, ownership and
-cleanup semantics, not a bag of shell snippets. Centralizing only map parsing
-would leave the difficult identity and retirement rules duplicated.
+NMRNet (numpde/nmrnet-repro, e119063b) passes a previously selected immutable
+endpoint to its shell deployment launcher. Its image exposes
+/opt/provider/environment/bin/python. It needs forward UID/GID mappings for
+container root and the installing user, then chooses its own helper identity.
+Its separate provisioning path still uses inverse mapping and is not migrated
+by this extraction.
 
-Note 027 records useful host checks alongside source gaps, later corrections
-and incomplete test lanes. Those observations motivate the extraction; they
-do not establish that every current implementation is qualified.
+Consequences:
+* Do not resolve a Docker context again. That could measure a different engine
+  from the one the provider subsequently uses.
+* Accept the image's Python interpreter path, not an invented /bin/sh dependency.
+* Return validated maps to Python. Translate requested IDs inside the CLI for
+  shell callers; do not make shell callers parse kernel mapping rows.
+* Keep host Python 3.11 compatibility. Declare NMRNet's new host prerequisite.
+* Keep ACLs, helper selection, image preparation and deployment sequencing local.
 
-Ownership boundary
-------------------
+Small public contract
+---------------------
 
-Providers retain their Compose definitions, images, resource requirements,
-input inventory and rollout sequencing. They decide which resources exist,
-which users read them, which permissions are acceptable and when a generation
-may be retired.
+The request names the pinned Unix endpoint, an approved local image, its Python
+interpreter and numeric probe user. Namespace mode and bounded timing have
+usable defaults. Image acquisition is never implicit. The provider may select
+its Docker executable explicitly; it cannot supply arbitrary probe code.
 
-Scientific workers, scientific retries, AnalysisSession, the service loop,
-chat and outbox behavior stay outside provider-deploy. This package does not
-take over provider-core or scientific orchestration.
+The result contains validated UID and GID maps. A failed operation carries no
+usable maps. It describes the failing stage and safe reason, secondary cleanup
+problems, and the known resource identity for operator investigation. Observation
+validity and resource retirement are separate facts.
 
-Shared operations consume explicit policy and return bounded evidence or a
-specific failure. They must not discover credentials, widen permissions,
-choose an engine silently or infer a deployment policy from repository names.
+Internally, one immutable probe specification defines both creation and
+ownership verification. One concrete owner performs create, observe and retire.
+Linux evidence checks and bounded Docker transport remain separate modules.
+There is no backend registry, workflow language, task queue or recovery service.
 
-First slice: selected-local-engine identity
-------------------------------------------
+Success and uncertainty
+-----------------------
 
-Implement one complete identity-probe operation. It establishes the host
-identities corresponding to requested container UIDs/GIDs, then retires its
-probe before returning a successful mapping.
+Run on the local Linux host with initial user/PID namespace evidence and genuine
+host /proc visibility. Bind map observations to the exact container, random
+token, host PID and process start identity. Reject incomplete or changing facts.
+Only exact verified owned resources may be removed. Cancellation still enters
+bounded cleanup; a lost mutation reply never authorizes a second creation.
 
-The caller supplies the selected local Docker context, approved probe image,
-relevant container/user-namespace configuration, requested IDs and operation
-bounds. Resolve and retain the selected engine connection for the operation;
-do not fall back to another context or an ambient default. Remote daemons are
-unsupported. Probe-image acquisition is a separate caller-owned preparation
-step, not an implicit pull.
+A successful return requires fresh valid maps and confirmed container/process
+retirement. A failed cleanup cannot be presented as successful measurement.
+Proving that an owned container may be removed is distinct from proving its
+mapping observation valid; observation failure must not prevent safe cleanup.
 
-Before creating a probe, validate that the map reader is in the host initial
-user namespace and has the host PID and /proc visibility required to observe
-this engine's process. Identity-looking self maps alone are not proof: nested
-privileged namespaces can have identity mappings. The implementation must
-state and test its host-precondition evidence. If that evidence cannot be
-established, fail closed; do not reinterpret a container-local map as host IDs.
+Crash replay is deliberately outside this operation. Neither original caller
+required it. A prototype journal/recovery subsystem added state, schemas,
+locking and caller file-management obligations without advancing extraction.
+It was removed rather than generalized. Failure diagnostics are not a durable
+transaction log. Abrupt death can lose those diagnostics. The finite Python
+lifetime and Docker auto-removal limit a started probe; a crash between create
+and start can leave a stopped container requiring manual investigation. Do not
+promise automatic cleanup after SIGKILL, host loss or an unreachable engine.
 
-Create a short-lived, operation-owned probe with an unpredictable identity
-token. Bind observations to its exact container ID, token, live host PID and
-process start time. Read and validate both UID and GID maps, translate every
-requested ID, and recheck identity and map stability around observation.
-Reject malformed, overlapping, overflowing or incomplete mappings, stale or
-reused PIDs, substituted containers and inconsistent observations.
+Qualification
+-------------
 
-Retire only that exact owned probe and positively confirm its absence on the
-same selected engine. A successful map read followed by failed or uncertain
-retirement is not a successful operation. No mapping is released for downstream
-permission changes until retirement is confirmed.
+Exercise actual Python and shell adapter boundaries, not invented example APIs.
+Test lost replies independently from engine-side effects, subprocess cancellation,
+map/process changes, exact ownership, cleanup failures and diagnostic separation.
+Use real subprocesses and /proc where available, while naming simulated Docker
+and substituted host/socket checks explicitly.
 
-The result identifies the engine, requested and mapped IDs, observation
-evidence and confirmed retirement. It is point-in-time evidence, not permanent
-authority: an engine change or relevant namespace/configuration change requires
-fresh qualification. Callers must not reuse it indiscriminately.
-
-This first slice performs no ACL grants, ownership changes, input staging,
-service rollout or scientific work.
-
-Failure, cancellation and recovery
-----------------------------------
-
-Each operation defines what it owns, when mutation may have happened and how
-completion is established. Distinguish known-not-created, identified-resource,
-confirmed-retired and uncertain-outcome states.
-
-Cancellation and timeouts still enter bounded cleanup. Preserve the original
-failure and any cleanup failure rather than masking either. If creation may
-have succeeded but output was lost, reconcile using the operation's exact
-ownership evidence before considering another creation. Never silently retry
-a potentially successful mutation.
-
-Recovery may inspect an operation token to locate candidates, but deletion
-requires exact identity and ownership verification. No name-prefix cleanup,
-broad container removal or global pruning. If safe reconciliation or retirement
-cannot be proved, report the unresolved resource and recovery evidence without
-claiming success. Required recovery information must survive lost command
-output; its storage and retention are part of the operation design.
-
-The CLI exposes the same complete operations as the Python API. Use narrow
-arguments, bounded structured output, stable failure categories and separate
-diagnostics; do not emit credentials or arbitrary engine output. Shell callers
-should not have to reconstruct a cleanup protocol from successful subcommands.
-
-Later coherent scope
---------------------
-
-Once identity is qualified, later slices may cover:
-
-* Frozen private input generations: stage validated copies with mapped
-  ownership and consumer-required modes without relaxing the operator's
-  original credential.
-* Narrow mapped access grants for bounded inputs whose readers permit them,
-  with explicit ownership and retirement rules.
-* Mount and volume admission checks against caller-declared policy.
-* Cleanup and recovery of exact operation-owned resources and generations.
-
-Live shared settings are a different lifecycle from frozen credentials.
-Proxy/outbox settings readers mount and reread a directory so atomic file
-replacement remains visible; replacement files must preserve required group
-access. A staged credential snapshot or initialized volume does not implement
-live settings reload. Keep settings-reader and socket-access groups distinct.
-
-Migration and acceptance
-------------------------
-
-Propose NMRPeak as the first consumer and NMRNet as the second, subject to
-implementation review. Compare their existing behavior against this contract
-before selecting code to extract; do not simply promote one local helper.
-
-Start with failing tests for the contract, then make them pass through the
-shared implementation. Cover namespace-precondition rejection, valid multi-row
-maps, invalid or unmapped IDs, token/container mismatches, PID reuse, exited
-probes, cancellation, timeouts, engine changes, lost creation output, cleanup
-failure and uncertain outcomes. Verify that no success mapping escapes before
-exact retirement.
-
-Recording-engine and unit tests are necessary but insufficient. Qualify the
-maintained path on real selected local rootful and rootless engines, including
-non-root host callers and nested-namespace rejection. Record actual evidence,
-failures and unrun cases separately; do not turn a preview or health check
-into a scientific or end-to-end delivery claim.
-
-Demonstrate two real providers calling the same implementation, then remove
-superseded local copies and compatibility fallbacks. Provider entry points
-remain responsible for policy and sequencing. Expand the package only when
-another complete operation earns that shared boundary.
+Rootful/rootless engines, both actual image interpreters, non-root host callers,
+and each provider's maintained container test lane must pass before adoption.
+The shared probe standardizes finite resource caps; verify them with both images
+rather than assuming identical interpreter startup behavior. Local candidate
+adapters and fake-engine tests are not production migration or qualification.

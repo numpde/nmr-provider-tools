@@ -8,6 +8,11 @@ This replaces duplicated probe lifecycles. It is not a deployment framework,
 permission manager or persistent recovery service. Python 3.11+, Linux and the
 Docker CLI are required; the Python package has no runtime dependencies.
 
+The candidate is version `0.2.0a1`. It replaces the unreleased `0.1.0` prototype's
+context/journal interface; it is not a compatible drop-in for that interface.
+Build and install the reviewed local wheel explicitly rather than reusing an
+older wheel with the same package version.
+
 ## Python caller
 
 ```python
