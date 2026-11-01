@@ -19,10 +19,10 @@ two files independently; it does not claim host coordinates, a live/stable
 process, an atomic UID/GID snapshot, or an ID conversion operation.
 
 **Reported rows are not necessarily a usable conversion table.** Depending on
-the reader's user namespace, Linux can report `4294967295` for an unmapped
+the map-file opener's user namespace, Linux can report `4294967295` for an unmapped
 outside ID. Even ordinary-looking numbers can lose information: the kernel
 projects only an extent's first outside ID into the reporting namespace, leaving
-its length unchanged. That projection need not remain contiguous. When reader
+its length unchanged. That projection need not remain contiguous. When opener
 and target share a user namespace, outside IDs refer to its parent (or the
 initial namespace itself). See the
 [kernel emission code](https://github.com/torvalds/linux/blob/v6.17/kernel/user_namespace.c#L610-L650)
