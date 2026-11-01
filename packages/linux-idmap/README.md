@@ -19,8 +19,10 @@ process, an atomic UID/GID snapshot, or an ID conversion operation.
 **Reported rows are not necessarily a usable conversion table.** Depending on
 the reader's user namespace, Linux can report `4294967295` for an unmapped
 outside ID. Even ordinary-looking numbers can lose information: the kernel
-projects only an extent's first outside ID into the reader namespace, leaving
-its length unchanged. That projection need not remain contiguous. See the
+projects only an extent's first outside ID into the reporting namespace, leaving
+its length unchanged. That projection need not remain contiguous. When reader
+and target share a user namespace, outside IDs refer to its parent (or the
+initial namespace itself). See the
 [kernel emission code](https://github.com/torvalds/linux/blob/v6.17/kernel/user_namespace.c#L610-L650)
 and [boundary scenarios](tests/test_map_boundary.py).
 
