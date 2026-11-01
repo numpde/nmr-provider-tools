@@ -13,6 +13,9 @@ context/journal interface; it is not a compatible drop-in for that interface.
 Build and install the reviewed local wheel explicitly rather than reusing an
 older wheel with the same package version.
 
+[The two consumer patches](migrations/README.md) and their exact base/tree
+identities live on this same review branch. They are not installed in the wheel.
+
 ## Python caller
 
 ```python

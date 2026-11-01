@@ -1,0 +1,16 @@
+[
+  {
+    "repository": "numpde/nmrpeak-repro",
+    "base": "ec2052956ef989d7be73e202ecfc33a136d3b770",
+    "tree": "36f12d983bd7d8dcee8b684263aa39ac49698a10",
+    "patch": "nmrpeak-repro.patch",
+    "patch_sha256": "b02fa042a1d048ee9641e9d71ea9a5937ba1124fb5f89159d4283fd438bddf07"
+  },
+  {
+    "repository": "numpde/nmrnet-repro",
+    "base": "e119063b786c5216cbcb7911519772c4d85c314c",
+    "tree": "e0c91c762b14604d4890da7171558cc3a1b3b944",
+    "patch": "nmrnet-repro.patch",
+    "patch_sha256": "abec23f4afcc7a37e737ee9c675c361ca70ebc7d170fc4b5b7ae6ef9492ef5e1"
+  }
+]

@@ -1,0 +1,516 @@
+diff --git a/README.md b/README.md
+index 2f14e3197d7c68f0154fe205707bcd78c94b7473..0534e8d62808edca64f8fdf5ab557bcac4015c91 100644
+--- a/README.md
++++ b/README.md
+@@ -17,3 +17,35 @@ on the Make command line. When omitted in a terminal, it offers a menu of
+ configured local Unix-socket contexts; unattended commands fail without a
+ selection. The selected socket stays fixed for the whole operation. Run
+ `make help` for maintained commands.
++
++## Candidate shared identity-probe integration
++
++This candidate patch's `provider/deployment/install` requires the **host** `provider-deploy`
++command from the matching `nmr-provider-tools` candidate, with Python 3.11 or
++later. The operation reads host `/proc`; installing it only in the provider image
++is insufficient. No released package version or release hash is asserted here.
++
++Build the candidate wheel using that repository's package instructions, then
++install the exact locally built wheel in a dedicated host environment:
++
++```sh
++python3 -m venv "$HOME/.local/share/nmr-provider-deploy"
++"$HOME/.local/share/nmr-provider-deploy/bin/python" -m pip install --no-index --no-deps /absolute/path/to/provider_deploy-0.2.0a1-py3-none-any.whl
++export PATH="$HOME/.local/share/nmr-provider-deploy/bin:$PATH"
++provider-deploy identity --help
++```
++
++The caller passes its already-selected Docker socket and controller image to the
++shared operation. Provider-specific helper selection and input ownership remain
++here. Failure diagnostics identify the selected engine and exact probe when
++known; retain stderr and inspect unresolved resources before retrying. Never
++remove a container merely by its display name. This operation provides bounded
++cleanup while its caller is alive, not durable crash recovery.
++
++This candidate does not migrate wheelhouse acquisition's separate inverse-ID
++mapping in `tools/docker.sh`; `tools/user_namespace_map.sh` remains for that user.
++Host adapter tests can be run without Docker via `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover
++-s tests/host -v`, with this candidate package installed. They exercise the actual
++shell adapter and shared CLI boundary with a synthetic probe result, not a real
++engine or full deployment. Rootful/rootless qualification and the maintained
++container-launched deployment suite remain required before adoption.
+diff --git a/docs/provider.html b/docs/provider.html
+index 67bc55dbde15a5c57322418a08c15500038dac13..a151e894cb40b9af9ea9a9ede74340ea2f3e200c 100644
+--- a/docs/provider.html
++++ b/docs/provider.html
+@@ -258,6 +258,16 @@ settings in nmr-provider-tools. No socket grant belongs in the public provider d
+ <code>.work/provider/</code>, <code>.work/preparation/</code> and <code>.work/inference/</code>.
+ Install admits those image records and captures the model selection from
+ <code>artifacts/prediction-models.json</code>; up uses the frozen generation.</p>
++<p><strong>Candidate integration prerequisite:</strong> this branch's install command
++uses the host <code>provider-deploy</code> CLI from the matching local
++nmr-provider-tools candidate, on Python 3.11 or later. Install its locally built
++wheel in a host virtual environment and put that environment's <code>bin</code>
++on <code>PATH</code>; see the repository README for the explicit offline install.
++This is not yet a pinned production release. The operation uses the Docker socket
++already selected by Make. On failure, preserve the diagnostic identifying the
++engine and exact probe when known, and inspect unresolved resources before
++retrying. The operation does not promise durable recovery after abrupt host or
++caller loss.</p>
+ <pre><code class="language-sh">make -C /path/to/nmr-provider-tools delivery/deployment/up SHARED_SETTINGS=/path/to/nmr-provider-tools/config/deployments/localhost/settings.toml SHARED_RUNTIME_IMAGE=sha256:YOUR_SHARED_IMAGE
+ 
+ make provider/deployment/install DEPLOYMENT=&lt;name&gt; SHARED_RUNTIME_IMAGE=sha256:YOUR_SHARED_IMAGE
+diff --git a/tests/host/test_deploy_identity_adapter.py b/tests/host/test_deploy_identity_adapter.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..299ae12aab634a1a84dcf68b4ef88b2e3a6e0aeb
+--- /dev/null
++++ b/tests/host/test_deploy_identity_adapter.py
+@@ -0,0 +1,196 @@
++"""Host-only acceptance for the actual NMRNet adapter and shared CLI contract.
++
++No repository container guard is bypassed: the shell adapter under test
++is extracted from their maintained source, without launching the deployment.
++The shared CLI and ID translation are real; only its probe operation is replaced
++with a bounded synthetic result. Real-engine qualification remains separate.
++"""
++
++import json
++import os
++from pathlib import Path
++import re
++import signal
++import subprocess
++import sys
++import tempfile
++import time
++import unittest
++
++ROOT = Path(__file__).resolve().parents[2]
++SOURCE = (ROOT / "tools/compose_deployment.sh").read_text()
++IMAGE = "sha256:" + "a" * 64
++
++
++def shell_function(name):
++    found = re.search(rf"(?ms)^{name}\(\) \{{\n.*?^\}}", SOURCE)
++    if found is None:
++        raise AssertionError(f"maintained shell adapter {name} was not found")
++    return found.group()
++
++
++SHARED_COMMAND = r'''import json
++import os
++from dataclasses import asdict
++from pathlib import Path
++from unittest.mock import patch
++from provider_deploy import cli
++from provider_deploy.linux import IdMap, IdRange
++from provider_deploy.model import Problem, ProbeFailure, ProbeHandle, ResourceState, Retirement
++from provider_deploy.operation import ProbeResult
++
++def observe(request, *, cancel):
++    request.validate()
++    Path(os.environ['REQUEST_LOG']).write_text(json.dumps(asdict(request), default=str))
++    mode = os.environ['RESULT_MODE']
++    if mode == 'await-signal':
++        # The CLI owns real signal handlers; only the Engine effect is synthetic.
++        if cancel.wait(2):
++            raise ProbeFailure(Problem('measure', 'cancelled', 'fixture observed cancellation'),
++                               Retirement(ResourceState.RETIRED, 'b' * 64))
++    if mode == 'uncertain':
++        raise ProbeFailure(Problem('create', 'timeout', 'fixture create reply lost'),
++                           Retirement(ResourceState.UNRESOLVED), ProbeHandle(request.endpoint, 'a' * 32))
++    if mode == 'rootful':
++        uids = gids = IdMap((IdRange(0, 0, 4294967295),))
++    else:
++        shift = 1 if mode == 'foreign' else 0
++        uids = IdMap((IdRange(0, os.getuid() + shift, 1), IdRange(1, 100000, 65536)))
++        gids = IdMap((IdRange(0, os.getgid() + shift, 1), IdRange(1, 200000, 65536)))
++    return ProbeResult(uids, gids, 'b' * 64)
++
++with patch.object(cli, 'probe_identity', observe):
++    raise SystemExit(cli.main())
++'''
++
++
++class IdentityAdapterTests(unittest.TestCase):
++    def setUp(self):
++        self.temporary = tempfile.TemporaryDirectory()
++        self.addCleanup(self.temporary.cleanup)
++        self.root = Path(self.temporary.name)
++        self.root.chmod(0o700)
++        self.bin = self.root / 'bin'
++        self.bin.mkdir()
++        self.command = self.bin / 'provider-deploy'
++        self.command.write_text(f'#!{sys.executable}\n' + SHARED_COMMAND)
++        self.command.chmod(0o700)
++        self.request_log = self.root / 'request.json'
++        self.selected = self.root / 'selected'
++
++    # silent-defaults: allow-contract -- Ordinary rootful probes run without injected signals; cancellation tests explicitly select signal delivery and group scope; proof=tests/host/test_deploy_identity_adapter.py::IdentityAdapterTests.test_process_group_cancellation_stops_before_helper_selection
++    def run_adapter(self, mode='rootful', *, send_signal=None, signal_group=False):
++        # Assignments and policy are production functions, not a rewritten test adapter.
++        program = '\n'.join([
++            'set -euo pipefail',
++            'root=$1; caller_uid=$(id -u); caller_gid=$(id -g)',
++            'helper_uid=$caller_uid; helper_gid=$caller_gid; helper_add_chown=false',
++            'service_host_uid=$caller_uid; service_host_gid=$caller_gid',
++            'refuse() { printf "%s\\n" "$1" >&2; return 2; }',
++            'inference_diagnostic=; inference_retirement_confirmed=true',
++            'helper_name=; lifetime_query=; stop_query=',
++            'docker_client_cleanup() { : > "$root/cleaned"; }',
++            shell_function('finish'),
++            *re.findall(r'^trap .+$', SOURCE, re.MULTILINE),
++            shell_function('map_helper_identity'),
++            f'map_helper_identity {IMAGE} /opt/provider/environment/bin/python',
++            'printf "%s %s %s %s %s\\n" "$helper_uid" "$helper_gid" "$helper_add_chown" "$service_host_uid" "$service_host_gid" > "$root/selected"',
++        ])
++        env = dict(os.environ, PATH=str(self.bin) + os.pathsep + os.environ['PATH'],
++                   NMRNET_DOCKER_ENDPOINT_INPUT='unix:///selected-engine.sock',
++                   DOCKER_CONTEXT='unrelated-ambient-context', DOCKER_HOST='unix:///wrong.sock',
++                   REQUEST_LOG=str(self.request_log), RESULT_MODE=mode)
++        command = ['bash', '-c', program, 'bash', str(self.root)]
++        if send_signal is None:
++            return subprocess.run(command, env=env, text=True, capture_output=True, timeout=5)
++        with subprocess.Popen(command, env=env, text=True, stdout=subprocess.PIPE,
++                              stderr=subprocess.PIPE, start_new_session=True) as process:
++            try:
++                deadline = time.monotonic() + 5
++                while not self.request_log.exists():
++                    if process.poll() is not None or time.monotonic() >= deadline:
++                        self.fail('shared CLI did not enter its probe')
++                    time.sleep(0.01)
++                if signal_group:
++                    os.killpg(process.pid, send_signal)
++                else:
++                    process.send_signal(send_signal)
++                stdout, stderr = process.communicate(timeout=5)
++                return subprocess.CompletedProcess(command, process.returncode, stdout, stderr)
++            finally:
++                if process.poll() is None:
++                    os.killpg(process.pid, signal.SIGKILL)
++                    process.communicate()
++
++    def test_rootful_keeps_caller_helper_and_passes_selected_endpoint(self):
++        result = self.run_adapter()
++        self.assertEqual(0, result.returncode, msg=result.stderr)
++        self.assertEqual([str(os.getuid()), str(os.getgid()), 'false', str(os.getuid()), str(os.getgid())],
++                         self.selected.read_text().split())
++        request = json.loads(self.request_log.read_text())
++        self.assertEqual('unix:///selected-engine.sock', request['endpoint'])
++        self.assertEqual(IMAGE, request['image'])
++        self.assertEqual('/opt/provider/environment/bin/python', request['interpreter'])
++        self.assertEqual((0, 0), (request['user_uid'], request['user_gid']))
++
++    def test_rootless_chooses_container_root_and_keeps_mapped_service_ids(self):
++        result = self.run_adapter('rootless')
++        self.assertEqual(0, result.returncode, msg=result.stderr)
++        self.assertEqual(['0', '0', 'true', str(99999 + os.getuid()), str(199999 + os.getgid())],
++                         self.selected.read_text().split())
++
++    def test_foreign_mapping_does_not_authorize_input_policy(self):
++        result = self.run_adapter('foreign')
++        self.assertEqual(2, result.returncode, msg=result.stderr)
++        self.assertIn('maps neither', result.stderr)
++        self.assertFalse(self.selected.exists())
++
++    def test_uncertain_probe_returns_no_mapping_and_preserves_diagnostic(self):
++        result = self.run_adapter('uncertain')
++        self.assertEqual(3, result.returncode, msg=result.stderr)
++        self.assertEqual('', result.stdout)
++        self.assertIn('fixture create reply lost', result.stderr)
++        self.assertIn('unix:///selected-engine.sock', result.stderr)
++        self.assertIn('a' * 32, result.stderr)
++        self.assertFalse(self.selected.exists())
++
++    def test_nonzero_command_status_with_numeric_output_is_not_success(self):
++        self.command.write_text('#!/bin/sh\nprintf "0 %s 0 %s\\n" "$(id -u)" "$(id -g)"\nexit 3\n')
++        result = self.run_adapter()
++        self.assertEqual(3, result.returncode, msg=result.stderr)
++        self.assertFalse(self.selected.exists())
++
++    def test_process_group_cancellation_stops_before_helper_selection(self):
++        for number, status in ((signal.SIGINT, 130), (signal.SIGTERM, 143), (signal.SIGHUP, 143)):
++            with self.subTest(signal=number):
++                self.request_log.unlink(missing_ok=True)
++                (self.root / 'cleaned').unlink(missing_ok=True)
++                result = self.run_adapter('await-signal', send_signal=number, signal_group=True)
++                self.assertEqual(status, result.returncode, msg=result.stderr)
++                self.assertEqual('', result.stdout)
++                self.assertIn('fixture observed cancellation', result.stderr)
++                self.assertFalse(self.selected.exists())
++                self.assertTrue((self.root / 'cleaned').exists())
++
++    def test_shell_only_term_defers_trap_but_never_selects_helper(self):
++        # Bash does not forward shell-only TERM into command substitution. The
++        # bounded CLI completes first; then the real shell trap refuses progress.
++        result = self.run_adapter('await-signal', send_signal=signal.SIGTERM)
++        self.assertEqual(143, result.returncode, msg=result.stderr)
++        self.assertNotIn('fixture observed cancellation', result.stderr)
++        self.assertFalse(self.selected.exists())
++        self.assertTrue((self.root / 'cleaned').exists())
++
++    def test_corrupt_projection_does_not_authorize_input_policy(self):
++        for value in ('0 1000 0 1000 extra', '0 1000\n0 1000', '0 1000 0 -1', '0 1000 0 $(touch sentinel)'):
++            with self.subTest(value=value):
++                self.command.write_text('#!/bin/sh\nprintf "%s\\n" ' + "'" + value + "'\n")
++                result = self.run_adapter()
++                self.assertEqual(2, result.returncode, msg=result.stderr)
++                self.assertIn('invalid numeric projection', result.stderr)
++                self.assertFalse(self.selected.exists())
++
++
++
++if __name__ == '__main__':
++    unittest.main()
+diff --git a/tests/test_provider_deployment_launcher.py b/tests/test_provider_deployment_launcher.py
+index 1b2fcbccb661835c2f96c9ef8ac4dee92965ac6f..4857a8680c51e1bdb6ab569dbbab70b6b8f95d8a 100644
+--- a/tests/test_provider_deployment_launcher.py
++++ b/tests/test_provider_deployment_launcher.py
+@@ -31,24 +31,26 @@ class DeploymentLauncherTests(unittest.TestCase):
+         self.home.mkdir(mode=0o700)
+         tools = self.root / 'tools'
+         tools.mkdir()
+-        for name in ('compose_deployment.sh', 'provider_deployment.sh', 'image_lifecycle.sh', 'user_namespace_map.sh'):
++        for name in ('compose_deployment.sh', 'provider_deployment.sh', 'image_lifecycle.sh'):
+             shutil.copyfile(ROOT / 'tools' / name, tools / name)
+-        # Tests can opt into a rootless host mapping. The map parser itself is
+-        # exercised against synthetic maps by its own tests.
+-        (tools / 'user_namespace_map.sh').write_text('''
+-require_initial_user_and_pid_namespaces() { return 0; }
+-probe_process_starttime() { printf '123\\n'; }
+-probe_process_has_token() { return 0; }
+-probe_process_is_same() { return 0; }
+-wait_for_probe_process_retirement() { return 0; }
+-container_id_for_host_id() { printf '%s\\n' "$2"; }
+-host_id_for_container_id() {
+-    if [[ ${TEST_MAPPED_IDENTITIES-false} != true ]]; then printf '%s\\n' "$2";
+-    elif [[ $2 == 0 ]]; then printf '%s\\n' "$TEST_CALLER_UID";
+-    else printf '%s\\n' "$((100000 + $2))"; fi
+-}
++        # The maintained launcher consumes the shared CLI's settled numeric
++        # result. Package lifecycle behavior has its own tests; this fixture
++        # records that public boundary without creating any Docker probe.
++        command = tools / 'provider-deploy'
++        command.write_text(r'''#!/usr/bin/env bash
++set -eu
++printf '%s\0' "$@" > "$TEST_ROOT/identity-argv"
++if [[ ${TEST_IDENTITY_STATUS-0} != 0 ]]; then
++    printf '{"problem":"fixture unresolved identity probe"}\n' >&2
++    exit "$TEST_IDENTITY_STATUS"
++fi
++if [[ -v TEST_IDENTITY_VALUES ]]; then printf '%s\n' "$TEST_IDENTITY_VALUES"
++elif [[ ${TEST_MAPPED_IDENTITIES-false} == true ]]; then
++    printf '%s %s %s %s\n' "$TEST_CALLER_UID" "$((100000 + TEST_CALLER_UID))" "$TEST_CALLER_GID" "$((100000 + TEST_CALLER_GID))"
++else printf '0 %s 0 %s\n' "$TEST_CALLER_UID" "$TEST_CALLER_GID"; fi
+ ''')
+-        (tools / 'docker_client.sh').write_text('''docker_client_prepare() { engine=(bash "$repository_root/tools/record-engine.sh" "$repository_root"); }
++        command.chmod(0o700)
++        (tools / 'docker_client.sh').write_text('''docker_client_prepare() { export NMRNET_DOCKER_ENDPOINT_INPUT=unix:///fixture.sock; engine=(bash "$repository_root/tools/record-engine.sh" "$repository_root"); }
+ docker_client_cleanup() { printf 'client-cleanup\\n' >> "$repository_root/cleanup"; }
+ ''')
+         (tools / 'inference_native.sh').write_text('''inference_native() {
+@@ -204,17 +206,13 @@ esac
+     def run_command(self, action, role='provider', *, changes=None, extra=()):
+         environment = dict(os.environ, HOME=str(self.home), NMRNET_DEPLOYMENT_INPUT='fixture',
+                            NMRNET_SHARED_RUNTIME_IMAGE_INPUT='sha256:' + format(9, '064d'),
+-                           TEST_CALLER_UID=str(os.getuid()), TEST_CALLER_GID=str(os.getgid()))
++                           TEST_CALLER_UID=str(os.getuid()), TEST_CALLER_GID=str(os.getgid()),
++                           TEST_ROOT=str(self.root), PATH=str(self.root / 'tools') + os.pathsep + os.environ['PATH'])
+         environment.update(changes or {})
++        environment['PATH'] = str(self.root / 'tools') + os.pathsep + environment['PATH']
+         return subprocess.run(['bash', str(self.root / 'tools' / f'{role}_deployment.sh'), action, *extra],
+                               env=environment, capture_output=True, text=True, timeout=5)
+ 
+-    def remove_retained_identity_metadata(self, result):
+-        prefix = 'Identity inspection metadata retained at '
+-        for line in result.stderr.splitlines():
+-            if line.startswith(prefix):
+-                Path(line.removeprefix(prefix)).unlink(missing_ok=True)
+-
+     def calls(self):
+         count = int((self.root / 'count').read_text()) if (self.root / 'count').exists() else 0
+         return [[item.decode() for item in (self.root / f'call-{index}').read_bytes().split(b'\0')[:-1]]
+@@ -404,21 +402,17 @@ esac
+         self.assertIn('stop this deployment', result.stderr)
+         self.assertEqual(os.readlink(self.provider / 'current'), 'bundles/generation-original')
+ 
+-    def test_identity_probe_create_failure_does_not_remove_an_unadmitted_name(self):
+-        result = self.run_command('install', changes={'TEST_CREATE_STATUS': '7'})
+-        self.assertEqual(result.returncode, 7, result.stderr)
+-        self.assertFalse(any(call[0] == 'rm' for call in self.calls()))
+-        self.assertIn('Identity probe, if still present:', result.stderr)
+-        self.remove_retained_identity_metadata(result)
+-
+-    def test_identity_probe_removal_is_not_retried_after_an_uncertain_attempt(self):
+-        result = self.run_command('install', changes={'TEST_MAP_RM_STATUS': '9'})
+-        self.assertEqual(result.returncode, 9, result.stderr)
+-        removals = [call for call in self.calls() if call[0] == 'rm']
+-        self.assertEqual(len(removals), 1)
+-        self.assertRegex(removals[0][2], r'^[0-9a-f]{64}$')
+-        self.assertIn('Identity probe ID:', result.stderr)
+-        self.remove_retained_identity_metadata(result)
++    def test_shared_identity_failure_stops_before_input_helper_or_local_removal(self):
++        result = self.run_command('install', changes={'TEST_IDENTITY_STATUS': '3'})
++        self.assertEqual(result.returncode, 3, result.stderr)
++        self.assertFalse(any(call[0] in ('create', 'start', 'rm', 'run') for call in self.calls()))
++        self.assertIn('fixture unresolved identity probe', result.stderr)
++
++    def test_invalid_shared_projection_does_not_authorize_input_helper(self):
++        result = self.run_command('install', changes={'TEST_IDENTITY_VALUES': '0 1000 0 1000 extra'})
++        self.assertEqual(result.returncode, 2, result.stderr)
++        self.assertFalse(any(call[0] in ('create', 'start', 'rm', 'run') for call in self.calls()))
++        self.assertIn('invalid numeric projection', result.stderr)
+ 
+     def test_provider_freeze_has_narrow_readonly_sources_and_fixed_helper_grants(self):
+         result = self.run_command('install')
+@@ -442,15 +436,12 @@ esac
+         self.assertEqual(selected.stat().st_mode & 0o777, 0o555)
+         self.assertEqual((selected / 'compose.json').stat().st_mode & 0o777, 0o444)
+         self.assertFalse(self.bundle.exists())
+-        probes = [call for call in self.calls() if call[0] in ('create', 'start')]
+-        self.assertEqual([call[0] for call in probes], ['create', 'start'])
+-        admitted_id = f'{6:064d}'
+-        self.assertEqual(probes[1][1], admitted_id)
+-        inspected = next(call for call in self.calls() if call[0] == 'inspect'
+-                         and any('.State.Pid' in argument for argument in call))
+-        self.assertEqual(inspected[-1], admitted_id)
+-        removed = next(call for call in self.calls() if call[0] == 'rm')
+-        self.assertEqual(removed[-1], admitted_id)
++        self.assertFalse(any(call[0] in ('create', 'start') for call in self.calls()))
++        shared = [item.decode() for item in (self.root / 'identity-argv').read_bytes().split(b'\0')[:-1]]
++        self.assertEqual(shared[:3], ['identity', '--endpoint', 'unix:///fixture.sock'])
++        self.assertIn('/opt/provider/environment/bin/python', shared)
++        self.assertEqual(shared[-1], '--values')
++        self.assertEqual(shared[shared.index('--uid') + 1], '0')
+         freeze_user = next(call[call.index('--user') + 1] for call in self.calls() if 'freeze' in call)
+         self.assertEqual(freeze_user, f'{os.getuid()}:{os.getgid()}')
+ 
+diff --git a/tools/compose_deployment.sh b/tools/compose_deployment.sh
+index eb1fa9a954a821873d62e08811237cf77081546e..8f6e7ebad7b6e6df2327c6ad203aa80c6e610050 100644
+--- a/tools/compose_deployment.sh
++++ b/tools/compose_deployment.sh
+@@ -48,9 +48,8 @@ exec {deployment_lock}< "$root"
+ flock --nonblock "$deployment_lock" || { refuse 'another command is active; nothing was queued.'; exit 2; }
+ source "$repository_root/tools/docker_client.sh"
+ source "$repository_root/tools/inference_native.sh"
+-source "$repository_root/tools/user_namespace_map.sh"
+ docker_client_directory= inference_retirement_confirmed=true inference_cancellation_status=0 inference_diagnostic=
+-helper_name= map_probe_name= map_probe_id= map_probe_removal_attempted=false map_query= lifetime_query= stop_query=
++helper_name= lifetime_query= stop_query=
+ helper_uid=$caller_uid helper_gid=$caller_gid helper_add_chown=false helper_add_dac_override=false
+ service_host_uid=$caller_uid service_host_gid=$caller_gid
+ finish() {
+@@ -64,20 +63,6 @@ finish() {
+         fi
+         cleanup_diagnostic=$inference_diagnostic
+     fi
+-    if [[ -n $map_probe_id && $map_probe_removal_attempted == false && $inference_retirement_confirmed == true ]]; then
+-        map_probe_removal_attempted=true
+-        if inference_native 'retire deployment identity probe' 15 stdio "${engine[@]}" rm --force "$map_probe_id"; then
+-            if [[ $inference_retirement_confirmed == true ]]; then
+-                map_probe_name= map_probe_id=
+-            fi
+-        else
+-            cleanup=$?
+-            cleanup_diagnostic=$inference_diagnostic
+-        fi
+-    fi
+-    if [[ -n $map_query && -z $map_probe_name && $inference_retirement_confirmed == true ]]; then
+-        rm -f -- "$map_query" || cleanup=$?
+-    fi
+     if [[ $inference_retirement_confirmed == true && -n ${lifetime_query-} ]]; then
+         rm -f -- "$lifetime_query" || cleanup=$?
+     fi
+@@ -95,9 +80,6 @@ finish() {
+     if [[ $status != 0 ]]; then
+         printf 'Deployment command did not complete. Inspect Docker Compose status/logs and retain the selected configuration; an interrupted client does not prove Engine-side rollback. No automatic retry was sent.\n' >&2
+         [[ -z $helper_name ]] || printf 'Configuration helper, if still present: %s\n' "$helper_name" >&2
+-        [[ -z $map_probe_name ]] || printf 'Identity probe, if still present: %s\n' "$map_probe_name" >&2
+-        [[ -z $map_probe_id ]] || printf 'Identity probe ID: %s\n' "$map_probe_id" >&2
+-        [[ -z $map_query ]] || printf 'Identity inspection metadata retained at %q.\n' "$map_query" >&2
+     fi
+     exit "$status"
+ }
+@@ -107,50 +89,17 @@ trap 'exit 143' TERM HUP
+ docker_client_prepare run || { printf '%s\n' "$docker_client_diagnostic" >&2; exit 2; }
+ run() { local seconds=$1; shift; inference_native "$role Compose $action" "$seconds" stdio "${engine[@]}" "$@"; }
+ map_helper_identity() {
+-    local image=$1 python=$2 pid running extra created mapped_service_uid mapped_service_gid mapped_root_uid mapped_root_gid probe_starttime
+-    local helper_uuid map_probe_token
+-    require_initial_user_and_pid_namespaces \
+-        || { refuse 'host UID/GID mapping requires the initial user and PID namespaces.'; return 2; }
+-    IFS= read -r helper_uuid < /proc/sys/kernel/random/uuid
+-    map_query=$(umask 077; mktemp /tmp/nmrnet-helper-map.XXXXXXXX)
+-    map_probe_name=nmrnet-map-${helper_uuid//-/}
+-    map_probe_token=nmrnet-map-token-${helper_uuid//-/}
+-    # The host caller verifies the exact command line through its selected /proc.
+-    run 30 create --name "$map_probe_name" --network none --read-only --user 0:0 \
+-        --cap-drop ALL --security-opt no-new-privileges:true --cpus 0.25 --memory 64m \
+-        --memory-swap 64m --pids-limit 8 --entrypoint "$python" "$image" -I -B -c 'import time; time.sleep(60)' "$map_probe_token" \
+-        > "$map_query"
+-    [[ $inference_retirement_confirmed == true ]] \
+-        || { refuse 'selected Engine identity probe creation has not settled.'; return 2; }
+-    IFS= read -r created < "$map_query" || { refuse 'selected Engine identity probe creation returned no container ID.'; return 2; }
+-    [[ $created =~ ^[0-9a-f]{64}$ ]] && cmp -s -- "$map_query" <(printf '%s\n' "$created") \
+-        || { refuse 'selected Engine identity probe creation returned a malformed container ID.'; return 2; }
+-    map_probe_id=$created
+-    run 20 start "$map_probe_id" >/dev/null
+-    [[ $inference_retirement_confirmed == true ]] \
+-        || { refuse 'selected Engine identity probe start has not settled.'; return 2; }
+-    run 20 inspect --format '{{.State.Pid}} {{.State.Running}}' "$map_probe_id" > "$map_query"
+-    [[ $inference_retirement_confirmed == true ]] \
+-        || { refuse 'selected Engine identity inspection has not settled.'; return 2; }
+-    IFS=' ' read -r pid running extra < "$map_query" || return 2
+-    [[ $pid =~ ^[1-9][0-9]*$ && $running == true && -z $extra ]] \
+-        && cmp -s -- "$map_query" <(printf '%s %s\n' "$pid" "$running") \
+-        || { refuse 'cannot establish the selected Engine helper identity.'; return 2; }
+-    probe_starttime=$(probe_process_starttime "$pid") \
+-        && probe_process_has_token "$pid" "$map_probe_token" \
+-        || { refuse 'cannot bind the selected Engine mapping to its exact probe process.'; return 2; }
+-    mapped_service_uid=$(host_id_for_container_id "/proc/$pid/uid_map" "$caller_uid") \
+-        || { refuse 'the selected Engine does not map the provider UID into the helper namespace.'; return 2; }
+-    mapped_service_gid=$(host_id_for_container_id "/proc/$pid/gid_map" "$caller_gid") \
+-        || { refuse 'the selected Engine does not map the provider GID into the helper namespace.'; return 2; }
+-    probe_process_is_same "$pid" "$map_probe_token" "$probe_starttime" \
+-        || { refuse 'the selected Engine probe changed while its UID/GID maps were read.'; return 2; }
+-    mapped_root_uid=$(host_id_for_container_id "/proc/$pid/uid_map" 0) \
+-        || { refuse 'the selected Engine does not map container root into the helper namespace.'; return 2; }
+-    mapped_root_gid=$(host_id_for_container_id "/proc/$pid/gid_map" 0) \
+-        || { refuse 'the selected Engine does not map container root group into the helper namespace.'; return 2; }
+-    probe_process_is_same "$pid" "$map_probe_token" "$probe_starttime" \
+-        || { refuse 'the selected Engine probe changed while its UID/GID maps were read.'; return 2; }
++    local image=$1 python=$2 values mapped_root_uid mapped_root_gid mapped_service_uid mapped_service_gid
++    command -v provider-deploy >/dev/null \
++        || { refuse 'install the host provider-deploy command before preparing deployment inputs.'; return 2; }
++    # The shared operation owns the probe, including failure cleanup. Only its
++    # successful numeric projection may influence this provider's input policy.
++    values=$(provider-deploy identity --endpoint "$NMRNET_DOCKER_ENDPOINT_INPUT" \
++        --image "$image" --interpreter "$python" --user-uid 0 --user-gid 0 \
++        --uid 0 --uid "$caller_uid" --gid 0 --gid "$caller_gid" --values) || return
++    [[ $values =~ ^(0|[1-9][0-9]*)\ (0|[1-9][0-9]*)\ (0|[1-9][0-9]*)\ (0|[1-9][0-9]*)$ ]] \
++        || { refuse 'the shared identity operation returned an invalid numeric projection.'; return 2; }
++    read -r mapped_root_uid mapped_service_uid mapped_root_gid mapped_service_gid <<< "$values"
+     if [[ $mapped_service_uid == "$caller_uid" && $mapped_service_gid == "$caller_gid" ]]; then
+         helper_uid=$caller_uid helper_gid=$caller_gid helper_add_chown=false
+     elif [[ $mapped_root_uid == "$caller_uid" && $mapped_root_gid == "$caller_gid" ]]; then
+@@ -159,20 +108,9 @@ map_helper_identity() {
+         refuse 'the selected Engine maps neither the provider identity nor container root to the installing host user.'
+         return 2
+     fi
+-    map_probe_removal_attempted=true
+-    inference_native 'retire deployment identity probe' 20 stdio "${engine[@]}" rm --force "$map_probe_id"
+-    [[ $inference_retirement_confirmed == true ]] \
+-        || { refuse 'selected Engine identity probe retirement has not settled.'; return 2; }
+-    wait_for_probe_process_retirement "$pid" "$probe_starttime" \
+-        || { refuse 'cannot confirm the selected Engine identity probe process has retired.'; return 2; }
+-    run 15 ps --all --no-trunc --filter "id=$map_probe_id" --format '{{.ID}}' > "$map_query"
+-    [[ $inference_retirement_confirmed == true && ! -s $map_query ]] \
+-        || { refuse 'cannot confirm the selected Engine identity probe has retired.'; return 2; }
+-    map_probe_name= map_probe_id=
+-    rm -- "$map_query"
+-    map_query=
+     service_host_uid=$mapped_service_uid service_host_gid=$mapped_service_gid
+ }
++
+ capture_stop_metadata() {
+     # Preserve the native owner's facts in this shell; only bounded Engine
+     # metadata goes to the private file. A timed-out writer keeps that file.

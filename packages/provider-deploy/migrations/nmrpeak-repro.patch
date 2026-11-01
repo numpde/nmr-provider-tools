@@ -1,0 +1,803 @@
+diff --git a/README.md b/README.md
+index 04c5e3660f24f66d551e2738a93f622a0509d513..1949cc1f70977678ec3035f9deb6583b59a29bd7 100644
+--- a/README.md
++++ b/README.md
+@@ -12,6 +12,9 @@ and freeform-text routes and deployment requirements.
+ 
+ ## Check the software
+ 
++Identity probing additionally requires the reviewed `provider-deploy` host wheel;
++see the [candidate migration and qualification notes](docs/provider-deploy-migration.md).
++
+ The maintained tests run in a pinned Docker image. On Linux, use Git, Make,
+ Bash, Python 3.11+, Docker with Compose and a local Unix-socket context, and a regular
+ Docker-enabled account. Every Docker-using Make target requires
+diff --git a/deployment/provider_deployment.py b/deployment/provider_deployment.py
+index 68dc9c9d7664d7289d12c1896105b26214a874ff..963102f2ddcf5ec0800b5e9aa871932ee550e36d 100644
+--- a/deployment/provider_deployment.py
++++ b/deployment/provider_deployment.py
+@@ -89,7 +89,6 @@ _DOCKER = Path("/usr/bin/docker")
+ _SETFACL = Path("/usr/bin/setfacl")
+ _GETFACL = Path("/usr/bin/getfacl")
+ _MAX_FILE_BYTES = 1_048_576
+-_MAX_UID_MAP_BYTES = 65_536
+ _PROVIDER_UID_RECEIPT = ".provider-uids.json"
+ _MAX_AUTHORIZED_PROVIDER_UIDS = 16
+ _SESSION_VOLUME_OPTIONS = {
+@@ -244,292 +243,38 @@ def _read_capture_source(path: Path, *, secret: bool) -> bytes:
+         raise DeploymentOperationRejected(f"Cannot capture startup input {path}: its bounded regular-file read failed; preserve the source and inspect its permissions") from cause
+ 
+ 
+-def _require_initial_host_namespaces() -> None:
+-    """Require host-relative UID maps and host-visible Docker process IDs."""
++def _container_uid_map(docker: Path, image: str):
++    """Delegate host identity evidence and exact probe retirement to one owner."""
+     try:
+-        for name, initial_inode in (("user", 4026531837), ("pid", 4026531836)):
+-            path = f"/proc/self/ns/{name}"
+-            filesystem = subprocess.run(
+-                ("/usr/bin/stat", "--file-system", "--format=%t", path),
+-                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, check=True, timeout=5,
+-            ).stdout.strip()
+-            if filesystem != b"6e736673" or os.stat(path).st_ino != initial_inode:
+-                raise ValueError(f"{name} namespace is not the initial namespace")
+-    except (OSError, subprocess.SubprocessError, ValueError) as error:
+-        raise DeploymentOperationRejected(
+-            "Cannot map the selected engine's container users: run deployment on the host "
+-            "in its initial user and PID namespaces with host /proc access"
++        from provider_deploy import ProbeFailure, ProbeRequest, ResourceState, probe_identity
++    except ImportError as error:
++        raise DeploymentOperationRejected(
++            "Install the reviewed provider-deploy host wheel in the Python environment "
++            "used for this deployment command; see docs/provider-deploy-migration.md"
+         ) from error
+-
+-
+-def _container_uid_map(docker: Path, image: str) -> tuple[tuple[int, int, int], ...]:
+-    """Read this engine's host-visible UID map from one owned probe process."""
+-    _require_initial_host_namespaces()
+-    token = secrets.token_hex(16)
+-    name = "nmrpeak-uid-map-" + token
+-    label = "io.nmrpeak.uid-map"
+-    identifier = None
+-    create_unsettled = False
+-    process_identity = None
++    endpoint = docker_host()
+     try:
+-        try:
+-            created = _docker_command(docker, (
+-                "create", "--name", name, "--label", f"{label}={token}",
+-                "--rm", "--network", "none", "--read-only", "--user", "65532:65532",
+-                "--cap-drop", "ALL", "--security-opt", "no-new-privileges:true",
+-                "--pids-limit", "4", "--cpus", "0.25", "--memory", "32m",
+-                "--memory-swap", "32m", "--entrypoint", "/usr/local/bin/python3.12",
+-                image, "-I", "-B", "-c", "import time; time.sleep(30)",
+-            ), timeout=30)
+-        except BaseException:
+-            # Once `docker create` was dispatched, a client error does not prove
+-            # the daemon rejected it. An empty immediate inventory is not proof
+-            # against a delayed create.
+-            create_unsettled = True
+-            raise
+-        identifier = created.stdout.decode("ascii").strip()
+-        if re.fullmatch(r"[0-9a-f]{64}", identifier) is None:
+-            create_unsettled = True
+-            raise ValueError("Docker did not return one exact UID-map probe identity")
+-        _require_uid_map_probe(docker, name, token, identifier, image, running=False)
+-        _docker_command(docker, ("start", identifier), timeout=30)
+-        record = _require_uid_map_probe(docker, name, token, identifier, image, running=True)
+-        pid = record["State"]["Pid"]
+-        before = _uid_map_process_start_time(pid)
+-        process_identity = (pid, before)
+-        mappings = _read_host_uid_map(pid)
+-        after = _uid_map_process_start_time(pid)
+-        if before != after:
+-            raise DeploymentOperationRejected("Selected-engine UID-map probe process changed while its host map was read")
+-        current = _require_uid_map_probe(docker, name, token, identifier, image, running=True)
+-        if current["State"]["Pid"] != pid:
+-            raise DeploymentOperationRejected("Selected-engine UID-map probe process changed while its host map was read")
+-    except BaseException as error:
+-        failure = error
+-    else:
+-        failure = None
+-    try:
+-        probe_found = _remove_uid_map_probe(
+-            docker,
+-            name,
+-            token,
+-            identifier,
+-            image,
+-            process_identity=process_identity,
+-        )
+-    except BaseException as cleanup:
+-        cause = cleanup if failure is None else BaseExceptionGroup(
+-            "UID-map probe and retirement failed", [failure, cleanup],
+-        )
+-        process = (
+-            f"; host_pid={process_identity[0]} start_time={process_identity[1]}"
+-            if process_identity is not None
+-            else ""
+-        )
+-        raise MaintenanceInvocationUnsettled(
+-            f"UID-map probe retirement is unconfirmed; inspect name={name}, "
+-            f"label={label}={token}{process}"
+-        ) from cause
+-    if create_unsettled and not probe_found:
+-        raise MaintenanceInvocationUnsettled(
+-            f"UID-map probe creation is unconfirmed; inspect name={name}, label={label}={token}"
+-        ) from failure
+-    if failure is not None:
+-        if not isinstance(failure, Exception):
+-            raise failure
+-        if isinstance(failure, DeploymentOperationRejected):
+-            raise failure
+-        raise DeploymentOperationRejected("Selected-engine UID-map probe failed; no input ACLs were changed") from failure
+-    return mappings
+-
+-
+-def _require_uid_map_probe(docker, name, token, identifier, image, *, running):
+-    records = _json_output(
+-        _docker_command(docker, ("inspect", identifier), timeout=30).stdout,
+-        "UID-map probe inspection",
+-    )
+-    if type(records) is not list or len(records) != 1 or type(records[0]) is not dict:
+-        raise DeploymentOperationRejected("Selected-engine UID-map probe inspection has an invalid shape")
+-    record = records[0]
+-    config = record.get("Config")
+-    labels = config.get("Labels") if type(config) is dict else None
+-    state = record.get("State")
+-    host_config = record.get("HostConfig")
+-    if (
+-        record.get("Id") != identifier
+-        or record.get("Name") != "/" + name
+-        or record.get("Image") != image
+-        or type(config) is not dict
+-        or config.get("User") != "65532:65532"
+-        or type(labels) is not dict
+-        or labels.get("io.nmrpeak.uid-map") != token
+-        or type(state) is not dict
+-        or type(state.get("Running")) is not bool
+-        or (running is not None and state["Running"] is not running)
+-        or (state["Running"] and (type(state.get("Pid")) is not int or state["Pid"] <= 0))
+-        or (not state["Running"] and state.get("Status") not in {"created", "exited"})
+-        or (not state["Running"] and state.get("Pid") not in {0, None})
+-        or type(host_config) is not dict
+-        or host_config.get("NetworkMode") != "none"
+-        or host_config.get("ReadonlyRootfs") is not True
+-        or host_config.get("PidMode") not in {None, ""}
+-        or host_config.get("Privileged") is not False
+-        or host_config.get("CapDrop") != ["ALL"]
+-        or host_config.get("PidsLimit") != 4
+-        or host_config.get("Memory") != 33_554_432
+-        or host_config.get("MemorySwap") != 33_554_432
+-        or host_config.get("NanoCpus") != 250_000_000
+-        or host_config.get("SecurityOpt") != ["no-new-privileges:true"]
+-        or host_config.get("CapAdd") not in (None, [])
+-        or host_config.get("Devices") not in (None, [])
+-        or host_config.get("DeviceRequests") not in (None, [])
+-        or type(host_config.get("RestartPolicy")) is not dict
+-        or host_config["RestartPolicy"].get("Name") not in {"", "no"}
+-        or host_config.get("AutoRemove") is not True
+-        or config.get("Entrypoint") != ["/usr/local/bin/python3.12"]
+-        or config.get("Cmd") != ["-I", "-B", "-c", "import time; time.sleep(30)"]
+-        or record.get("Mounts") != []
+-        or (state.get("Running") and state.get("Status") != "running")
+-    ):
+-        raise DeploymentOperationRejected("Selected-engine UID-map probe identity or isolation changed")
+-    return record
+-
+-
+-def _remove_uid_map_probe(docker, name, token, identifier, image, *, process_identity=None):
+-    """Retire only this probe and prove the selected engine has no residue."""
+-    label = "io.nmrpeak.uid-map"
+-    inventory = _uid_map_probe_inventory(docker, name, token)
+-    matches = inventory["labelled"]
+-    if len(matches) > 1 or any(re.fullmatch(r"[0-9a-f]{64}", value) is None for value in matches):
+-        raise DeploymentOperationRejected("Selected-engine UID-map probe inventory is ambiguous")
+-    if matches:
+-        selected = matches[0]
+-        if identifier is not None and selected != identifier:
+-            raise DeploymentOperationRejected("Selected-engine UID-map probe inventory changed")
+-        record = _require_uid_map_probe(docker, name, token, selected, image, running=None)
+-        pid = record["State"].get("Pid")
+-        if process_identity is None:
+-            process_identity = (
+-                (pid, _uid_map_process_start_time(pid))
+-                if type(pid) is int and pid > 0 and record["State"].get("Running")
+-                else None
+-            )
+-        elif record["State"].get("Running") and pid != process_identity[0]:
+-            raise DeploymentOperationRejected("Selected-engine UID-map probe PID changed before retirement")
+-        _docker_command(docker, ("rm", "--force", selected), timeout=30)
+-    elif inventory["named"]:
+-        raise DeploymentOperationRejected("Selected-engine UID-map probe name is occupied by a foreign container")
+-    remaining = _uid_map_probe_inventory(docker, name, token)
+-    if remaining["labelled"] or remaining["named"] or (identifier is not None and _uid_map_probe_exists(docker, identifier)):
+-        raise DeploymentOperationRejected("Selected-engine UID-map probe remains after removal")
+-    if process_identity is not None:
+-        _require_uid_map_process_retired(*process_identity)
+-    return bool(matches)
+-
+-
+-def _uid_map_probe_inventory(docker, name, token):
+-    def list_containers(*filters):
+-        result = _docker_command(docker, (
+-            "ps", "--all", "--no-trunc", "--quiet", *filters,
+-        ), timeout=30)
+-        identifiers = result.stdout.decode("ascii", errors="strict").splitlines()
+-        if any(re.fullmatch(r"[0-9a-f]{64}", value) is None for value in identifiers):
+-            raise DeploymentOperationRejected("Selected-engine UID-map probe inventory is malformed")
+-        return identifiers
+-
+-    return {
+-        "labelled": list_containers("--filter", f"label=io.nmrpeak.uid-map={token}"),
+-        "named": list_containers("--filter", f"name=^/{name}$"),
+-    }
+-
+-
+-def _uid_map_probe_exists(docker, identifier):
+-    return bool(_docker_command(docker, (
+-        "ps", "--all", "--no-trunc", "--quiet", "--filter", f"id={identifier}",
+-    ), timeout=30).stdout)
++        result = probe_identity(ProbeRequest(
++            endpoint=endpoint, image=image,
++            interpreter="/usr/local/bin/python3.12", user_uid=65532, user_gid=65532,
++        ), executable=str(docker))
++    except ProbeFailure as error:
++        kind = (MaintenanceInvocationUnsettled
++                if error.retirement.state not in {ResourceState.NOT_CREATED, ResourceState.RETIRED}
++                else DeploymentOperationRejected)
++        raise kind(
++            "Shared identity probe failed: " + json.dumps(error.as_dict(), sort_keys=True)
++        ) from error
++    return result.uid_map
+ 
+ 
+-def _uid_map_process_start_time(pid):
+-    if type(pid) is not int or pid <= 0:
+-        raise DeploymentOperationRejected("Selected-engine UID-map probe returned an invalid host PID")
++def _mapped_host_uid(container_uid: int, uid_map) -> int:
+     try:
+-        raw = Path(f"/proc/{pid}/stat").read_bytes()
+-        if len(raw) > 4096:
+-            raise ValueError("process status exceeded its bound")
+-        closing = raw.rfind(b")")
+-        fields = raw[closing + 2:].split()
+-        if closing < 0 or len(fields) <= 19:
+-            raise ValueError("process status has invalid framing")
+-        start_time = int(fields[19], 10)
+-        if start_time < 0:
+-            raise ValueError("process start time is negative")
+-        return start_time
+-    except (OSError, ValueError) as error:
+-        raise DeploymentOperationRejected("Cannot prove the selected-engine UID-map probe PID is stable") from error
+-
+-
+-def _require_uid_map_process_retired(pid, start_time):
+-    if type(pid) is not int or pid <= 0 or type(start_time) is not int:
+-        raise DeploymentOperationRejected("Selected-engine UID-map probe retirement identity is incomplete")
+-    deadline = time.monotonic() + 5
+-    while True:
+-        try:
+-            raw = Path(f"/proc/{pid}/stat").read_bytes()
+-        except FileNotFoundError:
+-            return
+-        except OSError as error:
+-            raise DeploymentOperationRejected("Cannot verify selected-engine UID-map probe process retirement") from error
+-        if len(raw) > 4096:
+-            raise DeploymentOperationRejected("Selected-engine UID-map probe process status exceeds its read bound")
+-        closing = raw.rfind(b")")
+-        fields = raw[closing + 2:].split()
+-        if closing < 0 or len(fields) <= 19:
+-            raise DeploymentOperationRejected("Selected-engine UID-map probe process status is malformed")
+-        if fields[19] != str(start_time).encode("ascii") or fields[0] in {b"Z", b"X"}:
+-            return
+-        if time.monotonic() >= deadline:
+-            raise DeploymentOperationRejected("Selected-engine UID-map probe process remains after container removal")
+-        time.sleep(0.05)
+-
+-
+-def _read_host_uid_map(pid):
+-    try:
+-        with Path(f"/proc/{pid}/uid_map").open("rb") as source:
+-            output = source.read(_MAX_UID_MAP_BYTES + 1)
+-        if len(output) > _MAX_UID_MAP_BYTES:
+-            raise ValueError("mapping exceeds its read bound")
+-        return _parse_container_uid_map(output)
+-    except (OSError, UnicodeDecodeError, ValueError) as error:
+-        raise DeploymentOperationRejected("Cannot read a valid host-visible UID map for the selected engine") from error
+-
+-
+-def _parse_container_uid_map(output: bytes) -> tuple[tuple[int, int, int], ...]:
+-    lines = output.decode("ascii").splitlines()
+-    mappings = []
+-    for line in lines:
+-        fields = line.split()
+-        if len(fields) != 3:
+-            raise ValueError("invalid mapping row")
+-        inside, outside, count = (int(value, 10) for value in fields)
+-        if min(inside, outside) < 0 or count < 1 or max(inside + count, outside + count) > 0x1_0000_0000:
+-            raise ValueError("mapping row is out of range")
+-        mappings.append((inside, outside, count))
+-    if not mappings:
+-        raise ValueError("empty UID map")
+-    for index, (inside, outside, count) in enumerate(mappings):
+-        for other_inside, other_outside, other_count in mappings[index + 1:]:
+-            if (inside < other_inside + other_count and other_inside < inside + count
+-                    or outside < other_outside + other_count and other_outside < outside + count):
+-                raise ValueError("overlapping UID map ranges")
+-    return tuple(mappings)
+-
+-
+-def _mapped_host_uid(container_uid: int, uid_map: tuple[tuple[int, int, int], ...]) -> int:
+-    matches = [outside + container_uid - inside for inside, outside, count in uid_map
+-               if inside <= container_uid < inside + count]
+-    if len(matches) == 1:
+-        return matches[0]
+-    raise DeploymentOperationRejected("Selected Docker engine did not map the required container UID exactly once")
++        return uid_map.translate(container_uid)
++    except ValueError as error:
++        raise DeploymentOperationRejected(
++            "Selected Docker engine did not map the required container UID exactly once"
++        ) from error
+ 
+ 
+ def _provider_directory_acl(provider_uids: tuple[int, ...]) -> tuple[str, ...]:
+diff --git a/docs/provider-deploy-migration.md b/docs/provider-deploy-migration.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..6daf0cc7b468ae8fa84e8588fb6c3ec52bf0d531
+--- /dev/null
++++ b/docs/provider-deploy-migration.md
+@@ -0,0 +1,74 @@
++# Shared identity probe: candidate migration
++
++This candidate patch replaces NMRPeak's local namespace guard, Docker probe lifecycle,
++process checks, map parser and probe retirement with `provider-deploy`. It is a
++migration candidate, not a published dependency release or a qualified deployment.
++
++NMRPeak still owns its inputs, ACL policy, scientific images and deployment
++lifecycle. It passes the already-selected `NMRPEAK_DOCKER_HOST` socket, the
++admitted provider image, `/usr/local/bin/python3.12`, and user `65532:65532` to the
++shared operation. It requests no new image and does not resolve the Docker
++context again. The exact Docker executable supplied by its caller is retained.
++The shared operation returns validated maps only after retiring its probe;
++NMRPeak then translates provider UID 65532 and the operator UID for its existing
++ACL decisions.
++
++## Host prerequisite
++
++Install a wheel built from the reviewed `nmr-provider-tools` candidate into the
++same Python 3.11+ environment selected by `make PYTHON=...`. The package is
++host-side and standard-library-only; it is not a scientific-image dependency.
++There is not yet a released wheel/hash pin for this migration. Do not invent a
++release URL or reuse the independent `provider-core` release pin.
++
++For an already-built, locally reviewed wheel:
++
++```sh
++/path/to/deployment-python -m pip install --no-index --no-deps /absolute/path/provider_deploy-0.2.0a1-py3-none-any.whl
++```
++
++Use that same interpreter for the maintained deployment command. Missing or
++incompatible package imports fail before creating a probe. Existing host
++prerequisites and the contained runtime guard are unchanged.
++
++## Failure evidence
++
++The adapter allocates no receipt directory or journal. A failed call preserves
++its structured stage/reason, independent cleanup problems, selected endpoint,
++operation token, exact container ID when known, and observed process identities.
++Unresolved outcomes preserve `MaintenanceInvocationUnsettled` and never authorize
++an ACL change. Inspect the exact engine and owned resource from these diagnostics;
++do not remove by name alone or blindly repeat an uncertain creation.
++
++The shared operation owns bounded cleanup during ordinary exceptions and
++cancellation. It does not promise automatic crash recovery: abrupt process or
++host loss can prevent diagnostics from being delivered and can require manual
++engine inspection. A finite auto-removing probe reduces residue after a started
++probe exits but does not settle the create-before-start interruption window.
++
++## Verification boundary
++
++The host acceptance lane imports the maintained `deployment.provider_deployment`
++module normally, using the same repository path as the Makefile launcher. This
++host module does not require importing the contained scientific runtime or
++bypassing its guard. Tests use real installed shared request/map/failure types
++and replace only the shared probe operation at its public Python boundary:
++
++```sh
++PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
++  PYTHONDONTWRITEBYTECODE=1 /path/to/deployment-python -m unittest discover -s tests/host -v
++```
++
++It checks the selected endpoint, image, interpreter, user and executable,
++rootful/rootless map translation for both NMRPeak consumers, missing host-package
++handling, mapped-ID refusal, and full failure/ownership-handle propagation. Namespace parsing,
++process ownership and Docker retirement belong to the shared
++package's own tests rather than duplicated private-helper tests here.
++
++The maintained containerized suite, actual rootful/rootless engines and a
++complete deployment preview must still be qualified with the candidate package.
++No test guard should be disabled to claim those checks passed. The shared probe
++standardizes its finite resource limits (currently 64 MiB and 8 PIDs rather
++than the former local 32 MiB and 4 PIDs); real-engine qualification must include
++the provider image and non-root operator. Do not merge or cut over from the host
++adapter tests alone.
+diff --git a/tests/host/test_shared_identity_adapter.py b/tests/host/test_shared_identity_adapter.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..bd0146768d1e0981e390bd451f470d7f9bb9d89f
+--- /dev/null
++++ b/tests/host/test_shared_identity_adapter.py
+@@ -0,0 +1,125 @@
++"""Run the actual host adapter without importing the contained science runtime.
++
++These import the maintained host module normally. The shared operation is
++replaced at its public Python boundary; requests, maps and failures are real types.
++They do not qualify Docker, host namespaces, or the complete deployment command.
++"""
++
++import json
++import os
++from pathlib import Path
++from types import SimpleNamespace
++import unittest
++from unittest.mock import patch
++
++from deployment import provider_deployment
++
++from provider_deploy.linux import IdMap, IdRange, ProcessIdentity
++from provider_deploy.model import Problem, ProbeFailure, ProbeHandle, ResourceState, Retirement
++from provider_deploy.operation import ProbeResult
++
++
++IDENTITY_MAP = IdMap((IdRange(0, 0, 4294967295),))
++ROOTLESS_MAP = IdMap((IdRange(0, 1000, 1), IdRange(1, 100000, 65536)))
++
++
++class SharedIdentityAdapterTests(unittest.TestCase):
++    def setUp(self):
++        self.adapter = provider_deployment
++        self.saved = []
++        self.image = "sha256:" + "a" * 64
++        self.environment = patch.dict(os.environ, {
++            "NMRPEAK_DOCKER_HOST": "unix:///selected.sock",
++            "DOCKER_HOST": "unix:///wrong.sock", "DOCKER_CONTEXT": "wrong"})
++        self.environment.start()
++        self.addCleanup(self.environment.stop)
++
++    def completed(self, request, *, executable):
++        self.saved.append((request, executable))
++        self.assertFalse(hasattr(request, "receipt_path"))
++        return ProbeResult(ROOTLESS_MAP, ROOTLESS_MAP, "c" * 64)
++
++    def test_delegates_exact_selected_engine_image_user_and_executable(self):
++        with patch("provider_deploy.probe_identity", side_effect=self.completed) as operation:
++            result = self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
++        operation.assert_called_once()
++        request, executable = self.saved[0]
++        self.assertEqual(request.endpoint, "unix:///selected.sock")
++        self.assertEqual(request.image, self.image)
++        self.assertEqual(request.interpreter, "/usr/local/bin/python3.12")
++        self.assertEqual((request.user_uid, request.user_gid), (65532, 65532))
++        self.assertEqual(executable, "/usr/bin/docker")
++        self.assertIs(result, ROOTLESS_MAP)
++
++    def test_probe_adapter_needs_no_private_storage(self):
++        def unexpected_storage(**_kwargs):
++            raise AssertionError("identity adaptation must not allocate a receipt directory")
++        with patch.object(self.adapter, "mkdtemp", side_effect=unexpected_storage), \
++             patch("provider_deploy.probe_identity", return_value=SimpleNamespace(uid_map=ROOTLESS_MAP)):
++            self.assertIs(self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image), ROOTLESS_MAP)
++
++    def test_forward_maps_both_actual_provider_consumers(self):
++        self.assertEqual(self.adapter._mapped_host_uid(65532, IDENTITY_MAP), 65532)
++        self.assertEqual(self.adapter._mapped_host_uid(1000, IDENTITY_MAP), 1000)
++        self.assertEqual(self.adapter._mapped_host_uid(65532, ROOTLESS_MAP), 165531)
++        self.assertEqual(self.adapter._mapped_host_uid(1000, ROOTLESS_MAP), 100999)
++
++    def test_unmapped_id_becomes_provider_rejection(self):
++        with self.assertRaises(self.adapter.DeploymentOperationRejected):
++            self.adapter._mapped_host_uid(1000000, ROOTLESS_MAP)
++
++    def test_failed_probe_preserves_stage_cause_and_ownership_handle(self):
++        for state in (ResourceState.NOT_CREATED, ResourceState.RETIRED, ResourceState.UNRESOLVED):
++            with self.subTest(state=state):
++                problem = Problem("observe", "process-identity", "probe process changed")
++                cause = None
++                def fail(request, *, executable):
++                    nonlocal cause
++                    handle = ProbeHandle(request.endpoint, "a" * 32, "c" * 64,
++                                         (ProcessIdentity(4321, 123, 9, 10),))
++                    cause = ProbeFailure(problem, Retirement(state), handle)
++                    raise cause
++                expected = (self.adapter.MaintenanceInvocationUnsettled if state not in {ResourceState.NOT_CREATED, ResourceState.RETIRED}
++                            else self.adapter.DeploymentOperationRejected)
++                with patch("provider_deploy.probe_identity", side_effect=fail):
++                    with self.assertRaises(expected) as caught:
++                        self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
++                self.assertIs(caught.exception.__cause__, cause)
++                self.assertIn("observe", str(caught.exception))
++                self.assertIn("probe process changed", str(caught.exception))
++                self.assertIn(cause.handle.endpoint, str(caught.exception))
++                self.assertIn(cause.handle.operation_token, str(caught.exception))
++                self.assertIn(cause.handle.container_id, str(caught.exception))
++                diagnostic = json.loads(str(caught.exception).removeprefix("Shared identity probe failed: "))
++                self.assertEqual(diagnostic["handle"]["processes"],
++                                 [{"pid": 4321, "starttime": 123, "proc_device": 9, "proc_inode": 10}])
++
++    def test_preserves_independent_cleanup_explanation(self):
++        def fail(request, *, executable):
++            raise ProbeFailure(
++                Problem("observe", "process-identity", "probe process changed"),
++                Retirement(ResourceState.UNRESOLVED, "c" * 64,
++                           (Problem("retire", "timeout", "container retirement could not be confirmed"),)),
++                ProbeHandle(request.endpoint, "a" * 32, "c" * 64),
++            )
++        with patch("provider_deploy.probe_identity", side_effect=fail):
++            with self.assertRaises(self.adapter.MaintenanceInvocationUnsettled) as caught:
++                self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
++        self.assertIn("probe process changed", str(caught.exception))
++        self.assertIn("container retirement could not be confirmed", str(caught.exception))
++
++    def test_missing_selected_endpoint_does_not_dispatch(self):
++        with patch.dict(os.environ, {}, clear=True), \
++             patch("provider_deploy.probe_identity") as operation:
++            with self.assertRaises(self.adapter.CheckpointOperationRejected):
++                self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
++        operation.assert_not_called()
++
++    def test_missing_host_package_has_actionable_error(self):
++        with patch.dict("sys.modules", {"provider_deploy": None}):
++            with self.assertRaisesRegex(self.adapter.DeploymentOperationRejected, "provider-deploy"):
++                self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
++
++
++if __name__ == "__main__":
++    unittest.main()
+diff --git a/tests/unit/test_journal_archive_deployment.py b/tests/unit/test_journal_archive_deployment.py
+index 6701382bd2759574576b103cfb7de85e13ed7159..0981550519a177cd77c1e3980d410e04adffc961 100644
+--- a/tests/unit/test_journal_archive_deployment.py
++++ b/tests/unit/test_journal_archive_deployment.py
+@@ -33,7 +33,7 @@ class ArchiveDeploymentTests(unittest.TestCase):
+         self.uid_map = patch.object(
+             deployment,
+             '_container_uid_map',
+-            return_value=((0, 0, 0x1_0000_0000),),
++            return_value=SimpleNamespace(translate=lambda value: value),
+         )
+         self.uid_map.start()
+         self.addCleanup(self.uid_map.stop)
+diff --git a/tests/unit/test_provider_deployment.py b/tests/unit/test_provider_deployment.py
+index 139435fb6c16bbaa6c6ac8ec237eabd40c7f8988..c090a0879db480cdc02729ec1e1608053d08a012 100644
+--- a/tests/unit/test_provider_deployment.py
++++ b/tests/unit/test_provider_deployment.py
+@@ -11,6 +11,7 @@ import stat
+ import subprocess
+ from tempfile import TemporaryDirectory
+ import threading
++from types import SimpleNamespace
+ import unittest
+ from unittest.mock import patch
+ import zipfile
+@@ -63,198 +64,6 @@ IMAGES = {
+ }
+ 
+ 
+-class HostNamespacePreconditionTests(unittest.TestCase):
+-    def test_requires_initial_user_and_pid_namespaces_on_nsfs(self):
+-        valid = ((b"6e736673\n", 4026531837), (b"6e736673\n", 4026531836))
+-        for observations, accepted in (
+-            (valid, True),
+-            (((b"6e736673\n", 4026533000), valid[1]), False),
+-            ((valid[0], (b"6e736673\n", 4026533001)), False),
+-            (((b"1234\n", 4026531837), valid[1]), False),
+-        ):
+-            with self.subTest(observations=observations), \
+-                 patch.object(provider_deployment.subprocess, "run", side_effect=[
+-                     subprocess.CompletedProcess((), 0, item[0], b"") for item in observations
+-                 ]), \
+-                 patch.object(provider_deployment.os, "stat", side_effect=[
+-                     type("NamespaceStat", (), {"st_ino": item[1]})() for item in observations
+-                 ]):
+-                if accepted:
+-                    provider_deployment._require_initial_host_namespaces()
+-                else:
+-                    with self.assertRaisesRegex(DeploymentOperationRejected, "initial user and PID"):
+-                        provider_deployment._require_initial_host_namespaces()
+-
+-    def test_namespace_refusal_happens_before_probe_creation(self):
+-        with patch.object(provider_deployment, "_require_initial_host_namespaces", side_effect=DeploymentOperationRejected("nested")), \
+-             patch.object(provider_deployment, "_docker_command") as docker:
+-            with self.assertRaisesRegex(DeploymentOperationRejected, "nested"):
+-                provider_deployment._container_uid_map(Path("/usr/bin/docker"), IMAGES["provider"].image_id)
+-            docker.assert_not_called()
+-
+-    def test_unavailable_namespace_evidence_is_rejected(self):
+-        for error in (FileNotFoundError("stat unavailable"),
+-                      subprocess.TimeoutExpired("stat", 5),
+-                      subprocess.CalledProcessError(1, "stat")):
+-            with self.subTest(error=error), \
+-                 patch.object(provider_deployment.subprocess, "run", side_effect=error):
+-                with self.assertRaisesRegex(DeploymentOperationRejected, "host /proc access"):
+-                    provider_deployment._require_initial_host_namespaces()
+-
+-
+-class SelectedEngineUidMapProbeTests(unittest.TestCase):
+-    def setUp(self) -> None:
+-        guard = patch.object(provider_deployment, "_require_initial_host_namespaces")
+-        guard.start()
+-        self.addCleanup(guard.stop)
+-
+-    def test_host_uid_map_is_read_for_the_exact_probe_pid_and_probe_is_retired(self) -> None:
+-        identifier = "a" * 64
+-        record = {"State": {"Pid": 4321}}
+-        image = IMAGES["provider"].image_id
+-        with (
+-            patch.object(
+-                provider_deployment,
+-                "_docker_command",
+-                return_value=subprocess.CompletedProcess((), 0, (identifier + "\n").encode(), b""),
+-            ) as command,
+-            patch.object(provider_deployment, "_require_uid_map_probe", return_value=record) as inspect,
+-            patch.object(provider_deployment, "_uid_map_process_start_time", side_effect=(10, 10)),
+-            patch.object(
+-                provider_deployment,
+-                "_read_host_uid_map",
+-                return_value=((0, 1000, 1), (1, 100000, 65536)),
+-            ) as read_map,
+-            patch.object(provider_deployment, "_remove_uid_map_probe") as remove,
+-        ):
+-            mapping = provider_deployment._container_uid_map(Path("/usr/bin/docker"), image)
+-
+-        self.assertEqual(mapping, ((0, 1000, 1), (1, 100000, 65536)))
+-        self.assertEqual(read_map.call_args.args, (4321,))
+-        self.assertEqual(inspect.call_count, 3)
+-        self.assertIn("--rm", command.call_args_list[0].args[1])
+-        self.assertEqual(command.call_args_list[1].args[1][:2], ("start", identifier))
+-        self.assertEqual(remove.call_args.args[3:], (identifier, image))
+-
+-    def test_uid_map_probe_failure_still_requires_owned_cleanup(self) -> None:
+-        identifier = "c" * 64
+-        image = IMAGES["provider"].image_id
+-        with (
+-            patch.object(
+-                provider_deployment,
+-                "_docker_command",
+-                return_value=subprocess.CompletedProcess((), 0, (identifier + "\n").encode(), b""),
+-            ),
+-            patch.object(provider_deployment, "_require_uid_map_probe", side_effect=DeploymentOperationRejected("bad probe")),
+-            patch.object(provider_deployment, "_remove_uid_map_probe") as remove,
+-        ):
+-            with self.assertRaisesRegex(DeploymentOperationRejected, "bad probe"):
+-                provider_deployment._container_uid_map(Path("/usr/bin/docker"), image)
+-        self.assertEqual(remove.call_args.args[3:], (identifier, image))
+-
+-    def test_create_timeout_without_an_observed_probe_remains_unsettled(self) -> None:
+-        error = DeploymentOperationRejected("probe creation timed out")
+-        error.__cause__ = subprocess.TimeoutExpired("docker create", 30)
+-        with (
+-            patch.object(provider_deployment, "_docker_command", side_effect=error),
+-            patch.object(provider_deployment, "_remove_uid_map_probe", return_value=False) as remove,
+-        ):
+-            with self.assertRaisesRegex(provider_deployment.MaintenanceInvocationUnsettled, "creation is unconfirmed"):
+-                provider_deployment._container_uid_map(Path("/usr/bin/docker"), IMAGES["provider"].image_id)
+-        self.assertIsNone(remove.call_args.args[3])
+-
+-    def test_non_timeout_create_error_without_an_observed_probe_is_unsettled(self) -> None:
+-        with (
+-            patch.object(
+-                provider_deployment,
+-                "_docker_command",
+-                side_effect=DeploymentOperationRejected("Docker client disconnected after dispatch"),
+-            ),
+-            patch.object(provider_deployment, "_remove_uid_map_probe", return_value=False),
+-        ):
+-            with self.assertRaisesRegex(
+-                provider_deployment.MaintenanceInvocationUnsettled,
+-                "creation is unconfirmed",
+-            ):
+-                provider_deployment._container_uid_map(
+-                    Path("/usr/bin/docker"), IMAGES["provider"].image_id,
+-                )
+-
+-    def test_cleanup_checks_running_pid_retirement(self) -> None:
+-        identifier = "e" * 64
+-        image = IMAGES["provider"].image_id
+-        record = {"State": {"Running": True, "Pid": 4321}}
+-        inventory = {"labelled": [identifier], "named": [identifier]}
+-        with (
+-            patch.object(provider_deployment, "_uid_map_probe_inventory", side_effect=(inventory, {"labelled": [], "named": []})),
+-            patch.object(provider_deployment, "_require_uid_map_probe", return_value=record) as verify,
+-            patch.object(provider_deployment, "_docker_command", return_value=subprocess.CompletedProcess((), 0, b"", b"")) as command,
+-            patch.object(provider_deployment, "_uid_map_probe_exists", return_value=False),
+-            patch.object(provider_deployment, "_require_uid_map_process_retired") as retired,
+-        ):
+-            removed = provider_deployment._remove_uid_map_probe(
+-                Path("/usr/bin/docker"),
+-                "nmrpeak-uid-map-token",
+-                "token",
+-                identifier,
+-                image,
+-                process_identity=(4321, 99),
+-            )
+-        self.assertTrue(removed)
+-        self.assertEqual(verify.call_args.kwargs, {"running": None})
+-        self.assertEqual(command.call_args.args[1], ("rm", "--force", identifier))
+-        retired.assert_called_once_with(4321, 99)
+-
+-    def test_cleanup_removes_an_exact_owned_exited_probe(self) -> None:
+-        identifier = "1" * 64
+-        inventory = {"labelled": [identifier], "named": [identifier]}
+-        with (
+-            patch.object(provider_deployment, "_uid_map_probe_inventory", side_effect=(inventory, {"labelled": [], "named": []})),
+-            patch.object(
+-                provider_deployment,
+-                "_require_uid_map_probe",
+-                return_value={"State": {"Running": False, "Pid": 0}},
+-            ) as verify,
+-            patch.object(provider_deployment, "_docker_command", return_value=subprocess.CompletedProcess((), 0, b"", b"")) as command,
+-            patch.object(provider_deployment, "_uid_map_probe_exists", return_value=False),
+-            patch.object(provider_deployment, "_require_uid_map_process_retired") as retired,
+-        ):
+-            removed = provider_deployment._remove_uid_map_probe(
+-                Path("/usr/bin/docker"),
+-                "nmrpeak-uid-map-token",
+-                "token",
+-                identifier,
+-                IMAGES["provider"].image_id,
+-            )
+-        self.assertTrue(removed)
+-        self.assertEqual(verify.call_args.kwargs, {"running": None})
+-        self.assertEqual(command.call_args.args[1], ("rm", "--force", identifier))
+-        retired.assert_not_called()
+-
+-    def test_cleanup_rejects_a_changed_pid_before_removal(self) -> None:
+-        identifier = "f" * 64
+-        inventory = {"labelled": [identifier], "named": [identifier]}
+-        with (
+-            patch.object(provider_deployment, "_uid_map_probe_inventory", return_value=inventory),
+-            patch.object(
+-                provider_deployment,
+-                "_require_uid_map_probe",
+-                return_value={"State": {"Running": True, "Pid": 4322}},
+-            ),
+-            patch.object(provider_deployment, "_docker_command") as command,
+-        ):
+-            with self.assertRaisesRegex(DeploymentOperationRejected, "PID changed"):
+-                provider_deployment._remove_uid_map_probe(
+-                    Path("/usr/bin/docker"),
+-                    "nmrpeak-uid-map-token",
+-                    "token",
+-                    identifier,
+-                    IMAGES["provider"].image_id,
+-                    process_identity=(4321, 99),
+-                )
+-        command.assert_not_called()
+-
+-
+ class ProviderDeploymentTests(unittest.TestCase):
+     def setUp(self) -> None:
+         self.docker_host = patch.dict("os.environ", {"NMRPEAK_DOCKER_HOST": "unix:///tmp/nmrpeak-test.sock"})
+@@ -263,7 +72,7 @@ class ProviderDeploymentTests(unittest.TestCase):
+         self.uid_map = patch.object(
+             provider_deployment,
+             "_container_uid_map",
+-            return_value=((0, 0, 0x1_0000_0000),),
++            return_value=SimpleNamespace(translate=lambda value: value),
+         )
+         self.uid_map.start()
+         self.addCleanup(self.uid_map.stop)
+@@ -349,13 +158,6 @@ class ProviderDeploymentTests(unittest.TestCase):
+                         {"input": b"private"},
+                     )
+ 
+-    def test_selected_engine_uid_map_maps_operator_and_provider_ids(self) -> None:
+-        uid_map = provider_deployment._parse_container_uid_map(
+-            b"0 1000 1\n1 100000 65536\n"
+-        )
+-        self.assertEqual(provider_deployment._mapped_host_uid(1000, uid_map), 100999)
+-        self.assertEqual(provider_deployment._mapped_host_uid(65532, uid_map), 165531)
+-
+     def test_unconfirmed_reader_creation_never_dispatches_start(self) -> None:
+         with patch.object(provider_deployment, "_docker_command", side_effect=TimeoutError("creation unknown")) as command, \
+              self.assertRaises(provider_deployment.MaintenanceInvocationUnsettled):
