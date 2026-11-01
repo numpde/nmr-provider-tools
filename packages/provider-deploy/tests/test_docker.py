@@ -6,18 +6,22 @@ import sys
 import tempfile
 import threading
 import time
+from dataclasses import asdict
+
+from provider_deploy.spec import ProbeSpec, PROBE_SCRIPT, OWNER
+from helpers import container_for
 import unittest
 from unittest.mock import patch
 
 from provider_deploy.docker import (
-    DockerEngine, DockerError, OWNER_LABEL, TOKEN_LABEL, PROBE_SCRIPT,
+    DockerEngine, DockerError, OWNER_LABEL, TOKEN_LABEL,
     _run_command, _clean_environment, _socket_identity,
 )
 
 
 CID = "c" * 64
 IMAGE = "sha256:" + "a" * 64
-TOKEN = "b" * 64
+TOKEN = "b" * 32
 
 
 class CommandTests(unittest.TestCase):
@@ -69,8 +73,7 @@ class CommandTests(unittest.TestCase):
 
     def test_environment_strips_engine_and_injection_settings(self):
         env = _clean_environment({"PATH": "/bin", "DOCKER_HOST": "tcp://bad", "DOCKER_CONFIG": "/bad",
-                                  "DOCKER_API_VERSION": "1", "HTTP_PROXY": "SECRET", "COMPOSE_FILE": "bad"},
-                                 context_lookup=False)
+                                  "DOCKER_API_VERSION": "1", "HTTP_PROXY": "SECRET", "COMPOSE_FILE": "bad"})
         self.assertEqual({"PATH": "/bin"}, env)
 
     def test_cancel_remains_responsive_after_child_closes_pipes(self):
@@ -136,21 +139,26 @@ class EngineTests(unittest.TestCase):
             if "info" in argv:
                 return json.dumps([self.daemon, ["name=rootless"], "/var/lib/docker", "overlay2", "linux"])
             key = next((x for x in ("create", "inspect", "ls", "start", "rm") if x in argv), "other")
-            return self.extra.get(key, "")
+            # silent-defaults: allow-contract -- An unconfigured successful fixture command emits empty output; parser tests explicitly replace its reply.
+            result = self.extra.get(key, "")
+            if isinstance(result, BaseException):
+                raise result
+            return result
         self.record_run = run
         self.runner = patch("provider_deploy.docker._run_command", side_effect=run)
         self.runner.start()
         self.addCleanup(self.runner.stop)
-        self.engine = DockerEngine.select("explicit", timeout=2)
+        self.engine = DockerEngine.connect("unix://" + str(self.sockpath), timeout=2)
         self.addCleanup(self.engine.close)
 
-    def test_context_resolved_once_all_engine_calls_pin_endpoint(self):
+    def test_caller_endpoint_is_never_reresolved_and_ambient_settings_are_ignored(self):
         self.extra["inspect"] = json.dumps([IMAGE, None])
         self.assertEqual(IMAGE, self.engine.image_id("approved:local", timeout=2))
-        self.assertEqual(1, sum("context" in args for args, _ in self.calls))
-        for args, _ in self.calls[1:]:
+        self.assertFalse(any("context" in args for args, _ in self.calls))
+        for args, kwargs in self.calls:
             self.assertEqual("unix://" + str(self.sockpath), args[args.index("--host") + 1])
             self.assertIn("--config", args)
+            self.assertNotIn("DOCKER_HOST", kwargs["env"])
 
     def test_missing_image_does_not_pull(self):
         self.extra["inspect"] = '"not-an-id"'
@@ -160,19 +168,17 @@ class EngineTests(unittest.TestCase):
 
     def test_create_is_owned_restricted_and_never_pulls(self):
         self.extra["create"] = CID + "\n"
-        result = self.engine.create(token=TOKEN, name="provider-deploy-" + TOKEN,
-                                    image_id=IMAGE, uid=1000, gid=2000, userns_mode="host",
-                                    lifetime_seconds=30, timeout=2)
+        result = self.engine.create(ProbeSpec(TOKEN, IMAGE, "/usr/bin/python3", 1000, 2000, "host", 30), timeout=2)
         self.assertEqual(CID, result)
         args, kwargs = next((a, k) for a, k in self.calls if "create" in a)
         self.assertTrue(kwargs["mutation"])
         self.assertIn("--pull=never", args)
         self.assertIn(TOKEN_LABEL + "=" + TOKEN, args)
-        self.assertIn(OWNER_LABEL + "=identity-v1", args)
+        self.assertIn(OWNER_LABEL + "=" + OWNER, args)
         self.assertIn("--userns=host", args)
         self.assertIn("1000:2000", args)
-        self.assertEqual(["-c", PROBE_SCRIPT, TOKEN, "30"], args[-4:])
-        self.assertNotIn("--rm", args)
+        self.assertEqual(["-I", "-B", "-c", PROBE_SCRIPT, "30", TOKEN], args[-6:])
+        self.assertIn("--rm", args)
         self.assertNotIn("--privileged", args)
 
     def test_changed_daemon_stops_before_mutation(self):
@@ -190,25 +196,46 @@ class EngineTests(unittest.TestCase):
         self.assertFalse(any("rm" in args for args, _ in self.calls))
 
     def test_absence_requires_positive_successful_listing(self):
+        self.extra["inspect"] = DockerError("docker_command", "Docker command did not report success.")
         self.extra["ls"] = ""
         self.assertIsNone(self.engine.inspect(CID, timeout=2))
         args = next(a for a, _ in self.calls if "ls" in a)
         self.assertIn("--all", args)
         self.assertIn("--no-trunc", args)
         self.assertIn("id=" + CID, args)
-        self.assertFalse(any("container" in args and "inspect" in args for args, _ in self.calls))
+        self.assertTrue(any("container" in args and "inspect" in args for args, _ in self.calls))
+
+    def test_inspect_failure_is_not_absence_while_exact_id_is_listed(self):
+        failure = DockerError("docker_command", "Docker command did not report success.")
+        self.extra.update(inspect=failure, ls=CID + "\n")
+        with self.assertRaises(DockerError) as caught:
+            self.engine.inspect(CID, timeout=2)
+        self.assertIs(failure, caught.exception)
+
+    def test_failed_listing_cannot_turn_inspect_failure_into_absence(self):
+        self.extra.update(inspect=DockerError("docker_command", "inspect failed"),
+                          ls=DockerError("docker_command", "listing failed"))
+        with self.assertRaises(DockerError):
+            self.engine.inspect(CID, timeout=2)
+
+    def test_inspect_timeout_does_not_start_an_absence_query(self):
+        self.extra["inspect"] = DockerError("timeout", "inspection timed out")
+        with self.assertRaises(DockerError) as caught:
+            self.engine.inspect(CID, timeout=2)
+        self.assertEqual("timeout", caught.exception.category)
+        self.assertFalse(any("ls" in args for args, _ in self.calls))
 
     def test_candidates_reject_partial_ids(self):
         self.extra["ls"] = CID[:12] + "\n"
         with self.assertRaises(DockerError):
             self.engine.candidates(TOKEN, timeout=2)
 
-    def test_remote_context_rejected_before_engine_command(self):
-        with patch("provider_deploy.docker._run_command", return_value='"ssh://remote"') as run:
+    def test_remote_endpoint_rejected_before_engine_command(self):
+        with patch("provider_deploy.docker._run_command") as run:
             with self.assertRaises(DockerError) as caught:
-                DockerEngine.select("remote", timeout=2)
+                DockerEngine.connect("ssh://remote", timeout=2)
         self.assertEqual("unsupported_engine", caught.exception.category)
-        self.assertEqual(1, run.call_count)
+        self.assertEqual(0, run.call_count)
 
     def test_security_fingerprint_change_stops_before_mutation(self):
         original = self.engine.identity
@@ -229,25 +256,28 @@ class EngineTests(unittest.TestCase):
     def test_lost_create_output_is_explicitly_uncertain(self):
         self.extra["create"] = ""
         with self.assertRaises(DockerError) as caught:
-            self.engine.create(token=TOKEN, name="provider-deploy-" + TOKEN, image_id=IMAGE,
-                               uid=0, gid=0, userns_mode="default", lifetime_seconds=30, timeout=2)
+            self.engine.create(ProbeSpec(TOKEN, IMAGE, "/usr/bin/python3", 0, 0, "default", 30), timeout=2)
         self.assertTrue(caught.exception.mutation_uncertain)
         self.assertEqual(1, sum("create" in args for args, _ in self.calls))
 
     def test_inspect_only_returns_curated_exact_evidence(self):
         self.extra["ls"] = CID + "\n"
-        evidence = dict(cid=CID, name="/provider-deploy-" + TOKEN, image_id=IMAGE, token=TOKEN,
-                        owner="identity-v1", pid=123, running=True, status="running", started_at="timestamp",
-                        user="1000:2000", userns_mode="", entrypoint=["/bin/sh"],
-                        command=["-c", PROBE_SCRIPT, TOKEN, "30"])
+        evidence = asdict(container_for(ProbeSpec(TOKEN, IMAGE, "/usr/bin/python3", 1000, 2000, "default", 30)))
+        evidence["name"] = "/provider-deploy-" + TOKEN
         self.extra["inspect"] = json.dumps(evidence)
         result = self.engine.inspect(CID, timeout=2)
         self.assertEqual(CID, result.cid)
         self.assertEqual("provider-deploy-" + TOKEN, result.name)
-        self.assertEqual(("-c", PROBE_SCRIPT, TOKEN, "30"), result.command)
+        self.assertEqual(("-I", "-B", "-c", PROBE_SCRIPT, "30", TOKEN), result.command)
+        self.assertFalse(any("ls" in args for args, _ in self.calls))
+        # The connection checks once; one existing-container read then costs
+        # info / inspect / info, not a second list plus its two info checks.
+        self.assertEqual(4, len(self.calls))
 
     def test_inspect_substituted_container_is_rejected(self):
-        self.extra["ls"] = "d" * 64 + "\n"
+        evidence = asdict(container_for(ProbeSpec(TOKEN, IMAGE, "/usr/bin/python3", 1000, 2000, "default", 30)))
+        evidence["cid"] = "d" * 64
+        self.extra["inspect"] = json.dumps(evidence)
         with self.assertRaises(DockerError) as caught:
             self.engine.inspect(CID, timeout=2)
         self.assertEqual("identity_mismatch", caught.exception.category)
@@ -278,31 +308,19 @@ class EngineTests(unittest.TestCase):
             return result
         with patch("provider_deploy.docker._run_command", side_effect=change_on_create):
             with self.assertRaises(DockerError) as caught:
-                self.engine.create(token=TOKEN, name="provider-deploy-" + TOKEN, image_id=IMAGE,
-                                   uid=0, gid=0, userns_mode="default", lifetime_seconds=30, timeout=2)
+                self.engine.create(ProbeSpec(TOKEN, IMAGE, "/usr/bin/python3", 0, 0, "default", 30), timeout=2)
         self.assertEqual("engine_changed", caught.exception.category)
         self.assertTrue(caught.exception.mutation_uncertain)
         self.assertEqual(1, sum("create" in args for args, _ in self.calls))
 
-    def test_named_context_uses_selected_store_not_same_name_in_default_store(self):
-        custom_endpoint = "unix:///custom/engine.sock"
-        default_endpoint = "unix:///default/engine.sock"
-        calls = []
-        def run(argv, **kwargs):
-            calls.append((argv, kwargs))
-            if "context" in argv:
-                endpoint = custom_endpoint if kwargs["env"].get("DOCKER_CONFIG") == "/custom/store" else default_endpoint
-                return json.dumps(endpoint)
-            return json.dumps(["custom-daemon", [], "/root", "overlay2", "linux"])
+    def test_ambient_context_and_config_cannot_change_pinned_endpoint(self):
         with patch.dict(os.environ, {"DOCKER_CONFIG": "/custom/store", "DOCKER_HOST": "tcp://ambient", "DOCKER_CONTEXT": "other"}):
-            with patch("provider_deploy.docker._run_command", side_effect=run):
-                with DockerEngine.select("same-name", timeout=2) as engine:
-                    self.assertEqual(custom_endpoint, engine.identity.endpoint)
-        self.assertNotIn("DOCKER_HOST", calls[0][1]["env"])
-        self.assertNotIn("DOCKER_CONTEXT", calls[0][1]["env"])
-        self.assertNotIn("DOCKER_CONFIG", calls[1][1]["env"])
-        self.assertIn("--config", calls[1][0])
-        self.assertNotIn("/custom/store", calls[1][0])
+            with DockerEngine.connect("unix://" + str(self.sockpath), timeout=2):
+                pass
+        args, kwargs = self.calls[-1]
+        self.assertNotIn("DOCKER_CONFIG", kwargs["env"])
+        self.assertNotIn("DOCKER_HOST", kwargs["env"])
+        self.assertNotIn("context", args)
 
 
 if __name__ == "__main__":

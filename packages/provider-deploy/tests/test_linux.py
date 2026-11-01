@@ -169,6 +169,7 @@ class RealProcTests(unittest.TestCase):
             nonlocal reads
             reads += 1
             state, starttime = original(raw, pid)
+            # silent-defaults: allow-contract -- Only the second stat observation advances time to model PID replacement; the first remains unchanged.
             return state, starttime + (1 if reads == 2 else 0)
         with patch("provider_deploy.linux._parse_stat", side_effect=changing):
             with self.assertRaises(LinuxError):

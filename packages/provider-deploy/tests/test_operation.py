@@ -1,329 +1,185 @@
-"""Complete operations preserve failures and withhold mappings until retirement."""
+"""The observable contract: fresh maps or an honest failure, never leaked probes."""
 
-from dataclasses import dataclass, replace
+from dataclasses import replace
 import json
-from pathlib import Path
-from types import SimpleNamespace
-import tempfile
 import threading
 import unittest
 from unittest.mock import patch
 
-from provider_deploy.model import Bounds, ProbeFailure, ProbeRequest
-from provider_deploy.journal import Journal
-from provider_deploy.operation import probe_identity
-from provider_deploy.docker import DockerError, PROBE_SCRIPT
+from provider_deploy import ProbeFailure, ResourceState, probe_identity
+from provider_deploy.docker import DockerError
+from provider_deploy.linux import IdMap, IdRange
+from provider_deploy.model import Bounds
+from helpers import CID, Engine, Guard, OBSERVATION, request
 
 
-CID = "c" * 64
-IMAGE = "sha256:" + "a" * 64
-
-
-@dataclass(frozen=True)
-class Identity:
-    context: str = "selected"
-    endpoint: str = "unix:///selected.sock"
-    daemon_id: str = "selected-daemon"
-
-
-@dataclass(frozen=True)
-class Map:
-    offset: int
-
-    def translate(self, number):
-        return self.offset + number
-
-
-@dataclass(frozen=True)
-class Observation:
-    pid: int = 42
-    starttime: int = 123
-    proc_inode: int = 999
-    uid_map: Map = Map(100000)
-    gid_map: Map = Map(200000)
-
-
-@dataclass(frozen=True)
-class Host:
-    user_namespace_inode: int = 4026531837
-    pid_namespace_inode: int = 4026531836
-
-
-class Engine:
-    identity = Identity()
-
-    def __init__(self):
-        self.events = []
-        self.container = None
-        self.create_failure = None
-        self.hide_creation = False
-        self.remove_failure = False
-        self.mutate_container = None
-        self.cancel_on_create = None
-        self.after_start = None
-
-    def image_id(self, image, **kwargs):
-        self.events.append("image")
-        return IMAGE
-
-    def create(self, **kwargs):
-        self.events.append("create")
-        self.create_kwargs = kwargs
-        # Recovery identity is durably present BEFORE dispatch.
-        journal = self.journal.read_text()
-        assert kwargs["token"] in journal and "prepared" in journal
-        assert json.loads(journal.splitlines()[-1])["state"] == "uncertain-outcome"
-        if not self.hide_creation:
-            self.container = SimpleNamespace(cid=CID, name=kwargs["name"], token=kwargs["token"],
-                owner="identity-v1", image_id=IMAGE, user=f'{kwargs["uid"]}:{kwargs["gid"]}',
-                userns_mode="" if kwargs["userns_mode"] == "default" else "host",
-                entrypoint=("/bin/sh",), command=("-c", PROBE_SCRIPT, kwargs["token"], str(kwargs["lifetime_seconds"])),
-                running=False, pid=0, status="created", started_at="not-started")
-        if self.mutate_container:
-            self.mutate_container(self.container)
-        if self.cancel_on_create:
-            self.cancel_on_create.set()
-        if self.create_failure:
-            raise self.create_failure
-        return CID
-
-    def start(self, cid, **kwargs):
-        self.events.append("start")
-        self.container.running = True
-        self.container.pid = 42
-        self.container.status = "running"
-        self.container.started_at = "2026-10-31T00:00:00Z"
-        if self.after_start:
-            self.after_start(self.container)
-
-    def inspect(self, cid, **kwargs):
-        self.events.append("inspect")
-        return self.container
-
-    def candidates(self, token, **kwargs):
-        self.events.append("candidates")
-        return (CID,) if self.container else ()
-
-    def remove(self, cid, **kwargs):
-        self.events.append("remove")
-        assert kwargs.get("cancel") is None, "cleanup must ignore cancellation"
-        if self.remove_failure:
-            raise DockerError("docker_command", "safe error", mutation_uncertain=True)
-        self.container = None
-
-    def assert_unchanged(self, **kwargs):
-        self.events.append("engine-check")
-
-    def close(self):
-        self.events.append("close")
-
-
-class Guard:
-    def __init__(self):
-        self.observations = [Observation(), Observation(), Observation()]
-        self.retired = True
-
-    def host_evidence(self):
-        return Host()
-
-    def observe(self, pid, token):
-        return self.observations.pop(0)
-
-    def process_retired(self, observation):
-        return self.retired
-
-
-class OperationContractTests(unittest.TestCase):
+class OperationTests(unittest.TestCase):
     def setUp(self):
-        self.temp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.temp.cleanup)
-        self.path = Path(self.temp.name) / "operation.jsonl"
-        self.request = ProbeRequest("selected", "approved:local", 1000, 2000, "default",
-                                    (0, 1000), (0, 2000), self.path, Bounds(10, 1, 2, 30))
-        self.engine = Engine()
-        self.engine.journal = self.path
-        self.guard = Guard()
-        p = patch("provider_deploy.operation.DockerEngine.select", return_value=self.engine)
-        p.start()
-        self.addCleanup(p.stop)
-        p = patch("provider_deploy.operation.LinuxGuard", return_value=self.guard)
-        p.start()
-        self.addCleanup(p.stop)
+        self.request = request()
+        self.engine, self.guard = Engine(), Guard()
+        for target, value in (("DockerEngine.connect", self.engine), ("LinuxGuard", self.guard)):
+            patched = patch("provider_deploy.operation." + target, return_value=value)
+            patched.start()
+            self.addCleanup(patched.stop)
 
-    def failure(self, cancel=None):
+    def failure(self, **kwargs):
         with self.assertRaises(ProbeFailure) as caught:
-            probe_identity(self.request, cancel=cancel)
-        self.assertNotIn("mapped_uids", caught.exception.as_dict())
-        self.assertNotIn("mapped_gids", caught.exception.as_dict())
+            probe_identity(self.request, **kwargs)
+        self.assertNotIn("uid_map", caught.exception.as_dict())
+        self.assertNotIn("gid_map", caught.exception.as_dict())
         return caught.exception
 
-    def test_success_is_released_only_after_exact_removal_and_absence(self):
+    def test_success_releases_full_maps_only_after_exact_retirement(self):
         result = probe_identity(self.request)
-        self.assertEqual(((0, 100000), (1000, 101000)), result.mapped_uids)
-        self.assertEqual(((0, 200000), (2000, 202000)), result.mapped_gids)
-        self.assertTrue(result.retirement_confirmed)
+        self.assertEqual(101000, result.uid_map.translate(1000))
+        self.assertEqual(202000, result.gid_map.translate(2000))
         self.assertIsNone(self.engine.container)
-        self.assertIn("remove", self.engine.events)
-        self.assertLess(self.engine.events.index("remove"), len(self.engine.events) - 1)
-        self.assertEqual(0o600, self.path.stat().st_mode & 0o777)
-        self.assertEqual("confirmed-retired", json.loads(self.path.read_text().splitlines()[-1])["state"])
+        self.assertEqual(["remove"], [x for x in self.engine.events if x == "remove"])
 
-    def test_lost_creation_output_reconciles_and_preserves_original_failure(self):
-        self.engine.create_failure = DockerError("timeout", "safe error", mutation_uncertain=True)
+    def test_lost_creation_reply_reconciles_without_second_create(self):
+        self.engine.create_failure = DockerError("timeout", "Docker reply timed out", mutation_uncertain=True)
         failure = self.failure()
-        self.assertEqual("timeout", failure.category)
-        self.assertEqual("confirmed-retired", failure.state)
+        self.assertEqual("timeout", failure.problem.category)
+        self.assertEqual("create", failure.problem.stage)
+        self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
         self.assertIn("candidates", self.engine.events)
         self.assertEqual(1, self.engine.events.count("create"))
-        self.assertIn("remove", self.engine.events)
 
-    def test_lost_creation_output_and_empty_inventory_remains_uncertain(self):
-        self.engine.create_failure = DockerError("timeout", "safe error", mutation_uncertain=True)
+    def test_empty_inventory_does_not_settle_lost_creation(self):
+        self.engine.create_failure = DockerError("timeout", "Docker reply timed out", mutation_uncertain=True)
         self.engine.hide_creation = True
         failure = self.failure()
-        self.assertEqual("uncertain-outcome", failure.state)
+        self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
         self.assertNotIn("remove", self.engine.events)
 
-    def test_foreign_token_is_never_removed(self):
-        self.engine.mutate_container = lambda c: setattr(c, "token", "foreign")
+    def test_wrong_token_never_authorizes_removal(self):
+        self.engine.on_create = lambda engine: setattr(engine, "container", replace(engine.container, token="foreign"))
         failure = self.failure()
-        self.assertEqual("ownership", failure.category)
+        self.assertEqual("ownership", failure.problem.category)
         self.assertNotIn("remove", self.engine.events)
-        self.assertTrue(failure.cleanup_failures)
+        self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
 
-    def test_cleanup_failure_does_not_release_successful_mapping(self):
-        self.engine.remove_failure = True
+    def test_changed_isolation_never_authorizes_removal(self):
+        def weaken(engine):
+            engine.container.isolation["Privileged"] = True
+        self.engine.on_create = weaken
+        self.assertEqual("ownership", self.failure().problem.category)
+        self.assertNotIn("remove", self.engine.events)
+
+    def test_remove_failure_cannot_release_mapping(self):
+        self.engine.remove_failure = DockerError("docker_command", "removal did not report success", mutation_uncertain=True)
         failure = self.failure()
-        self.assertEqual("retirement", failure.category)
-        self.assertTrue(failure.cleanup_failures)
+        self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
+        self.assertEqual("remove", failure.problem.stage)
+        self.assertIs(self.engine.remove_failure, failure.__cause__)
 
-    def test_cancellation_after_create_still_enters_cleanup(self):
-        event = threading.Event()
-        self.engine.cancel_on_create = event
-        failure = self.failure(event)
-        self.assertEqual("cancelled", failure.category)
-        self.assertEqual("confirmed-retired", failure.state)
-        self.assertIn("remove", self.engine.events)
+    def test_cancellation_after_create_cleans_without_starting(self):
+        cancel = threading.Event()
+        self.engine.on_create = lambda engine: cancel.set()
+        failure = self.failure(cancel=cancel)
+        self.assertEqual("cancelled", failure.problem.category)
+        self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
         self.assertNotIn("start", self.engine.events)
 
-    def test_cancellation_before_dispatch_is_known_not_created(self):
-        event = threading.Event()
-        event.set()
-        failure = self.failure(event)
-        self.assertEqual("known-not-created", failure.state)
+    def test_cancellation_before_dispatch_does_not_create(self):
+        cancel = threading.Event(); cancel.set()
+        self.assertEqual(ResourceState.NOT_CREATED, self.failure(cancel=cancel).retirement.state)
         self.assertNotIn("create", self.engine.events)
 
-    def test_pid_reuse_is_not_a_success(self):
-        self.guard.observations[1] = replace(Observation(), starttime=124)
-        failure = self.failure()
-        self.assertEqual("process-identity", failure.category)
-        self.assertEqual("confirmed-retired", failure.state)
+    def test_cancellation_during_retirement_does_not_interrupt_cleanup(self):
+        cancel = threading.Event()
+        self.engine.on_remove = lambda engine: cancel.set()
+        failure = self.failure(cancel=cancel)
+        self.assertEqual("cancelled", failure.problem.category)
+        self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
 
-    def test_map_changes_are_not_a_success(self):
-        self.guard.observations[1] = replace(Observation(), gid_map=Map(300000))
+    def test_changed_observation_is_distinct_from_successful_cleanup(self):
+        calls = 0
+        def change(guard):
+            nonlocal calls
+            calls += 1
+            if calls == 3:
+                guard.observation = replace(OBSERVATION, starttime=124)
+        self.guard.on_observe = change
         failure = self.failure()
-        self.assertEqual("process-identity", failure.category)
+        self.assertEqual("observe", failure.problem.stage)
+        self.assertEqual("process-identity", failure.problem.category)
+        self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
+        self.assertEqual((), failure.retirement.problems)
 
-    def test_exited_probe_is_removed_without_success(self):
-        self.engine.after_start = lambda c: setattr(c, "running", False)
-        failure = self.failure()
-        self.assertEqual("process-identity", failure.category)
+    def test_changed_maps_during_observation_are_rejected(self):
+        calls = 0
+        def change(guard):
+            nonlocal calls
+            calls += 1
+            if calls == 2:
+                guard.observation = replace(OBSERVATION, uid_map=IdMap((IdRange(0, 300000, 65536),)))
+        self.guard.on_observe = change
+        self.assertEqual("process-identity", self.failure().problem.category)
+
+    def test_exited_probe_is_removed_but_not_successful(self):
+        self.engine.on_start = lambda engine: setattr(engine, "container", replace(engine.container, running=False))
+        self.assertEqual("process-identity", self.failure().problem.category)
         self.assertIn("remove", self.engine.events)
 
-    def test_missing_container_with_still_live_process_is_uncertain(self):
+    def test_live_process_prevents_retirement_claim(self):
         self.guard.retired = False
-        failure = self.failure()
-        self.assertEqual("uncertain-outcome", failure.state)
-        self.assertIn("process-retirement", failure.cleanup_failures)
+        self.assertEqual(ResourceState.UNRESOLVED, self.failure().retirement.state)
 
-    def test_existing_recovery_file_is_not_overwritten(self):
-        self.path.write_text("prior evidence")
-        failure = self.failure()
-        self.assertEqual("journal", failure.category)
-        self.assertEqual("prior evidence", self.path.read_text())
-        self.assertNotIn("create", self.engine.events)
-
-    def test_create_not_dispatched_remains_known_not_created(self):
-        self.engine.create_failure = DockerError("engine_changed", "safe", mutation_uncertain=False)
+    def test_proven_predispatch_failure_is_not_created(self):
+        self.engine.create_failure = DockerError("engine_changed", "engine changed before dispatch")
         self.engine.hide_creation = True
-        failure = self.failure()
-        self.assertEqual("known-not-created", failure.state)
+        self.assertEqual(ResourceState.NOT_CREATED, self.failure().retirement.state)
         self.assertNotIn("candidates", self.engine.events)
 
-    def test_local_client_cleanup_failure_is_preserved(self):
-        self.engine.create_failure = DockerError("timeout", "safe", mutation_uncertain=True)
-        self.engine.create_failure.cleanup_failures = ("client_cleanup",)
-        failure = self.failure()
-        self.assertIn("client_cleanup", failure.cleanup_failures)
-        self.assertEqual("timeout", failure.category)
-
-    def test_policy_domains_are_checked_before_creation(self):
-        for change in ({"requested_uids": [1]}, {"requested_gids": (True,)},
-                       {"user_uid": 4294967295}, {"context": "bad:context"},
-                       {"bounds": Bounds(10, 3601, 2, 30)},
-                       {"bounds": Bounds(10, 1, 2, 3601)}):
-            with self.subTest(change=change):
-                self.request = replace(self.request, **change)
-                failure = self.failure()
-                self.assertEqual("invalid-policy", failure.category)
+    def test_policy_rejected_before_mutation(self):
+        for changes in ({"endpoint": "ssh://remote"}, {"interpreter": "python"},
+                        {"user_uid": True}, {"user_gid": 4294967295},
+                        {"bounds": Bounds(operation_seconds=float("nan"))}):
+            with self.subTest(changes=changes):
+                self.request = replace(request(), **changes)
+                self.assertEqual("invalid-policy", self.failure().problem.category)
                 self.assertNotIn("create", self.engine.events)
-                self.request = ProbeRequest("selected", "approved:local", 1000, 2000, "default",
-                    (0, 1000), (0, 2000), self.path, Bounds(10, 1, 2, 30))
 
-    def test_restart_between_observation_and_retirement_invalidates_mapping(self):
-        original = self.engine.inspect
-        count = 0
-        def inspect(cid, **kwargs):
-            nonlocal count
-            count += 1
-            if count == 4:
-                self.engine.container.pid = 999
-                self.engine.container.started_at = "restarted"
-            return original(cid, **kwargs)
-        self.engine.inspect = inspect
+    def test_safe_reason_is_preserved_and_unexpected_exception_text_is_redacted(self):
+        self.engine.create_failure = DockerError("timeout", "Docker reply timed out", mutation_uncertain=True)
+        self.assertEqual("Docker reply timed out", self.failure().problem.message)
+        self.engine.create_failure = ValueError("SECRET CONTENT")
+        self.assertNotIn("SECRET", json.dumps(self.failure().as_dict()))
+
+    def test_python_traceback_keeps_internal_cause_without_serializing_it(self):
+        original = ValueError("SECRET DEBUG DETAIL")
+        self.engine.create_failure = original
         failure = self.failure()
-        self.assertIn("process-identity", failure.cleanup_failures)
-        self.assertEqual("confirmed-retired", failure.state)
-        self.assertIn("remove", self.engine.events)
-
-    def test_maps_change_at_retirement_invalidates_mapping(self):
-        self.guard.observations[2] = replace(Observation(), uid_map=Map(300000))
-        failure = self.failure()
-        self.assertIn("process-identity", failure.cleanup_failures)
-        self.assertEqual("confirmed-retired", failure.state)
-
-    def test_cancellation_during_retirement_withholds_mapping_but_finishes_cleanup(self):
-        event = threading.Event()
-        original = self.engine.remove
-        def remove(cid, **kwargs):
-            event.set()
-            return original(cid, **kwargs)
-        self.engine.remove = remove
-        failure = self.failure(event)
-        self.assertEqual("cancelled", failure.category)
-        self.assertEqual("confirmed-retired", failure.state)
-        self.assertIsNone(self.engine.container)
-        self.assertEqual("cancelled", json.loads(self.path.read_text().splitlines()[-1])["failure"])
-
-    def test_finished_journal_failure_withholds_mapping_after_retirement(self):
-        original = Journal.append
-        def append(journal, event):
-            if event["event"] == "finished":
-                raise OSError("private path must not escape")
-            return original(journal, event)
-        with patch("provider_deploy.operation.Journal.append", new=append):
-            failure = self.failure()
-        self.assertEqual("confirmed-retired", failure.state)
-        self.assertIn("journal", failure.cleanup_failures)
-        self.assertIsNone(self.engine.container)
-
-    def test_original_error_and_cleanup_error_are_both_retained(self):
-        self.engine.create_failure = DockerError("timeout", "SECRET ENGINE OUTPUT", mutation_uncertain=True)
-        self.engine.remove_failure = True
-        failure = self.failure()
-        self.assertEqual("timeout", failure.category)
-        self.assertTrue(failure.cleanup_failures)
+        self.assertIs(original, failure.__cause__)
+        self.assertIsNotNone(failure.__cause__.__traceback__)
+        self.assertEqual("internal", failure.problem.category)
         self.assertNotIn("SECRET", json.dumps(failure.as_dict()))
+
+    def test_interrupted_cleanup_entry_never_claims_no_creation(self):
+        with patch("provider_deploy.operation._Probe.retire", side_effect=KeyboardInterrupt):
+            failure = self.failure()
+        self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
+        self.assertEqual(CID, failure.retirement.container_id)
+        self.assertEqual("retire", failure.problem.stage)
+        self.assertIsNotNone(self.engine.container)
+
+    def test_cancellation_during_client_close_withholds_mapping(self):
+        cancel = threading.Event()
+        self.engine.close = cancel.set
+        failure = self.failure(cancel=cancel)
+        self.assertEqual("cancelled", failure.problem.category)
+        self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
+
+    def test_original_failure_and_secondary_cleanup_problems_are_both_retained(self):
+        self.engine.create_failure = DockerError("timeout", "creation reply was lost", mutation_uncertain=True)
+        self.engine.remove_failure = DockerError("docker_command", "removal failed", mutation_uncertain=True)
+        failure = self.failure()
+        self.assertEqual("create", failure.problem.stage)
+        self.assertIs(self.engine.create_failure, failure.__cause__)
+        self.assertEqual("creation reply was lost", failure.problem.message)
+        self.assertTrue(any(problem.stage == "remove" for problem in failure.retirement.problems))
+
 
 
 if __name__ == "__main__":
