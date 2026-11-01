@@ -26,7 +26,8 @@ class ProbeResult:
 class _Budget:
     def __init__(self, seconds: float, command_seconds: float, cancel=None):
         self.deadline = time.monotonic() + seconds
-        self.command_seconds, self.cancel = command_seconds, cancel
+        self.command_seconds = command_seconds
+        self.cancel = cancel
 
     def remaining(self) -> float:
         if self.cancel is not None and self.cancel.is_set():

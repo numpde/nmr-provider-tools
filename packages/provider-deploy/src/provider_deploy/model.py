@@ -25,7 +25,8 @@ class Bounds:
 
     def validate(self) -> None:
         for value in (self.operation_seconds, self.command_seconds, self.cleanup_seconds):
-            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 < value <= 3600:
+            if (isinstance(value, bool) or not isinstance(value, (int, float))
+                    or not math.isfinite(value) or not 0 < value <= 3600):
                 raise StepError("invalid-policy", "time bounds must be finite and between zero and 3600 seconds")
         if type(self.lifetime_seconds) is not int or not 1 <= self.lifetime_seconds <= 3600:
             raise StepError("invalid-policy", "probe lifetime must be an integer between 1 and 3600 seconds")
@@ -49,17 +50,19 @@ class ProbeRequest:
         if type(self.bounds) is not Bounds:
             raise StepError("invalid-policy", "invalid operation bounds")
         self.bounds.validate()
-        if not isinstance(self.endpoint, str) or not self.endpoint.startswith("unix:///") or len(self.endpoint) > 4096:
+        if (not isinstance(self.endpoint, str) or not self.endpoint.startswith("unix:///")
+                or len(self.endpoint) > 4096):
             raise StepError("invalid-policy", "use the caller-selected local Unix Docker endpoint")
-        if not isinstance(self.image, str) or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/@+-]{0,511}", self.image) is None:
+        if (not isinstance(self.image, str)
+                or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/@+-]{0,511}", self.image) is None):
             raise StepError("invalid-policy", "image must be an explicit bounded identifier")
         if not valid_id(self.user_uid) or not valid_id(self.user_gid):
             raise StepError("invalid-policy", "IDs must be integers from 0 through 4294967294")
         if self.userns_mode not in ("default", "host"):
             raise StepError("invalid-policy", "user namespace policy must be default or host")
-        if not isinstance(self.interpreter, str) or not self.interpreter.startswith("/") or len(self.interpreter) > 512 or any(ord(c) < 32 for c in self.interpreter):
+        if (not isinstance(self.interpreter, str) or not self.interpreter.startswith("/")
+                or len(self.interpreter) > 512 or any(ord(c) < 32 for c in self.interpreter)):
             raise StepError("invalid-policy", "supply an absolute Python interpreter path in the probe image")
-
 
 
 class ResourceState(StrEnum):
