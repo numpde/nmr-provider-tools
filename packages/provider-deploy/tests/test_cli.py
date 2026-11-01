@@ -97,6 +97,15 @@ class CliTests(unittest.TestCase):
         self.assertEqual([], payload["mapped_uids"])
         self.assertEqual([], payload["mapped_gids"])
 
+    def test_empty_values_projection_prints_only_one_empty_line(self):
+        arguments = ["identity", "--endpoint", "unix:///test.sock", "--image", "approved:local",
+                     "--interpreter", "/usr/bin/python3", "--user-uid", "1000", "--user-gid", "2000", "--values"]
+        with patch("provider_deploy.cli.probe_identity", return_value=self.result()):
+            # An earlier invocation's projections must not populate the next one.
+            self.call(self.arguments(values=True))
+            code, out, err = self.call(arguments)
+        self.assertEqual((0, "\n", ""), (code, out, err))
+
     def test_values_failure_has_empty_stdout_and_structured_stderr(self):
         with patch("provider_deploy.cli.probe_identity", side_effect=self.failure()):
             code, out, err = self.call(self.arguments(values=True))
