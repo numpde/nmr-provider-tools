@@ -1,178 +1,140 @@
 # provider-deploy
 
-Host-side deployment operations, separate from `provider-core` and scientific
-workers. This first slice is one complete **selected-local-Docker identity
-probe**. It does not grant ACLs, change ownership, stage inputs, deploy services,
-pull images, or migrate provider entry points.
+One shared operation for deployment callers: **measure a container's host UID/GID
+maps, retire the exact probe, then return the maps**. Providers keep their image
+selection, Docker endpoint selection, input files, permissions and rollout logic.
 
-The implementation is present; **real rootful/rootless engine qualification and
-provider adoption are still pending**. Do not treat recording-engine tests as
-production qualification or use the result as permanent permission authority.
+This replaces duplicated probe lifecycles. It is not a deployment framework,
+permission manager or persistent recovery service. Python 3.11+, Linux and the
+Docker CLI are required; the Python package has no runtime dependencies.
 
-## Explicit inputs
-
-Run on Linux in the host's initial user **and** PID namespaces, with genuine
-host `/proc` visibility. Supply an explicit Docker context, approved image
-already present on that engine, container user and user-namespace mode,
-requested UIDs/GIDs, separate operation/command/cleanup bounds, finite probe
-lifetime, and a new recovery-journal pathname. There is no ambient engine
-fallback and no image acquisition. Remote/non-Unix contexts are unsupported.
-
-The approved image must have `/bin/sh` and `sleep`, permit the requested
-numeric user, and declare no implicit volumes. The fixed short-lived command
-keeps the unpredictable operation token in the shell's argv. Creation uses
-`--pull=never`, an immutable inspected image ID, no network, a read-only root,
-no capabilities, no-new-privileges, a PID limit, disabled image health checks,
-and no automatic restart or anonymous volumes.
-
-Install from this source tree with your controlled Python packaging workflow.
-Python 3.12+ and the Docker CLI are required. Runtime Python dependencies are
-standard-library only. This is not a package-publication or release commitment.
-
-## Python API
+## Python caller
 
 ```python
-from pathlib import Path
-from provider_deploy.model import Bounds, ProbeFailure, ProbeRequest
-from provider_deploy.operation import probe_identity
+from provider_deploy import ProbeRequest, probe_identity
 
-request = ProbeRequest(
-    context="rootless",
-    image="approved-probe:local",  # caller prepares this image separately
-    user_uid=1000,
-    user_gid=1000,
-    userns_mode="default",        # explicit: "default" or "host"
-    requested_uids=(0, 1000),
-    requested_gids=(0, 1000, 2000),
-    journal_path=Path("/absolute/private-0700-directory/unique-operation.jsonl"),
-    bounds=Bounds(operation_seconds=30, command_seconds=5,
-                  cleanup_seconds=15, lifetime_seconds=90),
-)
-try:
-    result = probe_identity(request)
-except ProbeFailure as failure:
-    report = failure.as_dict()    # category, state, cleanup failures, recovery handle
-    # No mapped identities are present; resolve this operation before retrying.
-else:
-    report = result.as_dict()     # mapping is released ONLY after exact retirement
+maps = probe_identity(ProbeRequest(
+    endpoint="unix:///run/user/1000/docker.sock",  # already selected by the caller
+    image="approved-provider:local",             # must already be present
+    interpreter="/usr/local/bin/python3.12",     # inside that image
+    user_uid=65532,
+    user_gid=65532,
+))
+host_uid = maps.uid_map.translate(65532)
+host_gid = maps.gid_map.translate(65532)
 ```
 
-An optional `threading.Event` passed as `cancel=` cooperatively cancels the
-operation; cancellation enters its independent cleanup budget. The CLI converts
-SIGINT, SIGTERM and SIGHUP to this cancellation request. Forced termination, interpreter
-failure, host loss, filesystem stalls, or an unreachable engine cannot guarantee
-cleanup. The durable journal and finite process lifetime cover recovery evidence,
-not guaranteed container deletion. The operation does not silently retry any
-possibly successful creation or removal.
+`uid_map` and `gid_map` are validated `IdMap` values. `translate()` rejects an
+unmapped or invalid ID with `ValueError`; calculate all needed identities before
+changing permissions. No temporary directories, recovery files, Docker context
+lookups or cleanup callbacks are required from the caller.
 
-All time values must be finite and at most 3600 seconds; lifetime is a positive
-integer. Requested ID sets are immutable tuples of 1–256 unique IDs each, from
-0 through 4294967294. The all-ones Linux ID sentinel is never mapped.
+An optional `executable=` selects the Docker executable (for example, the
+provider's already-validated `/usr/bin/docker`). An optional `cancel=` accepts a
+`threading.Event`. `userns_mode` is explicitly `"default"` or `"host"`.
 
-## CLI
-
-The CLI calls the same operation, not a collection of setup/cleanup fragments:
+## Shell caller
 
 ```sh
-provider-deploy identity \
-  --context rootless --image approved-probe:local \
-  --user-uid 1000 --user-gid 1000 --userns default \
-  --map-uid 0 --map-uid 1000 --map-gid 0 --map-gid 1000 \
-  --journal /absolute/private-0700-directory/unique-operation.jsonl \
-  --operation-seconds 30 --command-seconds 5 --cleanup-seconds 15 \
-  --lifetime-seconds 90
+python3 -m provider_deploy identity \
+  --endpoint "$NMRNET_DOCKER_ENDPOINT_INPUT" \
+  --image "$controller_image" \
+  --interpreter /opt/provider/environment/bin/python \
+  --user-uid 0 --user-gid 0 \
+  --uid 0 --uid "$caller_uid" --gid 0 --gid "$caller_gid" \
+  --values
 ```
 
-`python -m provider_deploy` is equivalent. Stdout is one bounded JSON object;
-diagnostics go to stderr. Exit codes: 0 success, 1 failed operation with a
-settled resource state, 2 argument error, 3 uncertain resource outcome, 130
-cancellation. Failure JSON never contains a success mapping or arbitrary engine
-stdout/stderr. Individual stable categories distinguish host preconditions,
-invalid maps, ownership/process identity, engine changes, timeout, cancellation,
-and retirement/reconciliation failures; `cleanup_failures` preserves secondary
-failures without replacing the original category.
+On success, `--values` prints one line of unsigned decimal numbers: requested UIDs
+in order, then requested GIDs in order. Duplicate requests retain their positions.
+All projections must succeed before any number is printed. On failure stdout is
+empty and stderr contains one JSON diagnostic. This lets shell callers use
+`read`, without `eval`, map-file parsing or a second cleanup implementation.
 
-## Evidence and retirement
+Without `--values`, the CLI writes one structured success or failure to stdout.
+Exit codes are 0 success, 1 settled failure, 2 invalid arguments, 3 unresolved
+resource outcome, and 130 settled cancellation. Uncertainty takes precedence over
+the cancellation exit code. No failure payload contains usable maps.
 
-Before mutation, the guard checks genuine procfs, calling-thread visibility,
-nsfs magic and namespace types, and Linux UAPI initial user/PID namespace inode
-numbers (`4026531837` and `4026531836`). Identity-looking self maps are **not**
-accepted as proof. This follows the actual NMRPeak/NMRNet namespace guard rather
-than inventing a container-local identity fallback. Unavailable evidence fails
-closed, including insufficient access for a non-root caller.
+## What the operation guarantees
 
-The explicit context name is resolved once using the standard Docker context
-store (including `DOCKER_CONFIG` when set) to a local Unix endpoint. Subsequent calls use an
-empty private Docker client configuration and retain/check socket identity,
-daemon ID, security options, root directory, driver and OS type. Ambient engine
-selection, TLS and proxy settings do not affect those calls. Each Docker command
-streams at most 64 KiB across stdout and stderr, with bounded cancellation and
-client process-group retirement. Killing the client does not prove that a daemon
-mutation did not happen. The fingerprint identifies the logical selected engine;
-it does not prove uninterrupted dockerd process lifetime (socket activation or a
-rootless proxy can survive daemon restart). Exact probe-process/map stability is
-the relevant observation guard; real restart/proxy qualification remains unrun.
+- Uses the caller-selected local Unix endpoint throughout. Ambient Docker
+  contexts, client configuration and proxy settings cannot select another engine.
+- Requires the host's initial user/PID namespaces and genuine host `/proc`.
+  Container-relative identity maps are not accepted as host identities.
+- Pins the local image to its immutable ID. It never pulls images, and rejects
+  images that declare implicit volumes.
+- Runs the supplied Python interpreter with `-I -B` and a fixed finite sleep
+  program carrying a random token. A single `ProbeSpec` defines both the Docker
+  creation flags and the configuration that inspection must verify.
+- Restricts the probe to no network, a read-only root, no added capabilities,
+  devices or mounts, no privileged/host-PID mode, and no-new-privileges. Fixed
+  limits are 64 MiB RAM with no additional swap, 8 PIDs and 0.25 CPU. The memory
+  and combined memory-plus-swap limits are both 64 MiB, following Docker's
+  [memory/swap semantics](https://docs.docker.com/engine/containers/resource_constraints/#--memory-swap-details).
+  Health checks and restarts are disabled; automatic removal is enabled as a
+  second line of defense.
+- Binds maps to exact container ownership, live host PID, process start time and
+  procfs identity, with repeated map/process checks. It detects substituted,
+  restarted or exited probes rather than releasing stale evidence.
+- Removes only the verified exact container ID. Success requires confirmed
+  container absence and retirement of observed probe processes on the same
+  selected engine. Cancellation still enters bounded cleanup.
 
-The probe's full container ID, exact ownership labels, name, immutable image,
-user/userns configuration and fixed entrypoint/argv must agree. Maps are bound
-to an exact argv token, live host PID, process start time and genuine procfs
-identity. Both maps are reread and checked for malformed/overlapping/overflowing
-ranges and incomplete requested mappings; observations and container identity
-are repeated, including before retirement. A changed/exited probe invalidates
-success even when its owned container can still be removed safely.
+The fixed resource profile matches the former NMRNet probe's 64 MiB/8-PID limits;
+it is larger than NMRPeak's former 32 MiB/4-PID limits. This is an explicit shared
+profile, not a claim of identical provider policy or real-image qualification.
 
-Only the full verified owned container ID is removed. Successful selected-engine
-inventory establishes absence; the observed process must also have retired.
-The operation never deletes by a name prefix, prunes, or removes unrelated
-resources. A failed/uncertain retirement is not a successful mapping.
+Default bounds are 30 seconds for measurement, 5 seconds per Docker operation,
+15 seconds for cleanup and 90 seconds for the probe process. `Bounds` allows
+Python callers to change them; the CLI exposes only `--timeout` for measurement.
+Cleanup has a separate budget so cancellation/timeout does not abandon a probe.
+Filesystem stalls and uninterruptible kernel work cannot be given hard wall-clock
+guarantees by this Python process.
 
-## Durable failure/recovery record
+## Failures and limits
 
-The journal parent must already exist, be owned by the effective caller, and
-have no group/other permission bits (normally mode 0700). A new file is opened
-exclusively, mode 0600, with no final-component symlink following. The parent and
-append-only events are fsynced. Existing journals are never overwritten.
+`ProbeFailure` separates three facts:
 
-The prepared event contains token, exact name, engine identity, image and
-configuration. A separate **create-intent / uncertain-outcome** event is durable
-before dispatch, so a crash cannot leave a false known-not-created conclusion.
-Identified and finished events add the full container ID and established state.
-Keep the journal until the owning operator accepts its terminal evidence;
-automatic expiry and deletion are deliberately absent.
+- `problem`: the primary stage, stable category and safe explanation.
+- `retirement`: `known-not-created`, `confirmed-retired` or `uncertain-outcome`,
+  the known container ID, and any secondary problems.
+- `handle`: the pinned endpoint, random operation token, known exact container ID
+  and observed process identities. It is diagnostic evidence, not a retry command.
 
-States are `known-not-created`, `identified-resource`, `confirmed-retired`, and
-`uncertain-outcome`. If create output is lost, exact token candidates are
-inspected against all recorded ownership/configuration evidence before cleanup.
-An empty immediate inventory after a possibly dispatched create is **uncertain**,
-not evidence that nothing was created. A proved pre-dispatch failure remains
-known-not-created. There is no second create attempt.
+For example, a changed map can invalidate measurement while retirement still
+succeeds. A lost create reply is different: an empty immediate inventory does
+not prove that Docker will never finish that request. The operation never issues
+a second create and never turns uncertainty into a successful mapping.
 
-Unresolved failures return the retained journal path, token, and any exact ID.
-This slice does not yet expose an automatic recovery CLI. Preserve that handle
-for host-side operator review of the *same* engine and complete exact ownership
-evidence; do not rerun creation, delete by token/name alone, or prune in an
-attempt to clear uncertainty. The finite shell lifetime limits execution but
-leaves a stopped container requiring exact retirement after an abrupt host/client
-loss. Success records are point-in-time evidence and must not be reused after
-engine, configuration, or relevant namespace changes.
+**There is no durable replay or automatic recovery API.** Callers decide how to
+retain diagnostics. SIGKILL, interpreter failure or host loss can prevent cleanup
+and lose the in-memory handle. The finite process lifetime plus Docker `--rm`
+helps once the probe has started; an unstarted container can remain. Unresolved
+outcomes require operator review on the same engine, not blind retry or pruning.
 
-## Validation
+Successful maps are point-in-time evidence, not permanent permission authority.
+The provider must keep its selected engine and namespace policy consistent with
+the subsequent deployment steps.
 
-The source-local focused lane is intentionally runnable without a Docker daemon:
+## Verification
+
+The maintained aggregate includes `make tests/unit/provider-deploy
+DOCKER_CONTEXT=<local-context>`, using the existing prepared checker with no
+Docker socket mount or additional container grants. That lane tests source and
+failure contracts, not a nested Docker engine. For the standalone host lane:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=packages/provider-deploy/src \
   python3 -m unittest discover -s packages/provider-deploy/tests -v
 ```
 
-It tests real bounded child processes and real `/proc` observations, synthetic
-namespace failures, and recorded Docker command/lifecycle boundaries. The real
-`/proc` observation tests replace only the initial-host guard in this nested test
-container; they are **not** host namespace or engine qualification. The separate
-actual guard rejects this environment before Docker mutation.
+Tests cover real bounded subprocesses, genuine process-map observations and a
+stateful fake Docker executable whose mutations can succeed while replies are
+lost. The latter is a protocol/failure test, **not a real Docker qualification**.
+Its host-precondition/socket seams are substituted where the sandbox cannot
+provide them; separate tests exercise the real rejection checks.
 
-Before consumer migration, qualify the maintained operation on selected local
-rootful **and** rootless engines, with a non-root host caller, requested multi-row
-maps, exact retirement, cancellation/timeouts, and nested-namespace rejection.
-Record failures and unrun cases separately. Then demonstrate NMRPeak and NMRNet
-calling the shared operation before removing their local implementations.
+Real rootful/rootless engines, actual provider images, non-root host callers and
+restart behavior still require qualification before deploying the migrated
+providers. Keep those unrun cases distinct from passing local tests.

@@ -22,15 +22,25 @@ import time
 from typing import Mapping
 
 
-OWNER_LABEL = "org.nmr.provider-deploy.operation"
-TOKEN_LABEL = "org.nmr.provider-deploy.token"
-PROBE_SCRIPT = 'sleep "$1" & wait "$!"'
+from .spec import OWNER_LABEL, TOKEN_LABEL, ISOLATION_FIELDS, ProbeSpec
+# Transport memory bound, not an engine-selected setting; output-limit tests exercise refusal.
+# repo-check: allow-module-constant
 OUTPUT_LIMIT = 65536
+# Docker protocol admits only full container IDs.
+# repo-check: allow-module-constant
 CID_PATTERN = re.compile(r"[0-9a-f]{64}\Z")
+# Owned label grammar accepts supported token wire lengths.
+# repo-check: allow-module-constant
 TOKEN_PATTERN = re.compile(r"(?:[0-9a-f]{32}|[0-9a-f]{64})\Z")
+# Resolved Docker image identity is a full sha256 digest.
+# repo-check: allow-module-constant
 IMAGE_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
+# Fixed minimal Docker evidence projection; raw engine output never becomes diagnostics.
+# repo-check: allow-module-constant
 INFO_FORMAT = ('[{{json .ID}},{{json .SecurityOptions}},{{json .DockerRootDir}},'
                '{{json .Driver}},{{json .OSType}}]')
+# Fixed ownership/isolation evidence projection shared with ProbeSpec.verify.
+# repo-check: allow-module-constant
 INSPECT_FORMAT = (
     '{"cid":{{json .Id}},"name":{{json .Name}},"image_id":{{json .Image}},'
     '"token":{{json (index .Config.Labels "' + TOKEN_LABEL + '")}},'
@@ -38,13 +48,16 @@ INSPECT_FORMAT = (
     '"pid":{{json .State.Pid}},"running":{{json .State.Running}},'
     '"status":{{json .State.Status}},"started_at":{{json .State.StartedAt}},'
     '"user":{{json .Config.User}},"userns_mode":{{json .HostConfig.UsernsMode}},'
-    '"entrypoint":{{json .Config.Entrypoint}},"command":{{json .Config.Cmd}}}'
+    '"entrypoint":{{json .Config.Entrypoint}},"command":{{json .Config.Cmd}},'
+    '"mounts":{{json .Mounts}},"isolation":{' +
+    ",".join('"' + field + '":{{json .HostConfig.' + field + '}}' for field in ISOLATION_FIELDS) + '}}'
 )
 
 
 class DockerError(Exception):
     """A stable, redacted failure; uncertain mutation must be reconciled."""
 
+    # silent-defaults: allow-contract -- Error objects describe nonmutating failures unless dispatch records uncertainty; cleanup_failures is an immutable empty diagnostic inventory; tests/test_docker.py::CommandTests.
     def __init__(self, category: str, message: str, *, mutation_uncertain: bool = False,
                  cleanup_failures: tuple[str, ...] = ()):
         super().__init__(message)
@@ -53,13 +66,9 @@ class DockerError(Exception):
         self.cleanup_failures = cleanup_failures
 
 
-def _clean_environment(source: Mapping[str, str], *, context_lookup: bool = False) -> dict[str, str]:
-    # Even context lookup must not let ambient DOCKER_HOST/CONTEXT select a daemon.
-    # Preserve the caller's context store ONLY for read-only named lookup. Ignoring
-    # DOCKER_CONFIG here could resolve a same-named context from another store.
+def _clean_environment(source: Mapping[str, str]) -> dict[str, str]:
     return {key: value for key, value in source.items()
-            if ((context_lookup and key == "DOCKER_CONFIG") or
-                not key.startswith(("DOCKER_", "COMPOSE_", "BUILDX_")))
+            if not key.startswith(("DOCKER_", "COMPOSE_", "BUILDX_"))
             and key.lower() not in {"http_proxy", "https_proxy", "all_proxy", "no_proxy"}}
 
 
@@ -80,6 +89,7 @@ def _terminate(process: subprocess.Popen) -> None:
     # A private process group also contains any child spawned by a CLI wrapper.
     try:
         os.killpg(process.pid, signal.SIGKILL)
+    # silent-defaults: allow-contract -- An already-exited process group needs no kill; wait still confirms the direct child below; tests/test_docker.py::CommandTests.
     except ProcessLookupError:
         pass
     except OSError as exc:
@@ -90,6 +100,7 @@ def _terminate(process: subprocess.Popen) -> None:
         raise DockerError("client_cleanup", "Docker client exit could not be confirmed.", mutation_uncertain=True) from exc
 
 
+# silent-defaults: allow-contract -- Read-only commands are the transport baseline; mutation callers explicitly opt into uncertain-dispatch reporting; tests/test_docker.py::CommandTests.
 def _run_command(argv: list[str], *, env: Mapping[str, str], timeout: float,
                  cancel: threading.Event | None = None, mutation: bool = False) -> str:
     """Stream at most OUTPUT_LIMIT bytes across both pipes; kill/reap on failure.
@@ -181,6 +192,7 @@ def _json(text: str):
         raise DockerError("invalid_response", "Docker returned an invalid structured response.") from exc
 
 
+# silent-defaults: allow-contract -- Docker evidence text has a fixed 4096-character protocol bound; callers can supply a narrower bound.
 def _text(value, maximum=4096) -> bool:
     return isinstance(value, str) and len(value) <= maximum and not any(ord(c) < 32 or ord(c) == 127 for c in value)
 
@@ -219,7 +231,6 @@ def _fingerprint(text: str) -> tuple[str, tuple[str, ...], str, str, str]:
 
 @dataclass(frozen=True)
 class EngineIdentity:
-    context: str
     endpoint: str
     daemon_id: str
     socket_device: int
@@ -245,6 +256,8 @@ class Container:
     userns_mode: str
     entrypoint: tuple[str, ...]
     command: tuple[str, ...]
+    mounts: list
+    isolation: dict
 
 
 class DockerEngine:
@@ -259,21 +272,17 @@ class DockerEngine:
         self._closed = False
 
     @classmethod
-    def select(cls, context: str, *, timeout: float, cancel: threading.Event | None = None,
-               executable: str = "docker") -> DockerEngine:
+    # silent-defaults: allow-contract -- Use the Docker CLI transport unless the caller supplies a test executable; never choose a Docker endpoint implicitly; tests/test_docker.py::EngineTests.
+    def connect(cls, endpoint: str, *, timeout: float, cancel: threading.Event | None = None,
+                executable: str = "docker") -> DockerEngine:
+        """Use the caller's frozen endpoint; never consult an ambient context."""
         deadline = _deadline(timeout)
-        if not isinstance(context, str) or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", context) is None:
-            raise DockerError("invalid_policy", "Select an explicit, valid Docker context name.")
-        environment = _clean_environment(os.environ, context_lookup=True)
-        result = _run_command([executable, "context", "inspect", "--format", "{{json .Endpoints.docker.Host}}", context],
-                              env=environment, timeout=_remaining(deadline), cancel=cancel)
-        environment = _clean_environment(environment)
-        endpoint = _json(result)
         if not _text(endpoint) or not endpoint.startswith("unix:///") or "?" in endpoint or "#" in endpoint:
-            raise DockerError("unsupported_engine", "The selected Docker context must use a local Unix socket.")
+            raise DockerError("unsupported_engine", "The selected Docker endpoint must be a local Unix socket.")
         socket_path = str(Path(endpoint[7:]).resolve())
         endpoint = "unix://" + socket_path
         device, inode = _socket_identity(socket_path)
+        environment = _clean_environment(os.environ)
         directory = tempfile.TemporaryDirectory(prefix="provider-deploy-client-")
         try:
             argv = [executable, "--config", directory.name, "--host", endpoint, "info", "--format", INFO_FORMAT]
@@ -281,7 +290,7 @@ class DockerEngine:
             if (device, inode) != _socket_identity(socket_path):
                 raise DockerError("engine_changed", "The selected Docker socket changed while resolving its identity.")
             daemon_id, security_options, root_dir, driver, os_type = fingerprint
-            identity = EngineIdentity(context, endpoint, daemon_id, device, inode, security_options, root_dir, driver, os_type)
+            identity = EngineIdentity(endpoint, daemon_id, device, inode, security_options, root_dir, driver, os_type)
             return cls(identity, directory, executable, environment)
         except BaseException:
             directory.cleanup()
@@ -317,6 +326,7 @@ class DockerEngine:
             raise DockerError("engine_changed", "The selected Docker daemon identity or namespace configuration changed.")
         self._socket_check()
 
+    # silent-defaults: allow-contract -- Transport queries are nonmutating; create/start/remove explicitly identify mutation uncertainty; tests/test_docker.py::CommandTests.
     def _call(self, args: list[str], *, timeout: float, cancel: threading.Event | None = None,
               mutation: bool = False) -> str:
         deadline = _deadline(timeout)
@@ -343,23 +353,9 @@ class DockerEngine:
             raise DockerError("invalid_policy", "The approved probe image must not declare implicit volumes.")
         return value[0]
 
-    def create(self, *, token: str, name: str, image_id: str, uid: int, gid: int,
-               userns_mode: str, lifetime_seconds: int, timeout: float,
+    def create(self, spec: ProbeSpec, *, timeout: float,
                cancel: threading.Event | None = None) -> str:
-        _token(token)
-        if (name != "provider-deploy-" + token or not isinstance(image_id, str) or IMAGE_PATTERN.fullmatch(image_id) is None or
-            userns_mode not in {"default", "host"} or
-            any(type(value) is not int or not 0 <= value < 2**32 - 1 for value in (uid, gid)) or
-            type(lifetime_seconds) is not int or not 1 <= lifetime_seconds <= 3600):
-            raise DockerError("invalid_policy", "Invalid identity probe container policy.")
-        args = ["container", "create", "--pull=never", "--name", name,
-                "--label", OWNER_LABEL + "=identity-v1", "--label", TOKEN_LABEL + "=" + token,
-                "--user", f"{uid}:{gid}", "--network", "none", "--read-only", "--cap-drop", "ALL",
-                "--security-opt", "no-new-privileges", "--pids-limit", "16", "--restart", "no", "--no-healthcheck"]
-        if userns_mode == "host":
-            args.append("--userns=host")
-        args += ["--entrypoint", "/bin/sh", image_id, "-c", PROBE_SCRIPT, token, str(lifetime_seconds)]
-        value = self._call(args, timeout=timeout, cancel=cancel, mutation=True).strip()
+        value = self._call(spec.create_arguments(), timeout=timeout, cancel=cancel, mutation=True).strip()
         try:
             _cid(value)
         except DockerError as exc:
@@ -388,17 +384,28 @@ class DockerEngine:
     def inspect(self, cid: str, *, timeout: float, cancel: threading.Event | None = None) -> Container | None:
         _cid(cid)
         deadline = _deadline(timeout)
-        values = self._list("id=" + cid, timeout=_remaining(deadline), cancel=cancel)
-        if not values:
-            return None
-        if values != (cid,):
-            raise DockerError("identity_mismatch", "Docker exact-ID listing returned another container.")
-        value = _json(self._call(["container", "inspect", "--format", INSPECT_FORMAT, cid],
-                                 timeout=_remaining(deadline), cancel=cancel))
+        try:
+            result = self._call(["container", "inspect", "--format", INSPECT_FORMAT, cid],
+                                timeout=_remaining(deadline), cancel=cancel)
+        except DockerError as error:
+            if error.category != "docker_command":
+                raise
+            # A nonzero inspect is not proof of absence. Confirm it by a
+            # successful exact-ID inventory, without parsing localized stderr.
+            # Existing containers need only the inspect and its engine guards.
+            values = self._list("id=" + cid, timeout=_remaining(deadline), cancel=cancel)
+            if not values:
+                return None
+            if values != (cid,):
+                raise DockerError("identity_mismatch", "Docker exact-ID listing returned another container.") from error
+            raise
+        value = _json(result)
         keys = {"cid", "name", "image_id", "token", "owner", "pid", "running", "status", "started_at",
-                "user", "userns_mode", "entrypoint", "command"}
+                "user", "userns_mode", "entrypoint", "command", "mounts", "isolation"}
         if not isinstance(value, dict) or set(value) != keys:
             raise DockerError("invalid_response", "Docker returned invalid container evidence.")
+        if not isinstance(value["mounts"], list) or not isinstance(value["isolation"], dict):
+            raise DockerError("invalid_response", "Docker returned invalid isolation evidence.")
         if (any(not _text(value[key]) for key in ("cid", "name", "image_id", "status", "started_at", "user", "userns_mode")) or
             any(value[key] is not None and not _text(value[key]) for key in ("token", "owner")) or
             type(value["pid"]) is not int or value["pid"] < 0 or type(value["running"]) is not bool or
@@ -413,5 +420,5 @@ class DockerEngine:
     def remove(self, cid: str, *, timeout: float, cancel: threading.Event | None = None) -> None:
         _cid(cid)
         # This is deliberately private-operation scope: exact ownership is checked
-        # by identity.py immediately before removal. Never remove by name or token.
+        # by the owning probe immediately before removal. Never remove by name or token.
         self._call(["container", "rm", "--force", cid], timeout=timeout, cancel=cancel, mutation=True)

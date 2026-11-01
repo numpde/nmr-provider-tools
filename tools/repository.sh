@@ -10,15 +10,22 @@ if [[ $# -gt 0 && $1 == --print ]]; then
     shift
 fi
 if [[ $# != 1 ]]; then
-    printf '%s\n' 'Cannot select repository checks: supply one maintained tests/repository target.' >&2
+    printf '%s\n' 'Cannot select checks: supply one maintained repository or provider-deploy test target.' >&2
     exit 2
 fi
 pattern='test*.py'
+top_level=.
+python_path=/workspace
 case "$1" in
     tests/repository) suite=tests/repository ;;
     tests/repository/quality) suite=tests/repository/quality ;;
     tests/repository/provisioning) suite=tests/repository; pattern='test_checker*.py' ;;
     tests/repository/runtime) suite=tests/repository/test_container_port_runtime.py ;;
+    tests/unit/provider-deploy)
+        suite=packages/provider-deploy/tests
+        top_level=$suite
+        python_path=/workspace:/workspace/packages/provider-deploy/src
+        ;;
     *) printf 'Cannot select repository checks: unknown target %q. Use make help.\n' "$1" >&2; exit 2 ;;
 esac
 if [[ $root =~ [[:cntrl:],] ]]; then
@@ -65,7 +72,7 @@ arguments=(--init --pull=never --network=none --read-only
     --pids-limit=64 --memory=512m --memory-swap=512m --cpus=2
     --user "$uid:$gid" --tmpfs /tmp:rw,noexec,nosuid,nodev,size=67108864
     --workdir /workspace --env HOME=/tmp --env PYTHONDONTWRITEBYTECODE=1
-    --env PYTHONPATH=/workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1
+    --env "PYTHONPATH=$python_path" --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1
     --env "NMR_PROVIDER_TOOLS_EXPECTED_UID=$uid" --env "NMR_PROVIDER_TOOLS_EXPECTED_GID=$gid"
     "${mounts[@]}"
     --mount "type=bind,src=$metadata,dst=/repository-source-inventory/root-entries,readonly"
@@ -74,7 +81,7 @@ if [[ $suite == *.py ]]; then
     module=${suite%.py}
     arguments+=("${module//\//.}")
 else
-    arguments+=(discover -s "$suite" -t . -p "$pattern" -v)
+    arguments+=(discover -s "$suite" -t "$top_level" -p "$pattern" -v)
 fi
 if [[ $printing == 1 ]]; then
     printf '%q ' "${engine[@]}" create --label org.nmr-provider-tools.operation=PRINT --cidfile /tmp/nmr-provider-tools.PRINT/container.cid "${arguments[@]}"

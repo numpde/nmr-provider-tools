@@ -1,39 +1,32 @@
-"""One selected-engine identity operation, including exact owned retirement."""
+"""Measure fresh maps, retire the owned probe, then release the result."""
 
 from dataclasses import asdict, dataclass
 import secrets
 import threading
 import time
 
-from .docker import DockerEngine, DockerError, PROBE_SCRIPT
-from .journal import Journal
-from .linux import LinuxError, LinuxGuard
-from .model import ProbeFailure, ProbeRequest, StepError
+from .docker import Container, DockerEngine, DockerError
+from .linux import IdMap, LinuxError, LinuxGuard, ProcessIdentity, ProcessObservation
+from .model import Bounds, Problem, ProbeFailure, ProbeHandle, ProbeRequest, ResourceState, Retirement, StepError
+from .spec import ProbeSpec
 
 
 @dataclass(frozen=True)
 class ProbeResult:
-    engine: object
-    host: object
-    observation: object
-    requested_uids: tuple[int, ...]
-    requested_gids: tuple[int, ...]
-    mapped_uids: tuple[tuple[int, int], ...]
-    mapped_gids: tuple[tuple[int, int], ...]
+    uid_map: IdMap
+    gid_map: IdMap
     container_id: str
-    operation_token: str
-    retirement_confirmed: bool
-    journal_path: str
 
     def as_dict(self) -> dict:
-        return {"ok": True, **asdict(self)}
+        return {"ok": True, "uid_map": asdict(self.uid_map)["rows"],
+                "gid_map": asdict(self.gid_map)["rows"], "container_id": self.container_id,
+                "state": ResourceState.RETIRED}
 
 
 class _Budget:
-    def __init__(self, seconds: float, command_seconds: float, cancel: threading.Event | None):
+    def __init__(self, seconds: float, command_seconds: float, cancel=None):
         self.deadline = time.monotonic() + seconds
-        self.command_seconds = command_seconds
-        self.cancel = cancel
+        self.command_seconds, self.cancel = command_seconds, cancel
 
     def remaining(self) -> float:
         if self.cancel is not None and self.cancel.is_set():
@@ -46,199 +39,214 @@ class _Budget:
     def arguments(self) -> dict:
         return {"timeout": min(self.command_seconds, self.remaining()), "cancel": self.cancel}
 
+    def pause(self):
+        time.sleep(min(0.05, self.remaining()))
 
-def _category(error: BaseException) -> str:
+
+def _problem(stage: str, error: BaseException) -> Problem:
     if isinstance(error, (KeyboardInterrupt, SystemExit)):
-        return "cancelled"
+        return Problem(stage, "cancelled", "operation was interrupted")
     if isinstance(error, (DockerError, LinuxError, StepError)):
-        return error.category
+        return Problem(stage, error.category, str(error))
     if isinstance(error, OSError):
-        return "local-io"
-    return "internal"
+        return Problem(stage, "local-io", "local operation failed; inspect the probe handle")
+    return Problem(stage, "internal", "unexpected operation failure; inspect the probe handle")
 
 
-def _owned(container, *, cid, token, name, image_id, request) -> None:
-    expected_userns = "" if request.userns_mode == "default" else "host"
-    expected_command = ("-c", PROBE_SCRIPT, token, str(request.bounds.lifetime_seconds))
-    if (container.cid != cid or container.name != name or container.token != token
-            or container.owner != "identity-v1" or container.image_id != image_id
-            or container.user != f"{request.user_uid}:{request.user_gid}"
-            or container.userns_mode != expected_userns
-            or tuple(container.entrypoint) != ("/bin/sh",)
-            or tuple(container.command) != expected_command):
-        raise StepError("ownership", "probe ownership or configuration did not match")
+def _client_problems(error: BaseException) -> tuple[Problem, ...]:
+    # repo-check: allow-tuple-generator -- Retirement owns an immutable diagnostic snapshot, never a live view of client failures.
+    return tuple(Problem("client-retirement", category, "Docker client retirement was not confirmed")
+                 for category in getattr(error, "cleanup_failures", ()))
 
 
-def _live_identity(container) -> tuple:
+def _live(container: Container) -> tuple[str, int, str]:
     if not container.running or type(container.pid) is not int or container.pid <= 0:
         raise StepError("process-identity", "owned probe is not running")
-    return (container.cid, container.pid, container.started_at)
+    return container.cid, container.pid, container.started_at
 
 
-def _retire(*, engine, guard, request, token, name, image_id, cid, observation, live_identity):
-    """One removal at most; only exact verified ownership permits mutation."""
-    budget = _Budget(request.bounds.cleanup_seconds, request.bounds.command_seconds, None)
-    errors = []
-    try:
-        if cid is None:
-            candidates = engine.candidates(token, **budget.arguments())
-            if len(candidates) != 1:
-                # Empty inventory cannot settle a creation request whose reply was lost.
-                raise StepError("reconciliation", "creation outcome remains unresolved")
-            cid = candidates[0]
-        container = engine.inspect(cid, **budget.arguments())
+class _Probe:
+    """The sole owner of an operation's resource and its retirement protocol."""
+
+    def __init__(self, engine: DockerEngine, guard: LinuxGuard, spec: ProbeSpec, bounds: Bounds):
+        self.engine, self.guard, self.spec, self.bounds = engine, guard, spec, bounds
+        self.may_exist = False
+        self.stage = "create"
+        self.cid: str | None = None
+        self.observation: ProcessObservation | None = None
+        self.live: tuple[str, int, str] | None = None
+        self.processes: list[ProcessIdentity] = []
+        self.unobserved_pids: list[int] = []
+        self.retirement_cause: BaseException | None = None
+
+    def handle(self) -> ProbeHandle:
+        return ProbeHandle(self.engine.identity.endpoint, self.spec.token, self.cid,
+                           tuple(self.processes), tuple(self.unobserved_pids))
+
+    def track(self, process: ProcessIdentity):
+        identity = ProcessIdentity(process.pid, process.starttime, process.proc_device, process.proc_inode)
+        if identity not in self.processes:
+            self.processes.append(identity)
+
+    def inspect(self, budget: _Budget) -> Container | None:
+        container = self.engine.inspect(self.cid, **budget.arguments())
         if container is not None:
-            _owned(container, cid=cid, token=token, name=name, image_id=image_id, request=request)
-            if observation is not None:
+            self.spec.verify(container, self.cid)
+        return container
+
+    def measure(self, budget: _Budget):
+        arguments = budget.arguments()
+        self.may_exist = True  # client failure cannot prove non-creation
+        try:
+            cid = self.engine.create(self.spec, **arguments)
+        except DockerError as error:
+            if not error.mutation_uncertain:
+                self.may_exist = False
+            raise
+        self.cid = cid
+        self.stage = "start"
+        if self.inspect(budget) is None:
+            raise StepError("process-identity", "created probe disappeared before start")
+        self.engine.start(cid, **budget.arguments())
+        self.stage = "observe"
+        first = self.inspect(budget)
+        if first is None:
+            raise StepError("process-identity", "started probe is absent")
+        self.live = _live(first)
+        self.observation = self.guard.observe(first.pid, self.spec.token)
+        self.track(self.observation)
+        second = self.inspect(budget)
+        if (second is None or _live(second) != self.live
+                or self.guard.observe(second.pid, self.spec.token) != self.observation):
+            raise StepError("process-identity", "probe process or maps changed during observation")
+        budget.remaining()
+
+    def retire(self) -> tuple[Retirement, Problem | None]:
+        """Run once after success or failure. Never creates or returns maps."""
+        if not self.may_exist:
+            return Retirement(ResourceState.NOT_CREATED), None
+        state = ResourceState.UNRESOLVED
+        problems = []
+        invalid_observation = None
+        try:
+            budget = _Budget(self.bounds.cleanup_seconds, self.bounds.command_seconds)
+            if self.cid is None:
+                candidates = self.engine.candidates(self.spec.token, **budget.arguments())
+                if len(candidates) != 1:
+                    raise StepError("reconciliation", "creation remains unresolved; no unique owned candidate")
+                self.cid = candidates[0]
+            container = self.inspect(budget)
+            if self.observation is not None:
                 try:
-                    if live_identity is not None and _live_identity(container) != live_identity:
-                        raise StepError("process-identity", "probe restarted or exited before retirement")
-                    if guard.observe(container.pid, token) != observation:
-                        raise StepError("process-identity", "probe maps changed before retirement")
+                    if (container is None or _live(container) != self.live
+                            or self.guard.observe(container.pid, self.spec.token) != self.observation):
+                        raise StepError("process-identity", "probe process or maps changed before retirement")
                 except (LinuxError, StepError, OSError) as error:
-                    # The exact container is still ours to retire, but stale
-                    # observation evidence must never be returned as success.
-                    errors.append(_category(error))
-            if observation is None and container.running and container.pid > 0:
+                    self.retirement_cause = error
+                    invalid_observation = _problem("observe", error)
+            if container is not None:
+                if container.running:
+                    if self.observation is None or invalid_observation is not None:
+                        # A lost start reply or restart can expose a second process.
+                        try:
+                            current = self.guard.identify(container.pid, self.spec.token)
+                        except (LinuxError, OSError) as error:
+                            if self.retirement_cause is None:
+                                self.retirement_cause = error
+                            problems.append(_problem("observe", error))
+                            self.unobserved_pids.append(container.pid)
+                        else:
+                            self.track(current)
                 try:
-                    observation = guard.observe(container.pid, token)
-                except (LinuxError, OSError) as error:
-                    errors.append(_category(error))
-            try:
-                engine.remove(cid, **budget.arguments())
-            except BaseException as error:
-                errors.append(_category(error))
-                errors.extend(getattr(error, "cleanup_failures", ()))
-            while True:
-                container = engine.inspect(cid, **budget.arguments())
-                if container is None:
-                    break
-                _owned(container, cid=cid, token=token, name=name, image_id=image_id, request=request)
-                time.sleep(min(0.05, budget.remaining()))
-        if observation is not None:
-            while not guard.process_retired(observation):
-                if budget.remaining() <= 0.05:
-                    raise StepError("process-retirement", "probe process retirement remains unresolved")
-                time.sleep(min(0.05, budget.remaining()))
-        engine.assert_unchanged(**budget.arguments())
-        return cid, "confirmed-retired", tuple(errors)
-    except BaseException as error:
-        errors.append(_category(error))
-        errors.extend(getattr(error, "cleanup_failures", ()))
-        return cid, "uncertain-outcome", tuple(errors)
+                    self.engine.remove(container.cid, **budget.arguments())
+                except BaseException as error:
+                    if self.retirement_cause is None:
+                        self.retirement_cause = error
+                    problems.append(_problem("remove", error))
+                    problems.extend(_client_problems(error))
+                while self.inspect(budget) is not None:
+                    budget.pause()
+            for process in self.processes:
+                while not self.guard.process_retired(process):
+                    budget.pause()
+            for pid in self.unobserved_pids:
+                while not self.guard.pid_absent(pid):
+                    budget.pause()
+            self.engine.assert_unchanged(**budget.arguments())
+            state = ResourceState.RETIRED
+        except BaseException as error:
+            if self.retirement_cause is None:
+                self.retirement_cause = error
+            problems.append(_problem("retire", error))
+            problems.extend(_client_problems(error))
+        return Retirement(state, self.cid, tuple(problems)), invalid_observation
 
 
-def probe_identity(request: ProbeRequest, *, cancel: threading.Event | None = None) -> ProbeResult:
-    """Map declared IDs on one local Docker engine, then retire before returning.
-
-    The private journal is retained on success and failure. Its prepared record
-    survives lost creation output and identifies the exact recovery candidates.
-    Failed calls raise ProbeFailure containing no usable mappings. SIGINT-like
-    cancellation enters an independent bounded cleanup window.
-    """
-    token = secrets.token_hex(16)
-    name = "provider-deploy-" + token
-    state = "known-not-created"
-    cid = None
+# silent-defaults: allow-contract -- The public operation uses the Docker CLI transport; an explicit executable override supports fault qualification without changing endpoint policy; tests/test_operation_faults.py::OperationFaultTests.
+def probe_identity(request: ProbeRequest, *, cancel: threading.Event | None = None,
+                   executable: str = "docker") -> ProbeResult:
+    """Return validated full maps only after exact probe retirement."""
+    problems = []
+    cause = None
     engine = None
-    journal = None
-    observation = None
-    live_identity = None
-    image_id = None
-    failure = None
-    cleanup_failures = ()
+    retirement = Retirement(ResourceState.NOT_CREATED)
+    token = secrets.token_hex(16)
+    stage = "policy"
+    probe = None
     try:
         request.validate()
         budget = _Budget(request.bounds.operation_seconds, request.bounds.command_seconds, cancel)
         budget.remaining()
+        stage = "host"
         guard = LinuxGuard()
         host = guard.host_evidence()
-        budget.remaining()
-        engine = DockerEngine.select(request.context, **budget.arguments())
+        stage = "engine"
+        engine = DockerEngine.connect(request.endpoint, executable=executable, **budget.arguments())
         image_id = engine.image_id(request.image, **budget.arguments())
+        spec = ProbeSpec(token, image_id, request.interpreter, request.user_uid, request.user_gid,
+                         request.userns_mode, request.bounds.lifetime_seconds)
+        probe = _Probe(engine, guard, spec, request.bounds)
+        # Until retirement returns a proof, interruption must not imply absence.
+        retirement = Retirement(ResourceState.UNRESOLVED)
         try:
-            journal = Journal(request.journal_path)
-            journal.append({"event": "prepared", "version": 1, "state": state, "operation_token": token,
-                "name": name, "engine": asdict(engine.identity), "image_id": image_id,
-                "user_uid": request.user_uid, "user_gid": request.user_gid,
-                "userns_mode": request.userns_mode, "lifetime_seconds": request.bounds.lifetime_seconds})
-        except OSError as error:
-            raise StepError("journal", "private durable recovery evidence could not be created") from error
-        arguments = budget.arguments()
-        # Set this BEFORE dispatch. A client failure need not mean Docker did not create.
-        journal.append({"event": "create-intent", "state": "uncertain-outcome"})
-        state = "uncertain-outcome"
-        try:
-            cid = engine.create(token=token, name=name, image_id=image_id, uid=request.user_uid,
-                                gid=request.user_gid, userns_mode=request.userns_mode,
-                                lifetime_seconds=request.bounds.lifetime_seconds, **arguments)
-        except DockerError as error:
-            if not error.mutation_uncertain:
-                state = "known-not-created"
-            raise
-        state = "identified-resource"
-        journal.append({"event": "identified", "state": state, "container_id": cid})
-        container = engine.inspect(cid, **budget.arguments())
-        if container is None:
-            raise StepError("process-identity", "created probe disappeared before start")
-        _owned(container, cid=cid, token=token, name=name, image_id=image_id, request=request)
-        engine.start(cid, **budget.arguments())
-        first = engine.inspect(cid, **budget.arguments())
-        if first is None:
-            raise StepError("process-identity", "started probe is absent")
-        _owned(first, cid=cid, token=token, name=name, image_id=image_id, request=request)
-        live_identity = _live_identity(first)
-        observation = guard.observe(first.pid, token)
-        budget.remaining()
-        second = engine.inspect(cid, **budget.arguments())
-        if second is None:
-            raise StepError("process-identity", "probe disappeared during observation")
-        _owned(second, cid=cid, token=token, name=name, image_id=image_id, request=request)
-        if _live_identity(second) != live_identity or guard.observe(second.pid, token) != observation:
-            raise StepError("process-identity", "probe PID, start time or maps changed during observation")
-        if guard.host_evidence() != host:
-            raise StepError("host-precondition", "reader namespace evidence changed")
-        engine.assert_unchanged(**budget.arguments())
-        mapped_uids = tuple((uid, observation.uid_map.translate(uid)) for uid in request.requested_uids)
-        mapped_gids = tuple((gid, observation.gid_map.translate(gid)) for gid in request.requested_gids)
-        budget.remaining()
+            probe.measure(budget)
+            if guard.host_evidence() != host:
+                raise StepError("host-precondition", "reader namespace evidence changed")
+        except BaseException as error:
+            cause = error
+            problems.append(_problem(probe.stage, error))
+            problems.extend(_client_problems(error))
+        finally:
+            stage = "retire"
+            retirement = Retirement(ResourceState.UNRESOLVED, probe.cid)
+            retirement, observation_problem = probe.retire()
+        if observation_problem is not None:
+            if cause is None:
+                cause = probe.retirement_cause
+            problems.append(observation_problem)
     except BaseException as error:
-        failure = error
+        if cause is None:
+            cause = error
+        problems.append(_problem(stage, error))
+        problems.extend(_client_problems(error))
     finally:
-        if state != "known-not-created" and engine is not None:
-            cid, state, cleanup_failures = _retire(engine=engine, guard=guard, request=request,
-                token=token, name=name, image_id=image_id, cid=cid, observation=observation, live_identity=live_identity)
-        if failure is not None:
-            cleanup_failures = tuple(getattr(failure, "cleanup_failures", ())) + cleanup_failures
         if engine is not None:
             try:
                 engine.close()
             except BaseException as error:
-                cleanup_failures += ("client-retirement",)
-                if failure is None:
-                    failure = error
-        # Cancellation never interrupts cleanup, but still invalidates delivery
-        # of a success mapping when it arrives during retirement.
-        if failure is None and cancel is not None and cancel.is_set():
-            failure = StepError("cancelled", "operation was cancelled during retirement")
-        if journal is not None:
-            try:
-                journal.append({"event": "finished", "state": state, "container_id": cid,
-                    "failure": None if failure is None else _category(failure),
-                    "cleanup_failures": list(cleanup_failures)})
-            except BaseException as error:
-                cleanup_failures += ("journal",)
-                if failure is None:
-                    failure = error
-            finally:
-                try:
-                    journal.close()
-                except OSError:
-                    cleanup_failures += ("journal-close",)
-    if failure is not None or cleanup_failures or state != "confirmed-retired":
-        category = _category(failure) if failure is not None else "retirement"
-        raise ProbeFailure(category=category, message=f"identity probe failed ({category}); no mapping was released",
-            state=state, token=token, container_id=cid, journal_path=str(request.journal_path),
-            cleanup_failures=cleanup_failures) from failure
-    return ProbeResult(engine.identity, host, observation, request.requested_uids, request.requested_gids,
-                       mapped_uids, mapped_gids, cid, token, True, str(request.journal_path))
+                if cause is None:
+                    cause = error
+                problems.append(_problem("close", error))
+    if cancel is not None and cancel.is_set() and not any(p.category == "cancelled" for p in problems):
+        problems.append(Problem("retire", "cancelled", "operation was cancelled before result delivery"))
+    if problems or retirement.problems or retirement.state != ResourceState.RETIRED:
+        primary = problems[0] if problems else retirement.problems[0]
+        # silent-defaults: allow-contract -- The first available problem owns the primary failure; the immutable secondary inventory excludes exactly that problem; tests/test_operation.py::OperationTests.
+        secondary = (*problems[1:], *retirement.problems) if problems else retirement.problems[1:]
+        if cause is None and probe is not None:
+            cause = probe.retirement_cause
+        # silent-defaults: allow-contract -- No probe object means no ownership handle exists; report absence rather than fabricate recovery evidence; tests/test_operation.py::OperationTests.
+        handle = None if probe is None else probe.handle()
+        raise ProbeFailure(primary, Retirement(retirement.state, retirement.container_id, secondary), handle) from cause
+    return ProbeResult(probe.observation.uid_map, probe.observation.gid_map,
+                       retirement.container_id)

@@ -19,17 +19,41 @@ import sys
 import threading
 
 
+# Linux nsfs ABI identity, checked before namespace ioctls.
+# repo-check: allow-module-constant
 _NSFS_MAGIC = 0x6E736673
+# Linux procfs ABI identity, checked before process reads.
+# repo-check: allow-module-constant
 _PROCFS_MAGIC = 0x9FA0
+# Linux UAPI initial user-namespace inode; identity maps are not a substitute.
+# repo-check: allow-module-constant
 _USER_INIT_INO = 4026531837
+# Linux UAPI initial PID-namespace inode; process IDs must be host relative.
+# repo-check: allow-module-constant
 _PID_INIT_INO = 4026531836
+# Linux nsfs ioctl ABI for namespace-type evidence.
+# repo-check: allow-module-constant
 _NS_GET_NSTYPE = 0xB703
+# Linux uid_t/gid_t all-ones sentinel is not an assignable identity.
+# repo-check: allow-module-constant
 _MAX_ID = 4294967294  # (uid_t)-1 / (gid_t)-1 is not a usable identity.
+# Bounded parser/read contract; test_linux.MapTests.test_row_count_and_byte_bounds.
+# repo-check: allow-module-constant
 _MAP_BYTES = 65536
+# Linux map row-count bound; test_linux.MapTests.test_row_count_and_byte_bounds.
+# repo-check: allow-module-constant
 _MAX_MAP_ROWS = 340
+# Canonical ASCII decimal grammar for procfs evidence.
+# repo-check: allow-module-constant
 _DECIMAL = re.compile(rb"(?:0|[1-9][0-9]*)\Z")
+# Exact three-column Linux ID-map grammar; malformed rows fail closed.
+# repo-check: allow-module-constant
 _MAP_ROW = re.compile(rb"[ \t]*(0|[1-9][0-9]*)[ \t]+(0|[1-9][0-9]*)[ \t]+(0|[1-9][0-9]*)[ \t]*\Z")
+# Linux proc stat states accepted as live process evidence.
+# repo-check: allow-module-constant
 _LIVE_STATES = frozenset("RSDTtWIKP")
+# Linux proc stat states that establish process exit.
+# repo-check: allow-module-constant
 _DEAD_STATES = frozenset("ZXx")
 
 
@@ -102,11 +126,15 @@ class HostEvidence:
 
 
 @dataclass(frozen=True)
-class ProcessObservation:
+class ProcessIdentity:
     pid: int
     starttime: int
     proc_device: int
     proc_inode: int
+
+
+@dataclass(frozen=True)
+class ProcessObservation(ProcessIdentity):
     uid_map: IdMap
     gid_map: IdMap
 
@@ -189,6 +217,7 @@ def _validate_pid(pid: int):
 class LinuxGuard:
     """Observe one genuine local Linux procfs; unsafe namespace evidence fails closed."""
 
+    # silent-defaults: allow-contract -- Linux process evidence comes from /proc unless a caller explicitly supplies a root; filesystem and namespace checks apply equally to both; tests/test_linux.py::HostGuardTests.
     def __init__(self, proc_root: Path = Path("/proc")):
         self.proc_root = Path(proc_root)
 
@@ -210,7 +239,14 @@ class LinuxGuard:
         except OSError as cause:
             raise LinuxError("host-precondition", "Host namespace evidence is unavailable") from cause
 
+    def identify(self, pid: int, token: str) -> ProcessIdentity:
+        """Pin a live owned process for cleanup without requiring readable ID maps."""
+        return self._observe(pid, token, read_maps=False)
+
     def observe(self, pid: int, token: str) -> ProcessObservation:
+        return self._observe(pid, token, read_maps=True)
+
+    def _observe(self, pid: int, token: str, *, read_maps: bool):
         _validate_pid(pid)
         if type(token) is not str or re.fullmatch(r"[A-Za-z0-9_-]{16,128}", token) is None:
             raise LinuxError("process-identity", "Probe ownership token is invalid")
@@ -224,11 +260,12 @@ class LinuxGuard:
                 if state not in _LIVE_STATES:
                     raise LinuxError("process-identity", "Probe process is not live")
                 _require_token(_read_at(process, "cmdline", 8192), token)
-                uid_map = parse_id_map(_read_at(process, "uid_map", _MAP_BYTES))
-                gid_map = parse_id_map(_read_at(process, "gid_map", _MAP_BYTES))
-                if (uid_map != parse_id_map(_read_at(process, "uid_map", _MAP_BYTES))
-                        or gid_map != parse_id_map(_read_at(process, "gid_map", _MAP_BYTES))):
-                    raise LinuxError("process-identity", "Probe ID maps changed during observation")
+                if read_maps:
+                    uid_map = parse_id_map(_read_at(process, "uid_map", _MAP_BYTES))
+                    gid_map = parse_id_map(_read_at(process, "gid_map", _MAP_BYTES))
+                    if (uid_map != parse_id_map(_read_at(process, "uid_map", _MAP_BYTES))
+                            or gid_map != parse_id_map(_read_at(process, "gid_map", _MAP_BYTES))):
+                        raise LinuxError("process-identity", "Probe ID maps changed during observation")
                 _require_token(_read_at(process, "cmdline", 8192), token)
                 after_state, after_starttime = _parse_stat(_read_at(process, "stat", 4096), pid)
                 after_meta = os.stat(str(pid), dir_fd=root, follow_symlinks=False)
@@ -237,11 +274,33 @@ class LinuxGuard:
                     raise LinuxError("process-identity", "Probe PID was replaced or exited during observation")
             if host != self.host_evidence():
                 raise LinuxError("host-precondition", "Host namespace evidence changed during observation")
-            return ProcessObservation(pid, starttime, process_meta.st_dev, process_meta.st_ino, uid_map, gid_map)
+            identity = (pid, starttime, process_meta.st_dev, process_meta.st_ino)
+            return ProcessObservation(*identity, uid_map, gid_map) if read_maps else ProcessIdentity(*identity)
         except OSError as cause:
             raise LinuxError("process-identity", "Cannot establish stable host probe process evidence") from cause
 
-    def process_retired(self, observation: ProcessObservation) -> bool:
+    def pid_absent(self, pid: int) -> bool:
+        """Conservative retirement proof when an exact identity was unavailable."""
+        _validate_pid(pid)
+        host = self.host_evidence()
+        try:
+            with _directory(self.proc_root) as root:
+                metadata = os.fstat(root)
+                if (metadata.st_dev, metadata.st_ino) != (host.proc_device, host.proc_inode):
+                    raise LinuxError("host-precondition", "procfs changed before PID absence check")
+                try:
+                    os.stat(str(pid), dir_fd=root, follow_symlinks=False)
+                except FileNotFoundError:
+                    absent = True
+                else:
+                    absent = False
+            if host != self.host_evidence():
+                raise LinuxError("host-precondition", "host namespace changed before PID absence check")
+            return absent
+        except OSError as cause:
+            raise LinuxError("process-identity", "probe PID absence cannot be established") from cause
+
+    def process_retired(self, observation: ProcessIdentity) -> bool:
         """Whether this exact process exited; unreadable evidence is not absence."""
         _validate_pid(observation.pid)
         if (type(observation.starttime) is not int or not 0 <= observation.starttime <= 0xFFFFFFFFFFFFFFFF
