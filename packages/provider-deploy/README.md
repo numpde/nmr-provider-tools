@@ -72,9 +72,14 @@ the cancellation exit code. No failure payload contains usable maps.
   Container-relative identity maps are not accepted as host identities.
 - Pins the local image to its immutable ID. It never pulls images, and rejects
   images that declare implicit volumes.
-- Runs the supplied Python interpreter with `-I -B` and a fixed finite sleep
-  program carrying a random token. A single `ProbeSpec` defines both the Docker
-  creation flags and the configuration that inspection must verify.
+- Runs the supplied Python interpreter with `-I -S -B` and a fixed finite sleep
+  program carrying a random token. Python's
+  [isolated mode](https://docs.python.org/3.11/using/cmdline.html#cmdoption-I)
+  alone still allows image-specific site startup hooks;
+  [`-S`](https://docs.python.org/3.11/using/cmdline.html#cmdoption-S) skips site
+  initialization, including executable `.pth` files and `sitecustomize`.
+  The sleeper needs only builtin `sys` and `time`. A single `ProbeSpec` defines
+  both the Docker creation flags and the configuration that inspection must verify.
 - Restricts the probe to no network, a read-only root, no added capabilities,
   devices or mounts, no privileged/host-PID mode, and no-new-privileges. Fixed
   limits are 64 MiB RAM with no additional swap, 8 PIDs and 0.25 CPU. The memory

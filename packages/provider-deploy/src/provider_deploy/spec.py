@@ -66,7 +66,7 @@ class ProbeSpec:
 
     @property
     def command(self) -> tuple[str, ...]:
-        return ("-I", "-B", "-c", PROBE_SCRIPT, str(self.lifetime_seconds), self.token)
+        return ("-I", "-S", "-B", "-c", PROBE_SCRIPT, str(self.lifetime_seconds), self.token)
 
     def create_arguments(self) -> list[str]:
         args = ["container", "create", "--pull=never", "--name", self.name,

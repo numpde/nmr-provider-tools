@@ -220,13 +220,16 @@ def _socket_identity(path: str) -> tuple[int, int]:
 def _fingerprint(text: str) -> tuple[str, tuple[str, ...], str, str, str]:
     values = _json(text)
     if (not isinstance(values, list) or len(values) != 5 or
-        not all(_text(values[i]) and values[i] for i in (0, 2, 3, 4)) or
-        not isinstance(values[1], list) or len(values[1]) > 32 or
-        not all(_text(x, 512) for x in values[1])):
+        not all(_text(values[i]) and values[i] for i in (0, 2, 3, 4))):
+        raise DockerError("invalid_response", "Docker returned an invalid engine identity.")
+    # silent-defaults: allow-contract -- Moby emits a nil SecurityOptions slice when no features append; null and [] both encode no entries, not missing policy; tests/test_docker.py::EngineTests.test_null_and_empty_security_options_are_equivalent_but_change_is_not.
+    security_options = [] if values[1] is None else values[1]
+    if (not isinstance(security_options, list) or len(security_options) > 32 or
+            not all(_text(x, 512) for x in security_options)):
         raise DockerError("invalid_response", "Docker returned an invalid engine identity.")
     if values[4] != "linux":
         raise DockerError("unsupported_engine", "Only local Linux Docker engines are supported.")
-    return values[0], tuple(sorted(values[1])), values[2], values[3], values[4]
+    return values[0], tuple(sorted(security_options)), values[2], values[3], values[4]
 
 
 @dataclass(frozen=True)
@@ -346,7 +349,7 @@ class DockerEngine:
     def image_id(self, image: str, *, timeout: float, cancel: threading.Event | None = None) -> str:
         if not _text(image, 512) or not image or image.startswith("-"):
             raise DockerError("invalid_policy", "An explicit approved local image reference is required.")
-        value = _json(self._call(["image", "inspect", "--format", "[{{json .Id}},{{json .Config.Volumes}}]", image], timeout=timeout, cancel=cancel))
+        value = _json(self._call(["image", "inspect", "--format", "[{{json .ID}},{{json .Config.Volumes}}]", image], timeout=timeout, cancel=cancel))
         if not isinstance(value, list) or len(value) != 2 or not isinstance(value[0], str) or IMAGE_PATTERN.fullmatch(value[0]) is None:
             raise DockerError("invalid_response", "The approved local image did not resolve to an immutable image ID.")
         if value[1] not in (None, {}):
