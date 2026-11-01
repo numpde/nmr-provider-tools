@@ -1,6 +1,7 @@
 """Docker command boundaries; no daemon or network is needed for this lane."""
 import json
 import os
+import signal
 from pathlib import Path
 import sys
 import tempfile
@@ -70,6 +71,49 @@ class CommandTests(unittest.TestCase):
         self.assertEqual("docker_command", caught.exception.category)
         self.assertTrue(caught.exception.mutation_uncertain)
         self.assertNotIn("SECRET", str(caught.exception))
+
+    def test_stdout_and_stderr_share_one_output_bound(self):
+        program = "import os; os.write(1, b'a' * 40000); os.write(2, b'b' * 40000)"
+        with self.assertRaises(DockerError) as caught:
+            _run_command([sys.executable, "-c", program], env=os.environ.copy(), timeout=2, mutation=True)
+        self.assertEqual("output_limit", caught.exception.category)
+        self.assertTrue(caught.exception.mutation_uncertain)
+
+    def test_parent_exit_does_not_abandon_descendant_owned_pipes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            pidfile = Path(directory) / "descendant"
+            token = "provider-deploy-owned-pipe-test"
+            program = (
+                "import pathlib, subprocess, sys; "
+                f"child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(20)', {token!r}]); "
+                f"pathlib.Path({str(pidfile)!r}).write_text(str(child.pid))"
+            )
+            try:
+                with self.assertRaises(DockerError) as caught:
+                    _run_command([sys.executable, "-c", program], env=os.environ.copy(), timeout=.2)
+                self.assertEqual("timeout", caught.exception.category)
+                pid = int(pidfile.read_text())
+                process = Path(f"/proc/{pid}")
+                deadline = time.monotonic() + 3
+                while process.exists() and time.monotonic() < deadline:
+                    try:
+                        state = (process / "stat").read_bytes().rsplit(b") ", 1)[1][:1]
+                    except (FileNotFoundError, ProcessLookupError):
+                        break
+                    if state in (b"Z", b"X", b"x"):
+                        break
+                    time.sleep(.01)
+                else:
+                    self.assertFalse(process.exists(), "descendant remained live after client timeout")
+            finally:
+                if pidfile.exists():
+                    pid = int(pidfile.read_text())
+                    try:
+                        if token.encode() in Path(f"/proc/{pid}/cmdline").read_bytes().split(b"\0"):
+                            os.kill(pid, signal.SIGKILL)
+                    # silent-defaults: allow-contract -- An already-exited fixture descendant needs no additional kill.
+                    except (FileNotFoundError, ProcessLookupError):
+                        pass
 
     def test_environment_strips_engine_and_injection_settings(self):
         env = _clean_environment({"PATH": "/bin", "DOCKER_HOST": "tcp://bad", "DOCKER_CONFIG": "/bad",

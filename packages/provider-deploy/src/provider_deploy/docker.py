@@ -105,7 +105,7 @@ def _run_command(argv: list[str], *, env: Mapping[str, str], timeout: float,
     """Stream at most OUTPUT_LIMIT bytes across both pipes; kill/reap on failure.
 
     A client exit/kill is never proof that an engine-side mutation did not happen.
-    The caller owns reconciliation from its persisted operation token.
+    The caller owns reconciliation from its retained operation token.
     """
     deadline = _deadline(timeout)
     if cancel is not None and cancel.is_set():
@@ -131,36 +131,33 @@ def _run_command(argv: list[str], *, env: Mapping[str, str], timeout: float,
         for stream in (process.stdout, process.stderr):
             os.set_blocking(stream.fileno(), False)
             selector.register(stream, selectors.EVENT_READ)
-        while selector.get_map():
+        while True:
             if cancel is not None and cancel.is_set():
-                raise DockerError("cancelled", "Docker operation was cancelled.", mutation_uncertain=mutation)
+                raise DockerError("cancelled", "Docker operation was cancelled.")
             if time.monotonic() >= deadline:
-                raise DockerError("timeout", "The bounded Docker command timed out.", mutation_uncertain=mutation)
-            for key, _ in selector.select(min(0.05, _remaining(deadline))):
+                raise DockerError("timeout", "The bounded Docker command timed out.")
+            wait = min(0.05, _remaining(deadline))
+            if not selector.get_map():
+                status = process.poll()
+                if status is not None:
+                    reaped = True
+                    break
+            for key, _ in selector.select(wait):
                 chunk = os.read(key.fd, 8192)
                 if not chunk:
                     selector.unregister(key.fileobj)
                     continue
                 size += len(chunk)
                 if size > OUTPUT_LIMIT:
-                    raise DockerError("output_limit", "Docker command exceeded its output bound.", mutation_uncertain=mutation)
+                    raise DockerError("output_limit", "Docker command exceeded its output bound.")
                 if key.fileobj is process.stdout:
                     output.extend(chunk)
-        while True:
-            if cancel is not None and cancel.is_set():
-                raise DockerError("cancelled", "Docker operation was cancelled.", mutation_uncertain=mutation)
-            try:
-                status = process.wait(timeout=min(0.05, _remaining(deadline)))
-                reaped = True
-                break
-            except subprocess.TimeoutExpired:
-                continue
         if status != 0:
-            raise DockerError("docker_command", "Docker command did not report success.", mutation_uncertain=mutation)
+            raise DockerError("docker_command", "Docker command did not report success.")
         try:
             return output.decode("utf-8", errors="strict")
         except UnicodeError as exc:
-            raise DockerError("invalid_response", "Docker command returned non-UTF-8 output.", mutation_uncertain=mutation) from exc
+            raise DockerError("invalid_response", "Docker command returned non-UTF-8 output.") from exc
     except BaseException as exc:
         if not reaped:
             try:
