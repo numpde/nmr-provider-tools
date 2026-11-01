@@ -209,13 +209,17 @@ class IsolationEvidenceContractTests(unittest.TestCase):
                 self.assertEqual(("arg",) * count, container.entrypoint)
                 self.assertEqual(("arg",) * count, container.command)
 
-    def test_each_fixed_isolation_value_is_verified_with_its_exact_type(self):
+    def test_changed_isolation_values_are_refused(self):
         changed = {
             "AutoRemove": (False, 1), "NetworkMode": ("host", None),
             "ReadonlyRootfs": (False, 1), "CapDrop": ([], "ALL"),
             "SecurityOpt": ([], ["no-new-privileges:false"]),
             "PidsLimit": (0, 8.0), "Memory": (0, 67108864.0),
             "MemorySwap": (0, 67108864.0), "NanoCpus": (0, 250000000.0),
+            "Privileged": (True, 0), "PidMode": ("host",),
+            "CapAdd": (["SYS_ADMIN"],), "Devices": ([{"PathOnHost": "/dev/sda"}],),
+            "DeviceRequests": ([{"Count": -1}],),
+            "RestartPolicy": ({"Name": "always"}, None),
         }
         for field, values in changed.items():
             for value in values:
@@ -225,6 +229,12 @@ class IsolationEvidenceContractTests(unittest.TestCase):
                     with self.assertRaises(StepError) as caught:
                         self.spec.verify(container, CID)
                     self.assertEqual("ownership", caught.exception.category)
+
+    def test_nonempty_mounts_are_refused(self):
+        container = replace(container_for(self.spec), mounts=[{"Destination": "/probe"}])
+        with self.assertRaises(StepError) as caught:
+            self.spec.verify(container, CID)
+        self.assertEqual("ownership", caught.exception.category)
 
     def test_every_projected_isolation_field_must_be_present(self):
         for field in container_for(self.spec).isolation:
