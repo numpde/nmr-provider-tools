@@ -1,19 +1,19 @@
 diff --git a/README.md b/README.md
-index 04c5e3660f24f66d551e2738a93f622a0509d513..1949cc1f70977678ec3035f9deb6583b59a29bd7 100644
+index 04c5e3660f24f66d551e2738a93f622a0509d513..543e17e25de0db1e6d0ea3c3f4373e70495bd00b 100644
 --- a/README.md
 +++ b/README.md
 @@ -12,6 +12,9 @@ and freeform-text routes and deployment requirements.
  
  ## Check the software
  
-+Identity probing additionally requires the reviewed `provider-deploy` host wheel;
-+see the [candidate migration and qualification notes](docs/provider-deploy-migration.md).
++Identity probing additionally requires the reviewed `linux-idmap` host wheel;
++see the [candidate migration and qualification notes](docs/linux-idmap-migration.md).
 +
  The maintained tests run in a pinned Docker image. On Linux, use Git, Make,
  Bash, Python 3.11+, Docker with Compose and a local Unix-socket context, and a regular
  Docker-enabled account. Every Docker-using Make target requires
 diff --git a/deployment/provider_deployment.py b/deployment/provider_deployment.py
-index 68dc9c9d7664d7289d12c1896105b26214a874ff..963102f2ddcf5ec0800b5e9aa871932ee550e36d 100644
+index 68dc9c9d7664d7289d12c1896105b26214a874ff..6e84262b3c6adf004b00bc54db7ab1bdcc235198 100644
 --- a/deployment/provider_deployment.py
 +++ b/deployment/provider_deployment.py
 @@ -89,7 +89,6 @@ _DOCKER = Path("/usr/bin/docker")
@@ -24,7 +24,7 @@ index 68dc9c9d7664d7289d12c1896105b26214a874ff..963102f2ddcf5ec0800b5e9aa871932e
  _PROVIDER_UID_RECEIPT = ".provider-uids.json"
  _MAX_AUTHORIZED_PROVIDER_UIDS = 16
  _SESSION_VOLUME_OPTIONS = {
-@@ -244,292 +243,38 @@ def _read_capture_source(path: Path, *, secret: bool) -> bytes:
+@@ -244,292 +243,40 @@ def _read_capture_source(path: Path, *, secret: bool) -> bytes:
          raise DeploymentOperationRejected(f"Cannot capture startup input {path}: its bounded regular-file read failed; preserve the source and inspect its permissions") from cause
  
  
@@ -45,11 +45,12 @@ index 68dc9c9d7664d7289d12c1896105b26214a874ff..963102f2ddcf5ec0800b5e9aa871932e
 -        raise DeploymentOperationRejected(
 -            "Cannot map the selected engine's container users: run deployment on the host "
 -            "in its initial user and PID namespaces with host /proc access"
-+        from provider_deploy import ProbeFailure, ProbeRequest, ResourceState, probe_identity
++        from linux_idmap.addons.model import ProbeFailure, ProbeRequest, ResourceState
++        from linux_idmap.addons.probe import probe_identity
 +    except ImportError as error:
 +        raise DeploymentOperationRejected(
-+            "Install the reviewed provider-deploy host wheel in the Python environment "
-+            "used for this deployment command; see docs/provider-deploy-migration.md"
++            "Install the reviewed linux-idmap host wheel in the Python environment "
++            "used for this deployment command; see docs/linux-idmap-migration.md"
          ) from error
 -
 -
@@ -242,6 +243,7 @@ index 68dc9c9d7664d7289d12c1896105b26214a874ff..963102f2ddcf5ec0800b5e9aa871932e
 +        result = probe_identity(ProbeRequest(
 +            endpoint=endpoint, image=image,
 +            interpreter="/usr/local/bin/python3.12", user_uid=65532, user_gid=65532,
++            confine=True,
 +        ), executable=str(docker))
 +    except ProbeFailure as error:
 +        kind = (MaintenanceInvocationUnsettled
@@ -343,16 +345,16 @@ index 68dc9c9d7664d7289d12c1896105b26214a874ff..963102f2ddcf5ec0800b5e9aa871932e
  
  
  def _provider_directory_acl(provider_uids: tuple[int, ...]) -> tuple[str, ...]:
-diff --git a/docs/provider-deploy-migration.md b/docs/provider-deploy-migration.md
+diff --git a/docs/linux-idmap-migration.md b/docs/linux-idmap-migration.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..2d2248b2ca5abe02cec83deca9c8d98f02bc9bc6
+index 0000000000000000000000000000000000000000..c523cb08a672ddb38fabfa0f51eb66df59918820
 --- /dev/null
-+++ b/docs/provider-deploy-migration.md
-@@ -0,0 +1,74 @@
++++ b/docs/linux-idmap-migration.md
+@@ -0,0 +1,84 @@
 +# Shared identity probe: candidate migration
 +
 +This candidate patch replaces NMRPeak's local namespace guard, Docker probe lifecycle,
-+process checks, map parser and probe retirement with `provider-deploy`. It is a
++process checks and probe retirement with the `linux-idmap` managed-probe add-on. It is a
 +migration candidate, not a published dependency release or a qualified deployment.
 +
 +NMRPeak still owns its inputs, ACL policy, scientific images and deployment
@@ -360,7 +362,9 @@ index 0000000000000000000000000000000000000000..2d2248b2ca5abe02cec83deca9c8d98f
 +admitted provider image, `/usr/local/bin/python3.12`, and user `65532:65532` to the
 +shared operation. It requests no new image and does not resolve the Docker
 +context again. The exact Docker executable supplied by its caller is retained.
-+The shared operation returns validated maps only after retiring its probe;
++The adapter explicitly selects `confine=True`; it does not use the unqualified
++one-page core as permission authority. The managed operation returns host-qualified
++mapping evidence only after retiring its probe;
 +NMRPeak then translates provider UID 65532 and the operator UID for its existing
 +ACL decisions.
 +
@@ -375,7 +379,7 @@ index 0000000000000000000000000000000000000000..2d2248b2ca5abe02cec83deca9c8d98f
 +For an already-built, locally reviewed wheel:
 +
 +```sh
-+/path/to/deployment-python -m pip install --force-reinstall --no-index --no-deps /absolute/path/provider_deploy-0.2.0a1-py3-none-any.whl
++/path/to/deployment-python -m pip install --force-reinstall --no-index --no-deps /absolute/path/linux_idmap-0.3.0a1-py3-none-any.whl
 +```
 +
 +Use that same interpreter for the maintained deployment command. Missing or
@@ -385,8 +389,9 @@ index 0000000000000000000000000000000000000000..2d2248b2ca5abe02cec83deca9c8d98f
 +## Failure evidence
 +
 +The adapter allocates no receipt directory or journal. A failed call preserves
-+its structured stage/reason, independent cleanup problems, selected endpoint,
-+operation token, exact container ID when known, and observed process identities.
++its safe reason/category, independent cleanup problems, selected endpoint and
++daemon ID, operation token, and exact container ID when known. Detailed phase
++labels and serialized process inventories are no longer part of that contract.
 +Unresolved outcomes preserve `MaintenanceInvocationUnsettled` and never authorize
 +an ACL change. Inspect the exact engine and owned resource from these diagnostics;
 +do not remove by name alone or blindly repeat an uncertain creation.
@@ -412,23 +417,30 @@ index 0000000000000000000000000000000000000000..2d2248b2ca5abe02cec83deca9c8d98f
 +
 +It checks the selected endpoint, image, interpreter, user and executable,
 +rootful/rootless map translation for both NMRPeak consumers, missing host-package
-+handling, mapped-ID refusal, and full failure/ownership-handle propagation. Namespace parsing,
++handling, mapped-ID refusal, explicit confinement selection, and failure/ownership-reference
++propagation. Namespace qualification,
 +process ownership and Docker retirement belong to the shared
 +package's own tests rather than duplicated private-helper tests here.
 +
 +The maintained containerized suite, actual rootful/rootless engines and a
 +complete deployment preview must still be qualified with the candidate package.
-+No test guard should be disabled to claim those checks passed. The shared probe
-+standardizes its finite resource limits (currently 64 MiB and 8 PIDs rather
-+than the former local 32 MiB and 4 PIDs); real-engine qualification must include
-+the provider image and non-root operator. Do not merge or cut over from the host
-+adapter tests alone.
++No test guard should be disabled to claim those checks passed.
++
++The selected confinement add-on retains no network, a read-only root, dropped
++capabilities and no-new-privileges. It no longer imposes fixed memory, swap, PID
++or CPU quotas. The former local probe used 32 MiB and 4 PIDs; the previous shared
++candidate used 64 MiB and 8 PIDs. Those numerical policies were removed rather
++than treated as intrinsic to identity observation. This is a real policy change,
++not exact resource equivalence. Qualification must include the provider image
++and non-root operator; a separately justified deployment resource policy is
++needed if quotas are required. Do not merge or cut over from host adapter tests
++alone.
 diff --git a/tests/host/test_shared_identity_adapter.py b/tests/host/test_shared_identity_adapter.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..29a7c9847a34fc5629565b1319b3859c890b6202
+index 0000000000000000000000000000000000000000..83c015b076cef1cc94b4200559dee641ac876f50
 --- /dev/null
 +++ b/tests/host/test_shared_identity_adapter.py
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,125 @@
 +"""Run the actual host adapter without importing the contained science runtime.
 +
 +These import the maintained host module normally. The shared operation is
@@ -445,9 +457,9 @@ index 0000000000000000000000000000000000000000..29a7c9847a34fc5629565b1319b3859c
 +
 +from deployment import provider_deployment
 +
-+from provider_deploy.linux import IdMap, IdRange, ProcessIdentity
-+from provider_deploy.model import Problem, ProbeFailure, ProbeHandle, ResourceState, Retirement
-+from provider_deploy.operation import ProbeResult
++from linux_idmap import IdMap, IdRange
++from linux_idmap.addons.model import Problem, ProbeFailure, ProbeHandle, ResourceState, Retirement
++from linux_idmap.addons.probe import ProbeResult
 +
 +
 +IDENTITY_MAP = IdMap((IdRange(0, 0, 4294967295),))
@@ -469,7 +481,7 @@ index 0000000000000000000000000000000000000000..29a7c9847a34fc5629565b1319b3859c
 +        return ProbeResult(ROOTLESS_MAP, ROOTLESS_MAP, "c" * 64)
 +
 +    def test_delegates_exact_selected_engine_image_user_and_executable(self):
-+        with patch("provider_deploy.probe_identity", side_effect=self.completed) as operation:
++        with patch("linux_idmap.addons.probe.probe_identity", side_effect=self.completed) as operation:
 +            result = self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
 +        operation.assert_called_once()
 +        request, executable = self.saved[0]
@@ -478,13 +490,14 @@ index 0000000000000000000000000000000000000000..29a7c9847a34fc5629565b1319b3859c
 +        self.assertEqual(request.interpreter, "/usr/local/bin/python3.12")
 +        self.assertEqual((request.user_uid, request.user_gid), (65532, 65532))
 +        self.assertEqual(executable, "/usr/bin/docker")
++        self.assertTrue(request.confine)
 +        self.assertIs(result, ROOTLESS_MAP)
 +
 +    def test_probe_adapter_needs_no_private_storage(self):
 +        def unexpected_storage(**_kwargs):
 +            raise AssertionError("identity adaptation must not allocate a receipt directory")
 +        with patch.object(self.adapter, "mkdtemp", side_effect=unexpected_storage), \
-+             patch("provider_deploy.probe_identity", return_value=SimpleNamespace(uid_map=ROOTLESS_MAP)):
++             patch("linux_idmap.addons.probe.probe_identity", return_value=SimpleNamespace(uid_map=ROOTLESS_MAP)):
 +            self.assertIs(self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image), ROOTLESS_MAP)
 +
 +    def test_forward_maps_both_actual_provider_consumers(self):
@@ -497,41 +510,42 @@ index 0000000000000000000000000000000000000000..29a7c9847a34fc5629565b1319b3859c
 +        with self.assertRaises(self.adapter.DeploymentOperationRejected):
 +            self.adapter._mapped_host_uid(1000000, ROOTLESS_MAP)
 +
-+    def test_failed_probe_preserves_stage_cause_and_ownership_handle(self):
++    def test_failed_probe_preserves_reason_cause_and_ownership_handle(self):
 +        for state in (ResourceState.NOT_CREATED, ResourceState.RETIRED, ResourceState.UNRESOLVED):
 +            with self.subTest(state=state):
-+                problem = Problem("observe", "process-identity", "probe process changed")
++                problem = Problem("process-identity", "probe process changed")
 +                cause = None
 +                def fail(request, *, executable):
 +                    nonlocal cause
 +                    handle = ProbeHandle(request.endpoint, "a" * 32, "c" * 64,
-+                                         (ProcessIdentity(4321, 123, 9, 10),))
++                                         daemon_id="selected-daemon")
 +                    cause = ProbeFailure(problem, Retirement(state), handle)
 +                    raise cause
 +                expected = (self.adapter.MaintenanceInvocationUnsettled if state not in {ResourceState.NOT_CREATED, ResourceState.RETIRED}
 +                            else self.adapter.DeploymentOperationRejected)
-+                with patch("provider_deploy.probe_identity", side_effect=fail):
++                with patch("linux_idmap.addons.probe.probe_identity", side_effect=fail):
 +                    with self.assertRaises(expected) as caught:
 +                        self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
 +                self.assertIs(caught.exception.__cause__, cause)
-+                self.assertIn("observe", str(caught.exception))
++                self.assertIn("process-identity", str(caught.exception))
 +                self.assertIn("probe process changed", str(caught.exception))
 +                self.assertIn(cause.handle.endpoint, str(caught.exception))
 +                self.assertIn(cause.handle.operation_token, str(caught.exception))
 +                self.assertIn(cause.handle.container_id, str(caught.exception))
 +                diagnostic = json.loads(str(caught.exception).removeprefix("Shared identity probe failed: "))
-+                self.assertEqual(diagnostic["handle"]["processes"],
-+                                 [{"pid": 4321, "starttime": 123, "proc_device": 9, "proc_inode": 10}])
++                self.assertEqual(diagnostic["handle"]["daemon_id"], "selected-daemon")
++                self.assertNotIn("processes", diagnostic["handle"])
++                self.assertNotIn("stage", diagnostic["problem"])
 +
 +    def test_preserves_independent_cleanup_explanation(self):
 +        def fail(request, *, executable):
 +            raise ProbeFailure(
-+                Problem("observe", "process-identity", "probe process changed"),
++                Problem("process-identity", "probe process changed"),
 +                Retirement(ResourceState.UNRESOLVED, "c" * 64,
-+                           (Problem("retire", "timeout", "container retirement could not be confirmed"),)),
++                           (Problem("timeout", "container retirement could not be confirmed"),)),
 +                ProbeHandle(request.endpoint, "a" * 32, "c" * 64),
 +            )
-+        with patch("provider_deploy.probe_identity", side_effect=fail):
++        with patch("linux_idmap.addons.probe.probe_identity", side_effect=fail):
 +            with self.assertRaises(self.adapter.MaintenanceInvocationUnsettled) as caught:
 +                self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
 +        self.assertIn("probe process changed", str(caught.exception))
@@ -539,14 +553,14 @@ index 0000000000000000000000000000000000000000..29a7c9847a34fc5629565b1319b3859c
 +
 +    def test_missing_selected_endpoint_does_not_dispatch(self):
 +        with patch.dict(os.environ, {}, clear=True), \
-+             patch("provider_deploy.probe_identity") as operation:
++             patch("linux_idmap.addons.probe.probe_identity") as operation:
 +            with self.assertRaises(self.adapter.CheckpointOperationRejected):
 +                self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
 +        operation.assert_not_called()
 +
 +    def test_missing_host_package_has_actionable_error(self):
-+        with patch.dict("sys.modules", {"provider_deploy": None}):
-+            with self.assertRaisesRegex(self.adapter.DeploymentOperationRejected, "provider-deploy"):
++        with patch.dict("sys.modules", {"linux_idmap.addons.probe": None}):
++            with self.assertRaisesRegex(self.adapter.DeploymentOperationRejected, "linux-idmap"):
 +                self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
 +
 +

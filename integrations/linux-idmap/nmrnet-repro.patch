@@ -1,16 +1,16 @@
 diff --git a/README.md b/README.md
-index 2f14e3197d7c68f0154fe205707bcd78c94b7473..0a3c3f932cc309b2724b28062fe38b27afc0d810 100644
+index 2f14e3197d7c68f0154fe205707bcd78c94b7473..10eae71213dbdc25ede27604216431f84b9e7079 100644
 --- a/README.md
 +++ b/README.md
-@@ -17,3 +17,35 @@ on the Make command line. When omitted in a terminal, it offers a menu of
+@@ -17,3 +17,43 @@ on the Make command line. When omitted in a terminal, it offers a menu of
  configured local Unix-socket contexts; unattended commands fail without a
  selection. The selected socket stays fixed for the whole operation. Run
  `make help` for maintained commands.
 +
 +## Candidate shared identity-probe integration
 +
-+This candidate patch's `provider/deployment/install` requires the **host** `provider-deploy`
-+command from the matching `nmr-provider-tools` candidate, with Python 3.11 or
++This candidate patch's `provider/deployment/install` requires the **host** `linux-idmap-probe`
++command from the `linux-idmap` wheel in the matching `nmr-provider-tools` candidate, with Python 3.11 or
 +later. The operation reads host `/proc`; installing it only in the provider image
 +is insufficient. No released package version or release hash is asserted here.
 +
@@ -18,18 +18,26 @@ index 2f14e3197d7c68f0154fe205707bcd78c94b7473..0a3c3f932cc309b2724b28062fe38b27
 +install the exact locally built wheel in a dedicated host environment:
 +
 +```sh
-+python3 -m venv "$HOME/.local/share/nmr-provider-deploy"
-+"$HOME/.local/share/nmr-provider-deploy/bin/python" -m pip install --force-reinstall --no-index --no-deps /absolute/path/to/provider_deploy-0.2.0a1-py3-none-any.whl
-+export PATH="$HOME/.local/share/nmr-provider-deploy/bin:$PATH"
-+provider-deploy identity --help
++python3 -m venv "$HOME/.local/share/linux-idmap"
++"$HOME/.local/share/linux-idmap/bin/python" -m pip install --force-reinstall --no-index --no-deps /absolute/path/to/linux_idmap-0.3.0a1-py3-none-any.whl
++export PATH="$HOME/.local/share/linux-idmap/bin:$PATH"
++linux-idmap-probe --help
 +```
 +
 +The caller passes its already-selected Docker socket and controller image to the
-+shared operation. Provider-specific helper selection and input ownership remain
++managed-probe add-on and explicitly selects `--confine`. It does not treat the
++unqualified one-page core as host permission authority. Provider-specific helper
++selection and input ownership remain
 +here. Failure diagnostics identify the selected engine and exact probe when
 +known; retain stderr and inspect unresolved resources before retrying. Never
 +remove a container merely by its display name. This operation provides bounded
 +cleanup while its caller is alive, not durable crash recovery.
++
++Confinement retains no network, a read-only root, dropped capabilities and
++no-new-privileges. Fixed memory/swap, PID and CPU quotas have been removed; this
++is not resource equivalence with the former 64 MiB/8-PID probe. Qualify the
++provider image and non-root operator before adoption, and supply a separately
++justified deployment resource policy if quotas are needed.
 +
 +This candidate does not migrate wheelhouse acquisition's separate inverse-ID
 +mapping in `tools/docker.sh`; `tools/user_namespace_map.sh` remains for that user.
@@ -39,15 +47,15 @@ index 2f14e3197d7c68f0154fe205707bcd78c94b7473..0a3c3f932cc309b2724b28062fe38b27
 +engine or full deployment. Rootful/rootless qualification and the maintained
 +container-launched deployment suite remain required before adoption.
 diff --git a/docs/provider.html b/docs/provider.html
-index 67bc55dbde15a5c57322418a08c15500038dac13..a151e894cb40b9af9ea9a9ede74340ea2f3e200c 100644
+index 67bc55dbde15a5c57322418a08c15500038dac13..6685b85fffc9e54b853b90c08fd7ab612919aab0 100644
 --- a/docs/provider.html
 +++ b/docs/provider.html
-@@ -258,6 +258,16 @@ settings in nmr-provider-tools. No socket grant belongs in the public provider d
+@@ -258,6 +258,20 @@ settings in nmr-provider-tools. No socket grant belongs in the public provider d
  <code>.work/provider/</code>, <code>.work/preparation/</code> and <code>.work/inference/</code>.
  Install admits those image records and captures the model selection from
  <code>artifacts/prediction-models.json</code>; up uses the frozen generation.</p>
 +<p><strong>Candidate integration prerequisite:</strong> this branch's install command
-+uses the host <code>provider-deploy</code> CLI from the matching local
++uses the host <code>linux-idmap-probe</code> CLI from the <code>linux-idmap</code> wheel in the matching local
 +nmr-provider-tools candidate, on Python 3.11 or later. Install its locally built
 +wheel in a host virtual environment and put that environment's <code>bin</code>
 +on <code>PATH</code>; see the repository README for the explicit offline install.
@@ -55,16 +63,20 @@ index 67bc55dbde15a5c57322418a08c15500038dac13..a151e894cb40b9af9ea9a9ede74340ea
 +already selected by Make. On failure, preserve the diagnostic identifying the
 +engine and exact probe when known, and inspect unresolved resources before
 +retrying. The operation does not promise durable recovery after abrupt host or
-+caller loss.</p>
++caller loss. The caller explicitly selects <code>--confine</code>; raw core
++mappings are not permission authority. Confinement retains no network, a
++read-only root, dropped capabilities and no-new-privileges, but removes fixed
++memory/swap, PID and CPU quotas. This changes the former 64 MiB/8-PID probe
++policy and requires real-engine qualification before adoption.</p>
  <pre><code class="language-sh">make -C /path/to/nmr-provider-tools delivery/deployment/up SHARED_SETTINGS=/path/to/nmr-provider-tools/config/deployments/localhost/settings.toml SHARED_RUNTIME_IMAGE=sha256:YOUR_SHARED_IMAGE
  
  make provider/deployment/install DEPLOYMENT=&lt;name&gt; SHARED_RUNTIME_IMAGE=sha256:YOUR_SHARED_IMAGE
 diff --git a/tests/host/test_deploy_identity_adapter.py b/tests/host/test_deploy_identity_adapter.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..e7d77a1121f32c22bd0f7a8ac79ee56fc871658d
+index 0000000000000000000000000000000000000000..42d138ccce519e4d24b406f25ec3d26874ddaa1a
 --- /dev/null
 +++ b/tests/host/test_deploy_identity_adapter.py
-@@ -0,0 +1,194 @@
+@@ -0,0 +1,195 @@
 +"""Host-only acceptance for the actual NMRNet adapter and shared CLI contract.
 +
 +No repository container guard is bypassed: the shell adapter under test
@@ -101,10 +113,10 @@ index 0000000000000000000000000000000000000000..e7d77a1121f32c22bd0f7a8ac79ee56f
 +from dataclasses import asdict
 +from pathlib import Path
 +from unittest.mock import patch
-+from provider_deploy import cli
-+from provider_deploy.linux import IdMap, IdRange
-+from provider_deploy.model import Problem, ProbeFailure, ProbeHandle, ResourceState, Retirement
-+from provider_deploy.operation import ProbeResult
++from linux_idmap.addons import cli
++from linux_idmap import IdMap, IdRange
++from linux_idmap.addons.model import Problem, ProbeFailure, ProbeHandle, ResourceState, Retirement
++from linux_idmap.addons.probe import ProbeResult
 +
 +def observe(request, *, cancel):
 +    request.validate()
@@ -113,10 +125,10 @@ index 0000000000000000000000000000000000000000..e7d77a1121f32c22bd0f7a8ac79ee56f
 +    if mode == 'await-signal':
 +        # The CLI owns real signal handlers; only the Engine effect is synthetic.
 +        if cancel.wait(2):
-+            raise ProbeFailure(Problem('measure', 'cancelled', 'fixture observed cancellation'),
++            raise ProbeFailure(Problem('cancelled', 'fixture observed cancellation'),
 +                               Retirement(ResourceState.RETIRED, 'b' * 64))
 +    if mode == 'uncertain':
-+        raise ProbeFailure(Problem('create', 'timeout', 'fixture create reply lost'),
++        raise ProbeFailure(Problem('timeout', 'fixture create reply lost'),
 +                           Retirement(ResourceState.UNRESOLVED), ProbeHandle(request.endpoint, 'a' * 32))
 +    if mode == 'rootful':
 +        uids = gids = IdMap((IdRange(0, 0, 4294967295),))
@@ -137,7 +149,7 @@ index 0000000000000000000000000000000000000000..e7d77a1121f32c22bd0f7a8ac79ee56f
 +        self.root.chmod(0o700)
 +        self.bin = self.root / 'bin'
 +        self.bin.mkdir()
-+        self.command = self.bin / 'provider-deploy'
++        self.command = self.bin / 'linux-idmap-probe'
 +        self.command.write_text(f'#!{sys.executable}\n' + SHARED_COMMAND)
 +        self.command.chmod(0o700)
 +        self.request_log = self.root / 'request.json'
@@ -197,6 +209,7 @@ index 0000000000000000000000000000000000000000..e7d77a1121f32c22bd0f7a8ac79ee56f
 +        self.assertEqual(IMAGE, request['image'])
 +        self.assertEqual('/opt/provider/environment/bin/python', request['interpreter'])
 +        self.assertEqual((0, 0), (request['user_uid'], request['user_gid']))
++        self.assertTrue(request['confine'])
 +
 +    def test_rootless_chooses_container_root_and_keeps_mapped_service_ids(self):
 +        result = self.run_adapter('rootless')
@@ -260,7 +273,7 @@ index 0000000000000000000000000000000000000000..e7d77a1121f32c22bd0f7a8ac79ee56f
 +if __name__ == '__main__':
 +    unittest.main()
 diff --git a/tests/test_provider_deployment_launcher.py b/tests/test_provider_deployment_launcher.py
-index 1b2fcbccb661835c2f96c9ef8ac4dee92965ac6f..4857a8680c51e1bdb6ab569dbbab70b6b8f95d8a 100644
+index 1b2fcbccb661835c2f96c9ef8ac4dee92965ac6f..457a2947d2d4436de6d98558f719a4eddd5a6219 100644
 --- a/tests/test_provider_deployment_launcher.py
 +++ b/tests/test_provider_deployment_launcher.py
 @@ -31,24 +31,26 @@ class DeploymentLauncherTests(unittest.TestCase):
@@ -287,7 +300,7 @@ index 1b2fcbccb661835c2f96c9ef8ac4dee92965ac6f..4857a8680c51e1bdb6ab569dbbab70b6
 +        # The maintained launcher consumes the shared CLI's settled numeric
 +        # result. Package lifecycle behavior has its own tests; this fixture
 +        # records that public boundary without creating any Docker probe.
-+        command = tools / 'provider-deploy'
++        command = tools / 'linux-idmap-probe'
 +        command.write_text(r'''#!/usr/bin/env bash
 +set -eu
 +printf '%s\0' "$@" > "$TEST_ROOT/identity-argv"
@@ -383,7 +396,7 @@ index 1b2fcbccb661835c2f96c9ef8ac4dee92965ac6f..4857a8680c51e1bdb6ab569dbbab70b6
          self.assertEqual(freeze_user, f'{os.getuid()}:{os.getgid()}')
  
 diff --git a/tools/compose_deployment.sh b/tools/compose_deployment.sh
-index eb1fa9a954a821873d62e08811237cf77081546e..8f6e7ebad7b6e6df2327c6ad203aa80c6e610050 100644
+index eb1fa9a954a821873d62e08811237cf77081546e..15060fd20032f08d31beba87c2320587723bb69d 100644
 --- a/tools/compose_deployment.sh
 +++ b/tools/compose_deployment.sh
 @@ -48,9 +48,8 @@ exec {deployment_lock}< "$root"
@@ -477,12 +490,12 @@ index eb1fa9a954a821873d62e08811237cf77081546e..8f6e7ebad7b6e6df2327c6ad203aa80c
 -    probe_process_is_same "$pid" "$map_probe_token" "$probe_starttime" \
 -        || { refuse 'the selected Engine probe changed while its UID/GID maps were read.'; return 2; }
 +    local image=$1 python=$2 values mapped_root_uid mapped_root_gid mapped_service_uid mapped_service_gid
-+    command -v provider-deploy >/dev/null \
-+        || { refuse 'install the host provider-deploy command before preparing deployment inputs.'; return 2; }
++    command -v linux-idmap-probe >/dev/null \
++        || { refuse 'install the host linux-idmap-probe command before preparing deployment inputs.'; return 2; }
 +    # The shared operation owns the probe, including failure cleanup. Only its
 +    # successful numeric projection may influence this provider's input policy.
-+    values=$(provider-deploy identity --endpoint "$NMRNET_DOCKER_ENDPOINT_INPUT" \
-+        --image "$image" --interpreter "$python" --user-uid 0 --user-gid 0 \
++    values=$(linux-idmap-probe --endpoint "$NMRNET_DOCKER_ENDPOINT_INPUT" \
++        --image "$image" --interpreter "$python" --user-uid 0 --user-gid 0 --confine \
 +        --uid 0 --uid "$caller_uid" --gid 0 --gid "$caller_gid" --values) || return
 +    [[ $values =~ ^(0|[1-9][0-9]*)\ (0|[1-9][0-9]*)\ (0|[1-9][0-9]*)\ (0|[1-9][0-9]*)$ ]] \
 +        || { refuse 'the shared identity operation returned an invalid numeric projection.'; return 2; }

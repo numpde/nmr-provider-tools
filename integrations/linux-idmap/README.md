@@ -1,13 +1,12 @@
-# Two consumer migrations, one review branch
+# Provider integrations outside the neutral package
 
-These patches belong to the same `design/provider-deploy` branch as the shared
-implementation. They are candidate edits to the actual providers, not copies
-installed inside the shared package. There are no separate provider review
-branches or published dependency releases.
+These candidate patches live on the same `design/provider-deploy` review branch
+as `linux-idmap`, but are not part of its source directory or wheel. Each provider
+retains its endpoint/image selection, inputs, permissions and deployment policy.
+There are no separate provider review branches or published dependency releases.
 
-`consumers.json` pins each repository's base commit, patch digest and resulting
-Git tree. Patches must be applied to those bases, not an assumed current main.
-Use disposable detached worktrees so reviewing them needs no additional branch:
+`consumers.json` pins each repository's base, patch digest and resulting Git tree.
+Apply a patch to its exact base in a disposable detached worktree:
 
 ```sh
 git -C /path/to/provider-repository worktree add --detach /path/to/clean-review BASE_COMMIT
@@ -16,36 +15,44 @@ git -C /path/to/clean-review apply --index /absolute/path/to/CONSUMER.patch
 git -C /path/to/clean-review write-tree
 ```
 
-The last result must match the recorded `tree`. The patches include migration
-instructions and consumer tests. Install the reviewed local `provider-deploy`
-wheel in the chosen host environment before running those tests from each
-review checkout:
+The resulting tree must match the manifest. Install the reviewed `linux-idmap`
+0.3.0a1 wheel in the chosen host Python 3.11+ environment, then run:
 
 ```sh
-PYTHONDONTWRITEBYTECODE=1 /path/to/host-python -m unittest discover -s tests/host -v
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
+  /path/to/host-python -m unittest discover -s tests/host -v
 ```
 
-## What they prove
+## Selected add-ons and scenario evidence
 
-- **NMRPeak:** imports the actual host deployment module and exercises its shared
-  adapter. The public probe effect is substituted; request, map and failure
-  types are real. The normal host import does not load the contained scientific
-  runtime. Endpoint, image, interpreter, user, executable and ACL policy stay
-  provider-owned. The patch removes 255 production lines.
-- **NMRNet:** executes the actual shell adapter, `finish` function and signal
-  traps with the real shared CLI and a bounded synthetic probe effect. Tests
-  check rootful/rootless helper selection, nonzero/error output, group signals
-  and shell-only termination without proceeding to input helpers. The patch
-  removes 62 production lines. The separate inverse-mapping provisioning path
-  remains unchanged.
+Neither adapter uses unqualified core samples as host permission authority.
 
-These are boundary tests, not a full deployment or real Docker qualification.
-The maintained containerized provider suites and actual rootful/rootless engine
-runs with the provider images and non-root host callers still gate adoption.
-NMRNet gains an explicit host Python/package prerequisite. The shared probe's
-64 MiB/8-PID resource profile also differs from NMRPeak's former 32 MiB/4-PID
-profile; qualify that change rather than implying exact policy equivalence.
+- **NMRPeak:** imports `linux_idmap.addons.probe.probe_identity`, explicitly
+  requests `confine=True`, then translates the returned host-qualified mappings
+  for its existing ACL decisions. Its eight host tests import the actual
+  deployment module and substitute only the managed probe effect. They check
+  the selected endpoint, image, interpreter, user and executable, confinement
+  selection, translations, missing-package refusal and unresolved cleanup
+  diagnostics. The scientific runtime and its guard remain untouched.
+- **NMRNet:** invokes `linux-idmap-probe` with direct flags and `--confine`.
+  Its eight host tests execute the actual shell adapter and signal traps with
+  the real CLI and a synthetic bounded probe effect. They check ordered numeric
+  output, rootful/rootless helper selection, nonzero/corrupt responses and both
+  process-group and shell-only signals without subsequent permission-policy
+  selection. The separate inverse mapping in `tools/docker.sh` remains unchanged.
 
-The patches deliberately remove local lifecycle implementations instead of
-keeping fallback copies. A missing/incompatible shared package fails clearly;
-no hidden fallback selects another engine or repeats an uncertain mutation.
+The managed probe is needed because both callers have an image before their
+workload process exists. The CLI is needed by the shell caller. Confinement is
+selected explicitly to retain no network, a read-only root, dropped capabilities
+and no-new-privileges from the former local probe policies. The shared package
+now omits fixed memory/swap, PID and CPU quotas: the former local probes used
+32 MiB/4 PIDs (NMRPeak) and 64 MiB/8 PIDs (NMRNet). This is a documented policy
+change, not a claim of equivalent resource controls. Qualify that change and
+supply a separately justified deployment resource policy if quotas are required.
+
+These are boundary tests, not full deployments or proof of Docker sandbox
+behavior. Maintained containerized suites and actual rootful/rootless engines
+with provider images and non-root callers remain adoption gates. A missing
+shared package fails clearly; no fallback selects another engine or repeats an
+uncertain mutation. Failure output keeps minimal ownership references and
+independent cleanup explanations, not legacy phase labels or process inventories.
