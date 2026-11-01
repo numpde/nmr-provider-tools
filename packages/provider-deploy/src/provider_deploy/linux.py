@@ -239,6 +239,18 @@ class LinuxGuard:
         except OSError as cause:
             raise LinuxError("host-precondition", "Host namespace evidence is unavailable") from cause
 
+    @contextmanager
+    def _checked_proc(self):
+        """Keep each successful process read bound to the same host procfs."""
+        host = self.host_evidence()
+        with _directory(self.proc_root) as root:
+            metadata = os.fstat(root)
+            if (metadata.st_dev, metadata.st_ino) != (host.proc_device, host.proc_inode):
+                raise LinuxError("host-precondition", "procfs changed before process evidence read")
+            yield root
+        if host != self.host_evidence():
+            raise LinuxError("host-precondition", "Host namespace evidence changed during process evidence read")
+
     def identify(self, pid: int, token: str) -> ProcessIdentity:
         """Pin a live owned process for cleanup without requiring readable ID maps."""
         return self._observe(pid, token, read_maps=False)
@@ -250,12 +262,9 @@ class LinuxGuard:
         _validate_pid(pid)
         if type(token) is not str or re.fullmatch(r"[A-Za-z0-9_-]{16,128}", token) is None:
             raise LinuxError("process-identity", "Probe ownership token is invalid")
-        host = self.host_evidence()
         try:
-            with _directory(self.proc_root) as root, _directory(str(pid), dir_fd=root) as process:
-                root_meta, process_meta = os.fstat(root), os.fstat(process)
-                if (root_meta.st_dev, root_meta.st_ino) != (host.proc_device, host.proc_inode):
-                    raise LinuxError("host-precondition", "procfs changed before process observation")
+            with self._checked_proc() as root, _directory(str(pid), dir_fd=root) as process:
+                process_meta = os.fstat(process)
                 state, starttime = _parse_stat(_read_at(process, "stat", 4096), pid)
                 if state not in _LIVE_STATES:
                     raise LinuxError("process-identity", "Probe process is not live")
@@ -272,8 +281,6 @@ class LinuxGuard:
                 if (after_state not in _LIVE_STATES or starttime != after_starttime
                         or (after_meta.st_dev, after_meta.st_ino) != (process_meta.st_dev, process_meta.st_ino)):
                     raise LinuxError("process-identity", "Probe PID was replaced or exited during observation")
-            if host != self.host_evidence():
-                raise LinuxError("host-precondition", "Host namespace evidence changed during observation")
             identity = (pid, starttime, process_meta.st_dev, process_meta.st_ino)
             return ProcessObservation(*identity, uid_map, gid_map) if read_maps else ProcessIdentity(*identity)
         except OSError as cause:
@@ -282,21 +289,13 @@ class LinuxGuard:
     def pid_absent(self, pid: int) -> bool:
         """Conservative retirement proof when an exact identity was unavailable."""
         _validate_pid(pid)
-        host = self.host_evidence()
         try:
-            with _directory(self.proc_root) as root:
-                metadata = os.fstat(root)
-                if (metadata.st_dev, metadata.st_ino) != (host.proc_device, host.proc_inode):
-                    raise LinuxError("host-precondition", "procfs changed before PID absence check")
+            with self._checked_proc() as root:
                 try:
                     os.stat(str(pid), dir_fd=root, follow_symlinks=False)
                 except FileNotFoundError:
-                    absent = True
-                else:
-                    absent = False
-            if host != self.host_evidence():
-                raise LinuxError("host-precondition", "host namespace changed before PID absence check")
-            return absent
+                    return True
+                return False
         except OSError as cause:
             raise LinuxError("process-identity", "probe PID absence cannot be established") from cause
 
@@ -307,12 +306,8 @@ class LinuxGuard:
                 or type(observation.proc_device) is not int or observation.proc_device < 0
                 or type(observation.proc_inode) is not int or observation.proc_inode <= 0):
             raise LinuxError("process-identity", "Probe retirement identity is invalid")
-        host = self.host_evidence()
         try:
-            with _directory(self.proc_root) as root:
-                root_meta = os.fstat(root)
-                if (root_meta.st_dev, root_meta.st_ino) != (host.proc_device, host.proc_inode):
-                    raise LinuxError("host-precondition", "procfs changed before process retirement check")
+            with self._checked_proc() as root:
                 try:
                     with _directory(str(observation.pid), dir_fd=root) as process:
                         metadata = os.fstat(process)
@@ -326,8 +321,6 @@ class LinuxGuard:
                         # proc inode eviction can change inode numbers while a
                         # PID remains alive: a mismatch is not proof of exit.
                         raise LinuxError("process-identity", "Live process inode changed before retirement check")
-            if host != self.host_evidence():
-                raise LinuxError("host-precondition", "Host namespace evidence changed during retirement check")
             return retired
         except OSError as cause:
             raise LinuxError("process-identity", "Probe process retirement cannot be established") from cause

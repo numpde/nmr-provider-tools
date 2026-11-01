@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 import os
 from pathlib import Path
 import subprocess
@@ -187,6 +188,47 @@ class RealProcTests(unittest.TestCase):
         with patch.object(self.guard, "host_evidence", side_effect=[self.host, LinuxError("host-precondition", "changed")]):
             with self.assertRaises(LinuxError):
                 self.guard.process_retired(observed)
+
+    def test_each_process_read_rejects_a_replaced_proc_root(self):
+        observed = self.guard.observe(self.process.pid, self.token)
+        reads = (
+            lambda: self.guard.observe(self.process.pid, self.token),
+            lambda: self.guard.identify(self.process.pid, self.token),
+            lambda: self.guard.pid_absent(self.process.pid),
+            lambda: self.guard.process_retired(observed),
+        )
+        changed = replace(self.host, proc_inode=self.host.proc_inode + 1)
+        for read in reads:
+            with self.subTest(read=read), patch.object(self.guard, "host_evidence", return_value=changed):
+                with patch("provider_deploy.linux._read_at") as read_file:
+                    with self.assertRaises(LinuxError) as caught:
+                        read()
+                    self.assertEqual("host-precondition", caught.exception.category)
+                    read_file.assert_not_called()
+
+    def test_boolean_retirement_results_still_recheck_host_evidence(self):
+        observed = self.guard.observe(self.process.pid, self.token)
+        reads = (lambda: self.guard.pid_absent(self.process.pid),
+                 lambda: self.guard.process_retired(observed))
+        changed = replace(self.host, reader_tid=self.host.reader_tid + 1)
+        for exited in (False, True):
+            if exited:
+                self.process.terminate()
+                self.process.wait(timeout=3)
+            for read in reads:
+                with self.subTest(exited=exited, read=read):
+                    with patch.object(self.guard, "host_evidence", side_effect=[self.host, changed]):
+                        with self.assertRaises(LinuxError) as caught:
+                            read()
+                        self.assertEqual("host-precondition", caught.exception.category)
+
+    def test_failed_process_read_keeps_original_error_without_a_postcheck(self):
+        changed = LinuxError("host-precondition", "later host failure")
+        with patch.object(self.guard, "host_evidence", side_effect=[self.host, changed]) as host:
+            with self.assertRaises(LinuxError) as caught:
+                self.guard.observe(self.process.pid, self.token + "wrong")
+        self.assertEqual("process-identity", caught.exception.category)
+        self.assertEqual(1, host.call_count)
 
     def test_zombie_process_is_retired_and_cannot_be_observed(self):
         observed = self.guard.observe(self.process.pid, self.token)
