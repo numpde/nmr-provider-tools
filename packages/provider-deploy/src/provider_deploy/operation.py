@@ -123,11 +123,12 @@ class _Probe:
         self.running_identity = _running_identity(first)
         self.observation = self.guard.observe(first.pid, self.spec.token)
         self.track(self.observation)
-        if not self.observation_matches(self.inspect(budget)):
+        if not self.observation_is_current(self.inspect(budget)):
             raise StepError("process-identity", "probe process or maps changed during observation")
         budget.remaining()
 
-    def observation_matches(self, container: Container | None) -> bool:
+    def observation_is_current(self, container: Container | None) -> bool:
+        """Re-read the process after confirming its container identity still matches."""
         return (container is not None
                 and _running_identity(container) == self.running_identity
                 and self.guard.observe(container.pid, self.spec.token) == self.observation)
@@ -150,7 +151,7 @@ class _Probe:
             container = self.inspect(budget)
             if self.observation is not None:
                 try:
-                    if not self.observation_matches(container):
+                    if not self.observation_is_current(container):
                         raise StepError("process-identity", "probe process or maps changed before retirement")
                 except (LinuxError, StepError, OSError) as error:
                     self.retirement_cause = error

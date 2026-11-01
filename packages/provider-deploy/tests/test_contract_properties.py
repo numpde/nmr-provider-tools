@@ -5,13 +5,12 @@ from itertools import permutations
 import json
 import random
 import unittest
-from unittest.mock import patch
 
 from helpers import CID, IMAGE, container_for, request
-from provider_deploy.docker import DockerEngine, DockerError, INSPECT_FORMAT
+from provider_deploy.docker import Container, DockerError, INSPECT_FORMAT
 from provider_deploy.linux import IdMap, IdRange, LinuxError, parse_id_map
 from provider_deploy.model import Bounds, StepError
-from provider_deploy.spec import ISOLATION_FIELDS, ProbeSpec
+from provider_deploy.spec import ProbeSpec
 
 
 class MapContractTests(unittest.TestCase):
@@ -105,8 +104,6 @@ class MapContractTests(unittest.TestCase):
 class IsolationEvidenceContractTests(unittest.TestCase):
     def setUp(self):
         self.spec = ProbeSpec("b" * 32, IMAGE, replace(request(), userns_mode="host"))
-        # This seam exercises only projection parsing; it does not claim a live engine.
-        self.engine = object.__new__(DockerEngine)
 
     def test_spec_retains_the_validated_caller_policy_without_copying_fields(self):
         policy = replace(request(), user_uid=7, user_gid=11, interpreter="/opt/python",
@@ -136,9 +133,8 @@ class IsolationEvidenceContractTests(unittest.TestCase):
         self.assertNotIn(".State.Status", INSPECT_FORMAT)
         value = asdict(container_for(self.spec))
         value["status"] = "running"
-        with patch.object(DockerEngine, "_call", return_value=json.dumps(value)):
-            with self.assertRaises(DockerError) as caught:
-                self.engine.inspect(CID, timeout=1)
+        with self.assertRaises(DockerError) as caught:
+            Container.from_json(json.dumps(value), CID)
         self.assertEqual("invalid_response", caught.exception.category)
 
     def test_every_projected_container_field_must_be_present(self):
@@ -146,9 +142,8 @@ class IsolationEvidenceContractTests(unittest.TestCase):
         for field in complete:
             value = {key: item for key, item in complete.items() if key != field}
             with self.subTest(field=field):
-                with patch.object(DockerEngine, "_call", return_value=json.dumps(value)):
-                    with self.assertRaises(DockerError) as caught:
-                        self.engine.inspect(CID, timeout=1)
+                with self.assertRaises(DockerError) as caught:
+                    Container.from_json(json.dumps(value), CID)
                 self.assertEqual("invalid_response", caught.exception.category)
 
     def test_each_fixed_isolation_value_is_verified_with_its_exact_type(self):
@@ -169,21 +164,19 @@ class IsolationEvidenceContractTests(unittest.TestCase):
                     self.assertEqual("ownership", caught.exception.category)
 
     def test_every_projected_isolation_field_must_be_present(self):
-        for field in ISOLATION_FIELDS:
+        for field in container_for(self.spec).isolation:
             value = asdict(container_for(self.spec))
             del value["isolation"][field]
             with self.subTest(field=field):
-                with patch.object(DockerEngine, "_call", return_value=json.dumps(value)):
-                    with self.assertRaises(DockerError) as caught:
-                        self.engine.inspect(CID, timeout=1)
+                with self.assertRaises(DockerError) as caught:
+                    Container.from_json(json.dumps(value), CID)
                 self.assertEqual("invalid_response", caught.exception.category)
 
     def test_unexpected_projected_isolation_field_is_rejected(self):
         value = asdict(container_for(self.spec))
         value["isolation"]["Unexpected"] = None
-        with patch.object(DockerEngine, "_call", return_value=json.dumps(value)):
-            with self.assertRaises(DockerError) as caught:
-                self.engine.inspect(CID, timeout=1)
+        with self.assertRaises(DockerError) as caught:
+            Container.from_json(json.dumps(value), CID)
         self.assertEqual("invalid_response", caught.exception.category)
 
     def test_present_optional_nulls_and_empty_values_remain_compatible(self):
@@ -193,6 +186,5 @@ class IsolationEvidenceContractTests(unittest.TestCase):
                 value["isolation"].update(PidMode=pid_mode, CapAdd=optional_list,
                                           Devices=optional_list, DeviceRequests=optional_list)
                 with self.subTest(pid_mode=pid_mode, optional_list=optional_list):
-                    with patch.object(DockerEngine, "_call", return_value=json.dumps(value)):
-                        container = self.engine.inspect(CID, timeout=1)
+                    container = Container.from_json(json.dumps(value), CID)
                     self.spec.verify(container, CID)
