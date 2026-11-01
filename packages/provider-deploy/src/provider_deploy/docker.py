@@ -178,11 +178,9 @@ def _run_command(argv: list[str], *, env: Mapping[str, str], timeout: float,
 
 def _json(text: str):
     def object_pairs(pairs):
-        value = {}
-        for key, item in pairs:
-            if key in value:
-                raise ValueError("Duplicate structured field")
-            value[key] = item
+        value = dict(pairs)
+        if len(value) != len(pairs):
+            raise ValueError("Duplicate structured field")
         return value
     try:
         return json.loads(text, object_pairs_hook=object_pairs)

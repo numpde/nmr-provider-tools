@@ -129,6 +129,15 @@ class IsolationEvidenceContractTests(unittest.TestCase):
                 self.assertEqual((direct.exception.category, str(direct.exception)),
                                  (owned.exception.category, str(owned.exception)))
 
+    def test_duplicate_json_keys_are_rejected_at_each_object_depth(self):
+        source = json.dumps(asdict(container_for(self.spec)))
+        for key, value in (("cid", CID), ("Memory", 67108864)):
+            member = json.dumps(key) + ": " + json.dumps(value)
+            duplicate = source.replace(member, member + ", " + member, 1)
+            with self.subTest(key=key), self.assertRaises(DockerError) as caught:
+                Container.from_json(duplicate, CID)
+            self.assertEqual("invalid_response", caught.exception.category)
+
     def test_unused_status_is_not_part_of_the_private_evidence_projection(self):
         self.assertNotIn(".State.Status", INSPECT_FORMAT)
         value = asdict(container_for(self.spec))
