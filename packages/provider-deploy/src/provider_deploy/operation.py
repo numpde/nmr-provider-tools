@@ -7,7 +7,7 @@ import time
 
 from .docker import Container, DockerEngine, DockerError
 from .linux import IdMap, LinuxError, LinuxGuard, ProcessIdentity, ProcessObservation
-from .model import Bounds, Problem, ProbeFailure, ProbeHandle, ProbeRequest, ResourceState, Retirement, StepError
+from .model import Problem, ProbeFailure, ProbeHandle, ProbeRequest, ResourceState, Retirement, StepError
 from .spec import ProbeSpec
 
 
@@ -59,7 +59,7 @@ def _client_problems(error: BaseException) -> tuple[Problem, ...]:
                  for category in getattr(error, "cleanup_failures", ()))
 
 
-def _live(container: Container) -> tuple[str, int, str]:
+def _running_identity(container: Container) -> tuple[str, int, str]:
     if not container.running or type(container.pid) is not int or container.pid <= 0:
         raise StepError("process-identity", "owned probe is not running")
     return container.cid, container.pid, container.started_at
@@ -68,13 +68,15 @@ def _live(container: Container) -> tuple[str, int, str]:
 class _Probe:
     """The sole owner of an operation's resource and its retirement protocol."""
 
-    def __init__(self, engine: DockerEngine, guard: LinuxGuard, spec: ProbeSpec, bounds: Bounds):
-        self.engine, self.guard, self.spec, self.bounds = engine, guard, spec, bounds
+    def __init__(self, engine: DockerEngine, guard: LinuxGuard, spec: ProbeSpec):
+        self.engine = engine
+        self.guard = guard
+        self.spec = spec
         self.may_exist = False
         self.stage = "create"
         self.cid: str | None = None
         self.observation: ProcessObservation | None = None
-        self.live: tuple[str, int, str] | None = None
+        self.running_identity: tuple[str, int, str] | None = None
         self.processes: list[ProcessIdentity] = []
         self.unobserved_pids: list[int] = []
         self.retirement_cause: BaseException | None = None
@@ -104,28 +106,30 @@ class _Probe:
         arguments = budget.arguments()
         self.may_exist = True  # client failure cannot prove non-creation
         try:
-            cid = self.engine.create(self.spec, **arguments)
+            self.cid = self.engine.create(self.spec, **arguments)
         except DockerError as error:
             if not error.mutation_uncertain:
                 self.may_exist = False
             raise
-        self.cid = cid
         self.stage = "start"
         if self.inspect(budget) is None:
             raise StepError("process-identity", "created probe disappeared before start")
-        self.engine.start(cid, **budget.arguments())
+        self.engine.start(self.cid, **budget.arguments())
         self.stage = "observe"
         first = self.inspect(budget)
         if first is None:
             raise StepError("process-identity", "started probe is absent")
-        self.live = _live(first)
+        self.running_identity = _running_identity(first)
         self.observation = self.guard.observe(first.pid, self.spec.token)
         self.track(self.observation)
-        second = self.inspect(budget)
-        if (second is None or _live(second) != self.live
-                or self.guard.observe(second.pid, self.spec.token) != self.observation):
+        if not self.observation_matches(self.inspect(budget)):
             raise StepError("process-identity", "probe process or maps changed during observation")
         budget.remaining()
+
+    def observation_matches(self, container: Container | None) -> bool:
+        return (container is not None
+                and _running_identity(container) == self.running_identity
+                and self.guard.observe(container.pid, self.spec.token) == self.observation)
 
     def retire(self) -> tuple[Retirement, Problem | None]:
         """Run once after success or failure. Never creates or returns maps."""
@@ -135,7 +139,8 @@ class _Probe:
         problems = []
         invalid_observation = None
         try:
-            budget = _Budget(self.bounds.cleanup_seconds, self.bounds.command_seconds)
+            bounds = self.spec.request.bounds
+            budget = _Budget(bounds.cleanup_seconds, bounds.command_seconds)
             if self.cid is None:
                 candidates = self.engine.candidates(self.spec.token, **budget.arguments())
                 if len(candidates) != 1:
@@ -144,27 +149,25 @@ class _Probe:
             container = self.inspect(budget)
             if self.observation is not None:
                 try:
-                    if (container is None or _live(container) != self.live
-                            or self.guard.observe(container.pid, self.spec.token) != self.observation):
+                    if not self.observation_matches(container):
                         raise StepError("process-identity", "probe process or maps changed before retirement")
                 except (LinuxError, StepError, OSError) as error:
                     self.retirement_cause = error
                     invalid_observation = _problem("observe", error)
+            # A reported PID remains a cleanup obligation even when the engine
+            # says it is stopped. A lost start reply or restart needs fresh identity.
+            if (container is not None and (container.running or container.pid > 0)
+                    and (self.observation is None or invalid_observation is not None)):
+                try:
+                    current = self.guard.identify(container.pid, self.spec.token)
+                except (LinuxError, OSError) as error:
+                    if self.retirement_cause is None:
+                        self.retirement_cause = error
+                    problems.append(_problem("observe", error))
+                    self.unobserved_pids.append(container.pid)
+                else:
+                    self.track(current)
             if container is not None:
-                # A reported PID is still a cleanup obligation when the engine's
-                # running flag disagrees; absence of the container is not enough.
-                if container.running or container.pid > 0:
-                    if self.observation is None or invalid_observation is not None:
-                        # A lost start reply or restart can expose a second process.
-                        try:
-                            current = self.guard.identify(container.pid, self.spec.token)
-                        except (LinuxError, OSError) as error:
-                            if self.retirement_cause is None:
-                                self.retirement_cause = error
-                            problems.append(_problem("observe", error))
-                            self.unobserved_pids.append(container.pid)
-                        else:
-                            self.track(current)
                 try:
                     self.engine.remove(container.cid, **budget.arguments())
                 except BaseException as error:
@@ -212,7 +215,7 @@ def probe_identity(request: ProbeRequest, *, cancel: threading.Event | None = No
         engine = DockerEngine.connect(request.endpoint, executable=executable, **budget.arguments())
         image_id = engine.image_id(request.image, **budget.arguments())
         spec = ProbeSpec(token, image_id, request)
-        probe = _Probe(engine, guard, spec, request.bounds)
+        probe = _Probe(engine, guard, spec)
         # Until retirement returns a proof, interruption must not imply absence.
         retirement = Retirement(ResourceState.UNRESOLVED)
         try:

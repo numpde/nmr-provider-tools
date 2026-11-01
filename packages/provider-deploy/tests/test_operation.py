@@ -4,7 +4,7 @@ from dataclasses import replace
 import json
 import threading
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from provider_deploy import ProbeFailure, ResourceState, probe_identity
 from provider_deploy.docker import DockerError
@@ -107,6 +107,25 @@ class OperationTests(unittest.TestCase):
         self.assertEqual("process-identity", failure.problem.category)
         self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
         self.assertEqual((), failure.retirement.problems)
+
+    def test_changed_container_start_time_rejects_evidence_before_rereading_maps(self):
+        for inspection_number in (3, 4):
+            self.engine, self.guard = Engine(), Guard()
+            inspections = 0
+            def change_start(engine):
+                nonlocal inspections
+                inspections += 1
+                if inspections == inspection_number:
+                    engine.container = replace(engine.container, started_at="restarted")
+            self.engine.on_inspect = change_start
+            self.guard.observe = Mock(wraps=self.guard.observe)
+            with self.subTest(inspection_number=inspection_number):
+                with patch("provider_deploy.operation.DockerEngine.connect", return_value=self.engine), \
+                     patch("provider_deploy.operation.LinuxGuard", return_value=self.guard):
+                    failure = self.failure()
+                self.assertEqual("observe", failure.problem.stage)
+                self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
+                self.assertEqual(inspection_number - 2, self.guard.observe.call_count)
 
     def test_changed_maps_during_observation_are_rejected(self):
         calls = 0
