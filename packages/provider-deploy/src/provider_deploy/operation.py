@@ -145,7 +145,9 @@ class _Probe:
                     self.retirement_cause = error
                     invalid_observation = _problem("observe", error)
             if container is not None:
-                if container.running:
+                # A reported PID is still a cleanup obligation when the engine's
+                # running flag disagrees; absence of the container is not enough.
+                if container.running or container.pid > 0:
                     if self.observation is None or invalid_observation is not None:
                         # A lost start reply or restart can expose a second process.
                         try:
