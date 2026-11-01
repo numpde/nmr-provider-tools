@@ -271,7 +271,7 @@ class OperationTests(unittest.TestCase):
         self.assertEqual("cancelled", failure.problem.category)
         self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
         for name, method in methods.items():
-            self.assertTrue(method.called, name)
+            self.assertTrue(method.called, msg=name)
             for call in method.call_args_list:
                 self.assertIsNone(call.kwargs["cancel"])
                 self.assertGreater(call.kwargs["timeout"], 0)

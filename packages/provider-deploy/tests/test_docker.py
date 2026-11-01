@@ -1,28 +1,22 @@
 """Docker command boundaries; no daemon or network is needed for this lane."""
+from dataclasses import asdict, replace
 import json
 import os
+from pathlib import Path
 import signal
 import subprocess
-from pathlib import Path
 import sys
 import tempfile
 import threading
 import time
-from dataclasses import asdict, replace
-
-from provider_deploy.spec import ProbeSpec, PROBE_SCRIPT
-from helpers import container_for, request
 import unittest
 from unittest.mock import Mock, patch
 
-from provider_deploy.docker import (
-    DockerEngine, DockerError,
-    _run_command, _clean_environment, _socket_identity,
-)
+from helpers import CID, IMAGE, container_for, request
+from provider_deploy.docker import DockerEngine, DockerError, _run_command, _clean_environment, _socket_identity
+from provider_deploy.spec import ProbeSpec, PROBE_SCRIPT
 
 
-CID = "c" * 64
-IMAGE = "sha256:" + "a" * 64
 TOKEN = "b" * 32
 
 
@@ -105,7 +99,7 @@ class CommandTests(unittest.TestCase):
                         break
                     time.sleep(.01)
                 else:
-                    self.assertFalse(process.exists(), "descendant remained live after client timeout")
+                    self.assertFalse(process.exists(), msg="descendant remained live after client timeout")
             finally:
                 if pidfile.exists():
                     pid = int(pidfile.read_text())
