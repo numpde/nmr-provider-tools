@@ -85,7 +85,7 @@ class CommandTests(unittest.TestCase):
             )
             try:
                 with self.assertRaises(DockerError) as caught:
-                    _run_command([sys.executable, "-c", program], env=os.environ.copy(), timeout=.2)
+                    _run_command([sys.executable, "-c", program], env=os.environ.copy(), timeout=1)
                 self.assertEqual("timeout", caught.exception.category)
                 pid = int(pidfile.read_text())
                 process = Path(f"/proc/{pid}")
