@@ -61,10 +61,10 @@ index 67bc55dbde15a5c57322418a08c15500038dac13..a151e894cb40b9af9ea9a9ede74340ea
  make provider/deployment/install DEPLOYMENT=&lt;name&gt; SHARED_RUNTIME_IMAGE=sha256:YOUR_SHARED_IMAGE
 diff --git a/tests/host/test_deploy_identity_adapter.py b/tests/host/test_deploy_identity_adapter.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..0d88f6de064eed7727d757e56143640287eb8d88
+index 0000000000000000000000000000000000000000..e7d77a1121f32c22bd0f7a8ac79ee56fc871658d
 --- /dev/null
 +++ b/tests/host/test_deploy_identity_adapter.py
-@@ -0,0 +1,196 @@
+@@ -0,0 +1,194 @@
 +"""Host-only acceptance for the actual NMRNet adapter and shared CLI contract.
 +
 +No repository container guard is bypassed: the shell adapter under test
@@ -133,9 +133,7 @@ index 0000000000000000000000000000000000000000..0d88f6de064eed7727d757e561436402
 +
 +class IdentityAdapterTests(unittest.TestCase):
 +    def setUp(self):
-+        self.temporary = tempfile.TemporaryDirectory()
-+        self.addCleanup(self.temporary.cleanup)
-+        self.root = Path(self.temporary.name)
++        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
 +        self.root.chmod(0o700)
 +        self.bin = self.root / 'bin'
 +        self.bin.mkdir()

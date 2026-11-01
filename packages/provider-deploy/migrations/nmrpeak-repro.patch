@@ -345,7 +345,7 @@ index 68dc9c9d7664d7289d12c1896105b26214a874ff..963102f2ddcf5ec0800b5e9aa871932e
  def _provider_directory_acl(provider_uids: tuple[int, ...]) -> tuple[str, ...]:
 diff --git a/docs/provider-deploy-migration.md b/docs/provider-deploy-migration.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..9808b06c7a6163fdf040a59c38ea39eef55e00be
+index 0000000000000000000000000000000000000000..2d2248b2ca5abe02cec83deca9c8d98f02bc9bc6
 --- /dev/null
 +++ b/docs/provider-deploy-migration.md
 @@ -0,0 +1,74 @@
@@ -407,7 +407,7 @@ index 0000000000000000000000000000000000000000..9808b06c7a6163fdf040a59c38ea39ee
 +
 +```sh
 +PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
-+  PYTHONDONTWRITEBYTECODE=1 /path/to/deployment-python -m unittest discover -s tests/host -v
++  /path/to/deployment-python -m unittest discover -s tests/host -v
 +```
 +
 +It checks the selected endpoint, image, interpreter, user and executable,
@@ -425,10 +425,10 @@ index 0000000000000000000000000000000000000000..9808b06c7a6163fdf040a59c38ea39ee
 +adapter tests alone.
 diff --git a/tests/host/test_shared_identity_adapter.py b/tests/host/test_shared_identity_adapter.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..bd0146768d1e0981e390bd451f470d7f9bb9d89f
+index 0000000000000000000000000000000000000000..29a7c9847a34fc5629565b1319b3859c890b6202
 --- /dev/null
 +++ b/tests/host/test_shared_identity_adapter.py
-@@ -0,0 +1,125 @@
+@@ -0,0 +1,123 @@
 +"""Run the actual host adapter without importing the contained science runtime.
 +
 +These import the maintained host module normally. The shared operation is
@@ -459,11 +459,9 @@ index 0000000000000000000000000000000000000000..bd0146768d1e0981e390bd451f470d7f
 +        self.adapter = provider_deployment
 +        self.saved = []
 +        self.image = "sha256:" + "a" * 64
-+        self.environment = patch.dict(os.environ, {
++        self.enterContext(patch.dict(os.environ, {
 +            "NMRPEAK_DOCKER_HOST": "unix:///selected.sock",
-+            "DOCKER_HOST": "unix:///wrong.sock", "DOCKER_CONTEXT": "wrong"})
-+        self.environment.start()
-+        self.addCleanup(self.environment.stop)
++            "DOCKER_HOST": "unix:///wrong.sock", "DOCKER_CONTEXT": "wrong"}))
 +
 +    def completed(self, request, *, executable):
 +        self.saved.append((request, executable))
