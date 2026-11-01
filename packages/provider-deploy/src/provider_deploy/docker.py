@@ -404,7 +404,8 @@ class DockerEngine:
                 "user", "userns_mode", "entrypoint", "command", "mounts", "isolation"}
         if not isinstance(value, dict) or set(value) != keys:
             raise DockerError("invalid_response", "Docker returned invalid container evidence.")
-        if not isinstance(value["mounts"], list) or not isinstance(value["isolation"], dict):
+        if (not isinstance(value["mounts"], list) or not isinstance(value["isolation"], dict)
+                or set(value["isolation"]) != set(ISOLATION_FIELDS)):
             raise DockerError("invalid_response", "Docker returned invalid isolation evidence.")
         if (any(not _text(value[key]) for key in ("cid", "name", "image_id", "status", "started_at", "user", "userns_mode")) or
             any(value[key] is not None and not _text(value[key]) for key in ("token", "owner")) or
