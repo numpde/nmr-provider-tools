@@ -2,6 +2,7 @@
 import json
 import os
 import signal
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -12,7 +13,7 @@ from dataclasses import asdict, replace
 from provider_deploy.spec import ProbeSpec, PROBE_SCRIPT, OWNER
 from helpers import container_for, request
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from provider_deploy.docker import (
     DockerEngine, DockerError, OWNER_LABEL, TOKEN_LABEL,
@@ -133,6 +134,35 @@ class CommandTests(unittest.TestCase):
             timer.join()
         self.assertEqual("cancelled", caught.exception.category)
         self.assertLess(time.monotonic() - started, 1)
+
+    def test_pipe_closed_child_can_exit_inside_the_remaining_deadline(self):
+        clock = [0.0]
+        exits_at = .06
+        def sleep(seconds):
+            clock[0] += seconds
+            return []
+        def wait(*, timeout):
+            remaining = exits_at - clock[0]
+            if remaining > timeout:
+                sleep(timeout)
+                raise subprocess.TimeoutExpired("fixture", timeout)
+            sleep(remaining)
+            return 0
+        process = Mock()
+        process.wait.side_effect = wait
+        process.poll.side_effect = lambda: 0 if clock[0] >= exits_at else None
+        selector = Mock()
+        selector.get_map.return_value = {}  # Both streams have already closed.
+        selector.select.side_effect = sleep
+        with patch("provider_deploy.docker.time.monotonic", side_effect=lambda: clock[0]), \
+             patch("provider_deploy.docker.subprocess.Popen", return_value=process), \
+             patch("provider_deploy.docker.selectors.DefaultSelector", return_value=selector), \
+             patch("provider_deploy.docker.os.set_blocking"), \
+             patch("provider_deploy.docker._terminate"):
+            self.assertEqual("", _run_command(["fixture"], env={}, timeout=.09))
+        self.assertLess(clock[0], .09)
+        self.assertEqual(2, process.wait.call_count)
+        selector.select.assert_not_called()
 
     def test_timed_out_child_is_reaped(self):
         with tempfile.TemporaryDirectory() as directory:
