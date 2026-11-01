@@ -1,5 +1,5 @@
 diff --git a/README.md b/README.md
-index 2f14e3197d7c68f0154fe205707bcd78c94b7473..0534e8d62808edca64f8fdf5ab557bcac4015c91 100644
+index 2f14e3197d7c68f0154fe205707bcd78c94b7473..0a3c3f932cc309b2724b28062fe38b27afc0d810 100644
 --- a/README.md
 +++ b/README.md
 @@ -17,3 +17,35 @@ on the Make command line. When omitted in a terminal, it offers a menu of
@@ -19,7 +19,7 @@ index 2f14e3197d7c68f0154fe205707bcd78c94b7473..0534e8d62808edca64f8fdf5ab557bca
 +
 +```sh
 +python3 -m venv "$HOME/.local/share/nmr-provider-deploy"
-+"$HOME/.local/share/nmr-provider-deploy/bin/python" -m pip install --no-index --no-deps /absolute/path/to/provider_deploy-0.2.0a1-py3-none-any.whl
++"$HOME/.local/share/nmr-provider-deploy/bin/python" -m pip install --force-reinstall --no-index --no-deps /absolute/path/to/provider_deploy-0.2.0a1-py3-none-any.whl
 +export PATH="$HOME/.local/share/nmr-provider-deploy/bin:$PATH"
 +provider-deploy identity --help
 +```
@@ -61,7 +61,7 @@ index 67bc55dbde15a5c57322418a08c15500038dac13..a151e894cb40b9af9ea9a9ede74340ea
  make provider/deployment/install DEPLOYMENT=&lt;name&gt; SHARED_RUNTIME_IMAGE=sha256:YOUR_SHARED_IMAGE
 diff --git a/tests/host/test_deploy_identity_adapter.py b/tests/host/test_deploy_identity_adapter.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..299ae12aab634a1a84dcf68b4ef88b2e3a6e0aeb
+index 0000000000000000000000000000000000000000..0d88f6de064eed7727d757e56143640287eb8d88
 --- /dev/null
 +++ b/tests/host/test_deploy_identity_adapter.py
 @@ -0,0 +1,196 @@
@@ -108,7 +108,7 @@ index 0000000000000000000000000000000000000000..299ae12aab634a1a84dcf68b4ef88b2e
 +
 +def observe(request, *, cancel):
 +    request.validate()
-+    Path(os.environ['REQUEST_LOG']).write_text(json.dumps(asdict(request), default=str))
++    Path(os.environ['REQUEST_LOG']).write_text(json.dumps(asdict(request)))
 +    mode = os.environ['RESULT_MODE']
 +    if mode == 'await-signal':
 +        # The CLI owns real signal handlers; only the Engine effect is synthetic.

@@ -345,7 +345,7 @@ index 68dc9c9d7664d7289d12c1896105b26214a874ff..963102f2ddcf5ec0800b5e9aa871932e
  def _provider_directory_acl(provider_uids: tuple[int, ...]) -> tuple[str, ...]:
 diff --git a/docs/provider-deploy-migration.md b/docs/provider-deploy-migration.md
 new file mode 100644
-index 0000000000000000000000000000000000000000..6daf0cc7b468ae8fa84e8588fb6c3ec52bf0d531
+index 0000000000000000000000000000000000000000..9808b06c7a6163fdf040a59c38ea39eef55e00be
 --- /dev/null
 +++ b/docs/provider-deploy-migration.md
 @@ -0,0 +1,74 @@
@@ -375,7 +375,7 @@ index 0000000000000000000000000000000000000000..6daf0cc7b468ae8fa84e8588fb6c3ec5
 +For an already-built, locally reviewed wheel:
 +
 +```sh
-+/path/to/deployment-python -m pip install --no-index --no-deps /absolute/path/provider_deploy-0.2.0a1-py3-none-any.whl
++/path/to/deployment-python -m pip install --force-reinstall --no-index --no-deps /absolute/path/provider_deploy-0.2.0a1-py3-none-any.whl
 +```
 +
 +Use that same interpreter for the maintained deployment command. Missing or
