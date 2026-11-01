@@ -112,7 +112,7 @@ guarantees by this Python process.
 - `problem`: the primary stage, stable category and safe explanation.
 - `retirement`: `known-not-created`, `confirmed-retired` or `uncertain-outcome`,
   the known container ID, and any secondary problems.
-- `handle`: the pinned endpoint, random operation token, known exact container ID
+- `handle`: the selected endpoint and original daemon ID, random operation token, known exact container ID
   and observed process identities. It is diagnostic evidence, not a retry command.
 
 For example, a changed map can invalidate measurement while retirement still
@@ -129,6 +129,10 @@ outcomes require operator review on the same engine, not blind retry or pruning.
 Successful maps are point-in-time evidence, not permanent permission authority.
 The provider must keep its selected engine and namespace policy consistent with
 the subsequent deployment steps.
+The endpoint spelling is preserved, including socket aliases. Guards detect
+observed target changes; separate CLI requests are not an atomic transaction
+against concurrent endpoint reconfiguration. The diagnostic daemon ID identifies
+the original engine if its route changes; it is not permission to remove anything.
 
 ## Verification
 

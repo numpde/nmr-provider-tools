@@ -10,7 +10,6 @@ from dataclasses import dataclass
 import json
 import math
 import os
-from pathlib import Path
 import re
 import selectors
 import signal
@@ -282,8 +281,9 @@ class DockerEngine:
         deadline = _deadline(timeout)
         if not _text(endpoint) or not endpoint.startswith("unix:///") or "?" in endpoint or "#" in endpoint:
             raise DockerError("unsupported_engine", "The selected Docker endpoint must be a local Unix socket.")
-        socket_path = str(Path(endpoint[7:]).resolve())
-        endpoint = "unix://" + socket_path
+        # Keep the caller's absolute path, including symlinks: subsequent
+        # caller commands use this spelling, so every guard must follow it.
+        socket_path = endpoint[7:]
         device, inode = _socket_identity(socket_path)
         environment = _clean_environment(os.environ)
         directory = tempfile.TemporaryDirectory(prefix="provider-deploy-client-")

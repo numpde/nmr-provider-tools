@@ -80,8 +80,14 @@ class _Probe:
         self.retirement_cause: BaseException | None = None
 
     def handle(self) -> ProbeHandle:
-        return ProbeHandle(self.engine.identity.endpoint, self.spec.token, self.cid,
-                           tuple(self.processes), tuple(self.unobserved_pids))
+        return ProbeHandle(
+            endpoint=self.engine.identity.endpoint,
+            operation_token=self.spec.token,
+            container_id=self.cid,
+            processes=tuple(self.processes),
+            unobserved_pids=tuple(self.unobserved_pids),
+            daemon_id=self.engine.identity.daemon_id,
+        )
 
     def track(self, process: ProcessIdentity):
         identity = ProcessIdentity(process.pid, process.starttime, process.proc_device, process.proc_inode)

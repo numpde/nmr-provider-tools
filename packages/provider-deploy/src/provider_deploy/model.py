@@ -91,6 +91,7 @@ class ProbeHandle:
     container_id: str | None = None
     processes: tuple[ProcessIdentity, ...] = ()
     unobserved_pids: tuple[int, ...] = ()
+    daemon_id: str | None = None
 
 
 class ProbeFailure(RuntimeError):
