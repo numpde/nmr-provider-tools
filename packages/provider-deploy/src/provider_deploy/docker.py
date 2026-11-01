@@ -138,10 +138,12 @@ def _run_command(argv: list[str], *, env: Mapping[str, str], timeout: float,
                 raise DockerError("timeout", "The bounded Docker command timed out.")
             wait = min(0.05, _remaining(deadline))
             if not selector.get_map():
-                status = process.poll()
-                if status is not None:
-                    reaped = True
-                    break
+                try:
+                    status = process.wait(timeout=wait)
+                except subprocess.TimeoutExpired:
+                    continue
+                reaped = True
+                break
             for key, _ in selector.select(wait):
                 chunk = os.read(key.fd, 8192)
                 if not chunk:
