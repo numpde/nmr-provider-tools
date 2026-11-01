@@ -180,6 +180,30 @@ class CommandTests(unittest.TestCase):
                 _socket_identity(file.name)
         self.assertEqual("unsupported_engine", caught.exception.category)
 
+    def test_trimmed_endpoint_spelling_is_rejected_before_socket_or_client_use(self):
+        info = json.dumps(["daemon-a", [], "/var/lib/docker", "overlay2", "linux"])
+        for suffix in (" ", "\u00a0", "\u2003"):
+            with self.subTest(suffix=suffix):
+                with patch("provider_deploy.docker._socket_identity", return_value=(12, 34)) as socket, \
+                     patch("provider_deploy.docker._run_command", return_value=info) as run:
+                    with self.assertRaises(DockerError) as caught:
+                        with DockerEngine.connect("unix:///tmp/engine.sock" + suffix, timeout=1):
+                            pass
+                    self.assertEqual("unsupported_engine", caught.exception.category)
+                    socket.assert_not_called()
+                    run.assert_not_called()
+
+    def test_percent_escape_is_a_literal_unix_socket_path(self):
+        endpoint = "unix:///tmp/engine%20.sock"
+        info = json.dumps(["daemon-a", [], "/var/lib/docker", "overlay2", "linux"])
+        with patch("provider_deploy.docker._socket_identity", return_value=(12, 34)) as socket, \
+             patch("provider_deploy.docker._run_command", return_value=info) as run:
+            with DockerEngine.connect(endpoint, timeout=1) as engine:
+                self.assertEqual(endpoint, engine.identity.endpoint)
+        self.assertEqual(["/tmp/engine%20.sock"] * 2, [call.args[0] for call in socket.call_args_list])
+        arguments = run.call_args.args[0]
+        self.assertEqual(endpoint, arguments[arguments.index("--host") + 1])
+
     def test_primary_timeout_preserves_client_cleanup_failure(self):
         from provider_deploy import docker
         original = docker._terminate
