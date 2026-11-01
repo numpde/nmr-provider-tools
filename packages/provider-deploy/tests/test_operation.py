@@ -1,4 +1,4 @@
-"""The observable contract: fresh maps or an honest failure, never leaked probes."""
+"""The observable contract: fresh maps or an honest failure, never unproved success."""
 
 from dataclasses import replace
 import json
@@ -121,6 +121,14 @@ class OperationTests(unittest.TestCase):
         self.engine.on_start = lambda engine: setattr(engine, "container", replace(engine.container, running=False))
         self.assertEqual("process-identity", self.failure().problem.category)
         self.assertIn("remove", self.engine.events)
+
+    def test_nonrunning_flag_cannot_hide_a_live_reported_pid(self):
+        self.engine.on_start = lambda engine: setattr(engine, "container", replace(engine.container, running=False))
+        self.guard.retired = False
+        failure = self.failure()
+        self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
+        self.assertIn("remove", self.engine.events)
+        self.assertEqual(42, failure.handle.processes[0].pid)
 
     def test_live_process_prevents_retirement_claim(self):
         self.guard.retired = False
