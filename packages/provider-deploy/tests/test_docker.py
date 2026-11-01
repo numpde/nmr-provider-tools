@@ -131,13 +131,14 @@ class EngineTests(unittest.TestCase):
         self.addCleanup(socket_patch.stop)
         self.calls = []
         self.daemon = "daemon-a"
+        self.security_options = ["name=rootless"]
         self.extra = {}
         def run(argv, **kwargs):
             self.calls.append((argv, kwargs))
             if "context" in argv:
                 return json.dumps("unix://" + str(self.sockpath))
             if "info" in argv:
-                return json.dumps([self.daemon, ["name=rootless"], "/var/lib/docker", "overlay2", "linux"])
+                return json.dumps([self.daemon, self.security_options, "/var/lib/docker", "overlay2", "linux"])
             key = next((x for x in ("create", "inspect", "ls", "start", "rm") if x in argv), "other")
             # silent-defaults: allow-contract -- An unconfigured successful fixture command emits empty output; parser tests explicitly replace its reply.
             result = self.extra.get(key, "")
@@ -160,6 +161,46 @@ class EngineTests(unittest.TestCase):
             self.assertIn("--config", args)
             self.assertNotIn("DOCKER_HOST", kwargs["env"])
 
+    def test_image_projection_uses_typed_id_and_accepts_empty_volumes(self):
+        # Source compatibility, not engine qualification: .Id falls back to a
+        # raw map, whose omitted Volumes key fails missingkey=error. Typed .ID
+        # keeps the nil map available for json to encode as null.
+        # https://github.com/docker/cli/blob/v28.5.1/cli/command/inspect/inspector.go#L100-L129
+        # https://github.com/moby/moby/blob/v28.5.1/api/types/image/image_inspect.go#L16-L83
+        # https://github.com/opencontainers/image-spec/blob/v1.1.1/specs-go/v1/config.go#L36-L37
+        for volumes in (None, {}):
+            with self.subTest(volumes=volumes):
+                self.extra["inspect"] = json.dumps([IMAGE, volumes])
+                self.assertEqual(IMAGE, self.engine.image_id("approved:local", timeout=2))
+                args = next(a for a, _ in reversed(self.calls) if "inspect" in a)
+                self.assertEqual("[{{json .ID}},{{json .Config.Volumes}}]", args[args.index("--format") + 1])
+
+    def test_null_and_empty_security_options_are_equivalent_but_change_is_not(self):
+        # A nil security-options slice is legitimate when no features append.
+        # https://github.com/moby/moby/blob/v28.5.1/daemon/info.go#L166-L192
+        # https://github.com/docker/cli/blob/v28.5.1/cli/command/system/info.go#L450-L468
+        for initial, equivalent in ((None, []), ([], None)):
+            with self.subTest(initial=initial):
+                self.security_options = initial
+                with DockerEngine.connect("unix://" + str(self.sockpath), timeout=2) as engine:
+                    self.assertEqual((), engine.identity.security_options)
+                    self.security_options = equivalent
+                    engine.assert_unchanged(timeout=2)
+                    self.security_options = ["name=userns"]
+                    self.calls.clear()
+                    with self.assertRaises(DockerError) as caught:
+                        engine.start(CID, timeout=2)
+                    self.assertEqual("engine_changed", caught.exception.category)
+                    self.assertFalse(any("start" in args for args, _ in self.calls))
+
+    def test_malformed_security_options_remain_rejected(self):
+        for options in (False, 0, "", "name=rootless", {}, [None], [False], [1], [[]], [{}]):
+            with self.subTest(options=options):
+                self.security_options = options
+                with self.assertRaises(DockerError) as caught:
+                    DockerEngine.connect("unix://" + str(self.sockpath), timeout=2)
+                self.assertEqual("invalid_response", caught.exception.category)
+
     def test_missing_image_does_not_pull(self):
         self.extra["inspect"] = '"not-an-id"'
         with self.assertRaises(DockerError):
@@ -177,7 +218,7 @@ class EngineTests(unittest.TestCase):
         self.assertIn(OWNER_LABEL + "=" + OWNER, args)
         self.assertIn("--userns=host", args)
         self.assertIn("1000:2000", args)
-        self.assertEqual(["-I", "-B", "-c", PROBE_SCRIPT, "30", TOKEN], args[-6:])
+        self.assertEqual(["-I", "-S", "-B", "-c", PROBE_SCRIPT, "30", TOKEN], args[-7:])
         self.assertIn("--rm", args)
         self.assertNotIn("--privileged", args)
 
@@ -268,7 +309,7 @@ class EngineTests(unittest.TestCase):
         result = self.engine.inspect(CID, timeout=2)
         self.assertEqual(CID, result.cid)
         self.assertEqual("provider-deploy-" + TOKEN, result.name)
-        self.assertEqual(("-I", "-B", "-c", PROBE_SCRIPT, "30", TOKEN), result.command)
+        self.assertEqual(("-I", "-S", "-B", "-c", PROBE_SCRIPT, "30", TOKEN), result.command)
         self.assertFalse(any("ls" in args for args, _ in self.calls))
         # The connection checks once; one existing-container read then costs
         # info / inspect / info, not a second list plus its two info checks.
