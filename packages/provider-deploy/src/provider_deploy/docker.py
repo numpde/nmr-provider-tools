@@ -45,7 +45,7 @@ INSPECT_FORMAT = (
     '"token":{{json (index .Config.Labels "' + TOKEN_LABEL + '")}},'
     '"owner":{{json (index .Config.Labels "' + OWNER_LABEL + '")}},'
     '"pid":{{json .State.Pid}},"running":{{json .State.Running}},'
-    '"status":{{json .State.Status}},"started_at":{{json .State.StartedAt}},'
+    '"started_at":{{json .State.StartedAt}},'
     '"user":{{json .Config.User}},"userns_mode":{{json .HostConfig.UsernsMode}},'
     '"entrypoint":{{json .Config.Entrypoint}},"command":{{json .Config.Cmd}},'
     '"mounts":{{json .Mounts}},"isolation":{' +
@@ -251,7 +251,6 @@ class Container:
     owner: str | None
     pid: int
     running: bool
-    status: str
     started_at: str
     user: str
     userns_mode: str
@@ -270,7 +269,7 @@ class Container:
         if (not isinstance(value["mounts"], list) or not isinstance(value["isolation"], dict)
                 or set(value["isolation"]) != set(ISOLATION_FIELDS)):
             raise DockerError("invalid_response", "Docker returned invalid isolation evidence.")
-        if (any(not _text(value[key]) for key in ("cid", "name", "image_id", "status", "started_at", "user", "userns_mode")) or
+        if (any(not _text(value[key]) for key in ("cid", "name", "image_id", "started_at", "user", "userns_mode")) or
             any(value[key] is not None and not _text(value[key]) for key in ("token", "owner")) or
             type(value["pid"]) is not int or value["pid"] < 0 or type(value["running"]) is not bool or
             any(not isinstance(value[key], list) or len(value[key]) > 16 or not all(_text(item) for item in value[key])

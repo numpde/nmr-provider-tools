@@ -23,7 +23,7 @@ def container_for(spec):
     isolation.update(Privileged=False, PidMode="", CapAdd=None, Devices=None,
                      DeviceRequests=None, RestartPolicy={"Name": "no"})
     # silent-defaults: allow-contract -- The fixture models Docker inspect encoding of explicit default versus host user namespaces; tests/test_operation.py::OperationTests.
-    return Container(CID, spec.name, IMAGE, spec.token, OWNER, 0, False, "created", "not-started",
+    return Container(CID, spec.name, IMAGE, spec.token, OWNER, 0, False, "not-started",
                      f"{spec.request.user_uid}:{spec.request.user_gid}", "" if spec.request.userns_mode == "default" else "host",
                      (spec.request.interpreter,), spec.command, [], isolation)
 
@@ -55,7 +55,7 @@ class Engine:
 
     def start(self, cid, **kwargs):
         self.events.append("start")
-        self.container = replace(self.container, running=True, pid=42, status="running", started_at="started")
+        self.container = replace(self.container, running=True, pid=42, started_at="started")
         if self.on_start:
             self.on_start(self)
 

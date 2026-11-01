@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 from helpers import CID, IMAGE, container_for, request
-from provider_deploy.docker import DockerEngine, DockerError
+from provider_deploy.docker import DockerEngine, DockerError, INSPECT_FORMAT
 from provider_deploy.linux import IdMap, IdRange, LinuxError, parse_id_map
 from provider_deploy.model import Bounds, StepError
 from provider_deploy.spec import ISOLATION_FIELDS, ProbeSpec
@@ -131,6 +131,15 @@ class IsolationEvidenceContractTests(unittest.TestCase):
                     ProbeSpec("b" * 32, IMAGE, policy)
                 self.assertEqual((direct.exception.category, str(direct.exception)),
                                  (owned.exception.category, str(owned.exception)))
+
+    def test_unused_status_is_not_part_of_the_private_evidence_projection(self):
+        self.assertNotIn(".State.Status", INSPECT_FORMAT)
+        value = asdict(container_for(self.spec))
+        value["status"] = "running"
+        with patch.object(DockerEngine, "_call", return_value=json.dumps(value)):
+            with self.assertRaises(DockerError) as caught:
+                self.engine.inspect(CID, timeout=1)
+        self.assertEqual("invalid_response", caught.exception.category)
 
     def test_every_projected_container_field_must_be_present(self):
         complete = asdict(container_for(self.spec))

@@ -53,7 +53,7 @@ elif args[:2] == ["container", "create"]:
         "cid": CID, "name": "/" + option(args, "--name"), "image_id": IMAGE,
         "token": labels["org.nmr.provider-deploy.token"],
         "owner": labels["org.nmr.provider-deploy.operation"], "pid": 0,
-        "running": False, "status": "created", "started_at": "",
+        "running": False, "started_at": "",
         "user": option(args, "--user"),
         # silent-defaults: allow-contract -- The model encodes explicit host namespace selection as Docker does; otherwise inspect returns the default empty string.
         "userns_mode": "host" if "--userns=host" in args else "",
@@ -86,7 +86,7 @@ elif args[:2] == ["container", "start"]:
     )
     # silent-defaults: allow-contract -- Initialize the persistent fixture probe inventory only when the first modeled start creates a process.
     state.setdefault("probe_processes", []).append({"pid": process.pid, "token": container["token"]})
-    container.update(pid=process.pid, running=True, status="running", started_at="fixture-start")
+    container.update(pid=process.pid, running=True, started_at="fixture-start")
     result = CID
 elif args[:2] == ["container", "ls"]:
     container = state.get("container")
