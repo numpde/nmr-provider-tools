@@ -6,7 +6,7 @@ Engine command output is parsed locally and never used as a diagnostic message.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 import json
 import math
 import os
@@ -258,6 +258,29 @@ class Container:
     mounts: list
     isolation: dict
 
+    @classmethod
+    def from_json(cls, text: str, cid: str) -> Container:
+        """Parse the complete projected record before it can serve as evidence."""
+        value = _json(text)
+        keys = {field.name for field in fields(cls)}
+        if not isinstance(value, dict) or set(value) != keys:
+            raise DockerError("invalid_response", "Docker returned invalid container evidence.")
+        if (not isinstance(value["mounts"], list) or not isinstance(value["isolation"], dict)
+                or set(value["isolation"]) != set(ISOLATION_FIELDS)):
+            raise DockerError("invalid_response", "Docker returned invalid isolation evidence.")
+        if (any(not _text(value[key]) for key in ("cid", "name", "image_id", "status", "started_at", "user", "userns_mode")) or
+            any(value[key] is not None and not _text(value[key]) for key in ("token", "owner")) or
+            type(value["pid"]) is not int or value["pid"] < 0 or type(value["running"]) is not bool or
+            any(not isinstance(value[key], list) or len(value[key]) > 16 or not all(_text(item) for item in value[key])
+                for key in ("entrypoint", "command"))):
+            raise DockerError("invalid_response", "Docker returned invalid container evidence fields.")
+        if value["cid"] != cid:
+            raise DockerError("identity_mismatch", "Docker inspection returned another container.")
+        value["name"] = value["name"].removeprefix("/")
+        value["entrypoint"] = tuple(value["entrypoint"])
+        value["command"] = tuple(value["command"])
+        return cls(**value)
+
 
 class DockerEngine:
     """Selected socket and daemon identity retained for one complete operation."""
@@ -399,24 +422,7 @@ class DockerEngine:
             if values != (cid,):
                 raise DockerError("identity_mismatch", "Docker exact-ID listing returned another container.") from error
             raise
-        value = _json(result)
-        keys = {"cid", "name", "image_id", "token", "owner", "pid", "running", "status", "started_at",
-                "user", "userns_mode", "entrypoint", "command", "mounts", "isolation"}
-        if not isinstance(value, dict) or set(value) != keys:
-            raise DockerError("invalid_response", "Docker returned invalid container evidence.")
-        if (not isinstance(value["mounts"], list) or not isinstance(value["isolation"], dict)
-                or set(value["isolation"]) != set(ISOLATION_FIELDS)):
-            raise DockerError("invalid_response", "Docker returned invalid isolation evidence.")
-        if (any(not _text(value[key]) for key in ("cid", "name", "image_id", "status", "started_at", "user", "userns_mode")) or
-            any(value[key] is not None and not _text(value[key]) for key in ("token", "owner")) or
-            type(value["pid"]) is not int or value["pid"] < 0 or type(value["running"]) is not bool or
-            any(not isinstance(value[key], list) or len(value[key]) > 16 or not all(_text(item) for item in value[key])
-                for key in ("entrypoint", "command"))):
-            raise DockerError("invalid_response", "Docker returned invalid container evidence fields.")
-        if value["cid"] != cid:
-            raise DockerError("identity_mismatch", "Docker inspection returned another container.")
-        return Container(**{**value, "name": value["name"].removeprefix("/"),
-                            "entrypoint": tuple(value["entrypoint"]), "command": tuple(value["command"])})
+        return Container.from_json(result, cid)
 
     def remove(self, cid: str, *, timeout: float, cancel: threading.Event | None = None) -> None:
         _cid(cid)

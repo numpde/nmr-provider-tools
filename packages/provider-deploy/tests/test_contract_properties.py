@@ -132,6 +132,16 @@ class IsolationEvidenceContractTests(unittest.TestCase):
                 self.assertEqual((direct.exception.category, str(direct.exception)),
                                  (owned.exception.category, str(owned.exception)))
 
+    def test_every_projected_container_field_must_be_present(self):
+        complete = asdict(container_for(self.spec))
+        for field in complete:
+            value = {key: item for key, item in complete.items() if key != field}
+            with self.subTest(field=field):
+                with patch.object(DockerEngine, "_call", return_value=json.dumps(value)):
+                    with self.assertRaises(DockerError) as caught:
+                        self.engine.inspect(CID, timeout=1)
+                self.assertEqual("invalid_response", caught.exception.category)
+
     def test_every_projected_isolation_field_must_be_present(self):
         for field in ISOLATION_FIELDS:
             value = asdict(container_for(self.spec))
