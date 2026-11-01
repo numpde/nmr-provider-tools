@@ -40,8 +40,8 @@ class MapBoundaryTests(unittest.TestCase):
     def test_synthetic_host_map_fixture_preserves_arithmetic_and_json(self):
         # Deliberately constructed fixture: this is not evidence of provenance.
         mapping = HostMap((IdRange(0, 1000, 1), IdRange(1, 100000, 3)))
-        self.assertEqual((1000, 100000, 100001, 100002),
-                         tuple(mapping.translate(x) for x in range(4)))
+        self.assertEqual([1000, 100000, 100001, 100002],
+                         [mapping.translate(x) for x in range(4)])
         for x in (4, -1, True, 1.0, 2**32 - 1):
             with self.subTest(x=x), self.assertRaises(ValueError):
                 mapping.translate(x)
@@ -54,7 +54,7 @@ class MapBoundaryTests(unittest.TestCase):
         qualified = HostMap(raw)
         self.assertNotEqual(raw, qualified)
         self.assertEqual(qualified, HostMap(raw))
-        self.assertEqual(tuple(asdict(row) for row in raw), asdict(qualified)["rows"])
+        self.assertEqual([asdict(row) for row in raw], list(asdict(qualified)["rows"]))
 
     def test_only_successful_qualified_observation_delivers_host_map(self):
         raw = Maps(parse_map(b"0 1000 1\n"), parse_map(b"0 2000 1\n"))
@@ -82,7 +82,7 @@ class MapBoundaryTests(unittest.TestCase):
 
     def test_identical_printed_rows_do_not_determine_reader_translation(self):
         # Kernel-source model, NOT a real privileged sibling-namespace test.
-        # An initial-user parent may legally install target (0, 500, 5),
+        # A privileged initial-user parent may legally install target (0, 500, 5),
         # reader A (1000, 500, 5), or reader B (1000, 500, 2)/(2000, 502, 3).
         # Each map is positive and disjoint in both domains, with parent coverage.
         # uid_m_show translates lower_first only, not each ID in the extent:
