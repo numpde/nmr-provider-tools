@@ -267,12 +267,18 @@ class Container:
         if (not isinstance(value["mounts"], list) or not isinstance(value["isolation"], dict)
                 or set(value["isolation"]) != set(ISOLATION_FIELDS)):
             raise DockerError("invalid_response", "Docker returned invalid isolation evidence.")
-        if (any(not _text(value[key]) for key in ("cid", "name", "image_id", "started_at", "user", "userns_mode")) or
-            any(value[key] is not None and not _text(value[key]) for key in ("token", "owner")) or
-            type(value["pid"]) is not int or value["pid"] < 0 or type(value["running"]) is not bool or
-            any(not isinstance(value[key], list) or len(value[key]) > 16 or not all(_text(item) for item in value[key])
-                for key in ("entrypoint", "command"))):
+        text_fields = ("cid", "name", "image_id", "started_at", "user", "userns_mode")
+        if any(not _text(value[key]) for key in text_fields):
             raise DockerError("invalid_response", "Docker returned invalid container evidence fields.")
+        if any(value[key] is not None and not _text(value[key]) for key in ("token", "owner")):
+            raise DockerError("invalid_response", "Docker returned invalid container evidence fields.")
+        if type(value["pid"]) is not int or value["pid"] < 0 or type(value["running"]) is not bool:
+            raise DockerError("invalid_response", "Docker returned invalid container evidence fields.")
+        for field in ("entrypoint", "command"):
+            arguments = value[field]
+            if (not isinstance(arguments, list) or len(arguments) > 16
+                    or any(not _text(item) for item in arguments)):
+                raise DockerError("invalid_response", "Docker returned invalid container evidence fields.")
         if value["cid"] != cid:
             raise DockerError("identity_mismatch", "Docker inspection returned another container.")
         value["name"] = value["name"].removeprefix("/")
