@@ -1,13 +1,14 @@
 """Run the actual probe payload without image-specific Python startup hooks."""
 
 import ast
+from dataclasses import replace
 from pathlib import Path
 import subprocess
 import tempfile
 import unittest
 import venv
 
-from helpers import IMAGE
+from helpers import IMAGE, request
 from provider_deploy.spec import PROBE_SCRIPT, ProbeSpec
 
 
@@ -27,7 +28,8 @@ class PythonRuntimeTests(unittest.TestCase):
                 encoding="utf-8",
             )
             token = "b" * 32
-            spec = ProbeSpec(token, IMAGE, interpreter, 1000, 2000, "default", 1)
+            policy = replace(request(), interpreter=interpreter, bounds=replace(request().bounds, lifetime_seconds=1))
+            spec = ProbeSpec(token, IMAGE, policy)
 
             # Control: isolated mode alone still runs the venv's executable .pth hook.
             subprocess.run(
@@ -38,7 +40,7 @@ class PythonRuntimeTests(unittest.TestCase):
             sentinel.unlink()
 
             result = subprocess.run(
-                [spec.interpreter, *spec.command],
+                [spec.request.interpreter, *spec.command],
                 capture_output=True, text=True, timeout=10, check=True,
             )
             self.assertEqual(("", ""), (result.stdout, result.stderr))

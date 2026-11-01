@@ -1,15 +1,16 @@
 """Deterministic map properties and projected-evidence contracts, not engine qualification."""
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from itertools import permutations
 import json
 import random
 import unittest
 from unittest.mock import patch
 
-from helpers import CID, IMAGE, container_for
+from helpers import CID, IMAGE, container_for, request
 from provider_deploy.docker import DockerEngine, DockerError
 from provider_deploy.linux import IdMap, IdRange, LinuxError, parse_id_map
+from provider_deploy.model import Bounds, StepError
 from provider_deploy.spec import ISOLATION_FIELDS, ProbeSpec
 
 
@@ -103,9 +104,33 @@ class MapContractTests(unittest.TestCase):
 
 class IsolationEvidenceContractTests(unittest.TestCase):
     def setUp(self):
-        self.spec = ProbeSpec("b" * 32, IMAGE, "/usr/bin/python3", 1000, 2000, "host", 30)
+        self.spec = ProbeSpec("b" * 32, IMAGE, replace(request(), userns_mode="host"))
         # This seam exercises only projection parsing; it does not claim a live engine.
         self.engine = object.__new__(DockerEngine)
+
+    def test_spec_retains_the_validated_caller_policy_without_copying_fields(self):
+        policy = replace(request(), user_uid=7, user_gid=11, interpreter="/opt/python",
+                         userns_mode="host", bounds=Bounds(lifetime_seconds=19))
+        spec = ProbeSpec("b" * 32, IMAGE, policy)
+        self.assertIs(policy, spec.request)
+        arguments = spec.create_arguments()
+        self.assertEqual("7:11", arguments[arguments.index("--user") + 1])
+        self.assertEqual("/opt/python", arguments[arguments.index("--entrypoint") + 1])
+        self.assertIn("--userns=host", arguments)
+        self.assertEqual(("19", spec.token), spec.command[-2:])
+        spec.verify(container_for(spec), CID)
+
+    def test_spec_uses_the_same_policy_validation_as_the_public_request(self):
+        for changes in ({"user_uid": True}, {"user_gid": -1}, {"interpreter": "python"},
+                        {"userns_mode": "unrecognized"}, {"bounds": Bounds(lifetime_seconds=0)}):
+            policy = replace(request(), **changes)
+            with self.subTest(changes=changes):
+                with self.assertRaises(StepError) as direct:
+                    policy.validate()
+                with self.assertRaises(StepError) as owned:
+                    ProbeSpec("b" * 32, IMAGE, policy)
+                self.assertEqual((direct.exception.category, str(direct.exception)),
+                                 (owned.exception.category, str(owned.exception)))
 
     def test_every_projected_isolation_field_must_be_present(self):
         for field in ISOLATION_FIELDS:

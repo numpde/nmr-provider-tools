@@ -211,8 +211,7 @@ def probe_identity(request: ProbeRequest, *, cancel: threading.Event | None = No
         stage = "engine"
         engine = DockerEngine.connect(request.endpoint, executable=executable, **budget.arguments())
         image_id = engine.image_id(request.image, **budget.arguments())
-        spec = ProbeSpec(token, image_id, request.interpreter, request.user_uid, request.user_gid,
-                         request.userns_mode, request.bounds.lifetime_seconds)
+        spec = ProbeSpec(token, image_id, request)
         probe = _Probe(engine, guard, spec, request.bounds)
         # Until retirement returns a proof, interruption must not imply absence.
         retirement = Retirement(ResourceState.UNRESOLVED)

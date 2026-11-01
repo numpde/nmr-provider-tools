@@ -6,10 +6,10 @@ import sys
 import tempfile
 import threading
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 
 from provider_deploy.spec import ProbeSpec, PROBE_SCRIPT, OWNER
-from helpers import container_for
+from helpers import container_for, request
 import unittest
 from unittest.mock import patch
 
@@ -269,7 +269,7 @@ class EngineTests(unittest.TestCase):
 
     def test_create_is_owned_restricted_and_never_pulls(self):
         self.extra["create"] = CID + "\n"
-        result = self.engine.create(ProbeSpec(TOKEN, IMAGE, "/usr/bin/python3", 1000, 2000, "host", 30), timeout=2)
+        result = self.engine.create(ProbeSpec(TOKEN, IMAGE, replace(request(), userns_mode="host")), timeout=2)
         self.assertEqual(CID, result)
         args, kwargs = next((a, k) for a, k in self.calls if "create" in a)
         self.assertTrue(kwargs["mutation"])
@@ -357,13 +357,13 @@ class EngineTests(unittest.TestCase):
     def test_lost_create_output_is_explicitly_uncertain(self):
         self.extra["create"] = ""
         with self.assertRaises(DockerError) as caught:
-            self.engine.create(ProbeSpec(TOKEN, IMAGE, "/usr/bin/python3", 0, 0, "default", 30), timeout=2)
+            self.engine.create(ProbeSpec(TOKEN, IMAGE, replace(request(), user_uid=0, user_gid=0)), timeout=2)
         self.assertTrue(caught.exception.mutation_uncertain)
         self.assertEqual(1, sum("create" in args for args, _ in self.calls))
 
     def test_inspect_only_returns_curated_exact_evidence(self):
         self.extra["ls"] = CID + "\n"
-        evidence = asdict(container_for(ProbeSpec(TOKEN, IMAGE, "/usr/bin/python3", 1000, 2000, "default", 30)))
+        evidence = asdict(container_for(ProbeSpec(TOKEN, IMAGE, request())))
         evidence["name"] = "/provider-deploy-" + TOKEN
         self.extra["inspect"] = json.dumps(evidence)
         result = self.engine.inspect(CID, timeout=2)
@@ -376,7 +376,7 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(4, len(self.calls))
 
     def test_inspect_substituted_container_is_rejected(self):
-        evidence = asdict(container_for(ProbeSpec(TOKEN, IMAGE, "/usr/bin/python3", 1000, 2000, "default", 30)))
+        evidence = asdict(container_for(ProbeSpec(TOKEN, IMAGE, request())))
         evidence["cid"] = "d" * 64
         self.extra["inspect"] = json.dumps(evidence)
         with self.assertRaises(DockerError) as caught:
@@ -409,7 +409,7 @@ class EngineTests(unittest.TestCase):
             return result
         with patch("provider_deploy.docker._run_command", side_effect=change_on_create):
             with self.assertRaises(DockerError) as caught:
-                self.engine.create(ProbeSpec(TOKEN, IMAGE, "/usr/bin/python3", 0, 0, "default", 30), timeout=2)
+                self.engine.create(ProbeSpec(TOKEN, IMAGE, replace(request(), user_uid=0, user_gid=0)), timeout=2)
         self.assertEqual("engine_changed", caught.exception.category)
         self.assertTrue(caught.exception.mutation_uncertain)
         self.assertEqual(1, sum("create" in args for args, _ in self.calls))

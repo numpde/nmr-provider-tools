@@ -24,8 +24,8 @@ def container_for(spec):
                      DeviceRequests=None, RestartPolicy={"Name": "no"})
     # silent-defaults: allow-contract -- The fixture models Docker inspect encoding of explicit default versus host user namespaces; tests/test_operation.py::OperationTests.
     return Container(CID, spec.name, IMAGE, spec.token, OWNER, 0, False, "created", "not-started",
-                     f"{spec.uid}:{spec.gid}", "" if spec.userns_mode == "default" else "host",
-                     (spec.interpreter,), spec.command, [], isolation)
+                     f"{spec.request.user_uid}:{spec.request.user_gid}", "" if spec.request.userns_mode == "default" else "host",
+                     (spec.request.interpreter,), spec.command, [], isolation)
 
 
 class Engine:

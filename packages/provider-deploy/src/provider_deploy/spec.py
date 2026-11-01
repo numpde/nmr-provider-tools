@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import re
 
-from .model import StepError, valid_id
+from .model import ProbeRequest, StepError
 
 
 # Shared owned-probe label wire name; creation and verification must agree.
@@ -44,20 +44,13 @@ ISOLATION_FIELDS = tuple(row[2] for row in _RESTRICTIONS) + (
 class ProbeSpec:
     token: str
     image_id: str
-    interpreter: str
-    uid: int
-    gid: int
-    userns_mode: str
-    lifetime_seconds: int
+    request: ProbeRequest
 
     def __post_init__(self):
+        self.request.validate()
         if (not isinstance(self.token, str) or re.fullmatch(r"[0-9a-f]{32}", self.token) is None
-                or not isinstance(self.image_id, str) or re.fullmatch(r"sha256:[0-9a-f]{64}", self.image_id) is None
-                or not valid_id(self.uid) or not valid_id(self.gid)
-                or self.userns_mode not in ("default", "host")
-                or type(self.lifetime_seconds) is not int or not 1 <= self.lifetime_seconds <= 3600
-                or not isinstance(self.interpreter, str) or not self.interpreter.startswith("/")
-                or len(self.interpreter) > 512 or any(ord(c) < 32 for c in self.interpreter)):
+                or not isinstance(self.image_id, str)
+                or re.fullmatch(r"sha256:[0-9a-f]{64}", self.image_id) is None):
             raise StepError("invalid-policy", "invalid owned probe specification")
 
     @property
@@ -66,28 +59,30 @@ class ProbeSpec:
 
     @property
     def command(self) -> tuple[str, ...]:
-        return ("-I", "-S", "-B", "-c", PROBE_SCRIPT, str(self.lifetime_seconds), self.token)
+        return ("-I", "-S", "-B", "-c", PROBE_SCRIPT, str(self.request.bounds.lifetime_seconds), self.token)
 
     def create_arguments(self) -> list[str]:
+        request = self.request
         args = ["container", "create", "--pull=never", "--name", self.name,
                 "--label", OWNER_LABEL + "=" + OWNER, "--label", TOKEN_LABEL + "=" + self.token,
-                "--user", f"{self.uid}:{self.gid}", "--restart", "no", "--no-healthcheck"]
+                "--user", f"{request.user_uid}:{request.user_gid}", "--restart", "no", "--no-healthcheck"]
         for flag, argument, _field, _expected in _RESTRICTIONS:
             args.append(flag)
             if argument is not None:
                 args.append(argument)
-        if self.userns_mode == "host":
+        if request.userns_mode == "host":
             args.append("--userns=host")
-        return args + ["--entrypoint", self.interpreter, self.image_id, *self.command]
+        return args + ["--entrypoint", request.interpreter, self.image_id, *self.command]
 
     def verify(self, container, cid: str) -> None:
+        request = self.request
         # silent-defaults: allow-contract -- Docker inspect encodes the explicitly selected default namespace as empty text, and host selection as host; this is wire encoding, not policy fallback.
-        expected_userns_mode = "" if self.userns_mode == "default" else "host"
+        expected_userns_mode = "" if request.userns_mode == "default" else "host"
         if (container.cid != cid or container.name != self.name or container.token != self.token
                 or container.owner != OWNER or container.image_id != self.image_id
-                or container.user != f"{self.uid}:{self.gid}"
+                or container.user != f"{request.user_uid}:{request.user_gid}"
                 or container.userns_mode != expected_userns_mode
-                or tuple(container.entrypoint) != (self.interpreter,)
+                or tuple(container.entrypoint) != (request.interpreter,)
                 or tuple(container.command) != self.command):
             raise StepError("ownership", "probe ownership or configuration does not match its specification")
 
