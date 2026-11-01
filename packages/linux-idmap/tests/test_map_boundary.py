@@ -1,4 +1,4 @@
-"""Raw kernel evidence is distinct from a host-coordinate conversion value."""
+"""Raw evidence does not imply affine conversion or host coordinates."""
 
 from contextlib import contextmanager
 from dataclasses import asdict
@@ -10,9 +10,9 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from linux_idmap import IdRange, Maps, parse_map
+from linux_idmap import IdMap, IdRange, Maps, parse_map
 from linux_idmap.addons.errors import IdentityError
-from linux_idmap.addons.host import HostMap, ProcessIdentity, consistent_maps
+from linux_idmap.addons.host import ProcessIdentity, consistent_maps
 from linux_idmap.addons.observation import observe_host_process
 from linux_idmap.addons.probe import ProbeResult
 
@@ -37,9 +37,9 @@ class MapBoundaryTests(unittest.TestCase):
         self.assertEqual((IdRange(0, 4294967295, 1),), maps.uid_map)
         self.assertFalse(hasattr(maps.uid_map, "translate"))
 
-    def test_synthetic_host_map_fixture_preserves_arithmetic_and_json(self):
+    def test_explicit_affine_map_preserves_arithmetic_and_json(self):
         # Deliberately constructed fixture: this is not evidence of provenance.
-        mapping = HostMap((IdRange(0, 1000, 1), IdRange(1, 100000, 3)))
+        mapping = IdMap((IdRange(0, 1000, 1), IdRange(1, 100000, 3)))
         self.assertEqual([1000, 100000, 100001, 100002],
                          [mapping.translate(x) for x in range(4)])
         for x in (4, -1, True, 1.0, 2**32 - 1):
@@ -49,14 +49,22 @@ class MapBoundaryTests(unittest.TestCase):
         self.assertEqual([{"inside": 0, "outside": 1000, "length": 1},
                           {"inside": 1, "outside": 100000, "length": 3}], payload["uid_map"])
 
-    def test_qualified_value_equality_is_not_raw_evidence_equality(self):
-        raw = parse_map(b"0 1000 1\n")
-        qualified = HostMap(raw)
-        self.assertNotEqual(raw, qualified)
-        self.assertEqual(qualified, HostMap(raw))
-        self.assertEqual([asdict(row) for row in raw], list(asdict(qualified)["rows"]))
+    def test_explicit_affine_map_refuses_unusable_output_ids(self):
+        for outside in (-1, 2**32 - 1, 2**32, 1.5):
+            with self.subTest(outside=outside), self.assertRaises(ValueError):
+                IdMap((IdRange(0, outside, 1),)).translate(0)
+        with self.assertRaises(ValueError):
+            IdMap((IdRange(0, 2**32 - 2, 2),)).translate(1)
+        self.assertEqual(2**32 - 2, IdMap((IdRange(0, 2**32 - 2, 1),)).translate(0))
 
-    def test_only_successful_qualified_observation_delivers_host_map(self):
+    def test_affine_value_equality_is_not_raw_evidence_equality(self):
+        raw = parse_map(b"0 1000 1\n")
+        affine = IdMap(raw)
+        self.assertNotEqual(raw, affine)
+        self.assertEqual(affine, IdMap(raw))
+        self.assertEqual([asdict(row) for row in raw], list(asdict(affine)["rows"]))
+
+    def test_only_successful_qualified_observation_delivers_host_coordinates(self):
         raw = Maps(parse_map(b"0 1000 1\n"), parse_map(b"0 2000 1\n"))
         identity = ProcessIdentity(42, 123, 7, 9)
         source = SimpleNamespace(identity=identity, read_maps=lambda: raw)
@@ -67,7 +75,7 @@ class MapBoundaryTests(unittest.TestCase):
 
         with patch("linux_idmap.addons.observation.qualified_process", succeeds):
             observed = observe_host_process(42)
-        self.assertIsInstance(observed.uid_map, HostMap)
+        self.assertIsInstance(observed.uid_map, IdMap)
         self.assertEqual(1000, observed.uid_map.translate(0))
         self.assertEqual(raw.uid_map, observed.uid_map.rows)
 
@@ -95,6 +103,8 @@ class MapBoundaryTests(unittest.TestCase):
         self.assertEqual(printed_row(reader_a), printed_row(reader_b))
         self.assertEqual(1002, reader_a[target_to_global[2]])
         self.assertEqual(2000, reader_b[target_to_global[2]])
+        # Deliberately false affinity assertion: numeric guards cannot detect it.
+        self.assertEqual(1002, IdMap(parse_map(printed_row(reader_b))).translate(2))
 
     def test_real_isolated_unmapped_reader_preserves_sentinel_without_translation(self):
         child = r'''
@@ -143,6 +153,59 @@ print(json.dumps({'raw': raw.decode(), 'raw_has_translation': hasattr(mapping, '
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         evidence = json.loads(result.stdout)
         self.assertFalse(evidence["raw_has_translation"])
+
+    def test_real_self_map_supports_explicit_nonhost_parent_conversion(self):
+        # All namespace creation and map setup occur in this short-lived child.
+        child = r'''
+import ctypes, errno, json, os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from linux_idmap import IdMap, observe_process
+from linux_idmap.addons.errors import IdentityError
+from linux_idmap.addons.observation import observe_host_process
+parent_uid = os.geteuid()
+old_namespace = os.stat('/proc/self/ns/user').st_ino
+libc = ctypes.CDLL(None, use_errno=True)
+libc.unshare.argtypes = [ctypes.c_int]
+libc.unshare.restype = ctypes.c_int
+if libc.unshare(0x10000000) != 0:
+    error = ctypes.get_errno()
+    print(json.dumps({'blocked': 'unshare', 'errno': error, 'reason': os.strerror(error)}))
+    raise SystemExit(77 if error in (errno.EPERM, errno.ENOSYS) else 1)
+try:
+    Path('/proc/self/uid_map').write_text(f'0 {parent_uid} 1\n')
+except OSError as error:
+    print(json.dumps({'blocked': 'isolated child uid_map setup', 'errno': error.errno, 'reason': str(error)}))
+    raise SystemExit(77 if error.errno in (errno.EPERM, errno.EACCES) else 1)
+assert os.stat('/proc/self/ns/user').st_ino != old_namespace
+assert os.geteuid() == 0
+rows = observe_process(os.getpid()).uid_map
+# This source relationship, not the bytes alone, establishes parent affinity:
+# reading self's map uses self's immediate parent user namespace coordinates.
+parent_map = IdMap(rows)
+translated = parent_map.translate(os.geteuid())
+assert translated == parent_uid
+try:
+    observe_host_process(os.getpid())
+except IdentityError as error:
+    assert error.category == 'host-precondition'
+else:
+    raise AssertionError('Nested source incorrectly passed host qualification')
+print(json.dumps({'raw': Path('/proc/self/uid_map').read_text(),
+                  'inside_uid': os.geteuid(), 'recorded_parent_uid': parent_uid,
+                  'translated_parent_uid': translated, 'host_qualified': False}))
+'''
+        import linux_idmap
+        source = str(Path(linux_idmap.__file__).parent.parent)
+        result = subprocess.run([sys.executable, "-I", "-S", "-B", "-c", child, source],
+                                capture_output=True, text=True, timeout=10)
+        if result.returncode == 77:
+            evidence = json.loads(result.stdout)
+            self.skipTest(f"isolated user namespace setup unavailable: {evidence}")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        evidence = json.loads(result.stdout)
+        self.assertEqual(evidence["recorded_parent_uid"], evidence["translated_parent_uid"])
+        self.assertFalse(evidence["host_qualified"])
 
 
 if __name__ == "__main__":

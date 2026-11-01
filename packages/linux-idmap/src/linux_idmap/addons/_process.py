@@ -4,7 +4,8 @@ import os
 import re
 
 from . import host as _proc
-from .host import HostMap, Procfs, ProcessIdentity, require_host, _directory, _parse_stat, _validate_pid, _DEAD_STATES
+from ..core import IdMap
+from .host import Procfs, ProcessIdentity, require_host, _directory, _parse_stat, _validate_pid, _DEAD_STATES
 from .errors import IdentityError
 from .observation import ProcessObservation
 
@@ -46,7 +47,7 @@ class ProbeProcesses(Procfs):
             if not read_maps:
                 return identity
             return ProcessObservation(identity.pid, identity.starttime, identity.proc_device,
-                                      identity.proc_inode, HostMap(maps.uid_map), HostMap(maps.gid_map))
+                                      identity.proc_inode, IdMap(maps.uid_map), IdMap(maps.gid_map))
 
     def pid_absent(self, pid: int) -> bool:
         """Conservative retirement proof when an exact identity was unavailable."""

@@ -1,7 +1,8 @@
 # linux-idmap
 
 Read a Linux process's UID/GID map rows. The complete core is
-[`core.py`](src/linux_idmap/core.py): one page, plus the root re-export file.
+[`core.py`](src/linux_idmap/core.py): one page of logic plus plain record
+definitions, with only the root re-export file alongside it.
 It uses only Python's standard library; Docker is not required.
 
 ```python
@@ -12,7 +13,8 @@ for row in maps.uid_map:
     print(row.inside, row.outside, row.length)
 ```
 
-The core returns immutable, ordered tuples of named `IdRange` rows. It samples
+`parse_map`, `read_maps` and `observe_process` return immutable, ordered tuples
+of named `IdRange` rows (grouped in `Maps` for UID/GID pairs). Observation samples
 two files independently; it does not claim host coordinates, a live/stable
 process, an atomic UID/GID snapshot, or an ID conversion operation.
 
@@ -31,6 +33,26 @@ fields. It eagerly requires exactly three integer columns per line, raising
 `ValueError` for malformed rows. It is not a validator for arbitrary imported
 mappings, and numeric validation cannot recover missing namespace context.
 
+### Explicit affine conversion
+
+```python
+from linux_idmap import IdMap
+
+# Only when the caller knows these rows are affine in the intended coordinates:
+outside_uid = IdMap(rows).translate(1000)
+```
+
+`IdMap(rows)` is a caller assertion, not validation or namespace qualification.
+Its precondition is usable affine ranges in known outside coordinates. For
+example, a process reading its own map can convert to its immediate parent's
+coordinates without claiming host coordinates. The boundary tests exercise this
+in a real isolated child user namespace.
+
+`translate` rejects noninteger, reserved and unmapped input IDs, and refuses
+reserved or out-of-range output IDs. That last guard is not a table validator:
+it cannot detect a plausible but incorrect answer from a fragmented reader.
+Parsing never automatically constructs an `IdMap`.
+
 ## Explicit add-ons
 
 An add-on is a separately imported source/context or guarantee-refining
@@ -47,11 +69,10 @@ host_uid = maps.uid_map.translate(1000)
 ```
 
 This adds genuine procfs, bounded reads, pinned process identity and repeated
-reader/process/map checks, plus initial-user-namespace qualification. Only this
-qualified observation and the managed probe produce `HostMap` conversion
-values. `HostMap(rows)` itself does not verify provenance; its constructor is
-not a certificate. `translate` rejects noninteger, reserved and unmapped input
-IDs with `ValueError`.
+reader/process/map checks, plus initial-user-namespace qualification. The qualified
+observation and managed probe construct the same neutral `IdMap` value, with
+its host-coordinate precondition established by these source checks. They do
+not introduce a second mapping type.
 
 Reading through the lower-level `coherent_process(pid)` checked source or
 `consistent_maps(read_file)` still yields raw rows. `qualified_process(pid)`
@@ -127,6 +148,7 @@ remain unqualified; do not deploy this candidate on the strength of unit tests.
 Provider-specific candidate migrations live **outside this distribution**, in
 [`integrations/linux-idmap`](../../integrations/linux-idmap). They opt into the
 probe and confinement add-ons. No legacy branded API compatibility shim is
-included in this unreleased `0.3.0a2` candidate. The raw `IdMap` wrapper and its conversion
-method were removed; raw callers now iterate row tuples. Qualified add-on
-results retain `.rows`, `.translate`, and named-row JSON output.
+included in this unreleased `0.3.0a2` candidate. Raw callers now iterate row tuples, not
+automatically translating `IdMap` wrappers. Explicit `IdMap(rows)` construction
+and qualified add-on results retain `.rows`, `.translate`, and named-row JSON
+output.

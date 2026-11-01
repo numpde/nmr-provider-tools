@@ -1,5 +1,5 @@
 diff --git a/README.md b/README.md
-index 2f14e3197d7c68f0154fe205707bcd78c94b7473..10eae71213dbdc25ede27604216431f84b9e7079 100644
+index 2f14e3197d7c68f0154fe205707bcd78c94b7473..28524c53543b0167644933b1d630d3b13c726dda 100644
 --- a/README.md
 +++ b/README.md
 @@ -17,3 +17,43 @@ on the Make command line. When omitted in a terminal, it offers a menu of
@@ -19,7 +19,7 @@ index 2f14e3197d7c68f0154fe205707bcd78c94b7473..10eae71213dbdc25ede27604216431f8
 +
 +```sh
 +python3 -m venv "$HOME/.local/share/linux-idmap"
-+"$HOME/.local/share/linux-idmap/bin/python" -m pip install --force-reinstall --no-index --no-deps /absolute/path/to/linux_idmap-0.3.0a1-py3-none-any.whl
++"$HOME/.local/share/linux-idmap/bin/python" -m pip install --force-reinstall --no-index --no-deps /absolute/path/to/linux_idmap-0.3.0a2-py3-none-any.whl
 +export PATH="$HOME/.local/share/linux-idmap/bin:$PATH"
 +linux-idmap-probe --help
 +```

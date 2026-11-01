@@ -3,9 +3,10 @@
 ## The boundary
 
 The core is `core.py` plus the root re-exports. Its records contain kernel rows;
-it samples and parses, without inferring an ID conversion. A supplied
-`read_file(name) -> bytes` must return kernel-format rows for `uid_map` and `gid_map`. This is a narrow data
-boundary, not an arbitrary-file or plugin API. Supplied readers are responsible
+it samples and parses without inferring an ID conversion. Explicit `IdMap(rows)`
+construction asserts the affine conversion precondition; it does not check it.
+A supplied `read_file(name) -> bytes` must return kernel-format rows for
+`uid_map` and `gid_map`. This is a narrow data boundary, not an arbitrary-file or plugin API. Supplied readers are responsible
 for provenance and lifetime; the core does not silently certify them.
 
 An **add-on** is separately imported code that supplies that reader inside an
@@ -23,7 +24,7 @@ Composition order matters:
 3. `consistent_maps(source.read)` uses the **core parser twice** and rejects
    disagreement. It still returns raw rows, not host-qualified values.
    Context exit checks reader/process identity again.
-4. `observe_host_process` wraps rows in `HostMap` only inside the qualified
+4. `observe_host_process` wraps rows in `IdMap` only inside the qualified
    scope; successful exit earns its host conversion precondition.
 5. The Docker adapter additionally requires initial PID coordinates and brackets
    the map reads with ownership-token checks **inside that same pinned scope**.
@@ -37,10 +38,12 @@ snapshot and cannot detect every transient change or namespace ABA. Opening a
 target namespace FD is deliberately not required: it adds ptrace permissions
 that readable map files do not require.
 
-`HostMap` is a plain value, not an unforgeable certificate. Direct construction
-assumes its rows came from an initial-user-qualified source; it does not check
-arbitrary data. Generic `consistent_maps` cannot earn that provenance merely
-by seeing the same bytes twice.
+`IdMap` is a neutral arithmetic value, not an unforgeable certificate. Direct
+construction assumes usable affine ranges in the intended outside coordinates;
+it does not check arbitrary data. Generic `consistent_maps` cannot earn host
+provenance merely by seeing the same bytes twice. Host observations establish
+that stronger precondition through their checked sources, not a specialized
+map class.
 
 The distinction is semantic, not an overflow patch. Linux
 [prints only the projected first outside ID of each extent](https://github.com/torvalds/linux/blob/v6.17/kernel/user_namespace.c#L610-L650)
@@ -48,8 +51,10 @@ and preserves its count; an unmapped projection
 [returns UINT32_MAX](https://github.com/torvalds/linux/blob/v6.17/kernel/user_namespace.c#L417-L445).
 A fragmented sibling reader can also receive ordinary-looking rows that do not
 encode the full conversion. No byte-only range check can reconstruct it. Some
-noninitial namespace relationships do allow affine conversion, but supporting
-those relationships is outside this add-on's host-coordinate contract.
+noninitial namespace relationships do allow affine conversion: self-to-parent
+is exercised by a real isolated-child scenario and uses the same explicit
+`IdMap`. Its output-ID bounds guard refuses unusable results but does not repair
+fragmented-reader information loss.
 
 ## Scenarios that earn retained capabilities
 
@@ -61,6 +66,7 @@ flow, not actual Docker isolation or daemon behavior.
 | Standalone core | No Docker/add-on installation → actual tokenless child maps still readable | `test_core.py::test_two_file_core_reads_real_tokenless_child_without_addons_or_path` physically copies only two files and empties PATH |
 | Checked source / host refinement | Raw rows readable in a nested USER namespace but not certified host IDs → explicit host refinement refuses; coherent source alone still works | `test_addon_scenarios.py::test_existing_tokenless_process_needs_neither_docker_nor_host_qualification` uses genuine procfs with no substitutions |
 | Raw evidence versus conversion | Real isolated child reading its ancestor sees an unmapped sentinel; legal source-model sibling readers see identical rows but require different conversions → raw tuples offer no translation, host qualification refuses the child | `test_map_boundary.py` isolates `unshare` in a subprocess; its fragmented-reader test is explicitly a kernel-source model, not a privileged integration test |
+| Neutral affine arithmetic | A valid self-to-parent mapping is useful without host qualification → explicit `IdMap(rows)` converts it while host observation still refuses the source | `test_map_boundary.py::test_real_self_map_supports_explicit_nonhost_parent_conversion` creates and maps only a short-lived child user namespace; output sentinel/overflow cases are separately refused |
 | Repeated observations | One sample accepts first rows → changed second UID sample is refused | `test_addon_scenarios.py::test_repeated_source_rejects_change_that_single_sample_cannot_detect` |
 | Pinned process lifetime | Rows read before process exit remain ordinary raw data → checked scope refuses successful release after exit | `test_addon_scenarios.py::test_process_exit_is_detected_before_qualified_scope_returns`; `test_host_addon.py` covers PID reuse, token mismatch, proc replacement |
 | Docker PID coordinates | Caller-visible process maps are meaningful without initial PID namespace → daemon host PIDs require the additional guard | `test_host_addon.py::test_nested_pid_namespace_rejected_even_if_user_initial` uses controlled namespace evidence |

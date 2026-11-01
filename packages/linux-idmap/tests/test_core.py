@@ -59,7 +59,8 @@ class CoreTests(unittest.TestCase):
 import sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
-from linux_idmap import observe_process
+from linux_idmap import IdMap, IdRange, observe_process
+assert IdMap((IdRange(0, 1000, 1),)).translate(0) == 1000
 pid = int(sys.argv[2])
 observed = observe_process(pid)
 for name in ('uid_map', 'gid_map'):

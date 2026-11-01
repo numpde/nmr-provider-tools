@@ -9,7 +9,7 @@ import unittest
 from helpers import CID, IMAGE, container_for, request
 from linux_idmap.addons.docker import Container, DockerError, INSPECT_FORMAT
 from linux_idmap.core import IdRange, parse_map as parse_id_map
-from linux_idmap.addons.host import HostMap
+from linux_idmap import IdMap
 from linux_idmap.addons.model import Bounds, StepError
 from linux_idmap.addons.spec import ProbeSpec
 
@@ -37,7 +37,7 @@ class MapContractTests(unittest.TestCase):
                     self.assertEqual(direct, parsed)
                     for identifier in range(inside + 1):
                         # Synthetic coordinate-qualified fixtures test affine arithmetic.
-                        for mapping in (HostMap(direct), HostMap(parsed)):
+                        for mapping in (IdMap(direct), IdMap(parsed)):
                             if identifier in oracle:
                                 self.assertEqual(oracle[identifier], mapping.translate(identifier))
                             else:
@@ -50,13 +50,13 @@ class MapContractTests(unittest.TestCase):
         oracle = {0: maximum - 2, 1: maximum - 1, 2: maximum,
                   maximum - 2: 0, maximum - 1: 1, maximum: 2}
         for ordering in permutations(rows):
-            mapping = HostMap(ordering)
+            mapping = IdMap(ordering)
             for identifier, expected in oracle.items():
                 self.assertEqual(expected, mapping.translate(identifier))
             for identifier in (-1, 3, maximum - 3, maximum + 1, maximum + 2, True, False, 1.0, "1", None):
                 with self.subTest(identifier=identifier), self.assertRaises(ValueError):
                     mapping.translate(identifier)
-        full = HostMap(parse_id_map(b"0 0 4294967295\n"))
+        full = IdMap(parse_id_map(b"0 0 4294967295\n"))
         self.assertEqual(maximum, full.translate(maximum))
 
 

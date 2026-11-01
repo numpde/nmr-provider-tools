@@ -13,6 +13,27 @@ class IdRange:
 
 
 @dataclass(frozen=True)
+class IdMap:
+    """Caller-asserted usable affine rows in the intended outside coordinates.
+
+    Construction establishes neither row validity nor source provenance.
+    """
+
+    rows: tuple[IdRange, ...]
+
+    def translate(self, identifier: int) -> int:
+        if type(identifier) is not int or not 0 <= identifier < 2**32 - 1:
+            raise ValueError("identifier is not a usable Linux ID")
+        for row in self.rows:
+            if row.inside <= identifier < row.inside + row.length:
+                outside = row.outside + identifier - row.inside
+                if type(outside) is not int or not 0 <= outside < 2**32 - 1:
+                    raise ValueError("outside identifier is not a usable Linux ID")
+                return outside
+        raise ValueError("identifier is not mapped")
+
+
+@dataclass(frozen=True)
 class Maps:
     uid_map: tuple[IdRange, ...]
     gid_map: tuple[IdRange, ...]

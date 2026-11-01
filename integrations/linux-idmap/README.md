@@ -16,7 +16,7 @@ git -C /path/to/clean-review write-tree
 ```
 
 The resulting tree must match the manifest. Install the reviewed `linux-idmap`
-0.3.0a1 wheel in the chosen host Python 3.11+ environment, then run:
+0.3.0a2 wheel in the chosen host Python 3.11+ environment, then run:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
@@ -25,7 +25,10 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
 
 ## Selected add-ons and scenario evidence
 
-Neither adapter uses unqualified core samples as host permission authority.
+Neither adapter uses unqualified core row tuples as host permission authority.
+The managed probe returns `IdMap` values with `.translate()` and `.rows` only
+after host qualification. Synthetic fixtures construct the same affine value
+explicitly; constructing `IdMap` does not establish host provenance.
 
 - **NMRPeak:** imports `linux_idmap.addons.probe.probe_identity`, explicitly
   requests `confine=True`, then translates the returned host-qualified mappings
