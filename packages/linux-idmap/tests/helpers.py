@@ -3,7 +3,8 @@
 from dataclasses import replace
 
 from linux_idmap.addons.docker import Container, EngineIdentity
-from linux_idmap.core import IdMap, IdRange
+from linux_idmap.core import IdRange
+from linux_idmap.addons.host import HostMap
 from linux_idmap.addons.observation import ProcessObservation
 from linux_idmap.addons.model import Bounds, ProbeRequest
 from linux_idmap.addons.spec import OWNER
@@ -11,7 +12,7 @@ from linux_idmap.addons.spec import OWNER
 CID = "c" * 64
 IMAGE = "sha256:" + "a" * 64
 OBSERVATION = ProcessObservation(42, 123, 7, 99,
-    IdMap((IdRange(0, 100000, 65536),)), IdMap((IdRange(0, 200000, 65536),)))
+    HostMap((IdRange(0, 100000, 65536),)), HostMap((IdRange(0, 200000, 65536),)))
 
 
 def request():

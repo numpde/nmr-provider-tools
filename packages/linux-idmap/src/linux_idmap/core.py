@@ -13,30 +13,17 @@ class IdRange:
 
 
 @dataclass(frozen=True)
-class IdMap:
-    rows: tuple[IdRange, ...]
-
-    def translate(self, identifier: int) -> int:
-        if type(identifier) is not int or not 0 <= identifier < 2**32 - 1:
-            raise ValueError("identifier is not a usable Linux ID")
-        for row in self.rows:
-            if row.inside <= identifier < row.inside + row.length:
-                return row.outside + identifier - row.inside
-        raise ValueError("identifier is not mapped")
-
-
-@dataclass(frozen=True)
 class Maps:
-    uid_map: IdMap
-    gid_map: IdMap
+    uid_map: tuple[IdRange, ...]
+    gid_map: tuple[IdRange, ...]
 
 
-def parse_map(raw: bytes) -> IdMap:
+def parse_map(raw: bytes) -> tuple[IdRange, ...]:
     rows = []
     for line in raw.splitlines():
-        inside, outside, length = (int(column) for column in line.split())
+        inside, outside, length = map(int, line.split())
         rows.append(IdRange(inside, outside, length))
-    return IdMap(tuple(rows))
+    return tuple(rows)
 
 
 def read_maps(read_file: Callable[[str], bytes]) -> Maps:

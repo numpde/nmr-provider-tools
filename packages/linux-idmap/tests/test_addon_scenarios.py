@@ -30,7 +30,7 @@ class SourceRefinementScenarios(unittest.TestCase):
                     observe_host_process(child.pid)
                 self.assertEqual('host-precondition', caught.exception.category)
             else:
-                self.assertEqual(raw.uid_map, observe_host_process(child.pid).uid_map)
+                self.assertEqual(raw.uid_map, observe_host_process(child.pid).uid_map.rows)
         finally:
             child.terminate()
             child.wait(timeout=3)
@@ -39,7 +39,7 @@ class SourceRefinementScenarios(unittest.TestCase):
         def changing_source():
             readings = iter((b'0 1000 1\n', b'0 2000 1\n'))
             return lambda name: next(readings) if name == 'uid_map' else b'0 3000 1\n'
-        self.assertEqual(1000, read_maps(changing_source()).uid_map.translate(0))
+        self.assertEqual(1000, read_maps(changing_source()).uid_map[0].outside)
         with self.assertRaises(IdentityError):
             host.consistent_maps(changing_source())
 
@@ -48,7 +48,7 @@ class SourceRefinementScenarios(unittest.TestCase):
         try:
             with self.assertRaises(IdentityError):
                 with host.coherent_process(child.pid) as source:
-                    self.assertTrue(read_maps(source.read).uid_map.rows)
+                    self.assertTrue(read_maps(source.read).uid_map)
                     child.terminate()
                     child.wait(timeout=3)
         finally:
@@ -118,7 +118,7 @@ class ManagedProbeScenarios(unittest.TestCase):
         self.assertEqual(1, engine.events.count('create'))
 
     def test_invalid_retirement_sample_does_not_skip_verified_cleanup(self):
-        for malformed in (b'not integers\n', b'0 1\n'):
+        for malformed in (b'not integers\n', b'0 1\n', b'0 1 2 3\n'):
             with self.subTest(malformed=malformed):
                 engine, guard = Engine(), Guard()
                 observations = []

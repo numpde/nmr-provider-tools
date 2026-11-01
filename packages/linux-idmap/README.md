@@ -1,6 +1,6 @@
 # linux-idmap
 
-Read a Linux process's UID/GID maps and translate IDs. The complete core is
+Read a Linux process's UID/GID map rows. The complete core is
 [`core.py`](src/linux_idmap/core.py): one page, plus the root re-export file.
 It uses only Python's standard library; Docker is not required.
 
@@ -8,19 +8,26 @@ It uses only Python's standard library; Docker is not required.
 from linux_idmap import observe_process
 
 maps = observe_process(pid)
-outside_uid = maps.uid_map.translate(1000)
+for row in maps.uid_map:
+    print(row.inside, row.outside, row.length)
 ```
 
-**Raw outside IDs are not permission authority.** They follow the kernel's
-namespace-dependent `/proc/PID/uid_map` and `gid_map` semantics. In particular,
-reading a process in the reader's own user namespace reports its mapping into
-its parent namespace. The core does not claim host coordinates, a live/stable
-process, or an atomic UID/GID snapshot. It samples two files independently.
-`translate` rejects noninteger, reserved and unmapped IDs with `ValueError`.
+The core returns immutable, ordered tuples of named `IdRange` rows. It samples
+two files independently; it does not claim host coordinates, a live/stable
+process, an atomic UID/GID snapshot, or an ID conversion operation.
 
-The parser accepts the kernel's three-integer rows. It is not a validator for
-arbitrary imported or hand-constructed mappings; range and disjointness
-validation belongs to the kernel that supplied them.
+**Reported rows are not necessarily a usable conversion table.** Depending on
+the reader's user namespace, Linux can report `4294967295` for an unmapped
+outside ID. Even ordinary-looking numbers can lose information: the kernel
+projects only an extent's first outside ID into the reader namespace, leaving
+its length unchanged. That projection need not remain contiguous. See the
+[kernel emission code](https://github.com/torvalds/linux/blob/v6.17/kernel/user_namespace.c#L610-L650)
+and [boundary scenarios](tests/test_map_boundary.py).
+
+`parse_map(bytes)` preserves reported rows, including empty maps and sentinel
+fields. It eagerly requires exactly three integer columns per line, raising
+`ValueError` for malformed rows. It is not a validator for arbitrary imported
+mappings, and numeric validation cannot recover missing namespace context.
 
 ## Explicit add-ons
 
@@ -31,20 +38,25 @@ implementation per backend. No registry, mixin hierarchy or implicit discovery
 is needed. See the [contracts and necessity scenarios](ADDONS.md).
 
 ```python
-from linux_idmap.addons.host import qualified_process, consistent_maps
+from linux_idmap.addons.observation import observe_host_process
 
-with qualified_process(pid) as process:
-    maps = consistent_maps(process.read)
-# Use maps only after successful context exit.
+maps = observe_host_process(pid)
+host_uid = maps.uid_map.translate(1000)
 ```
 
 This adds genuine procfs, bounded reads, pinned process identity and repeated
-reader/process/map checks, plus initial-user-namespace qualification. The
-`observe_host_process(pid)` convenience function in `addons.observation`
-assembles the same checks. It never creates or stops the observed process.
-`coherent_process(pid)` supplies the same checked source without requiring
-host-relative coordinates. Neither promises an atomic snapshot or immunity to
-changes that occur and reverse between checks.
+reader/process/map checks, plus initial-user-namespace qualification. Only this
+qualified observation and the managed probe produce `HostMap` conversion
+values. `HostMap(rows)` itself does not verify provenance; its constructor is
+not a certificate. `translate` rejects noninteger, reserved and unmapped input
+IDs with `ValueError`.
+
+Reading through the lower-level `coherent_process(pid)` checked source or
+`consistent_maps(read_file)` still yields raw rows. `qualified_process(pid)`
+additionally checks the reader's initial user namespace; values read inside a
+scope must not be used if its exit fails. None promises an atomic snapshot or
+immunity to changes that occur and reverse between checks. Observing an existing
+process never creates or stops it.
 
 ### A local image before deployment
 
@@ -113,4 +125,6 @@ remain unqualified; do not deploy this candidate on the strength of unit tests.
 Provider-specific candidate migrations live **outside this distribution**, in
 [`integrations/linux-idmap`](../../integrations/linux-idmap). They opt into the
 probe and confinement add-ons. No legacy branded API compatibility shim is
-included in this unreleased `0.3.0a1` candidate.
+included in this unreleased `0.3.0a2` candidate. The raw `IdMap` wrapper and its conversion
+method were removed; raw callers now iterate row tuples. Qualified add-on
+results retain `.rows`, `.translate`, and named-row JSON output.

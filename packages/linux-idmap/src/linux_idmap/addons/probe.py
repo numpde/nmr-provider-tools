@@ -6,9 +6,8 @@ import threading
 import time
 
 from .docker import Container, DockerEngine, DockerError
-from ..core import IdMap
 from .errors import IdentityError
-from .host import ProcessIdentity
+from .host import HostMap, ProcessIdentity
 from .observation import ProcessObservation
 from ._process import ProbeProcesses
 from .model import Bounds, Problem, ProbeFailure, ProbeHandle, ProbeRequest, ResourceState, Retirement, StepError
@@ -19,8 +18,8 @@ __all__ = ["Bounds", "ProbeRequest", "ProbeFailure", "ProbeResult", "probe_ident
 
 @dataclass(frozen=True)
 class ProbeResult:
-    uid_map: IdMap
-    gid_map: IdMap
+    uid_map: HostMap
+    gid_map: HostMap
     container_id: str
 
     def as_dict(self) -> dict:

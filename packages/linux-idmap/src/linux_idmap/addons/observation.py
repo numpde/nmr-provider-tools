@@ -2,14 +2,13 @@
 
 from dataclasses import dataclass
 
-from .host import qualified_process, ProcessIdentity
-from ..core import IdMap
+from .host import HostMap, qualified_process, ProcessIdentity
 
 
 @dataclass(frozen=True)
 class ProcessObservation(ProcessIdentity):
-    uid_map: IdMap
-    gid_map: IdMap
+    uid_map: HostMap
+    gid_map: HostMap
 
 
 def observe_host_process(pid: int) -> ProcessObservation:
@@ -23,4 +22,4 @@ def observe_host_process(pid: int) -> ProcessObservation:
         maps = process.read_maps()
         identity = process.identity
         return ProcessObservation(identity.pid, identity.starttime, identity.proc_device,
-                           identity.proc_inode, maps.uid_map, maps.gid_map)
+                                  identity.proc_inode, HostMap(maps.uid_map), HostMap(maps.gid_map))

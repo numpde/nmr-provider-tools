@@ -16,7 +16,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from linux_idmap.addons.host import ReaderEvidence
+from linux_idmap.addons.host import HostMap, ReaderEvidence
 from linux_idmap.core import parse_map as parse_id_map
 from linux_idmap.addons.errors import IdentityError
 from linux_idmap.addons._process import ProbeProcesses
@@ -111,7 +111,8 @@ class OperationFaultTests(unittest.TestCase):
 
     def test_success_uses_selected_endpoint_and_retires_real_probe_process(self):
         result = probe_identity(self.request)
-        expected = parse_id_map(Path("/proc/self/uid_map").read_bytes()).translate(os.getuid())
+        # The fixture explicitly substitutes qualification for both observation and reference.
+        expected = HostMap(parse_id_map(Path("/proc/self/uid_map").read_bytes())).translate(os.getuid())
         self.assertEqual(expected, result.uid_map.translate(os.getuid()))
         self.assertIsNone(self.state()["container"])
         self.assertEqual(1, len(self.calls("create")))

@@ -8,7 +8,8 @@ from unittest.mock import Mock, patch
 
 from linux_idmap.addons.probe import ProbeFailure, ResourceState, probe_identity
 from linux_idmap.addons.docker import DockerError
-from linux_idmap.core import IdMap, IdRange
+from linux_idmap.core import IdRange
+from linux_idmap.addons.host import HostMap
 from linux_idmap.addons.errors import IdentityError
 from linux_idmap.addons.model import Bounds
 from helpers import CID, Engine, Guard, OBSERVATION, request
@@ -81,7 +82,8 @@ class OperationTests(unittest.TestCase):
         self.assertNotIn("start", self.engine.events)
 
     def test_cancellation_before_dispatch_does_not_create(self):
-        cancel = threading.Event(); cancel.set()
+        cancel = threading.Event()
+        cancel.set()
         self.assertEqual(ResourceState.NOT_CREATED, self.failure(cancel=cancel).retirement.state)
         self.assertNotIn("create", self.engine.events)
 
@@ -131,7 +133,7 @@ class OperationTests(unittest.TestCase):
             nonlocal calls
             calls += 1
             if calls == 2:
-                guard.observation = replace(OBSERVATION, uid_map=IdMap((IdRange(0, 300000, 65536),)))
+                guard.observation = replace(OBSERVATION, uid_map=HostMap((IdRange(0, 300000, 65536),)))
         self.guard.on_observe = change
         self.assertEqual("process-identity", self.failure().problem.category)
 

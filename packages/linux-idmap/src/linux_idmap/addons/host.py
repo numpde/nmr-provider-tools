@@ -12,7 +12,7 @@ import re
 import sys
 import threading
 
-from ..core import read_maps
+from ..core import IdRange, read_maps
 from .errors import IdentityError
 
 
@@ -37,6 +37,24 @@ _LIVE_STATES = frozenset("RSDTtWIKP")
 # Linux proc stat states that establish process exit.
 # repo-check: allow-module-constant
 _DEAD_STATES = frozenset("ZXx")
+
+
+@dataclass(frozen=True)
+class HostMap:
+    """A map supplied by an initial-user-namespace-qualified observation.
+
+    Construction itself does not establish provenance or process continuity.
+    """
+
+    rows: tuple[IdRange, ...]
+
+    def translate(self, identifier: int) -> int:
+        if type(identifier) is not int or not 0 <= identifier < 2**32 - 1:
+            raise ValueError("identifier is not a usable Linux ID")
+        for row in self.rows:
+            if row.inside <= identifier < row.inside + row.length:
+                return row.outside + identifier - row.inside
+        raise ValueError("identifier is not mapped")
 
 
 @dataclass(frozen=True)

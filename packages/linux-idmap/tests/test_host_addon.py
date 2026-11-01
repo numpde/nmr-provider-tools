@@ -12,7 +12,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from linux_idmap.addons.host import ReaderEvidence, _parse_stat
+from linux_idmap.addons.host import HostMap, ReaderEvidence, _parse_stat
 from linux_idmap.addons.errors import IdentityError
 from linux_idmap.addons.observation import ProcessObservation
 from linux_idmap.addons._process import ProbeProcesses
@@ -31,6 +31,12 @@ class StatTests(unittest.TestCase):
 
 
 class HostGuardTests(unittest.TestCase):
+    def test_empty_qualified_map_rejects_unmapped_or_invalid_ids(self):
+        mapping = HostMap(())
+        for identifier in (0, -1, True, 1.0, '1', 2**32 - 1):
+            with self.subTest(identifier=identifier), self.assertRaises(ValueError):
+                mapping.translate(identifier)
+
     def test_regular_directory_masquerading_as_proc_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaises(IdentityError) as caught:

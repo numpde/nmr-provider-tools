@@ -8,7 +8,8 @@ import unittest
 
 from helpers import CID, IMAGE, container_for, request
 from linux_idmap.addons.docker import Container, DockerError, INSPECT_FORMAT
-from linux_idmap.core import IdMap, IdRange, parse_map as parse_id_map
+from linux_idmap.core import IdRange, parse_map as parse_id_map
+from linux_idmap.addons.host import HostMap
 from linux_idmap.addons.model import Bounds, StepError
 from linux_idmap.addons.spec import ProbeSpec
 
@@ -31,11 +32,12 @@ class MapContractTests(unittest.TestCase):
             for ordering in permutations(rows):
                 raw = "\n".join(f" {row.inside}\t{row.outside} {row.length} " for row in ordering).encode()
                 parsed = parse_id_map(raw + b"\n")
-                direct = IdMap(ordering)
+                direct = ordering
                 with self.subTest(case=case, rows=ordering):
                     self.assertEqual(direct, parsed)
                     for identifier in range(inside + 1):
-                        for mapping in (direct, parsed):
+                        # Synthetic coordinate-qualified fixtures test affine arithmetic.
+                        for mapping in (HostMap(direct), HostMap(parsed)):
                             if identifier in oracle:
                                 self.assertEqual(oracle[identifier], mapping.translate(identifier))
                             else:
@@ -48,13 +50,13 @@ class MapContractTests(unittest.TestCase):
         oracle = {0: maximum - 2, 1: maximum - 1, 2: maximum,
                   maximum - 2: 0, maximum - 1: 1, maximum: 2}
         for ordering in permutations(rows):
-            mapping = IdMap(ordering)
+            mapping = HostMap(ordering)
             for identifier, expected in oracle.items():
                 self.assertEqual(expected, mapping.translate(identifier))
             for identifier in (-1, 3, maximum - 3, maximum + 1, maximum + 2, True, False, 1.0, "1", None):
                 with self.subTest(identifier=identifier), self.assertRaises(ValueError):
                     mapping.translate(identifier)
-        full = parse_id_map(b"0 0 4294967295\n")
+        full = HostMap(parse_id_map(b"0 0 4294967295\n"))
         self.assertEqual(maximum, full.translate(maximum))
 
 
