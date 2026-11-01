@@ -32,10 +32,6 @@ class Bounds:
             raise StepError("invalid-policy", "probe lifetime must be an integer between 1 and 3600 seconds")
 
 
-def valid_id(value: int) -> bool:
-    return type(value) is int and 0 <= value < 2**32 - 1
-
-
 @dataclass(frozen=True)
 class ProbeRequest:
     endpoint: str
@@ -56,7 +52,8 @@ class ProbeRequest:
         if (not isinstance(self.image, str)
                 or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/@+-]{0,511}", self.image) is None):
             raise StepError("invalid-policy", "image must be an explicit bounded identifier")
-        if not valid_id(self.user_uid) or not valid_id(self.user_gid):
+        if not all(type(value) is int and 0 <= value < 2**32 - 1
+                   for value in (self.user_uid, self.user_gid)):
             raise StepError("invalid-policy", "IDs must be integers from 0 through 4294967294")
         if self.userns_mode not in ("default", "host"):
             raise StepError("invalid-policy", "user namespace policy must be default or host")
