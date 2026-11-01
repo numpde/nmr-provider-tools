@@ -10,13 +10,13 @@ import threading
 import time
 from dataclasses import asdict, replace
 
-from provider_deploy.spec import ProbeSpec, PROBE_SCRIPT, OWNER
+from provider_deploy.spec import ProbeSpec, PROBE_SCRIPT
 from helpers import container_for, request
 import unittest
 from unittest.mock import Mock, patch
 
 from provider_deploy.docker import (
-    DockerEngine, DockerError, OWNER_LABEL, TOKEN_LABEL,
+    DockerEngine, DockerError,
     _run_command, _clean_environment, _socket_identity,
 )
 
@@ -347,14 +347,17 @@ class EngineTests(unittest.TestCase):
         self.assertEqual(CID, result)
         args, kwargs = next((a, k) for a, k in self.calls if "create" in a)
         self.assertTrue(kwargs["mutation"])
-        self.assertIn("--pull=never", args)
-        self.assertIn(TOKEN_LABEL + "=" + TOKEN, args)
-        self.assertIn(OWNER_LABEL + "=" + OWNER, args)
-        self.assertIn("--userns=host", args)
-        self.assertIn("1000:2000", args)
-        self.assertEqual(["-I", "-S", "-B", "-c", PROBE_SCRIPT, "30", TOKEN], args[-7:])
-        self.assertIn("--rm", args)
-        self.assertNotIn("--privileged", args)
+        self.assertEqual([
+            "container", "create", "--pull=never", "--name", "provider-deploy-" + TOKEN,
+            "--label", "org.nmr.provider-deploy.operation=identity-v2",
+            "--label", "org.nmr.provider-deploy.token=" + TOKEN,
+            "--user", "1000:2000", "--restart", "no", "--no-healthcheck",
+            "--rm", "--network", "none", "--read-only", "--cap-drop", "ALL",
+            "--security-opt", "no-new-privileges:true", "--pids-limit", "8",
+            "--memory", "64m", "--memory-swap", "64m", "--cpus", "0.25", "--userns=host",
+            "--entrypoint", "/usr/bin/python3", IMAGE, "-I", "-S", "-B", "-c",
+            "import sys,time; time.sleep(int(sys.argv[1]))", "30", TOKEN,
+        ], args[5:])
 
     def test_changed_daemon_stops_before_mutation(self):
         self.daemon = "daemon-b"

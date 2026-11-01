@@ -151,6 +151,23 @@ class IsolationEvidenceContractTests(unittest.TestCase):
                         self.engine.inspect(CID, timeout=1)
                 self.assertEqual("invalid_response", caught.exception.category)
 
+    def test_each_fixed_isolation_value_is_verified_with_its_exact_type(self):
+        changed = {
+            "AutoRemove": (False, 1), "NetworkMode": ("host", None),
+            "ReadonlyRootfs": (False, 1), "CapDrop": ([], "ALL"),
+            "SecurityOpt": ([], ["no-new-privileges:false"]),
+            "PidsLimit": (0, 8.0), "Memory": (0, 67108864.0),
+            "MemorySwap": (0, 67108864.0), "NanoCpus": (0, 250000000.0),
+        }
+        for field, values in changed.items():
+            for value in values:
+                container = container_for(self.spec)
+                container.isolation[field] = value
+                with self.subTest(field=field, value=value):
+                    with self.assertRaises(StepError) as caught:
+                        self.spec.verify(container, CID)
+                    self.assertEqual("ownership", caught.exception.category)
+
     def test_every_projected_isolation_field_must_be_present(self):
         for field in ISOLATION_FIELDS:
             value = asdict(container_for(self.spec))

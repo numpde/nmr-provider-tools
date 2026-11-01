@@ -5,7 +5,7 @@ from dataclasses import replace
 from provider_deploy.docker import Container, EngineIdentity
 from provider_deploy.linux import IdMap, IdRange, ProcessObservation
 from provider_deploy.model import Bounds, ProbeRequest
-from provider_deploy.spec import OWNER, _RESTRICTIONS
+from provider_deploy.spec import OWNER
 
 CID = "c" * 64
 IMAGE = "sha256:" + "a" * 64
@@ -19,9 +19,15 @@ def request():
 
 
 def container_for(spec):
-    isolation = {field: expected for _flag, _arg, field, expected in _RESTRICTIONS}
-    isolation.update(Privileged=False, PidMode="", CapAdd=None, Devices=None,
-                     DeviceRequests=None, RestartPolicy={"Name": "no"})
+    # Independent inspect oracle: never derive expected safety from production flags.
+    isolation = {
+        "AutoRemove": True, "NetworkMode": "none", "ReadonlyRootfs": True,
+        "CapDrop": ["ALL"], "SecurityOpt": ["no-new-privileges:true"],
+        "PidsLimit": 8, "Memory": 67108864, "MemorySwap": 67108864,
+        "NanoCpus": 250000000, "Privileged": False, "PidMode": "",
+        "CapAdd": None, "Devices": None, "DeviceRequests": None,
+        "RestartPolicy": {"Name": "no"},
+    }
     # silent-defaults: allow-contract -- The fixture models Docker inspect encoding of explicit default versus host user namespaces; tests/test_operation.py::OperationTests.
     return Container(CID, spec.name, IMAGE, spec.token, OWNER, 0, False, "not-started",
                      f"{spec.request.user_uid}:{spec.request.user_gid}", "" if spec.request.userns_mode == "default" else "host",
