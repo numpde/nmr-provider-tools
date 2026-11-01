@@ -1,0 +1,137 @@
+"""Deterministic map properties and projected-evidence contracts, not engine qualification."""
+
+from dataclasses import asdict
+from itertools import permutations
+import json
+import random
+import unittest
+from unittest.mock import patch
+
+from helpers import CID, IMAGE, container_for
+from provider_deploy.docker import DockerEngine, DockerError
+from provider_deploy.linux import IdMap, IdRange, LinuxError, parse_id_map
+from provider_deploy.spec import ISOLATION_FIELDS, ProbeSpec
+
+
+class MapContractTests(unittest.TestCase):
+    def test_gapped_permuted_maps_match_independent_integer_oracle(self):
+        randomizer = random.Random(1729)
+        for case in range(40):
+            inside = randomizer.randrange(4)
+            outside = randomizer.randrange(100, 120)
+            rows = []
+            oracle = {}
+            for _ in range(3):
+                length = randomizer.randrange(1, 7)
+                rows.append(IdRange(inside, outside, length))
+                # Enumerate corresponding IDs rather than repeat translate's interval formula.
+                oracle.update(zip(range(inside, inside + length), range(outside, outside + length)))
+                inside += length + randomizer.randrange(1, 5)
+                outside += length + randomizer.randrange(1, 5)
+            for ordering in permutations(rows):
+                raw = "\n".join(f" {row.inside}\t{row.outside} {row.length} " for row in ordering).encode()
+                parsed = parse_id_map(raw + b"\n")
+                direct = IdMap(ordering)
+                with self.subTest(case=case, rows=ordering):
+                    self.assertEqual(direct, parsed)
+                    for identifier in range(inside + 1):
+                        for mapping in (direct, parsed):
+                            if identifier in oracle:
+                                self.assertEqual(oracle[identifier], mapping.translate(identifier))
+                            else:
+                                with self.assertRaises(LinuxError) as caught:
+                                    mapping.translate(identifier)
+                                self.assertEqual("unmapped-id", caught.exception.category)
+
+    def test_assignable_32_bit_boundary_maps_without_wrapping(self):
+        maximum = 2**32 - 2
+        rows = (IdRange(0, maximum - 2, 3), IdRange(maximum - 2, 0, 3))
+        oracle = {0: maximum - 2, 1: maximum - 1, 2: maximum,
+                  maximum - 2: 0, maximum - 1: 1, maximum: 2}
+        for ordering in permutations(rows):
+            mapping = IdMap(ordering)
+            for identifier, expected in oracle.items():
+                self.assertEqual(expected, mapping.translate(identifier))
+            for identifier in (-1, 3, maximum - 3, maximum + 1, maximum + 2, True, False, 1.0, "1", None):
+                with self.subTest(identifier=identifier), self.assertRaises(LinuxError) as caught:
+                    mapping.translate(identifier)
+                self.assertEqual("unmapped-id", caught.exception.category)
+        full = parse_id_map(b"0 0 4294967295\n")
+        self.assertEqual(maximum, full.translate(maximum))
+
+    def test_inside_and_outside_overlaps_are_rejected_in_every_row_order(self):
+        invalid = (
+            (IdRange(0, 100, 4), IdRange(3, 200, 2)),
+            (IdRange(0, 100, 4), IdRange(10, 103, 2)),
+            (IdRange(0, 100, 4), IdRange(1, 200, 1)),
+            (IdRange(0, 100, 4), IdRange(10, 101, 1)),
+            (IdRange(0, 100, 4), IdRange(0, 100, 4)),
+        )
+        for rows in invalid:
+            for ordering in permutations(rows):
+                raw = "\n".join(f"{row.inside} {row.outside} {row.length}" for row in ordering).encode()
+                with self.subTest(rows=ordering):
+                    with self.assertRaises(LinuxError) as caught:
+                        IdMap(ordering)
+                    self.assertEqual("invalid-map", caught.exception.category)
+                    with self.assertRaises(LinuxError) as caught:
+                        parse_id_map(raw)
+                    self.assertEqual("invalid-map", caught.exception.category)
+
+    def test_range_domains_and_32_bit_overflow_are_rejected(self):
+        maximum = 2**32 - 2
+        invalid = (
+            (-1, 0, 1), (0, -1, 1), (0, 0, 0), (0, 0, -1),
+            (maximum, 0, 2), (0, maximum, 2),
+            (maximum + 1, 0, 1), (0, maximum + 1, 1), (0, 0, maximum + 2),
+        )
+        for values in invalid:
+            with self.subTest(values=values):
+                with self.assertRaises(LinuxError) as caught:
+                    IdMap((IdRange(*values),))
+                self.assertEqual("invalid-map", caught.exception.category)
+                with self.assertRaises(LinuxError) as caught:
+                    parse_id_map(" ".join(str(value) for value in values).encode())
+                self.assertEqual("invalid-map", caught.exception.category)
+        for index in range(3):
+            for invalid_value in (True, False, 1.0, "1", None):
+                values = [0, 100, 2]
+                values[index] = invalid_value
+                with self.subTest(index=index, value=invalid_value), self.assertRaises(LinuxError):
+                    IdMap((IdRange(*values),))
+
+
+class IsolationEvidenceContractTests(unittest.TestCase):
+    def setUp(self):
+        self.spec = ProbeSpec("b" * 32, IMAGE, "/usr/bin/python3", 1000, 2000, "host", 30)
+        # This seam exercises only projection parsing; it does not claim a live engine.
+        self.engine = object.__new__(DockerEngine)
+
+    def test_every_projected_isolation_field_must_be_present(self):
+        for field in ISOLATION_FIELDS:
+            value = asdict(container_for(self.spec))
+            del value["isolation"][field]
+            with self.subTest(field=field):
+                with patch.object(DockerEngine, "_call", return_value=json.dumps(value)):
+                    with self.assertRaises(DockerError) as caught:
+                        self.engine.inspect(CID, timeout=1)
+                self.assertEqual("invalid_response", caught.exception.category)
+
+    def test_unexpected_projected_isolation_field_is_rejected(self):
+        value = asdict(container_for(self.spec))
+        value["isolation"]["Unexpected"] = None
+        with patch.object(DockerEngine, "_call", return_value=json.dumps(value)):
+            with self.assertRaises(DockerError) as caught:
+                self.engine.inspect(CID, timeout=1)
+        self.assertEqual("invalid_response", caught.exception.category)
+
+    def test_present_optional_nulls_and_empty_values_remain_compatible(self):
+        for pid_mode in (None, ""):
+            for optional_list in (None, []):
+                value = asdict(container_for(self.spec))
+                value["isolation"].update(PidMode=pid_mode, CapAdd=optional_list,
+                                          Devices=optional_list, DeviceRequests=optional_list)
+                with self.subTest(pid_mode=pid_mode, optional_list=optional_list):
+                    with patch.object(DockerEngine, "_call", return_value=json.dumps(value)):
+                        container = self.engine.inspect(CID, timeout=1)
+                    self.spec.verify(container, CID)
