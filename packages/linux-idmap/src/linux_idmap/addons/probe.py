@@ -61,7 +61,7 @@ def _problem(error: BaseException) -> Problem:
 
 
 def _errors(error: BaseException | None):
-    """Flatten recorded failures in order; this performs no cleanup."""
+    """Yield the leaf failures in execution order."""
     if isinstance(error, BaseExceptionGroup):
         for cause in error.exceptions:
             yield from _errors(cause)

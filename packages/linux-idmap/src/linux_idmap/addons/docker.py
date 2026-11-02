@@ -1,8 +1,7 @@
 """Bounded Docker CLI transport pinned to one explicitly selected local engine.
 
-This module never pulls an image and does not itself grant ownership to callers.
-The complete identity operation verifies ownership before calling ``remove``.
-Engine command output is parsed locally and never used as a diagnostic message.
+The probe verifies ownership before calling ``remove``. Engine output is parsed
+locally; failures carry redacted diagnostic messages.
 """
 from __future__ import annotations
 
@@ -22,7 +21,7 @@ from typing import Mapping
 
 from ._files import FileIdentity
 from .spec import OWNER_LABEL, TOKEN_LABEL, ISOLATION_FIELDS
-# Transport memory bound, not an engine-selected setting; output-limit tests exercise refusal.
+# Combined stdout/stderr limit for each client command.
 # repo-check: allow-module-constant
 OUTPUT_LIMIT = 65536
 # Docker protocol admits only full container IDs.
@@ -64,14 +63,14 @@ class DockerError(Exception):
 
 
 def _command_failure(*errors: BaseException, mutation_uncertain: bool) -> BaseExceptionGroup:
-    """Group failures without changing foreign exceptions or swallowing interrupts."""
+    """Preserve ordered failures and dispatch uncertainty in an exception group."""
     failure = BaseExceptionGroup("Docker client failures.", errors)
     failure.mutation_uncertain = mutation_uncertain
     return failure
 
 
 def _close_error(resource) -> BaseException | None:
-    """Attempt one close without preventing the remaining resources from closing."""
+    """Attempt one close and return its error, if any."""
     try:
         resource.close()
     except BaseException as error:
@@ -387,7 +386,7 @@ class DockerEngine:
     # silent-defaults: allow-contract -- Use the Docker CLI transport unless the caller supplies a test executable; never choose a Docker endpoint implicitly; tests/test_docker.py::EngineTests.
     def connect(cls, endpoint: str, *, timeout: float, cancel: threading.Event | None = None,
                 executable: str = "docker") -> DockerEngine:
-        """Use the caller's frozen endpoint; never consult an ambient context."""
+        """Connect to the selected Unix socket and record its daemon identity."""
         deadline = _deadline(timeout)
         if not _text(endpoint) or not endpoint.startswith("unix:///") or "?" in endpoint or "#" in endpoint:
             raise DockerError("unsupported_engine", "The selected Docker endpoint must be a local Unix socket.")
@@ -526,6 +525,5 @@ class DockerEngine:
 
     def remove(self, cid: str, *, timeout: float, cancel: threading.Event | None = None) -> None:
         _cid(cid)
-        # This is deliberately private-operation scope: exact ownership is checked
-        # by the owning probe immediately before removal. Never remove by name or token.
+        # The owning probe verifies this exact container ID before removal.
         self._call(["container", "rm", "--force", cid], timeout=timeout, cancel=cancel, mutation=True)

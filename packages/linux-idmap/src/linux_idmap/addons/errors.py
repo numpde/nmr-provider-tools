@@ -1,4 +1,4 @@
-"""Authored failures from add-on evidence checks; the raw core uses ordinary errors."""
+"""Failures reported by process and namespace checks."""
 
 
 class IdentityError(ValueError):

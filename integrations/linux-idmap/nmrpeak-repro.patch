@@ -351,109 +351,78 @@ index 68dc9c9..ac67b9c 100644
  def _provider_directory_acl(provider_uids: tuple[int, ...]) -> tuple[str, ...]:
 diff --git a/docs/linux-idmap-migration.md b/docs/linux-idmap-migration.md
 new file mode 100644
-index 0000000..6f35539
+index 0000000..98c4c45
 --- /dev/null
 +++ b/docs/linux-idmap-migration.md
-@@ -0,0 +1,88 @@
+@@ -0,0 +1,59 @@
 +# Shared identity probe: candidate migration
 +
-+This candidate patch replaces NMRPeak's local namespace guard, Docker probe lifecycle,
-+process checks and probe retirement with the `linux-idmap` managed-probe add-on. It is a
-+migration candidate, not a published dependency release or a qualified deployment.
++This patch replaces NMRPeak's local namespace guard, Docker probe lifecycle,
++process checks and retirement with the `linux-idmap` managed probe.
 +
-+NMRPeak still owns its inputs, ACL policy, scientific images and deployment
-+lifecycle. It passes the already-selected `NMRPEAK_DOCKER_HOST` socket, the
-+admitted provider image, `/usr/local/bin/python3.12`, and user `65532:65532` to the
-+shared operation. It requests no new image and does not resolve the Docker
-+context again. The exact Docker executable supplied by its caller is retained.
-+The adapter explicitly selects `confine=True`; it does not use the unqualified
-+one-page core as permission authority. The managed operation returns host-qualified
-+mapping evidence only after retiring its probe. This is a completed observation,
-+not a guarantee that a later workload will retain the same mapping.
-+NMRPeak then translates provider UID 65532 and the operator UID for its existing
-+ACL decisions.
++NMRPeak retains its inputs, ACL policy, scientific images and deployment
++lifecycle. It passes the selected `NMRPEAK_DOCKER_HOST` socket, admitted provider
++image, `/usr/local/bin/python3.12`, user `65532:65532` and selected Docker
++executable to the probe, with `confine=True`. After the probe retires, NMRPeak
++translates provider UID 65532 and the operator UID for its ACL decisions.
++Keep the later workload's engine and namespace policy consistent with the probe.
 +
 +## Host prerequisite
 +
-+Install a wheel built from the reviewed `nmr-provider-tools` candidate into the
-+same Python 3.11+ environment selected by `make PYTHON=...`. The package is
-+host-side and standard-library-only; it is not a scientific-image dependency.
-+There is not yet a released wheel/hash pin for this migration. Do not invent a
-+release URL or reuse the independent `provider-core` release pin.
-+
-+For an already-built, locally reviewed wheel:
++Build the reviewed `nmr-provider-tools` candidate wheel using its package README.
++Install it in the host Python 3.11+ environment selected by `make PYTHON=...`:
 +
 +```sh
 +/path/to/deployment-python -m pip install --force-reinstall --no-index --no-deps /absolute/path/linux_idmap-0.3.0a3-py3-none-any.whl
 +```
 +
-+Use that same interpreter for the maintained deployment command. Missing or
-+incompatible package imports fail before creating a probe. Existing host
-+prerequisites and the contained runtime guard are unchanged.
++Use that interpreter for deployment. Missing or incompatible package imports
++stop the operation before probe creation. This is an unreleased candidate.
 +
-+## Failure evidence
++## Failure handling
 +
-+Invalid request fields are rejected before dispatch and become
-+`DeploymentOperationRejected`, with their safe policy reason.
-+The adapter allocates no receipt directory or journal. A failed operation preserves
-+its safe reason/category, independent cleanup problems, selected endpoint and
-+daemon ID, operation token, and exact container ID when known. Detailed phase
-+labels and serialized process inventories are no longer part of that contract.
-+Unresolved outcomes preserve `MaintenanceInvocationUnsettled` and never authorize
-+an ACL change. Inspect the exact engine and owned resource from these diagnostics;
-+do not remove by name alone or blindly repeat an uncertain creation.
++Invalid request fields become `DeploymentOperationRejected` before dispatch.
++Operation failures carry their reason, cleanup problems, endpoint, daemon ID,
++operation token and container ID when known. An unresolved outcome raises
++`MaintenanceInvocationUnsettled` and stops ACL changes. Use those references to
++inspect the exact engine and owned resource before retrying.
 +
-+The shared operation owns bounded cleanup during ordinary exceptions and
-+cancellation. It does not promise automatic crash recovery: abrupt process or
-+host loss can prevent diagnostics from being delivered and can require manual
-+engine inspection. A finite auto-removing probe reduces residue after a started
-+probe exits but does not settle the create-before-start interruption window.
++Cleanup runs during ordinary exceptions and cancellation. Abrupt caller or host
++loss can require manual engine inspection, particularly between creation and
++start; the finite probe lifetime begins only after start.
 +
-+## Verification boundary
++## Verification and adoption
 +
-+The host acceptance lane imports the maintained `deployment.provider_deployment`
-+module normally, using the same repository path as the Makefile launcher. This
-+host module does not require importing the contained scientific runtime or
-+bypassing its guard. Tests use real installed shared request/map/failure types
-+and replace only the shared probe operation at its public Python boundary:
++Run the host adapter tests with the installed candidate:
 +
 +```sh
 +PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
 +  /path/to/deployment-python -m unittest discover -s tests/host -v
 +```
 +
-+It checks the selected endpoint, image, interpreter, user and executable,
-+rootful/rootless map translation for both NMRPeak consumers, missing host-package
-+handling, request rejection before dispatch, mapped-ID refusal, explicit confinement
-+selection, and failure/ownership-reference
-+propagation. Namespace qualification,
-+process ownership and Docker retirement belong to the shared
-+package's own tests rather than duplicated private-helper tests here.
++These import `deployment.provider_deployment` and replace the shared probe at
++its public Python boundary. They check endpoint, image, interpreter, user and
++executable selection, rootful/rootless translations for both ACL consumers,
++missing-package handling, invalid requests, unmapped IDs, confinement selection
++and failure diagnostics.
 +
-+The maintained containerized suite, actual rootful/rootless engines and a
-+complete deployment preview must still be qualified with the candidate package.
-+No test guard should be disabled to claim those checks passed.
++Before adoption, qualify the maintained containerized suite, actual
++rootful/rootless engines, provider image, non-root operator and complete
++deployment preview with the candidate package.
 +
-+The selected confinement add-on retains no network, a read-only root, dropped
-+capabilities and no-new-privileges. It no longer imposes fixed memory, swap, PID
-+or CPU quotas. The former local probe used 32 MiB and 4 PIDs; the previous shared
-+candidate used 64 MiB and 8 PIDs. Those numerical policies were removed rather
-+than treated as intrinsic to identity observation. This is a real policy change,
-+not exact resource equivalence. Qualification must include the provider image
-+and non-root operator; a separately justified deployment resource policy is
-+needed if quotas are required. Do not merge or cut over from host adapter tests
-+alone.
++Confinement selects no network, a read-only root, dropped capabilities and
++no-new-privileges. The former local probe's 32 MiB and 4-PID limits have been
++removed, along with fixed swap and CPU quotas. Include this policy change in
++qualification and supply a separate resource policy if quotas are required.
 diff --git a/tests/host/test_shared_identity_adapter.py b/tests/host/test_shared_identity_adapter.py
 new file mode 100644
-index 0000000..0309c4a
+index 0000000..d5fa52a
 --- /dev/null
 +++ b/tests/host/test_shared_identity_adapter.py
-@@ -0,0 +1,135 @@
-+"""Run the actual host adapter without importing the contained science runtime.
+@@ -0,0 +1,133 @@
++"""Exercise the host adapter with a synthetic probe operation.
 +
-+These import the maintained host module normally. The shared operation is
-+replaced at its public Python boundary; requests, maps and failures are real types.
-+They do not qualify Docker, host namespaces, or the complete deployment command.
++Requests, maps and failures use the installed package types.
 +"""
 +
 +import json

@@ -13,7 +13,7 @@ OWNER_LABEL = "linux-idmap.operation"
 # Shared operation-token label wire name; creation and verification must agree.
 # repo-check: allow-module-constant
 TOKEN_LABEL = "linux-idmap.token"
-# Versioned owned-probe protocol identifier, not caller policy.
+# Versioned owned-probe protocol identifier.
 # repo-check: allow-module-constant
 OWNER = "identity-v3"
 # Finite inert probe payload; the caller supplies its lifetime and interpreter.

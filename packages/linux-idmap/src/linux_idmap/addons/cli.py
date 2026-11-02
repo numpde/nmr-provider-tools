@@ -1,4 +1,4 @@
-"""One identity operation for Python and shell callers; no shell-side map parsing."""
+"""Run a probe and print its maps or requested UID/GID translations."""
 
 import argparse
 from dataclasses import replace

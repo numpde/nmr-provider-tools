@@ -1,9 +1,8 @@
 # Provider integrations outside the neutral package
 
 These candidate patches live on the same `design/provider-deploy` review branch
-as `linux-idmap`, but are not part of its source directory or wheel. Each provider
-retains its endpoint/image selection, inputs, permissions and deployment policy.
-There are no separate provider review branches or published dependency releases.
+as `linux-idmap`. Each provider retains its endpoint/image selection, inputs,
+permissions and deployment policy. Apply these patches in the provider repositories.
 
 `consumers.json` pins each repository's base, patch digest and resulting Git tree.
 Apply a patch to its exact base in a disposable detached worktree:
@@ -25,10 +24,8 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
 
 ## Selected add-ons and scenario evidence
 
-Neither adapter uses unqualified core row streams as host permission authority.
-The managed probe returns `IdMap` values with `.translate()` and `.rows` only
-after host qualification. Synthetic fixtures construct the same affine value
-explicitly; constructing `IdMap` does not establish host provenance.
+Both adapters use the managed probe, which returns host-coordinate `IdMap`
+values after retiring its container. Tests supply synthetic maps at that boundary.
 
 - **NMRPeak:** imports `linux_idmap.addons.probe.probe_identity`, explicitly
   requests `confine=True`, then translates the returned host-qualified mappings
@@ -50,12 +47,10 @@ selected explicitly to retain no network, a read-only root, dropped capabilities
 and no-new-privileges from the former local probe policies. The shared package
 now omits fixed memory/swap, PID and CPU quotas: the former local probes used
 32 MiB/4 PIDs (NMRPeak) and 64 MiB/8 PIDs (NMRNet). This is a documented policy
-change, not a claim of equivalent resource controls. Qualify that change and
-supply a separately justified deployment resource policy if quotas are required.
+change. Qualify it with the provider image and non-root caller, and supply a
+resource policy if quotas are required.
 
-These are boundary tests, not full deployments or proof of Docker sandbox
-behavior. Maintained containerized suites and actual rootful/rootless engines
-with provider images and non-root callers remain adoption gates. A missing
-shared package fails clearly; no fallback selects another engine or repeats an
-uncertain mutation. Failure output keeps minimal ownership references and
-independent cleanup explanations, not legacy phase labels or process inventories.
+Before adoption, run the maintained containerized suites and actual
+rootful/rootless engines with provider images and non-root callers. A missing
+shared package stops the adapter. For unresolved outcomes, use the reported
+engine, token and container ID to inspect the owned resource before retrying.

@@ -1,15 +1,11 @@
-"""Opt-in enforcement of a caller's restricted-probe configuration.
-
-This checks requested and reported Docker configuration. It is not a claim that
-unit tests establish the engine's runtime sandbox enforcement.
-"""
+"""Build and verify the selected restricted-probe configuration."""
 
 from collections.abc import Iterator
 
 from .model import StepError
 
 
-# Caller-selected restrictions, not requirements of identity mapping itself.
+# Creation flags and corresponding inspected settings.
 # repo-check: allow-module-constant
 _RESTRICTIONS = (
     ("--network", "none", "NetworkMode", "none"),

@@ -1,4 +1,4 @@
-"""The caller's policy and the operation's small, explicit outcome vocabulary."""
+"""Probe policy, retirement state and failure diagnostics."""
 
 from dataclasses import asdict, dataclass
 from enum import StrEnum
@@ -92,7 +92,7 @@ class Retirement:
 
 @dataclass(frozen=True)
 class ProbeHandle:
-    """Diagnostic ownership evidence, not an instruction to retry a mutation."""
+    """Engine and resource references for investigating an unresolved operation."""
 
     endpoint: str
     operation_token: str
@@ -101,7 +101,7 @@ class ProbeHandle:
 
 
 class ProbeFailure(RuntimeError):
-    """A failed operation never carries usable identity mappings."""
+    """An operation failure with retirement state and ordered diagnostics."""
 
     def __init__(self, problem: Problem, retirement: Retirement, handle: ProbeHandle | None = None):
         super().__init__(problem.message)

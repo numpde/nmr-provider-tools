@@ -1,8 +1,8 @@
 diff --git a/README.md b/README.md
-index 2f14e31..b6a5507 100644
+index 2f14e31..628a9d0 100644
 --- a/README.md
 +++ b/README.md
-@@ -17,3 +17,43 @@ on the Make command line. When omitted in a terminal, it offers a menu of
+@@ -17,3 +17,39 @@ on the Make command line. When omitted in a terminal, it offers a menu of
  configured local Unix-socket contexts; unattended commands fail without a
  selection. The selected socket stays fixed for the whole operation. Run
  `make help` for maintained commands.
@@ -11,8 +11,7 @@ index 2f14e31..b6a5507 100644
 +
 +This candidate patch's `provider/deployment/install` requires the **host** `linux-idmap-probe`
 +command from the `linux-idmap` wheel in the matching `nmr-provider-tools` candidate, with Python 3.11 or
-+later. The operation reads host `/proc`; installing it only in the provider image
-+is insufficient. No released package version or release hash is asserted here.
++later. Install it on the host, where it reads `/proc`.
 +
 +Build the candidate wheel using that repository's package instructions, then
 +install the exact locally built wheel in a dedicated host environment:
@@ -25,32 +24,29 @@ index 2f14e31..b6a5507 100644
 +```
 +
 +The caller passes its already-selected Docker socket and controller image to the
-+managed-probe add-on and explicitly selects `--confine`. It does not treat the
-+unqualified one-page core as host permission authority. Provider-specific helper
-+selection and input ownership remain here. Invalid requests fail before any
-+probe is dispatched; neither request nor operation failure advances input policy. Failure diagnostics identify the selected engine and exact probe when
-+known; retain stderr and inspect unresolved resources before retrying. Never
-+remove a container merely by its display name. This operation provides bounded
-+cleanup while its caller is alive, not durable crash recovery.
++managed probe with `--confine`. Provider-specific helper selection and input
++ownership remain here. Request and operation failures stop input policy changes.
++Diagnostics identify the selected engine and exact probe when known; retain
++stderr and inspect unresolved resources before retrying. Abrupt caller or host
++loss can require manual engine inspection.
 +
 +Confinement retains no network, a read-only root, dropped capabilities and
-+no-new-privileges. Fixed memory/swap, PID and CPU quotas have been removed; this
-+is not resource equivalence with the former 64 MiB/8-PID probe. Qualify the
-+provider image and non-root operator before adoption, and supply a separately
-+justified deployment resource policy if quotas are needed.
++no-new-privileges. The former probe's 64 MiB and 8-PID limits have been removed,
++along with fixed swap and CPU quotas. Include this change in qualification and
++supply a resource policy if quotas are required.
 +
-+This candidate does not migrate wheelhouse acquisition's separate inverse-ID
-+mapping in `tools/docker.sh`; `tools/user_namespace_map.sh` remains for that user.
++Wheelhouse acquisition continues to use the inverse-ID mapping in
++`tools/docker.sh` and `tools/user_namespace_map.sh`.
 +Host adapter tests can be run without Docker via `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover
 +-s tests/host -v`, with this candidate package installed. They exercise the actual
-+shell adapter and shared CLI boundary with a synthetic probe result, not a real
-+engine or full deployment. Rootful/rootless qualification and the maintained
-+container-launched deployment suite remain required before adoption.
++shell adapter and shared CLI boundary with a synthetic probe result. Before
++adoption, qualify actual rootful/rootless engines, the provider image, a non-root
++operator and the maintained container-launched deployment suite.
 diff --git a/docs/provider.html b/docs/provider.html
-index 67bc55d..6685b85 100644
+index 67bc55d..ee08e86 100644
 --- a/docs/provider.html
 +++ b/docs/provider.html
-@@ -258,6 +258,20 @@ settings in nmr-provider-tools. No socket grant belongs in the public provider d
+@@ -258,6 +258,15 @@ settings in nmr-provider-tools. No socket grant belongs in the public provider d
  <code>.work/provider/</code>, <code>.work/preparation/</code> and <code>.work/inference/</code>.
  Install admits those image records and captures the model selection from
  <code>artifacts/prediction-models.json</code>; up uses the frozen generation.</p>
@@ -59,30 +55,23 @@ index 67bc55d..6685b85 100644
 +nmr-provider-tools candidate, on Python 3.11 or later. Install its locally built
 +wheel in a host virtual environment and put that environment's <code>bin</code>
 +on <code>PATH</code>; see the repository README for the explicit offline install.
-+This is not yet a pinned production release. The operation uses the Docker socket
-+already selected by Make. On failure, preserve the diagnostic identifying the
-+engine and exact probe when known, and inspect unresolved resources before
-+retrying. The operation does not promise durable recovery after abrupt host or
-+caller loss. The caller explicitly selects <code>--confine</code>; raw core
-+mappings are not permission authority. Confinement retains no network, a
-+read-only root, dropped capabilities and no-new-privileges, but removes fixed
-+memory/swap, PID and CPU quotas. This changes the former 64 MiB/8-PID probe
-+policy and requires real-engine qualification before adoption.</p>
++The operation uses the Docker socket selected by Make, with
++<code>--confine</code>. On failure, preserve the diagnostic identifying the engine
++and exact probe when known, and inspect unresolved resources before retrying.
++See the README for the confinement policy changes and adoption checks.</p>
  <pre><code class="language-sh">make -C /path/to/nmr-provider-tools delivery/deployment/up SHARED_SETTINGS=/path/to/nmr-provider-tools/config/deployments/localhost/settings.toml SHARED_RUNTIME_IMAGE=sha256:YOUR_SHARED_IMAGE
  
  make provider/deployment/install DEPLOYMENT=&lt;name&gt; SHARED_RUNTIME_IMAGE=sha256:YOUR_SHARED_IMAGE
 diff --git a/tests/host/test_deploy_identity_adapter.py b/tests/host/test_deploy_identity_adapter.py
 new file mode 100644
-index 0000000..dae3d5c
+index 0000000..9d48fc0
 --- /dev/null
 +++ b/tests/host/test_deploy_identity_adapter.py
-@@ -0,0 +1,203 @@
+@@ -0,0 +1,201 @@
 +"""Host-only acceptance for the actual NMRNet adapter and shared CLI contract.
 +
-+No repository container guard is bypassed: the shell adapter under test
-+is extracted from their maintained source, without launching the deployment.
-+The shared CLI and ID translation are real; only its probe operation is replaced
-+with a bounded synthetic result. Real-engine qualification remains separate.
++The shell adapter is extracted from its maintained source. The shared CLI and
++ID translation are real; its probe operation returns a bounded synthetic result.
 +"""
 +
 +import json
@@ -156,7 +145,7 @@ index 0000000..dae3d5c
 +
 +    # silent-defaults: allow-contract -- Ordinary rootful probes run without injected signals; cancellation tests explicitly select signal delivery and group scope; proof=tests/host/test_deploy_identity_adapter.py::IdentityAdapterTests.test_process_group_cancellation_stops_before_helper_selection
 +    def run_adapter(self, mode='rootful', *, send_signal=None, signal_group=False, endpoint='unix:///selected-engine.sock'):
-+        # Assignments and policy are production functions, not a rewritten test adapter.
++        # Exercise the maintained assignment and policy functions.
 +        program = '\n'.join([
 +            'set -euo pipefail',
 +            'root=$1; caller_uid=$(id -u); caller_gid=$(id -g)',

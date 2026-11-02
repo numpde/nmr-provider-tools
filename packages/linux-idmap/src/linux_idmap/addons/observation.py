@@ -19,8 +19,8 @@ def observe_host_process(pid: int) -> ProcessObservation:
     """Return maps only after host, process and map continuity are confirmed.
 
     The reader must be in the initial user namespace; PID is interpreted in
-    its own visible procfs. Repeated observations are checked for changes,
-    not claimed as an atomic snapshot. This never creates or stops a process.
+    its own visible procfs. The process identity and map rows are checked
+    before returning the observation.
     """
     with qualified_process(pid) as process:
         maps = process.read_maps()

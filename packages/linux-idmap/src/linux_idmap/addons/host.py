@@ -1,4 +1,4 @@
-"""Host qualification and pinned process evidence, explicitly outside the raw core."""
+"""Check host coordinates and read from pinned process directories."""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ _NSFS_MAGIC = 0x6E736673
 # Linux procfs ABI identity, checked before process reads.
 # repo-check: allow-module-constant
 _PROCFS_MAGIC = 0x9FA0
-# Linux UAPI initial user-namespace inode; identity maps are not a substitute.
+# Linux UAPI initial user-namespace inode.
 # repo-check: allow-module-constant
 _USER_INIT_INO = 4026531837
 # Linux nsfs ioctl ABI for namespace-type evidence.
@@ -144,7 +144,7 @@ def _validate_pid(pid: int):
 
 
 class Procfs:
-    """Observe one genuine local Linux procfs; unsafe namespace evidence fails closed."""
+    """Read local procfs with filesystem and namespace checks."""
 
     # silent-defaults: allow-contract -- Linux process evidence comes from /proc unless a caller explicitly supplies a root; filesystem and namespace checks apply equally to both; tests/test_host_addon.py::HostGuardTests.
     def __init__(self, proc_root: Path = Path("/proc")):
@@ -215,7 +215,7 @@ class ProcessDirectory:
 def consistent_maps(read_file):
     """Compare complete reusable samples, consuming parse errors inside the scope."""
     try:
-        # Generator identity says nothing about rows; parse before the source closes.
+        # Consume both samples before comparison and before the source closes.
         def snapshot():
             maps = read_maps(read_file)
             return MapRows(list(maps.uid_rows), list(maps.gid_rows))
