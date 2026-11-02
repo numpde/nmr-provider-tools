@@ -1,6 +1,9 @@
 """The shared pool preserves locked artifacts through acquisition failures."""
 
 import hashlib
+import io
+import tarfile
+from contextlib import contextmanager
 import tempfile
 import threading
 import tomllib
@@ -11,6 +14,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from wheelhouse_tool import __main__ as tool
+from wheelhouse_tool.stream import stream_context
 
 
 class WheelhouseTests(unittest.TestCase):
@@ -76,6 +80,68 @@ class WheelhouseTests(unittest.TestCase):
         with self.assertRaisesRegex(FileNotFoundError, "missing"):
             tool.run("check", self.lock, self.pool)
         self.assertEqual([], self.requests)
+
+    def test_stream_includes_only_selected_pool_files_and_curated_source(self):
+        (self.pool / self.name).write_bytes(self.content)
+        (self.pool / "unselected.whl").write_bytes(b"not selected")
+        source = self.root / "context"
+        source.mkdir()
+        (source / "Dockerfile").write_text("FROM scratch\n")
+        result = io.BytesIO()
+        stream_context(self.pool, source, [{"lock": str(self.lock), "directory": "wheels/main"}], result)
+        result.seek(0)
+        with tarfile.open(fileobj=result) as archive:
+            self.assertEqual({"Dockerfile", "wheels/main/" + self.name}, set(archive.getnames()))
+            self.assertEqual(self.content, archive.extractfile("wheels/main/" + self.name).read())
+
+    def test_stream_refuses_changed_artifact_and_source_link(self):
+        (self.pool / self.name).write_bytes(b"wrong")
+        source = self.root / "context"
+        source.mkdir()
+        with self.assertRaisesRegex(ValueError, "bytes differ"):
+            stream_context(self.pool, source, [{"lock": str(self.lock), "directory": "wheels"}], io.BytesIO())
+        (source / "link").symlink_to(self.root)
+        with self.assertRaisesRegex(ValueError, "only directories and regular files"):
+            stream_context(self.pool, source, [], io.BytesIO())
+
+    def test_stream_accepts_explicit_source_files_without_staging(self):
+        output = io.BytesIO()
+        stream_context(self.pool, None, [], output, [{"path": str(self.lock), "destination": "inputs/pylock.toml",
+                                                     "sha256": hashlib.sha256(self.lock.read_bytes()).hexdigest(),
+                                                     "executable": False}])
+        output.seek(0)
+        with tarfile.open(fileobj=output) as archive:
+            self.assertEqual(["inputs/pylock.toml"], archive.getnames())
+            self.assertEqual(self.lock.read_bytes(), archive.extractfile("inputs/pylock.toml").read())
+
+    def test_stream_refuses_untrusted_source_paths_and_mismatched_identity(self):
+        entry = {"path": str(self.lock), "destination": "a/./file", "sha256": "0" * 64, "executable": False}
+        with self.assertRaisesRegex(ValueError, "relative path"):
+            stream_context(self.pool, None, [], io.BytesIO(), [entry])
+        entry["destination"] = "a/file"
+        with self.assertRaisesRegex(ValueError, "source bytes differ"):
+            stream_context(self.pool, None, [], io.BytesIO(), [entry])
+        alias = self.root / "alias"
+        alias.symlink_to(self.root, target_is_directory=True)
+        entry["path"] = str(alias / self.lock.name)
+        entry["sha256"] = hashlib.sha256(self.lock.read_bytes()).hexdigest()
+        with self.assertRaises(OSError):
+            stream_context(self.pool, None, [], io.BytesIO(), [entry])
+
+    def test_allowlisted_file_cannot_be_replaced_with_directory(self):
+        entry = {"path": str(self.lock), "destination": "input", "sha256": "0" * 64, "executable": False}
+        original_lock = tool.pool_lock
+
+        @contextmanager
+        def replace_source(pool, exclusive):
+            self.lock.unlink()
+            self.lock.mkdir()
+            with original_lock(pool, exclusive) as descriptor:
+                yield descriptor
+
+        with patch("wheelhouse_tool.stream.pool_lock", replace_source):
+            with self.assertRaisesRegex(ValueError, "regular source file"):
+                stream_context(self.pool, None, [], io.BytesIO(), [entry])
 
     def test_simultaneous_acquisition_reuses_the_first_result(self):
         errors = []

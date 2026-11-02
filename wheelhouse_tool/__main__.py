@@ -7,9 +7,9 @@ import http.client
 import json
 import os
 import re
+import secrets
 import stat
 import sys
-import tempfile
 import tomllib
 import urllib.error
 import urllib.parse
@@ -33,11 +33,11 @@ def pool_lock(pool, exclusive):
         os.close(descriptor)
 
 
-def sha256(path):
-    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+def sha256(path, directory_fd=None):
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_fd)
     with os.fdopen(descriptor, "rb") as stream:
         if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
-            raise ValueError(f"Cannot use {path.name}: expected a regular file.")
+            raise ValueError(f"Cannot use {Path(path).name}: expected a regular file.")
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
@@ -98,9 +98,9 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None):
     return artifacts
 
 
-def inspect_artifact(pool, name, digest):
+def inspect_artifact(pool, name, digest, directory_fd=None):
     try:
-        actual = sha256(pool / name)
+        actual = sha256(name if directory_fd is not None else pool / name, directory_fd)
     except FileNotFoundError:
         return False
     if actual != digest:
@@ -109,7 +109,8 @@ def inspect_artifact(pool, name, digest):
 
 
 def download(pool, name, digest, url, directory_fd):
-    descriptor, temporary = tempfile.mkstemp(prefix=f".{name}.", suffix=".part", dir=pool)
+    temporary = f".wheelhouse-{secrets.token_hex(16)}.part"
+    descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=directory_fd)
     try:
         with os.fdopen(descriptor, "wb") as target:
             try:
@@ -118,25 +119,28 @@ def download(pool, name, digest, url, directory_fd):
                 raise OSError(f"Cannot acquire {name}: the download request failed.") from error
             with source:
                 checksum = hashlib.sha256()
-                try:
-                    while block := source.read(1024 * 1024):
-                        checksum.update(block)
-                        target.write(block)
-                except (OSError, http.client.HTTPException) as error:
-                    raise OSError(f"Cannot acquire {name}: the download was interrupted.") from error
+                while True:
+                    try:
+                        block = source.read(1024 * 1024)
+                    except (OSError, http.client.HTTPException) as error:
+                        raise OSError(f"Cannot acquire {name}: the download was interrupted.") from error
+                    if not block:
+                        break
+                    checksum.update(block)
+                    target.write(block)
             if checksum.hexdigest() != digest:
                 raise ValueError(f"Cannot acquire {name}: downloaded bytes differ from the lock.")
             target.flush()
             os.fchmod(target.fileno(), 0o644)
             os.fsync(target.fileno())
         try:
-            os.link(temporary, pool / name, follow_symlinks=False)
+            os.link(temporary, name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd, follow_symlinks=False)
         except FileExistsError:
-            if not inspect_artifact(pool, name, digest):
+            if not inspect_artifact(pool, name, digest, directory_fd):
                 raise FileNotFoundError(f"Cannot acquire {name}: the competing file disappeared.")
         os.fsync(directory_fd)
     finally:
-        os.unlink(temporary)
+        os.unlink(temporary, dir_fd=directory_fd)
 
 
 def run(action, lock, pool, prefer_sdist=(), require_sdist=(), artifacts=None):
@@ -144,7 +148,7 @@ def run(action, lock, pool, prefer_sdist=(), require_sdist=(), artifacts=None):
         artifacts = selected(lock, prefer_sdist, require_sdist)
     with pool_lock(pool, exclusive=action == "acquire") as directory_fd:
         for name, digest, url, _package, _artifact in artifacts:
-            if not inspect_artifact(pool, name, digest):
+            if not inspect_artifact(pool, name, digest, directory_fd):
                 if action == "check":
                     raise FileNotFoundError(f"Cannot use {name}: the artifact is missing from the wheelhouse.")
                 download(pool, name, digest, url, directory_fd)
@@ -186,6 +190,9 @@ def main():
     try:
         if args.local_lock is not None and (args.local_root is None or not args.local_root.is_absolute()):
             raise ValueError("Cannot write a local lock: supply an absolute --local-root.")
+        if args.local_lock is not None and not (args.local_lock.name == "pylock.toml" or
+                                               args.local_lock.name.startswith("pylock.") and args.local_lock.name.endswith(".toml")):
+            raise ValueError("Cannot write a local lock: use pylock.toml or pylock.NAME.toml so installers recognize it.")
         document = read_lock(args.lock)
         artifacts = selected(args.lock, args.prefer_sdist, args.require_sdist, document)
         result = run(args.action, args.lock, args.pool, artifacts=artifacts)
