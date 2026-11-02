@@ -48,6 +48,10 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     command = ["python3", "-I", "-S", str(bundle)]
     subprocess.run([*command, "check", "--lock", str(lock), "--pool", "/wheelhouse",
                     "--local-lock", str(projected), "--local-root", "/wheels"], check=True, stdout=subprocess.DEVNULL)
+    projected_artifact = tomllib.loads(projected.read_text())["packages"][0]["wheels"][0]
+    if (projected_artifact.get("path") != "/wheels/" + name or "url" in projected_artifact
+            or projected_artifact.get("hashes", {}).get("sha256") != checksum):
+        raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
     dockerfile = scratch / "Dockerfile"
     dockerfile.write_text("FROM scratch\n")
     manifest = scratch / "stream-manifest.json"
