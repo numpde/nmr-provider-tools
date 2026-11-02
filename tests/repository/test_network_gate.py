@@ -59,7 +59,8 @@ class NetworkGateTests(unittest.TestCase):
             self.assertNotIn("--rm", command)
             self.assertIn("--read-only", command)
             self.assertIn("no-new-privileges:true", command)
-            self.assertEqual(f"{os.getuid()}:{os.getgid()}", command[command.index("--user") + 1])
+            expected_user = "HOST_IDENTITY" if command is proxy else f"{os.getuid()}:{os.getgid()}"
+            self.assertEqual(expected_user, command[command.index("--user") + 1])
             self.assertEqual("ALL", command[command.index("--cap-drop") + 1])
             self.assertEqual("never", command[command.index("--pull") + 1])
             self.assertIn("NMR_PROVIDER_TOOLS_IN_CONTAINER=1", command)

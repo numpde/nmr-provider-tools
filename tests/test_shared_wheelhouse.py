@@ -2,6 +2,7 @@
 
 import hashlib
 import io
+import json
 import tarfile
 from contextlib import contextmanager
 import tempfile
@@ -17,6 +18,7 @@ from wheelhouse_tool import __main__ as tool
 from wheelhouse_tool.stream import stream_context
 from wheelhouse_tool.report import manifest as report_manifest
 from wheelhouse_tool.identity import selection_identity
+from wheelhouse_tool.locate import locate
 
 
 class WheelhouseTests(unittest.TestCase):
@@ -178,6 +180,69 @@ class WheelhouseTests(unittest.TestCase):
                 selection_identity([entry])
             with self.assertRaises(ValueError):
                 stream_context(self.pool, None, [entry], io.BytesIO(), [])
+
+    def test_locator_uses_index_metadata_and_existing_hashes_without_downloading_wheels(self):
+        digest = "a" * 64
+        direct = "b" * 64
+        self.lock.write_text(
+            '--index-url https://example.invalid/simple\n'
+            'example==1.0 \\\n    --hash=sha256:' + digest + '\n'
+            'torch @ https://example.invalid/torch-2.3.0%2Bcpu-cp312-cp312-linux_x86_64.whl#sha256=' + direct + ' \\\n'
+            '    --hash=sha256:' + direct + '\n'
+        )
+        metadata = {"name": "example", "files": [
+            {"filename": "example-1.0-py3-none-any.whl", "url": "../../files/example-1.0-py3-none-any.whl", "hashes": {"sha256": digest}},
+            {"filename": "example-1.0-py3-none-any.whl", "url": "../../files/other.whl", "hashes": {"sha256": "c" * 64}},
+        ]}
+        with patch("wheelhouse_tool.locate.urllib.request.build_opener") as opener:
+            opener.return_value.open.return_value = io.BytesIO(json.dumps(metadata).encode())
+            projected_text = locate(self.lock)
+            projected = tomllib.loads(projected_text)
+        self.assertEqual(1, opener.return_value.open.call_count)
+        self.assertEqual("https://example.invalid/files/example-1.0-py3-none-any.whl", projected["packages"][0]["wheels"][0]["url"])
+        self.assertEqual(direct, projected["packages"][1]["archive"]["hashes"]["sha256"])
+        derived = self.root / "pylock.derived.toml"
+        derived.write_text(projected_text)
+        with self.assertRaisesRegex(ValueError, "matching source requirements lock"):
+            tool.selected(derived, [])
+        self.assertEqual(2, len(tool.selected(derived, [], source_lock=self.lock)))
+        derived.write_text(projected_text.replace(digest, "c" * 64))
+        with self.assertRaisesRegex(ValueError, "differs from its source lock"):
+            tool.selected(derived, [], source_lock=self.lock)
+        derived.write_text(projected_text.replace("https://example.invalid/torch-", "https://other.invalid/torch-"))
+        with self.assertRaisesRegex(ValueError, "different locked URL"):
+            tool.selected(derived, [], source_lock=self.lock)
+        derived.write_text(projected_text.split("[tool.nmr-provider-tools]")[0])
+        with self.assertRaisesRegex(ValueError, "source lock binding is missing"):
+            tool.selected(derived, [], source_lock=self.lock)
+
+    def test_locator_accepts_existing_direct_source_only_when_it_matches_the_pin(self):
+        digest = "a" * 64
+        self.lock.write_text('--index-url https://example.invalid/simple\ntorch==2.3.0+cpu \\\n    --hash=sha256:' + digest + '\n')
+        url = "https://example.invalid/torch-2.3.0%2Bcpu-cp312-cp312-linux_x86_64.whl#sha256=" + digest
+        projected = tomllib.loads(locate(self.lock, direct_sources=[url]))
+        self.assertEqual(digest, projected["packages"][0]["archive"]["hashes"]["sha256"])
+        with self.assertRaisesRegex(ValueError, "differs from its locked identity"):
+            locate(self.lock, direct_sources=[url.replace(digest, "b" * 64)])
+        with self.assertRaises(ValueError) as error:
+            locate(self.lock, direct_sources=[url.replace("#sha256=", "?signature=private#sha256=")])
+        self.assertNotIn("private", str(error.exception))
+
+    def test_locator_handles_direct_only_and_required_source(self):
+        digest = "a" * 64
+        url = "https://example.invalid/torch-2.3.0%2Bcpu-cp312-cp312-linux_x86_64.whl#sha256=" + digest
+        self.lock.write_text("torch @ " + url + " \\\n    --hash=sha256:" + digest + "\n")
+        self.assertEqual("torch", tomllib.loads(locate(self.lock))["packages"][0]["name"])
+        with self.assertRaisesRegex(ValueError, "differs from its locked identity"):
+            locate(self.lock, required_sources=["torch"])
+
+        self.lock.write_text('--index-url https://example.invalid/simple\nexample==1.0 \\\n    --hash=sha256:' + digest + '\n')
+        metadata = {"name": "example", "files": [{"filename": "example-1.0-py3-none-any.whl",
+                    "url": "https://example.invalid/example-1.0-py3-none-any.whl", "hashes": {"sha256": digest}}]}
+        with patch("wheelhouse_tool.locate.urllib.request.build_opener") as opener:
+            opener.return_value.open.return_value = io.BytesIO(json.dumps(metadata).encode())
+            with self.assertRaisesRegex(ValueError, "required source distribution"):
+                locate(self.lock, required_sources=["example"])
 
     def test_simultaneous_acquisition_reuses_the_first_result(self):
         errors = []

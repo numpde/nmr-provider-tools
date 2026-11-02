@@ -19,6 +19,8 @@ case "$1" in
     tests/repository/quality) suite=tests/repository/quality ;;
     tests/repository/provisioning) suite=tests/repository; pattern='test_checker*.py' ;;
     tests/repository/release) suite=release ;;
+    tests/repository/network) suite=network ;;
+    tests/repository/network/identity) suite=network-identity ;;
     tests/repository/runtime) suite=tests/repository/test_container_port_runtime.py ;;
     *) printf 'Cannot select repository checks: unknown target %q. Use make help.\n' "$1" >&2; exit 2 ;;
 esac
@@ -74,6 +76,10 @@ arguments=(--init --pull=never --network=none --read-only
 if [[ $suite == release ]]; then
     arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_wheelhouse_bundle
                 tests.repository.test_delivery_release tests.repository.test_wheelhouse -v)
+elif [[ $suite == network ]]; then
+    arguments+=(tests.repository.test_network_gate tests.repository.test_network_cancellation -v)
+elif [[ $suite == network-identity ]]; then
+    arguments+=(tests.repository.test_network_cancellation.ContainerIdentityTests.test_valid_ids_preserve_worker_status_start_and_removal_order -v)
 elif [[ $suite == *.py ]]; then
     module=${suite%.py}
     arguments+=("${module//\//.}")

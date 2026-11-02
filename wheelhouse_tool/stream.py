@@ -81,7 +81,7 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
     artifacts = {}
     for selection in selections:
         if "lock" in selection:
-            if not {"lock", "directory"}.issubset(selection) or set(selection) - {"lock", "directory", "prefer_sdist", "require_sdist"}:
+            if not {"lock", "directory"}.issubset(selection) or set(selection) - {"lock", "directory", "prefer_sdist", "require_sdist", "source_lock"}:
                 raise ValueError("Cannot stream build inputs: lock and explicit artifact entries cannot be mixed.")
         elif set(selection) != {"directory", "filename", "sha256"}:
             raise ValueError("Cannot stream build inputs: expected an explicit artifact entry.")
@@ -92,8 +92,9 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
             raise ValueError("Cannot stream build inputs: artifact directory must be a relative path.")
         if "lock" in selection:
             lock = Path(selection["lock"])
+            source_lock = Path(selection["source_lock"]) if "source_lock" in selection else None
             inputs = [(name, digest) for name, digest, *_ in selected(
-                lock, selection.get("prefer_sdist", ()), selection.get("require_sdist", ()))]
+                lock, selection.get("prefer_sdist", ()), selection.get("require_sdist", ()), source_lock=source_lock)]
         else:
             inputs = [(selection["filename"], selection["sha256"])]
         for name, digest in inputs:

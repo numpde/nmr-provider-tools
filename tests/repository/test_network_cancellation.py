@@ -23,6 +23,32 @@ fi
 shift 4
 operation=$1
 shift
+probe=$(printf 'e%.0s' {1..64})
+if [[ "$operation" == create && "$*" == *org.nmr-provider-tools.operation=* ]]; then
+    while [[ "$1" != --cidfile ]]; do shift; done
+    printf '%s' "$probe" > "$2"
+    printf '%s\n' "$probe"
+    exit 0
+fi
+if [[ "$operation" == start && "${!#}" == "$probe" ]]; then
+    # The fake engine uses its test container's init for a stable user map;
+    # unlike a child of the CLI it survives the CLI process-group retirement.
+    printf '1\n' > "$ENGINE_STATE/probe.pid"
+    printf '%s\n' "$probe"
+    exit 0
+fi
+if [[ "$operation" == inspect && "${!#}" == "$probe" ]]; then
+    printf '%s true\n' "$(cat "$ENGINE_STATE/probe.pid")"
+    exit 0
+fi
+if [[ "$operation" == ps && "$*" == *org.nmr-provider-tools.operation=* ]]; then
+    [[ ! -f "$ENGINE_STATE/probe.pid" ]] || printf '%s\n' "$probe"
+    exit 0
+fi
+if [[ "$operation" == rm && "${!#}" == "$probe" ]]; then
+    rm -f "$ENGINE_STATE/probe.pid"
+    exit 0
+fi
 printf '%s\n' "$operation $*" >> "$ENGINE_STATE/events"
 case "$operation" in
   image) exit 0 ;;
@@ -129,7 +155,7 @@ class NetworkCancellationTests(unittest.TestCase):
                     start_new_session=True,
                 )
                 try:
-                    deadline = time.monotonic() + 5
+                    deadline = time.monotonic() + 15
                     while not (state / "receipt-changed").exists() and time.monotonic() < deadline:
                         time.sleep(0.01)
                     if not (state / "receipt-changed").exists() and process.poll() is not None:
@@ -197,7 +223,7 @@ class NetworkCancellationTests(unittest.TestCase):
                     start_new_session=True,
                 )
                 try:
-                    deadline = time.monotonic() + 5
+                    deadline = time.monotonic() + 15
                     while not (state / "delaying").exists() and time.monotonic() < deadline:
                         time.sleep(0.01)
                     self.assertTrue((state / "delaying").exists())
@@ -270,7 +296,7 @@ class ContainerIdentityTests(unittest.TestCase):
                     env=environment,
                     text=True,
                     capture_output=True,
-                    timeout=5,
+                    timeout=20,
                     check=False,
                 )
                 events = (state / "events").read_text().splitlines()

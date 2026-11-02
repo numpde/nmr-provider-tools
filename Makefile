@@ -52,6 +52,22 @@ override OUTPUT_INPUT := $(value OUTPUT)
 export OUTPUT_INPUT
 endif
 
+unexport LOCK
+unexport LOCK_INPUT
+unexport LOCK_INPUT_ORIGIN
+override export LOCK_INPUT_ORIGIN := $(origin LOCK)
+ifeq ($(origin LOCK),command line)
+override LOCK_INPUT := $(value LOCK)
+export LOCK_INPUT
+endif
+
+unexport INDEX_URL SOURCE_URLS REQUIRE_SOURCE
+override export LOCATE_INDEX_INPUT := $(if $(filter command line,$(origin INDEX_URL)),$(value INDEX_URL))
+override export LOCATE_SOURCES_INPUT := $(if $(filter command line,$(origin SOURCE_URLS)),$(value SOURCE_URLS))
+override export LOCATE_REQUIRED_INPUT := $(if $(filter command line,$(origin REQUIRE_SOURCE)),$(value REQUIRE_SOURCE))
+unexport SOURCE_LOCK
+override export SOURCE_LOCK_INPUT := $(if $(filter command line,$(origin SOURCE_LOCK)),$(value SOURCE_LOCK))
+
 unexport ARTIFACTS
 unexport ARTIFACTS_INPUT
 unexport ARTIFACTS_INPUT_ORIGIN
@@ -142,12 +158,12 @@ override PROJECT_INPUT := $(value PROJECT)
 export PROJECT_INPUT
 endif
 
-.PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning tests/repository/release
+.PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning tests/repository/release tests/repository/network tests/repository/network/identity
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
 .PHONY: delivery/deployment/up delivery/deployment/update delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
-.PHONY: wheelhouse/image/build tests/wheelhouse
+.PHONY: wheelhouse/image/build wheelhouse/lock/locate wheelhouse/lock/acquire tests/wheelhouse
 
 help:
 	@printf '%s\n' \
@@ -158,6 +174,9 @@ help:
 	  'make tests/repository/quality    Run code and operator convention checks offline.' \
 	  'make tests/repository/provisioning Run checker preparation and cleanup fixtures offline.' \
 	  'make tests/repository/release    Run release and wheelhouse bundle fixtures offline.' \
+	  'make tests/repository/network    Run acquisition network-owner fixtures offline.' \
+	  'make wheelhouse/lock/locate LOCK=... NETWORK_INTERFACE=... [INDEX_URL=...] [SOURCE_URLS=...] [REQUIRE_SOURCE=...] Project a pinned lock.' \
+	  'make wheelhouse/lock/acquire LOCK=... [SOURCE_LOCK=...] WHEELHOUSE=... NETWORK_INTERFACE=... Acquire locked artifacts.' \
 	  'make tests/repository/runtime    Inspect the checker container grants.' \
 	  'make tests/repository/command    Print the repository checker command without starting it.' \
 	  'make checks/base-image/download Bootstrap the pinned base using Docker daemon routing.' \
@@ -201,6 +220,12 @@ wheelhouse/image/build:
 
 tests/wheelhouse:
 	bash tools/wheelhouse_image.sh test
+
+wheelhouse/lock/locate:
+	@bash tools/wheelhouse_locate.sh
+
+wheelhouse/lock/acquire:
+	@bash tools/wheelhouse_acquire.sh
 
 packages/provider-core/check:
 	bash tools/provider_core.sh check
@@ -266,6 +291,12 @@ tests/repository/provisioning:
 
 tests/repository/release:
 	bash tools/repository.sh tests/repository/release
+
+tests/repository/network:
+	bash tools/repository.sh tests/repository/network
+
+tests/repository/network/identity:
+	bash tools/repository.sh tests/repository/network/identity
 
 tests/repository/runtime:
 	bash tools/repository.sh tests/repository/runtime

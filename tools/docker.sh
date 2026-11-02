@@ -322,14 +322,21 @@ if [[ "$operation" == download-proxy ]]; then
     fi
     exit "$download_status"
 fi
-if "$print_command"; then scratch=/tmp/nmrnet-proxy.PRINT; else
+if "$print_command"; then
+    scratch=/tmp/nmrnet-proxy.PRINT
+    proxy_user=HOST_IDENTITY
+else
     require_images "$proxy_image"
     mkdir -m 700 -- "$scratch/ready"
+    proxy_user=$(bash "$repository_root/tools/host_identity.sh" "$proxy_image") || {
+        printf '%s\n' 'Cannot map the acquisition proxy identity into the selected engine.' >&2
+        exit 2
+    }
 fi
 # The proxy shares the tools namespace with its guard; neither source is writable.
 proxy=("${engine[@]}" create --cidfile "$scratch/proxy.cid" --pull never --network host --read-only
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1 --workdir /workspace
-    --user "$caller_uid:$caller_gid" --cap-drop ALL --security-opt no-new-privileges:true
+    --user "$proxy_user" --cap-drop ALL --security-opt no-new-privileges:true
     --cpus 1 --memory 128m --memory-swap 128m --pids-limit 64
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=16m
     "${resolver_mount[@]}"

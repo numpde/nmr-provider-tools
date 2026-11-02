@@ -21,6 +21,7 @@ from pathlib import Path
 from packaging.pylock import PackageArchive, PackageSdist, PackageWheel, Pylock, PylockSelectError, PylockValidationError
 from packaging.tags import sys_tags
 from packaging.utils import InvalidSdistFilename, InvalidWheelFilename, canonicalize_name, parse_sdist_filename, parse_wheel_filename
+from packaging.version import Version
 
 
 @contextmanager
@@ -46,9 +47,25 @@ def read_lock(lock):
         return Pylock.from_dict(tomllib.load(stream))
 
 
-def selected(lock, prefer_sdist, require_sdist=(), document=None):
+def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=None):
     if document is None:
         document = read_lock(lock)
+    projection = (document.tool or {}).get("nmr-provider-tools", {})
+    source_digest = projection.get("source-lock-sha256")
+    source_requirements = None
+    if source_lock is not None and source_digest is None:
+        raise ValueError("Cannot use projected lock: source lock binding is missing.")
+    if source_digest is not None:
+        if source_lock is None:
+            raise ValueError("Cannot use projected lock: supply the matching source requirements lock.")
+        from wheelhouse_tool.locate import read_requirements
+
+        records, _, actual_digest = read_requirements(source_lock)
+        if actual_digest != source_digest:
+            raise ValueError("Cannot use projected lock: supply the matching source requirements lock.")
+        source_requirements = {canonicalize_name(requirement.name): (requirement, hashes) for requirement, hashes in records}
+        if len(source_requirements) != len(records):
+            raise ValueError("Cannot use projected lock: the source lock repeats a package.")
     required = {canonicalize_name(name) for name in require_sdist}
     preferences = {canonicalize_name(name) for name in prefer_sdist} | required
     artifacts = []
@@ -60,6 +77,15 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None):
         url = urllib.parse.urlsplit(artifact.url)
         name = getattr(artifact, "filename", None) or urllib.parse.unquote(url.path.rsplit("/", 1)[-1])
         digest = artifact.hashes.get("sha256", "")
+        if source_requirements is not None:
+            entry = source_requirements.get(package.name)
+            if entry is None or digest not in entry[1]:
+                raise ValueError(f"Cannot use projected lock: {package.name} differs from its source lock.")
+            requirement = entry[0]
+            if requirement.url is not None and artifact.url != urllib.parse.urldefrag(requirement.url).url:
+                raise ValueError(f"Cannot use projected lock: {package.name} has a different locked URL.")
+            if requirement.url is None and package.version != Version(next(iter(requirement.specifier)).version):
+                raise ValueError(f"Cannot use projected lock: {package.name} has a different locked version.")
         if not name or name in (".", "..") or "/" in name or "\\" in name:
             raise ValueError(f"Cannot acquire {package.name}: the artifact filename is invalid.")
         source = isinstance(artifact, PackageSdist) or (isinstance(artifact, PackageArchive) and not name.endswith(".whl"))
@@ -95,6 +121,8 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None):
         artifacts.append((name, digest, artifact.url, package, artifact))
     if missing := required - found_required:
         raise ValueError(f"Cannot acquire source distribution: {', '.join(sorted(missing))} is not selected by the lock.")
+    if source_requirements is not None and {package.name for _, _, _, package, _ in artifacts} != set(source_requirements):
+        raise ValueError("Cannot use projected lock: its selected packages differ from the source lock.")
     return artifacts
 
 
@@ -182,6 +210,7 @@ def main():
     parser.add_argument("action", choices=("acquire", "check", "select"))
     parser.add_argument("--lock", type=Path, required=True)
     parser.add_argument("--pool", type=Path)
+    parser.add_argument("--source-lock", type=Path, help="Original requirements lock for a metadata projection.")
     parser.add_argument("--prefer-sdist", action="append", default=[])
     parser.add_argument("--require-sdist", action="append", default=[])
     parser.add_argument("--local-lock", type=Path, help="Write a local-path pylock after a successful operation.")
@@ -194,7 +223,7 @@ def main():
                                                args.local_lock.name.startswith("pylock.") and args.local_lock.name.endswith(".toml")):
             raise ValueError("Cannot write a local lock: use pylock.toml or pylock.NAME.toml so installers recognize it.")
         document = read_lock(args.lock)
-        artifacts = selected(args.lock, args.prefer_sdist, args.require_sdist, document)
+        artifacts = selected(args.lock, args.prefer_sdist, args.require_sdist, document, args.source_lock)
         if args.action == "select":
             result = {"artifacts": [{"package": str(package.name), "filename": name, "sha256": digest}
                                     for name, digest, _, package, _ in artifacts]}

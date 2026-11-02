@@ -47,6 +47,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
                     f'hashes = {{ sha256 = "{checksum}" }}\n')
     projected = scratch / "pylock.local.toml"
     command = ["python3", "-I", "-S", str(bundle)]
+    subprocess.run([*command, "locate", "--help"], check=True, stdout=subprocess.DEVNULL)
     selected = subprocess.run([*command, "select", "--lock", str(lock)], check=True,
                               stdout=subprocess.PIPE, text=True)
     if json.loads(selected.stdout)["artifacts"][0]["sha256"] != checksum:
