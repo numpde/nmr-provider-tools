@@ -50,6 +50,14 @@ selected files. Pip's normal cache may reduce network traffic but is not an
 offline artifact authority: entries can expire and its layout is private. It is
 not a required second cache.
 
+The released wheelhouse tool can locate artifacts for an existing target-specific
+requirements lock from index metadata without downloading wheel bodies. Run it
+under the target Python, and pass the same original lock as `--source-lock`
+when consuming its projection. The tool checks the selected package closure,
+versions and hashes against that lock, including direct URLs recorded there.
+Separately supplied source URLs remain the provider's responsibility: matching
+the locked hash establishes the bytes, not the origin of such a URL.
+
 Supply only selected files to BuildKit from the shared pool. Prefer exact
 named-context COPY into an input stage, not a host wheel-copy directory; bind
 selected inputs to image identity and keep wheels out of runtime images.
