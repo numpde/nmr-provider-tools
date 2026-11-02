@@ -63,6 +63,9 @@ class DeliveryReleaseTests(unittest.TestCase):
                     "files": {self.wheel.name: self.digest}}
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary)
+            dockerfile = destination / "containers/delivery/Dockerfile"
+            dockerfile.parent.mkdir(parents=True)
+            dockerfile.write_text("FROM scratch AS wheel_inputs\n# selected-wheel-inputs\n")
             self.wheel.write_bytes(self.content)
             inode = self.wheel.stat().st_ino
             with patch.object(delivery_image, "requirements"), patch.object(
@@ -70,11 +73,12 @@ class DeliveryReleaseTests(unittest.TestCase):
             ), patch.object(delivery_image, "select_wheels", return_value=selected):
                 delivery_image.capture_image_inputs(None, None, self.pool, destination)
             self.assertEqual(
-                {"provider-core-install.lock", "provider-core-wheel-inputs.json"},
+                {"provider-core-install.lock", "provider-core-wheel-inputs.json", "containers"},
                 {path.name for path in destination.iterdir()},
             )
             self.assertEqual(b"lock", (destination / "provider-core-install.lock").read_bytes())
             self.assertEqual(selected, json.loads((destination / "provider-core-wheel-inputs.json").read_text()))
+            self.assertIn(self.wheel.name, (dockerfile.parent / "Dockerfile.selected").read_text())
             self.assertEqual(inode, self.wheel.stat().st_ino)
 
     def test_install_uses_pool_directly_and_checks_captured_identities(self):

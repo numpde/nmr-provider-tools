@@ -83,6 +83,12 @@ An interrupted legacy download may therefore need operator attention. Replace
 that path as providers move to the shared publisher; do not claim it already
 has the same publication guarantees.
 
+The shared delivery image build uses exact named-context COPY instructions for
+its selected wheels. This reduces transfer, but BuildKit still receives a live
+pool context and the capture lock does not cover an uncertain builder lifetime.
+Keep pool entries stable during that build; the streamed context remains the
+intended path for removing the engine's pool access.
+
 Some lock compilers fetch a wheel to obtain metadata when its index does not
 offer a metadata sidecar. A subsequent acquisition can fetch that wheel again.
 Avoiding that repeat across all supported sources is still unresolved.

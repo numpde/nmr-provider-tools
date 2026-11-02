@@ -103,6 +103,17 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
         json.dump(selected, target, sort_keys=True)
         target.write("\n")
     identities.chmod(0o644)
+    template = destination / "containers/delivery/Dockerfile"
+    marker = "# selected-wheel-inputs"
+    contents = template.read_text()
+    if contents.count(marker) != 1:
+        raise ValueError("Cannot build delivery: the Dockerfile has no unique wheel input marker.")
+    copies = "\n".join("COPY --from=wheelhouse " + json.dumps(["/" + name, "/" + name])
+                       for name in sorted(selected["files"]))
+    generated = destination / "containers/delivery/Dockerfile.selected"
+    with generated.open("x") as target:
+        target.write(contents.replace(marker, copies))
+    generated.chmod(0o644)
 
 
 if __name__ == "__main__":

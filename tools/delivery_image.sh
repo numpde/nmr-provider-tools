@@ -53,7 +53,7 @@ checker_run 120 --pull never --network none --read-only --user "$checker_host_ui
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
     --mount "type=bind,src=$context,dst=/capture" \
     --entrypoint python3 "$build_base_image" -B -m tools.delivery_image capture --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --destination /capture
-for path in provider-core-install.lock provider-core-wheel-inputs.json; do
+for path in provider-core-install.lock provider-core-wheel-inputs.json containers/delivery/Dockerfile.selected; do
     [[ -f $context/$path && ! -L $context/$path ]] || exit 2
     checker_input_paths+=("$path")
 done
@@ -84,7 +84,7 @@ if ! cmp -s "$operation_directory/base-tag" <(printf '%s\n' "$build_base_image")
 fi
 checker_call 'offline shared delivery image build' 900 stdio "${engine[@]}" build --builder default --platform linux/amd64 \
     --network none --pull=false --build-context "wheelhouse=$wheelhouse_directory" --build-arg "BASE_IMAGE=$base_tag" --label "org.nmr-provider-tools.inputs=$fingerprint" --label "org.nmr-provider-tools.recipe=$recipe" --label org.nmr-provider-tools.role=delivery \
-    --iidfile "$operation_directory/built-image" --file "$context/containers/delivery/Dockerfile" "$context"
+    --iidfile "$operation_directory/built-image" --file "$context/containers/delivery/Dockerfile.selected" "$context"
 image=
 if [[ -f $operation_directory/built-image && ! -L $operation_directory/built-image && $(stat -c %s -- "$operation_directory/built-image") -le 72 ]]; then
     if IFS= read -r -N 71 image < "$operation_directory/built-image"; then :; else image=; fi
