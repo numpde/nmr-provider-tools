@@ -55,3 +55,16 @@ shared outages should be paced and recover automatically where possible. Do
 not halt a provider merely because individual Jobs fail; reserve a halt for an
 established provider-wide condition and define how it clears. These scheduling,
 interpreter and systemic-failure changes are separate from the first milestone.
+
+Server expiry is a separate failsafe, not an observation-retry timer. The API
+source's default policy makes an in-progress Attempt eligible 24 hours after
+its start; progress does not renew that age. Its worker normally waits 60
+seconds between cycles, or 10 seconds while draining a backlog, so expiry is
+not an exact deadline and can be delayed further. Expiry changes server state;
+it neither stops local execution nor proves resource retirement. Before
+shortening the global age, account for the longest valid provider execution
+and its cleanup and recovery margin, including delayed durable-outbox delivery
+and late-terminal acceptance. Some provider retry paths have no verified finite
+Attempt ceiling. Keep the existing expiry age while those limits remain open.
+Confirm deployed server settings before claiming these defaults describe a
+particular deployment.
