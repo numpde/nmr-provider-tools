@@ -22,6 +22,7 @@ case "$action" in
         checker_run 180 --pull never --network none --read-only --cap-drop ALL \
             --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m \
+            --mount "type=bind,src=$root/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \
             --mount "type=bind,src=$root/tests/test_shared_wheelhouse.py,dst=/tests/test_shared_wheelhouse.py,readonly" \
             --entrypoint python "$image" -m unittest discover -s /tests -p test_shared_wheelhouse.py -v
         ;;

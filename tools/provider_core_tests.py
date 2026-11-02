@@ -16,8 +16,6 @@ import tempfile
 from pathlib import Path
 
 from tools.core_environment import build_candidate, install_environment
-from tools.artifacts import regular_file
-from tools.wheelhouse import capture
 
 
 def run_suite(suite, patterns):
@@ -28,20 +26,15 @@ def run_suite(suite, patterns):
         wheel, lock, _ = build_candidate(
             Path("/package"), Path("/core-runtime.lock"), Path("/core-build.lock"), Path("/wheelhouse"), output,
         )
-        # Reuse the selected shared dependency files, adding the candidate wheel
-        # only to this private installation pool, never to the shared cache.
-        from_tools_pool = root / "pool"
-        from_tools_pool.mkdir()
-        capture(Path("/core-runtime.lock"), Path("/wheelhouse"), from_tools_pool)
-        with regular_file(wheel) as source, (from_tools_pool / wheel.name).open("xb") as target:
-            shutil.copyfileobj(source, target)
-        python = install_environment(Path("/runtime"), lock, from_tools_pool)
+        python = install_environment(Path("/runtime"), lock, Path("/wheelhouse"),
+                                     extra_pools=(output,), required_files={wheel.name: wheel})
         run = root / "run"
         shutil.copytree(Path("/package/tests"), run / "tests")
         subprocess.run([str(python), "-I", "-B", str(run / "tests/run_suite.py"), suite, *patterns], cwd=run, check=True)
         if suite == "unit":
             native_lock = output / wheel.name.replace("-py3-none-any.whl", "-native-install.lock")
-            native_python = install_environment(Path("/runtime/native-proof"), native_lock, from_tools_pool)
+            native_python = install_environment(Path("/runtime/native-proof"), native_lock, Path("/wheelhouse"),
+                                                extra_pools=(output,), required_files={wheel.name: wheel})
             subprocess.run([str(native_python), "-I", "-B", str(run / "tests/run_suite.py"), "native", "test*.py"], cwd=run, check=True)
 
 

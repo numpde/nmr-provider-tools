@@ -5,6 +5,7 @@ from tools.container_guard import require_container
 require_container()
 
 import hashlib
+import json
 import shutil
 import subprocess
 import tempfile
@@ -101,10 +102,30 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual(identity["files"], {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in destination.iterdir()})
         self.assertEqual([], list(self.pool.glob(".provider-core-download-*")))
 
-    def test_conflicting_cached_bytes_are_replaced_by_pip(self):
+    def test_conflicting_cached_bytes_are_preserved(self):
         cached = self.pool / self.cached.name
         cached.write_bytes(b"conflicting cached bytes")
-        _requests, run = self.local_index()
+        requests, run = self.local_index()
         with patch.object(wheelhouse, "require_download_proxy"), patch.object(wheelhouse.subprocess, "run", side_effect=run):
-            wheelhouse.populate_pool(self.lock, self.pool)
-        self.assertEqual(self.cached.read_bytes(), cached.read_bytes())
+            with self.assertRaisesRegex(ValueError, "existing file is preserved"):
+                wheelhouse.populate_pool(self.lock, self.pool)
+        self.assertEqual(b"conflicting cached bytes", cached.read_bytes())
+        self.assertEqual([], requests)
+
+    def test_report_requires_the_actual_candidate_wheel(self):
+        candidate_dir = self.root / "release"
+        candidate_dir.mkdir()
+        candidate = candidate_dir / self.cached.name
+        shutil.copyfile(self.cached, candidate)
+        report = self.root / "report.json"
+
+        def write_report(path):
+            report.write_text(json.dumps({"version": "1", "install": [{"download_info": {
+                "url": path.as_uri(), "archive_info": {"hashes": {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()}}}}]}))
+
+        write_report(self.pool / self.cached.name)
+        with self.assertRaisesRegex(ValueError, "required release artifact"):
+            wheelhouse.wheel_inputs_from_report(self.lock, self.pool, report, (candidate_dir,), {candidate.name: candidate})
+        write_report(candidate)
+        selected = wheelhouse.wheel_inputs_from_report(self.lock, self.pool, report, (candidate_dir,), {candidate.name: candidate})
+        self.assertIn(candidate.name, selected["files"])

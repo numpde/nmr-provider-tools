@@ -13,7 +13,7 @@ from tests.fakes.delivery import healthy_diagnostics
 class DeliveryConfigurationTests(unittest.TestCase):
     def test_original_api_grant_and_explicit_proxy_create_only_unstarted_owners(self):
         with tempfile.TemporaryDirectory() as directory:
-            files = DeliveryConfigFiles(directory)
+            files = DeliveryConfigFiles(directory, socket_group_id=65532)
             service = load_delivery_service(files.path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
             binding, = service.bindings
             self.assertEqual(binding.endpoint.api_origin, "https://api.example")

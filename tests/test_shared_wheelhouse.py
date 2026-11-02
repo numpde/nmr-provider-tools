@@ -15,6 +15,8 @@ from unittest.mock import patch
 
 from wheelhouse_tool import __main__ as tool
 from wheelhouse_tool.stream import stream_context
+from wheelhouse_tool.report import manifest as report_manifest
+from wheelhouse_tool.identity import selection_identity
 
 
 class WheelhouseTests(unittest.TestCase):
@@ -142,6 +144,40 @@ class WheelhouseTests(unittest.TestCase):
         with patch("wheelhouse_tool.stream.pool_lock", replace_source):
             with self.assertRaisesRegex(ValueError, "regular source file"):
                 stream_context(self.pool, None, [], io.BytesIO(), [entry])
+
+    def test_report_projects_only_authorized_pool_artifacts(self):
+        def report(url):
+            return {"version": "1", "install": [{"download_info": {"url": url,
+                    "archive_info": {"hashes": {"sha256": "a" * 64}}}}]}
+
+        result = report_manifest(report("file:///pool/torch-1.0%2Bcpu.whl"), "/pool", "wheels", set())
+        self.assertEqual("torch-1.0+cpu.whl", result[0]["filename"])
+        for url in ("https://host/pool/a.whl", "file:///pool/a%2Fb.whl", "file:///pool/a%FF.whl", "file:///pool/a\n.whl",
+                    "file:///pool/a%zz.whl", "file:///pool/a%0A.whl", "file:///pool/a.whl?query"):
+            with self.subTest(url=url), self.assertRaises(ValueError):
+                report_manifest(report(url), "/pool", "wheels", set())
+        source = "antlr-1.0.tar.gz"
+        with self.assertRaises(ValueError):
+            report_manifest(report("file:///pool/" + source), "/pool", "wheels", set())
+        self.assertEqual(source, report_manifest(report("file:///pool/" + source), "/pool", "wheels", {source})[0]["filename"])
+        for invalid in (None, [], {"version": "1", "install": []}):
+            with self.subTest(report=invalid), self.assertRaises(ValueError):
+                report_manifest(invalid, "/pool", "wheels", set())
+
+    def test_selection_identity_is_stable_and_changes_with_selected_bytes(self):
+        first = {"directory": "wheels/main", "filename": "first.whl", "sha256": "a" * 64}
+        second = {"directory": "wheels/native", "filename": "second.whl", "sha256": "b" * 64}
+        self.assertEqual(selection_identity([first, second]), selection_identity([second, first, first]))
+        self.assertNotEqual(selection_identity([first]), selection_identity([first | {"sha256": "c" * 64}]))
+        with self.assertRaisesRegex(ValueError, "explicitly identify"):
+            selection_identity([first | {"lock": "other.toml"}])
+        with self.assertRaisesRegex(ValueError, "cannot be mixed"):
+            stream_context(self.pool, self.root, [first | {"lock": str(self.lock)}], io.BytesIO())
+        for entry in (first | {"directory": "wheels/one\x00two"}, first | {"filename": "bad\x00.whl"}):
+            with self.assertRaises(ValueError):
+                selection_identity([entry])
+            with self.assertRaises(ValueError):
+                stream_context(self.pool, None, [entry], io.BytesIO(), [])
 
     def test_simultaneous_acquisition_reuses_the_first_result(self):
         errors = []

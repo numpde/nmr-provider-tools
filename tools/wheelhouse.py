@@ -9,6 +9,7 @@ from tools.container_guard import require_container
 require_container()
 
 import argparse
+import fcntl
 import hashlib
 import json
 import os
@@ -19,12 +20,31 @@ import sys
 import tempfile
 import urllib.parse
 import urllib.request
+from contextlib import contextmanager
 from pathlib import Path
+
+from pip._vendor.packaging.tags import sys_tags
+from pip._vendor.packaging.utils import InvalidWheelFilename, parse_wheel_filename
+from pip._vendor.packaging.version import Version
 
 from tools.artifacts import fsync_directory, regular_file, require_download_proxy
 
 # repo-check: allow-module-constant
 CHUNK_BYTES = 1024 * 1024
+
+
+@contextmanager
+def pool_lock(pool, exclusive=False):
+    descriptor = os.open(pool, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
+        yield descriptor
+    finally:
+        os.close(descriptor)
+
+
+def pool_read_lock(pool):
+    return pool_lock(pool)
 
 
 def digest(path):
@@ -66,7 +86,7 @@ def requirements(lock):
     return packages
 
 
-def select_wheels(lock, pool):
+def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None):
     """Let pip select compatible, hash-locked files from an unrelated shared pool.
 
     A dry-run report avoids copying large wheels into the checker's small /tmp.
@@ -74,8 +94,9 @@ def select_wheels(lock, pool):
     https://pip.pypa.io/en/stable/cli/pip_install/#obtaining-information-about-what-was-installed
     https://pip.pypa.io/en/stable/reference/installation-report/
     """
-    if not pool.is_dir():
-        raise ValueError(f"Cannot select wheels: shared pool is not a directory: {pool}")
+    pools = (pool, *extra_pools)
+    if any(not directory.is_dir() for directory in pools):
+        raise ValueError("Cannot select wheels: every supplied wheel directory must exist.")
     with tempfile.TemporaryDirectory(prefix="wheel-selection-") as temporary:
         frozen = Path(temporary) / "requirements.lock"
         with regular_file(lock) as source, frozen.open("xb") as target:
@@ -99,19 +120,18 @@ def select_wheels(lock, pool):
                 "--no-deps",
                 "--require-hashes",
                 "--only-binary=:all:",
-                "--find-links",
-                str(pool),
+                *[argument for directory in pools for argument in ("--find-links", str(directory))],
                 "--report",
                 str(report),
                 "-r",
                 str(frozen),
             ],
-            check=True,
+            check=True, pass_fds=() if lock_fd is None else (lock_fd,),
         )
-        return wheel_inputs_from_report(frozen, pool, report)
+        return wheel_inputs_from_report(frozen, pool, report, extra_pools, required_files)
 
 
-def wheel_inputs_from_report(lock, pool, report):
+def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=None):
     """Project pip's actual selection or installation report into input identities."""
     selected = read_json(report)
     if selected["version"] != "1":
@@ -123,13 +143,19 @@ def wheel_inputs_from_report(lock, pool, report):
         if (
             location.scheme != "file"
             or location.netloc
-            or candidate.parent.resolve() != pool.resolve()
+            or candidate.parent.resolve() not in {directory.resolve() for directory in (pool, *extra_pools)}
             or candidate.suffix != ".whl"
         ):
             raise ValueError("Cannot select wheels: pip selected a file outside the supplied flat pool.")
+        if required_files and candidate.name in required_files and candidate.resolve() != required_files[candidate.name].resolve():
+            raise ValueError(f"Cannot select {candidate.name}: pip did not select the required release artifact.")
+        with regular_file(candidate):
+            pass
         # Pip owns lock resolution and source-file hash admission. Capture later
         # compares its copied bytes with these hashes and the original lock.
         files[candidate.name] = item["download_info"]["archive_info"]["hashes"]["sha256"]
+    if required_files and not set(required_files).issubset(files):
+        raise ValueError("Cannot select wheels: a required release artifact was not selected.")
     return {"lock_sha256": digest(lock), "files": files}
 
 
@@ -173,25 +199,42 @@ def populate_pool(lock, pool):
     """Reuse the shared pool and download missing hash-locked wheels into it."""
     if pool.is_symlink() or not pool.is_dir():
         raise ValueError("Cannot acquire wheels: shared pool must be a directory without a symlink.")
-    requirements(lock)
+    descriptor = os.open(pool, os.O_RDONLY | os.O_DIRECTORY)
     try:
-        select_wheels(lock, pool)
+        fcntl.flock(descriptor, fcntl.LOCK_EX)
+        _populate_pool(lock, pool, descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _populate_pool(lock, pool, lock_fd):
+    locked = {(name, Version(version)): hashes for (name, version), hashes in requirements(lock).items()}
+    try:
+        select_wheels(lock, pool, lock_fd=lock_fd)
     except subprocess.CalledProcessError:
-        require_download_proxy()
+        pass
     else:
         print("All locked wheels are already available in WHEELHOUSE; no download is needed.", flush=True)
         return
+    target_tags = set(sys_tags())
+    for path in pool.glob("*.whl"):
+        try:
+            name, version, _build, tags = parse_wheel_filename(path.name)
+        except InvalidWheelFilename:
+            continue
+        hashes = locked.get((name, version))
+        if hashes and tags.intersection(target_tags) and digest(path) not in hashes:
+            raise ValueError(f"Cannot acquire {path.name}: cached bytes differ from the lock; the existing file is preserved.")
+    require_download_proxy()
     print("Acquiring missing locked wheels directly into WHEELHOUSE.", flush=True)
     subprocess.run(
         [sys.executable, "-I", "-m", "pip", "--isolated", "download", "--require-hashes",
          "--only-binary=:all:", "--no-deps", "--no-cache-dir",
          "--disable-pip-version-check", "--index-url", "https://pypi.org/simple",
          "--find-links", str(pool), "--dest", str(pool), "-r", str(lock)],
-        check=True,
+        check=True, pass_fds=(lock_fd,),
     )
-    selected = select_wheels(lock, pool)
-    for name in selected["files"]:
-        os.chmod(pool / name, 0o644)
+    select_wheels(lock, pool, lock_fd=lock_fd)
     fsync_directory(pool)
 
 
@@ -205,7 +248,8 @@ def main():
         if args.action == "download":
             populate_pool(lock, args.pool)
         else:
-            print(json.dumps(select_wheels(lock, args.pool), sort_keys=True))
+            with pool_read_lock(args.pool) as lock_fd:
+                print(json.dumps(select_wheels(lock, args.pool, lock_fd=lock_fd), sort_keys=True))
 
 
 if __name__ == "__main__":

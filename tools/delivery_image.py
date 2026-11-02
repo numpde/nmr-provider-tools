@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 
 from tools.artifacts import regular_file, require_download_proxy
-from tools.wheelhouse import digest, publish_file, read_json, requirements, select_wheels
+from tools.wheelhouse import digest, pool_lock, publish_file, read_json, requirements, select_wheels
 
 
 def release_inputs(pin, runtime_lock):
@@ -53,6 +53,11 @@ def missing_wheels(release, pool):
 
 
 def acquire_release(pin, runtime_lock, pool):
+    with pool_lock(pool, exclusive=True):
+        _acquire_release(pin, runtime_lock, pool)
+
+
+def _acquire_release(pin, runtime_lock, pool):
     release, _ = release_inputs(pin, runtime_lock)
     for name, expected in missing_wheels(release, pool):
         require_download_proxy()
@@ -77,6 +82,11 @@ def acquire_release(pin, runtime_lock, pool):
 
 
 def capture_image_inputs(pin, runtime_lock, pool, destination):
+    with pool_lock(pool) as lock_fd:
+        _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd)
+
+
+def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
     release, lock_bytes = release_inputs(pin, runtime_lock)
     lock = destination / "provider-core-install.lock"
     with lock.open("xb") as target:
@@ -85,7 +95,7 @@ def capture_image_inputs(pin, runtime_lock, pool, destination):
     requirements(lock)
     if missing_wheels(release, pool):
         raise ValueError("Cannot build delivery: the selected wheelhouse is missing pinned release wheels.")
-    selected = select_wheels(lock, pool)
+    selected = select_wheels(lock, pool, lock_fd=lock_fd)
     if selected["files"] != release_wheels(release):
         raise ValueError("Cannot build delivery: selected wheels differ from the pinned release closure.")
     identities = destination / "provider-core-wheel-inputs.json"
@@ -105,10 +115,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
     if args.action == "check":
         release, _ = release_inputs(args.pin, args.runtime_lock)
-        if missing_wheels(release, args.pool):
-            print("missing")
-        else:
-            print("complete")
+        with pool_lock(args.pool):
+            if missing_wheels(release, args.pool):
+                print("missing")
+            else:
+                print("complete")
     elif args.action == "acquire":
         acquire_release(args.pin, args.runtime_lock, args.pool)
     else:

@@ -121,7 +121,12 @@ if [[ $action == build || $action == package ]]; then
     checker_host_identity "$base_image" python3 "$uid" "$gid" || {
         printf '%s\n' 'Cannot map the artifact owner into the selected engine.' >&2; exit 2;
     }
-    if [[ $action == package ]]; then arguments[4]="$checker_host_uid:$checker_host_gid"; fi
+    # The release qualification exercises actual socket groups, which must be
+    # nonzero even when a rootless engine maps the caller's host GID to zero.
+    if [[ $action == package ]]; then
+        arguments[4]="$checker_host_uid:1"
+        arguments=("${arguments[@]:0:5}" --group-add "$checker_host_gid" "${arguments[@]:5}")
+    fi
 fi
 if [[ $action == package ]]; then
     mkdir -- "$operation_directory/source"

@@ -62,7 +62,9 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
         paths = ((Path(item["path"]), item["destination"]) for item in source_allowlist)
     for path, name in paths:
         destination = PurePosixPath(name)
-        if destination.is_absolute() or not destination.parts or str(destination) != name or any(part in (".", "..") for part in destination.parts):
+        if (destination.is_absolute() or not destination.parts or str(destination) != name
+                or any(ord(character) < 32 or ord(character) == 127 for character in name)
+                or any(part in (".", "..") for part in destination.parts)):
             raise ValueError("Cannot stream build inputs: source destination must be a relative path.")
         if name in source_paths:
             raise ValueError(f"Cannot stream {name}: source destination is duplicated.")
@@ -78,8 +80,15 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
             raise ValueError(f"Cannot stream {name}: a source file occupies its parent path.")
     artifacts = {}
     for selection in selections:
+        if "lock" in selection:
+            if not {"lock", "directory"}.issubset(selection) or set(selection) - {"lock", "directory", "prefer_sdist", "require_sdist"}:
+                raise ValueError("Cannot stream build inputs: lock and explicit artifact entries cannot be mixed.")
+        elif set(selection) != {"directory", "filename", "sha256"}:
+            raise ValueError("Cannot stream build inputs: expected an explicit artifact entry.")
         directory = PurePosixPath(selection["directory"])
-        if directory.is_absolute() or not directory.parts or str(directory) != selection["directory"] or any(part in (".", "..") for part in directory.parts):
+        if (directory.is_absolute() or not directory.parts or str(directory) != selection["directory"]
+                or any(ord(character) < 32 or ord(character) == 127 for character in selection["directory"])
+                or any(part in (".", "..") for part in directory.parts)):
             raise ValueError("Cannot stream build inputs: artifact directory must be a relative path.")
         if "lock" in selection:
             lock = Path(selection["lock"])
@@ -88,7 +97,9 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
         else:
             inputs = [(selection["filename"], selection["sha256"])]
         for name, digest in inputs:
-            if not name or name in (".", "..") or "/" in name or "\\" in name or not re.fullmatch(r"[0-9a-f]{64}", digest):
+            if (not name or name in (".", "..") or "/" in name or "\\" in name
+                    or any(ord(character) < 32 or ord(character) == 127 for character in name)
+                    or not re.fullmatch(r"[0-9a-f]{64}", digest)):
                 raise ValueError("Cannot stream build inputs: expected a filename and SHA-256 hash.")
             destination = str(directory / name)
             if (destination in source_paths or any(name.startswith(destination + "/") for name in source_paths)

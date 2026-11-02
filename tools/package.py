@@ -11,6 +11,7 @@ require_container()
 
 import argparse
 import hashlib
+import io
 import json
 import re
 import shutil
@@ -24,7 +25,7 @@ from pathlib import Path, PurePosixPath
 from tools.artifacts import regular_file
 from tools.build_wheelhouse_bundle import build as build_wheelhouse_bundle
 from tools.core_environment import build_candidate, install_environment, wheelhouse_source_inventory
-from tools.wheelhouse import capture, digest, requirements
+from tools.wheelhouse import digest, requirements
 
 
 def artifact_names(version):
@@ -46,6 +47,10 @@ def qualify_wheelhouse_bundle(bundle, scratch):
                     f'hashes = {{ sha256 = "{checksum}" }}\n')
     projected = scratch / "pylock.local.toml"
     command = ["python3", "-I", "-S", str(bundle)]
+    selected = subprocess.run([*command, "select", "--lock", str(lock)], check=True,
+                              stdout=subprocess.PIPE, text=True)
+    if json.loads(selected.stdout)["artifacts"][0]["sha256"] != checksum:
+        raise ValueError("Cannot qualify wheelhouse bundle: target selection differs from the lock.")
     subprocess.run([*command, "check", "--lock", str(lock), "--pool", "/wheelhouse",
                     "--local-lock", str(projected), "--local-root", "/wheels"], check=True, stdout=subprocess.DEVNULL)
     projected_artifact = tomllib.loads(projected.read_text())["packages"][0]["wheels"][0]
@@ -55,15 +60,25 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     dockerfile = scratch / "Dockerfile"
     dockerfile.write_text("FROM scratch\n")
     manifest = scratch / "stream-manifest.json"
-    manifest.write_text(json.dumps([{"lock": str(lock), "directory": "wheels"}]))
+    report = scratch / "pip-report.json"
+    report.write_text(json.dumps({"version": "1", "install": [{"download_info": {
+        "url": "file:///wheelhouse/" + name, "archive_info": {"hashes": {"sha256": checksum}}}}]}))
+    converted = subprocess.run([*command, "report", "--report", str(report), "--pool", "/wheelhouse",
+                                "--directory", "wheels"], check=True, stdout=subprocess.PIPE, text=True)
+    if json.loads(converted.stdout) != [{"filename": name, "sha256": checksum, "directory": "wheels"}]:
+        raise ValueError("Cannot qualify wheelhouse bundle: pip report projection differs from the selected artifact.")
+    manifest.write_text(converted.stdout)
+    identity = subprocess.run([*command, "identity", "--manifest", str(manifest)], check=True,
+                              stdout=subprocess.PIPE, text=True).stdout.strip()
+    canonical = json.dumps(json.loads(converted.stdout), sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+    if identity != hashlib.sha256(canonical).hexdigest():
+        raise ValueError("Cannot qualify wheelhouse bundle: selection identity differs from the selected artifact.")
     sources = scratch / "stream-sources.json"
     sources.write_text(json.dumps([{"path": str(dockerfile), "destination": "Dockerfile",
                                    "sha256": digest(dockerfile), "executable": False}]))
-    archive_path = scratch / "stream.tar"
-    with archive_path.open("wb") as output:
-        subprocess.run([*command, "stream", "--pool", "/wheelhouse", "--source-allowlist", str(sources),
-                        "--manifest", str(manifest)], check=True, stdout=output)
-    with tarfile.open(archive_path) as archive:
+    output = subprocess.run([*command, "stream", "--pool", "/wheelhouse", "--source-allowlist", str(sources),
+                             "--manifest", str(manifest)], check=True, stdout=subprocess.PIPE).stdout
+    with tarfile.open(fileobj=io.BytesIO(output)) as archive:
         if set(archive.getnames()) != {"Dockerfile", "wheels/" + name}:
             raise ValueError("Cannot qualify wheelhouse bundle: streamed inputs differ from the selected context.")
         with archive.extractfile("wheels/" + name) as selected:
@@ -132,12 +147,8 @@ def wheel_payload(wheel, expected, version):
 
 
 def qualify_installed(wheel, lock, source, pool, root, suites):
-    selected_pool = root / "pool"
-    selected_pool.mkdir(parents=True)
-    capture(Path("/core-runtime.lock"), pool, selected_pool)
-    with regular_file(wheel) as reader, (selected_pool / wheel.name).open("xb") as writer:
-        shutil.copyfileobj(reader, writer)
-    python = install_environment(root / "runtime", lock, selected_pool)
+    python = install_environment(root / "runtime", lock, pool, extra_pools=(wheel.parent,),
+                                 required_files={wheel.name: wheel})
     test_root = root / "run"
     shutil.copytree(source / "tests", test_root / "tests")
     for suite in suites:
@@ -147,11 +158,10 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
 def check(artifacts, revision):
     with tempfile.TemporaryDirectory(prefix="package-proof-") as temporary:
         scratch = Path(temporary)
-        captured = scratch / "artifacts"
-        captured.mkdir()
+        captured = artifacts
         for path in artifacts.iterdir():
-            with regular_file(path) as reader, (captured / path.name).open("xb") as writer:
-                shutil.copyfileobj(reader, writer)
+            with regular_file(path):
+                pass
         wheels = list(captured.glob("*.whl"))
         if len(wheels) != 1:
             raise ValueError("Cannot qualify package: expect exactly one provider-core wheel.")
@@ -162,7 +172,9 @@ def check(artifacts, revision):
         prefix = f"provider_core-{version}"
         if {path.name for path in captured.iterdir()} != artifact_names(version):
             raise ValueError("Cannot qualify package: expect exactly the declared release artifacts.")
-        manifest = json.loads((captured / (prefix + "-sha256.json")).read_text())
+        manifest_path = captured / (prefix + "-sha256.json")
+        manifest_digest = digest(manifest_path)
+        manifest = json.loads(manifest_path.read_text())
         expected = {path.name: digest(path) for path in captured.iterdir() if not path.name.endswith("-sha256.json")}
         if manifest != expected:
             raise ValueError("Cannot qualify package: captured release hashes do not match the declared artifacts.")
@@ -201,8 +213,11 @@ def check(artifacts, revision):
         qualify_installed(wheels[0], lock, source, Path("/wheelhouse"), runtime / "original", ("unit", "contract", "integration"))
         qualify_installed(rebuilt_wheel, rebuilt_lock, source, Path("/wheelhouse"), runtime / "rebuilt", ("contract",))
         qualify_installed(wheels[0], native_lock, source, Path("/wheelhouse"), runtime / "native", ("native",))
-        for path in sorted(captured.iterdir()):
-            print("QUALIFIED_SHA256", digest(path), path.name, flush=True)
+        if (digest(manifest_path) != manifest_digest or
+                {path.name: digest(path) for path in captured.iterdir() if not path.name.endswith("-sha256.json")} != expected):
+            raise ValueError("Cannot qualify package: release artifacts changed during qualification.")
+        for name, checksum in sorted((expected | {manifest_path.name: manifest_digest}).items()):
+            print("QUALIFIED_SHA256", checksum, name, flush=True)
 
 
 if __name__ == "__main__":

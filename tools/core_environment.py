@@ -23,25 +23,37 @@ import tomllib
 from pathlib import Path
 
 from tools.artifacts import fsync_directory, regular_file
-from tools.wheelhouse import capture, digest, read_json, requirements, select_wheels, wheel_inputs_from_report
+from tools.wheelhouse import digest, pool_read_lock, read_json, requirements, select_wheels, wheel_inputs_from_report
 
 
 def pip_command(python):
-    return [sys.executable, "-I", "-m", "pip", "--isolated", "--python", str(python)]
+    # Run pip in the target interpreter itself so its inherited pool lock stays
+    # with the process reading wheels, even if the launcher is interrupted.
+    import pip
+
+    runner = Path(pip.__file__).resolve().parent / "__pip-runner__.py"
+    return [str(python), "-I", str(runner), "--isolated"]
 
 
-def install_locked(python, lock, wheels, report):
+def install_locked(python, lock, wheels, report, extra_pools=(), required_files=None, lock_fd=None):
     subprocess.run(
         [*pip_command(python), "install", "--ignore-installed", "--disable-pip-version-check",
          "--no-cache-dir", "--no-index", "--no-deps", "--only-binary=:all:", "--require-hashes",
-         "--no-compile", "--report", str(report), "--find-links", str(wheels), "-r", str(lock)],
-        check=True,
+         "--no-compile", "--report", str(report),
+         *[argument for directory in (wheels, *extra_pools) for argument in ("--find-links", str(directory))],
+         "-r", str(lock)],
+        check=True, pass_fds=() if lock_fd is None else (lock_fd,),
     )
-    return wheel_inputs_from_report(lock, wheels, report)
+    return wheel_inputs_from_report(lock, wheels, report, extra_pools, required_files)
 
 
 def build_candidate(source, runtime_lock, build_lock, pool, output):
-    """Freeze locks and selected wheels before building into a private output."""
+    """Freeze locks and select shared-pool wheels before building a release."""
+    with pool_read_lock(pool) as lock_fd:
+        return _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd)
+
+
+def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
     if output.is_symlink() or not output.is_dir() or any(output.iterdir()):
         raise ValueError("Cannot build provider-core: output must be a private empty directory.")
     with tempfile.TemporaryDirectory(prefix="core-build-") as temporary:
@@ -52,9 +64,7 @@ def build_candidate(source, runtime_lock, build_lock, pool, output):
             frozen = scratch / f"{role}.lock"
             shutil.copyfile(lock, frozen)
             requirements(frozen)
-            wheels = scratch / role
-            wheels.mkdir()
-            identities[role] = capture(frozen, pool, wheels)
+            identities[role] = select_wheels(frozen, pool, lock_fd=lock_fd)
             locks[role] = frozen
         package = scratch / "package"
         if source.is_symlink() or any(path.is_symlink() for path in source.rglob("*")):
@@ -67,7 +77,8 @@ def build_candidate(source, runtime_lock, build_lock, pool, output):
             raise ValueError("Cannot build provider-core release: metadata must identify provider-core and a three-part release version.")
         builder = scratch / "builder"
         subprocess.run([sys.executable, "-I", "-m", "venv", "--without-pip", str(builder)], check=True)
-        install_locked(builder / "bin/python", locks["build"], scratch / "build", scratch / "build-install.json")
+        if install_locked(builder / "bin/python", locks["build"], pool, scratch / "build-install.json", lock_fd=lock_fd) != identities["build"]:
+            raise ValueError("Cannot build provider-core: installed build inputs differ from selected inputs.")
         subprocess.run(
             [*pip_command(builder / "bin/python"), "wheel", "--disable-pip-version-check", "--no-cache-dir",
              "--no-index", "--no-deps", "--no-build-isolation", "--wheel-dir", str(output), str(package)],
@@ -97,15 +108,20 @@ def build_candidate(source, runtime_lock, build_lock, pool, output):
     return wheel, lock, identities
 
 
-def install_environment(root, lock, pool, expected_inputs=None):
+def install_environment(root, lock, pool, expected_inputs=None, extra_pools=(), required_files=None):
     """Create a pip-free runtime from one complete installation lock."""
+    with pool_read_lock(pool) as lock_fd:
+        return _install_environment(root, lock, pool, expected_inputs, extra_pools, required_files, lock_fd)
+
+
+def _install_environment(root, lock, pool, expected_inputs, extra_pools, required_files, lock_fd):
     python = root / "environment/bin/python"
     subprocess.run([sys.executable, "-I", "-m", "venv", "--without-pip", str(python.parent.parent)], check=True)
-    selected = select_wheels(lock, pool)
+    selected = select_wheels(lock, pool, extra_pools, required_files, lock_fd)
     if expected_inputs is not None and selected != expected_inputs:
         raise ValueError("Cannot admit provider-core installation: selected wheel identities differ from the pinned inputs.")
     with tempfile.NamedTemporaryFile(prefix="core-install-report-", suffix=".json") as report:
-        observed = install_locked(python, lock, pool, Path(report.name))
+        observed = install_locked(python, lock, pool, Path(report.name), extra_pools, required_files, lock_fd)
         if observed != selected:
             raise ValueError("Cannot admit provider-core installation: installed wheel identities differ from captured inputs.")
     subprocess.run([*pip_command(python), "--no-cache-dir", "check"], check=True)
@@ -130,7 +146,7 @@ def source_inventory(source):
 def wheelhouse_source_inventory(source):
     return {name: {"sha256": digest(source / name), "size": (source / name).stat().st_size,
                    "mode": (source / name).stat().st_mode & 0o777}
-            for name in ("__init__.py", "__main__.py", "stream.py")}
+            for name in ("__init__.py", "__main__.py", "stream.py", "report.py", "identity.py")}
 
 
 def normalize_sdist(path):

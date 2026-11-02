@@ -70,3 +70,18 @@ transfer. Adopt across shared tools and providers after this review, leaving the
 current deployment working until each replacement is qualified.
 If a wheel is built from a source archive, its source hash alone does not
 identify the built wheel; identify the builder and resulting bytes before reuse.
+
+Current migration limits
+------------------------
+
+The older requirements-lock acquisition path still invokes pip with the shared
+pool as its destination. It now refuses a conflicting compatible cached wheel
+and coordinates cooperating readers and writers, but it does not yet provide
+the new publisher's verified .part and no-replace guarantee for every download.
+An interrupted legacy download may therefore need operator attention. Replace
+that path as providers move to the shared publisher; do not claim it already
+has the same publication guarantees.
+
+Some lock compilers fetch a wheel to obtain metadata when its index does not
+offer a metadata sidecar. A subsequent acquisition can fetch that wheel again.
+Avoiding that repeat across all supported sources is still unresolved.

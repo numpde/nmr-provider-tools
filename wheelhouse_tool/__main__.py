@@ -179,9 +179,9 @@ def local_lock(lock, local_root, prefer_sdist=(), require_sdist=(), document=Non
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("acquire", "check"))
+    parser.add_argument("action", choices=("acquire", "check", "select"))
     parser.add_argument("--lock", type=Path, required=True)
-    parser.add_argument("--pool", type=Path, required=True)
+    parser.add_argument("--pool", type=Path)
     parser.add_argument("--prefer-sdist", action="append", default=[])
     parser.add_argument("--require-sdist", action="append", default=[])
     parser.add_argument("--local-lock", type=Path, help="Write a local-path pylock after a successful operation.")
@@ -195,7 +195,13 @@ def main():
             raise ValueError("Cannot write a local lock: use pylock.toml or pylock.NAME.toml so installers recognize it.")
         document = read_lock(args.lock)
         artifacts = selected(args.lock, args.prefer_sdist, args.require_sdist, document)
-        result = run(args.action, args.lock, args.pool, artifacts=artifacts)
+        if args.action == "select":
+            result = {"artifacts": [{"package": str(package.name), "filename": name, "sha256": digest}
+                                    for name, digest, _, package, _ in artifacts]}
+        else:
+            if args.pool is None:
+                raise ValueError("Cannot inspect wheelhouse: supply --pool.")
+            result = run(args.action, args.lock, args.pool, artifacts=artifacts)
         if args.local_lock is not None:
             output = local_lock(args.lock, args.local_root, document=document, artifacts=artifacts)
             stream = args.local_lock.open("x")

@@ -209,10 +209,14 @@ class DeploymentRouteTests(unittest.TestCase):
             root = Path(directory)
             root.chmod(0o700)
             (root / "retained").write_bytes(b"retained")
+            observed = root.lstat()
             with patch("provider_core.deployment_route.os.geteuid", return_value=0), patch(
                 "provider_core.deployment_route.os.fchown"
-            ) as chown, patch("provider_core.deployment_route.os.open", wraps=os.open) as opened:
-                initialize_route(os.getuid(), os.getgid(), root)
+            ) as chown, patch("provider_core.deployment_route.os.open", wraps=os.open) as opened, patch(
+                "provider_core.deployment_route.Path.lstat", return_value=SimpleNamespace(
+                    st_uid=65532, st_gid=65532, st_mode=observed.st_mode)
+            ):
+                initialize_route(65532, 65532, root)
             chown.assert_not_called()
             opened.assert_not_called()
             self.assertEqual(b"retained", (root / "retained").read_bytes())

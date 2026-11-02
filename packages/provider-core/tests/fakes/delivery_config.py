@@ -8,8 +8,9 @@ from tests.fakes.credential import document, encoded
 
 
 class DeliveryConfigFiles:
-    def __init__(self, root):
+    def __init__(self, root, socket_group_id=None):
         self.root = Path(root)
+        group = os.getgid() if socket_group_id is None else socket_group_id
         self.key = self.root / "signing.private.json"
         self.key.write_bytes(encoded(document()))
         self.key.chmod(0o600)
@@ -26,7 +27,7 @@ total_items = 8
 total_bytes = 32768
 [[bindings]]
 socket_path = {json.dumps(str(self.root / "ipc/http.sock"))}
-socket_group_id = {os.getgid()}
+socket_group_id = {group}
 proxy_socket = {json.dumps(str(self.root / "api/http.sock"))}
 [bindings.api]
 origin = "https://api.example"

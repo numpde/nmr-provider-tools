@@ -13,7 +13,7 @@ from tests.fakes.delivery import healthy_diagnostics
 class DeliveryConfigurationRefusalTests(unittest.TestCase):
     def test_closed_fields_and_credential_binding_refuse_without_private_echo(self):
         with tempfile.TemporaryDirectory() as directory:
-            files = DeliveryConfigFiles(directory)
+            files = DeliveryConfigFiles(directory, socket_group_id=65532)
             cases = (
                 b"PRIVATE_CANARY malformed TOML",
                 files.raw.replace(b"request_seconds = 1", b"PRIVATE_CANARY = 'PRIVATE_VALUE'"),
@@ -33,7 +33,7 @@ class DeliveryConfigurationRefusalTests(unittest.TestCase):
 
     def test_secret_grant_stays_private_without_permission_workarounds(self):
         with tempfile.TemporaryDirectory() as directory:
-            files = DeliveryConfigFiles(directory)
+            files = DeliveryConfigFiles(directory, socket_group_id=65532)
             for mode in (0o400, 0o600):
                 files.key.chmod(mode)
                 load_delivery_service(files.path, on_notice=Mock(), diagnostic_status=healthy_diagnostics)
