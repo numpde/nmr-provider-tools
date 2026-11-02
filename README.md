@@ -4,9 +4,9 @@ The code here helps NMR providers talk to the API, deliver results and deploy. E
 
 [linux-idmap](packages/linux-idmap/README.md) reads Linux UID/GID map rows and
 translates IDs, with operations for an existing process or a local Docker image.
-Start with the [complete examples](packages/linux-idmap/examples/README.md).
-[NMRPeak and NMRNet integrations](integrations/linux-idmap/README.md) apply these
-operations to provider deployment.
+It is a standalone host-side package with its own [installation and examples](packages/linux-idmap/README.md).
+[NMRPeak and NMRNet adapter fixtures](integrations/linux-idmap/README.md) contain
+reproducible consumer patches and are not part of the installed package.
 
 Get `provider_core` and its lock file from [GitHub Releases](https://github.com/numpde/nmr-provider-tools/releases). The [package docs](packages/provider-core/README.md) explain how to use it.
 
@@ -52,7 +52,9 @@ overload can still fail a connection.
 connection whose delay has elapsed) or `fifo` (preserve arrival order, even
 when an earlier connection's delay holds up others). Both settings reload live.
 
-Run `make help` to see the available commands. Builds, tests and deployments use Docker on Linux/amd64.
+Run `make help` to see the available commands. Provider-core and shared-service
+builds, tests and deployments use Docker on Linux/amd64. The standalone
+`linux-idmap` package has its own host-side build and test commands.
 
 Select a local Docker context for builds, tests and deployments with
 `DOCKER_CONTEXT=<name>` on the Make command line, or choose one interactively.
