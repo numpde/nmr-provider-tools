@@ -1,9 +1,10 @@
-Shared wheelhouse design — review draft
-=======================================
+Shared wheelhouse design
+========================
 
 Goal: one reusable host-local artifact pool; no wheel staging directories,
 unnecessary downloads or cross-host artifact transfers. This is a joint design
-for user review, not an implemented or qualified workflow.
+for joint implementation. The shared tool is released; provider integration and
+end-to-end qualification remain in progress.
 
 Dependency authority
 --------------------
