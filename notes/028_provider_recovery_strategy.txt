@@ -1,0 +1,71 @@
+Provider recovery strategy
+==========================
+
+Keep the existing SDK recovery loop as the owner of API observation and
+condition-publication retries. Configure its actual contract explicitly:
+ObservationRecovery.gap_seconds is the whole fresh-observation budget, while
+ConditionRecovery.window_seconds is the publication-recovery budget. Neither
+is an initial retry delay. Pass these and backoff_max_seconds by keyword; keep
+the budget and retry pacing separately named in provider configuration.
+The SDK has no separate initial-delay field in these policies: it starts at
+min(poll_seconds, backoff_max_seconds) and doubles up to the backoff cap.
+
+In NMRPeak's current source, the setting named observation_retry_initial_seconds
+is passed as the whole gap and window; observation_interval_seconds supplies
+the poll interval and observation_retry_max_seconds is the backoff cap. Its
+example values 5, 1 and 30 seconds therefore mean a five-second budget,
+one-second initial pacing and a 30-second cap, respectively. These are example
+values and source mappings, not evidence of a running deployment's settings.
+The NMRPeak owner separately reports a five-second observation window and a
+ten-second API exchange timeout on both live providers. That window is shorter
+than one exchange and cannot guarantee a completed fresh read or retry.
+Magnet's ProArt configuration instead names a 45-second maximum gap and a
+five-second operational poll; its controller passes those as the gap and
+backoff cap, with five-second initial pacing.
+
+Choose budgets against the deployed request timeout and exchange retirement,
+leaving room for useful retry opportunities. A longer observation gap also
+delays detection of cancellation or loss of fresh state. Magnet's 45-second gap
+is a comparison, not a universal default. Inspect captured deployment settings
+before attributing an incident or selecting a value. Shared delivery request
+and retirement timeouts are separate from the active API-read transport; example
+settings alone do not establish either deployed value.
+In the investigated deployment, the configured observation gap was shorter
+than one exchange timeout plus its retirement allowance, so a useful retry was
+not assured. For the example configuration, 90 seconds is a proposed budget;
+choose the deployed value against that deployment's actual deadlines.
+
+During an API outage, continue observing the same Attempt through the SDK;
+retire the failed exchange before retrying and retain ownership if retirement
+is uncertain. Resume only after a fresh acceptable observation. On expiry,
+stop within the owned bounds and retain uncertainty; do not replay scientific
+generation or claim the Attempt settled merely because observation failed.
+An unresolved outcome must not delay independent Jobs. The API owns the durable
+Attempt state; the provider keeps any still-live task, exchange or runner owner
+and its evidence for as long as needed to establish retirement. Continue
+admitting other work on independent available capacity. Do not create a new
+provider-side Attempt queue or reuse a resource whose retirement is uncertain.
+
+Interpreter availability is a separate boundary. When the runner is quiescent,
+use capped backoff and one deadline across interpretation rounds; a timeout on
+each round alone does not bound the outer loop. Do not start another round when
+the previous work or runner state is uncertain. Preserve the provider's existing
+condition reporting and distinguish availability exhaustion from scientific
+failure.
+
+First correct NMRPeak's positional mapping and unbounded interpreter retry;
+each peer checks its own actual settings and contracts for the same issue.
+Raise the common floor through the existing SDK rather than provider-local
+recovery loops for API state. Verify by interrupting API reads: restoring them
+within the configured gap should let the original controller continue on the
+same Attempt with one generation submission; an outage beyond the gap should
+produce bounded shutdown with uncertainty retained. Separately exercise
+interpreter recovery and deadline exhaustion without launching a second
+generation. Record deployment evidence without private configuration or data.
+
+For NMRPeak, use the existing interpretation budget across the whole outer
+operation, including condition reporting and backoff, rather than introducing
+a competing timer. On availability exhaustion, report an unresolved outcome
+with the availability failure as its cause; do not report scientific failure.
+The unresolved Attempt must not block processing other Jobs on available,
+independently owned capacity.
