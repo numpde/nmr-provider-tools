@@ -90,7 +90,6 @@ result = probe_identity(ProbeRequest(
     interpreter="/usr/bin/python3",
     user_uid=1000,
     user_gid=1000,
-    confine=True,
 ))
 print(result.uid_map.translate(1000), result.gid_map.translate(1000))
 ```
@@ -134,16 +133,16 @@ The caller must not auto-reap children or let another waiter consume this child;
 lost wait ownership stops group signaling and reports a cleanup failure.
 Descendants that leave the group are outside this supervision contract.
 
-`confine=True` explicitly selects no networking, a read-only root filesystem,
-dropped capabilities and no-new-privileges, and refuses inspected privilege,
-device or mount drift before start.
+Every probe uses no networking, a read-only root filesystem, dropped
+capabilities and no-new-privileges. Its inspected configuration is checked
+before start; unexpected privileges, devices or mounts are refused.
 
 ## Translate IDs from the shell
 
 ```sh
 linux-idmap-probe --endpoint unix:///run/docker.sock \
   --image approved-image:local --interpreter /usr/bin/python3 \
-  --user-uid 1000 --user-gid 1000 --confine \
+  --user-uid 1000 --user-gid 1000 \
   --uid 0 --uid 1000 --gid 0 --gid 1000 --values
 ```
 
@@ -168,7 +167,7 @@ python3 -m venv "$build_env"
   rm -r "$build_env"
 python3 -m venv "$HOME/.local/share/linux-idmap"
 "$HOME/.local/share/linux-idmap/bin/python" -m pip install \
-  --force-reinstall --no-index --no-deps dist/linux_idmap-0.3.0a4-py3-none-any.whl
+  --force-reinstall --no-index --no-deps dist/linux_idmap-0.3.0a5-py3-none-any.whl
 "$HOME/.local/share/linux-idmap/bin/linux-idmap-probe" --help
 ```
 

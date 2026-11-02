@@ -20,8 +20,8 @@ class RetirementPolling(unittest.TestCase):
         engine.on_inspect = eventual_absence
         guard.process_retired = Mock(return_value=True)  # Exact process is exited/zombie.
         guard.pid_absent = Mock(return_value=False)  # Numeric PID still exists until reap.
-        with patch('linux_idmap.probe.DockerEngine.connect', return_value=engine), \
-             patch('linux_idmap.probe.ProbeProcesses', return_value=guard):
+        with patch('linux_idmap._probe_scope.DockerEngine.connect', return_value=engine), \
+             patch('linux_idmap._probe_scope.ProbeProcesses', return_value=guard):
             result = probe_identity(request())
         self.assertEqual(OBSERVATION.uid_map, result.uid_map)
         guard.pid_absent.assert_not_called()
@@ -43,8 +43,8 @@ class RetirementPolling(unittest.TestCase):
                 engine.on_inspect = replacement_then_absence
                 guard.process_retired = Mock(return_value=True)
                 guard.pid_absent = Mock(return_value=absent)
-                with patch('linux_idmap.probe.DockerEngine.connect', return_value=engine), \
-                     patch('linux_idmap.probe.ProbeProcesses', return_value=guard):
+                with patch('linux_idmap._probe_scope.DockerEngine.connect', return_value=engine), \
+                     patch('linux_idmap._probe_scope.ProbeProcesses', return_value=guard):
                     with self.assertRaises(ProbeFailure) as caught:
                         probe_identity(request())
                 expected = ResourceState.RETIRED if absent else ResourceState.UNRESOLVED

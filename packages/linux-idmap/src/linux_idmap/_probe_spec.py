@@ -1,10 +1,9 @@
 """One definition of what we create and what we are allowed to remove."""
 
-from collections.abc import Iterator
 from dataclasses import dataclass
-import re
 
 from ._probe_model import ProbeRequest, StepError
+from . import _confinement
 
 
 # Shared owned-probe label wire name; creation and verification must agree.
@@ -19,7 +18,7 @@ OWNER = "identity-v3"
 # Finite inert probe payload; the caller supplies its lifetime and interpreter.
 # repo-check: allow-module-constant
 PROBE_SCRIPT = "import sys,time; time.sleep(int(sys.argv[1]))"
-# Probe lifecycle evidence plus the optional confinement profile's fields.
+# Probe lifecycle and confinement evidence.
 # repo-check: allow-module-constant
 ISOLATION_FIELDS = ("AutoRemove", "RestartPolicy", "NetworkMode", "ReadonlyRootfs", "CapDrop",
                     "SecurityOpt", "Privileged", "PidMode", "CapAdd", "Devices", "DeviceRequests")
@@ -31,12 +30,6 @@ class ProbeSpec:
     image_id: str
     request: ProbeRequest
 
-    def __post_init__(self):
-        if (not isinstance(self.token, str) or re.fullmatch(r"[0-9a-f]{32}", self.token) is None
-                or not isinstance(self.image_id, str)
-                or re.fullmatch(r"sha256:[0-9a-f]{64}", self.image_id) is None):
-            raise StepError("invalid-policy", "invalid owned probe specification")
-
     @property
     def name(self) -> str:
         return "linux-idmap-" + self.token
@@ -45,19 +38,16 @@ class ProbeSpec:
     def command(self) -> tuple[str, ...]:
         return ("-I", "-S", "-B", "-c", PROBE_SCRIPT, str(self.request.bounds.lifetime_seconds), self.token)
 
-    def create_arguments(self) -> Iterator[str]:
+    def create_arguments(self) -> list[str]:
         request = self.request
-        yield from ["container", "create", "--pull=never", "--name", self.name,
-                    "--label", OWNER_LABEL + "=" + OWNER, "--label", TOKEN_LABEL + "=" + self.token,
-                    "--user", f"{request.user_uid}:{request.user_gid}",
-                    "--rm", "--restart", "no", "--no-healthcheck"]
-        if request.confine:
-            from ._confinement import arguments
-
-            yield from arguments()
-        if request.userns_mode == "host":
-            yield "--userns=host"
-        yield from ["--entrypoint", request.interpreter, self.image_id, *self.command]
+        namespace = ["--userns=host"] if request.userns_mode == "host" else []
+        return ["container", "create", "--pull=never", "--name", self.name,
+                "--label", OWNER_LABEL + "=" + OWNER, "--label", TOKEN_LABEL + "=" + self.token,
+                "--user", f"{request.user_uid}:{request.user_gid}",
+                "--rm", "--restart", "no", "--no-healthcheck",
+                "--network", "none", "--read-only", "--cap-drop", "ALL",
+                "--security-opt", "no-new-privileges:true", *namespace,
+                "--entrypoint", request.interpreter, self.image_id, *self.command]
 
     def verify(self, container, cid: str) -> None:
         request = self.request
@@ -76,7 +66,4 @@ class ProbeSpec:
                 or not isinstance(isolation["RestartPolicy"], dict)
                 or isolation["RestartPolicy"].get("Name") not in ("", "no")):
             raise StepError("ownership", "probe cleanup or restart policy changed")
-        if request.confine:
-            from ._confinement import verify
-
-            verify(container)
+        _confinement.verify(container)

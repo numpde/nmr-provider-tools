@@ -35,7 +35,6 @@ def _parser():
     parser.add_argument("--user-uid", required=True, type=Identifier.of)
     parser.add_argument("--user-gid", required=True, type=Identifier.of)
     parser.add_argument("--userns", choices=("default", "host"))
-    parser.add_argument("--confine", action="store_true", help="require the restricted probe configuration")
     # silent-defaults: allow-contract -- No projection options means no requested IDs; argparse copies each list before appending; tests/test_cli.py::CliTests.test_no_requested_ids_means_no_projections.
     parser.add_argument("--uid", action="append", type=Identifier.of, default=[])
     parser.add_argument("--gid", action="append", type=Identifier.of, default=[])
@@ -65,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         if len(options.uid) + len(options.gid) > 512:
             raise StepError("invalid-policy", "request at most 512 projected identities")
         request = ProbeRequest(options.endpoint, options.image, options.interpreter,
-                               options.user_uid, options.user_gid, confine=options.confine)
+                               options.user_uid, options.user_gid)
         if options.userns is not None:
             request = replace(request, userns_mode=options.userns)
         if options.timeout is not None:

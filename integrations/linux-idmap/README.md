@@ -14,8 +14,9 @@ git -C /path/to/clean-review apply --index /absolute/path/to/CONSUMER.patch
 git -C /path/to/clean-review write-tree
 ```
 
-The resulting tree must match the manifest. Install the reviewed `linux-idmap`
-0.3.0a4 wheel in the chosen host Python 3.11+ environment, then run:
+The resulting tree must match the manifest. These patches require `linux-idmap`
+0.3.0a5, which confines every probe. Install that exact wheel in the chosen host
+Python 3.11+ environment before using either adapter, then run:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
@@ -24,17 +25,15 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
 
 ## Operations and scenario evidence
 
-Both adapters use the managed probe, which returns host-coordinate `IdMap`
-values after retiring its container. Tests supply synthetic maps at that boundary.
+The NMRPeak and NMRNet adapters use the managed probe, which returns
+host-coordinate `IdMap` values after retiring its container. Tests supply synthetic maps at that boundary.
 
-- **NMRPeak:** imports `linux_idmap.probe.probe_identity`, explicitly
-  requests `confine=True`, then translates the returned host-qualified mappings
-  for its existing ACL decisions. Its nine host tests import the actual
+- **NMRPeak:** imports `linux_idmap.probe.probe_identity`, then translates the
+  returned host-qualified mappings for its existing ACL decisions. Its nine host tests import the actual
   deployment module and substitute only the managed probe effect. They check
-  the selected endpoint, image, interpreter, user and executable, confinement
-  selection, translations, invalid-request refusal, missing-package handling and
-  unresolved cleanup diagnostics. The scientific runtime and its guard remain untouched.
-- **NMRNet:** invokes `linux-idmap-probe` with direct flags and `--confine`.
+  the selected endpoint, image, interpreter, user and executable, translations,
+  invalid-request refusal, missing-package handling and unresolved cleanup diagnostics. The scientific runtime and its guard remain untouched.
+- **NMRNet:** invokes `linux-idmap-probe` with the selected engine, image and identity.
   Its nine host tests execute the actual shell adapter and signal traps with
   the real CLI and a synthetic bounded probe effect. They check ordered numeric
   output, rootful/rootless helper selection, invalid-request refusal and
@@ -42,9 +41,8 @@ values after retiring its container. Tests supply synthetic maps at that boundar
   subsequent permission-policy selection. The separate inverse mapping in `tools/docker.sh` remains unchanged.
 
 The managed probe is needed because both callers have an image before their
-workload process exists. The CLI is needed by the shell caller. Confinement is
-selected explicitly to retain no network, a read-only root, dropped capabilities
-and no-new-privileges from the former local probe policies. The shared package
+workload process exists. The CLI is needed by the shell caller. Every probe runs
+with no network, a read-only root, dropped capabilities and no-new-privileges. The shared package
 now omits fixed memory/swap, PID and CPU quotas: the former local probes used
 32 MiB/4 PIDs (NMRPeak) and 64 MiB/8 PIDs (NMRNet). This is a documented policy
 change. Qualify it with the provider image and non-root caller, and supply a

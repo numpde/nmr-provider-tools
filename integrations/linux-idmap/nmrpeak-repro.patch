@@ -13,7 +13,7 @@ index 04c5e36..f81ea1e 100644
  Bash, Python 3.11+, Docker with Compose and a local Unix-socket context, and a regular
  Docker-enabled account. Every Docker-using Make target requires
 diff --git a/deployment/provider_deployment.py b/deployment/provider_deployment.py
-index 68dc9c9..43fd2c4 100644
+index 68dc9c9..688c8b8 100644
 --- a/deployment/provider_deployment.py
 +++ b/deployment/provider_deployment.py
 @@ -89,7 +89,6 @@ _DOCKER = Path("/usr/bin/docker")
@@ -24,7 +24,7 @@ index 68dc9c9..43fd2c4 100644
  _PROVIDER_UID_RECEIPT = ".provider-uids.json"
  _MAX_AUTHORIZED_PROVIDER_UIDS = 16
  _SESSION_VOLUME_OPTIONS = {
-@@ -244,292 +243,43 @@ def _read_capture_source(path: Path, *, secret: bool) -> bytes:
+@@ -244,292 +243,42 @@ def _read_capture_source(path: Path, *, secret: bool) -> bytes:
          raise DeploymentOperationRejected(f"Cannot capture startup input {path}: its bounded regular-file read failed; preserve the source and inspect its permissions") from cause
  
  
@@ -62,8 +62,7 @@ index 68dc9c9..43fd2c4 100644
 -    identifier = None
 -    create_unsettled = False
 -    process_identity = None
-+    endpoint = docker_host()
-     try:
+-    try:
 -        try:
 -            created = _docker_command(docker, (
 -                "create", "--name", name, "--label", f"{label}={token}",
@@ -100,7 +99,8 @@ index 68dc9c9..43fd2c4 100644
 -        failure = error
 -    else:
 -        failure = None
--    try:
++    endpoint = docker_host()
+     try:
 -        probe_found = _remove_uid_map_probe(
 -            docker,
 -            name,
@@ -242,7 +242,6 @@ index 68dc9c9..43fd2c4 100644
 +        result = probe_identity(ProbeRequest(
 +            endpoint=endpoint, image=image,
 +            interpreter="/usr/local/bin/python3.12", user_uid=65532, user_gid=65532,
-+            confine=True,
 +        ), executable=str(docker))
 +    except StepError as error:
 +        raise DeploymentOperationRejected(
@@ -350,7 +349,7 @@ index 68dc9c9..43fd2c4 100644
  def _provider_directory_acl(provider_uids: tuple[int, ...]) -> tuple[str, ...]:
 diff --git a/docs/linux-idmap-migration.md b/docs/linux-idmap-migration.md
 new file mode 100644
-index 0000000..373563a
+index 0000000..7a06deb
 --- /dev/null
 +++ b/docs/linux-idmap-migration.md
 @@ -0,0 +1,59 @@
@@ -362,17 +361,18 @@ index 0000000..373563a
 +NMRPeak retains its inputs, ACL policy, scientific images and deployment
 +lifecycle. It passes the selected `NMRPEAK_DOCKER_HOST` socket, admitted provider
 +image, `/usr/local/bin/python3.12`, user `65532:65532` and selected Docker
-+executable to the probe, with `confine=True`. After the probe retires, NMRPeak
++executable to the probe. After the probe retires, NMRPeak
 +translates provider UID 65532 and the operator UID for its ACL decisions.
 +Keep the later workload's engine and namespace policy consistent with the probe.
 +
 +## Host prerequisite
 +
 +Build the `linux-idmap` wheel using its package README in `nmr-provider-tools`.
-+Install it in the host Python 3.11+ environment selected by `make PYTHON=...`:
++This adapter requires version `0.3.0a5`, which confines every probe. Install that
++exact wheel in the host Python 3.11+ environment selected by `make PYTHON=...`:
 +
 +```sh
-+/path/to/deployment-python -m pip install --force-reinstall --no-index --no-deps /absolute/path/linux_idmap-0.3.0a4-py3-none-any.whl
++/path/to/deployment-python -m pip install --force-reinstall --no-index --no-deps /absolute/path/linux_idmap-0.3.0a5-py3-none-any.whl
 +```
 +
 +Use that interpreter for deployment. Missing or incompatible package imports
@@ -402,8 +402,7 @@ index 0000000..373563a
 +These import `deployment.provider_deployment` and replace the shared probe at
 +its public Python boundary. They check endpoint, image, interpreter, user and
 +executable selection, rootful/rootless translations for both ACL consumers,
-+missing-package handling, invalid requests, unmapped IDs, confinement selection
-+and failure diagnostics.
++missing-package handling, invalid requests, unmapped IDs and failure diagnostics.
 +
 +Before adoption, qualify the maintained containerized suite, actual
 +rootful/rootless engines, provider image, non-root operator and complete
@@ -415,10 +414,10 @@ index 0000000..373563a
 +qualification and supply a separate resource policy if quotas are required.
 diff --git a/tests/host/test_shared_identity_adapter.py b/tests/host/test_shared_identity_adapter.py
 new file mode 100644
-index 0000000..107081b
+index 0000000..f9d4ba4
 --- /dev/null
 +++ b/tests/host/test_shared_identity_adapter.py
-@@ -0,0 +1,133 @@
+@@ -0,0 +1,132 @@
 +"""Exercise the host adapter with a synthetic probe operation.
 +
 +Requests, maps and failures use the installed package types.
@@ -465,7 +464,6 @@ index 0000000..107081b
 +        self.assertEqual(request.interpreter, "/usr/local/bin/python3.12")
 +        self.assertEqual((request.user_uid, request.user_gid), (65532, 65532))
 +        self.assertEqual(executable, "/usr/bin/docker")
-+        self.assertTrue(request.confine)
 +        self.assertIs(result, ROOTLESS_MAP)
 +
 +    def test_probe_adapter_needs_no_private_storage(self):

@@ -14,7 +14,7 @@ from linux_idmap import _procfs as host
 from linux_idmap._docker import DockerError
 from linux_idmap._errors import IdentityError
 from linux_idmap.process import observe_host_process
-from linux_idmap.probe import ProbeFailure, ResourceState, probe_identity
+from linux_idmap.probe import ProbeFailure, probe_identity
 from linux_idmap._probe_spec import OWNER
 
 
@@ -60,8 +60,8 @@ class SourceRefinementScenarios(unittest.TestCase):
 
 class ManagedProbeScenarios(unittest.TestCase):
     def run_probe(self, policy, engine, guard=None):
-        with patch('linux_idmap.probe.DockerEngine.connect', return_value=engine), \
-             patch('linux_idmap.probe.ProbeProcesses', return_value=guard or Guard()):
+        with patch('linux_idmap._probe_scope.DockerEngine.connect', return_value=engine), \
+             patch('linux_idmap._probe_scope.ProbeProcesses', return_value=guard or Guard()):
             return probe_identity(policy)
 
     def test_image_before_deployment_supplies_maps_without_an_existing_application(self):
@@ -73,38 +73,38 @@ class ManagedProbeScenarios(unittest.TestCase):
         self.assertIn('remove', engine.events)
         self.assertIsNone(engine.container)
 
-    def test_confinement_is_selected_policy_not_a_map_requirement(self):
-        def add_forbidden_configuration(engine):
-            engine.container.isolation['Privileged'] = True
-            engine.container = replace(engine.container, mounts=[{'Destination': '/data'}])
-        unconfined = Engine()
-        unconfined.on_create = add_forbidden_configuration
-        result = self.run_probe(replace(request(), confine=False), unconfined)
-        self.assertEqual(101000, result.uid_map.translate(1000))
-        confined = Engine()
-        confined.on_create = add_forbidden_configuration
-        with self.assertRaises(ProbeFailure) as caught:
-            self.run_probe(request(), confined)
-        self.assertEqual('confinement', caught.exception.problem.category)
-        self.assertNotIn('start', confined.events)
-        self.assertNotIn('uid_map', caught.exception.as_dict())
-        self.assertEqual(101000, self.run_probe(request(), Engine()).uid_map.translate(1000))
-
-    def test_unselected_confinement_module_can_be_unavailable(self):
-        # Production dispatch must not import the optional policy on the base path.
-        import linux_idmap as package
-        with patch.object(package, '_confinement', None, create=True), \
-             patch.dict(sys.modules, {'linux_idmap._confinement': None}):
-            result = self.run_probe(replace(request(), confine=False), Engine())
-        self.assertEqual(101000, result.uid_map.translate(1000))
-
-    def test_selected_confinement_is_loaded_before_creation_can_be_uncertain(self):
+    def test_default_probe_creates_and_verifies_confinement(self):
         engine = Engine()
-        with patch.dict(sys.modules, {'linux_idmap._confinement': None}):
-            with self.assertRaises(ProbeFailure) as caught:
-                self.run_probe(request(), engine)
-        self.assertEqual(ResourceState.NOT_CREATED, caught.exception.retirement.state)
-        self.assertEqual(['image', 'close'], engine.events)
+        self.assertEqual(101000, self.run_probe(request(), engine).uid_map.translate(1000))
+        for flag, value in (('--network', 'none'), ('--cap-drop', 'ALL'),
+                            ('--security-opt', 'no-new-privileges:true')):
+            self.assertEqual(value, engine.arguments[engine.arguments.index(flag) + 1])
+        self.assertIn('--read-only', engine.arguments)
+
+        changed = {'NetworkMode': 'host', 'ReadonlyRootfs': False, 'CapDrop': [],
+                   'SecurityOpt': [], 'Privileged': True, 'PidMode': 'host',
+                   'CapAdd': ['SYS_ADMIN'], 'Devices': [{'PathOnHost': '/dev/sda'}],
+                   'DeviceRequests': [{'Count': -1}]}
+        for field, value in changed.items():
+            with self.subTest(field=field):
+                engine = Engine()
+                engine.on_create = lambda current: current.container.isolation.update({field: value})
+                with self.assertRaises(ProbeFailure) as caught:
+                    self.run_probe(request(), engine)
+                self.assertEqual('confinement', caught.exception.problem.category)
+                self.assertNotIn('start', engine.events)
+                self.assertNotIn('uid_map', caught.exception.as_dict())
+
+    def test_default_probe_refuses_mounts_before_start(self):
+        engine = Engine()
+        def add_mount(current):
+            current.container = replace(current.container, mounts=[{'Destination': '/data'}])
+        engine.on_create = add_mount
+        with self.assertRaises(ProbeFailure) as caught:
+            self.run_probe(request(), engine)
+        self.assertEqual('confinement', caught.exception.problem.category)
+        self.assertNotIn('start', engine.events)
+        self.assertNotIn('uid_map', caught.exception.as_dict())
 
     def test_lost_reply_reference_finds_owned_resource_without_adopting_foreign_one(self):
         engine = Engine()

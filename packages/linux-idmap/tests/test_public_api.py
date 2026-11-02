@@ -30,13 +30,13 @@ class PublicApiTests(unittest.TestCase):
         policy = probe.ProbeRequest('unix:///test.sock', 'approved:local',
                                     '/usr/bin/python3', 1000, 2000)
         engine = Engine()
-        with patch('linux_idmap.probe.DockerEngine.connect', return_value=engine), \
-             patch('linux_idmap.probe.ProbeProcesses', return_value=Guard()):
+        with patch('linux_idmap._probe_scope.DockerEngine.connect', return_value=engine), \
+             patch('linux_idmap._probe_scope.ProbeProcesses', return_value=Guard()):
             result = probe.probe_identity(policy)
         self.assertIsInstance(result, probe.ProbeResult)
         self.assertEqual(101000, result.uid_map.translate(1000))
         self.assertIsNone(engine.container)
-        with patch('linux_idmap.probe.DockerEngine.connect', side_effect=OSError), \
+        with patch('linux_idmap._probe_scope.DockerEngine.connect', side_effect=OSError), \
              self.assertRaises(probe.ProbeFailure) as caught:
             probe.probe_identity(policy)
         self.assertEqual(probe.ResourceState.NOT_CREATED, caught.exception.retirement.state)

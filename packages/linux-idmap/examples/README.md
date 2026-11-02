@@ -1,6 +1,6 @@
 # Complete examples
 
-These examples use `linux-idmap` version `0.3.0a4`.
+These examples use `linux-idmap` version `0.3.0a5`.
 Run them from `packages/linux-idmap` on Linux with Python 3.11+.
 `PYTHONPATH=src` uses the checkout; omit it when using an installed package.
 
@@ -54,9 +54,9 @@ PYTHONPATH=src python examples/probe_image.py \
 Replace those five arguments with your actual values. Run on the host in its
 initial user and PID namespaces, with readable procfs, the Docker CLI on `PATH`
 and socket access. The already-local image must have no declared volumes and
-Python executable by the selected UID and GID. The example
-selects confinement and prints the two translated host IDs after the probe is
-retired. On failure it exits unsuccessfully; an operation failure prints JSON
+Python executable by the selected UID and GID. The example prints the two
+translated host IDs after the confined probe is retired. On failure it exits
+unsuccessfully; an operation failure prints JSON
 with the retirement state and resource reference on stderr.
 
 ## Verification

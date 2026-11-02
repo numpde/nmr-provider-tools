@@ -1,8 +1,8 @@
 diff --git a/README.md b/README.md
-index 2f14e31..d0eeebb 100644
+index 2f14e31..23302f6 100644
 --- a/README.md
 +++ b/README.md
-@@ -17,3 +17,40 @@ on the Make command line. When omitted in a terminal, it offers a menu of
+@@ -17,3 +17,41 @@ on the Make command line. When omitted in a terminal, it offers a menu of
  configured local Unix-socket contexts; unattended commands fail without a
  selection. The selected socket stays fixed for the whole operation. Run
  `make help` for maintained commands.
@@ -12,18 +12,19 @@ index 2f14e31..d0eeebb 100644
 +`provider/deployment/install` requires the **host** `linux-idmap-probe` command
 +from the `linux-idmap` package in `nmr-provider-tools`, with Python 3.11 or later. Install it on the host, where it reads `/proc`.
 +
-+Build the wheel using that repository's package instructions, then
-+install the exact locally built wheel in a dedicated host environment:
++This adapter requires `linux-idmap` version `0.3.0a5`, which confines every probe.
++Build that wheel using the package instructions, then install it in a dedicated
++host environment:
 +
 +```sh
 +python3 -m venv "$HOME/.local/share/linux-idmap"
-+"$HOME/.local/share/linux-idmap/bin/python" -m pip install --force-reinstall --no-index --no-deps /absolute/path/to/linux_idmap-0.3.0a4-py3-none-any.whl
++"$HOME/.local/share/linux-idmap/bin/python" -m pip install --force-reinstall --no-index --no-deps /absolute/path/to/linux_idmap-0.3.0a5-py3-none-any.whl
 +export PATH="$HOME/.local/share/linux-idmap/bin:$PATH"
 +linux-idmap-probe --help
 +```
 +
 +The caller passes its already-selected Docker socket and controller image to the
-+managed probe with `--confine`. Provider-specific helper selection and input
++managed probe. Provider-specific helper selection and input
 +ownership remain here. Request and operation failures stop input policy changes.
 +Diagnostics identify the selected engine and exact probe when known; retain
 +stderr and inspect unresolved resources before retrying. Abrupt caller or host
@@ -44,10 +45,10 @@ index 2f14e31..d0eeebb 100644
 +adoption, qualify actual rootful/rootless engines, the provider image, a non-root
 +operator and the maintained container-launched deployment suite.
 diff --git a/docs/provider.html b/docs/provider.html
-index 67bc55d..9d59ec6 100644
+index 67bc55d..c60eca3 100644
 --- a/docs/provider.html
 +++ b/docs/provider.html
-@@ -258,6 +258,15 @@ settings in nmr-provider-tools. No socket grant belongs in the public provider d
+@@ -258,6 +258,14 @@ settings in nmr-provider-tools. No socket grant belongs in the public provider d
  <code>.work/provider/</code>, <code>.work/preparation/</code> and <code>.work/inference/</code>.
  Install admits those image records and captures the model selection from
  <code>artifacts/prediction-models.json</code>; up uses the frozen generation.</p>
@@ -56,8 +57,7 @@ index 67bc55d..9d59ec6 100644
 +nmr-provider-tools checkout, on Python 3.11 or later. Install its locally built
 +wheel in a host virtual environment and put that environment's <code>bin</code>
 +on <code>PATH</code>; see the repository README for the explicit offline install.
-+The operation uses the Docker socket selected by Make, with
-+<code>--confine</code>. On failure, preserve the diagnostic identifying the engine
++The operation uses the Docker socket selected by Make. On failure, preserve the diagnostic identifying the engine
 +and exact probe when known, and inspect unresolved resources before retrying.
 +See the README for the confinement policy changes and adoption checks.</p>
  <pre><code class="language-sh">make -C /path/to/nmr-provider-tools delivery/deployment/up SHARED_SETTINGS=/path/to/nmr-provider-tools/config/deployments/localhost/settings.toml SHARED_RUNTIME_IMAGE=sha256:YOUR_SHARED_IMAGE
@@ -65,10 +65,10 @@ index 67bc55d..9d59ec6 100644
  make provider/deployment/install DEPLOYMENT=&lt;name&gt; SHARED_RUNTIME_IMAGE=sha256:YOUR_SHARED_IMAGE
 diff --git a/tests/host/test_deploy_identity_adapter.py b/tests/host/test_deploy_identity_adapter.py
 new file mode 100644
-index 0000000..65724c9
+index 0000000..06d9d96
 --- /dev/null
 +++ b/tests/host/test_deploy_identity_adapter.py
-@@ -0,0 +1,205 @@
+@@ -0,0 +1,204 @@
 +"""Host-only acceptance for the actual NMRNet adapter and shared CLI contract.
 +
 +The shell adapter is extracted from its maintained source. The shared CLI and
@@ -202,7 +202,6 @@ index 0000000..65724c9
 +        self.assertEqual(IMAGE, request['image'])
 +        self.assertEqual('/opt/provider/environment/bin/python', request['interpreter'])
 +        self.assertEqual((0, 0), (request['user_uid'], request['user_gid']))
-+        self.assertTrue(request['confine'])
 +
 +    def test_rootless_chooses_container_root_and_keeps_mapped_service_ids(self):
 +        result = self.run_adapter('rootless')
@@ -398,7 +397,7 @@ index 1b2fcbc..457a294 100644
          self.assertEqual(freeze_user, f'{os.getuid()}:{os.getgid()}')
  
 diff --git a/tools/compose_deployment.sh b/tools/compose_deployment.sh
-index eb1fa9a..15060fd 100644
+index eb1fa9a..8f02e67 100644
 --- a/tools/compose_deployment.sh
 +++ b/tools/compose_deployment.sh
 @@ -48,9 +48,8 @@ exec {deployment_lock}< "$root"
@@ -497,7 +496,7 @@ index eb1fa9a..15060fd 100644
 +    # The shared operation owns the probe, including failure cleanup. Only its
 +    # successful numeric projection may influence this provider's input policy.
 +    values=$(linux-idmap-probe --endpoint "$NMRNET_DOCKER_ENDPOINT_INPUT" \
-+        --image "$image" --interpreter "$python" --user-uid 0 --user-gid 0 --confine \
++        --image "$image" --interpreter "$python" --user-uid 0 --user-gid 0 \
 +        --uid 0 --uid "$caller_uid" --gid 0 --gid "$caller_gid" --values) || return
 +    [[ $values =~ ^(0|[1-9][0-9]*)\ (0|[1-9][0-9]*)\ (0|[1-9][0-9]*)\ (0|[1-9][0-9]*)$ ]] \
 +        || { refuse 'the shared identity operation returned an invalid numeric projection.'; return 2; }

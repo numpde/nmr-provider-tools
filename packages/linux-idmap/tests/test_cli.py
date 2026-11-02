@@ -15,7 +15,7 @@ import linux_idmap
 from linux_idmap import IdMap
 from linux_idmap._cli import main
 from linux_idmap.probe import Bounds, Problem, ProbeFailure, ProbeResult, ResourceState, Retirement, ProbeHandle
-from helpers import CID, OBSERVATION
+from helpers import CID, OBSERVATION, Engine, Guard
 
 
 class CliTests(unittest.TestCase):
@@ -73,6 +73,38 @@ class CliTests(unittest.TestCase):
         self.assertEqual(3, code)
         self.assertEqual("timeout", json.loads(out)["problem"]["category"])
         self.assertNotIn("uid_map", out)
+
+    def test_default_cli_creates_and_verifies_confinement(self):
+        for drift in (None, ('NetworkMode', 'host'), ('ReadonlyRootfs', False),
+                      ('CapDrop', []), ('SecurityOpt', [])):
+            with self.subTest(drift=drift):
+                engine = Engine()
+                if drift is not None:
+                    engine.on_create = lambda current: current.container.isolation.update([drift])
+                with patch('linux_idmap._probe_scope.DockerEngine.connect', return_value=engine), \
+                     patch('linux_idmap._probe_scope.ProbeProcesses', return_value=Guard()):
+                    code, out, err = self.call(self.arguments())
+                for flag, value in (('--network', 'none'), ('--cap-drop', 'ALL'),
+                                    ('--security-opt', 'no-new-privileges:true')):
+                    self.assertEqual(value, engine.arguments[engine.arguments.index(flag) + 1])
+                self.assertIn('--read-only', engine.arguments)
+                payload = json.loads(out)
+                if drift is None:
+                    self.assertEqual(0, code, err)
+                    self.assertEqual([100000, 101000], payload['mapped_uids'])
+                else:
+                    self.assertNotEqual(0, code)
+                    self.assertEqual('confinement', payload['problem']['category'])
+                    self.assertNotIn('start', engine.events)
+                    self.assertNotIn('uid_map', payload)
+
+    def test_confinement_flags_are_not_caller_options(self):
+        for flag in ('--confine', '--no-confine'):
+            with self.subTest(flag=flag), patch('linux_idmap._cli.probe_identity') as operation:
+                code, out, _ = self.call(self.arguments() + [flag])
+                self.assertEqual(2, code)
+                self.assertEqual('known-not-created', json.loads(out)['state'])
+                operation.assert_not_called()
 
     def test_values_are_only_requested_decimal_ids_in_order(self):
         with patch("linux_idmap._cli.probe_identity", return_value=self.result()):

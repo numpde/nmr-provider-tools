@@ -15,7 +15,8 @@ from types import SimpleNamespace
 
 from helpers import CID, IMAGE, container_for, request
 from linux_idmap._files import FileIdentity
-from linux_idmap._docker import DockerEngine, DockerError, EngineInfo, _run_command, _clean_environment, _socket_identity
+from linux_idmap._docker import DockerEngine, DockerError, EngineInfo, _clean_environment, _socket_identity
+from linux_idmap._command import _run_command
 from linux_idmap._probe_spec import ProbeSpec, PROBE_SCRIPT
 
 
@@ -168,12 +169,12 @@ class CommandTests(unittest.TestCase):
         selector = Mock()
         selector.get_map.return_value = {}  # Both streams have already closed.
         selector.select.side_effect = sleep
-        with patch("linux_idmap._docker.time.monotonic", side_effect=lambda: clock[0]), \
-             patch("linux_idmap._docker.subprocess.Popen", return_value=process), \
-             patch("linux_idmap._docker.selectors.DefaultSelector", return_value=selector), \
-             patch("linux_idmap._docker.os.set_blocking"), \
-             patch("linux_idmap._docker._peek_exit", side_effect=peek), \
-             patch("linux_idmap._docker._terminate"):
+        with patch("linux_idmap._command.time.monotonic", side_effect=lambda: clock[0]), \
+             patch("linux_idmap._command.subprocess.Popen", return_value=process), \
+             patch("linux_idmap._command.selectors.DefaultSelector", return_value=selector), \
+             patch("linux_idmap._command.os.set_blocking"), \
+             patch("linux_idmap._command._peek_exit", side_effect=peek), \
+             patch("linux_idmap._command._terminate"):
             self.assertEqual("", _run_command(["fixture"], env={}, timeout=.09))
         self.assertLessEqual(clock[0], .09)
         process.wait.assert_not_called()
@@ -187,7 +188,7 @@ class CommandTests(unittest.TestCase):
             process = real_spawn(*args, **kwargs)
             return process
         try:
-            with patch("linux_idmap._docker.subprocess.Popen", side_effect=spawn):
+            with patch("linux_idmap._command.subprocess.Popen", side_effect=spawn):
                 with self.assertRaises(DockerError):
                     _run_command([sys.executable, "-I", "-S", "-B", "-c", "import time; time.sleep(20)"],
                                  env=os.environ.copy(), timeout=0.2)
@@ -230,12 +231,12 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(endpoint, arguments[arguments.index("--host") + 1])
 
     def test_primary_timeout_preserves_client_cleanup_failure(self):
-        from linux_idmap import _docker as docker
-        original = docker._terminate
+        from linux_idmap import _command as command
+        original = command._terminate
         def terminate_and_report(process):
             original(process)
             raise DockerError("client_cleanup", "Docker client exit could not be confirmed.")
-        with patch("linux_idmap._docker._terminate", side_effect=terminate_and_report):
+        with patch("linux_idmap._command._terminate", side_effect=terminate_and_report):
             with self.assertRaises(BaseExceptionGroup) as caught:
                 _run_command([sys.executable, "-I", "-S", "-B", "-c", "import time;time.sleep(20)"],
                              env=os.environ.copy(), timeout=0.05, mutation=True)

@@ -20,7 +20,7 @@ OBSERVATION = ProcessObservation(ProcessIdentity(42, 123, FileIdentity(7, 99)),
 
 def request():
     return ProbeRequest("unix:///test.sock", "approved:local", "/usr/bin/python3",
-                        1000, 2000, bounds=Bounds(1, .2, .1, 30), confine=True)
+                        1000, 2000, bounds=Bounds(1, .2, .1, 30))
 
 
 def container_for(spec):
@@ -32,8 +32,6 @@ def container_for(spec):
         "CapAdd": None, "Devices": None, "DeviceRequests": None,
         "RestartPolicy": {"Name": "no"},
     }
-    if not spec.request.confine:
-        isolation.update(NetworkMode="default", ReadonlyRootfs=False, CapDrop=None, SecurityOpt=None)
     # silent-defaults: allow-contract -- The fixture models Docker inspect encoding of explicit default versus host user namespaces; tests/test_probe_addon.py::OperationTests.
     return Container(CID, spec.name, IMAGE, spec.token, OWNER, 0, False, "not-started",
                      f"{spec.request.user_uid}:{spec.request.user_gid}", "" if spec.request.userns_mode == "default" else "host",
@@ -65,8 +63,7 @@ class Engine:
         image_index = arguments.index("--entrypoint") + 2
         uid, gid = option("--user").split(":")
         policy = SimpleNamespace(user_uid=uid, user_gid=gid, interpreter=option("--entrypoint"),
-                                 userns_mode="host" if "--userns=host" in arguments else "default",
-                                 confine="--read-only" in arguments)
+                                 userns_mode="host" if "--userns=host" in arguments else "default")
         spec = SimpleNamespace(name=option("--name"), image_id=arguments[image_index],
                                token=labels["linux-idmap.token"], request=policy,
                                command=tuple(arguments[image_index + 1:]))

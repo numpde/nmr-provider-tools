@@ -7,7 +7,7 @@ The reader returns bytes; the result is `MapRows` containing row iterables.
 The process reader supplies bytes from a pinned procfs directory.
 
 The public modules contain the operation implementations: `process.py` reads an
-existing process; `probe.py` owns the temporary image probe. The root package
+existing process; `probe.py` creates, starts and observes the temporary image probe. The root package
 imports only `core.py`. Shared checks, transport and policy records live in
 private `_*.py` modules.
 
@@ -21,6 +21,16 @@ The host observation follows this sequence:
    reader and process identity again.
 4. `observe_host_process(pid)` returns the process identity and `IdMap` values
    after the checked scope exits successfully.
+
+The image workflow runs inside `owned_probe` in `_probe_scope.py`. Entering the
+scope selects the engine; leaving it retires the owned container and processes,
+then closes the client. The result is constructed after successful scope exit.
+The owner retains process evidence as it is observed, including failed samples.
+
+`_docker.py` resolves images and manages containers on the selected engine.
+`_command.py` runs each client command with bounded output, cancellation and
+child-process cleanup. `_probe_spec.py` defines the command and the corresponding
+owned-container checks.
 
 The Docker probe adds initial PID-namespace qualification and checks its
 ownership token around reads from the same pinned process directory. It releases
@@ -45,7 +55,7 @@ All paths below are under `tests/`.
 | Pinned process lifetime | Detect process exit before returning an observation. | `test_addon_scenarios.py::test_process_exit_is_detected_before_qualified_scope_returns`; `test_host_addon.py` also covers PID reuse and proc replacement |
 | Docker PID coordinates | Refuse a daemon host PID when the reader occupies a nested PID namespace. | `test_host_addon.py::test_nested_pid_namespace_rejected_even_if_user_initial` (controlled namespace evidence) |
 | Managed image probe | Obtain maps from a local image before an application process exists, then retire the probe. | `test_addon_scenarios.py::test_image_before_deployment_supplies_maps_without_an_existing_application` |
-| Selected confinement | Refuse privileged or mounted configuration when confinement is selected; run the base path with the optional module unavailable. | `test_addon_scenarios.py::test_confinement_is_selected_policy_not_a_map_requirement` and the module-unavailable scenario |
+| Probe confinement | Apply network, filesystem, capability and privilege restrictions on every probe; refuse inspected configuration drift and mounts before start. | `test_addon_scenarios.py::test_default_probe_creates_and_verifies_confinement`; `test_addon_scenarios.py::test_default_probe_refuses_mounts_before_start`; `test_cli.py::test_default_cli_creates_and_verifies_confinement` |
 | Python startup isolation | Skip an injected `.pth` startup hook. | `test_python_runtime.py::test_probe_skips_site_startup_hooks` |
 | Client supervision | Bound a hung client, signal its private group and reap the client, preserving ordered operation and cleanup failures. | `test_client_supervision.py`; `test_docker.py` |
 | Lost-reply reconciliation | Find the owned resource after a lost create reply without issuing a second create. | `test_probe_addon.py::test_lost_creation_reply_reconciles_without_second_create`; `test_probe_faults.py` |
@@ -53,6 +63,5 @@ All paths below are under `tests/`.
 | Cleanup after failed observation | Remove the owned probe after parsing its second map sample fails. | `test_addon_scenarios.py::test_invalid_acquisition_sample_does_not_skip_verified_cleanup` |
 | Process retirement | Retain both identities when samples disagree; check absence of reported PIDs that could not be identified. | `test_failed_acquisition_obligations.py`; `test_retirement_polling.py` |
 | Exit and restart | Accept normal exit after observation once retirement is confirmed; reject a detected replacement and retire both processes. | `test_lifecycle_outcomes.py::test_normal_exit_after_observation_needs_retirement_not_live_resampling` and restart scenarios |
-| Argument preparation | Fail a selected-policy import before dispatching creation. | `test_addon_scenarios.py::test_selected_confinement_is_loaded_before_creation_can_be_uncertain` |
 | Complete shell output | Leave stdout empty when one requested ID is unmapped. | `test_cli.py::test_unmapped_projection_does_not_print_partial_values` |
 | Ownership protocol | Refuse start or removal of a resource labeled with an older ownership protocol. | `test_addon_scenarios.py::test_previous_owner_protocol_cannot_authorize_adoption` |

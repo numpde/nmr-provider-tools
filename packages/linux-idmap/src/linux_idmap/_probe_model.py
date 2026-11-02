@@ -50,13 +50,10 @@ class ProbeRequest:
     user_gid: int
     userns_mode: str = "default"
     bounds: Bounds = Bounds()
-    confine: bool = False
 
     def __post_init__(self) -> None:
         if type(self.bounds) is not Bounds:
             raise StepError("invalid-policy", "invalid operation bounds")
-        if type(self.confine) is not bool:
-            raise StepError("invalid-policy", "confinement selection must be a boolean")
         if (not isinstance(self.endpoint, str) or not self.endpoint.startswith("unix:///")
                 or len(self.endpoint) > 4096 or self.endpoint != self.endpoint.strip()
                 or "?" in self.endpoint or "#" in self.endpoint

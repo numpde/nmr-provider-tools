@@ -16,7 +16,6 @@ try:
         interpreter=interpreter,
         user_uid=Identifier.of(uid),
         user_gid=Identifier.of(gid),
-        confine=True,
     )
     result = probe_identity(request)
     print(

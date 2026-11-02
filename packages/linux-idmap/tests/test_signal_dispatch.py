@@ -15,7 +15,7 @@ import tempfile
 import time
 
 sys.path.insert(0, sys.argv[1])
-from linux_idmap._docker import DockerError, _run_command
+from linux_idmap._command import DockerError, _run_command
 
 child = None
 error_type = getattr(builtins, sys.argv[2])
