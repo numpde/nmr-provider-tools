@@ -1,0 +1,22 @@
+Provider image updates
+======================
+
+The common operator outcome is an explicit update on a selected local Docker
+context: build on that host from its own inputs and shared wheelhouse, select
+the resulting immutable provider image without copying an image ID by hand,
+drain the affected provider, apply its plan and report the live result. Keep
+the provider's durable state and the shared proxy/outbox. A normal up remains
+non-building and does not silently fetch or change an image.
+
+Implement this using each repository's existing ownership model. Some resolve a
+built image from its input identity; others record the built image in a selected
+deployment generation or existing private image pin. In each case the build and
+activation must use the same selected engine. Validate the candidate and any
+available plan inputs before draining; keep the affected lifecycle operation
+coherent and report an unsuccessful or uncertain drain honestly. Verify the
+running container uses the selected image, not merely that the build succeeded.
+
+Do not transfer images between hosts as a substitute for the normal local build.
+Keep host-specific configuration, credentials and operational identifiers out of
+tracked notes. Existing accepted wheelhouse staging limitations are recorded in
+015_deferred_items.txt and are not a reason to stop this rollout.
