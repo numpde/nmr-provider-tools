@@ -147,6 +147,7 @@ endif
 .PHONY: delivery/deployment/up delivery/deployment/update delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
+.PHONY: wheelhouse/image/build tests/wheelhouse
 
 help:
 	@printf '%s\n' \
@@ -165,6 +166,8 @@ help:
 	  'make checks/prepare WHEELHOUSE=... NETWORK_INTERFACE=... Acquire artifacts and build.'
 	@printf '%s\n' \
 	  'make packages/provider-core/download WHEELHOUSE=... NETWORK_INTERFACE=... Acquire locked wheels.' \
+	  'make wheelhouse/image/build WHEELHOUSE=... Build the standalone wheelhouse tool offline.' \
+	  'make tests/wheelhouse WHEELHOUSE=... Run shared wheelhouse tests offline.' \
 	  'make packages/provider-core/check WHEELHOUSE=... Verify locked wheels offline.' \
 	  'make tests/unit/provider-core WHEELHOUSE=... Build and test the isolated installed core.' \
 	  'make tests/contract/provider-core WHEELHOUSE=... Qualify installed package contracts.' \
@@ -191,6 +194,12 @@ help:
 
 packages/provider-core/download:
 	bash tools/provider_core.sh download
+
+wheelhouse/image/build:
+	bash tools/wheelhouse_image.sh build
+
+tests/wheelhouse:
+	bash tools/wheelhouse_image.sh test
 
 packages/provider-core/check:
 	bash tools/provider_core.sh check

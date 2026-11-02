@@ -1,0 +1,72 @@
+Shared wheelhouse design — review draft
+=======================================
+
+Goal: one reusable host-local artifact pool; no wheel staging directories,
+unnecessary downloads or cross-host artifact transfers. This is a joint design
+for user review, not an implemented or qualified workflow.
+
+Dependency authority
+--------------------
+
+Prefer one standard pylock.toml per supported target as the authoritative lock
+for repository-owned dependencies. It records artifact URLs and hashes, avoiding
+a separate committed manifest and custom index resolver. Select the declared
+CPU or CUDA target explicitly. SDK-issued locks remain owned by the SDK; the
+SDK owns any replacement format rather than providers independently changing it.
+
+Implement the shared wheelhouse tool in Python, independently runnable from
+provider-core. Pin PyPA packaging and use its public pylock selection API in the
+actual target environment to select artifacts before downloading. This avoids a
+separate Go binary and a second implementation of Python compatibility rules.
+
+Upgrade and pin pip where needed to read the standard lock; inspected SECS and
+Magnet images use pip 25.0.1, which predates pylock support. Current pip documents pylock reading
+as experimental. Qualify the pinned version and existing uv compiler against
+actual targets, PyTorch sources, SDK artifacts and ANTLR source builds before
+changing locks or deployment. A pylock may list several wheels, so use supported
+target selection before acquisition, without trial downloads; do not assume
+one URL per package. Qualify the pinned packaging selector against the actual
+installer and target. Avoid a second maintained compatibility lock.
+
+Acquisition and build
+---------------------
+
+A small shared publisher, bootstrapped without provider-core, reuses valid local
+files or streams a selected artifact to a unique .part file in the wheelhouse.
+Verify its lock hash, sync the file, publish atomically without replacing an
+existing file, and sync the directory. Coordinate simultaneous acquisition of
+the same artifact so it is downloaded only once when successful.
+Compare a concurrent winner; preserve and report conflicting bytes. Interrupted
+transfers may need retransmission. Different artifacts with the same filename
+cannot coexist in a flat pool; report the conflict.
+
+Install from the selected local artifacts offline, preserving lock hashes and
+source identities. A URL in a pylock does not automatically resolve to a local
+wheelhouse just because indexes are disabled. Use a disposable local-path
+projection of the canonical lock, or an equivalent supported remapping method;
+it is not another committed authority. Verify target installation against the
+selected files. Pip's normal cache may reduce network traffic but is not an
+offline artifact authority: entries can expire and its layout is private. It is
+not a required second cache.
+
+Supply only selected files to BuildKit from the shared pool. Prefer exact
+named-context COPY into an input stage, not a host wheel-copy directory; bind
+selected inputs to image identity and keep wheels out of runtime images.
+BuildKit may retain selected bytes in its own cache. Qualify whether the actual
+frontend transfers only selected files and excludes concurrent .part files; if
+not, use a streamed primary build context containing source and selected files,
+without an on-disk wheel staging directory. Protect inputs until build
+retirement, including uncertain client disconnects.
+
+Qualification and rollout
+-------------------------
+
+Before migration, prove the standard lock and supported installer select the
+right artifacts for our pinned target environments, source variants and source
+archives, and work offline with the exact pool inputs. Ensure lock compilation
+does not discard a downloaded artifact only to fetch it again. Verify cache
+reuse, interrupted downloads and conflicting filenames, and measure BuildKit
+transfer. Adopt across shared tools and providers after this review, leaving the
+current deployment working until each replacement is qualified.
+If a wheel is built from a source archive, its source hash alone does not
+identify the built wheel; identify the builder and resulting bytes before reuse.
