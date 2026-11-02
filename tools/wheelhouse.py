@@ -1,4 +1,4 @@
-"""Select and freeze hash-locked wheels from one additive shared pool.
+"""Select and acquire hash-locked wheels in one additive shared pool.
 
 Ported from nmrnet-repro d09b77b951551c977e36bc87b5822315a4d1e944,
 tools/wheelhouse.py. Scientific source handling stays with its provider.
@@ -151,8 +151,7 @@ def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=
             raise ValueError(f"Cannot select {candidate.name}: pip did not select the required release artifact.")
         with regular_file(candidate):
             pass
-        # Pip owns lock resolution and source-file hash admission. Capture later
-        # compares its copied bytes with these hashes and the original lock.
+        # Pip owns lock resolution and checks the selected file against the lock.
         files[candidate.name] = item["download_info"]["archive_info"]["hashes"]["sha256"]
     if required_files and not set(required_files).issubset(files):
         raise ValueError("Cannot select wheels: a required release artifact was not selected.")
@@ -176,23 +175,6 @@ def publish_file(path, destination, checksum):
         except (OSError, ValueError) as invalid_winner:
             raise conflict from invalid_winner
     fsync_directory(destination.parent)
-
-
-def capture(lock, pool, destination):
-    """Freeze selected bytes and reject changes between selection and copying."""
-    if destination.is_symlink() or not destination.is_dir() or any(destination.iterdir()):
-        raise ValueError("Cannot capture wheels: destination must be a private empty directory.")
-    selected = select_wheels(lock, pool)
-    for name in selected["files"]:
-        with regular_file(pool / name) as source, (destination / name).open("xb") as target:
-            shutil.copyfileobj(source, target, CHUNK_BYTES)
-            os.fchmod(target.fileno(), 0o644)
-            target.flush()
-            os.fsync(target.fileno())
-    if {name: digest(destination / name) for name in selected["files"]} != selected["files"]:
-        raise ValueError("Cannot capture wheels: selected bytes changed while copying.")
-    fsync_directory(destination)
-    return selected
 
 
 def populate_pool(lock, pool):

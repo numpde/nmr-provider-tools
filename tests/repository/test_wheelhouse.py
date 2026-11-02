@@ -83,7 +83,7 @@ class WheelhouseTests(unittest.TestCase):
             wheelhouse.populate_pool(self.lock, self.pool)
         self.assertEqual(before, {path.name: (path.read_bytes(), path.stat().st_ino) for path in self.pool.iterdir()})
 
-    def test_partial_pool_downloads_only_missing_wheel_then_captures_offline(self):
+    def test_partial_pool_downloads_only_missing_wheel_then_selects_offline(self):
         unrelated = self.pool / "other-project.txt"
         unrelated.write_bytes(b"preserve unrelated bytes")
         cached = self.pool / self.cached.name
@@ -95,11 +95,10 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual(inode, cached.stat().st_ino)
         self.assertEqual(self.cached.read_bytes(), cached.read_bytes())
         self.assertEqual(b"preserve unrelated bytes", unrelated.read_bytes())
-        destination = self.root / "capture"
-        destination.mkdir()
-        identity = wheelhouse.capture(self.lock, self.pool, destination)
+        identity = wheelhouse.select_wheels(self.lock, self.pool)
         self.assertEqual({self.cached.name, self.missing.name}, set(identity["files"]))
-        self.assertEqual(identity["files"], {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in destination.iterdir()})
+        self.assertEqual(identity["files"], {name: hashlib.sha256((self.pool / name).read_bytes()).hexdigest()
+                                             for name in identity["files"]})
         self.assertEqual([], list(self.pool.glob(".provider-core-download-*")))
 
     def test_conflicting_cached_bytes_are_preserved(self):
