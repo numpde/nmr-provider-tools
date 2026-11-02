@@ -2,11 +2,8 @@
 
 The code here helps NMR providers talk to the API, deliver results and deploy. Each provider brings its own scientific code.
 
-[linux-idmap](packages/linux-idmap/README.md) reads Linux UID/GID map rows and
-translates IDs, with operations for an existing process or a local Docker image.
-It is a standalone host-side package with its own [installation and examples](packages/linux-idmap/README.md).
-[NMRPeak and NMRNet adapter fixtures](integrations/linux-idmap/README.md) contain
-reproducible consumer patches and are not part of the installed package.
+[linux-idmap](packages/linux-idmap/README.md) is the standalone host-side package
+for Linux UID/GID maps and local Docker identity probes.
 
 Get `provider_core` and its lock file from [GitHub Releases](https://github.com/numpde/nmr-provider-tools/releases). The [package docs](packages/provider-core/README.md) explain how to use it.
 
