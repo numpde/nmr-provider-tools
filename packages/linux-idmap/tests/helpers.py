@@ -3,14 +3,14 @@
 from dataclasses import replace
 from types import SimpleNamespace
 
-from linux_idmap.addons.docker import Container, EngineIdentity, EngineInfo
+from linux_idmap._docker import Container, EngineIdentity, EngineInfo
 from linux_idmap.core import IdRange
-from linux_idmap.addons._files import FileIdentity
+from linux_idmap._files import FileIdentity
 from linux_idmap import IdMap
-from linux_idmap.addons.observation import ProcessObservation
-from linux_idmap.addons.host import ProcessIdentity
-from linux_idmap.addons.model import Bounds, ProbeRequest
-from linux_idmap.addons.spec import OWNER
+from linux_idmap.process import ProcessObservation
+from linux_idmap.process import ProcessIdentity
+from linux_idmap.probe import Bounds, ProbeRequest
+from linux_idmap._probe_spec import OWNER
 
 CID = "c" * 64
 IMAGE = "sha256:" + "a" * 64

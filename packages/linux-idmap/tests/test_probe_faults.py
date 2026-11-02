@@ -17,14 +17,14 @@ import time
 import unittest
 from unittest.mock import patch
 
-from linux_idmap.addons._files import FileIdentity
+from linux_idmap._files import FileIdentity
 from linux_idmap import IdMap
-from linux_idmap.addons.host import ReaderEvidence
+from linux_idmap._procfs import ReaderEvidence
 from linux_idmap.core import parse_map as parse_id_map
-from linux_idmap.addons.errors import IdentityError
-from linux_idmap.addons._process import ProbeProcesses
-from linux_idmap.addons.model import Bounds, ProbeFailure, ProbeRequest, ResourceState
-from linux_idmap.addons.probe import probe_identity
+from linux_idmap._errors import IdentityError
+from linux_idmap._probe_process import ProbeProcesses
+from linux_idmap._probe_model import Bounds, ProbeFailure, ProbeRequest, ResourceState
+from linux_idmap.probe import probe_identity
 
 class OperationFaultTests(unittest.TestCase):
     def setUp(self):
@@ -43,7 +43,7 @@ class OperationFaultTests(unittest.TestCase):
         def fixture_socket_identity(path):
             metadata = Path(path).stat()
             return FileIdentity.of(metadata)
-        self.enterContext(patch("linux_idmap.addons.docker._socket_identity", side_effect=fixture_socket_identity))
+        self.enterContext(patch("linux_idmap._docker._socket_identity", side_effect=fixture_socket_identity))
         self.enterContext(patch.dict(os.environ, {
             "PATH": str(self.bin) + os.pathsep + os.environ["PATH"],
             "LINUX_IDMAP_TEST_STATE": str(self.state_path),

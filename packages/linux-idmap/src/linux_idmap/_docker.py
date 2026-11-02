@@ -14,13 +14,13 @@ import signal
 import stat
 import subprocess
 import tempfile
-import threading
 import time
 from typing import Mapping
 
 
 from ._files import FileIdentity
-from .spec import OWNER_LABEL, TOKEN_LABEL, ISOLATION_FIELDS
+from ._probe_model import Cancellation
+from ._probe_spec import OWNER_LABEL, TOKEN_LABEL, ISOLATION_FIELDS
 # Combined stdout/stderr limit for each client command.
 # repo-check: allow-module-constant
 OUTPUT_LIMIT = 65536
@@ -157,7 +157,7 @@ def _terminate(process: subprocess.Popen) -> None:
 
 # silent-defaults: allow-contract -- Read-only commands are the transport baseline; mutation callers explicitly opt into uncertain-dispatch reporting; tests/test_docker.py::CommandTests.
 def _run_command(argv: list[str], *, env: Mapping[str, str], timeout: float,
-                 cancel: threading.Event | None = None, mutation: bool = False) -> str:
+                 cancel: Cancellation | None = None, mutation: bool = False) -> str:
     """Bound both output pipes; signal the private group and reap its leader.
 
     This operation exclusively owns waiting for its child: no SIGCHLD auto-reap
@@ -384,7 +384,7 @@ class DockerEngine:
 
     @classmethod
     # silent-defaults: allow-contract -- Use the Docker CLI transport unless the caller supplies a test executable; never choose a Docker endpoint implicitly; tests/test_docker.py::EngineTests.
-    def connect(cls, endpoint: str, *, timeout: float, cancel: threading.Event | None = None,
+    def connect(cls, endpoint: str, *, timeout: float, cancel: Cancellation | None = None,
                 executable: str = "docker") -> DockerEngine:
         """Connect to the selected Unix socket and record its daemon identity."""
         deadline = _deadline(timeout)
@@ -437,7 +437,7 @@ class DockerEngine:
         if _socket_identity(self.identity.endpoint[7:]) != self.identity.socket:
             raise DockerError("engine_changed", "The selected Docker socket identity changed.")
 
-    def assert_unchanged(self, *, timeout: float, cancel: threading.Event | None = None) -> None:
+    def assert_unchanged(self, *, timeout: float, cancel: Cancellation | None = None) -> None:
         deadline = _deadline(timeout)
         self._socket_check()
         value = EngineInfo.of(_run_command(self._argv(["info", "--format", INFO_FORMAT]),
@@ -447,7 +447,7 @@ class DockerEngine:
         self._socket_check()
 
     # silent-defaults: allow-contract -- Transport queries are nonmutating; create/start/remove explicitly identify mutation uncertainty; tests/test_docker.py::CommandTests.
-    def _call(self, args: list[str], *, timeout: float, cancel: threading.Event | None = None,
+    def _call(self, args: list[str], *, timeout: float, cancel: Cancellation | None = None,
               mutation: bool = False) -> str:
         deadline = _deadline(timeout)
         self.assert_unchanged(timeout=_remaining(deadline), cancel=cancel)
@@ -465,7 +465,7 @@ class DockerEngine:
                 exc.mutation_uncertain = True
             raise
 
-    def image_id(self, image: str, *, timeout: float, cancel: threading.Event | None = None) -> str:
+    def image_id(self, image: str, *, timeout: float, cancel: Cancellation | None = None) -> str:
         if not _text(image, 512) or not image or image.startswith("-"):
             raise DockerError("invalid_policy", "An explicit approved local image reference is required.")
         value = _json(self._call(["image", "inspect", "--format", "[{{json .ID}},{{json .Config.Volumes}}]", image], timeout=timeout, cancel=cancel))
@@ -476,7 +476,7 @@ class DockerEngine:
         return value[0]
 
     def create(self, arguments: list[str], *, timeout: float,
-               cancel: threading.Event | None = None) -> str:
+               cancel: Cancellation | None = None) -> str:
         value = self._call(arguments, timeout=timeout, cancel=cancel, mutation=True).strip()
         try:
             _cid(value)
@@ -485,11 +485,11 @@ class DockerEngine:
             raise
         return value
 
-    def start(self, cid: str, *, timeout: float, cancel: threading.Event | None = None) -> None:
+    def start(self, cid: str, *, timeout: float, cancel: Cancellation | None = None) -> None:
         _cid(cid)
         self._call(["container", "start", cid], timeout=timeout, cancel=cancel, mutation=True)
 
-    def _list(self, filter_value: str, *, timeout: float, cancel: threading.Event | None = None) -> tuple[str, ...]:
+    def _list(self, filter_value: str, *, timeout: float, cancel: Cancellation | None = None) -> tuple[str, ...]:
         result = self._call(["container", "ls", "--all", "--no-trunc", "--quiet", "--filter", filter_value],
                             timeout=timeout, cancel=cancel)
         values = result.splitlines()
@@ -499,11 +499,11 @@ class DockerEngine:
             _cid(value)
         return tuple(values)
 
-    def candidates(self, token: str, *, timeout: float, cancel: threading.Event | None = None) -> tuple[str, ...]:
+    def candidates(self, token: str, *, timeout: float, cancel: Cancellation | None = None) -> tuple[str, ...]:
         _token(token)
         return self._list("label=" + TOKEN_LABEL + "=" + token, timeout=timeout, cancel=cancel)
 
-    def inspect(self, cid: str, *, timeout: float, cancel: threading.Event | None = None) -> Container | None:
+    def inspect(self, cid: str, *, timeout: float, cancel: Cancellation | None = None) -> Container | None:
         _cid(cid)
         deadline = _deadline(timeout)
         try:
@@ -523,7 +523,7 @@ class DockerEngine:
             raise
         return Container.from_json(result, cid)
 
-    def remove(self, cid: str, *, timeout: float, cancel: threading.Event | None = None) -> None:
+    def remove(self, cid: str, *, timeout: float, cancel: Cancellation | None = None) -> None:
         _cid(cid)
         # The owning probe verifies this exact container ID before removal.
         self._call(["container", "rm", "--force", cid], timeout=timeout, cancel=cancel, mutation=True)

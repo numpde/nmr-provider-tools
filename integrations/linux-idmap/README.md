@@ -1,6 +1,6 @@
 # Provider integrations outside the neutral package
 
-These candidate patches live on the same `design/provider-deploy` review branch
+These patches live on the same `design/provider-deploy` review branch
 as `linux-idmap`. Each provider retains its endpoint/image selection, inputs,
 permissions and deployment policy. Apply these patches in the provider repositories.
 
@@ -15,19 +15,19 @@ git -C /path/to/clean-review write-tree
 ```
 
 The resulting tree must match the manifest. Install the reviewed `linux-idmap`
-0.3.0a3 wheel in the chosen host Python 3.11+ environment, then run:
+0.3.0a4 wheel in the chosen host Python 3.11+ environment, then run:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
   /path/to/host-python -m unittest discover -s tests/host -v
 ```
 
-## Selected add-ons and scenario evidence
+## Operations and scenario evidence
 
 Both adapters use the managed probe, which returns host-coordinate `IdMap`
 values after retiring its container. Tests supply synthetic maps at that boundary.
 
-- **NMRPeak:** imports `linux_idmap.addons.probe.probe_identity`, explicitly
+- **NMRPeak:** imports `linux_idmap.probe.probe_identity`, explicitly
   requests `confine=True`, then translates the returned host-qualified mappings
   for its existing ACL decisions. Its nine host tests import the actual
   deployment module and substitute only the managed probe effect. They check
@@ -49,6 +49,8 @@ now omits fixed memory/swap, PID and CPU quotas: the former local probes used
 32 MiB/4 PIDs (NMRPeak) and 64 MiB/8 PIDs (NMRNet). This is a documented policy
 change. Qualify it with the provider image and non-root caller, and supply a
 resource policy if quotas are required.
+
+## Verification
 
 Before adoption, run the maintained containerized suites and actual
 rootful/rootless engines with provider images and non-root callers. A missing

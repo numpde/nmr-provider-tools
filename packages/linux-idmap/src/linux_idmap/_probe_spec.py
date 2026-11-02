@@ -4,7 +4,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 import re
 
-from .model import ProbeRequest, StepError
+from ._probe_model import ProbeRequest, StepError
 
 
 # Shared owned-probe label wire name; creation and verification must agree.
@@ -52,7 +52,7 @@ class ProbeSpec:
                     "--user", f"{request.user_uid}:{request.user_gid}",
                     "--rm", "--restart", "no", "--no-healthcheck"]
         if request.confine:
-            from .confinement import arguments
+            from ._confinement import arguments
 
             yield from arguments()
         if request.userns_mode == "host":
@@ -77,6 +77,6 @@ class ProbeSpec:
                 or isolation["RestartPolicy"].get("Name") not in ("", "no")):
             raise StepError("ownership", "probe cleanup or restart policy changed")
         if request.confine:
-            from .confinement import verify
+            from ._confinement import verify
 
             verify(container)

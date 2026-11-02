@@ -7,11 +7,11 @@ import random
 import unittest
 
 from helpers import CID, IMAGE, container_for, request
-from linux_idmap.addons.docker import Container, DockerError, INSPECT_FORMAT
+from linux_idmap._docker import Container, DockerError, INSPECT_FORMAT
 from linux_idmap.core import IdRange, parse_map as parse_id_map
 from linux_idmap import Identifier, IdMap
-from linux_idmap.addons.model import Bounds, StepError
-from linux_idmap.addons.spec import ProbeSpec
+from linux_idmap._probe_model import Bounds, StepError
+from linux_idmap._probe_spec import ProbeSpec
 
 
 class MapContractTests(unittest.TestCase):

@@ -1,15 +1,15 @@
-"""Owned-process and retirement evidence used only by the managed-probe add-on."""
+"""Process ownership and retirement checks for the managed probe."""
 
 from contextlib import contextmanager
 import os
 import re
 
-from . import host as _proc
-from ..core import IdMap
-from .host import Procfs, ProcessIdentity, ProcessStatus, require_host, _directory, _validate_pid
-from .errors import IdentityError
+from . import _procfs as _proc
+from .core import IdMap
+from ._procfs import Procfs, ProcessIdentity, ProcessStatus, require_host, _directory, _validate_pid
+from ._errors import IdentityError
 from ._files import FileIdentity
-from .observation import ProcessObservation
+from .process import ProcessObservation
 
 
 def _require_token(raw: bytes, token: str):

@@ -2,7 +2,7 @@
 
 from collections.abc import Iterator
 
-from .model import StepError
+from ._probe_model import StepError
 
 
 # Creation flags and corresponding inspected settings.

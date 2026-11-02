@@ -2,19 +2,19 @@
 
 from dataclasses import asdict, dataclass
 import secrets
-import threading
 import time
 
-from .docker import Container, DockerEngine, DockerError
-from .errors import IdentityError
-from ..core import IdMap
-from .host import ProcessIdentity
-from .observation import ProcessObservation
-from ._process import ProbeProcesses
-from .model import Bounds, Problem, ProbeFailure, ProbeHandle, ProbeRequest, ResourceState, Retirement, StepError
-from .spec import ProbeSpec
+from ._docker import Container, DockerEngine, DockerError
+from ._errors import IdentityError
+from .core import IdMap
+from ._procfs import ProcessIdentity
+from .process import ProcessObservation
+from ._probe_process import ProbeProcesses
+from ._probe_model import Cancellation, Bounds, Problem, ProbeFailure, ProbeHandle, ProbeRequest, ResourceState, Retirement, StepError
+from ._probe_spec import ProbeSpec
 
-__all__ = ["Bounds", "ProbeRequest", "ProbeFailure", "ProbeResult", "probe_identity"]
+__all__ = ["probe_identity", "ProbeRequest", "Bounds", "ProbeResult", "StepError",
+           "ProbeFailure", "ResourceState", "Problem", "Retirement", "ProbeHandle"]
 
 
 @dataclass(frozen=True)
@@ -216,7 +216,7 @@ class _Probe:
 
 
 # silent-defaults: allow-contract -- The public operation uses the Docker CLI transport; an explicit executable override supports fault qualification without changing endpoint policy; tests/test_probe_faults.py::OperationFaultTests.
-def probe_identity(request: ProbeRequest, *, cancel: threading.Event | None = None,
+def probe_identity(request: ProbeRequest, *, cancel: Cancellation | None = None,
                    executable: str = "docker") -> ProbeResult:
     """Measure maps, retire the probe, then deliver maps or ordered failures.
 

@@ -1,5 +1,5 @@
 diff --git a/README.md b/README.md
-index 04c5e36..543e17e 100644
+index 04c5e36..f81ea1e 100644
 --- a/README.md
 +++ b/README.md
 @@ -12,6 +12,9 @@ and freeform-text routes and deployment requirements.
@@ -7,13 +7,13 @@ index 04c5e36..543e17e 100644
  ## Check the software
  
 +Identity probing additionally requires the reviewed `linux-idmap` host wheel;
-+see the [candidate migration and qualification notes](docs/linux-idmap-migration.md).
++see the [migration and verification notes](docs/linux-idmap-migration.md).
 +
  The maintained tests run in a pinned Docker image. On Linux, use Git, Make,
  Bash, Python 3.11+, Docker with Compose and a local Unix-socket context, and a regular
  Docker-enabled account. Every Docker-using Make target requires
 diff --git a/deployment/provider_deployment.py b/deployment/provider_deployment.py
-index 68dc9c9..ac67b9c 100644
+index 68dc9c9..43fd2c4 100644
 --- a/deployment/provider_deployment.py
 +++ b/deployment/provider_deployment.py
 @@ -89,7 +89,6 @@ _DOCKER = Path("/usr/bin/docker")
@@ -24,7 +24,7 @@ index 68dc9c9..ac67b9c 100644
  _PROVIDER_UID_RECEIPT = ".provider-uids.json"
  _MAX_AUTHORIZED_PROVIDER_UIDS = 16
  _SESSION_VOLUME_OPTIONS = {
-@@ -244,292 +243,44 @@ def _read_capture_source(path: Path, *, secret: bool) -> bytes:
+@@ -244,292 +243,43 @@ def _read_capture_source(path: Path, *, secret: bool) -> bytes:
          raise DeploymentOperationRejected(f"Cannot capture startup input {path}: its bounded regular-file read failed; preserve the source and inspect its permissions") from cause
  
  
@@ -45,8 +45,7 @@ index 68dc9c9..ac67b9c 100644
 -        raise DeploymentOperationRejected(
 -            "Cannot map the selected engine's container users: run deployment on the host "
 -            "in its initial user and PID namespaces with host /proc access"
-+        from linux_idmap.addons.model import ProbeFailure, ProbeRequest, ResourceState, StepError
-+        from linux_idmap.addons.probe import probe_identity
++        from linux_idmap.probe import ProbeFailure, ProbeRequest, ResourceState, StepError, probe_identity
 +    except ImportError as error:
 +        raise DeploymentOperationRejected(
 +            "Install the reviewed linux-idmap host wheel in the Python environment "
@@ -351,11 +350,11 @@ index 68dc9c9..ac67b9c 100644
  def _provider_directory_acl(provider_uids: tuple[int, ...]) -> tuple[str, ...]:
 diff --git a/docs/linux-idmap-migration.md b/docs/linux-idmap-migration.md
 new file mode 100644
-index 0000000..98c4c45
+index 0000000..373563a
 --- /dev/null
 +++ b/docs/linux-idmap-migration.md
 @@ -0,0 +1,59 @@
-+# Shared identity probe: candidate migration
++# Shared identity probe
 +
 +This patch replaces NMRPeak's local namespace guard, Docker probe lifecycle,
 +process checks and retirement with the `linux-idmap` managed probe.
@@ -369,15 +368,15 @@ index 0000000..98c4c45
 +
 +## Host prerequisite
 +
-+Build the reviewed `nmr-provider-tools` candidate wheel using its package README.
++Build the `linux-idmap` wheel using its package README in `nmr-provider-tools`.
 +Install it in the host Python 3.11+ environment selected by `make PYTHON=...`:
 +
 +```sh
-+/path/to/deployment-python -m pip install --force-reinstall --no-index --no-deps /absolute/path/linux_idmap-0.3.0a3-py3-none-any.whl
++/path/to/deployment-python -m pip install --force-reinstall --no-index --no-deps /absolute/path/linux_idmap-0.3.0a4-py3-none-any.whl
 +```
 +
 +Use that interpreter for deployment. Missing or incompatible package imports
-+stop the operation before probe creation. This is an unreleased candidate.
++stop the operation before probe creation.
 +
 +## Failure handling
 +
@@ -393,7 +392,7 @@ index 0000000..98c4c45
 +
 +## Verification and adoption
 +
-+Run the host adapter tests with the installed candidate:
++Run the host adapter tests with the installed package:
 +
 +```sh
 +PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
@@ -408,7 +407,7 @@ index 0000000..98c4c45
 +
 +Before adoption, qualify the maintained containerized suite, actual
 +rootful/rootless engines, provider image, non-root operator and complete
-+deployment preview with the candidate package.
++deployment preview with the installed package.
 +
 +Confinement selects no network, a read-only root, dropped capabilities and
 +no-new-privileges. The former local probe's 32 MiB and 4-PID limits have been
@@ -416,7 +415,7 @@ index 0000000..98c4c45
 +qualification and supply a separate resource policy if quotas are required.
 diff --git a/tests/host/test_shared_identity_adapter.py b/tests/host/test_shared_identity_adapter.py
 new file mode 100644
-index 0000000..d5fa52a
+index 0000000..107081b
 --- /dev/null
 +++ b/tests/host/test_shared_identity_adapter.py
 @@ -0,0 +1,133 @@
@@ -435,8 +434,8 @@ index 0000000..d5fa52a
 +from deployment import provider_deployment
 +
 +from linux_idmap import IdMap, IdRange
-+from linux_idmap.addons.model import Problem, ProbeFailure, ProbeHandle, ResourceState, Retirement, StepError
-+from linux_idmap.addons.probe import ProbeResult
++from linux_idmap.probe import Problem, ProbeFailure, ProbeHandle, ResourceState, Retirement, StepError
++from linux_idmap.probe import ProbeResult
 +
 +
 +IDENTITY_MAP = IdMap((IdRange(0, 0, 4294967295),))
@@ -456,7 +455,7 @@ index 0000000..d5fa52a
 +        return ProbeResult(ROOTLESS_MAP, ROOTLESS_MAP, "c" * 64)
 +
 +    def test_delegates_exact_selected_engine_image_user_and_executable(self):
-+        with patch("linux_idmap.addons.probe.probe_identity", side_effect=self.completed) as operation:
++        with patch("linux_idmap.probe.probe_identity", side_effect=self.completed) as operation:
 +            result = self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
 +        operation.assert_called_once()
 +        request = operation.call_args.args[0]
@@ -473,7 +472,7 @@ index 0000000..d5fa52a
 +        def unexpected_storage(**_kwargs):
 +            raise AssertionError("identity adaptation must not allocate a receipt directory")
 +        with patch.object(self.adapter, "mkdtemp", side_effect=unexpected_storage), \
-+             patch("linux_idmap.addons.probe.probe_identity", return_value=SimpleNamespace(uid_map=ROOTLESS_MAP)):
++             patch("linux_idmap.probe.probe_identity", return_value=SimpleNamespace(uid_map=ROOTLESS_MAP)):
 +            self.assertIs(self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image), ROOTLESS_MAP)
 +
 +    def test_forward_maps_both_actual_provider_consumers(self):
@@ -499,7 +498,7 @@ index 0000000..d5fa52a
 +                    raise cause
 +                expected = (self.adapter.MaintenanceInvocationUnsettled if state not in {ResourceState.NOT_CREATED, ResourceState.RETIRED}
 +                            else self.adapter.DeploymentOperationRejected)
-+                with patch("linux_idmap.addons.probe.probe_identity", side_effect=fail):
++                with patch("linux_idmap.probe.probe_identity", side_effect=fail):
 +                    with self.assertRaises(expected) as caught:
 +                        self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
 +                self.assertIs(caught.exception.__cause__, cause)
@@ -521,7 +520,7 @@ index 0000000..d5fa52a
 +                           (Problem("timeout", "container retirement could not be confirmed"),)),
 +                ProbeHandle(request.endpoint, "a" * 32, "c" * 64),
 +            )
-+        with patch("linux_idmap.addons.probe.probe_identity", side_effect=fail):
++        with patch("linux_idmap.probe.probe_identity", side_effect=fail):
 +            with self.assertRaises(self.adapter.MaintenanceInvocationUnsettled) as caught:
 +                self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
 +        self.assertIn("probe process changed", str(caught.exception))
@@ -530,7 +529,7 @@ index 0000000..d5fa52a
 +    def test_invalid_request_is_provider_rejection_before_dispatch(self):
 +        for image in ("", "contains whitespace", "x" * 513):
 +            with self.subTest(image=image), \
-+                 patch("linux_idmap.addons.probe.probe_identity") as operation:
++                 patch("linux_idmap.probe.probe_identity") as operation:
 +                with self.assertRaises(self.adapter.DeploymentOperationRejected) as caught:
 +                    self.adapter._container_uid_map(Path("/usr/bin/docker"), image)
 +                operation.assert_not_called()
@@ -540,13 +539,13 @@ index 0000000..d5fa52a
 +
 +    def test_missing_selected_endpoint_does_not_dispatch(self):
 +        with patch.dict(os.environ, {}, clear=True), \
-+             patch("linux_idmap.addons.probe.probe_identity") as operation:
++             patch("linux_idmap.probe.probe_identity") as operation:
 +            with self.assertRaises(self.adapter.CheckpointOperationRejected):
 +                self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
 +        operation.assert_not_called()
 +
 +    def test_missing_host_package_has_actionable_error(self):
-+        with patch.dict("sys.modules", {"linux_idmap.addons.probe": None}):
++        with patch.dict("sys.modules", {"linux_idmap.probe": None}):
 +            with self.assertRaisesRegex(self.adapter.DeploymentOperationRejected, "linux-idmap"):
 +                self.adapter._container_uid_map(Path("/usr/bin/docker"), self.image)
 +

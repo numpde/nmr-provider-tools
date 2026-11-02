@@ -1,24 +1,23 @@
 diff --git a/README.md b/README.md
-index 2f14e31..628a9d0 100644
+index 2f14e31..d0eeebb 100644
 --- a/README.md
 +++ b/README.md
-@@ -17,3 +17,39 @@ on the Make command line. When omitted in a terminal, it offers a menu of
+@@ -17,3 +17,40 @@ on the Make command line. When omitted in a terminal, it offers a menu of
  configured local Unix-socket contexts; unattended commands fail without a
  selection. The selected socket stays fixed for the whole operation. Run
  `make help` for maintained commands.
 +
-+## Candidate shared identity-probe integration
++## Shared identity-probe integration
 +
-+This candidate patch's `provider/deployment/install` requires the **host** `linux-idmap-probe`
-+command from the `linux-idmap` wheel in the matching `nmr-provider-tools` candidate, with Python 3.11 or
-+later. Install it on the host, where it reads `/proc`.
++`provider/deployment/install` requires the **host** `linux-idmap-probe` command
++from the `linux-idmap` package in `nmr-provider-tools`, with Python 3.11 or later. Install it on the host, where it reads `/proc`.
 +
-+Build the candidate wheel using that repository's package instructions, then
++Build the wheel using that repository's package instructions, then
 +install the exact locally built wheel in a dedicated host environment:
 +
 +```sh
 +python3 -m venv "$HOME/.local/share/linux-idmap"
-+"$HOME/.local/share/linux-idmap/bin/python" -m pip install --force-reinstall --no-index --no-deps /absolute/path/to/linux_idmap-0.3.0a3-py3-none-any.whl
++"$HOME/.local/share/linux-idmap/bin/python" -m pip install --force-reinstall --no-index --no-deps /absolute/path/to/linux_idmap-0.3.0a4-py3-none-any.whl
 +export PATH="$HOME/.local/share/linux-idmap/bin:$PATH"
 +linux-idmap-probe --help
 +```
@@ -37,22 +36,24 @@ index 2f14e31..628a9d0 100644
 +
 +Wheelhouse acquisition continues to use the inverse-ID mapping in
 +`tools/docker.sh` and `tools/user_namespace_map.sh`.
++## Verification
++
 +Host adapter tests can be run without Docker via `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover
-+-s tests/host -v`, with this candidate package installed. They exercise the actual
++-s tests/host -v`, with `linux-idmap` installed. They exercise the actual
 +shell adapter and shared CLI boundary with a synthetic probe result. Before
 +adoption, qualify actual rootful/rootless engines, the provider image, a non-root
 +operator and the maintained container-launched deployment suite.
 diff --git a/docs/provider.html b/docs/provider.html
-index 67bc55d..ee08e86 100644
+index 67bc55d..9d59ec6 100644
 --- a/docs/provider.html
 +++ b/docs/provider.html
 @@ -258,6 +258,15 @@ settings in nmr-provider-tools. No socket grant belongs in the public provider d
  <code>.work/provider/</code>, <code>.work/preparation/</code> and <code>.work/inference/</code>.
  Install admits those image records and captures the model selection from
  <code>artifacts/prediction-models.json</code>; up uses the frozen generation.</p>
-+<p><strong>Candidate integration prerequisite:</strong> this branch's install command
++<p><strong>Integration prerequisite:</strong> this branch's install command
 +uses the host <code>linux-idmap-probe</code> CLI from the <code>linux-idmap</code> wheel in the matching local
-+nmr-provider-tools candidate, on Python 3.11 or later. Install its locally built
++nmr-provider-tools checkout, on Python 3.11 or later. Install its locally built
 +wheel in a host virtual environment and put that environment's <code>bin</code>
 +on <code>PATH</code>; see the repository README for the explicit offline install.
 +The operation uses the Docker socket selected by Make, with
@@ -64,10 +65,10 @@ index 67bc55d..ee08e86 100644
  make provider/deployment/install DEPLOYMENT=&lt;name&gt; SHARED_RUNTIME_IMAGE=sha256:YOUR_SHARED_IMAGE
 diff --git a/tests/host/test_deploy_identity_adapter.py b/tests/host/test_deploy_identity_adapter.py
 new file mode 100644
-index 0000000..9d48fc0
+index 0000000..65724c9
 --- /dev/null
 +++ b/tests/host/test_deploy_identity_adapter.py
-@@ -0,0 +1,201 @@
+@@ -0,0 +1,205 @@
 +"""Host-only acceptance for the actual NMRNet adapter and shared CLI contract.
 +
 +The shell adapter is extracted from its maintained source. The shared CLI and
@@ -99,20 +100,24 @@ index 0000000..9d48fc0
 +
 +SHARED_COMMAND = r'''import json
 +import os
++import time
 +from dataclasses import asdict
 +from pathlib import Path
 +from unittest.mock import patch
-+from linux_idmap.addons import cli
++from linux_idmap import _cli as cli
 +from linux_idmap import IdMap, IdRange
-+from linux_idmap.addons.model import Problem, ProbeFailure, ProbeHandle, ResourceState, Retirement
-+from linux_idmap.addons.probe import ProbeResult
++from linux_idmap.probe import Problem, ProbeFailure, ProbeHandle, ResourceState, Retirement
++from linux_idmap.probe import ProbeResult
 +
 +def observe(request, *, cancel):
 +    Path(os.environ['REQUEST_LOG']).write_text(json.dumps(asdict(request)))
 +    mode = os.environ['RESULT_MODE']
 +    if mode == 'await-signal':
 +        # The CLI owns real signal handlers; only the Engine effect is synthetic.
-+        if cancel.wait(2):
++        deadline = time.monotonic() + 2
++        while not cancel.is_set() and time.monotonic() < deadline:
++            time.sleep(0.01)
++        if cancel.is_set():
 +            raise ProbeFailure(Problem('cancelled', 'fixture observed cancellation'),
 +                               Retirement(ResourceState.RETIRED, 'b' * 64))
 +    if mode == 'uncertain':

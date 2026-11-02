@@ -11,8 +11,8 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from linux_idmap.addons import docker
-from linux_idmap.addons.docker import DockerError
+from linux_idmap import _docker as docker
+from linux_idmap._docker import DockerError
 
 
 class ClientSupervisionTests(unittest.TestCase):
@@ -35,7 +35,7 @@ class ClientSupervisionTests(unittest.TestCase):
                     self.assertIsNotNone(info, 'the leader must remain waitable until group signaling')
                     signal_group(pid, number)
                 try:
-                    with patch('linux_idmap.addons.docker.os.killpg', side_effect=kill_before_reap) as kill:
+                    with patch('linux_idmap._docker.os.killpg', side_effect=kill_before_reap) as kill:
                         arguments = [sys.executable, '-I', '-S', '-B', '-c', program]
                         if category is None:
                             self.assertEqual('', docker._run_command(arguments, env=os.environ, timeout=3))
@@ -84,12 +84,12 @@ class ClientSupervisionTests(unittest.TestCase):
             cancellation.set()
             return [(SimpleNamespace(fd=1, fileobj=process.stdout), 1)]
         selector.select.side_effect = ready
-        with patch('linux_idmap.addons.docker.subprocess.Popen', return_value=process), \
-             patch('linux_idmap.addons.docker.selectors.DefaultSelector', return_value=selector), \
-             patch('linux_idmap.addons.docker.os.set_blocking'), \
-             patch('linux_idmap.addons.docker.os.read') as read, \
-             patch('linux_idmap.addons.docker._peek_exit', return_value=SimpleNamespace(si_code=os.CLD_EXITED, si_status=0)), \
-             patch('linux_idmap.addons.docker._terminate') as retire:
+        with patch('linux_idmap._docker.subprocess.Popen', return_value=process), \
+             patch('linux_idmap._docker.selectors.DefaultSelector', return_value=selector), \
+             patch('linux_idmap._docker.os.set_blocking'), \
+             patch('linux_idmap._docker.os.read') as read, \
+             patch('linux_idmap._docker._peek_exit', return_value=SimpleNamespace(si_code=os.CLD_EXITED, si_status=0)), \
+             patch('linux_idmap._docker._terminate') as retire:
             with self.assertRaises(DockerError) as caught:
                 docker._run_command(['fixture'], env={}, timeout=1, cancel=cancellation, mutation=True)
         self.assertEqual('cancelled', caught.exception.category)
@@ -117,10 +117,10 @@ class ClientSupervisionTests(unittest.TestCase):
         def retire(process):
             terminate(process)
             raise operation_cleanup
-        with patch('linux_idmap.addons.docker.selectors.DefaultSelector',
+        with patch('linux_idmap._docker.selectors.DefaultSelector',
                    return_value=ClosingResource(selector, selector_error)), \
-             patch('linux_idmap.addons.docker.subprocess.Popen', side_effect=start), \
-             patch('linux_idmap.addons.docker._terminate', side_effect=retire) as retirement:
+             patch('linux_idmap._docker.subprocess.Popen', side_effect=start), \
+             patch('linux_idmap._docker._terminate', side_effect=retire) as retirement:
             with self.assertRaises(ExceptionGroup) as caught:
                 docker._run_command([sys.executable, '-I', '-S', '-B', '-c', 'raise SystemExit(3)'],
                                     env=os.environ, timeout=3, mutation=True)
@@ -138,9 +138,9 @@ class ClientSupervisionTests(unittest.TestCase):
         spawn_error, close_error = PermissionError('PRIVATE spawn'), KeyboardInterrupt()
         selector = Mock()
         selector.close.side_effect = close_error
-        with patch('linux_idmap.addons.docker.selectors.DefaultSelector', return_value=selector), \
-             patch('linux_idmap.addons.docker.subprocess.Popen', side_effect=spawn_error), \
-             patch('linux_idmap.addons.docker._terminate') as retirement:
+        with patch('linux_idmap._docker.selectors.DefaultSelector', return_value=selector), \
+             patch('linux_idmap._docker.subprocess.Popen', side_effect=spawn_error), \
+             patch('linux_idmap._docker._terminate') as retirement:
             with self.assertRaises(BaseExceptionGroup) as caught:
                 docker._run_command(['fixture'], env={}, timeout=1, mutation=True)
         operation, cleanup = caught.exception.exceptions
@@ -158,8 +158,8 @@ class ClientSupervisionTests(unittest.TestCase):
                 cleanup = OSError('PRIVATE selector close')
                 selector = Mock()
                 selector.close.side_effect = cleanup
-                with patch('linux_idmap.addons.docker.selectors.DefaultSelector', return_value=selector), \
-                     patch('linux_idmap.addons.docker.subprocess.Popen', side_effect=operation):
+                with patch('linux_idmap._docker.selectors.DefaultSelector', return_value=selector), \
+                     patch('linux_idmap._docker.subprocess.Popen', side_effect=operation):
                     with self.assertRaises(BaseExceptionGroup) as caught:
                         docker._run_command(['fixture'], env={}, timeout=1, mutation=True)
                 self.assertEqual((operation, cleanup), caught.exception.exceptions)
@@ -170,7 +170,7 @@ class ClientSupervisionTests(unittest.TestCase):
                          ExceptionGroup('foreign spawn group', [ValueError('unknown stage')])):
             with self.subTest(original=type(original).__name__):
                 original.mutation_uncertain = False
-                with patch('linux_idmap.addons.docker.subprocess.Popen', side_effect=original):
+                with patch('linux_idmap._docker.subprocess.Popen', side_effect=original):
                     with self.assertRaises(ExceptionGroup) as caught:
                         docker._run_command(['fixture'], env={}, timeout=1, mutation=True)
                 self.assertIs(original, caught.exception.exceptions[0])
@@ -183,11 +183,11 @@ class ClientSupervisionTests(unittest.TestCase):
         process.stdout.close.side_effect = error
         selector.get_map.return_value = {}
         exited = SimpleNamespace(si_code=os.CLD_EXITED, si_status=0)
-        with patch('linux_idmap.addons.docker.subprocess.Popen', return_value=process), \
-             patch('linux_idmap.addons.docker.selectors.DefaultSelector', return_value=selector), \
-             patch('linux_idmap.addons.docker.os.set_blocking'), \
-             patch('linux_idmap.addons.docker._peek_exit', return_value=exited), \
-             patch('linux_idmap.addons.docker._terminate') as retirement:
+        with patch('linux_idmap._docker.subprocess.Popen', return_value=process), \
+             patch('linux_idmap._docker.selectors.DefaultSelector', return_value=selector), \
+             patch('linux_idmap._docker.os.set_blocking'), \
+             patch('linux_idmap._docker._peek_exit', return_value=exited), \
+             patch('linux_idmap._docker._terminate') as retirement:
             with self.assertRaises(OSError) as caught:
                 docker._run_command(['fixture'], env={}, timeout=1, mutation=True)
         self.assertIs(error, caught.exception)
@@ -198,9 +198,9 @@ class ClientSupervisionTests(unittest.TestCase):
 
     def test_selector_allocation_failure_cannot_dispatch_a_client(self):
         allocation = OSError('PRIVATE selector allocation')
-        with patch('linux_idmap.addons.docker.selectors.DefaultSelector', side_effect=allocation), \
-             patch('linux_idmap.addons.docker.subprocess.Popen') as spawn, \
-             patch('linux_idmap.addons.docker._terminate') as retire:
+        with patch('linux_idmap._docker.selectors.DefaultSelector', side_effect=allocation), \
+             patch('linux_idmap._docker.subprocess.Popen') as spawn, \
+             patch('linux_idmap._docker._terminate') as retire:
             with self.assertRaises(DockerError) as caught:
                 docker._run_command(['must-not-run'], env={}, timeout=1, mutation=True)
         self.assertEqual('client_unavailable', caught.exception.category)
@@ -228,10 +228,10 @@ class ClientSupervisionTests(unittest.TestCase):
                         if expired:
                             clock[0] = 2.0
                         return selector
-                    with patch('linux_idmap.addons.docker.time.monotonic', side_effect=lambda: clock[0]), \
-                         patch('linux_idmap.addons.docker.selectors.DefaultSelector', side_effect=allocate), \
-                         patch('linux_idmap.addons.docker.subprocess.Popen') as spawn, \
-                         patch('linux_idmap.addons.docker._terminate') as retire:
+                    with patch('linux_idmap._docker.time.monotonic', side_effect=lambda: clock[0]), \
+                         patch('linux_idmap._docker.selectors.DefaultSelector', side_effect=allocate), \
+                         patch('linux_idmap._docker.subprocess.Popen') as spawn, \
+                         patch('linux_idmap._docker._terminate') as retire:
                         with self.assertRaises((DockerError, ExceptionGroup)) as caught:
                             docker._run_command(['must-not-run'], env={}, timeout=1,
                                                 cancel=cancellation, mutation=True)
@@ -254,9 +254,9 @@ class ClientSupervisionTests(unittest.TestCase):
 import signal, sys
 from unittest.mock import patch
 sys.path.insert(0, sys.argv[1])
-from linux_idmap.addons.docker import DockerError, _run_command
+from linux_idmap._docker import DockerError, _run_command
 signal.signal(signal.SIGCHLD, signal.SIG_IGN)
-with patch('linux_idmap.addons.docker.subprocess.Popen') as spawn:
+with patch('linux_idmap._docker.subprocess.Popen') as spawn:
     try:
         _run_command(['must-not-run'], env={}, timeout=1, mutation=True)
     except DockerError as error:
@@ -274,7 +274,7 @@ with patch('linux_idmap.addons.docker.subprocess.Popen') as spawn:
         process = subprocess.Popen([sys.executable, '-I', '-S', '-B', '-c', 'pass'])
         _, status = os.waitpid(process.pid, 0)  # A competing waiter consumed it.
         try:
-            with patch('linux_idmap.addons.docker.os.killpg') as kill:
+            with patch('linux_idmap._docker.os.killpg') as kill:
                 with self.assertRaises(DockerError) as caught:
                     docker._terminate(process)
             self.assertEqual('client_cleanup', caught.exception.category)
@@ -285,9 +285,9 @@ with patch('linux_idmap.addons.docker.subprocess.Popen') as spawn:
     def test_failed_group_signal_still_reaps_and_remains_a_failure(self):
         process = SimpleNamespace(pid=123, returncode=None)
         signal_error = PermissionError('private signal detail')
-        with patch('linux_idmap.addons.docker._peek_exit'), \
-             patch('linux_idmap.addons.docker.os.killpg', side_effect=signal_error), \
-             patch('linux_idmap.addons.docker._reap') as reap:
+        with patch('linux_idmap._docker._peek_exit'), \
+             patch('linux_idmap._docker.os.killpg', side_effect=signal_error), \
+             patch('linux_idmap._docker._reap') as reap:
             with self.assertRaises(DockerError) as caught:
                 docker._terminate(process)
         self.assertIs(signal_error, caught.exception.__cause__)
@@ -297,9 +297,9 @@ with patch('linux_idmap.addons.docker.subprocess.Popen') as spawn:
     def test_signal_and_reap_failures_are_retained_in_order(self):
         signal_error = PermissionError('private signal detail')
         reap_error = DockerError('client_cleanup', 'child did not exit')
-        with patch('linux_idmap.addons.docker._peek_exit'), \
-             patch('linux_idmap.addons.docker.os.killpg', side_effect=signal_error), \
-             patch('linux_idmap.addons.docker._reap', side_effect=reap_error):
+        with patch('linux_idmap._docker._peek_exit'), \
+             patch('linux_idmap._docker.os.killpg', side_effect=signal_error), \
+             patch('linux_idmap._docker._reap', side_effect=reap_error):
             with self.assertRaises(BaseExceptionGroup) as caught:
                 docker._terminate(SimpleNamespace(pid=123))
         self.assertIs(signal_error, caught.exception.exceptions[0].__cause__)
@@ -310,15 +310,15 @@ with patch('linux_idmap.addons.docker.subprocess.Popen') as spawn:
         def elapse(delay):
             clock[0] += delay
         process = Mock(pid=123, returncode=None)
-        with patch('linux_idmap.addons.docker.os.waitpid', return_value=(0, 0)), \
-             patch('linux_idmap.addons.docker.time.monotonic', side_effect=lambda: clock[0]), \
-             patch('linux_idmap.addons.docker.time.sleep', side_effect=elapse):
+        with patch('linux_idmap._docker.os.waitpid', return_value=(0, 0)), \
+             patch('linux_idmap._docker.time.monotonic', side_effect=lambda: clock[0]), \
+             patch('linux_idmap._docker.time.sleep', side_effect=elapse):
             with self.assertRaises(DockerError) as caught:
                 docker._reap(process)
         self.assertEqual('client_cleanup', caught.exception.category)
         self.assertEqual(1, clock[0])
         process.wait.assert_not_called()
-        with patch('linux_idmap.addons.docker.os.waitpid', side_effect=ChildProcessError):
+        with patch('linux_idmap._docker.os.waitpid', side_effect=ChildProcessError):
             with self.assertRaises(DockerError):
                 docker._reap(process)
         self.assertIsNone(process.returncode)
@@ -335,8 +335,8 @@ with patch('linux_idmap.addons.docker.subprocess.Popen') as spawn:
             raise cleanup
         for operation in (ForeignError('PRIVATE'), KeyboardInterrupt(), SystemExit(7)):
             with self.subTest(operation=type(operation).__name__):
-                with patch('linux_idmap.addons.docker.os.set_blocking', side_effect=operation), \
-                     patch('linux_idmap.addons.docker._terminate', side_effect=retire_then_report):
+                with patch('linux_idmap._docker.os.set_blocking', side_effect=operation), \
+                     patch('linux_idmap._docker._terminate', side_effect=retire_then_report):
                     with self.assertRaises(BaseExceptionGroup) as caught:
                         docker._run_command([sys.executable, '-I', '-S', '-B', '-c', 'import time;time.sleep(5)'],
                                             env=os.environ, timeout=1, mutation=True)
@@ -348,15 +348,15 @@ with patch('linux_idmap.addons.docker.subprocess.Popen') as spawn:
 
     def test_interrupted_cleanup_preserves_cancellation_and_unconfirmed_retirement(self):
         interruption = KeyboardInterrupt()
-        with patch('linux_idmap.addons.docker._peek_exit'), \
-             patch('linux_idmap.addons.docker.os.killpg', side_effect=interruption), \
-             patch('linux_idmap.addons.docker._reap') as reap:
+        with patch('linux_idmap._docker._peek_exit'), \
+             patch('linux_idmap._docker.os.killpg', side_effect=interruption), \
+             patch('linux_idmap._docker._reap') as reap:
             with self.assertRaises(BaseExceptionGroup) as caught:
                 docker._terminate(SimpleNamespace(pid=123))
         self.assertIs(interruption, caught.exception.exceptions[0])
         self.assertEqual('client_cleanup', caught.exception.exceptions[1].category)
         reap.assert_called_once()
-        with patch('linux_idmap.addons.docker.os.waitpid', side_effect=interruption):
+        with patch('linux_idmap._docker.os.waitpid', side_effect=interruption):
             with self.assertRaises(BaseExceptionGroup) as caught:
                 docker._reap(SimpleNamespace(pid=123))
         self.assertIs(interruption, caught.exception.exceptions[0])

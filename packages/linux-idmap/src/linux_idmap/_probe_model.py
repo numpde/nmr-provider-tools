@@ -3,8 +3,15 @@
 from dataclasses import asdict, dataclass
 from enum import StrEnum
 import re
+from typing import Protocol
 
-from ..core import Identifier
+from .core import Identifier
+
+
+class Cancellation(Protocol):
+    """A cancellation request sampled by the operation and its command transport."""
+
+    def is_set(self) -> bool: ...
 
 
 class StepError(RuntimeError):

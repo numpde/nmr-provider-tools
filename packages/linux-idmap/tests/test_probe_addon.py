@@ -6,12 +6,12 @@ import threading
 import unittest
 from unittest.mock import Mock, patch
 
-from linux_idmap.addons.probe import ProbeFailure, ResourceState, probe_identity
-from linux_idmap.addons.docker import DockerError
+from linux_idmap.probe import ProbeFailure, ResourceState, probe_identity
+from linux_idmap._docker import DockerError
 from linux_idmap.core import IdRange
 from linux_idmap import IdMap
-from linux_idmap.addons.errors import IdentityError
-from linux_idmap.addons.model import StepError
+from linux_idmap._errors import IdentityError
+from linux_idmap._probe_model import StepError
 from helpers import CID, Engine, Guard, OBSERVATION, request
 
 
@@ -20,7 +20,7 @@ class OperationTests(unittest.TestCase):
         self.request = request()
         self.engine, self.guard = Engine(), Guard()
         for target, value in (("DockerEngine.connect", self.engine), ("ProbeProcesses", self.guard)):
-            self.enterContext(patch("linux_idmap.addons.probe." + target, return_value=value))
+            self.enterContext(patch("linux_idmap.probe." + target, return_value=value))
 
     def failure(self, **kwargs):
         with self.assertRaises(ProbeFailure) as caught:
@@ -119,8 +119,8 @@ class OperationTests(unittest.TestCase):
             self.engine.on_inspect = change_start
             self.guard.observe = Mock(wraps=self.guard.observe)
             with self.subTest(inspection_number=inspection_number):
-                with patch("linux_idmap.addons.probe.DockerEngine.connect", return_value=self.engine), \
-                     patch("linux_idmap.addons.probe.ProbeProcesses", return_value=self.guard):
+                with patch("linux_idmap.probe.DockerEngine.connect", return_value=self.engine), \
+                     patch("linux_idmap.probe.ProbeProcesses", return_value=self.guard):
                     failure = self.failure()
                 self.assertEqual("process-identity", failure.problem.category)
                 self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
@@ -169,7 +169,7 @@ class OperationTests(unittest.TestCase):
         self.assertNotIn('PRIVATE', str(failure.as_dict()))
 
     def test_owned_predispatch_group_keeps_known_noncreation(self):
-        from linux_idmap.addons.docker import _command_failure
+        from linux_idmap._docker import _command_failure
         self.engine.hide_creation = True
         self.engine.create_failure = _command_failure(
             DockerError('timeout', 'engine guard timed out'),
@@ -203,7 +203,7 @@ class OperationTests(unittest.TestCase):
         self.assertNotIn("SECRET", json.dumps(failure.as_dict()))
 
     def test_interrupted_cleanup_entry_never_claims_no_creation(self):
-        with patch("linux_idmap.addons.probe._Probe.retire", side_effect=KeyboardInterrupt):
+        with patch("linux_idmap.probe._Probe.retire", side_effect=KeyboardInterrupt):
             failure = self.failure()
         self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
         self.assertEqual(CID, failure.retirement.container_id)

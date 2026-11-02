@@ -5,11 +5,21 @@ from dataclasses import replace
 import json
 import signal
 import sys
-import threading
 
-from ..core import Identifier
-from .model import Problem, ProbeFailure, ProbeRequest, ResourceState, Retirement, StepError
-from .probe import probe_identity
+from .core import Identifier
+from .probe import Problem, ProbeFailure, ProbeRequest, ResourceState, Retirement, StepError, probe_identity
+
+
+class _SignalCancellation:
+    def __init__(self):
+        self.requested = False
+
+    def request(self, _number, _frame):
+        # A signal can interrupt a held lock, including threading.Event's lock.
+        self.requested = True
+
+    def is_set(self) -> bool:
+        return self.requested
 
 
 class _Parser(argparse.ArgumentParser):
@@ -60,9 +70,9 @@ def main(argv: list[str] | None = None) -> int:
             request = replace(request, userns_mode=options.userns)
         if options.timeout is not None:
             request = replace(request, bounds=replace(request.bounds, operation_seconds=options.timeout))
-        cancellation = threading.Event()
+        cancellation = _SignalCancellation()
         for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
-            handlers[number] = signal.signal(number, lambda _number, _frame: cancellation.set())
+            handlers[number] = signal.signal(number, cancellation.request)
         result = probe_identity(request, cancel=cancellation)
         try:
             projected_uids = [result.uid_map.translate(uid) for uid in options.uid]

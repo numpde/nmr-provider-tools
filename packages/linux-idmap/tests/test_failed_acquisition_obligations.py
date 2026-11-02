@@ -3,9 +3,9 @@ from dataclasses import replace
 import unittest
 from unittest.mock import Mock, patch
 from helpers import Engine, Guard, OBSERVATION, request
-from linux_idmap.addons.probe import probe_identity, ProbeFailure
-from linux_idmap.addons.model import ResourceState
-from linux_idmap.addons.errors import IdentityError
+from linux_idmap.probe import probe_identity, ProbeFailure
+from linux_idmap._probe_model import ResourceState
+from linux_idmap._errors import IdentityError
 
 class FailedAcquisitionObligations(unittest.TestCase):
     def test_second_observed_process_is_not_forgotten_when_container_disappears(self):
@@ -20,8 +20,8 @@ class FailedAcquisitionObligations(unittest.TestCase):
             if inspections == 4:
                 engine.container = None
         engine.on_inspect = disappear
-        with patch('linux_idmap.addons.probe.DockerEngine.connect', return_value=engine), \
-             patch('linux_idmap.addons.probe.ProbeProcesses', return_value=guard):
+        with patch('linux_idmap.probe.DockerEngine.connect', return_value=engine), \
+             patch('linux_idmap.probe.ProbeProcesses', return_value=guard):
             with self.assertRaises(ProbeFailure) as raised:
                 probe_identity(request())
         self.assertEqual(ResourceState.UNRESOLVED, raised.exception.retirement.state)
@@ -41,8 +41,8 @@ class FailedAcquisitionObligations(unittest.TestCase):
             if inspections == 3:
                 engine.container = None
         engine.on_inspect = disappear
-        with patch('linux_idmap.addons.probe.DockerEngine.connect', return_value=engine), \
-             patch('linux_idmap.addons.probe.ProbeProcesses', return_value=guard):
+        with patch('linux_idmap.probe.DockerEngine.connect', return_value=engine), \
+             patch('linux_idmap.probe.ProbeProcesses', return_value=guard):
             with self.assertRaises(ProbeFailure) as raised:
                 probe_identity(request())
         self.assertEqual(ResourceState.UNRESOLVED, raised.exception.retirement.state)
@@ -62,8 +62,8 @@ class FailedAcquisitionObligations(unittest.TestCase):
             if inspections == 4:
                 engine.container = None
         engine.on_inspect = replace_then_disappear
-        with patch('linux_idmap.addons.probe.DockerEngine.connect', return_value=engine), \
-             patch('linux_idmap.addons.probe.ProbeProcesses', return_value=guard):
+        with patch('linux_idmap.probe.DockerEngine.connect', return_value=engine), \
+             patch('linux_idmap.probe.ProbeProcesses', return_value=guard):
             with self.assertRaises(ProbeFailure) as raised:
                 probe_identity(request())
         self.assertEqual(ResourceState.UNRESOLVED, raised.exception.retirement.state)
@@ -85,8 +85,8 @@ class FailedAcquisitionObligations(unittest.TestCase):
             if inspections == 3:
                 engine.container = replace(engine.container, started_at='replacement')
         engine.on_inspect = replace_run
-        with patch('linux_idmap.addons.probe.DockerEngine.connect', return_value=engine), \
-             patch('linux_idmap.addons.probe.ProbeProcesses', return_value=guard):
+        with patch('linux_idmap.probe.DockerEngine.connect', return_value=engine), \
+             patch('linux_idmap.probe.ProbeProcesses', return_value=guard):
             with self.assertRaises(ProbeFailure) as raised:
                 probe_identity(request())
         self.assertEqual(ResourceState.RETIRED, raised.exception.retirement.state)
@@ -107,8 +107,8 @@ class FailedAcquisitionObligations(unittest.TestCase):
             if inspections == 4:
                 engine.container = replace(engine.container, pid=43, started_at='replacement')
         engine.on_inspect = replacement
-        with patch('linux_idmap.addons.probe.DockerEngine.connect', return_value=engine), \
-             patch('linux_idmap.addons.probe.ProbeProcesses', return_value=guard):
+        with patch('linux_idmap.probe.DockerEngine.connect', return_value=engine), \
+             patch('linux_idmap.probe.ProbeProcesses', return_value=guard):
             with self.assertRaises(ProbeFailure) as raised:
                 probe_identity(request())
         self.assertEqual(ResourceState.RETIRED, raised.exception.retirement.state)

@@ -1,4 +1,4 @@
-"""The complete core runs without add-ons, commands or host qualification."""
+"""Read process rows using the standalone two-file core."""
 
 from collections.abc import Hashable
 from dataclasses import FrozenInstanceError, asdict
@@ -123,7 +123,7 @@ for kind in ('uid', 'gid'):
     expected = [tuple(map(int, line.split())) for line in Path(f'/proc/{pid}/{kind}_map').read_bytes().splitlines()]
     actual = [(row.inside, row.outside, row.length) for row in getattr(observed, f'{kind}_rows')]
     assert actual == expected
-assert not any(name.startswith('linux_idmap.addons') for name in sys.modules)
+assert {name for name in sys.modules if name == 'linux_idmap' or name.startswith('linux_idmap.')} == {'linux_idmap', 'linux_idmap.core'}
 '''
             child = subprocess.Popen([sys.executable, '-I', '-S', '-B', '-c', 'import time; time.sleep(30)'])
             try:

@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "linux-idmap"
-version = "0.3.0a3"
-description = "Linux process ID maps with explicit host qualification and Docker add-ons"
+version = "0.3.0a4"
+description = "Read Linux process ID maps and observe host IDs for local Docker images"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = []
 
 [project.scripts]
-linux-idmap-probe = "linux_idmap.addons.cli:main"
+linux-idmap-probe = "linux_idmap._cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

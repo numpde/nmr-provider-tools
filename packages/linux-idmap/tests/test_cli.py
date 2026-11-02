@@ -4,15 +4,17 @@ from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import replace
 import io
 import json
+from pathlib import Path
 import signal
 import subprocess
 import sys
 import unittest
 from unittest.mock import patch
 
+import linux_idmap
 from linux_idmap import IdMap
-from linux_idmap.addons.cli import main
-from linux_idmap.addons.probe import Bounds, Problem, ProbeFailure, ProbeResult, ResourceState, Retirement, ProbeHandle
+from linux_idmap._cli import main
+from linux_idmap.probe import Bounds, Problem, ProbeFailure, ProbeResult, ResourceState, Retirement, ProbeHandle
 from helpers import CID, OBSERVATION
 
 
@@ -63,7 +65,7 @@ class CliTests(unittest.TestCase):
                     self.assertEqual('', out)
 
     def test_complete_operation_receives_caller_selected_policy(self):
-        with patch("linux_idmap.addons.cli.probe_identity", side_effect=self.failure()) as operation:
+        with patch("linux_idmap._cli.probe_identity", side_effect=self.failure()) as operation:
             code, out, _ = self.call(self.arguments())
         request = operation.call_args.args[0]
         self.assertEqual("unix:///test.sock", request.endpoint)
@@ -73,30 +75,30 @@ class CliTests(unittest.TestCase):
         self.assertNotIn("uid_map", out)
 
     def test_values_are_only_requested_decimal_ids_in_order(self):
-        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
+        with patch("linux_idmap._cli.probe_identity", return_value=self.result()):
             code, out, err = self.call(self.arguments(values=True))
         self.assertEqual((0, "100000 101000 202000\n", ""), (code, out, err))
 
     def test_duplicate_projections_preserve_order(self):
-        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
+        with patch("linux_idmap._cli.probe_identity", return_value=self.result()):
             code, out, _ = self.call(self.arguments(values=True) + ["--uid", "0"])
         self.assertEqual(0, code)
         self.assertEqual("100000 101000 100000 202000\n", out)
 
     def test_abbreviations_are_rejected_without_invoking_operation(self):
-        with patch("linux_idmap.addons.cli.probe_identity") as operation:
+        with patch("linux_idmap._cli.probe_identity") as operation:
             code, out, _ = self.call(self.arguments() + ["--val"])
         self.assertEqual(2, code)
         self.assertFalse(json.loads(out)["ok"])
         operation.assert_not_called()
 
     def test_cli_uses_policy_defaults_and_applies_only_explicit_overrides(self):
-        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()) as operation:
+        with patch("linux_idmap._cli.probe_identity", return_value=self.result()) as operation:
             self.call(self.arguments())
         request = operation.call_args.args[0]
         self.assertEqual(Bounds(), request.bounds)
         self.assertEqual("default", request.userns_mode)
-        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()) as operation:
+        with patch("linux_idmap._cli.probe_identity", return_value=self.result()) as operation:
             self.call(self.arguments() + ["--timeout", "7", "--userns", "host"])
         request = operation.call_args.args[0]
         self.assertEqual(replace(Bounds(), operation_seconds=7), request.bounds)
@@ -105,7 +107,7 @@ class CliTests(unittest.TestCase):
     def test_no_requested_ids_means_no_projections(self):
         arguments = ["--endpoint", "unix:///test.sock", "--image", "approved:local",
                      "--interpreter", "/usr/bin/python3", "--user-uid", "1000", "--user-gid", "2000"]
-        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
+        with patch("linux_idmap._cli.probe_identity", return_value=self.result()):
             code, out, _ = self.call(arguments)
         self.assertEqual(0, code)
         payload = json.loads(out)
@@ -115,21 +117,21 @@ class CliTests(unittest.TestCase):
     def test_empty_values_projection_prints_only_one_empty_line(self):
         arguments = ["--endpoint", "unix:///test.sock", "--image", "approved:local",
                      "--interpreter", "/usr/bin/python3", "--user-uid", "1000", "--user-gid", "2000", "--values"]
-        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
+        with patch("linux_idmap._cli.probe_identity", return_value=self.result()):
             # An earlier invocation's projections must not populate the next one.
             self.call(self.arguments(values=True))
             code, out, err = self.call(arguments)
         self.assertEqual((0, "\n", ""), (code, out, err))
 
     def test_values_failure_has_empty_stdout_and_structured_stderr(self):
-        with patch("linux_idmap.addons.cli.probe_identity", side_effect=self.failure()):
+        with patch("linux_idmap._cli.probe_identity", side_effect=self.failure()):
             code, out, err = self.call(self.arguments(values=True))
         self.assertEqual(3, code)
         self.assertEqual("", out)
         self.assertEqual("uncertain-outcome", json.loads(err)["state"])
 
     def test_unmapped_projection_does_not_print_partial_values(self):
-        with patch("linux_idmap.addons.cli.probe_identity", return_value=self.result()):
+        with patch("linux_idmap._cli.probe_identity", return_value=self.result()):
             code, out, err = self.call(self.arguments(values=True) + ["--gid", "999999"])
         self.assertEqual((1, ""), (code, out))
         self.assertEqual("unmapped-id", json.loads(err)["problem"]["category"])
@@ -141,7 +143,7 @@ class CliTests(unittest.TestCase):
             signal.raise_signal(signal.SIGHUP)
             self.assertTrue(cancel.is_set())
             raise self.failure(ResourceState.RETIRED, "cancelled")
-        with patch("linux_idmap.addons.cli.probe_identity", side_effect=operation):
+        with patch("linux_idmap._cli.probe_identity", side_effect=operation):
             self.assertEqual(130, self.call(self.arguments())[0])
         self.assertEqual(previous, signal.getsignal(signal.SIGHUP))
 
@@ -154,7 +156,7 @@ class CliTests(unittest.TestCase):
             return value
         for values in (False, True):
             with self.subTest(values=values):
-                with patch('linux_idmap.addons.cli.probe_identity', return_value=self.result()), \
+                with patch('linux_idmap._cli.probe_identity', return_value=self.result()), \
                      patch.object(IdMap, 'translate', cancel_after_projection):
                     code, out, err = self.call(self.arguments(values=values))
                 self.assertEqual(130, code)
@@ -168,8 +170,81 @@ class CliTests(unittest.TestCase):
                 self.assertNotIn('mapped_uids', payload)
         self.assertEqual(previous, signal.getsignal(signal.SIGTERM))
 
+    def test_signal_handler_is_lock_free_and_accepts_reentrant_signals(self):
+        program = r'''from contextlib import ExitStack
+import faulthandler
+import signal
+import sys
+import threading
+from unittest.mock import patch
+sys.path.insert(0, sys.argv[1])
+from linux_idmap import _cli
+from linux_idmap.probe import Problem, ProbeFailure, ResourceState, Retirement
+
+faulthandler.dump_traceback_later(4)
+previous = {number: signal.getsignal(number)
+            for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP)}
+events = []
+make_event = threading.Event
+
+def record_event():
+    event = make_event()
+    events.append(event)
+    return event
+
+def operation(request, *, cancel):
+    if sys.argv[2] == 'held-event-lock':
+        # Reproduce signal delivery inside Event.wait/set's critical section.
+        with ExitStack() as locks:
+            for event in events:
+                locks.enter_context(event._cond)
+            signal.raise_signal(signal.SIGTERM)
+    else:
+        handler = signal.getsignal(signal.SIGTERM)
+        code = getattr(handler, '__func__', handler).__code__
+        nested = False
+        def trace(frame, event, arg):
+            nonlocal nested
+            if frame.f_code is code and event == 'call' and not nested:
+                nested = True
+                signal.raise_signal(signal.SIGTERM)
+            return trace
+        try:
+            sys.settrace(trace)
+            signal.raise_signal(signal.SIGTERM)
+        finally:
+            sys.settrace(None)
+        assert nested
+        signal.raise_signal(signal.SIGINT)
+        signal.raise_signal(signal.SIGHUP)
+    assert cancel.is_set()
+    raise ProbeFailure(Problem('cancelled', 'signal observed'),
+                       Retirement(ResourceState.RETIRED))
+
+with patch.object(threading, 'Event', record_event), patch.object(_cli, 'probe_identity', operation):
+    status = _cli.main(['--endpoint', 'unix:///test.sock', '--image', 'approved:local',
+                        '--interpreter', '/usr/bin/python3', '--user-uid', '0',
+                        '--user-gid', '0', '--values'])
+assert status == 130
+assert all(signal.getsignal(number) is handler for number, handler in previous.items())
+faulthandler.cancel_dump_traceback_later()
+'''
+        for mode in ('held-event-lock', 'reentrant'):
+            with self.subTest(mode=mode):
+                try:
+                    result = subprocess.run(
+                        [sys.executable, '-I', '-S', '-B', '-c', program,
+                         str(Path(linux_idmap.__file__).parent.parent), mode],
+                        capture_output=True, text=True, timeout=10,
+                    )
+                except subprocess.TimeoutExpired as error:
+                    self.fail(f'signal handler did not return: {error.stderr!r}')
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual('', result.stdout)
+                self.assertEqual('cancelled', json.loads(result.stderr)['problem']['category'])
+
     def test_help_is_real_and_defaults_do_not_require_timing_knobs(self):
-        result = subprocess.run([sys.executable, "-m", "linux_idmap.addons.cli", "--help"],
+        result = subprocess.run([sys.executable, "-m", "linux_idmap._cli", "--help"],
                                 capture_output=True, text=True, timeout=5, check=False)
         self.assertEqual(0, result.returncode)
         self.assertIn("--endpoint", result.stdout)

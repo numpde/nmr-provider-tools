@@ -12,8 +12,8 @@ import re
 import sys
 import threading
 
-from ..core import MapRows, read_maps
-from .errors import IdentityError
+from .core import MapRows, read_maps
+from ._errors import IdentityError
 from ._files import FileIdentity
 
 

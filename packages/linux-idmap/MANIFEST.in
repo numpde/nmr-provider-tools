@@ -1,1 +1,3 @@
-include ADDONS.md
+include DESIGN.md
+recursive-include examples *.py *.md
+recursive-include tests *.py

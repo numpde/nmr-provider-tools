@@ -1,11 +1,15 @@
-# Add-on operations and scenario tests
+# Implementation and scenario tests
 
-## How the add-ons compose
+## How the operations compose
 
 `read_maps(read_file)` calls the supplied reader for `uid_map` and `gid_map`.
 The reader returns bytes; the result is `MapRows` containing row iterables.
-Each add-on supplies a reader, checks its source, or combines these operations
-for a caller.
+The process reader supplies bytes from a pinned procfs directory.
+
+The public modules contain the operation implementations: `process.py` reads an
+existing process; `probe.py` owns the temporary image probe. The root package
+imports only `core.py`. Shared checks, transport and policy records live in
+private `_*.py` modules.
 
 The host observation follows this sequence:
 

@@ -11,12 +11,12 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import Mock, patch
 
-from linux_idmap.addons._files import FileIdentity
+from linux_idmap._files import FileIdentity
 from linux_idmap import Identifier, IdMap, IdRange, MapRows, parse_map
-from linux_idmap.addons.errors import IdentityError
-from linux_idmap.addons.host import ProcessIdentity, consistent_maps
-from linux_idmap.addons.observation import observe_host_process
-from linux_idmap.addons.probe import ProbeResult
+from linux_idmap._errors import IdentityError
+from linux_idmap._procfs import ProcessIdentity, consistent_maps
+from linux_idmap.process import observe_host_process
+from linux_idmap.probe import ProbeResult
 
 
 class MapBoundaryTests(unittest.TestCase):
@@ -55,7 +55,7 @@ class MapBoundaryTests(unittest.TestCase):
             finally:
                 active = False
 
-        with source() as read_file, patch('linux_idmap.addons.host.read_maps', sample):
+        with source() as read_file, patch('linux_idmap._procfs.read_maps', sample):
             maps = consistent_maps(read_file)
             self.assertEqual([1000, 2000, 1000, 2000],
                              [call.args[0] for call in consumed.call_args_list])
@@ -124,7 +124,7 @@ class MapBoundaryTests(unittest.TestCase):
         def succeeds(_pid):
             yield source
 
-        with patch("linux_idmap.addons.observation.qualified_process", succeeds):
+        with patch("linux_idmap.process.qualified_process", succeeds):
             observed = observe_host_process(42)
         self.assertIsInstance(observed.uid_map, IdMap)
         self.assertEqual(1000, observed.uid_map.translate(0))
@@ -138,7 +138,7 @@ class MapBoundaryTests(unittest.TestCase):
             yield source
             raise IdentityError("process-identity", "source changed before release")
 
-        with patch("linux_idmap.addons.observation.qualified_process", exit_fails):
+        with patch("linux_idmap.process.qualified_process", exit_fails):
             with self.assertRaises(IdentityError):
                 observe_host_process(42)
 
@@ -167,8 +167,8 @@ import ctypes, errno, json, os, sys
 from pathlib import Path
 sys.path.insert(0, sys.argv[1])
 from linux_idmap import IdMap, observe_process, parse_map
-from linux_idmap.addons.errors import IdentityError
-from linux_idmap.addons.observation import observe_host_process
+from linux_idmap._errors import IdentityError
+from linux_idmap.process import observe_host_process
 parent_uid = os.geteuid()
 old_namespace = os.stat('/proc/self/ns/user').st_ino
 libc = ctypes.CDLL(None, use_errno=True)

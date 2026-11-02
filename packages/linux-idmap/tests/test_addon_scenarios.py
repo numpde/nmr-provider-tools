@@ -1,4 +1,4 @@
-"""Capability deltas: what explicit add-ons add to the raw one-page reader."""
+"""Scenarios for checked observations and managed probes."""
 
 from dataclasses import replace
 import json
@@ -10,12 +10,12 @@ from unittest.mock import patch
 
 from helpers import CID, Engine, Guard, request
 from linux_idmap import MapRows, observe_process, read_maps
-from linux_idmap.addons import host
-from linux_idmap.addons.docker import DockerError
-from linux_idmap.addons.errors import IdentityError
-from linux_idmap.addons.observation import observe_host_process
-from linux_idmap.addons.probe import ProbeFailure, ResourceState, probe_identity
-from linux_idmap.addons.spec import OWNER
+from linux_idmap import _procfs as host
+from linux_idmap._docker import DockerError
+from linux_idmap._errors import IdentityError
+from linux_idmap.process import observe_host_process
+from linux_idmap.probe import ProbeFailure, ResourceState, probe_identity
+from linux_idmap._probe_spec import OWNER
 
 
 class SourceRefinementScenarios(unittest.TestCase):
@@ -60,8 +60,8 @@ class SourceRefinementScenarios(unittest.TestCase):
 
 class ManagedProbeScenarios(unittest.TestCase):
     def run_probe(self, policy, engine, guard=None):
-        with patch('linux_idmap.addons.probe.DockerEngine.connect', return_value=engine), \
-             patch('linux_idmap.addons.probe.ProbeProcesses', return_value=guard or Guard()):
+        with patch('linux_idmap.probe.DockerEngine.connect', return_value=engine), \
+             patch('linux_idmap.probe.ProbeProcesses', return_value=guard or Guard()):
             return probe_identity(policy)
 
     def test_image_before_deployment_supplies_maps_without_an_existing_application(self):
@@ -92,15 +92,15 @@ class ManagedProbeScenarios(unittest.TestCase):
 
     def test_unselected_confinement_module_can_be_unavailable(self):
         # Production dispatch must not import the optional policy on the base path.
-        import linux_idmap.addons as addons
-        with patch.object(addons, 'confinement', None, create=True), \
-             patch.dict(sys.modules, {'linux_idmap.addons.confinement': None}):
+        import linux_idmap as package
+        with patch.object(package, '_confinement', None, create=True), \
+             patch.dict(sys.modules, {'linux_idmap._confinement': None}):
             result = self.run_probe(replace(request(), confine=False), Engine())
         self.assertEqual(101000, result.uid_map.translate(1000))
 
     def test_selected_confinement_is_loaded_before_creation_can_be_uncertain(self):
         engine = Engine()
-        with patch.dict(sys.modules, {'linux_idmap.addons.confinement': None}):
+        with patch.dict(sys.modules, {'linux_idmap._confinement': None}):
             with self.assertRaises(ProbeFailure) as caught:
                 self.run_probe(request(), engine)
         self.assertEqual(ResourceState.NOT_CREATED, caught.exception.retirement.state)

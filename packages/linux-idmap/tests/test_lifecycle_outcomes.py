@@ -5,19 +5,19 @@ import unittest
 from unittest.mock import Mock, patch
 
 from helpers import Engine, Guard, OBSERVATION, request
-from linux_idmap.addons.docker import DockerError
-from linux_idmap.addons.errors import IdentityError
-from linux_idmap.addons._files import FileIdentity
-from linux_idmap.addons.host import ReaderEvidence
-from linux_idmap.addons.model import ProbeFailure, ResourceState, StepError
-from linux_idmap.addons.probe import probe_identity
+from linux_idmap._docker import DockerError
+from linux_idmap._errors import IdentityError
+from linux_idmap._files import FileIdentity
+from linux_idmap._procfs import ReaderEvidence
+from linux_idmap._probe_model import ProbeFailure, ResourceState, StepError
+from linux_idmap.probe import probe_identity
 
 
 class LifecycleOutcomeTests(unittest.TestCase):
     def setUp(self):
         self.engine, self.guard = Engine(), Guard()
-        self.enterContext(patch('linux_idmap.addons.probe.DockerEngine.connect', return_value=self.engine))
-        self.enterContext(patch('linux_idmap.addons.probe.ProbeProcesses', return_value=self.guard))
+        self.enterContext(patch('linux_idmap.probe.DockerEngine.connect', return_value=self.engine))
+        self.enterContext(patch('linux_idmap.probe.ProbeProcesses', return_value=self.guard))
 
     def failure(self, cancel=None):
         with self.assertRaises(ProbeFailure) as raised:
@@ -60,8 +60,8 @@ class LifecycleOutcomeTests(unittest.TestCase):
                     if close:
                         raise closing
                 self.engine.close = Mock(side_effect=close_client)
-                with patch('linux_idmap.addons.probe.DockerEngine.connect', return_value=self.engine), \
-                     patch('linux_idmap.addons.probe.ProbeProcesses', return_value=self.guard):
+                with patch('linux_idmap.probe.DockerEngine.connect', return_value=self.engine), \
+                     patch('linux_idmap.probe.ProbeProcesses', return_value=self.guard):
                     failure = self.failure(cancellation)
                 actual = [failure.problem.category, *(p.category for p in failure.retirement.problems)]
                 self.assertEqual(expected, actual)
@@ -282,8 +282,8 @@ class LifecycleOutcomeTests(unittest.TestCase):
                 guard.observe = Mock(wraps=guard.observe)
                 guard.identify = Mock(wraps=guard.identify)
                 guard.process_retired = Mock(return_value=True)
-                with patch('linux_idmap.addons.probe.DockerEngine.connect', return_value=engine), \
-                     patch('linux_idmap.addons.probe.ProbeProcesses', return_value=guard):
+                with patch('linux_idmap.probe.DockerEngine.connect', return_value=engine), \
+                     patch('linux_idmap.probe.ProbeProcesses', return_value=guard):
                     result = probe_identity(request())
                 self.assertEqual(OBSERVATION.uid_map, result.uid_map)
                 self.assertEqual(OBSERVATION.gid_map, result.gid_map)

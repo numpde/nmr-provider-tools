@@ -14,11 +14,11 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from linux_idmap.addons._files import FileIdentity
+from linux_idmap._files import FileIdentity
 from linux_idmap import IdMap
-from linux_idmap.addons.host import ReaderEvidence, ProcessStatus, _directory, _read_at
-from linux_idmap.addons.errors import IdentityError
-from linux_idmap.addons._process import ProbeProcesses
+from linux_idmap._procfs import ReaderEvidence, ProcessStatus, _directory, _read_at
+from linux_idmap._errors import IdentityError
+from linux_idmap._probe_process import ProbeProcesses
 
 
 class StatTests(unittest.TestCase):
@@ -53,7 +53,7 @@ class HostGuardTests(unittest.TestCase):
 
     def test_genuine_proc_read_overflow_closes_its_file_descriptor(self):
         with _directory(Path('/proc') / str(os.getpid())) as directory:
-            with patch('linux_idmap.addons.host.os.close', wraps=os.close) as close:
+            with patch('linux_idmap._procfs.os.close', wraps=os.close) as close:
                 with self.assertRaisesRegex(IdentityError, 'exceeds its read bound') as caught:
                     _read_at(directory, 'cmdline', 1)
             self.assertEqual('process-identity', caught.exception.category)
@@ -71,24 +71,24 @@ class HostGuardTests(unittest.TestCase):
 
     def test_identity_looking_maps_do_not_override_nested_namespace(self):
         guard = ProbeProcesses()
-        with patch("linux_idmap.addons.host._namespace_inode", side_effect=[4026531838, 4026531836]):
+        with patch("linux_idmap._procfs._namespace_inode", side_effect=[4026531838, 4026531836]):
             with self.assertRaises(IdentityError) as caught:
                 guard.reader_evidence()
         self.assertEqual("host-precondition", caught.exception.category)
 
     def test_nested_pid_namespace_rejected_even_if_user_initial(self):
-        with patch("linux_idmap.addons.host._namespace_inode", side_effect=[4026531837, 4026531839]):
+        with patch("linux_idmap._procfs._namespace_inode", side_effect=[4026531837, 4026531839]):
             with self.assertRaises(IdentityError):
                 ProbeProcesses().reader_evidence()
 
     def test_initial_inode_requires_genuine_nsfs(self):
-        with patch("linux_idmap.addons.host._filesystem_type", side_effect=[0x9FA0, 0x1234]):
+        with patch("linux_idmap._procfs._filesystem_type", side_effect=[0x9FA0, 0x1234]):
             with self.assertRaises(IdentityError) as caught:
                 ProbeProcesses().reader_evidence()
         self.assertEqual("host-precondition", caught.exception.category)
 
     def test_wrong_proc_self_visibility_rejected(self):
-        with patch("linux_idmap.addons.host.os.readlink", return_value="999999999"):
+        with patch("linux_idmap._procfs.os.readlink", return_value="999999999"):
             with self.assertRaises(IdentityError):
                 ProbeProcesses().reader_evidence()
 
@@ -141,7 +141,7 @@ class RealProcTests(unittest.TestCase):
                 self.guard.observe(self.process.pid, self.token)
 
     def test_map_change_during_observation_rejected(self):
-        from linux_idmap.addons import host as linux
+        from linux_idmap import _procfs as linux
         original = linux._read_at
         reads = 0
         def changing(fd, name, limit):
@@ -151,12 +151,12 @@ class RealProcTests(unittest.TestCase):
                 if reads == 2:
                     return b"0 1000 1\n"
             return original(fd, name, limit)
-        with patch("linux_idmap.addons.host._read_at", side_effect=changing):
+        with patch("linux_idmap._procfs._read_at", side_effect=changing):
             with self.assertRaises(IdentityError):
                 self.guard.observe(self.process.pid, self.token)
 
     def test_token_change_before_scope_exit_rejects_both_observation_kinds(self):
-        from linux_idmap.addons import host as linux
+        from linux_idmap import _procfs as linux
         original = linux._read_at
         for observe in (self.guard.identify, self.guard.observe):
             with self.subTest(observe=observe.__name__):
@@ -168,7 +168,7 @@ class RealProcTests(unittest.TestCase):
                         # Only argv is controlled; process/stat/procfs evidence is real.
                         return self.token.encode() + b'\0' if token_reads == 1 else b'foreign-process\0'
                     return original(fd, name, limit)
-                with patch('linux_idmap.addons.host._read_at', side_effect=changing) as reads:
+                with patch('linux_idmap._procfs._read_at', side_effect=changing) as reads:
                     with self.assertRaises(IdentityError):
                         observe(self.process.pid, self.token)
                 token_calls = [call.args for call in reads.call_args_list if call.args[1] == 'cmdline']
@@ -177,12 +177,12 @@ class RealProcTests(unittest.TestCase):
 
     def test_unreadable_retirement_is_not_absence(self):
         observed = self.guard.observe(self.process.pid, self.token)
-        with patch("linux_idmap.addons.host._read_at", side_effect=PermissionError("denied")):
+        with patch("linux_idmap._procfs._read_at", side_effect=PermissionError("denied")):
             with self.assertRaises(IdentityError):
                 self.guard.process_retired(observed.identity)
 
     def test_pid_starttime_change_during_observation_rejected(self):
-        from linux_idmap.addons import host as linux
+        from linux_idmap import _procfs as linux
         original = linux.ProcessStatus.of
         reads = 0
         def changing(raw, pid):
@@ -191,7 +191,7 @@ class RealProcTests(unittest.TestCase):
             status = original(raw, pid)
             # silent-defaults: allow-contract -- Only the second stat observation advances time to model PID replacement; the first remains unchanged.
             return replace(status, starttime=status.starttime + (1 if reads == 2 else 0))
-        with patch("linux_idmap.addons.host.ProcessStatus.of", side_effect=changing):
+        with patch("linux_idmap._procfs.ProcessStatus.of", side_effect=changing):
             with self.assertRaises(IdentityError):
                 self.guard.observe(self.process.pid, self.token)
 
@@ -218,7 +218,7 @@ class RealProcTests(unittest.TestCase):
         changed = replace(self.host, procfs=replace(self.host.procfs, inode=self.host.procfs.inode + 1))
         for read in reads:
             with self.subTest(read=read), patch.object(self.guard, "reader_evidence", return_value=changed):
-                with patch("linux_idmap.addons.host._read_at") as read_file:
+                with patch("linux_idmap._procfs._read_at") as read_file:
                     with self.assertRaises(IdentityError) as caught:
                         read()
                     self.assertEqual("host-precondition", caught.exception.category)
