@@ -96,3 +96,12 @@ separate cleanup; the warning did not change the build result.
 Some lock compilers fetch a wheel to obtain metadata when its index does not
 offer a metadata sidecar. A subsequent acquisition can fetch that wheel again.
 Avoiding that repeat across all supported sources is still unresolved.
+
+One issuer-owned option to qualify is to project a complete existing pinned
+closure through the package index's Simple API: use its artifact filenames,
+URLs and hashes only where the hashes already appear in the issuer lock, then
+issue a standard URL-bearing lock. The original lock supplies versions and
+hash authority; this does not solve dependencies again. Target compatibility,
+source distributions and separately pinned non-index artifacts still need
+their established owners. Missing index metadata must remain a visible failure,
+and this cannot recover a wheel a compiler already downloaded and discarded.
