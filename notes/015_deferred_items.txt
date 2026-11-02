@@ -54,6 +54,12 @@ BuildKit can transfer the whole selected wheelhouse into its build cache even
 when the image needs only a few wheels; large shared pools therefore add build
 time and disk use. This remains a limitation of the direct-context approach.
 
+SECS's provider image build still copies selected cached wheels into a temporary
+build context before invoking BuildKit. It does not need to redownload cached
+artifacts, but this remains an extra staging directory and wheel copy. The
+current deployment may proceed with this known limitation; replace it with a
+direct shared-wheelhouse build in a later focused change.
+
 Native operation-deadline fixture startup timing
 ----------------------------------------------
 
