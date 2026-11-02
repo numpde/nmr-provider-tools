@@ -10,6 +10,14 @@ lock=$(realpath -e -- "$LOCK_INPUT")
     printf '%s\n' 'Cannot locate locked artifacts: select a readable lock without mount delimiters.' >&2; exit 2;
 }
 arguments=(--lock /input/requirements.lock)
+pool_mount=()
+if [[ ${WHEELHOUSE_INPUT_ORIGIN-} == 'command line' ]]; then
+    source "$root/tools/wheelhouse_path.sh"
+    select_wheelhouse
+    require_wheelhouse_pool
+    pool_mount=(--mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly")
+    arguments+=(--pool /wheelhouse)
+fi
 if [[ -n ${LOCATE_INDEX_INPUT-} ]]; then arguments+=(--index-url "$LOCATE_INDEX_INPUT"); fi
 read -r -a sources <<< "${LOCATE_SOURCES_INPUT-}"
 for source in "${sources[@]}"; do arguments+=(--source "$source"); done
@@ -21,6 +29,7 @@ command=(bash "$root/tools/docker.sh" run --pull never --read-only --user "$iden
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /opt \
     --mount "type=bind,src=$root/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \
     --mount "type=bind,src=$lock,dst=/input/requirements.lock,readonly" \
+    "${pool_mount[@]}" \
     --entrypoint python nmr-provider-tools/wheelhouse-tool:local -m wheelhouse_tool.locate "${arguments[@]}")
 if [[ ${OUTPUT_INPUT_ORIGIN-} != 'command line' ]]; then
     exec "${command[@]}"

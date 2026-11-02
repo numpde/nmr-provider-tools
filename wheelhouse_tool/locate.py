@@ -64,7 +64,7 @@ def read_requirements(path, configured_index=None):
     return records, index.rstrip("/") if index else None, hashlib.sha256(source).hexdigest()
 
 
-def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sources=()):
+def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sources=(), pool=None):
     records, index, source_sha256 = read_requirements(path, index)
     packages = []
     required_sources = {canonicalize_name(name) for name in required_sources}
@@ -149,6 +149,22 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         sources.sort(key=lambda item: (not item[0].endswith(".tar.gz"), item[0]))
         wheels = [item for item in wheels if not item[2]] or wheels
         sources = [item for item in sources if not item[2]] or sources
+        if pool is not None and wheels and not (name in allowed_sources and sources):
+            # Freeze the reusable choices in this projection so later selection
+            # cannot switch back to a different, uncached wheel.
+            from wheelhouse_tool.__main__ import inspect_artifact, pool_lock
+
+            with pool_lock(pool, exclusive=False) as directory_fd:
+                cached = []
+                for item in wheels:
+                    try:
+                        if inspect_artifact(pool, item[0], item[1]["hashes"]["sha256"], directory_fd):
+                            cached.append(item)
+                    except ValueError:
+                        # A conflicting file is not reusable; leave it in place.
+                        continue
+            if cached:
+                wheels = cached
         package = {"name": name, "version": str(version)}
         if wheels:
             package["wheels"] = [item for _, item, _ in wheels]
@@ -176,9 +192,10 @@ def main():
     parser.add_argument("--allow-source", action="append", default=[])
     parser.add_argument("--require-source", action="append", default=[])
     parser.add_argument("--source", action="append", default=[])
+    parser.add_argument("--pool", type=Path, help="Prefer compatible, verified wheels already in this pool.")
     args = parser.parse_args()
     try:
-        print(locate(args.lock, args.index_url, args.allow_source, args.require_source, args.source), end="")
+        print(locate(args.lock, args.index_url, args.allow_source, args.require_source, args.source, args.pool), end="")
     except (OSError, ValueError, KeyError, TypeError, PylockSelectError, PylockValidationError) as error:
         print(str(error), file=sys.stderr)
         return 1

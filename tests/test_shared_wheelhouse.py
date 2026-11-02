@@ -216,6 +216,31 @@ class WheelhouseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "source lock binding is missing"):
             tool.selected(derived, [], source_lock=self.lock)
 
+    def test_locator_freezes_a_compatible_cached_wheel(self):
+        cached = "example-1.0-py3-none-any.whl"
+        native = "example-1.0-cp312-cp312-linux_x86_64.whl"
+        cached_hash = hashlib.sha256(self.content).hexdigest()
+        native_hash = hashlib.sha256(b"native bytes").hexdigest()
+        (self.pool / cached).write_bytes(self.content)
+        (self.pool / native).write_bytes(b"conflicting bytes")
+        self.lock.write_text('--index-url https://example.invalid/simple\nexample==1.0 \\\n'
+                             f'    --hash=sha256:{cached_hash} \\\n    --hash=sha256:{native_hash}\n')
+        metadata = {"name": "example", "files": [
+            {"filename": name, "url": f"https://example.invalid/{name}", "hashes": {"sha256": digest}}
+            for name, digest in ((cached, cached_hash), (native, native_hash))
+        ]}
+        with patch("wheelhouse_tool.locate.urllib.request.build_opener") as opener:
+            opener.return_value.open.return_value = io.BytesIO(json.dumps(metadata).encode())
+            projected = locate(self.lock, allowed_sources=["example"], pool=self.pool)
+        self.assertEqual(b"conflicting bytes", (self.pool / native).read_bytes())
+        derived = self.root / "pylock.cached.toml"
+        derived.write_text(projected)
+        # An alternative appearing later cannot change this projection.
+        (self.pool / native).write_bytes(b"native bytes")
+        artifacts = tool.selected(derived, [], source_lock=self.lock)
+        self.assertEqual([cached], [entry[0] for entry in artifacts])
+        self.assertEqual(cached, tool.run("check", derived, self.pool, artifacts=artifacts)["artifacts"][0]["filename"])
+
     def test_locator_accepts_existing_direct_source_only_when_it_matches_the_pin(self):
         digest = "a" * 64
         self.lock.write_text('--index-url https://example.invalid/simple\ntorch==2.3.0+cpu \\\n    --hash=sha256:' + digest + '\n')

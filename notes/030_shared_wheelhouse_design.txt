@@ -57,6 +57,11 @@ when consuming its projection. The tool checks the selected package closure,
 versions and hashes against that lock, including direct URLs recorded there.
 Separately supplied source URLs remain the provider's responsibility: matching
 the locked hash establishes the bytes, not the origin of such a URL.
+With a selected pool, the locator can freeze an already cached compatible
+wheel into the projection. Consume that projection throughout acquisition and
+build when the same artifact choice must be preserved; a later independent pip
+selection over the whole pool may choose a different compatible wheel. This
+preference must not override an issuer's direct source or source policy.
 
 Supply only selected files to BuildKit from the shared pool. Prefer exact
 named-context COPY into an input stage, not a host wheel-copy directory; bind
