@@ -1,0 +1,5 @@
+# Pure-Python dependencies embedded in the independently runnable release tool.
+packaging==26.3 \
+    --hash=sha256:d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c
+tomli-w==1.2.0 \
+    --hash=sha256:188306098d013b691fcadc011abd66727d3c414c571bb01b1a174ba8c983cf90

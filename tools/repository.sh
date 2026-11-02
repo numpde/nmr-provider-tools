@@ -18,6 +18,7 @@ case "$1" in
     tests/repository) suite=tests/repository ;;
     tests/repository/quality) suite=tests/repository/quality ;;
     tests/repository/provisioning) suite=tests/repository; pattern='test_checker*.py' ;;
+    tests/repository/release) suite=release ;;
     tests/repository/runtime) suite=tests/repository/test_container_port_runtime.py ;;
     *) printf 'Cannot select repository checks: unknown target %q. Use make help.\n' "$1" >&2; exit 2 ;;
 esac
@@ -70,7 +71,9 @@ arguments=(--init --pull=never --network=none --read-only
     "${mounts[@]}"
     --mount "type=bind,src=$metadata,dst=/repository-source-inventory/root-entries,readonly"
     --entrypoint python3 "$image" -B -m unittest)
-if [[ $suite == *.py ]]; then
+if [[ $suite == release ]]; then
+    arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_wheelhouse_bundle -v)
+elif [[ $suite == *.py ]]; then
     module=${suite%.py}
     arguments+=("${module//\//.}")
 else

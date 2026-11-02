@@ -127,6 +127,12 @@ def source_inventory(source):
     return inventory
 
 
+def wheelhouse_source_inventory(source):
+    return {name: {"sha256": digest(source / name), "size": (source / name).stat().st_size,
+                   "mode": (source / name).stat().st_mode & 0o777}
+            for name in ("__init__.py", "__main__.py", "stream.py")}
+
+
 def normalize_sdist(path):
     """Remove host account metadata and use the same fixed epoch as the wheel."""
     normalized = path.with_suffix(".normalized")
@@ -149,18 +155,24 @@ def normalize_sdist(path):
 
 
 def release(source, runtime_lock, build_lock, pool, output, revision):
+    from tools.build_wheelhouse_bundle import build as build_wheelhouse_bundle, dependency_files
+
     if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
         raise ValueError("Cannot build release artifacts: source revision must identify the captured Git commit.")
+    dependency_files(pool, Path("/requirements/wheelhouse-tool.lock"))
     inventory = source_inventory(source)
     wheel, lock, identities = build_candidate(source, runtime_lock, build_lock, pool, output)
     prefix = wheel.name.removesuffix("-py3-none-any.whl")
     sdist = output / (prefix + ".tar.gz")
     native_lock = output / (prefix + "-native-install.lock")
-    payload = (wheel, sdist, lock, native_lock)
+    bundle = output / ("wheelhouse-tool-" + prefix.removeprefix("provider_core-") + ".pyz")
+    build_wheelhouse_bundle(pool, bundle, Path("/workspace"), Path("/requirements/wheelhouse-tool.lock"))
+    payload = (wheel, sdist, lock, native_lock, bundle)
     record = output / (prefix + "-release.json")
     record.write_text(json.dumps({
         "source_revision": revision, "dependency_inputs": identities,
-        "source_files": inventory, "files": {path.name: digest(path) for path in payload},
+        "source_files": inventory, "tool_source_files": wheelhouse_source_inventory(Path("/workspace/wheelhouse_tool")),
+        "files": {path.name: digest(path) for path in payload},
     }, sort_keys=True, indent=2) + "\n")
     manifest = output / (prefix + "-sha256.json")
     manifest.write_text(json.dumps({path.name: digest(path) for path in (*payload, record)}, sort_keys=True, indent=2) + "\n")

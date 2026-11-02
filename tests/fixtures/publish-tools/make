@@ -10,6 +10,7 @@ if [[ $action == package/build ]]; then
     printf 'qualified source\n' > "$artifacts/provider_core-0.2.0.tar.gz"
     printf 'closed lock\n' > "$artifacts/provider_core-0.2.0-install.lock"
     printf 'native lock\n' > "$artifacts/provider_core-0.2.0-native-install.lock"
+    printf 'wheelhouse tool\n' > "$artifacts/wheelhouse-tool-0.2.0.pyz"
     printf '{"source_revision":"%040d"}\n' 1 > "$artifacts/provider_core-0.2.0-release.json"
     printf '{}\n' > "$artifacts/provider_core-0.2.0-sha256.json"
 elif [[ $action == tests/package ]]; then

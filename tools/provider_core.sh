@@ -25,7 +25,8 @@ worker=(--pull never --read-only --user "$uid:$gid" --cap-drop ALL --security-op
     --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace
     --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly"
     --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly"
-    --mount "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly")
+    --mount "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly"
+    --mount "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly")
 if [[ $action == download ]]; then
     if ! "$printing"; then mkdir -p -- "$wheelhouse_directory"; fi
     network=(bash "$root/tools/docker.sh")
@@ -40,7 +41,7 @@ if [[ $action == download ]]; then
     fi
     "${network[@]}" run "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
         --entrypoint python3 "$base_image" -B -m tools.wheelhouse download --pool /wheelhouse \
-        --lock /core-runtime.lock --lock /core-build.lock
+        --lock /core-runtime.lock --lock /core-build.lock --lock /wheelhouse-tool.lock
     exit
 fi
 require_wheelhouse_pool
@@ -48,7 +49,7 @@ case "$action" in
     check)
         arguments=("${worker[@]}" --network none --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
             --entrypoint python3 "$base_image" -B -m tools.wheelhouse check --pool /wheelhouse
-            --lock /core-runtime.lock --lock /core-build.lock)
+            --lock /core-runtime.lock --lock /core-build.lock --lock /wheelhouse-tool.lock)
         budget=60
         ;;
     unit|contract|integration|integration/delivery)
@@ -77,6 +78,7 @@ case "$action" in
         arguments=("${worker[@]}" --network none --init --tmpfs /runtime:rw,nosuid,nodev,exec,size=256m,mode=1777
             --mount "type=bind,src=$artifacts,dst=/artifacts,readonly"
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
+            --mount "type=bind,src=$root/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
             --entrypoint python3 "$base_image" -B -m tools.package --artifacts /artifacts --revision "$revision")
         budget=untimed
         ;;
@@ -121,16 +123,37 @@ if [[ $action == build || $action == package ]]; then
     }
     if [[ $action == package ]]; then arguments[4]="$checker_host_uid:$checker_host_gid"; fi
 fi
+if [[ $action == package ]]; then
+    mkdir -- "$operation_directory/source"
+    checker_call 'committed qualification source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
+        --output="$operation_directory/source.tar" "$revision" tools wheelhouse_tool requirements
+    tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
+    for index in "${!arguments[@]}"; do
+        case "${arguments[index]}" in
+            "type=bind,src=$root/tools,dst=/workspace/tools,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly" ;;
+            "type=bind,src=$root/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly" ;;
+            "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" ;;
+            "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/requirements/provider-core-build.lock,dst=/core-build.lock,readonly" ;;
+            "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/requirements/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly" ;;
+        esac
+    done
+fi
 if [[ $action == build ]]; then
     mkdir -- "$operation_directory/source"
     checker_call 'committed core source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" packages/provider-core requirements tools
+        --output="$operation_directory/source.tar" "$revision" packages/provider-core requirements tools wheelhouse_tool
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     arguments=(--pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL --security-opt no-new-privileges:true
         --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m
         --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
         --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace
         --mount "type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly"
+        --mount "type=bind,src=$operation_directory/source/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/provider-core,dst=/package,readonly"
         --mount "type=bind,src=$operation_directory/source/requirements,dst=/requirements,readonly"
         --mount "type=bind,src=$release_output,dst=/output"

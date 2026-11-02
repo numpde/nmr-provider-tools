@@ -10,6 +10,7 @@ from tools.container_guard import require_container
 require_container()
 
 import argparse
+import hashlib
 import json
 import re
 import shutil
@@ -21,13 +22,49 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 from tools.artifacts import regular_file
-from tools.core_environment import build_candidate, install_environment
+from tools.build_wheelhouse_bundle import build as build_wheelhouse_bundle
+from tools.core_environment import build_candidate, install_environment, wheelhouse_source_inventory
 from tools.wheelhouse import capture, digest, requirements
 
 
 def artifact_names(version):
     prefix = f"provider_core-{version}"
-    return {prefix + suffix for suffix in ("-py3-none-any.whl", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")}
+    return {prefix + suffix for suffix in ("-py3-none-any.whl", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {f"wheelhouse-tool-{version}.pyz"}
+
+
+def qualify_wheelhouse_bundle(bundle, scratch):
+    pins = requirements(Path("/wheelhouse-tool.lock"))
+    version, hashes = next((version, hashes) for (name, version), hashes in pins.items() if name == "packaging")
+    name = f"packaging-{version}-py3-none-any.whl"
+    checksum = digest(Path("/wheelhouse") / name)
+    if checksum not in hashes:
+        raise ValueError("Cannot qualify wheelhouse bundle: cached packaging wheel differs from its lock.")
+    lock = scratch / "pylock.toml"
+    lock.write_text('lock-version = "1.0"\ncreated-by = "release qualification"\n'
+                    f'[[packages]]\nname = "packaging"\nversion = "{version}"\n'
+                    f'[[packages.wheels]]\nurl = "https://example.invalid/{name}"\n'
+                    f'hashes = {{ sha256 = "{checksum}" }}\n')
+    projected = scratch / "pylock.local.toml"
+    command = ["python3", "-I", "-S", str(bundle)]
+    subprocess.run([*command, "check", "--lock", str(lock), "--pool", "/wheelhouse",
+                    "--local-lock", str(projected), "--local-root", "/wheels"], check=True, stdout=subprocess.DEVNULL)
+    dockerfile = scratch / "Dockerfile"
+    dockerfile.write_text("FROM scratch\n")
+    manifest = scratch / "stream-manifest.json"
+    manifest.write_text(json.dumps([{"lock": str(lock), "directory": "wheels"}]))
+    sources = scratch / "stream-sources.json"
+    sources.write_text(json.dumps([{"path": str(dockerfile), "destination": "Dockerfile",
+                                   "sha256": digest(dockerfile), "executable": False}]))
+    archive_path = scratch / "stream.tar"
+    with archive_path.open("wb") as output:
+        subprocess.run([*command, "stream", "--pool", "/wheelhouse", "--source-allowlist", str(sources),
+                        "--manifest", str(manifest)], check=True, stdout=output)
+    with tarfile.open(archive_path) as archive:
+        if set(archive.getnames()) != {"Dockerfile", "wheels/" + name}:
+            raise ValueError("Cannot qualify wheelhouse bundle: streamed inputs differ from the selected context.")
+        with archive.extractfile("wheels/" + name) as selected:
+            if hashlib.file_digest(selected, "sha256").hexdigest() != checksum:
+                raise ValueError("Cannot qualify wheelhouse bundle: streamed wheel differs from the lock.")
 
 
 def unpack_source(archive, destination, version):
@@ -120,7 +157,7 @@ def check(artifacts, revision):
         version = match[1]
         prefix = f"provider_core-{version}"
         if {path.name for path in captured.iterdir()} != artifact_names(version):
-            raise ValueError("Cannot qualify package: expect exactly the six declared release artifacts.")
+            raise ValueError("Cannot qualify package: expect exactly the declared release artifacts.")
         manifest = json.loads((captured / (prefix + "-sha256.json")).read_text())
         expected = {path.name: digest(path) for path in captured.iterdir() if not path.name.endswith("-sha256.json")}
         if manifest != expected:
@@ -128,6 +165,14 @@ def check(artifacts, revision):
         record = json.loads((captured / (prefix + "-release.json")).read_text())
         if record["source_revision"] != revision or record["files"] != {name: value for name, value in expected.items() if not name.endswith("-release.json")}:
             raise ValueError("Cannot qualify package: source revision or recorded artifact identities differ from this release.")
+        if record["tool_source_files"] != wheelhouse_source_inventory(Path("/workspace/wheelhouse_tool")):
+            raise ValueError("Cannot qualify package: wheelhouse tool source differs from the release inputs.")
+        bundle = captured / f"wheelhouse-tool-{version}.pyz"
+        rebuilt_bundle = scratch / bundle.name
+        build_wheelhouse_bundle(Path("/wheelhouse"), rebuilt_bundle, Path("/workspace"), Path("/wheelhouse-tool.lock"))
+        if bundle.read_bytes() != rebuilt_bundle.read_bytes():
+            raise ValueError("Cannot qualify package: wheelhouse bundle differs from its source rebuild.")
+        qualify_wheelhouse_bundle(bundle, scratch)
         source = unpack_source(captured / (prefix + ".tar.gz"), scratch / "source", version)
         document = tomllib.loads((source / "pyproject.toml").read_text())
         if document["project"]["name"] != "provider-core" or document["project"]["version"] != version:

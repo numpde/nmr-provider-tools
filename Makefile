@@ -142,7 +142,7 @@ override PROJECT_INPUT := $(value PROJECT)
 export PROJECT_INPUT
 endif
 
-.PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning
+.PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning tests/repository/release
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
 .PHONY: delivery/deployment/up delivery/deployment/update delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
@@ -157,6 +157,7 @@ help:
 	  'make tests/repository            Run repository conventions and detector fixtures offline.' \
 	  'make tests/repository/quality    Run code and operator convention checks offline.' \
 	  'make tests/repository/provisioning Run checker preparation and cleanup fixtures offline.' \
+	  'make tests/repository/release    Run release and wheelhouse bundle fixtures offline.' \
 	  'make tests/repository/runtime    Inspect the checker container grants.' \
 	  'make tests/repository/command    Print the repository checker command without starting it.' \
 	  'make checks/base-image/download Bootstrap the pinned base using Docker daemon routing.' \
@@ -262,6 +263,9 @@ tests/repository/quality:
 
 tests/repository/provisioning:
 	bash tools/repository.sh tests/repository/provisioning
+
+tests/repository/release:
+	bash tools/repository.sh tests/repository/release
 
 tests/repository/runtime:
 	bash tools/repository.sh tests/repository/runtime

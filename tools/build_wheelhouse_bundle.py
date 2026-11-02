@@ -1,5 +1,9 @@
 """Build the shared wheelhouse zipapp from its pinned pure-Python wheels."""
 
+from tools.container_guard import require_container
+
+require_container()
+
 import argparse
 import hashlib
 import io
@@ -8,21 +12,15 @@ import tempfile
 import zipfile
 from pathlib import Path
 
+from tools.wheelhouse import requirements
 
-DEPENDENCIES = {
-    "packaging-26.3-py3-none-any.whl": "d7193f7c8e4e93f444fde0262bf90af30e16fa0ad0ad44cb553c87339b23cd1c",
-    "tomli_w-1.2.0-py3-none-any.whl": "188306098d013b691fcadc011abd66727d3c414c571bb01b1a174ba8c983cf90",
-}
-
-
-def build(pool, output, source):
-    files = {"__main__.py": b"import sys\nif sys.argv[1:2] == ['stream']:\n    del sys.argv[1]\n    from wheelhouse_tool.stream import main\nelse:\n    from wheelhouse_tool.__main__ import main\nraise SystemExit(main())\n"}
-    for name in ("__init__.py", "__main__.py", "stream.py"):
-        files[f"wheelhouse_tool/{name}"] = (source / "wheelhouse_tool" / name).read_bytes()
-    for name, expected in DEPENDENCIES.items():
+def dependency_files(pool, lock):
+    files = {}
+    for (package, version), hashes in requirements(lock).items():
+        name = f"{package.replace('-', '_')}-{version}-py3-none-any.whl"
         wheel = pool / name
         data = wheel.read_bytes()
-        if hashlib.sha256(data).hexdigest() != expected:
+        if hashlib.sha256(data).hexdigest() not in hashes:
             raise ValueError(f"Cannot build wheelhouse bundle: {name} differs from its pinned hash.")
         with zipfile.ZipFile(io.BytesIO(data)) as archive:
             for member in archive.infolist():
@@ -30,6 +28,14 @@ def build(pool, output, source):
                     if member.filename in files:
                         raise ValueError(f"Cannot build wheelhouse bundle: duplicate {member.filename}.")
                     files[member.filename] = archive.read(member)
+    return files
+
+
+def build(pool, output, source, lock):
+    files = dependency_files(pool, lock)
+    files["__main__.py"] = b"import sys\nif sys.argv[1:2] == ['stream']:\n    del sys.argv[1]\n    from wheelhouse_tool.stream import main\nelse:\n    from wheelhouse_tool.__main__ import main\nraise SystemExit(main())\n"
+    for name in ("__init__.py", "__main__.py", "stream.py"):
+        files[f"wheelhouse_tool/{name}"] = (source / "wheelhouse_tool" / name).read_bytes()
     descriptor, temporary = tempfile.mkstemp(prefix=f".{output.name}.", suffix=".part", dir=output.parent)
     try:
         with os.fdopen(descriptor, "wb") as stream:
@@ -56,8 +62,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--pool", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--lock", type=Path, required=True)
     args = parser.parse_args()
-    build(args.pool, args.output, Path(__file__).resolve().parent.parent)
+    build(args.pool, args.output, Path(__file__).resolve().parent.parent, args.lock)
 
 
 if __name__ == "__main__":

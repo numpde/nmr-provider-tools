@@ -28,6 +28,15 @@ class PublicationTests(unittest.TestCase):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(name, target)
+        (self.root / "tools/docker_context.sh").write_text("select_docker_context() { :; }\n")
+        (self.root / "tools/provider_core.sh").write_text(
+            '#!/usr/bin/env bash\nset -euo pipefail\n'
+            'if [[ $1 == build ]]; then\n'
+            '  make --no-print-directory package/build "WHEELHOUSE=$WHEELHOUSE_INPUT" "OUTPUT=$OUTPUT_INPUT"\n'
+            'else\n'
+            '  make --no-print-directory tests/package "WHEELHOUSE=$WHEELHOUSE_INPUT" "ARTIFACTS=$ARTIFACTS_INPUT"\n'
+            'fi\n'
+        )
         self.note = self.root / "notes/005_release_v0.2.0.md"
         self.note.parent.mkdir()
         self.note.write_text("# Authored fixture release\n\nThe reader-facing change.\n")
@@ -40,6 +49,7 @@ class PublicationTests(unittest.TestCase):
             "provider_core-0.2.0.tar.gz": b"qualified source",
             "provider_core-0.2.0-install.lock": b"qualified lock",
             "provider_core-0.2.0-native-install.lock": b"qualified native lock",
+            "wheelhouse-tool-0.2.0.pyz": b"qualified wheelhouse tool",
             "provider_core-0.2.0-release.json": json.dumps({"source_revision": "0" * 39 + "1"}).encode(),
             "provider_core-0.2.0-sha256.json": b"{}",
         }
@@ -70,7 +80,7 @@ class PublicationTests(unittest.TestCase):
         result = self.run_publisher("publish", "prepare")
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual(self.note.read_bytes(), (self.root / "prepared/release-notes.md").read_bytes())
-        self.assertEqual(6, len(list((self.root / "prepared/artifacts").iterdir())))
+        self.assertEqual(7, len(list((self.root / "prepared/artifacts").iterdir())))
         self.assertNotIn("gh ", self.trace.read_text())
 
     def test_matching_url_rewrite_or_unreadable_configuration_stops_before_github(self):
@@ -102,7 +112,7 @@ class PublicationTests(unittest.TestCase):
                 self.trace.unlink(missing_ok=True)
                 result = self.run_publisher("publish", "release")
                 self.assertEqual(2, result.returncode, msg=result.stderr)
-                self.assertRegex(result.stderr, "artifact receipt|artifact name|all six artifact hashes")
+                self.assertRegex(result.stderr, "artifact receipt|artifact name|all seven artifact hashes")
                 self.assertNotIn("gh ", self.trace.read_text())
 
     def test_downloaded_artifact_change_leaves_the_release_draft(self):
@@ -117,7 +127,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, msg=result.stderr)
         calls = self.trace.read_text()
         self.assertLess(calls.index("gh release download"), calls.index("gh release edit"))
-        self.assertEqual(8, len(list(Path(str(self.trace) + ".uploads").iterdir())))
+        self.assertEqual(9, len(list(Path(str(self.trace) + ".uploads").iterdir())))
         self.assertIn("--draft=false", calls)
 
     def test_unknown_native_retirement_stops_before_any_tag_or_draft_effect(self):
