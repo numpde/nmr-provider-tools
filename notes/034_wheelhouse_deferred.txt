@@ -1,0 +1,22 @@
+Deferred wheelhouse work
+========================
+
+Prioritize deployment of the qualified provider workflows. The following
+items do not require another rollout before the current joint deployment:
+
+- Shared delivery still uses a selected-file BuildKit named context against
+  the live pool. Its eventual streamed context should remove the builder's
+  pool access while preserving the existing service and storage.
+- A wheel downloaded and discarded by a lock compiler for metadata may be
+  fetched again by acquisition when the index lacks a metadata sidecar.
+- Cache-aware projection uses current index metadata and excludes yanked
+  candidates when non-yanked candidates exist. It cannot reuse an artifact
+  absent from that metadata, and may prefer a non-yanked download to a cached
+  yanked wheel. Explicit source and hash choices remain authoritative.
+- The broad repository quality lane reports existing source-inventory,
+  generated-file and policy findings alongside the wheelhouse changes. Triage
+  those separately rather than expanding the provider deployment.
+
+WLAN DNS failures during host-local acquisition remain an operational issue:
+retain the failing diagnostic and use the configured interface and resolver.
+Do not silently switch the download route to complete a deployment.
