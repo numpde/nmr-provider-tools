@@ -10,6 +10,7 @@ import sys
 import unittest
 from unittest.mock import patch
 
+from linux_idmap import IdMap
 from linux_idmap.addons.cli import main
 from linux_idmap.addons.probe import Bounds, Problem, ProbeFailure, ProbeResult, ResourceState, Retirement, ProbeHandle
 from helpers import CID, OBSERVATION
@@ -46,6 +47,20 @@ class CliTests(unittest.TestCase):
         code, out, err = self.call(["--values"])
         self.assertEqual((2, ""), (code, out))
         self.assertFalse(json.loads(err)["ok"])
+
+    def test_policy_refusal_uses_the_same_failure_shape_as_operation_errors(self):
+        for values in (False, True):
+            with self.subTest(values=values):
+                code, out, err = self.call(['--values'] if values else [])
+                payload = json.loads(err if values else out)
+                self.assertEqual(2, code)
+                self.assertEqual(set(self.failure().as_dict()), set(payload))
+                self.assertEqual('known-not-created', payload['state'])
+                self.assertIsNone(payload['container_id'])
+                self.assertIsNone(payload['handle'])
+                self.assertEqual([], payload['problems'])
+                if values:
+                    self.assertEqual('', out)
 
     def test_complete_operation_receives_caller_selected_policy(self):
         with patch("linux_idmap.addons.cli.probe_identity", side_effect=self.failure()) as operation:
@@ -129,6 +144,29 @@ class CliTests(unittest.TestCase):
         with patch("linux_idmap.addons.cli.probe_identity", side_effect=operation):
             self.assertEqual(130, self.call(self.arguments())[0])
         self.assertEqual(previous, signal.getsignal(signal.SIGHUP))
+
+    def test_signal_during_projection_prevents_success_output(self):
+        translate = IdMap.translate
+        previous = signal.getsignal(signal.SIGTERM)
+        def cancel_after_projection(mapping, identifier):
+            value = translate(mapping, identifier)
+            signal.raise_signal(signal.SIGTERM)
+            return value
+        for values in (False, True):
+            with self.subTest(values=values):
+                with patch('linux_idmap.addons.cli.probe_identity', return_value=self.result()), \
+                     patch.object(IdMap, 'translate', cancel_after_projection):
+                    code, out, err = self.call(self.arguments(values=values))
+                self.assertEqual(130, code)
+                if values:
+                    self.assertEqual('', out)
+                payload = json.loads(err if values else out)
+                self.assertEqual('cancelled', payload['problem']['category'])
+                self.assertEqual('confirmed-retired', payload['state'])
+                self.assertEqual(CID, payload['container_id'])
+                self.assertNotIn('uid_map', payload)
+                self.assertNotIn('mapped_uids', payload)
+        self.assertEqual(previous, signal.getsignal(signal.SIGTERM))
 
     def test_help_is_real_and_defaults_do_not_require_timing_knobs(self):
         result = subprocess.run([sys.executable, "-m", "linux_idmap.addons.cli", "--help"],

@@ -9,9 +9,10 @@ import subprocess
 import sys
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
-from linux_idmap import IdMap, IdRange, Maps, parse_map
+from linux_idmap.addons._files import FileIdentity
+from linux_idmap import Identifier, IdMap, IdRange, MapRows, parse_map
 from linux_idmap.addons.errors import IdentityError
 from linux_idmap.addons.host import ProcessIdentity, consistent_maps
 from linux_idmap.addons.observation import observe_host_process
@@ -21,22 +22,69 @@ from linux_idmap.addons.probe import ProbeResult
 class MapBoundaryTests(unittest.TestCase):
     def test_raw_rows_have_no_translation_claim(self):
         mapping = parse_map(b"1000 4294967295 1\n")
-        self.assertEqual((IdRange(1000, 4294967295, 1),), mapping)
+        self.assertEqual([IdRange(1000, 4294967295, 1)], list(mapping))
         self.assertFalse(hasattr(mapping, "translate"))
 
     def test_malformed_rows_keep_normalization_contract(self):
         for raw in (b"0 1\n", b"0 1 2 3\n", b"bad 1 2\n"):
             with self.subTest(raw=raw):
                 with self.assertRaises(ValueError):
-                    parse_map(raw)
+                    list(parse_map(raw))
                 with self.assertRaises(IdentityError) as caught:
                     consistent_maps(lambda _: raw)
                 self.assertEqual("process-identity", caught.exception.category)
 
+    def test_consistency_consumes_each_sample_inside_the_source_scope(self):
+        active = False
+        consumed = Mock()
+
+        def rows(value):
+            self.assertTrue(active)
+            consumed(value)
+            yield IdRange(0, value, 1)
+
+        def sample(_read_file):
+            return MapRows(rows(1000), rows(2000))
+
+        @contextmanager
+        def source():
+            nonlocal active
+            active = True
+            try:
+                yield lambda _name: b''
+            finally:
+                active = False
+
+        with source() as read_file, patch('linux_idmap.addons.host.read_maps', sample):
+            maps = consistent_maps(read_file)
+            self.assertEqual([1000, 2000, 1000, 2000],
+                             [call.args[0] for call in consumed.call_args_list])
+        self.assertFalse(active)
+        mapping = IdMap(maps.uid_rows)
+        self.assertEqual([1000, 1000], [mapping.translate(0) for _ in range(2)])
+        self.assertEqual([{'inside': 0, 'outside': 1000, 'length': 1}], asdict(mapping)['rows'])
+
+    def test_later_parse_error_is_normalized_before_scope_exit(self):
+        closed = Mock()
+
+        @contextmanager
+        def source():
+            try:
+                yield lambda _name: b'0 1000 1\n1 1001\n'
+            finally:
+                closed()
+
+        with source() as read_file:
+            with self.assertRaises(IdentityError) as caught:
+                consistent_maps(read_file)
+            closed.assert_not_called()
+            self.assertIsInstance(caught.exception.__cause__, ValueError)
+        closed.assert_called_once_with()
+
     def test_repeated_raw_rows_do_not_earn_host_coordinates(self):
         maps = consistent_maps(lambda _: b"0 4294967295 1\n")
-        self.assertEqual((IdRange(0, 4294967295, 1),), maps.uid_map)
-        self.assertFalse(hasattr(maps.uid_map, "translate"))
+        self.assertEqual([IdRange(0, 4294967295, 1)], maps.uid_rows)
+        self.assertFalse(hasattr(maps.uid_rows, "translate"))
 
     def test_explicit_affine_map_preserves_arithmetic_and_json(self):
         # Deliberately constructed fixture: this is not evidence of provenance.
@@ -46,6 +94,8 @@ class MapBoundaryTests(unittest.TestCase):
         for x in (4, -1, True, 1.0, 2**32 - 1):
             with self.subTest(x=x), self.assertRaises(ValueError):
                 mapping.translate(x)
+        self.assertIsInstance(mapping.translate(Identifier.of("0")), Identifier)
+        self.assertEqual("1000", json.dumps(mapping.translate(0)))
         payload = json.loads(json.dumps(ProbeResult(mapping, mapping, "fake").as_dict()))
         self.assertEqual([{"inside": 0, "outside": 1000, "length": 1},
                           {"inside": 1, "outside": 100000, "length": 3}], payload["uid_map"])
@@ -59,15 +109,15 @@ class MapBoundaryTests(unittest.TestCase):
         self.assertEqual(2**32 - 2, IdMap((IdRange(0, 2**32 - 2, 1),)).translate(0))
 
     def test_affine_value_equality_is_not_raw_evidence_equality(self):
-        raw = parse_map(b"0 1000 1\n")
+        raw = list(parse_map(b"0 1000 1\n"))
         affine = IdMap(raw)
         self.assertNotEqual(raw, affine)
         self.assertEqual(affine, IdMap(raw))
         self.assertEqual([asdict(row) for row in raw], list(asdict(affine)["rows"]))
 
     def test_only_successful_qualified_observation_delivers_host_coordinates(self):
-        raw = Maps(parse_map(b"0 1000 1\n"), parse_map(b"0 2000 1\n"))
-        identity = ProcessIdentity(42, 123, 7, 9)
+        raw = consistent_maps(lambda name: b"0 1000 1\n" if name == "uid_map" else b"0 2000 1\n")
+        identity = ProcessIdentity(42, 123, FileIdentity(7, 9))
         source = SimpleNamespace(identity=identity, read_maps=lambda: raw)
 
         @contextmanager
@@ -78,7 +128,10 @@ class MapBoundaryTests(unittest.TestCase):
             observed = observe_host_process(42)
         self.assertIsInstance(observed.uid_map, IdMap)
         self.assertEqual(1000, observed.uid_map.translate(0))
-        self.assertEqual(raw.uid_map, observed.uid_map.rows)
+        self.assertEqual(1000, observed.uid_map.translate(0))
+        self.assertEqual(2000, observed.gid_map.translate(0))
+        self.assertEqual(2000, observed.gid_map.translate(0))
+        self.assertEqual(raw.uid_rows, observed.uid_map.rows)
 
         @contextmanager
         def exit_fails(_pid):
@@ -105,7 +158,7 @@ class MapBoundaryTests(unittest.TestCase):
         self.assertEqual(1002, reader_a[target_to_global[2]])
         self.assertEqual(2000, reader_b[target_to_global[2]])
         # Deliberately false affinity assertion: numeric guards cannot detect it.
-        self.assertEqual(1002, IdMap(parse_map(printed_row(reader_b))).translate(2))
+        self.assertEqual(1002, IdMap(list(parse_map(printed_row(reader_b)))).translate(2))
 
     def _in_child_user_namespace(self, scenario):
         """Run a scenario in a fresh child USER namespace, never the test runner's."""
@@ -148,12 +201,12 @@ assert os.stat('/proc/self/ns/user').st_ino != old_namespace
 parent = os.getppid()
 assert Path('/proc/self/uid_map').read_bytes() == b''
 assert Path('/proc/self/gid_map').read_bytes() == b''
-assert observe_process(os.getpid()).uid_map == ()
+assert list(observe_process(os.getpid()).uid_rows) == []
 raw = Path(f'/proc/{parent}/uid_map').read_bytes()
-mapping = parse_map(raw)
+mapping = list(parse_map(raw))
 assert mapping
 assert all(row.outside == 2**32 - 1 for row in mapping)
-assert observe_process(parent).uid_map == mapping
+assert list(observe_process(parent).uid_rows) == mapping
 assert not hasattr(mapping, 'translate')
 try:
     observe_host_process(parent)
@@ -173,7 +226,7 @@ except OSError as error:
     print(json.dumps({'blocked': 'isolated child uid_map setup', 'errno': error.errno, 'reason': str(error)}))
     raise SystemExit(77 if error.errno in (errno.EPERM, errno.EACCES) else 1)
 assert os.geteuid() == 0
-rows = observe_process(os.getpid()).uid_map
+rows = list(observe_process(os.getpid()).uid_rows)
 # This source relationship, not the bytes alone, establishes parent affinity:
 # reading self's map uses self's immediate parent user namespace coordinates.
 parent_map = IdMap(rows)

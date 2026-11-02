@@ -1,13 +1,13 @@
 """One identity operation for Python and shell callers; no shell-side map parsing."""
 
 import argparse
-from dataclasses import asdict, replace
+from dataclasses import replace
 import json
-import re
 import signal
 import sys
 import threading
 
+from ..core import Identifier
 from .model import Problem, ProbeFailure, ProbeRequest, ResourceState, Retirement, StepError
 from .probe import probe_identity
 
@@ -17,24 +17,18 @@ class _Parser(argparse.ArgumentParser):
         raise StepError("invalid-policy", "invalid or missing arguments; use --help")
 
 
-def _integer(text: str) -> int:
-    if re.fullmatch(r"[0-9]{1,10}", text) is None or int(text) >= 2**32 - 1:
-        raise argparse.ArgumentTypeError("expected a usable unsigned Linux ID")
-    return int(text)
-
-
 def _parser():
     parser = _Parser(prog="linux-idmap-probe", allow_abbrev=False)
     parser.add_argument("--endpoint", required=True, help="already-selected unix:/// Docker endpoint")
     parser.add_argument("--image", required=True, help="approved image already present on that engine")
     parser.add_argument("--interpreter", required=True, help="absolute Python path inside that image")
-    parser.add_argument("--user-uid", required=True, type=_integer)
-    parser.add_argument("--user-gid", required=True, type=_integer)
+    parser.add_argument("--user-uid", required=True, type=Identifier.of)
+    parser.add_argument("--user-gid", required=True, type=Identifier.of)
     parser.add_argument("--userns", choices=("default", "host"))
     parser.add_argument("--confine", action="store_true", help="require the restricted probe configuration")
     # silent-defaults: allow-contract -- No projection options means no requested IDs; argparse copies each list before appending; tests/test_cli.py::CliTests.test_no_requested_ids_means_no_projections.
-    parser.add_argument("--uid", action="append", type=_integer, default=[])
-    parser.add_argument("--gid", action="append", type=_integer, default=[])
+    parser.add_argument("--uid", action="append", type=Identifier.of, default=[])
+    parser.add_argument("--gid", action="append", type=Identifier.of, default=[])
     parser.add_argument("--values", action="store_true", help="print only projected decimal IDs for shell callers")
     parser.add_argument("--timeout", type=float, help="override the measurement time bound in seconds")
     return parser
@@ -66,7 +60,6 @@ def main(argv: list[str] | None = None) -> int:
             request = replace(request, userns_mode=options.userns)
         if options.timeout is not None:
             request = replace(request, bounds=replace(request.bounds, operation_seconds=options.timeout))
-        request.bounds.validate()
         cancellation = threading.Event()
         for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             handlers[number] = signal.signal(number, lambda _number, _frame: cancellation.set())
@@ -79,6 +72,9 @@ def main(argv: list[str] | None = None) -> int:
                 Retirement(ResourceState.RETIRED, result.container_id)) from error
         payload = result.as_dict()
         payload.update(mapped_uids=projected_uids, mapped_gids=projected_gids)
+        if cancellation.is_set():
+            raise ProbeFailure(Problem("cancelled", "operation was cancelled before output"),
+                               Retirement(ResourceState.RETIRED, result.container_id))
         _emit(payload, values_mode=values_mode)
         return 0
     # silent-defaults: allow-exception-outcome -- Structured operation failure always produces a positive exit status and never releases maps; tests/test_cli.py::CliTests.
@@ -89,9 +85,9 @@ def main(argv: list[str] | None = None) -> int:
         # silent-defaults: allow-contract -- Cancellation has shell status 130; all other settled operation failures remain nonzero status 1; tests/test_cli.py::CliTests.
         return 130 if failure.problem.category == "cancelled" else 1
     # silent-defaults: allow-exception-outcome -- Invalid caller policy is a structured refusal with status 2 and known-not-created state; tests/test_cli.py::CliTests.test_missing_arguments_fail_before_creation.
-    except StepError as failure:
-        _emit({"ok": False, "problem": asdict(Problem(failure.category, str(failure))),
-               "state": ResourceState.NOT_CREATED}, values_mode=values_mode)
+    except StepError as error:
+        failure = ProbeFailure(Problem(error.category, str(error)), Retirement(ResourceState.NOT_CREATED))
+        _emit(failure.as_dict(), values_mode=values_mode)
         return 2
     finally:
         for number, previous in handlers.items():

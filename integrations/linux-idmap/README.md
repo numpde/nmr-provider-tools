@@ -16,7 +16,7 @@ git -C /path/to/clean-review write-tree
 ```
 
 The resulting tree must match the manifest. Install the reviewed `linux-idmap`
-0.3.0a2 wheel in the chosen host Python 3.11+ environment, then run:
+0.3.0a3 wheel in the chosen host Python 3.11+ environment, then run:
 
 ```sh
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
@@ -25,24 +25,24 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH="$PWD" \
 
 ## Selected add-ons and scenario evidence
 
-Neither adapter uses unqualified core row tuples as host permission authority.
+Neither adapter uses unqualified core row streams as host permission authority.
 The managed probe returns `IdMap` values with `.translate()` and `.rows` only
 after host qualification. Synthetic fixtures construct the same affine value
 explicitly; constructing `IdMap` does not establish host provenance.
 
 - **NMRPeak:** imports `linux_idmap.addons.probe.probe_identity`, explicitly
   requests `confine=True`, then translates the returned host-qualified mappings
-  for its existing ACL decisions. Its eight host tests import the actual
+  for its existing ACL decisions. Its nine host tests import the actual
   deployment module and substitute only the managed probe effect. They check
   the selected endpoint, image, interpreter, user and executable, confinement
-  selection, translations, missing-package refusal and unresolved cleanup
-  diagnostics. The scientific runtime and its guard remain untouched.
+  selection, translations, invalid-request refusal, missing-package handling and
+  unresolved cleanup diagnostics. The scientific runtime and its guard remain untouched.
 - **NMRNet:** invokes `linux-idmap-probe` with direct flags and `--confine`.
-  Its eight host tests execute the actual shell adapter and signal traps with
+  Its nine host tests execute the actual shell adapter and signal traps with
   the real CLI and a synthetic bounded probe effect. They check ordered numeric
-  output, rootful/rootless helper selection, nonzero/corrupt responses and both
-  process-group and shell-only signals without subsequent permission-policy
-  selection. The separate inverse mapping in `tools/docker.sh` remains unchanged.
+  output, rootful/rootless helper selection, invalid-request refusal and
+  nonzero/corrupt responses. Process-group and shell-only signals prevent
+  subsequent permission-policy selection. The separate inverse mapping in `tools/docker.sh` remains unchanged.
 
 The managed probe is needed because both callers have an image before their
 workload process exists. The CLI is needed by the shell caller. Confinement is

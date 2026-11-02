@@ -9,12 +9,12 @@ import unittest
 from unittest.mock import patch
 
 from helpers import CID, Engine, Guard, request
-from linux_idmap import observe_process, read_maps
+from linux_idmap import MapRows, observe_process, read_maps
 from linux_idmap.addons import host
 from linux_idmap.addons.docker import DockerError
 from linux_idmap.addons.errors import IdentityError
 from linux_idmap.addons.observation import observe_host_process
-from linux_idmap.addons.probe import ProbeFailure, probe_identity
+from linux_idmap.addons.probe import ProbeFailure, ResourceState, probe_identity
 from linux_idmap.addons.spec import OWNER
 
 
@@ -22,7 +22,8 @@ class SourceRefinementScenarios(unittest.TestCase):
     def test_existing_tokenless_process_needs_neither_docker_nor_host_qualification(self):
         child = subprocess.Popen([sys.executable, '-I', '-S', '-B', '-c', 'import time; time.sleep(30)'])
         try:
-            raw = observe_process(child.pid)
+            sample = observe_process(child.pid)
+            raw = MapRows(list(sample.uid_rows), list(sample.gid_rows))
             with host.coherent_process(child.pid) as source:
                 self.assertEqual(raw, host.consistent_maps(source.read))
             if os.stat('/proc/self/ns/user').st_ino != 4026531837:
@@ -30,7 +31,7 @@ class SourceRefinementScenarios(unittest.TestCase):
                     observe_host_process(child.pid)
                 self.assertEqual('host-precondition', caught.exception.category)
             else:
-                self.assertEqual(raw.uid_map, observe_host_process(child.pid).uid_map.rows)
+                self.assertEqual(raw.uid_rows, observe_host_process(child.pid).uid_map.rows)
         finally:
             child.terminate()
             child.wait(timeout=3)
@@ -39,7 +40,7 @@ class SourceRefinementScenarios(unittest.TestCase):
         def changing_source():
             readings = iter((b'0 1000 1\n', b'0 2000 1\n'))
             return lambda name: next(readings) if name == 'uid_map' else b'0 3000 1\n'
-        self.assertEqual(1000, read_maps(changing_source()).uid_map[0].outside)
+        self.assertEqual(1000, next(read_maps(changing_source()).uid_rows).outside)
         with self.assertRaises(IdentityError):
             host.consistent_maps(changing_source())
 
@@ -48,7 +49,7 @@ class SourceRefinementScenarios(unittest.TestCase):
         try:
             with self.assertRaises(IdentityError):
                 with host.coherent_process(child.pid) as source:
-                    self.assertTrue(read_maps(source.read).uid_map)
+                    self.assertTrue(list(read_maps(source.read).uid_rows))
                     child.terminate()
                     child.wait(timeout=3)
         finally:
@@ -97,6 +98,14 @@ class ManagedProbeScenarios(unittest.TestCase):
             result = self.run_probe(replace(request(), confine=False), Engine())
         self.assertEqual(101000, result.uid_map.translate(1000))
 
+    def test_selected_confinement_is_loaded_before_creation_can_be_uncertain(self):
+        engine = Engine()
+        with patch.dict(sys.modules, {'linux_idmap.addons.confinement': None}):
+            with self.assertRaises(ProbeFailure) as caught:
+                self.run_probe(request(), engine)
+        self.assertEqual(ResourceState.NOT_CREATED, caught.exception.retirement.state)
+        self.assertEqual(['image', 'close'], engine.events)
+
     def test_lost_reply_reference_finds_owned_resource_without_adopting_foreign_one(self):
         engine = Engine()
         engine.create_failure = DockerError('timeout', 'lost reply', mutation_uncertain=True)
@@ -108,7 +117,7 @@ class ManagedProbeScenarios(unittest.TestCase):
         # An operator uses only the emitted coordinates for read-only inspection.
         endpoints = {engine.identity.endpoint: engine}
         selected = endpoints[reference['endpoint']]
-        self.assertEqual(reference['daemon_id'], selected.identity.daemon_id)
+        self.assertEqual(reference['daemon_id'], selected.identity.info.daemon_id)
         foreign = replace(engine.container, cid='f' * 64, token='f' * 32)
         inventory = [foreign, engine.container]
         owned = [item for item in inventory if item.token == reference['operation_token']
@@ -117,16 +126,16 @@ class ManagedProbeScenarios(unittest.TestCase):
         self.assertNotIn('uid_map', report)
         self.assertEqual(1, engine.events.count('create'))
 
-    def test_invalid_retirement_sample_does_not_skip_verified_cleanup(self):
-        for malformed in (b'not integers\n', b'0 1\n', b'0 1 2 3\n'):
+    def test_invalid_acquisition_sample_does_not_skip_verified_cleanup(self):
+        for malformed in (b'not integers\n', b'0 1\n', b'0 1 2 3\n', b'0 1000 1\n1 1001\n'):
             with self.subTest(malformed=malformed):
                 engine, guard = Engine(), Guard()
                 observations = []
-                def fail_at_retirement(_guard):
+                def fail_during_acquisition(_guard):
                     observations.append(True)
-                    if len(observations) == 3:
+                    if len(observations) == 2:
                         host.consistent_maps(lambda name: malformed)
-                guard.on_observe = fail_at_retirement
+                guard.on_observe = fail_during_acquisition
                 with self.assertRaises(ProbeFailure) as caught:
                     self.run_probe(request(), engine, guard)
                 self.assertEqual('process-identity', caught.exception.problem.category)

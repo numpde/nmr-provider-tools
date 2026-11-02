@@ -1,4 +1,4 @@
-"""Read stable, host-relative maps of an existing Linux process."""
+"""Read host-relative maps with process and reader checks."""
 
 from dataclasses import dataclass
 
@@ -7,7 +7,10 @@ from .host import qualified_process, ProcessIdentity
 
 
 @dataclass(frozen=True)
-class ProcessObservation(ProcessIdentity):
+class ProcessObservation:
+    """Reusable maps and the process identity checked while reading them."""
+
+    identity: ProcessIdentity
     uid_map: IdMap
     gid_map: IdMap
 
@@ -21,6 +24,4 @@ def observe_host_process(pid: int) -> ProcessObservation:
     """
     with qualified_process(pid) as process:
         maps = process.read_maps()
-        identity = process.identity
-        return ProcessObservation(identity.pid, identity.starttime, identity.proc_device,
-                                  identity.proc_inode, IdMap(maps.uid_map), IdMap(maps.gid_map))
+        return ProcessObservation(process.identity, IdMap(maps.uid_rows), IdMap(maps.gid_rows))

@@ -9,13 +9,14 @@ It uses only Python's standard library; Docker is not required.
 from linux_idmap import observe_process
 
 maps = observe_process(pid)
-for row in maps.uid_map:
+for row in maps.uid_rows:
     print(row.inside, row.outside, row.length)
 ```
 
-`parse_map`, `read_maps` and `observe_process` return immutable, ordered tuples
-of named `IdRange` rows (grouped in `Maps` for UID/GID pairs). Observation samples
-two files independently; it does not claim host coordinates, a live/stable
+`parse_map`, `read_maps` and `observe_process` return one-pass generators
+of immutable named `IdRange` rows (grouped in `MapRows` for UID/GID pairs).
+`MapRows.uid_rows` and `.gid_rows` contain reported rows, not translating maps.
+Observation samples two files independently; it does not claim host coordinates, a live/stable
 process, an atomic UID/GID snapshot, or an ID conversion operation.
 
 **Reported rows are not necessarily a usable conversion table.** Depending on
@@ -29,9 +30,9 @@ initial namespace itself). See the
 and [boundary scenarios](tests/test_map_boundary.py).
 
 `parse_map(bytes)` preserves reported rows, including empty maps and sentinel
-fields. It eagerly requires exactly three integer columns per line, raising
-`ValueError` for malformed rows. It is not a validator for arbitrary imported
-mappings, and numeric validation cannot recover missing namespace context.
+fields. Each row is parsed by `IdRange.of(line)` as it is consumed, requiring
+exactly three integer columns and raising `ValueError` for malformed rows.
+It is not a validator for arbitrary imported mappings, and numeric validation cannot recover missing namespace context.
 
 ### Explicit affine conversion
 
@@ -43,13 +44,19 @@ outside_uid = IdMap(rows).translate(1000)
 ```
 
 `IdMap(rows)` is a caller assertion, not validation or namespace qualification.
-Its precondition is usable affine ranges in known outside coordinates. For
-example, a process reading its own map can convert to its immediate parent's
+It copies the supplied rows into a reusable list, including when given a generator.
+The rows must describe usable affine ranges in known outside coordinates.
+For example, a process reading its own map can convert to its immediate parent's
 coordinates without claiming host coordinates. The boundary tests exercise this
 in a real isolated child user namespace.
 
-`translate` rejects noninteger, reserved and unmapped input IDs, and refuses
-reserved or out-of-range output IDs. That last guard is not a table validator:
+`Identifier(1000)` validates a numeric UID/GID; `Identifier.of("1000")` parses
+ASCII decimal text. It remains an integer for arithmetic, formatting and JSON.
+Raw kernel columns stay plain integers because sentinel fields are valid evidence.
+The CLI and probe request use the same usable-ID validation.
+
+`translate` returns an `Identifier`, rejects noninteger, reserved and unmapped
+input IDs, and refuses reserved or out-of-range output IDs. That last guard is not a table validator:
 it cannot detect a plausible but incorrect answer from a fragmented reader.
 Parsing never automatically constructs an `IdMap`.
 
@@ -75,7 +82,9 @@ its host-coordinate precondition established by these source checks. They do
 not introduce a second mapping type.
 
 Reading through the lower-level `coherent_process(pid)` checked source or
-`consistent_maps(read_file)` still yields raw rows. `qualified_process(pid)`
+`consistent_maps(read_file)` still yields raw rows. It consumes and compares
+complete list snapshots inside the checked scope, before any deferred parsing
+error or scope-exit failure can release a qualified result. `qualified_process(pid)`
 additionally checks the reader's initial user namespace; values read inside a
 scope must not be used if its exit fails. None promises an atomic snapshot or
 immunity to changes that occur and reverse between checks. Observing an existing
@@ -108,6 +117,37 @@ volumes are refused: this operation owns a container/process, not persistent
 volume resources. Images are never pulled and application entrypoints are not
 run. Python uses `-I -S -B` to avoid startup hooks.
 
+`Bounds` and `ProbeRequest` reject invalid policy with
+`linux_idmap.addons.model.StepError` at construction, before any engine contact.
+The request keeps normalized `Identifier` values for its UID and GID. Once an operation starts, failures are reported as `ProbeFailure`
+with the resource's retirement state; neither failure type carries usable maps.
+
+The result describes the observed probe run. Normal exit after acquisition is
+allowed; cleanup never rereads maps. Its required ownership inspection can still
+expose an unrequested replacement run or an inconsistent PID, which prevents map
+delivery even if cleanup succeeds. Every observed process identity remains a
+retirement obligation. An owned reported PID that could not be identified must
+be absent before cleanup is confirmed. The caller must keep its later deployment
+policy consistent with the probe; these maps do not predict a future run after policy
+or engine changes.
+
+A lost or nonzero removal reply can be reconciled by confirmed container absence,
+retirement of every tracked process, and unchanged engine identity. Only those
+reply failures are discarded; cancellation, client-cleanup and safety failures
+still prevent map delivery.
+
+Failures are reported in execution order: measurement, retirement, client close,
+then a final cancellation check. A later close error never hides an earlier
+retirement failure. Cancellation does not interrupt cleanup or permit map output.
+
+Each Docker command owns a private process group. The transport bounds combined
+stdout/stderr, checks cancellation, and signals the group before reaping its
+leader—even when that leader has already exited successfully. Keeping the leader
+waitable prevents its numeric group ID from being reused before signaling.
+The caller must not auto-reap children or let another waiter consume this child;
+known lost wait ownership is a failure, never permission to signal a reused ID.
+Descendants that leave the group are outside this supervision contract.
+
 `confine=True` explicitly selects no networking, a read-only root filesystem,
 dropped capabilities and no-new-privileges, and refuses inspected privilege,
 device or mount drift before start. It is **not** a claim that simulated-engine
@@ -126,11 +166,34 @@ linux-idmap-probe --endpoint unix:///run/docker.sock \
 The explicit module entry point is `python -m linux_idmap.addons.cli`.
 There is no root CLI or `identity` subcommand. `--values` prints all requested
 UIDs, then all requested GIDs, only after the entire operation and every
-projection succeed. Failures leave stdout empty and put a redacted structured
-diagnostic on stderr. `ProbeFailure.as_dict()` provides the same minimal
+projection succeed. Cancellation observed before output vetoes success, including
+a signal received during projection. In `--values` mode, failures leave stdout
+empty and put a redacted structured diagnostic on stderr. `ProbeFailure.as_dict()` provides the same minimal
 operator reference: endpoint, daemon, operation token and known container ID.
-An uncertain outcome is not permission to repeat a mutation or delete a
-similarly named resource.
+Policy refusals use the same failure shape, with known-not-created state, null
+container/handle, and no secondary problems. An uncertain outcome is not
+permission to repeat a mutation or delete a similarly named resource.
+
+## Build and install this candidate
+
+Use Linux and Python 3.11+ with `venv`/`pip`. From the repository root:
+
+```sh
+cd packages/linux-idmap
+build_env=$(mktemp -d)
+python3 -m venv "$build_env"
+"$build_env/bin/python" -m pip wheel --no-deps --wheel-dir dist . &&
+  rm -r "$build_env"
+python3 -m venv "$HOME/.local/share/linux-idmap"
+"$HOME/.local/share/linux-idmap/bin/python" -m pip install \
+  --force-reinstall --no-index --no-deps dist/linux_idmap-0.3.0a3-py3-none-any.whl
+"$HOME/.local/share/linux-idmap/bin/linux-idmap-probe" --help
+```
+
+The build fetches the pinned backend declared in `pyproject.toml`; the installed
+package has no third-party runtime dependencies. Use the installed environment's
+Python, or put its `bin` directory on `PATH`, for host-side callers. This builds an
+unreleased candidate, not a published release or real-engine qualification.
 
 ## Tests and limitations
 
@@ -148,7 +211,7 @@ remain unqualified; do not deploy this candidate on the strength of unit tests.
 Provider-specific candidate migrations live **outside this distribution**, in
 [`integrations/linux-idmap`](../../integrations/linux-idmap). They opt into the
 probe and confinement add-ons. No legacy branded API compatibility shim is
-included in this unreleased `0.3.0a2` candidate. Raw callers now iterate row tuples, not
+included in this unreleased `0.3.0a3` candidate. Raw callers now consume row generators, not
 automatically translating `IdMap` wrappers. Explicit `IdMap(rows)` construction
 and qualified add-on results retain `.rows`, `.translate`, and named-row JSON
 output.

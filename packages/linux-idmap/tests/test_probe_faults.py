@@ -5,17 +5,19 @@ The host-namespace precondition and Unix-socket stat are substituted (this
 sandbox forbids socket creation). Process identity, command supervision, observation
 and retirement are the production code.
 """
-from dataclasses import replace
 import json
 import os
 from pathlib import Path
 import signal
+import shlex
+import sys
 import tempfile
 import threading
 import time
 import unittest
 from unittest.mock import patch
 
+from linux_idmap.addons._files import FileIdentity
 from linux_idmap import IdMap
 from linux_idmap.addons.host import ReaderEvidence
 from linux_idmap.core import parse_map as parse_id_map
@@ -31,11 +33,16 @@ class OperationFaultTests(unittest.TestCase):
         self.state_path.write_text(json.dumps({"calls": [], "container": None}))
         self.bin = self.root / "bin"
         self.bin.mkdir()
-        (self.bin / "docker").symlink_to(Path(__file__).parent / "fixtures" / "fake_docker.py")
+        fixture = Path(__file__).parent / "fixtures" / "fake_docker.py"
+        launcher = self.bin / "docker"
+        # Exercise this matrix interpreter, without ambient site/.pth startup.
+        launcher.write_text(f"#!/usr/bin/env -S {shlex.quote(sys.executable)} -I -S -B\n"
+                            + fixture.read_text().split("\n", 1)[1])
+        launcher.chmod(0o755)
         (self.root / "engine.sock").touch()
         def fixture_socket_identity(path):
             metadata = Path(path).stat()
-            return metadata.st_dev, metadata.st_ino
+            return FileIdentity.of(metadata)
         self.enterContext(patch("linux_idmap.addons.docker._socket_identity", side_effect=fixture_socket_identity))
         self.enterContext(patch.dict(os.environ, {
             "PATH": str(self.bin) + os.pathsep + os.environ["PATH"],
@@ -43,18 +50,19 @@ class OperationFaultTests(unittest.TestCase):
         }))
         self.enterContext(patch.object(ProbeProcesses, "reader_evidence", new=self.reader_evidence))
         self.addCleanup(self.kill_fixture_processes)
-        self.bounds = Bounds(operation_seconds=15, command_seconds=0.5,
-                             cleanup_seconds=4, lifetime_seconds=90)
+        # Leave acquisition scheduling room; guarded commands launch several clients.
+        # Command/cleanup/lifetime use production defaults. Tight timeout behavior
+        # is tested separately in test_docker.py.
         self.request = ProbeRequest(
             endpoint="unix://" + str(self.root / "engine.sock"), image="approved:local",
             interpreter="/opt/image/bin/python", user_uid=1000, user_gid=2000,
-            bounds=self.bounds,
+            bounds=Bounds(operation_seconds=60),
         )
 
     @staticmethod
     def reader_evidence(_guard=None):
         proc = Path("/proc").stat()
-        return ReaderEvidence(4026531837, proc.st_dev, proc.st_ino,
+        return ReaderEvidence(4026531837, FileIdentity.of(proc),
                             os.getpid(), threading.get_native_id())
 
     def state(self):
@@ -67,6 +75,10 @@ class OperationFaultTests(unittest.TestCase):
 
     def calls(self, kind):
         return [call for call in self.state()["calls"] if call["kind"] == kind]
+
+    def assert_fault_reached(self, kind):
+        self.assertEqual(kind, self.state().get("fault_reached"), f"{kind} fault was not reached")
+        self.assertEqual(1, len(self.calls(kind)))
 
     def kill_fixture_processes(self):
         # Only PIDs created by this test fixture are considered; command clients
@@ -113,7 +125,7 @@ class OperationFaultTests(unittest.TestCase):
     def test_success_uses_selected_endpoint_and_retires_real_probe_process(self):
         result = probe_identity(self.request)
         # The fixture explicitly substitutes qualification for both observation and reference.
-        expected = IdMap(parse_id_map(Path("/proc/self/uid_map").read_bytes())).translate(os.getuid())
+        expected = IdMap(list(parse_id_map(Path("/proc/self/uid_map").read_bytes()))).translate(os.getuid())
         self.assertEqual(expected, result.uid_map.translate(os.getuid()))
         self.assertIsNone(self.state()["container"])
         self.assertEqual(1, len(self.calls("create")))
@@ -125,33 +137,35 @@ class OperationFaultTests(unittest.TestCase):
     def test_lost_create_reply_reconciles_without_second_creation(self):
         self.configure(hang_after="create")
         failure = self.failure()
+        self.assert_fault_reached("create")
         self.assertEqual("timeout", failure.problem.category)
         self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
-        self.assertEqual(1, len(self.calls("create")))
         self.assertEqual(1, len(self.calls("rm")))
         self.assertIsNone(self.state()["container"])
 
     def test_lost_start_reply_still_retires_live_probe(self):
         self.configure(hang_after="start")
         failure = self.failure()
+        self.assert_fault_reached("start")
         self.assertEqual("timeout", failure.problem.category)
         self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
-        self.assertEqual(1, len(self.calls("start")))
         self.assertEqual(1, len(self.calls("rm")))
         self.assertIsNone(self.state()["container"])
 
     def test_lost_remove_reply_can_confirm_absence_without_repeating_remove(self):
         self.configure(hang_after="rm")
-        failure = self.failure()
-        self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
-        self.assertEqual(1, len(self.calls("rm")))
+        try:
+            result = probe_identity(self.request)
+        finally:
+            self.assert_fault_reached("rm")
+        self.assertEqual("c" * 64, result.container_id)
         self.assertIsNone(self.state()["container"])
 
     def test_hidden_creation_stays_uncertain_without_duplicate_creation(self):
         self.configure(hang_after="create", hide_container=True)
         failure = self.failure()
+        self.assert_fault_reached("create")
         self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
-        self.assertEqual(1, len(self.calls("create")))
         self.assertFalse(self.calls("rm"))
         self.assertIsNotNone(self.state()["container"])
         self.assertIsNone(failure.handle.container_id)
@@ -165,21 +179,31 @@ class OperationFaultTests(unittest.TestCase):
         self.assertIsNotNone(self.state()["container"])
 
     def test_unreadable_maps_do_not_prevent_removal_of_verified_owned_probe(self):
-        self.configure(hang_after="start")
-        with patch.object(ProbeProcesses, "observe", side_effect=IdentityError("process-identity", "probe maps unavailable")):
+        with patch.object(ProbeProcesses, "observe", side_effect=IdentityError("process-identity", "probe maps unavailable")) as observe:
             failure = self.failure()
-        self.assertEqual("timeout", failure.problem.category)
+        observe.assert_called_once()
         self.assertEqual(1, len(self.calls("rm")))
+        self.assertEqual("process-identity", failure.problem.category)
+        self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
         self.assertIsNone(self.state()["container"])
 
 
     def test_container_absence_without_process_retirement_never_releases_maps(self):
         self.configure(leave_process_alive=True)
-        self.request = replace(self.request, bounds=replace(self.bounds, cleanup_seconds=1))
-        failure = self.failure()
-        self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
-        self.assertIsNone(self.state()["container"])
+        original = ProbeProcesses.process_retired
+        checked_live_process = False
+        def observe_retirement(guard, identity):
+            nonlocal checked_live_process
+            retired = original(guard, identity)
+            if not retired:
+                checked_live_process = True
+            return retired
+        with patch.object(ProbeProcesses, "process_retired", new=observe_retirement):
+            failure = self.failure()
+        self.assertTrue(checked_live_process, "real process retirement check was not reached")
         self.assertEqual(1, len(self.calls("rm")))
+        self.assertIsNone(self.state()["container"])
+        self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
         self.assertTrue(self.state()["probe_processes"])
 
     def test_changed_engine_never_authorizes_removal_on_replacement(self):
@@ -198,8 +222,7 @@ class OperationFaultTests(unittest.TestCase):
         stop = threading.Event()
         reached_creation = threading.Event()
         def cancel_created():
-            deadline = time.monotonic() + 5
-            while not stop.is_set() and time.monotonic() < deadline:
+            while not stop.is_set():
                 if self.state().get("container") is not None:
                     reached_creation.set()
                     cancellation.set()
@@ -214,9 +237,9 @@ class OperationFaultTests(unittest.TestCase):
             watcher.join(timeout=2)
         self.assertFalse(watcher.is_alive())
         self.assertTrue(reached_creation.is_set())
+        self.assert_fault_reached("create")
         self.assertEqual("cancelled", failure.problem.category)
         self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
-        self.assertEqual(1, len(self.calls("create")))
         self.assertEqual(1, len(self.calls("rm")))
         self.assertIsNone(self.state()["container"])
 

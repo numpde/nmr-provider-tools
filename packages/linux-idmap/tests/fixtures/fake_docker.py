@@ -43,7 +43,7 @@ status = 0
 
 if args[0] == "info":
     # silent-defaults: allow-contract -- The fixture daemon identity is stable until an engine-change fault explicitly replaces it.
-    result = json.dumps([state.get("daemon", "fixture-engine"), [], "/fixture/docker", "overlay2", "linux"])
+    result = json.dumps({"daemon_id": state.get("daemon", "fixture-engine"), "security_options": [], "root_dir": "/fixture/docker", "driver": "overlay2", "os_type": "linux"})
 elif args[:2] == ["image", "inspect"]:
     result = json.dumps([IMAGE, None])
 elif args[:2] == ["container", "create"]:
@@ -119,6 +119,7 @@ else:
 hang = state.get("hang_after") == kind
 if hang:
     state["hang_after"] = None
+    state["fault_reached"] = kind  # Saved with the mutation, before withholding its reply.
 save(state)
 if hang:
     # The mutation is visible before the real CLI subprocess is timed out/killed.

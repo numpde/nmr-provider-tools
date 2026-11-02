@@ -9,7 +9,7 @@ import unittest
 from helpers import CID, IMAGE, container_for, request
 from linux_idmap.addons.docker import Container, DockerError, INSPECT_FORMAT
 from linux_idmap.core import IdRange, parse_map as parse_id_map
-from linux_idmap import IdMap
+from linux_idmap import Identifier, IdMap
 from linux_idmap.addons.model import Bounds, StepError
 from linux_idmap.addons.spec import ProbeSpec
 
@@ -31,8 +31,8 @@ class MapContractTests(unittest.TestCase):
                 outside += length + randomizer.randrange(1, 5)
             for ordering in permutations(rows):
                 raw = "\n".join(f" {row.inside}\t{row.outside} {row.length} " for row in ordering).encode()
-                parsed = parse_id_map(raw + b"\n")
-                direct = ordering
+                parsed = list(parse_id_map(raw + b"\n"))
+                direct = list(ordering)
                 with self.subTest(case=case, rows=ordering):
                     self.assertEqual(direct, parsed)
                     for identifier in range(inside + 1):
@@ -56,7 +56,7 @@ class MapContractTests(unittest.TestCase):
             for identifier in (-1, 3, maximum - 3, maximum + 1, maximum + 2, True, False, 1.0, "1", None):
                 with self.subTest(identifier=identifier), self.assertRaises(ValueError):
                     mapping.translate(identifier)
-        full = IdMap(parse_id_map(b"0 0 4294967295\n"))
+        full = IdMap(list(parse_id_map(b"0 0 4294967295\n")))
         self.assertEqual(maximum, full.translate(maximum))
 
 
@@ -94,24 +94,51 @@ class IsolationEvidenceContractTests(unittest.TestCase):
                          userns_mode="host", bounds=Bounds(lifetime_seconds=19))
         spec = ProbeSpec("b" * 32, IMAGE, policy)
         self.assertIs(policy, spec.request)
-        arguments = spec.create_arguments()
+        arguments = list(spec.create_arguments())
         self.assertEqual("7:11", arguments[arguments.index("--user") + 1])
         self.assertEqual("/opt/python", arguments[arguments.index("--entrypoint") + 1])
         self.assertIn("--userns=host", arguments)
         self.assertEqual(("19", spec.token), spec.command[-2:])
         spec.verify(container_for(spec), CID)
 
-    def test_spec_uses_the_same_policy_validation_as_the_public_request(self):
+    def test_request_rejects_invalid_policy_at_construction(self):
         for changes in ({"user_uid": True}, {"user_gid": -1}, {"interpreter": "python"},
-                        {"userns_mode": "unrecognized"}, {"bounds": Bounds(lifetime_seconds=0)}):
-            policy = replace(request(), **changes)
-            with self.subTest(changes=changes):
-                with self.assertRaises(StepError) as direct:
-                    policy.validate()
-                with self.assertRaises(StepError) as owned:
-                    ProbeSpec("b" * 32, IMAGE, policy)
-                self.assertEqual((direct.exception.category, str(direct.exception)),
-                                 (owned.exception.category, str(owned.exception)))
+                        {"userns_mode": "unrecognized"}, {"bounds": None}):
+            with self.subTest(changes=changes), self.assertRaises(StepError) as caught:
+                replace(request(), **changes)
+            self.assertEqual("invalid-policy", caught.exception.category)
+
+    def test_request_keeps_normalized_ids_instead_of_the_callers_integer_subclass(self):
+        class MisleadingFormatting(int):
+            def __format__(self, _format):
+                return "4294967295"
+
+        policy = replace(request(), user_uid=MisleadingFormatting(7), user_gid=11)
+        self.assertIs(type(policy.user_uid), Identifier)
+        self.assertIs(type(policy.user_gid), Identifier)
+        spec = ProbeSpec("b" * 32, IMAGE, policy)
+        arguments = list(spec.create_arguments())
+        self.assertEqual("7:11", arguments[arguments.index("--user") + 1])
+        spec.verify(container_for(spec), CID)
+
+    def test_request_rejects_endpoint_and_interpreter_syntax_transport_cannot_use(self):
+        for suffix in ('\n', '\x7f', '?query', '#fragment', ' ', '\u2003'):
+            with self.subTest(suffix=suffix), self.assertRaises(StepError):
+                replace(request(), endpoint='unix:///tmp/engine.sock' + suffix)
+        with self.assertRaises(StepError):
+            replace(request(), interpreter='/opt/python\x7f')
+
+    def test_bounds_reject_nonfinite_and_out_of_range_values_at_construction(self):
+        for value in (False, True, None, "1", 0, -1, 3601, 10**1000,
+                      float("nan"), float("inf"), float("-inf")):
+            for field in ("operation_seconds", "command_seconds", "cleanup_seconds"):
+                with self.subTest(field=field, value=value), self.assertRaises(StepError):
+                    Bounds(**{field: value})
+        for value in (.001, 1, 3600):
+            self.assertEqual(value, Bounds(command_seconds=value).command_seconds)
+        for value in (0, True, 1.0, 3601):
+            with self.subTest(lifetime=value), self.assertRaises(StepError):
+                Bounds(lifetime_seconds=value)
 
     def test_duplicate_json_keys_are_rejected_at_each_object_depth(self):
         source = json.dumps(asdict(container_for(self.spec)))

@@ -12,8 +12,9 @@ import re
 import sys
 import threading
 
-from ..core import read_maps
+from ..core import MapRows, read_maps
 from .errors import IdentityError
+from ._files import FileIdentity
 
 
 # Linux nsfs ABI identity, checked before namespace ioctls.
@@ -42,8 +43,7 @@ _DEAD_STATES = frozenset("ZXx")
 @dataclass(frozen=True)
 class ReaderEvidence:
     user_namespace_inode: int
-    proc_device: int
-    proc_inode: int
+    procfs: FileIdentity
     reader_pid: int
     reader_tid: int
 
@@ -52,8 +52,7 @@ class ReaderEvidence:
 class ProcessIdentity:
     pid: int
     starttime: int
-    proc_device: int
-    proc_inode: int
+    directory: FileIdentity
 
 
 def _filesystem_type(fd: int) -> int:
@@ -107,18 +106,36 @@ def _read_at(fd: int, name: str, limit: int) -> bytes:
         os.close(source)
 
 
-def _parse_stat(raw: bytes, pid: int) -> tuple[str, int]:
-    closing = raw.rfind(b") ")
-    if not raw.startswith(str(pid).encode("ascii") + b" (") or closing < 0:
-        raise IdentityError("process-identity", "Process status identity is malformed")
-    fields = raw[closing + 2:].split()
-    if (len(fields) < 20 or fields[0] not in {state.encode("ascii") for state in _LIVE_STATES | _DEAD_STATES}
-            or _DECIMAL.fullmatch(fields[19]) is None or len(fields[19]) > 20):
-        raise IdentityError("process-identity", "Process status fields are malformed")
-    starttime = int(fields[19])
-    if starttime > 0xFFFFFFFFFFFFFFFF:
-        raise IdentityError("process-identity", "Process start time overflows")
-    return fields[0].decode("ascii"), starttime
+@dataclass(frozen=True)
+class ProcessStatus:
+    """The liveness and start time reported by one /proc/PID/stat read."""
+
+    state: str
+    starttime: int
+
+    @property
+    def live(self) -> bool:
+        return self.state in _LIVE_STATES
+
+    @property
+    def exited(self) -> bool:
+        return self.state in _DEAD_STATES
+
+    @classmethod
+    def of(cls, raw: bytes, pid: int) -> "ProcessStatus":
+        # comm is parenthesized but may itself contain spaces and parentheses.
+        closing = raw.rfind(b") ")
+        if not raw.startswith(str(pid).encode("ascii") + b" (") or closing < 0:
+            raise IdentityError("process-identity", "Process status identity is malformed")
+        fields = raw[closing + 2:].split()
+        # After comm, state is field 3 and starttime is field 22 (offset 19).
+        if (len(fields) < 20 or fields[0] not in {state.encode("ascii") for state in _LIVE_STATES | _DEAD_STATES}
+                or _DECIMAL.fullmatch(fields[19]) is None or len(fields[19]) > 20):
+            raise IdentityError("process-identity", "Process status fields are malformed")
+        starttime = int(fields[19])
+        if starttime > 0xFFFFFFFFFFFFFFFF:
+            raise IdentityError("process-identity", "Process start time overflows")
+        return cls(fields[0].decode("ascii"), starttime)
 
 
 def _validate_pid(pid: int):
@@ -143,8 +160,7 @@ class Procfs:
                         or os.readlink("thread-self", dir_fd=root) != f"{pid}/task/{tid}"):
                     raise IdentityError("host-precondition", "procfs does not expose the calling process")
                 user = _namespace_inode(root, "user")
-                metadata = os.fstat(root)
-                return ReaderEvidence(user, metadata.st_dev, metadata.st_ino, pid, tid)
+                return ReaderEvidence(user, FileIdentity.of(os.fstat(root)), pid, tid)
         except OSError as cause:
             raise IdentityError("host-precondition", "Reader namespace evidence is unavailable") from cause
 
@@ -153,8 +169,7 @@ class Procfs:
         """Keep each successful process read bound to the same reader procfs."""
         host = self.reader_evidence()
         with _directory(self.proc_root) as root:
-            metadata = os.fstat(root)
-            if (metadata.st_dev, metadata.st_ino) != (host.proc_device, host.proc_inode):
+            if FileIdentity.of(os.fstat(root)) != host.procfs:
                 raise IdentityError("host-precondition", "procfs changed before process evidence read")
             yield root, host
         if host != self.reader_evidence():
@@ -166,16 +181,16 @@ class Procfs:
         _validate_pid(pid)
         try:
             with self.root() as (root, reader), _directory(str(pid), dir_fd=root) as fd:
-                metadata = os.fstat(fd)
-                state, starttime = _parse_stat(_read_at(fd, "stat", 4096), pid)
-                if state not in _LIVE_STATES:
+                metadata = FileIdentity.of(os.fstat(fd))
+                status = ProcessStatus.of(_read_at(fd, "stat", 4096), pid)
+                if not status.live:
                     raise IdentityError("process-identity", "Process is not live")
-                identity = ProcessIdentity(pid, starttime, metadata.st_dev, metadata.st_ino)
+                identity = ProcessIdentity(pid, status.starttime, metadata)
                 yield ProcessDirectory(fd, identity, reader)
-                state, after_starttime = _parse_stat(_read_at(fd, "stat", 4096), pid)
-                after = os.stat(str(pid), dir_fd=root, follow_symlinks=False)
-                if (state not in _LIVE_STATES or starttime != after_starttime
-                        or (after.st_dev, after.st_ino) != (metadata.st_dev, metadata.st_ino)):
+                after_status = ProcessStatus.of(_read_at(fd, "stat", 4096), pid)
+                after = FileIdentity.of(os.stat(str(pid), dir_fd=root, follow_symlinks=False))
+                if (not after_status.live or status.starttime != after_status.starttime
+                        or after != metadata):
                     raise IdentityError("process-identity", "Process was replaced or exited during observation")
         except OSError as cause:
             raise IdentityError("process-identity", "Cannot establish consistent process evidence") from cause
@@ -198,10 +213,14 @@ class ProcessDirectory:
 
 
 def consistent_maps(read_file):
-    """Refine a raw sample by refusing differences in two complete readings."""
+    """Compare complete reusable samples, consuming parse errors inside the scope."""
     try:
-        first = read_maps(read_file)
-        second = read_maps(read_file)
+        # Generator identity says nothing about rows; parse before the source closes.
+        def snapshot():
+            maps = read_maps(read_file)
+            return MapRows(list(maps.uid_rows), list(maps.gid_rows))
+        first = snapshot()
+        second = snapshot()
     except ValueError as cause:
         raise IdentityError("process-identity", "Process ID maps could not be interpreted") from cause
     if first != second:

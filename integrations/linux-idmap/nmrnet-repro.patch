@@ -1,5 +1,5 @@
 diff --git a/README.md b/README.md
-index 2f14e3197d7c68f0154fe205707bcd78c94b7473..28524c53543b0167644933b1d630d3b13c726dda 100644
+index 2f14e31..b6a5507 100644
 --- a/README.md
 +++ b/README.md
 @@ -17,3 +17,43 @@ on the Make command line. When omitted in a terminal, it offers a menu of
@@ -19,7 +19,7 @@ index 2f14e3197d7c68f0154fe205707bcd78c94b7473..28524c53543b0167644933b1d630d3b1
 +
 +```sh
 +python3 -m venv "$HOME/.local/share/linux-idmap"
-+"$HOME/.local/share/linux-idmap/bin/python" -m pip install --force-reinstall --no-index --no-deps /absolute/path/to/linux_idmap-0.3.0a2-py3-none-any.whl
++"$HOME/.local/share/linux-idmap/bin/python" -m pip install --force-reinstall --no-index --no-deps /absolute/path/to/linux_idmap-0.3.0a3-py3-none-any.whl
 +export PATH="$HOME/.local/share/linux-idmap/bin:$PATH"
 +linux-idmap-probe --help
 +```
@@ -27,8 +27,8 @@ index 2f14e3197d7c68f0154fe205707bcd78c94b7473..28524c53543b0167644933b1d630d3b1
 +The caller passes its already-selected Docker socket and controller image to the
 +managed-probe add-on and explicitly selects `--confine`. It does not treat the
 +unqualified one-page core as host permission authority. Provider-specific helper
-+selection and input ownership remain
-+here. Failure diagnostics identify the selected engine and exact probe when
++selection and input ownership remain here. Invalid requests fail before any
++probe is dispatched; neither request nor operation failure advances input policy. Failure diagnostics identify the selected engine and exact probe when
 +known; retain stderr and inspect unresolved resources before retrying. Never
 +remove a container merely by its display name. This operation provides bounded
 +cleanup while its caller is alive, not durable crash recovery.
@@ -47,7 +47,7 @@ index 2f14e3197d7c68f0154fe205707bcd78c94b7473..28524c53543b0167644933b1d630d3b1
 +engine or full deployment. Rootful/rootless qualification and the maintained
 +container-launched deployment suite remain required before adoption.
 diff --git a/docs/provider.html b/docs/provider.html
-index 67bc55dbde15a5c57322418a08c15500038dac13..6685b85fffc9e54b853b90c08fd7ab612919aab0 100644
+index 67bc55d..6685b85 100644
 --- a/docs/provider.html
 +++ b/docs/provider.html
 @@ -258,6 +258,20 @@ settings in nmr-provider-tools. No socket grant belongs in the public provider d
@@ -73,10 +73,10 @@ index 67bc55dbde15a5c57322418a08c15500038dac13..6685b85fffc9e54b853b90c08fd7ab61
  make provider/deployment/install DEPLOYMENT=&lt;name&gt; SHARED_RUNTIME_IMAGE=sha256:YOUR_SHARED_IMAGE
 diff --git a/tests/host/test_deploy_identity_adapter.py b/tests/host/test_deploy_identity_adapter.py
 new file mode 100644
-index 0000000000000000000000000000000000000000..42d138ccce519e4d24b406f25ec3d26874ddaa1a
+index 0000000..dae3d5c
 --- /dev/null
 +++ b/tests/host/test_deploy_identity_adapter.py
-@@ -0,0 +1,195 @@
+@@ -0,0 +1,203 @@
 +"""Host-only acceptance for the actual NMRNet adapter and shared CLI contract.
 +
 +No repository container guard is bypassed: the shell adapter under test
@@ -119,7 +119,6 @@ index 0000000000000000000000000000000000000000..42d138ccce519e4d24b406f25ec3d268
 +from linux_idmap.addons.probe import ProbeResult
 +
 +def observe(request, *, cancel):
-+    request.validate()
 +    Path(os.environ['REQUEST_LOG']).write_text(json.dumps(asdict(request)))
 +    mode = os.environ['RESULT_MODE']
 +    if mode == 'await-signal':
@@ -156,7 +155,7 @@ index 0000000000000000000000000000000000000000..42d138ccce519e4d24b406f25ec3d268
 +        self.selected = self.root / 'selected'
 +
 +    # silent-defaults: allow-contract -- Ordinary rootful probes run without injected signals; cancellation tests explicitly select signal delivery and group scope; proof=tests/host/test_deploy_identity_adapter.py::IdentityAdapterTests.test_process_group_cancellation_stops_before_helper_selection
-+    def run_adapter(self, mode='rootful', *, send_signal=None, signal_group=False):
++    def run_adapter(self, mode='rootful', *, send_signal=None, signal_group=False, endpoint='unix:///selected-engine.sock'):
 +        # Assignments and policy are production functions, not a rewritten test adapter.
 +        program = '\n'.join([
 +            'set -euo pipefail',
@@ -174,7 +173,7 @@ index 0000000000000000000000000000000000000000..42d138ccce519e4d24b406f25ec3d268
 +            'printf "%s %s %s %s %s\\n" "$helper_uid" "$helper_gid" "$helper_add_chown" "$service_host_uid" "$service_host_gid" > "$root/selected"',
 +        ])
 +        env = dict(os.environ, PATH=str(self.bin) + os.pathsep + os.environ['PATH'],
-+                   NMRNET_DOCKER_ENDPOINT_INPUT='unix:///selected-engine.sock',
++                   NMRNET_DOCKER_ENDPOINT_INPUT=endpoint,
 +                   DOCKER_CONTEXT='unrelated-ambient-context', DOCKER_HOST='unix:///wrong.sock',
 +                   REQUEST_LOG=str(self.request_log), RESULT_MODE=mode)
 +        command = ['bash', '-c', program, 'bash', str(self.root)]
@@ -232,6 +231,15 @@ index 0000000000000000000000000000000000000000..42d138ccce519e4d24b406f25ec3d268
 +        self.assertIn('a' * 32, result.stderr)
 +        self.assertFalse(self.selected.exists())
 +
++    def test_invalid_request_refuses_before_probe_or_policy_selection(self):
++        result = self.run_adapter(endpoint='tcp://unapproved-engine:2375')
++        self.assertEqual(2, result.returncode, msg=result.stderr)
++        self.assertEqual('', result.stdout)
++        self.assertIn('invalid-policy', result.stderr)
++        self.assertIn('known-not-created', result.stderr)
++        self.assertFalse(self.request_log.exists())
++        self.assertFalse(self.selected.exists())
++
 +    def test_nonzero_command_status_with_numeric_output_is_not_success(self):
 +        self.command.write_text('#!/bin/sh\nprintf "0 %s 0 %s\\n" "$(id -u)" "$(id -g)"\nexit 3\n')
 +        result = self.run_adapter()
@@ -273,7 +281,7 @@ index 0000000000000000000000000000000000000000..42d138ccce519e4d24b406f25ec3d268
 +if __name__ == '__main__':
 +    unittest.main()
 diff --git a/tests/test_provider_deployment_launcher.py b/tests/test_provider_deployment_launcher.py
-index 1b2fcbccb661835c2f96c9ef8ac4dee92965ac6f..457a2947d2d4436de6d98558f719a4eddd5a6219 100644
+index 1b2fcbc..457a294 100644
 --- a/tests/test_provider_deployment_launcher.py
 +++ b/tests/test_provider_deployment_launcher.py
 @@ -31,24 +31,26 @@ class DeploymentLauncherTests(unittest.TestCase):
@@ -396,7 +404,7 @@ index 1b2fcbccb661835c2f96c9ef8ac4dee92965ac6f..457a2947d2d4436de6d98558f719a4ed
          self.assertEqual(freeze_user, f'{os.getuid()}:{os.getgid()}')
  
 diff --git a/tools/compose_deployment.sh b/tools/compose_deployment.sh
-index eb1fa9a954a821873d62e08811237cf77081546e..15060fd20032f08d31beba87c2320587723bb69d 100644
+index eb1fa9a..15060fd 100644
 --- a/tools/compose_deployment.sh
 +++ b/tools/compose_deployment.sh
 @@ -48,9 +48,8 @@ exec {deployment_lock}< "$root"

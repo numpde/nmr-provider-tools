@@ -60,16 +60,26 @@ def _problem(error: BaseException) -> Problem:
     return Problem("internal", "unexpected operation failure; inspect the probe handle")
 
 
-def _client_problems(error: BaseException) -> tuple[Problem, ...]:
-    # repo-check: allow-tuple-generator -- Retirement owns an immutable diagnostic snapshot, never a live view of client failures.
-    return tuple(Problem(category, "Docker client retirement was not confirmed")
-                 for category in getattr(error, "cleanup_failures", ()))
+def _errors(error: BaseException | None):
+    """Flatten recorded failures in order; this performs no cleanup."""
+    if isinstance(error, BaseExceptionGroup):
+        for cause in error.exceptions:
+            yield from _errors(cause)
+    elif error is not None:
+        yield error
 
 
-def _running_identity(container: Container) -> tuple[str, int, str]:
-    if not container.running or type(container.pid) is not int or container.pid <= 0:
-        raise StepError("process-identity", "owned probe is not running")
-    return container.cid, container.pid, container.started_at
+@dataclass(frozen=True)
+class ContainerRun:
+    """Container execution reported by inspection; liveness is checked separately."""
+
+    container_id: str
+    pid: int
+    started_at: str
+
+    @classmethod
+    def of(cls, container: Container) -> "ContainerRun":
+        return cls(container.cid, container.pid, container.started_at)
 
 
 class _Probe:
@@ -79,68 +89,82 @@ class _Probe:
         self.engine = engine
         self.guard = guard
         self.spec = spec
-        self.may_exist = False
+        self.state = ResourceState.NOT_CREATED
         self.cid: str | None = None
-        self.observation: ProcessObservation | None = None
-        self.running_identity: tuple[str, int, str] | None = None
-        self.processes: list[ProcessIdentity] = []
-        self.unobserved_pids: list[int] = []
-        self.retirement_cause: BaseException | None = None
+        self.processes: dict[ProcessIdentity, None] = {}
+        # None means this reported PID still needs an identity or an absence check.
+        self.reported_runs: dict[ContainerRun, ProcessIdentity | None] = {}
+        self.run: ContainerRun | None = None
 
     def handle(self) -> ProbeHandle:
         return ProbeHandle(
             endpoint=self.engine.identity.endpoint,
             operation_token=self.spec.token,
             container_id=self.cid,
-            daemon_id=self.engine.identity.daemon_id,
+            daemon_id=self.engine.identity.info.daemon_id,
         )
-
-    def track(self, process: ProcessIdentity):
-        identity = ProcessIdentity(process.pid, process.starttime, process.proc_device, process.proc_inode)
-        if identity not in self.processes:
-            self.processes.append(identity)
 
     def inspect(self, budget: _Budget) -> Container | None:
         container = self.engine.inspect(self.cid, **budget.arguments())
         if container is not None:
             self.spec.verify(container, self.cid)
+            if container.running or container.pid > 0:
+                self.reported_runs.setdefault(ContainerRun.of(container), None)
         return container
 
-    def measure(self, budget: _Budget):
+    def record_process(self, run: ContainerRun, identity: ProcessIdentity) -> None:
+        # A conflicting second sample must not overwrite the first obligation.
+        self.processes[identity] = None
+        self.reported_runs[run] = identity
+        # At one PID, an earlier process either persisted or exited before reuse.
+        for reported, known in self.reported_runs.items():
+            if known is None and reported.pid == identity.pid:
+                self.reported_runs[reported] = identity
+
+    def run_changed(self, container: Container | None) -> bool:
+        # Normal stopped/PID0 is allowed, but a different generation is not.
+        return self.run is not None and container is not None and (
+            container.started_at != self.run.started_at
+            or container.running and container.pid != self.run.pid
+            or not container.running and container.pid != 0)
+
+    def measure(self, budget: _Budget) -> ProcessObservation:
+        # Resolve lazy arguments and optional imports before recording dispatch.
+        command = list(self.spec.create_arguments())
         arguments = budget.arguments()
-        self.may_exist = True  # client failure cannot prove non-creation
+        self.state = ResourceState.UNRESOLVED  # A lost client reply cannot prove non-creation.
         try:
-            self.cid = self.engine.create(self.spec, **arguments)
-        except DockerError as error:
-            if not error.mutation_uncertain:
-                self.may_exist = False
+            self.cid = self.engine.create(command, **arguments)
+        except (DockerError, BaseExceptionGroup) as error:
+            # silent-defaults: allow-contract -- Missing dispatch metadata cannot prove non-creation for a foreign group.
+            if not getattr(error, "mutation_uncertain", True):
+                self.state = ResourceState.NOT_CREATED
             raise
         if self.inspect(budget) is None:
             raise StepError("process-identity", "created probe disappeared before start")
         self.engine.start(self.cid, **budget.arguments())
         first = self.inspect(budget)
-        if first is None:
-            raise StepError("process-identity", "started probe is absent")
-        self.running_identity = _running_identity(first)
-        self.observation = self.guard.observe(first.pid, self.spec.token)
-        self.track(self.observation)
-        if not self.observation_is_current(self.inspect(budget)):
+        if first is None or not first.running or type(first.pid) is not int or first.pid <= 0:
+            raise StepError("process-identity", "started probe is not running")
+        run = ContainerRun.of(first)
+        observation = self.guard.observe(first.pid, self.spec.token)
+        self.record_process(run, observation.identity)
+        second = self.inspect(budget)
+        if second is None or not second.running or ContainerRun.of(second) != run:
+            raise StepError("process-identity", "probe run changed during observation")
+        confirmation = self.guard.observe(second.pid, self.spec.token)
+        self.record_process(run, confirmation.identity)
+        if confirmation != observation:
             raise StepError("process-identity", "probe process or maps changed during observation")
         budget.remaining()
+        self.run = run
+        return observation
 
-    def observation_is_current(self, container: Container | None) -> bool:
-        """Re-read the process after confirming its container identity still matches."""
-        return (container is not None
-                and _running_identity(container) == self.running_identity
-                and self.guard.observe(container.pid, self.spec.token) == self.observation)
-
-    def retire(self) -> tuple[Retirement, Problem | None]:
-        """Run once after success or failure. Never creates or returns maps."""
-        if not self.may_exist:
-            return Retirement(ResourceState.NOT_CREATED), None
-        state = ResourceState.UNRESOLVED
-        problems = []
-        invalid_observation = None
+    def retire(self) -> list[BaseException]:
+        """Retire the owned resource; retain failures in the order they occurred."""
+        if self.state == ResourceState.NOT_CREATED:
+            return []
+        run_error = identity_error = removal_error = polling_error = confirmation_error = None
         try:
             bounds = self.spec.request.bounds
             budget = _Budget(bounds.cleanup_seconds, bounds.command_seconds)
@@ -150,112 +174,98 @@ class _Probe:
                     raise StepError("reconciliation", "creation remains unresolved; no unique owned candidate")
                 self.cid = candidates[0]
             container = self.inspect(budget)
-            if self.observation is not None:
-                try:
-                    if not self.observation_is_current(container):
-                        raise StepError("process-identity", "probe process or maps changed before retirement")
-                except (IdentityError, StepError, OSError) as error:
-                    self.retirement_cause = error
-                    invalid_observation = _problem(error)
-            # A reported PID remains a cleanup obligation even when the engine
-            # says it is stopped. A lost start reply or restart needs fresh identity.
-            if (container is not None and (container.running or container.pid > 0)
-                    and (self.observation is None or invalid_observation is not None)):
+            # Completed maps survive normal exit. The mandatory inspection can
+            # still expose a replacement run or a contradictory reported PID.
+            if self.run_changed(container):
+                run_error = StepError("process-identity", "probe run changed after acquisition")
+            if container is not None and (container.running or container.pid > 0):
                 try:
                     current = self.guard.identify(container.pid, self.spec.token)
-                except (IdentityError, OSError) as error:
-                    if self.retirement_cause is None:
-                        self.retirement_cause = error
-                    problems.append(_problem(error))
-                    self.unobserved_pids.append(container.pid)
-                else:
-                    self.track(current)
+                    if run_error is None and self.run is not None and current not in self.processes:
+                        run_error = StepError("process-identity", "probe process identity changed after acquisition")
+                    self.record_process(ContainerRun.of(container), current)
+                except BaseException as error:
+                    identity_error = error
             if container is not None:
                 try:
                     self.engine.remove(container.cid, **budget.arguments())
                 except BaseException as error:
-                    if self.retirement_cause is None:
-                        self.retirement_cause = error
-                    problems.append(_problem(error))
-                    problems.extend(_client_problems(error))
-                while self.inspect(budget) is not None:
+                    removal_error = error
+                while (reported := self.inspect(budget)) is not None:
+                    if polling_error is None and self.run_changed(reported):
+                        polling_error = StepError("process-identity", "probe run changed during removal")
                     budget.pause()
-            for process in self.processes:
-                while not self.guard.process_retired(process):
+            for identity in self.processes:
+                while not self.guard.process_retired(identity):
                     budget.pause()
-            for pid in self.unobserved_pids:
-                while not self.guard.pid_absent(pid):
-                    budget.pause()
+            for run, identity in self.reported_runs.items():
+                if identity is None:
+                    while not self.guard.pid_absent(run.pid):
+                        budget.pause()
             self.engine.assert_unchanged(**budget.arguments())
-            state = ResourceState.RETIRED
+            self.state = ResourceState.RETIRED
+            # Lost/nonzero remove replies are settled by the checks above.
+            # Safety, cancellation, and client-cleanup failures are never erased.
+            if (isinstance(removal_error, DockerError)
+                    and removal_error.category in {"timeout", "docker_command"}):
+                removal_error = None
         except BaseException as error:
-            if self.retirement_cause is None:
-                self.retirement_cause = error
-            problems.append(_problem(error))
-            problems.extend(_client_problems(error))
-        return Retirement(state, self.cid, tuple(problems)), invalid_observation
+            confirmation_error = error
+        return [error for error in (run_error, identity_error, removal_error, polling_error, confirmation_error)
+                if error is not None]
 
 
 # silent-defaults: allow-contract -- The public operation uses the Docker CLI transport; an explicit executable override supports fault qualification without changing endpoint policy; tests/test_probe_faults.py::OperationFaultTests.
 def probe_identity(request: ProbeRequest, *, cancel: threading.Event | None = None,
                    executable: str = "docker") -> ProbeResult:
-    """Return validated full maps only after exact probe retirement."""
-    problems = []
-    cause = None
-    engine = None
-    retirement = Retirement(ResourceState.NOT_CREATED)
-    token = secrets.token_hex(16)
-    probe = None
+    """Measure maps, retire the probe, then deliver maps or ordered failures.
+
+    Cleanup runs without the caller's cancellation event. The first failure is
+    primary; later cleanup/close failures remain visible without replacing it.
+    """
+    engine = probe = None
+    operation_error = close_error = None
+    retirement_errors = []
     try:
-        request.validate()
         budget = _Budget(request.bounds.operation_seconds, request.bounds.command_seconds, cancel)
         budget.remaining()
         guard = ProbeProcesses()
         host = guard.reader_evidence()
         engine = DockerEngine.connect(request.endpoint, executable=executable, **budget.arguments())
         image_id = engine.image_id(request.image, **budget.arguments())
-        spec = ProbeSpec(token, image_id, request)
+        spec = ProbeSpec(secrets.token_hex(16), image_id, request)
         probe = _Probe(engine, guard, spec)
-        # Until retirement returns a proof, interruption must not imply absence.
-        retirement = Retirement(ResourceState.UNRESOLVED)
-        try:
-            probe.measure(budget)
-            if guard.reader_evidence() != host:
-                raise StepError("host-precondition", "reader namespace evidence changed")
-        except BaseException as error:
-            cause = error
-            problems.append(_problem(error))
-            problems.extend(_client_problems(error))
-        finally:
-            retirement = Retirement(ResourceState.UNRESOLVED, probe.cid)
-            retirement, observation_problem = probe.retire()
-        if observation_problem is not None:
-            if cause is None:
-                cause = probe.retirement_cause
-            problems.append(observation_problem)
+        observation = probe.measure(budget)
+        if guard.reader_evidence() != host:
+            raise StepError("host-precondition", "reader namespace evidence changed")
     except BaseException as error:
-        if cause is None:
-            cause = error
-        problems.append(_problem(error))
-        problems.extend(_client_problems(error))
+        operation_error = error
     finally:
+        if probe is not None:
+            try:
+                retirement_errors = probe.retire()
+            except BaseException as error:
+                # An interruption at cleanup entry leaves the owner's state
+                # unresolved; it must never be replaced by known-not-created.
+                retirement_errors = [error]
         if engine is not None:
             try:
                 engine.close()
             except BaseException as error:
-                if cause is None:
-                    cause = error
-                problems.append(_problem(error))
-    if cancel is not None and cancel.is_set() and not any(p.category == "cancelled" for p in problems):
-        problems.append(Problem("cancelled", "operation was cancelled before result delivery"))
-    if problems or retirement.problems or retirement.state != ResourceState.RETIRED:
-        primary = problems[0] if problems else retirement.problems[0]
-        # silent-defaults: allow-contract -- The first available problem owns the primary failure; the immutable secondary inventory excludes exactly that problem; tests/test_probe_addon.py::OperationTests.
-        secondary = (*problems[1:], *retirement.problems) if problems else retirement.problems[1:]
-        if cause is None and probe is not None:
-            cause = probe.retirement_cause
-        # silent-defaults: allow-contract -- No probe object means no ownership handle exists; report absence rather than fabricate recovery evidence; tests/test_probe_addon.py::OperationTests.
-        handle = None if probe is None else probe.handle()
-        raise ProbeFailure(primary, Retirement(retirement.state, retirement.container_id, secondary), handle) from cause
-    return ProbeResult(probe.observation.uid_map, probe.observation.gid_map,
-                       retirement.container_id)
+                close_error = error
+    earlier = [cause for error in (operation_error, *retirement_errors, close_error) for cause in _errors(error)]
+    late_cancel = None
+    if (cancel is not None and cancel.is_set()
+            and not any(_problem(error).category == "cancelled" for error in earlier)):
+        late_cancel = StepError("cancelled", "operation was cancelled before result delivery")
+    failures = [error for error in (*earlier, late_cancel) if error is not None]
+    problems = [_problem(error) for error in failures]
+    state = ResourceState.NOT_CREATED if probe is None else probe.state
+    cid = None if probe is None else probe.cid
+    handle = None if probe is None else probe.handle()
+    if problems:
+        raise ProbeFailure(problems[0], Retirement(state, cid, tuple(problems[1:])), handle) from failures[0]
+    if state != ResourceState.RETIRED:
+        raise ProbeFailure(Problem("retirement", "probe retirement was not confirmed"),
+                           Retirement(state, cid), handle)
+    return ProbeResult(observation.uid_map, observation.gid_map, cid)

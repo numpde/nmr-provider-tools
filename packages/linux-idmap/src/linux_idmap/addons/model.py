@@ -2,9 +2,9 @@
 
 from dataclasses import asdict, dataclass
 from enum import StrEnum
-import math
 import re
 
+from ..core import Identifier
 
 
 class StepError(RuntimeError):
@@ -17,15 +17,16 @@ class StepError(RuntimeError):
 
 @dataclass(frozen=True)
 class Bounds:
+    """Finite operation/command/cleanup deadlines and the probe lifetime, in seconds."""
+
     operation_seconds: float = 30
     command_seconds: float = 5
     cleanup_seconds: float = 15
     lifetime_seconds: int = 90
 
-    def validate(self) -> None:
+    def __post_init__(self) -> None:
         for value in (self.operation_seconds, self.command_seconds, self.cleanup_seconds):
-            if (isinstance(value, bool) or not isinstance(value, (int, float))
-                    or not math.isfinite(value) or not 0 < value <= 3600):
+            if type(value) not in (int, float) or not 0 < value <= 3600:
                 raise StepError("invalid-policy", "time bounds must be finite and between zero and 3600 seconds")
         if type(self.lifetime_seconds) is not int or not 1 <= self.lifetime_seconds <= 3600:
             raise StepError("invalid-policy", "probe lifetime must be an integer between 1 and 3600 seconds")
@@ -33,6 +34,8 @@ class Bounds:
 
 @dataclass(frozen=True)
 class ProbeRequest:
+    """Explicit local-engine policy; invalid values raise StepError at construction."""
+
     endpoint: str
     image: str
     interpreter: str
@@ -42,25 +45,29 @@ class ProbeRequest:
     bounds: Bounds = Bounds()
     confine: bool = False
 
-    def validate(self) -> None:
+    def __post_init__(self) -> None:
         if type(self.bounds) is not Bounds:
             raise StepError("invalid-policy", "invalid operation bounds")
-        self.bounds.validate()
         if type(self.confine) is not bool:
             raise StepError("invalid-policy", "confinement selection must be a boolean")
         if (not isinstance(self.endpoint, str) or not self.endpoint.startswith("unix:///")
-                or len(self.endpoint) > 4096):
+                or len(self.endpoint) > 4096 or self.endpoint != self.endpoint.strip()
+                or "?" in self.endpoint or "#" in self.endpoint
+                or any(ord(c) < 32 or ord(c) == 127 for c in self.endpoint)):
             raise StepError("invalid-policy", "use the caller-selected local Unix Docker endpoint")
         if (not isinstance(self.image, str)
                 or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/@+-]{0,511}", self.image) is None):
             raise StepError("invalid-policy", "image must be an explicit bounded identifier")
-        if not all(type(value) is int and 0 <= value < 2**32 - 1
-                   for value in (self.user_uid, self.user_gid)):
-            raise StepError("invalid-policy", "IDs must be integers from 0 through 4294967294")
+        try:
+            object.__setattr__(self, "user_uid", Identifier(self.user_uid))
+            object.__setattr__(self, "user_gid", Identifier(self.user_gid))
+        except ValueError as cause:
+            raise StepError("invalid-policy", "IDs must be integers from 0 through 4294967294") from cause
         if self.userns_mode not in ("default", "host"):
             raise StepError("invalid-policy", "user namespace policy must be default or host")
         if (not isinstance(self.interpreter, str) or not self.interpreter.startswith("/")
-                or len(self.interpreter) > 512 or any(ord(c) < 32 for c in self.interpreter)):
+                or len(self.interpreter) > 512
+                or any(ord(c) < 32 or ord(c) == 127 for c in self.interpreter)):
             raise StepError("invalid-policy", "supply an absolute Python interpreter path in the probe image")
 
 

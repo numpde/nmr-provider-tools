@@ -1,5 +1,6 @@
 """One definition of what we create and what we are allowed to remove."""
 
+from collections.abc import Iterator
 from dataclasses import dataclass
 import re
 
@@ -31,7 +32,6 @@ class ProbeSpec:
     request: ProbeRequest
 
     def __post_init__(self):
-        self.request.validate()
         if (not isinstance(self.token, str) or re.fullmatch(r"[0-9a-f]{32}", self.token) is None
                 or not isinstance(self.image_id, str)
                 or re.fullmatch(r"sha256:[0-9a-f]{64}", self.image_id) is None):
@@ -45,18 +45,19 @@ class ProbeSpec:
     def command(self) -> tuple[str, ...]:
         return ("-I", "-S", "-B", "-c", PROBE_SCRIPT, str(self.request.bounds.lifetime_seconds), self.token)
 
-    def create_arguments(self) -> list[str]:
+    def create_arguments(self) -> Iterator[str]:
         request = self.request
-        args = ["container", "create", "--pull=never", "--name", self.name,
-                "--label", OWNER_LABEL + "=" + OWNER, "--label", TOKEN_LABEL + "=" + self.token,
-                "--user", f"{request.user_uid}:{request.user_gid}", "--rm", "--restart", "no", "--no-healthcheck"]
+        yield from ["container", "create", "--pull=never", "--name", self.name,
+                    "--label", OWNER_LABEL + "=" + OWNER, "--label", TOKEN_LABEL + "=" + self.token,
+                    "--user", f"{request.user_uid}:{request.user_gid}",
+                    "--rm", "--restart", "no", "--no-healthcheck"]
         if request.confine:
-            from . import confinement
+            from .confinement import arguments
 
-            args.extend(confinement.arguments())
+            yield from arguments()
         if request.userns_mode == "host":
-            args.append("--userns=host")
-        return args + ["--entrypoint", request.interpreter, self.image_id, *self.command]
+            yield "--userns=host"
+        yield from ["--entrypoint", request.interpreter, self.image_id, *self.command]
 
     def verify(self, container, cid: str) -> None:
         request = self.request
@@ -76,6 +77,6 @@ class ProbeSpec:
                 or isolation["RestartPolicy"].get("Name") not in ("", "no")):
             raise StepError("ownership", "probe cleanup or restart policy changed")
         if request.confine:
-            from . import confinement
+            from .confinement import verify
 
-            confinement.verify(container)
+            verify(container)

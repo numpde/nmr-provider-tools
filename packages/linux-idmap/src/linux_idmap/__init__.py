@@ -1,5 +1,5 @@
-"""Kernel-reported Linux ID maps; stronger guarantees are explicit add-ons."""
+"""Linux UID/GID rows and explicit affine mapping values."""
 
-from .core import IdMap, IdRange, Maps, observe_process, parse_map, read_maps
+from .core import Identifier, IdMap, IdRange, MapRows, observe_process, parse_map, read_maps
 
-__all__ = ["IdMap", "IdRange", "Maps", "observe_process", "parse_map", "read_maps"]
+__all__ = ["Identifier", "IdMap", "IdRange", "MapRows", "observe_process", "parse_map", "read_maps"]

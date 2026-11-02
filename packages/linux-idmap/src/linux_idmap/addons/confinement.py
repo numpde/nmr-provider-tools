@@ -4,6 +4,8 @@ This checks requested and reported Docker configuration. It is not a claim that
 unit tests establish the engine's runtime sandbox enforcement.
 """
 
+from collections.abc import Iterator
+
 from .model import StepError
 
 
@@ -17,13 +19,11 @@ _RESTRICTIONS = (
 )
 
 
-def arguments() -> list[str]:
-    result = []
+def arguments() -> Iterator[str]:
     for flag, value, _field, _expected in _RESTRICTIONS:
-        result.append(flag)
+        yield flag
         if value is not None:
-            result.append(value)
-    return result
+            yield value
 
 
 def verify(container) -> None:

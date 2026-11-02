@@ -8,7 +8,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, fields
 import json
-import math
 import os
 import re
 import selectors
@@ -21,7 +20,8 @@ import time
 from typing import Mapping
 
 
-from .spec import OWNER_LABEL, TOKEN_LABEL, ISOLATION_FIELDS, ProbeSpec
+from ._files import FileIdentity
+from .spec import OWNER_LABEL, TOKEN_LABEL, ISOLATION_FIELDS
 # Transport memory bound, not an engine-selected setting; output-limit tests exercise refusal.
 # repo-check: allow-module-constant
 OUTPUT_LIMIT = 65536
@@ -36,8 +36,8 @@ TOKEN_PATTERN = re.compile(r"(?:[0-9a-f]{32}|[0-9a-f]{64})\Z")
 IMAGE_PATTERN = re.compile(r"sha256:[0-9a-f]{64}\Z")
 # Fixed minimal Docker evidence projection; raw engine output never becomes diagnostics.
 # repo-check: allow-module-constant
-INFO_FORMAT = ('[{{json .ID}},{{json .SecurityOptions}},{{json .DockerRootDir}},'
-               '{{json .Driver}},{{json .OSType}}]')
+INFO_FORMAT = ('{"daemon_id":{{json .ID}},"security_options":{{json .SecurityOptions}},'
+               '"root_dir":{{json .DockerRootDir}},"driver":{{json .Driver}},"os_type":{{json .OSType}}}')
 # Fixed ownership/isolation evidence projection shared with ProbeSpec.verify.
 # repo-check: allow-module-constant
 INSPECT_FORMAT = (
@@ -56,13 +56,27 @@ INSPECT_FORMAT = (
 class DockerError(Exception):
     """A stable, redacted failure; uncertain mutation must be reconciled."""
 
-    # silent-defaults: allow-contract -- Error objects describe nonmutating failures unless dispatch records uncertainty; cleanup_failures is an immutable empty diagnostic inventory; tests/test_docker.py::CommandTests.
-    def __init__(self, category: str, message: str, *, mutation_uncertain: bool = False,
-                 cleanup_failures: tuple[str, ...] = ()):
+    # silent-defaults: allow-contract -- Dispatch marks uncertain mutations; failures before dispatch do not imply creation.
+    def __init__(self, category: str, message: str, *, mutation_uncertain: bool = False):
         super().__init__(message)
         self.category = category
         self.mutation_uncertain = mutation_uncertain
-        self.cleanup_failures = cleanup_failures
+
+
+def _command_failure(*errors: BaseException, mutation_uncertain: bool) -> BaseExceptionGroup:
+    """Group failures without changing foreign exceptions or swallowing interrupts."""
+    failure = BaseExceptionGroup("Docker client failures.", errors)
+    failure.mutation_uncertain = mutation_uncertain
+    return failure
+
+
+def _close_error(resource) -> BaseException | None:
+    """Attempt one close without preventing the remaining resources from closing."""
+    try:
+        resource.close()
+    except BaseException as error:
+        return error
+    return None
 
 
 def _clean_environment(source: Mapping[str, str]) -> dict[str, str]:
@@ -72,7 +86,7 @@ def _clean_environment(source: Mapping[str, str]) -> dict[str, str]:
 
 
 def _deadline(timeout: float) -> float:
-    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not math.isfinite(timeout) or not 0 < timeout <= 3600:
+    if isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or not 0 < timeout <= 3600:
         raise DockerError("invalid_policy", "Command timeout must be finite and between zero and 3600 seconds.")
     return time.monotonic() + timeout
 
@@ -84,32 +98,79 @@ def _remaining(deadline: float) -> float:
     return result
 
 
+def _peek_exit(process: subprocess.Popen):
+    """Observe exit without freeing the PID that pins our private process group."""
+    try:
+        return os.waitid(os.P_PID, process.pid, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+    except ChildProcessError as error:
+        raise DockerError("client_cleanup", "Docker child wait ownership was lost.") from error
+
+
+def _reap(process: subprocess.Popen) -> None:
+    deadline = time.monotonic() + 1
+    try:
+        while True:
+            pid, status = os.waitpid(process.pid, os.WNOHANG)
+            if pid:
+                process.returncode = os.waitstatus_to_exitcode(status)
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise DockerError("client_cleanup", "Docker client exit could not be confirmed.")
+            time.sleep(min(0.01, remaining))
+    except DockerError:
+        raise
+    except OSError as error:
+        raise DockerError("client_cleanup", "Docker child could not be reaped.") from error
+    except BaseException as error:
+        raise _command_failure(error, DockerError("client_cleanup", "Docker child reaping was interrupted."),
+                             mutation_uncertain=False) from error
+
+
 def _terminate(process: subprocess.Popen) -> None:
-    # A private process group also contains any child spawned by a CLI wrapper.
+    """Signal the owned group before reaping its leader, even after normal exit."""
+    failure = None
     try:
-        os.killpg(process.pid, signal.SIGKILL)
-    # silent-defaults: allow-contract -- An already-exited process group needs no kill; wait still confirms the direct child below; tests/test_docker.py::CommandTests.
-    except ProcessLookupError:
-        pass
-    except OSError as exc:
-        raise DockerError("client_cleanup", "Docker client termination could not be confirmed.", mutation_uncertain=True) from exc
+        _peek_exit(process)
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        # silent-defaults: allow-contract -- A vanished group needs no signal; its waitable leader must still be reaped.
+        except ProcessLookupError:
+            pass
+    except DockerError:
+        # Another waiter consumed the child: its numeric group may be reused.
+        raise
+    except OSError as error:
+        failure = DockerError("client_cleanup", "Docker client group termination could not be confirmed.")
+        failure.__cause__ = error
+    except BaseException as error:
+        failure = _command_failure(error, DockerError("client_cleanup", "Docker client retirement was interrupted."),
+                                 mutation_uncertain=False)
     try:
-        process.wait(timeout=1)
-    except subprocess.TimeoutExpired as exc:
-        raise DockerError("client_cleanup", "Docker client exit could not be confirmed.", mutation_uncertain=True) from exc
+        _reap(process)  # A failed signal must not skip reaping an already-exited child.
+    except BaseException as error:
+        if failure is not None:
+            raise _command_failure(failure, error, mutation_uncertain=False) from failure
+        raise
+    if failure is not None:
+        raise failure
 
 
 # silent-defaults: allow-contract -- Read-only commands are the transport baseline; mutation callers explicitly opt into uncertain-dispatch reporting; tests/test_docker.py::CommandTests.
 def _run_command(argv: list[str], *, env: Mapping[str, str], timeout: float,
                  cancel: threading.Event | None = None, mutation: bool = False) -> str:
-    """Stream at most OUTPUT_LIMIT bytes across both pipes; kill/reap on failure.
+    """Bound both output pipes; signal the private group and reap its leader.
 
-    A client exit/kill is never proof that an engine-side mutation did not happen.
-    The caller owns reconciliation from its retained operation token.
+    This operation exclusively owns waiting for its child: no SIGCHLD auto-reap
+    or competing waiter. It confirms only the direct child's exit, not every
+    descendant's exit. An interrupted spawn may return no child handle; its
+    mutation remains uncertain. Client exit never establishes engine-side outcome.
     """
     deadline = _deadline(timeout)
     if cancel is not None and cancel.is_set():
         raise DockerError("cancelled", "Docker operation was cancelled before dispatch.")
+    if signal.getsignal(signal.SIGCHLD) == signal.SIG_IGN:
+        raise DockerError("invalid_policy", "Docker client supervision requires waitable children.")
     # Allocate the polling resource before spawn: a selector allocation failure
     # must not strand a client that may already have submitted a mutation.
     try:
@@ -118,31 +179,39 @@ def _run_command(argv: list[str], *, env: Mapping[str, str], timeout: float,
         raise DockerError("client_unavailable", "Cannot prepare bounded Docker client supervision.") from exc
     output = bytearray()
     size = 0
-    reaped = False
+    spawn_requested = False
     try:
+        # Preparation may consume the budget or receive cancellation.
+        if cancel is not None and cancel.is_set():
+            raise DockerError("cancelled", "Docker operation was cancelled before dispatch.")
+        _remaining(deadline)
+        spawn_requested = True
         process = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE, env=dict(env), start_new_session=True)
-    except BaseException as exc:
-        selector.close()
-        if isinstance(exc, OSError):
-            raise DockerError("docker_unavailable", "Cannot execute the Docker client.") from exc
-        raise
+    except BaseException as error:
+        # Even OSError can come from a signal handler after Popen created a child.
+        uncertain = mutation and spawn_requested
+        operation = error
+        if spawn_requested and isinstance(error, OSError):
+            operation = DockerError("docker_unavailable", "Docker client startup did not complete.",
+                                    mutation_uncertain=uncertain)
+            operation.__cause__ = error
+        cleanup = _close_error(selector)
+        if cleanup is not None:
+            raise _command_failure(operation, cleanup, mutation_uncertain=uncertain) from operation
+        if spawn_requested and operation is error and isinstance(error, (DockerError, BaseExceptionGroup)):
+            raise _command_failure(error, mutation_uncertain=uncertain) from error
+        raise operation
+    operation_error = retirement_error = None
     try:
         for stream in (process.stdout, process.stderr):
             os.set_blocking(stream.fileno(), False)
             selector.register(stream, selectors.EVENT_READ)
+        events = ()
         while True:
             if cancel is not None and cancel.is_set():
                 raise DockerError("cancelled", "Docker operation was cancelled.")
-            wait = min(0.05, _remaining(deadline))
-            if not selector.get_map():
-                try:
-                    status = process.wait(timeout=wait)
-                except subprocess.TimeoutExpired:
-                    continue
-                reaped = True
-                break
-            for key, _ in selector.select(wait):
+            for key, _ in events:
                 chunk = os.read(key.fd, 8192)
                 if not chunk:
                     selector.unregister(key.fileobj)
@@ -152,26 +221,35 @@ def _run_command(argv: list[str], *, env: Mapping[str, str], timeout: float,
                     raise DockerError("output_limit", "Docker command exceeded its output bound.")
                 if key.fileobj is process.stdout:
                     output.extend(chunk)
-        if status != 0:
+            exited = _peek_exit(process)
+            if exited is not None and not selector.get_map():
+                break
+            events = selector.select(min(0.05, _remaining(deadline)))
+        if exited.si_code != os.CLD_EXITED or exited.si_status != 0:
             raise DockerError("docker_command", "Docker command did not report success.")
         try:
-            return output.decode("utf-8", errors="strict")
+            decoded = output.decode("utf-8", errors="strict")
         except UnicodeError as exc:
             raise DockerError("invalid_response", "Docker command returned non-UTF-8 output.") from exc
-    except BaseException as exc:
-        if not reaped:
-            try:
-                _terminate(process)
-            except DockerError as cleanup:
-                exc.add_note(str(cleanup))
-                exc.cleanup_failures = (*getattr(exc, "cleanup_failures", ()), cleanup.category)
-        if isinstance(exc, DockerError) and mutation:
-            exc.mutation_uncertain = True
-        raise
+    except BaseException as error:
+        operation_error = error
     finally:
-        selector.close()
-        process.stdout.close()
-        process.stderr.close()
+        try:
+            _terminate(process)
+        except BaseException as error:
+            retirement_error = error
+        finally:
+            # Evaluate every close eagerly, even when an earlier one fails.
+            close_errors = [_close_error(selector), _close_error(process.stdout), _close_error(process.stderr)]
+    errors = [error for error in (operation_error, retirement_error, *close_errors) if error is not None]
+    if errors:
+        first = errors[0]
+        if len(errors) > 1 or isinstance(first, BaseExceptionGroup):
+            raise _command_failure(*errors, mutation_uncertain=mutation) from first
+        if isinstance(first, DockerError):
+            first.mutation_uncertain = mutation
+        raise first
+    return decoded
 
 
 def _json(text: str):
@@ -201,41 +279,50 @@ def _token(value: str) -> None:
         raise DockerError("invalid_identity", "A random 128-bit or 256-bit hexadecimal operation token is required.")
 
 
-def _socket_identity(path: str) -> tuple[int, int]:
+def _socket_identity(path: str) -> FileIdentity:
     try:
         info = os.stat(path)
     except OSError as exc:
         raise DockerError("engine_changed", "The selected local Docker socket is unavailable.") from exc
     if not stat.S_ISSOCK(info.st_mode):
         raise DockerError("unsupported_engine", "The selected Docker endpoint is not a Unix socket.")
-    return info.st_dev, info.st_ino
+    return FileIdentity.of(info)
 
 
-def _fingerprint(text: str) -> tuple[str, tuple[str, ...], str, str, str]:
-    values = _json(text)
-    if (not isinstance(values, list) or len(values) != 5 or
-        not all(_text(values[i]) and values[i] for i in (0, 2, 3, 4))):
-        raise DockerError("invalid_response", "Docker returned an invalid engine identity.")
-    # silent-defaults: allow-contract -- Moby emits a nil SecurityOptions slice when no features append; null and [] both encode no entries, not missing policy; tests/test_docker.py::EngineTests.test_null_and_empty_security_options_are_equivalent_but_change_is_not.
-    security_options = [] if values[1] is None else values[1]
-    if (not isinstance(security_options, list) or len(security_options) > 32 or
-            not all(_text(x, 512) for x in security_options)):
-        raise DockerError("invalid_response", "Docker returned an invalid engine identity.")
-    if values[4] != "linux":
-        raise DockerError("unsupported_engine", "Only local Linux Docker engines are supported.")
-    return values[0], tuple(sorted(security_options)), values[2], values[3], values[4]
+@dataclass(frozen=True)
+class EngineInfo:
+    """The daemon settings that must stay fixed throughout a probe operation."""
+
+    daemon_id: str
+    security_options: tuple[str, ...]
+    root_dir: str
+    driver: str
+    os_type: str
+
+    @classmethod
+    def of(cls, text: str) -> EngineInfo:
+        value = _json(text)
+        if not isinstance(value, dict) or set(value) != {field.name for field in fields(cls)}:
+            raise DockerError("invalid_response", "Docker returned an invalid engine identity.")
+        if any(not _text(value[key]) or not value[key]
+               for key in ("daemon_id", "root_dir", "driver", "os_type")):
+            raise DockerError("invalid_response", "Docker returned an invalid engine identity.")
+        # silent-defaults: allow-contract -- Moby emits null for a nil SecurityOptions slice; null and [] both mean no entries. See test_docker.py::EngineTests.test_null_and_empty_security_options_are_equivalent_but_change_is_not.
+        options = [] if value["security_options"] is None else value["security_options"]
+        if (not isinstance(options, list) or len(options) > 32
+                or not all(_text(option, 512) for option in options)):
+            raise DockerError("invalid_response", "Docker returned an invalid engine identity.")
+        if value["os_type"] != "linux":
+            raise DockerError("unsupported_engine", "Only local Linux Docker engines are supported.")
+        value["security_options"] = tuple(sorted(options))
+        return cls(**value)
 
 
 @dataclass(frozen=True)
 class EngineIdentity:
     endpoint: str
-    daemon_id: str
-    socket_device: int
-    socket_inode: int
-    security_options: tuple[str, ...]
-    docker_root_dir: str
-    storage_driver: str
-    os_type: str
+    socket: FileIdentity
+    info: EngineInfo
 
 
 @dataclass(frozen=True)
@@ -310,26 +397,33 @@ class DockerEngine:
         # Keep the caller's absolute path, including symlinks: subsequent
         # caller commands use this spelling, so every guard must follow it.
         socket_path = endpoint[7:]
-        device, inode = _socket_identity(socket_path)
+        socket = _socket_identity(socket_path)
         environment = _clean_environment(os.environ)
         directory = tempfile.TemporaryDirectory(prefix="linux-idmap-client-")
         try:
             argv = [executable, "--config", directory.name, "--host", endpoint, "info", "--format", INFO_FORMAT]
-            fingerprint = _fingerprint(_run_command(argv, env=environment, timeout=_remaining(deadline), cancel=cancel))
-            if (device, inode) != _socket_identity(socket_path):
+            info = EngineInfo.of(_run_command(argv, env=environment, timeout=_remaining(deadline), cancel=cancel))
+            if socket != _socket_identity(socket_path):
                 raise DockerError("engine_changed", "The selected Docker socket changed while resolving its identity.")
-            daemon_id, security_options, root_dir, driver, os_type = fingerprint
-            identity = EngineIdentity(endpoint, daemon_id, device, inode, security_options, root_dir, driver, os_type)
+            identity = EngineIdentity(endpoint, socket, info)
             return cls(identity, directory, executable, environment)
-        except BaseException:
-            directory.cleanup()
+        except BaseException as operation:
+            try:
+                directory.cleanup()
+            except BaseException as cleanup:
+                raise _command_failure(operation, cleanup, mutation_uncertain=False) from operation
             raise
 
     def __enter__(self) -> DockerEngine:
         return self
 
-    def __exit__(self, *_args) -> None:
-        self.close()
+    def __exit__(self, _kind, operation, _traceback) -> None:
+        try:
+            self.close()
+        except BaseException as cleanup:
+            if operation is not None:
+                raise _command_failure(operation, cleanup, mutation_uncertain=True) from operation
+            raise
 
     def close(self) -> None:
         self._directory.cleanup()
@@ -341,17 +435,15 @@ class DockerEngine:
         return [self._executable, "--config", self._directory.name, "--host", self.identity.endpoint, *args]
 
     def _socket_check(self) -> None:
-        if _socket_identity(self.identity.endpoint[7:]) != (self.identity.socket_device, self.identity.socket_inode):
+        if _socket_identity(self.identity.endpoint[7:]) != self.identity.socket:
             raise DockerError("engine_changed", "The selected Docker socket identity changed.")
 
     def assert_unchanged(self, *, timeout: float, cancel: threading.Event | None = None) -> None:
         deadline = _deadline(timeout)
         self._socket_check()
-        value = _fingerprint(_run_command(self._argv(["info", "--format", INFO_FORMAT]),
+        value = EngineInfo.of(_run_command(self._argv(["info", "--format", INFO_FORMAT]),
                                          env=self._environment, timeout=_remaining(deadline), cancel=cancel))
-        expected = (self.identity.daemon_id, self.identity.security_options, self.identity.docker_root_dir,
-                    self.identity.storage_driver, self.identity.os_type)
-        if value != expected:
+        if value != self.identity.info:
             raise DockerError("engine_changed", "The selected Docker daemon identity or namespace configuration changed.")
         self._socket_check()
 
@@ -367,8 +459,10 @@ class DockerEngine:
             completed = True
             self.assert_unchanged(timeout=_remaining(deadline), cancel=cancel)
             return result
-        except DockerError as exc:
+        except (DockerError, BaseExceptionGroup) as exc:
             if completed and mutation:
+                if isinstance(exc, BaseExceptionGroup):
+                    raise _command_failure(exc, mutation_uncertain=True) from exc
                 exc.mutation_uncertain = True
             raise
 
@@ -382,9 +476,9 @@ class DockerEngine:
             raise DockerError("invalid_policy", "The approved probe image must not declare implicit volumes.")
         return value[0]
 
-    def create(self, spec: ProbeSpec, *, timeout: float,
+    def create(self, arguments: list[str], *, timeout: float,
                cancel: threading.Event | None = None) -> str:
-        value = self._call(spec.create_arguments(), timeout=timeout, cancel=cancel, mutation=True).strip()
+        value = self._call(arguments, timeout=timeout, cancel=cancel, mutation=True).strip()
         try:
             _cid(value)
         except DockerError as exc:

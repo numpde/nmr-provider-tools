@@ -1,17 +1,20 @@
 """A deterministic engine/host pair for lifecycle tests, not Docker qualification."""
 
 from dataclasses import replace
+from types import SimpleNamespace
 
-from linux_idmap.addons.docker import Container, EngineIdentity
+from linux_idmap.addons.docker import Container, EngineIdentity, EngineInfo
 from linux_idmap.core import IdRange
+from linux_idmap.addons._files import FileIdentity
 from linux_idmap import IdMap
 from linux_idmap.addons.observation import ProcessObservation
+from linux_idmap.addons.host import ProcessIdentity
 from linux_idmap.addons.model import Bounds, ProbeRequest
 from linux_idmap.addons.spec import OWNER
 
 CID = "c" * 64
 IMAGE = "sha256:" + "a" * 64
-OBSERVATION = ProcessObservation(42, 123, 7, 99,
+OBSERVATION = ProcessObservation(ProcessIdentity(42, 123, FileIdentity(7, 99)),
     IdMap((IdRange(0, 100000, 65536),)), IdMap((IdRange(0, 200000, 65536),)))
 
 
@@ -38,7 +41,8 @@ def container_for(spec):
 
 
 class Engine:
-    identity = EngineIdentity("unix:///test.sock", "engine", 1, 2, (), "/var/lib/docker", "overlay2", "linux")
+    identity = EngineIdentity("unix:///test.sock", FileIdentity(1, 2),
+                              EngineInfo("engine", (), "/var/lib/docker", "overlay2", "linux"))
 
     def __init__(self):
         self.events = []
@@ -51,9 +55,21 @@ class Engine:
         self.events.append("image")
         return IMAGE
 
-    def create(self, spec, **kwargs):
+    def create(self, arguments, **kwargs):
         self.events.append("create")
-        self.spec = spec
+        self.arguments = arguments
+        def option(name):
+            return arguments[arguments.index(name) + 1]
+        labels = dict(arguments[index + 1].split("=", 1)
+                      for index, value in enumerate(arguments) if value == "--label")
+        image_index = arguments.index("--entrypoint") + 2
+        uid, gid = option("--user").split(":")
+        policy = SimpleNamespace(user_uid=uid, user_gid=gid, interpreter=option("--entrypoint"),
+                                 userns_mode="host" if "--userns=host" in arguments else "default",
+                                 confine="--read-only" in arguments)
+        spec = SimpleNamespace(name=option("--name"), image_id=arguments[image_index],
+                               token=labels["linux-idmap.token"], request=policy,
+                               command=tuple(arguments[image_index + 1:]))
         if not self.hide_creation:
             self.container = container_for(spec)
         if self.on_create:
@@ -110,7 +126,7 @@ class Guard:
         return self.observation
 
     def identify(self, pid, token):
-        return self.observation
+        return self.observation.identity
 
     def pid_absent(self, pid):
         return self.retired

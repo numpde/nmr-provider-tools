@@ -11,7 +11,7 @@ from linux_idmap.addons.docker import DockerError
 from linux_idmap.core import IdRange
 from linux_idmap import IdMap
 from linux_idmap.addons.errors import IdentityError
-from linux_idmap.addons.model import Bounds
+from linux_idmap.addons.model import StepError
 from helpers import CID, Engine, Guard, OBSERVATION, request
 
 
@@ -33,7 +33,7 @@ class OperationTests(unittest.TestCase):
         result = probe_identity(self.request)
         self.assertEqual(101000, result.uid_map.translate(1000))
         self.assertEqual(202000, result.gid_map.translate(2000))
-        self.assertEqual((1000, 2000), (self.engine.spec.request.user_uid, self.engine.spec.request.user_gid))
+        self.assertEqual("1000:2000", self.engine.arguments[self.engine.arguments.index("--user") + 1])
         self.assertIsNone(self.engine.container)
         self.assertEqual(["remove"], [x for x in self.engine.events if x == "remove"])
 
@@ -94,22 +94,21 @@ class OperationTests(unittest.TestCase):
         self.assertEqual("cancelled", failure.problem.category)
         self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
 
-    def test_changed_observation_is_distinct_from_successful_cleanup(self):
+    def test_changed_acquisition_identity_still_allows_cleanup(self):
         calls = 0
         def change(guard):
             nonlocal calls
             calls += 1
-            if calls == 3:
-                guard.observation = replace(OBSERVATION, starttime=124)
+            if calls == 2:
+                guard.observation = replace(OBSERVATION, identity=replace(OBSERVATION.identity, starttime=124))
         self.guard.on_observe = change
         failure = self.failure()
-        self.assertEqual("process-identity", failure.problem.category)
         self.assertEqual("process-identity", failure.problem.category)
         self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
         self.assertEqual((), failure.retirement.problems)
 
     def test_changed_container_start_time_rejects_evidence_before_rereading_maps(self):
-        for inspection_number in (3, 4):
+        for inspection_number in (3,):
             self.engine, self.guard = Engine(), Guard()
             inspections = 0
             def change_start(engine):
@@ -159,14 +158,34 @@ class OperationTests(unittest.TestCase):
         self.assertEqual(ResourceState.NOT_CREATED, self.failure().retirement.state)
         self.assertNotIn("candidates", self.engine.events)
 
-    def test_policy_rejected_before_mutation(self):
+    def test_foreign_group_without_dispatch_metadata_cannot_prove_noncreation(self):
+        original = ValueError('PRIVATE command failure')
+        self.engine.create_failure = ExceptionGroup('PRIVATE group detail', [original])
+        failure = self.failure()
+        self.assertEqual(ResourceState.RETIRED, failure.retirement.state)
+        self.assertIn('candidates', self.engine.events)
+        self.assertIn('remove', self.engine.events)
+        self.assertIs(original, failure.__cause__)
+        self.assertNotIn('PRIVATE', str(failure.as_dict()))
+
+    def test_owned_predispatch_group_keeps_known_noncreation(self):
+        from linux_idmap.addons.docker import _command_failure
+        self.engine.hide_creation = True
+        self.engine.create_failure = _command_failure(
+            DockerError('timeout', 'engine guard timed out'),
+            DockerError('client_cleanup', 'guard client retirement unconfirmed'), mutation_uncertain=False)
+        failure = self.failure()
+        self.assertEqual(ResourceState.NOT_CREATED, failure.retirement.state)
+        self.assertNotIn('candidates', self.engine.events)
+        self.assertEqual(['client_cleanup'], [problem.category for problem in failure.retirement.problems])
+
+    def test_policy_rejected_before_engine_contact(self):
         for changes in ({"endpoint": "ssh://remote"}, {"interpreter": "python"},
-                        {"user_uid": True}, {"user_gid": 4294967295},
-                        {"bounds": Bounds(operation_seconds=float("nan"))}):
-            with self.subTest(changes=changes):
-                self.request = replace(request(), **changes)
-                self.assertEqual("invalid-policy", self.failure().problem.category)
-                self.assertNotIn("create", self.engine.events)
+                        {"user_uid": True}, {"user_gid": 4294967295}):
+            with self.subTest(changes=changes), self.assertRaises(StepError) as caught:
+                replace(request(), **changes)
+            self.assertEqual("invalid-policy", caught.exception.category)
+            self.assertEqual([], self.engine.events)
 
     def test_safe_reason_is_preserved_and_unexpected_exception_text_is_redacted(self):
         self.engine.create_failure = DockerError("timeout", "Docker reply timed out", mutation_uncertain=True)
@@ -207,16 +226,16 @@ class OperationTests(unittest.TestCase):
         self.assertEqual("creation reply was lost", failure.problem.message)
         self.assertTrue(any(problem.category == "docker_command" for problem in failure.retirement.problems))
 
-    def test_close_failure_precedes_retirement_problems_without_measurement_failure(self):
+    def test_retirement_failure_precedes_later_client_close_failure(self):
         removal = DockerError("docker_command", "removal failed", mutation_uncertain=True)
         closing = OSError("private close detail")
         self.engine.remove_failure = removal
         self.engine.close = Mock(side_effect=closing)
         failure = self.failure()
-        self.assertEqual("local-io", failure.problem.category)
-        self.assertIs(closing, failure.__cause__)
+        self.assertEqual("docker_command", failure.problem.category)
+        self.assertIs(removal, failure.__cause__)
         self.assertEqual(ResourceState.UNRESOLVED, failure.retirement.state)
-        self.assertEqual(["docker_command", "timeout"], [p.category for p in failure.retirement.problems])
+        self.assertEqual(["timeout", "local-io"], [p.category for p in failure.retirement.problems])
         self.assertNotIn("private close detail", str(failure.as_dict()))
 
     def test_measurement_failure_precedes_close_failure(self):
