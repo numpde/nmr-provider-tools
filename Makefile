@@ -144,7 +144,7 @@ endif
 
 .PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
-.PHONY: delivery/deployment/up delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
+.PHONY: delivery/deployment/up delivery/deployment/update delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
 
@@ -178,6 +178,7 @@ help:
 	  'make tests/deployment/route/literal SHARED_RUNTIME_IMAGE=sha256:... Qualify mapped IP authority through private API routes.' \
 	  'make tests/deployment SHARED_RUNTIME_IMAGE=sha256:... Qualify installed deployment rendering and proxy boundaries.' \
 	  'make delivery/deployment/up DEPLOYMENT=... Start or replace the outbox; retain its queue and the running proxy.' \
+	  'make delivery/deployment/update DEPLOYMENT=... WHEELHOUSE=... Prepare and apply the outbox release; retain its queue and running proxy.' \
 	  'make delivery/deployment/proxy/restart DEPLOYMENT=... Replace the proxy; active connections can be interrupted and its socket volume is retained.' \
 	  'make delivery/deployment/down PROJECT=... Stop shared delivery and preserve all volumes.' \
 	  'make delivery/deployment/status PROJECT=... Inspect installed service state.' \
@@ -260,6 +261,10 @@ tests/repository/command:
 	bash tools/repository.sh --print tests/repository
 
 delivery/deployment/up:
+	bash tools/delivery.sh up
+
+delivery/deployment/update:
+	bash tools/delivery_prepare.sh
 	bash tools/delivery.sh up
 
 delivery/deployment/proxy/restart:
