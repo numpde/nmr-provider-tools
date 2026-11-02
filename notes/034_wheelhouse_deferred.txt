@@ -7,6 +7,8 @@ items do not require another rollout before the current joint deployment:
 - Shared delivery still uses a selected-file BuildKit named context against
   the live pool. Its eventual streamed context should remove the builder's
   pool access while preserving the existing service and storage.
+- The provider-core repository's own legacy dependency-download target still
+  uses pip directly in the pool; its replacement needs cold-path qualification.
 - A wheel downloaded and discarded by a lock compiler for metadata may be
   fetched again by acquisition when the index lacks a metadata sidecar.
 - Cache-aware projection uses current index metadata and excludes yanked
