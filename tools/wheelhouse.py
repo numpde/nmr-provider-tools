@@ -23,10 +23,6 @@ import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 
-from pip._vendor.packaging.tags import sys_tags
-from pip._vendor.packaging.utils import InvalidWheelFilename, parse_wheel_filename
-from pip._vendor.packaging.version import Version
-
 from tools.artifacts import fsync_directory, regular_file, require_download_proxy
 
 # repo-check: allow-module-constant
@@ -190,6 +186,10 @@ def populate_pool(lock, pool):
 
 
 def _populate_pool(lock, pool, lock_fd):
+    from pip._vendor.packaging.tags import sys_tags
+    from pip._vendor.packaging.utils import InvalidWheelFilename, parse_wheel_filename
+    from pip._vendor.packaging.version import Version
+
     locked = {(name, Version(version)): hashes for (name, version), hashes in requirements(lock).items()}
     try:
         select_wheels(lock, pool, lock_fd=lock_fd)
