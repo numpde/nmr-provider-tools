@@ -12,7 +12,8 @@ if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot build shared delivery: use a nonzero caller and repository path without mount delimiters.' >&2; exit 2
 fi
 inputs=(tools/base_image.sh tools/container_guard.py tools/artifacts.py tools/wheelhouse.py tools/core_environment.py
-    tools/delivery_image.py tools/delivery_deployment.py requirements/provider-core.lock requirements/delivery-release.json
+    tools/delivery_image.py tools/delivery_deployment.py tools/provider_core_acquire.py tools/delivery_stream_inputs.py
+    requirements/provider-core.lock requirements/delivery-release.json requirements/wheelhouse-tool-release.json
     containers/delivery/Dockerfile containers/delivery/check_runtime.py)
 source "$root/tools/checker_operation.sh"
 source "$root/tools/checker_inputs.sh"
@@ -53,11 +54,27 @@ checker_run 120 --pull never --network none --read-only --user "$checker_host_ui
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
     --mount "type=bind,src=$context,dst=/capture" \
     --entrypoint python3 "$build_base_image" -B -m tools.delivery_image capture --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --destination /capture
-for path in provider-core-install.lock provider-core-wheel-inputs.json containers/delivery/Dockerfile.selected; do
+for path in provider-core-install.lock provider-core-wheel-inputs.json provider-core-stream.json containers/delivery/Dockerfile.selected; do
     [[ -f $context/$path && ! -L $context/$path ]] || exit 2
     checker_input_paths+=("$path")
 done
 fingerprint=$(root=$context checker_fingerprint)
+if ! python3 -I -S -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
+    operation_diagnostic+=$'Cannot build shared delivery: host Python 3.11 or newer is needed to stream build inputs.\n'; exit 2
+fi
+tool_pin=$(python3 -I -S "$context/tools/delivery_stream_inputs.py" "$context" \
+    "$operation_directory/source-allowlist.json" "${checker_input_paths[@]}")
+[[ $(root=$context checker_fingerprint) == "$fingerprint" ]] || {
+    operation_diagnostic+=$'Cannot build shared delivery: captured inputs changed before streaming.\n'; exit 2;
+}
+read -r tool_name tool_hash <<< "$tool_pin"
+[[ $tool_name =~ ^wheelhouse-tool-[0-9.]+\.pyz$ && $tool_hash =~ ^[0-9a-f]{64}$ ]] || {
+    operation_diagnostic+=$'Cannot build shared delivery: the wheelhouse tool pin is invalid.\n'; exit 2;
+}
+if [[ ! -f $wheelhouse_directory/$tool_name || -L $wheelhouse_directory/$tool_name ]] \
+    || [[ $(sha256sum -- "$wheelhouse_directory/$tool_name" | cut -d' ' -f1) != "$tool_hash" ]]; then
+    operation_diagnostic+=$'Cannot build shared delivery: acquire the pinned wheelhouse tool with make delivery/prepare.\n'; exit 2
+fi
 # BuildKit cannot resolve a config ID in FROM. Give this operation a private tag
 # for that exact image; the tag and inputs remain if build retirement is uncertain.
 base_tag="nmr-provider-tools/base-operation:${operation_directory##*.}"
@@ -82,9 +99,14 @@ checker_metadata "$operation_directory/base-tag" image inspect --format '{{.Id}}
 if ! cmp -s "$operation_directory/base-tag" <(printf '%s\n' "$build_base_image"); then
     operation_diagnostic+=$'Cannot build shared delivery: the operation base tag does not identify the pinned image.\n'; exit 2
 fi
-checker_call 'offline shared delivery image build' 900 stdio "${engine[@]}" build --builder default --platform linux/amd64 \
-    --network none --pull=false --build-context "wheelhouse=$wheelhouse_directory" --build-arg "BASE_IMAGE=$base_tag" --label "org.nmr-provider-tools.inputs=$fingerprint" --label "org.nmr-provider-tools.recipe=$recipe" --label org.nmr-provider-tools.role=delivery \
-    --iidfile "$operation_directory/built-image" --file "$context/containers/delivery/Dockerfile.selected" "$context"
+checker_call 'offline shared delivery image build' 900 stdio bash -o pipefail -c '
+    tool=$1 pool=$2 allowlist=$3 manifest=$4
+    shift 4
+    python3 -I -S "$tool" stream --pool "$pool" --source-allowlist "$allowlist" --manifest "$manifest" | "$@"
+' bash "$wheelhouse_directory/$tool_name" "$wheelhouse_directory" "$operation_directory/source-allowlist.json" \
+    "$context/provider-core-stream.json" "${engine[@]}" build --builder default --platform linux/amd64 \
+    --network none --pull=false --build-arg "BASE_IMAGE=$base_tag" --label "org.nmr-provider-tools.inputs=$fingerprint" --label "org.nmr-provider-tools.recipe=$recipe" --label org.nmr-provider-tools.role=delivery \
+    --iidfile "$operation_directory/built-image" --file containers/delivery/Dockerfile.selected -
 image=
 if [[ -f $operation_directory/built-image && ! -L $operation_directory/built-image && $(stat -c %s -- "$operation_directory/built-image") -le 72 ]]; then
     if IFS= read -r -N 71 image < "$operation_directory/built-image"; then :; else image=; fi

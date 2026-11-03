@@ -5,7 +5,6 @@ from tools.container_guard import require_container
 require_container()
 
 import hashlib
-import io
 import json
 import tempfile
 import unittest
@@ -32,29 +31,30 @@ class DeliveryReleaseTests(unittest.TestCase):
         self.wheel.write_bytes(self.content)
         inode = self.wheel.stat().st_ino
         with patch.object(delivery_image, "require_download_proxy", side_effect=AssertionError("network not needed")):
-            delivery_image.acquire_release(None, None, self.pool)
+            delivery_image.acquire_release(None, None, self.pool, Path("unused.pyz"))
         self.assertEqual(inode, self.wheel.stat().st_ino)
         self.assertEqual(self.content, self.wheel.read_bytes())
 
     def test_conflicting_cached_wheel_is_preserved(self):
         self.wheel.write_bytes(b"different")
         with self.assertRaisesRegex(ValueError, "existing file retained"):
-            delivery_image.acquire_release(None, None, self.pool)
+            delivery_image.acquire_release(None, None, self.pool, Path("unused.pyz"))
         self.assertEqual(b"different", self.wheel.read_bytes())
 
-    def test_missing_release_is_downloaded_and_published(self):
+    def test_missing_release_is_passed_to_shared_publisher(self):
         with patch.object(delivery_image, "require_download_proxy"), patch.object(
-            delivery_image.urllib.request, "urlopen", return_value=io.BytesIO(self.content)
-        ):
-            delivery_image.acquire_release(None, None, self.pool)
-        self.assertEqual(self.content, self.wheel.read_bytes())
+            delivery_image, "publish_release_wheels"
+        ) as publish:
+            delivery_image.acquire_release(None, None, self.pool, Path("tool.pyz"))
+        self.assertEqual(self.wheel.name, publish.call_args.args[2][0][0])
+        self.assertEqual(self.digest, publish.call_args.args[2][0][1])
 
-    def test_bad_download_is_not_published(self):
+    def test_publisher_failure_is_reported(self):
         with patch.object(delivery_image, "require_download_proxy"), patch.object(
-            delivery_image.urllib.request, "urlopen", return_value=io.BytesIO(b"different")
+            delivery_image, "publish_release_wheels", side_effect=ValueError("downloaded bytes differ")
         ):
             with self.assertRaisesRegex(ValueError, "downloaded bytes"):
-                delivery_image.acquire_release(None, None, self.pool)
+                delivery_image.acquire_release(None, None, self.pool, Path("tool.pyz"))
         self.assertFalse(self.wheel.exists())
         self.assertEqual([], list(self.pool.iterdir()))
 
@@ -73,11 +73,13 @@ class DeliveryReleaseTests(unittest.TestCase):
             ), patch.object(delivery_image, "select_wheels", return_value=selected):
                 delivery_image.capture_image_inputs(None, None, self.pool, destination)
             self.assertEqual(
-                {"provider-core-install.lock", "provider-core-wheel-inputs.json", "containers"},
+                {"provider-core-install.lock", "provider-core-wheel-inputs.json", "provider-core-stream.json", "containers"},
                 {path.name for path in destination.iterdir()},
             )
             self.assertEqual(b"lock", (destination / "provider-core-install.lock").read_bytes())
             self.assertEqual(selected, json.loads((destination / "provider-core-wheel-inputs.json").read_text()))
+            self.assertEqual([{"directory": "wheelhouse", "filename": self.wheel.name, "sha256": self.digest}],
+                             json.loads((destination / "provider-core-stream.json").read_text()))
             self.assertIn(self.wheel.name, (dockerfile.parent / "Dockerfile.selected").read_text())
             self.assertEqual(inode, self.wheel.stat().st_ino)
 

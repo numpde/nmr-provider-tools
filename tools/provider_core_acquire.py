@@ -4,6 +4,7 @@ from tools.container_guard import require_container
 
 require_container()
 
+import json
 import subprocess
 import sys
 import tempfile
@@ -12,11 +13,6 @@ from pathlib import Path
 
 from tools.artifacts import require_download_proxy
 from tools.wheelhouse import digest, pool_lock, publish_file, requirements, select_wheels
-
-
-TOOL_NAME = "wheelhouse-tool-0.5.9.pyz"
-TOOL_SHA256 = "b504df2889d99ae122173a06e192b7e4310ea66e42a150059310a00a573abbe7"
-TOOL_URL = "https://github.com/numpde/nmr-provider-tools/releases/download/v0.5.9/" + TOOL_NAME
 
 
 def cache_state(pool, locks):
@@ -54,22 +50,29 @@ def cache_state(pool, locks):
     return "missing" if missing else "complete"
 
 
-def acquire_tool(pool):
-    path = pool / TOOL_NAME
+def tool_present(pool, pin):
+    path = pool / pin["name"]
+    if not path.exists() and not path.is_symlink():
+        return False
+    if digest(path) != pin["sha256"]:
+        raise ValueError("Cannot reuse the wheelhouse tool: its bytes differ from the pinned release.")
+    return True
+
+
+def acquire_tool(pool, pin):
+    path = pool / pin["name"]
     with pool_lock(pool, exclusive=True):
-        if path.exists() or path.is_symlink():
-            if digest(path) != TOOL_SHA256:
-                raise ValueError("Cannot reuse the wheelhouse tool: its bytes differ from the pinned release.")
+        if tool_present(pool, pin):
             return path
         require_download_proxy()
         with tempfile.NamedTemporaryFile(prefix=".wheelhouse-tool-", suffix=".part", dir=pool) as temporary:
-            with urllib.request.urlopen(TOOL_URL, timeout=60) as response:
+            with urllib.request.urlopen(pin["url"], timeout=60) as response:
                 while chunk := response.read(1024 * 1024):
                     temporary.write(chunk)
             temporary.flush()
-            if digest(Path(temporary.name)) != TOOL_SHA256:
+            if digest(Path(temporary.name)) != pin["sha256"]:
                 raise ValueError("Cannot acquire the wheelhouse tool: its bytes differ from the pinned release.")
-            publish_file(Path(temporary.name), path, TOOL_SHA256)
+            publish_file(Path(temporary.name), path, pin["sha256"])
     return path
 
 
@@ -79,7 +82,8 @@ def main():
     if sys.argv[1:] == ["check"]:
         print(cache_state(pool, locks))
         return
-    tool = acquire_tool(pool)
+    pin = json.loads(Path("/wheelhouse-tool-release.json").read_text())
+    tool = acquire_tool(pool, pin)
     with tempfile.TemporaryDirectory(prefix="provider-core-locks-") as temporary:
         for number, lock in enumerate(locks):
             projection = Path(temporary) / f"pylock.{number}.toml"

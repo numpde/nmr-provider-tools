@@ -13,9 +13,14 @@ checker_run 120 --pull never --network none --read-only --user "$uid:$gid" --cap
     --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly" \
     --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" \
     --mount "type=bind,src=$root/requirements/delivery-release.json,dst=/release.json,readonly" \
+    --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" \
     --mount "type=bind,src=$1,dst=/wheelhouse,readonly" \
     --entrypoint python3 "$base_image" -B -m tools.delivery_image check \
-    --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse > "$operation_directory/result"
+    --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --tool-pin /wheelhouse-tool-release.json > "$operation_directory/result"
+checker_metadata "$operation_directory/check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
+cmp -s "$operation_directory/check-exit" <(printf 'false 0\n') || {
+    operation_diagnostic+=$'Cannot inspect the delivery pool: the checker did not retire successfully.\n'; exit 2;
+}
 IFS= read -r result < "$operation_directory/result"
 [[ $result == complete || $result == missing ]] && cmp -s "$operation_directory/result" <(printf '%s\n' "$result")
 printf -v operation_success '%s\n' "$result"

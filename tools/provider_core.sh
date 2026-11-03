@@ -28,6 +28,7 @@ worker=(--pull never --read-only --user "$uid:$gid" --cap-drop ALL --security-op
     --mount "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly"
     --mount "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly")
 if [[ $action == download ]]; then
+    worker+=(--mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly")
     if ! "$printing"; then mkdir -p -- "$wheelhouse_directory"; fi
     network=(bash "$root/tools/docker.sh")
     if "$printing"; then network+=(--print); fi
@@ -42,6 +43,7 @@ if [[ $action == download ]]; then
         cp -- "$root/requirements/provider-core.lock" "$operation_directory/locks/core-runtime.lock"
         cp -- "$root/requirements/provider-core-build.lock" "$operation_directory/locks/core-build.lock"
         cp -- "$root/requirements/wheelhouse-tool.lock" "$operation_directory/locks/wheelhouse-tool.lock"
+        cp -- "$root/requirements/wheelhouse-tool-release.json" "$operation_directory/locks/wheelhouse-tool-release.json"
         for index in "${!worker[@]}"; do
             case ${worker[index]} in
                 "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly")
@@ -50,6 +52,8 @@ if [[ $action == download ]]; then
                     worker[index]="type=bind,src=$operation_directory/locks/core-build.lock,dst=/core-build.lock,readonly" ;;
                 "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly")
                     worker[index]="type=bind,src=$operation_directory/locks/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly" ;;
+                "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" ;;
             esac
         done
         checker_run 120 "${worker[@]}" --network none \

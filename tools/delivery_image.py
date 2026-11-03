@@ -8,14 +8,16 @@ import argparse
 import hashlib
 import json
 import re
-import shutil
+import subprocess
+import sys
 import tempfile
 import urllib.parse
 import urllib.request
 from pathlib import Path
 
 from tools.artifacts import regular_file, require_download_proxy
-from tools.wheelhouse import digest, pool_lock, publish_file, read_json, requirements, select_wheels
+from tools.provider_core_acquire import acquire_tool, tool_present
+from tools.wheelhouse import digest, pool_lock, read_json, requirements, select_wheels
 
 
 def release_inputs(pin, runtime_lock):
@@ -52,14 +54,29 @@ def missing_wheels(release, pool):
     return missing
 
 
-def acquire_release(pin, runtime_lock, pool):
-    with pool_lock(pool, exclusive=True):
-        _acquire_release(pin, runtime_lock, pool)
+def publish_release_wheels(tool, pool, artifacts):
+    from pip._vendor.packaging.utils import parse_wheel_filename
+
+    with tempfile.TemporaryDirectory(prefix="delivery-lock-") as temporary:
+        lock = Path(temporary) / "pylock.delivery.toml"
+        with lock.open("x", encoding="utf-8") as stream:
+            stream.write('lock-version = "1.0"\ncreated-by = "nmr-provider-tools delivery"\n')
+            for name, checksum, url in artifacts:
+                distribution, version, _, _ = parse_wheel_filename(name)
+                stream.write("[[packages]]\n")
+                stream.write(f"name = {json.dumps(str(distribution))}\nversion = {json.dumps(str(version))}\n")
+                stream.write(f"[packages.archive]\nurl = {json.dumps(url)}\n")
+                stream.write(f"[packages.archive.hashes]\nsha256 = {json.dumps(checksum)}\n")
+        subprocess.run([sys.executable, "-I", "-B", str(tool), "acquire", "--lock", str(lock),
+                        "--pool", str(pool)], check=True)
 
 
-def _acquire_release(pin, runtime_lock, pool):
+def acquire_release(pin, runtime_lock, pool, tool):
     release, _ = release_inputs(pin, runtime_lock)
-    for name, expected in missing_wheels(release, pool):
+    with pool_lock(pool):
+        missing = missing_wheels(release, pool)
+    artifacts = []
+    for name, expected in missing:
         require_download_proxy()
         if name.startswith("provider_core-"):
             url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{release['version']}/{name}"
@@ -72,13 +89,9 @@ def _acquire_release(pin, runtime_lock, pool):
             if len(candidates) != 1 or urllib.parse.urlsplit(candidates[0]).hostname != "files.pythonhosted.org":
                 raise ValueError(f"Cannot acquire {name}: the pinned wheel is absent from its published index.")
             url = candidates[0]
-        with tempfile.NamedTemporaryFile(prefix=".delivery-download-", suffix=".part", dir=pool) as destination:
-            with urllib.request.urlopen(url, timeout=60) as source:
-                shutil.copyfileobj(source, destination)
-            destination.flush()
-            if digest(Path(destination.name)) != expected:
-                raise ValueError(f"Cannot acquire {name}: downloaded bytes do not match the pinned release.")
-            publish_file(Path(destination.name), pool / name, expected)
+        artifacts.append((name, expected, url))
+    if artifacts:
+        publish_release_wheels(tool, pool, artifacts)
 
 
 def capture_image_inputs(pin, runtime_lock, pool, destination):
@@ -108,12 +121,18 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
     contents = template.read_text()
     if contents.count(marker) != 1:
         raise ValueError("Cannot build delivery: the Dockerfile has no unique wheel input marker.")
-    copies = "\n".join("COPY --from=wheelhouse " + json.dumps(["/" + name, "/" + name])
+    copies = "\n".join("COPY " + json.dumps(["wheelhouse/" + name, "/" + name])
                        for name in sorted(selected["files"]))
     generated = destination / "containers/delivery/Dockerfile.selected"
     with generated.open("x") as target:
         target.write(contents.replace(marker, copies))
     generated.chmod(0o644)
+    manifest = destination / "provider-core-stream.json"
+    with manifest.open("x", encoding="utf-8") as target:
+        json.dump([{"directory": "wheelhouse", "filename": name, "sha256": checksum}
+                   for name, checksum in sorted(selected["files"].items())], target, sort_keys=True)
+        target.write("\n")
+    manifest.chmod(0o644)
 
 
 if __name__ == "__main__":
@@ -123,16 +142,20 @@ if __name__ == "__main__":
     parser.add_argument("--runtime-lock", type=Path, required=True)
     parser.add_argument("--pool", type=Path, required=True)
     parser.add_argument("--destination", type=Path)
+    parser.add_argument("--tool-pin", type=Path)
     args = parser.parse_args()
     if args.action == "check":
         release, _ = release_inputs(args.pin, args.runtime_lock)
         with pool_lock(args.pool):
-            if missing_wheels(release, args.pool):
+            if missing_wheels(release, args.pool) or (args.tool_pin and not tool_present(args.pool, read_json(args.tool_pin))):
                 print("missing")
             else:
                 print("complete")
     elif args.action == "acquire":
-        acquire_release(args.pin, args.runtime_lock, args.pool)
+        if args.tool_pin is None:
+            parser.error("acquire requires --tool-pin")
+        tool = acquire_tool(args.pool, read_json(args.tool_pin))
+        acquire_release(args.pin, args.runtime_lock, args.pool, tool)
     else:
         if args.destination is None:
             parser.error("capture requires --destination")

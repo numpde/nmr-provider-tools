@@ -163,7 +163,7 @@ endif
 .PHONY: delivery/deployment/up delivery/deployment/update delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
-.PHONY: wheelhouse/image/build wheelhouse/lock/locate wheelhouse/lock/acquire tests/wheelhouse
+.PHONY: wheelhouse/image/build wheelhouse/lock/locate wheelhouse/lock/acquire tests/wheelhouse tests/delivery/publisher
 
 help:
 	@printf '%s\n' \
@@ -175,6 +175,7 @@ help:
 	  'make tests/repository/provisioning Run checker preparation and cleanup fixtures offline.' \
 	  'make tests/repository/release    Run release and wheelhouse bundle fixtures offline.' \
 	  'make tests/repository/network    Run acquisition network-owner fixtures offline.' \
+	  'make tests/delivery/publisher WHEELHOUSE=... Check the shared delivery publisher offline.' \
 	  'make wheelhouse/lock/locate LOCK=... NETWORK_INTERFACE=... [WHEELHOUSE=...] [INDEX_URL=...] [SOURCE_URLS=...] [REQUIRE_SOURCE=...] Project a pinned lock.' \
 	  'make wheelhouse/lock/acquire LOCK=... [SOURCE_LOCK=...] WHEELHOUSE=... NETWORK_INTERFACE=... Acquire locked artifacts.' \
 	  'make tests/repository/runtime    Inspect the checker container grants.' \
@@ -220,6 +221,9 @@ wheelhouse/image/build:
 
 tests/wheelhouse:
 	bash tools/wheelhouse_image.sh test
+
+tests/delivery/publisher:
+	bash tools/delivery_publisher_check.sh
 
 wheelhouse/lock/locate:
 	@bash tools/wheelhouse_locate.sh

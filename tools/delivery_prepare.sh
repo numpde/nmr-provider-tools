@@ -27,9 +27,10 @@ if [[ $cache == missing ]]; then
     --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly" \
     --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly" \
     --mount "type=bind,src=$root/requirements/delivery-release.json,dst=/release.json,readonly" \
+    --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
     --entrypoint python3 "$base_image" -B -m tools.delivery_image acquire \
-    --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse
+    --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --tool-pin /wheelhouse-tool-release.json
 elif [[ $cache != complete ]]; then
     printf '%s\n' 'Cannot inspect the shared delivery wheelhouse.' >&2; exit 2
 fi
