@@ -17,6 +17,18 @@ its existing fallback policy calls for a reset; this does not require copying
 the generic turn loop. Keep per-endpoint budgets, aggregate deadlines and
 unanimous/mixed endpoint outcomes explicit in the provider's policy.
 
+Retiring a conversation closes its real endpoint scope. A later availability
+retry binds fresh endpoint owners from the captured configuration only after
+the preceding scope settled; do not weaken retirement to reuse cached owners.
+The SDK executor separately owns the original preparation task. HTTP retirement
+does not establish that task's completion: work_settled remains false until the
+executor observes it. A positive observed native crash must propagate without
+waiting for unrelated interpreter cleanup; the Attempt retains that exact
+conversation and scope for subsequent settlement. For independently owned
+endpoint scopes, fence all their admissions before starting cleanup owners,
+then join those owners. Provider worker/source cleanup retains its actual
+resource dependencies.
+
 SECS can await source reconciliation and scientific preparation inside dispatch.
 An accepted preparation returns ToolFinished; a correctable input rejection
 raises ToolRejected and resumes the same transcript. Model and inspection work
@@ -39,3 +51,10 @@ provider outcome aggregation in each owning repository. Do not change existing
 healthy deployments merely to test a source migration. Publish one qualified
 package release and adopt its exact pins through maintained Make targets.
 Record source verification separately from running-image verification.
+
+Follow important findings through to inspected implementation and relevant
+test evidence, or an explicit adjudicated rejection. Sending an observation or
+proposal is not proof that its receiver applied it. Completed-conversation
+observations already expose safe turn counts; new reporting hooks and exact
+failure counts are deferred rather than adding a failure path after scientific
+admission.
