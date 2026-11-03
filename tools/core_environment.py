@@ -144,9 +144,11 @@ def source_inventory(source):
 
 
 def wheelhouse_source_inventory(source):
+    from tools.build_wheelhouse_bundle import SOURCE_MODULES
+
     return {name: {"sha256": digest(source / name), "size": (source / name).stat().st_size,
                    "mode": (source / name).stat().st_mode & 0o777}
-            for name in ("__init__.py", "__main__.py", "stream.py", "report.py", "identity.py", "locate.py")}
+            for name in SOURCE_MODULES}
 
 
 def normalize_sdist(path):
