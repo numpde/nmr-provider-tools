@@ -32,6 +32,9 @@ The following items do not need to delay the current deployment:
 - NMRNet's acquisition launcher selects a network route even when its pool is
   complete. Its offline check cannot yet safely authorize a network fallback
   after an interrupted container; the worker's retirement needs an owner.
+- The shared tool's cold projection rejects a hash-authorized local-version
+  wheel such as 1.0+local for a ==1.0 lock, although pip permits it. No
+  affected current provider lock was found in the bounded inventory.
 - Cache-aware projection uses current index metadata and excludes yanked
   candidates when non-yanked candidates exist. It cannot reuse an artifact
   absent from that metadata, and may prefer a non-yanked download to a cached
