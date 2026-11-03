@@ -9,7 +9,9 @@ worker migration. Qualify their normal cold paths before claiming completion.
 All four provider repositories now pin shared tool 0.5.12 for future
 acquisition and streaming. NMRNet checked its own cached source-and-wheel
 stream on both hosts, but has not rebuilt all image roles with that new pin.
-NMRPeak built its CUDA benchmark image offline without running GPU inference.
+NMRNet's five wheelhouse profiles also reuse complete pools without selecting a
+network route on both hosts. NMRPeak built its CUDA benchmark image offline
+without running GPU inference.
 Its provider and CPU runner acquisition now also reuse a complete pool offline
 on both hosts; the CUDA benchmark selection passed locally. An incomplete or
 corrupt partial pool can still proceed to index metadata lookup.
@@ -29,9 +31,6 @@ The following items do not need to delay the current deployment:
   release wheel still needs qualification.
 - A wheel downloaded and discarded by a lock compiler for metadata may be
   fetched again by acquisition when the index lacks a metadata sidecar.
-- NMRNet's acquisition launcher selects a network route even when its pool is
-  complete. Its offline check cannot yet safely authorize a network fallback
-  after an interrupted container; the worker's retirement needs an owner.
 - Cache-aware projection uses current index metadata and excludes yanked
   candidates when non-yanked candidates exist. It cannot reuse an artifact
   absent from that metadata, and may prefer a non-yanked download to a cached
