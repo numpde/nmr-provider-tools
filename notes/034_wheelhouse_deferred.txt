@@ -43,8 +43,9 @@ The following items do not need to delay the current deployment:
 Offline checks on both hosts found the current provider-core locks complete;
 the delivery runtime wheels, pinned release wheel and tool were also present
 with matching hashes. The normal provider-core download target also completed
-as a warm cache hit on both hosts with the 0.5.12 pin. No cached artifact was
-removed to manufacture a cold run.
+as a warm cache hit on both hosts with the 0.5.12 pin, and normal delivery
+preparation rebuilt from those inputs on both hosts without a service restart.
+No cached artifact was removed to manufacture a cold run.
 
 WLAN DNS failures during host-local acquisition remain an operational issue:
 retain the failing diagnostic and use the configured interface and resolver.
