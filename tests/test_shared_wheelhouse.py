@@ -68,6 +68,13 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual(inode, path.stat().st_ino)
         self.assertEqual([f"/{self.name}"], self.requests)
 
+    def test_warm_acquisition_does_not_need_a_writer_lock(self):
+        (self.pool / self.name).write_bytes(self.content)
+        with patch.object(tool, "acquisition_lock", side_effect=AssertionError("writer lock requested")):
+            tool.run("acquire", self.lock, self.pool)
+        self.assertEqual([], self.requests)
+        self.assertEqual([self.name], [path.name for path in self.pool.iterdir()])
+
     def test_conflict_is_preserved_without_network(self):
         path = self.pool / self.name
         path.write_bytes(b"different")
