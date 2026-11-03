@@ -6,8 +6,8 @@ migration. Complete qualification of the provider-core dependency-download
 replacement and every provider's remaining runner and
 worker migration. Qualify their normal cold paths before claiming completion.
 
-All four provider repositories now pin shared tool 0.5.13 for future
-acquisition and streaming. NMRNet checked its own cached source-and-wheel
+The shared tool 0.5.14 adds bounded retries for transient acquisition failures
+and clear terminal diagnostics. NMRNet checked its own cached source-and-wheel
 stream on both hosts, but has not rebuilt all image roles with that new pin.
 NMRNet's five wheelhouse profiles also reuse complete pools without selecting a
 network route on both hosts. NMRPeak built its CUDA benchmark image offline
@@ -38,7 +38,9 @@ The following items do not need to delay the current deployment:
   failed before the final recheck. The verified backup was restored under the
   pool lease without overwriting; operation retirement remains unconfirmed and
   its retained stage must be preserved. The original diagnostic omitted the
-  cause; 0.5.13 reports bounded network failure details for future attempts.
+  cause; current releases report bounded network failure details and retry
+  eligible transient failures within the owning worker. The historical worker
+  must not be retried until its retirement is established.
 - A wheel downloaded and discarded by a lock compiler for metadata may be
   fetched again by acquisition when the index lacks a metadata sidecar.
 - Cache-aware projection uses current index metadata and excludes yanked
