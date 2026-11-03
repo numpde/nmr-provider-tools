@@ -41,6 +41,13 @@ Compare a concurrent winner; preserve and report conflicting bytes. Interrupted
 transfers may need retransmission. Different artifacts with the same filename
 cannot coexist in a flat pool; report the conflict.
 
+Serialize publishers with a persistent pool-local acquisition lock, and hold a
+shared pool lock during acquisition. Warm readers can use already-published
+artifacts during a long download; existing exclusive pool writers still wait.
+Keep the acquisition lock file in place so all publishers lock the same inode.
+A reader that needs an artifact still being downloaded can report it missing;
+only a successful acquisition establishes that its whole selection is ready.
+
 Install from the selected local artifacts offline, preserving lock hashes and
 source identities. A URL in a pylock does not automatically resolve to a local
 wheelhouse just because indexes are disabled. Use a disposable local-path

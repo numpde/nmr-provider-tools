@@ -61,6 +61,9 @@ def tool_present(pool, pin):
 
 def acquire_tool(pool, pin):
     path = pool / pin["name"]
+    with pool_lock(pool, exclusive=False):
+        if tool_present(pool, pin):
+            return path
     with pool_lock(pool, exclusive=True):
         if tool_present(pool, pin):
             return path

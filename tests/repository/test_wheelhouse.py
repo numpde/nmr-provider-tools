@@ -12,7 +12,7 @@ import unittest
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from threading import Thread
+from threading import Event, Thread
 from unittest.mock import patch
 
 from tools import provider_core_acquire, wheelhouse
@@ -84,6 +84,29 @@ class WheelhouseTests(unittest.TestCase):
             server.shutdown()
             thread.join()
             server.server_close()
+
+    def test_cached_tool_is_reusable_during_shared_pool_access(self):
+        content = b"synthetic tool release"
+        pin = {"name": "synthetic-tool.pyz", "sha256": hashlib.sha256(content).hexdigest()}
+        (self.pool / pin["name"]).write_bytes(content)
+        finished = Event()
+        errors = []
+
+        def acquire():
+            try:
+                provider_core_acquire.acquire_tool(self.pool, pin)
+            except Exception as error:
+                errors.append(error)
+            finally:
+                finished.set()
+
+        with wheelhouse.pool_lock(self.pool, exclusive=False):
+            thread = Thread(target=acquire)
+            thread.start()
+            completed_while_shared = finished.wait(2)
+        thread.join(5)
+        self.assertTrue(completed_while_shared, "cached tool waited for exclusive pool access")
+        self.assertEqual([], errors)
 
     def test_report_requires_the_actual_candidate_wheel(self):
         candidate_dir = self.root / "release"

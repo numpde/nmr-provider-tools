@@ -1,8 +1,10 @@
 """The shared pool preserves locked artifacts through acquisition failures."""
 
 import hashlib
+import fcntl
 import io
 import json
+import os
 import tarfile
 from contextlib import contextmanager
 import tempfile
@@ -12,6 +14,7 @@ import unittest
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from wheelhouse_tool import __main__ as tool
@@ -78,7 +81,85 @@ class WheelhouseTests(unittest.TestCase):
         self.write_lock("0" * 64)
         with self.assertRaisesRegex(ValueError, "downloaded bytes differ"):
             tool.run("acquire", self.lock, self.pool)
-        self.assertEqual([], list(self.pool.iterdir()))
+        self.assertEqual([".wheelhouse-acquire.lock"], [path.name for path in self.pool.iterdir()])
+
+    def test_warm_reader_proceeds_while_acquisitions_share_one_download(self):
+        cached = "cached-1.0-py3-none-any.whl"
+        (self.pool / cached).write_bytes(self.content)
+        digest = hashlib.sha256(self.content).hexdigest()
+        package = SimpleNamespace(name="cached")
+        cached_artifacts = [(cached, digest, "", package, None)]
+        started, resume = threading.Event(), threading.Event()
+        original_download = tool.download
+        errors = []
+
+        def slow_download(*args):
+            started.set()
+            if not resume.wait(5):
+                raise TimeoutError("test did not resume download")
+            original_download(*args)
+
+        def acquire():
+            try:
+                tool.run("acquire", self.lock, self.pool)
+            except Exception as error:
+                errors.append(error)
+
+        def read_cached():
+            try:
+                tool.run("check", None, self.pool, artifacts=cached_artifacts)
+            except Exception as error:
+                errors.append(error)
+
+        with patch.object(tool, "download", slow_download):
+            first = threading.Thread(target=acquire)
+            second = threading.Thread(target=acquire)
+            first.start()
+            try:
+                self.assertTrue(started.wait(5))
+                second.start()
+                reader = threading.Thread(target=read_cached)
+                reader.start()
+                reader.join(2)
+                self.assertFalse(reader.is_alive(), "warm reader waited for the download")
+            finally:
+                resume.set()
+                first.join(5)
+                if second.ident is not None:
+                    second.join(5)
+            self.assertFalse(first.is_alive())
+            self.assertFalse(second.is_alive())
+        self.assertEqual([], errors)
+        self.assertEqual([f"/{self.name}"], self.requests)
+
+    def test_legacy_exclusive_pool_writer_excludes_acquisition(self):
+        started = threading.Event()
+        original_download = tool.download
+        errors = []
+
+        def capture_download(*args):
+            started.set()
+            original_download(*args)
+
+        def acquire():
+            try:
+                tool.run("acquire", self.lock, self.pool)
+            except Exception as error:
+                errors.append(error)
+
+        directory = os.open(self.pool, os.O_RDONLY | os.O_DIRECTORY)
+        with patch.object(tool, "download", capture_download):
+            fcntl.flock(directory, fcntl.LOCK_EX)
+            worker = threading.Thread(target=acquire)
+            worker.start()
+            try:
+                self.assertFalse(started.wait(0.25))
+            finally:
+                os.close(directory)
+                worker.join(5)
+            self.assertFalse(worker.is_alive())
+        self.assertTrue(started.is_set())
+        self.assertEqual([], errors)
 
     def test_check_missing_does_not_download(self):
         with self.assertRaisesRegex(FileNotFoundError, "missing"):
@@ -343,4 +424,4 @@ class WheelhouseTests(unittest.TestCase):
         with patch.object(tool.os, "link", side_effect=FileExistsError):
             with self.assertRaisesRegex(FileNotFoundError, "disappeared"):
                 tool.run("acquire", self.lock, self.pool)
-        self.assertEqual([], list(self.pool.iterdir()))
+        self.assertEqual([".wheelhouse-acquire.lock"], [path.name for path in self.pool.iterdir()])

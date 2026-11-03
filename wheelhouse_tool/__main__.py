@@ -34,6 +34,25 @@ def pool_lock(pool, exclusive):
         os.close(descriptor)
 
 
+@contextmanager
+def acquisition_lock(pool):
+    # Keep downloads serialized without excluding readers of published files.
+    directory = os.open(pool, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        descriptor = os.open(".wheelhouse-acquire.lock", os.O_RDONLY | os.O_CREAT | os.O_NOFOLLOW | os.O_NONBLOCK,
+                             0o644, dir_fd=directory)
+        try:
+            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise ValueError("Cannot acquire wheelhouse lock: expected a regular file.")
+            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            fcntl.flock(directory, fcntl.LOCK_SH)
+            yield directory
+        finally:
+            os.close(descriptor)
+    finally:
+        os.close(directory)
+
+
 def sha256(path, directory_fd=None):
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_fd)
     with os.fdopen(descriptor, "rb") as stream:
@@ -174,12 +193,19 @@ def download(pool, name, digest, url, directory_fd):
 def run(action, lock, pool, prefer_sdist=(), require_sdist=(), artifacts=None):
     if artifacts is None:
         artifacts = selected(lock, prefer_sdist, require_sdist)
-    with pool_lock(pool, exclusive=action == "acquire") as directory_fd:
-        for name, digest, url, _package, _artifact in artifacts:
-            if not inspect_artifact(pool, name, digest, directory_fd):
-                if action == "check":
-                    raise FileNotFoundError(f"Cannot use {name}: the artifact is missing from the wheelhouse.")
-                download(pool, name, digest, url, directory_fd)
+    if action == "acquire":
+        with acquisition_lock(pool) as directory_fd:
+            return _run(action, pool, artifacts, directory_fd)
+    with pool_lock(pool, exclusive=False) as directory_fd:
+        return _run(action, pool, artifacts, directory_fd)
+
+
+def _run(action, pool, artifacts, directory_fd):
+    for name, digest, url, _package, _artifact in artifacts:
+        if not inspect_artifact(pool, name, digest, directory_fd):
+            if action == "check":
+                raise FileNotFoundError(f"Cannot use {name}: the artifact is missing from the wheelhouse.")
+            download(pool, name, digest, url, directory_fd)
     return {"artifacts": [{"package": str(package.name), "filename": name, "sha256": digest}
                           for name, digest, _, package, _ in artifacts]}
 
