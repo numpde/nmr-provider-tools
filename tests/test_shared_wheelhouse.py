@@ -28,6 +28,7 @@ from wheelhouse_tool.stream import stream_context
 from wheelhouse_tool.report import manifest as report_manifest
 from wheelhouse_tool.identity import selection_identity
 from wheelhouse_tool.locate import locate
+from wheelhouse_tool.network import retry_delay
 
 
 class WheelhouseTests(unittest.TestCase):
@@ -112,7 +113,8 @@ class WheelhouseTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 output = io.StringIO()
                 with patch.object(sys, 'argv', ['wheelhouse', 'acquire', '--pool', str(self.pool), '--lock', str(self.lock)]), \
-                     patch.object(tool.urllib.request, 'urlopen', side_effect=error), redirect_stderr(output):
+                     patch.object(tool.urllib.request, 'urlopen', side_effect=error), \
+                     patch('wheelhouse_tool.network.time.sleep'), redirect_stderr(output):
                     self.assertEqual(1, tool.main())
                 self.assertIn(expected, output.getvalue())
                 self.assertNotIn('private', output.getvalue())
@@ -126,11 +128,118 @@ class WheelhouseTests(unittest.TestCase):
     def test_download_read_timeout_is_reported_without_private_text(self):
         source = unittest.mock.MagicMock()
         source.read.side_effect = TimeoutError('private endpoint')
-        with patch.object(tool.urllib.request, 'urlopen', return_value=source):
-            with self.assertRaisesRegex(OSError, 'download interrupted; the connection timed out') as captured:
+        with patch.object(tool.urllib.request, 'urlopen', return_value=source), patch('wheelhouse_tool.network.time.sleep'):
+            with self.assertRaisesRegex(OSError, 'the connection timed out') as captured:
                 tool.run('acquire', self.lock, self.pool)
         self.assertNotIn('private', ''.join(traceback.format_exception(captured.exception)))
         self.assertEqual(['.wheelhouse-acquire.lock'], [path.name for path in self.pool.iterdir()])
+
+    def test_interrupted_download_retries_from_a_fresh_partial(self):
+        first = unittest.mock.MagicMock()
+        first.headers = {}
+        first.read.side_effect = [b'partial', ConnectionResetError(104, 'reset')]
+        second = io.BytesIO(self.content)
+        second.headers = {'Content-Length': str(len(self.content))}
+        with patch.object(tool.urllib.request, 'urlopen', side_effect=[first, second]) as open_url, \
+             patch('wheelhouse_tool.network.time.sleep') as sleep:
+            tool.run('acquire', self.lock, self.pool)
+        self.assertEqual(2, open_url.call_count)
+        sleep.assert_called_once_with(1)
+        self.assertEqual(self.content, (self.pool / self.name).read_bytes())
+        self.assertEqual({self.name, '.wheelhouse-acquire.lock'}, {path.name for path in self.pool.iterdir()})
+
+    def test_short_response_retries_when_content_length_proves_truncation(self):
+        first = io.BytesIO(b'partial')
+        first.headers = {'Content-Length': str(len(self.content))}
+        second = io.BytesIO(self.content)
+        second.headers = {'Content-Length': str(len(self.content))}
+        with patch.object(tool.urllib.request, 'urlopen', side_effect=[first, second]) as open_url, \
+             patch('wheelhouse_tool.network.time.sleep'):
+            tool.run('acquire', self.lock, self.pool)
+        self.assertEqual(2, open_url.call_count)
+        self.assertEqual(self.content, (self.pool / self.name).read_bytes())
+
+    def test_permanent_and_exhausted_failures_have_bounded_attempts(self):
+        failures = [(urllib.error.HTTPError('https://example.invalid', 404, '', {}, None), 1),
+                    (ssl.SSLCertVerificationError('private'), 1), (TimeoutError('private'), 3)]
+        for error, attempts in failures:
+            with self.subTest(attempts=attempts):
+                with patch.object(tool.urllib.request, 'urlopen', side_effect=error) as open_url, \
+                     patch('wheelhouse_tool.network.time.sleep'):
+                    with self.assertRaises(OSError):
+                        tool.run('acquire', self.lock, self.pool)
+                self.assertEqual(attempts, open_url.call_count)
+
+    def test_cleanup_failure_stops_retry_and_reports_both_failures(self):
+        with patch.object(tool.urllib.request, 'urlopen', side_effect=TimeoutError('private')), \
+             patch.object(tool.os, 'unlink', side_effect=PermissionError('private')), \
+             patch('wheelhouse_tool.network.time.sleep') as sleep:
+            with self.assertRaises(OSError) as captured:
+                tool.run('acquire', self.lock, self.pool)
+        self.assertIn('timed out', str(captured.exception))
+        self.assertIn('could not remove the temporary file', str(captured.exception))
+        self.assertNotIn('private', str(captured.exception))
+        sleep.assert_not_called()
+
+    def test_cleanup_failure_reports_published_file(self):
+        with patch.object(tool.os, 'unlink', side_effect=PermissionError('private')):
+            with self.assertRaisesRegex(OSError, 'verified final file was published'):
+                tool.run('acquire', self.lock, self.pool)
+        self.assertEqual(self.content, (self.pool / self.name).read_bytes())
+
+    def test_cleanup_failure_preserves_hash_mismatch(self):
+        self.write_lock('0' * 64)
+        with patch.object(tool.os, 'unlink', side_effect=PermissionError('private')):
+            with self.assertRaisesRegex(OSError, 'downloaded bytes differ from the lock'):
+                tool.run('acquire', self.lock, self.pool)
+        self.assertFalse((self.pool / self.name).exists())
+
+    def test_cleanup_failure_preserves_local_write_failure(self):
+        with patch.object(tool.os, 'fsync', side_effect=OSError(28, 'private')), \
+             patch.object(tool.os, 'unlink', side_effect=PermissionError('private')):
+            with self.assertRaisesRegex(OSError, 'local file operation failed \\(error number 28\\)') as captured:
+                tool.run('acquire', self.lock, self.pool)
+        self.assertIn('could not remove the temporary file', str(captured.exception))
+        self.assertFalse((self.pool / self.name).exists())
+
+    def test_cleanup_failure_reports_competing_file_outcome(self):
+        destination = self.pool / self.name
+        digest = hashlib.sha256(self.content).hexdigest()
+        url = f'http://127.0.0.1:{self.server.server_port}/{self.name}'
+        fd = os.open(self.pool, os.O_RDONLY | os.O_DIRECTORY)
+        self.addCleanup(os.close, fd)
+        for contents, expected in ((self.content, 'a competing final file was verified'),
+                                   (b'conflict', 'the competing final file differs from the lock')):
+            with self.subTest(expected=expected):
+                destination.write_bytes(contents)
+                with patch.object(tool.os, 'unlink', side_effect=PermissionError('private')):
+                    with self.assertRaisesRegex(OSError, expected):
+                        tool.download_once(self.pool, self.name, digest, url, fd)
+
+    def test_retry_policy_rejects_permanent_failures_and_honors_server_delay(self):
+        failure = lambda status, headers=None: urllib.error.HTTPError('https://example.invalid', status, '', headers or {}, None)
+        self.assertEqual(5, retry_delay(failure(503, {'Retry-After': '5'}), 1))
+        self.assertEqual(-1, retry_delay(failure(429, {'Retry-After': '31'}), 1))
+        self.assertEqual(1, retry_delay(failure(408), 1))
+        self.assertIsNone(retry_delay(failure(404), 1))
+        self.assertEqual(1, retry_delay(urllib.error.URLError(OSError('Tunnel connection failed: 502 proxy')), 1))
+        self.assertIsNone(retry_delay(urllib.error.URLError(OSError('Tunnel connection failed: 503 proxy')), 1))
+        self.assertEqual(1, retry_delay(urllib.error.URLError(socket.gaierror(socket.EAI_AGAIN, 'temporary')), 1))
+        self.assertIsNone(retry_delay(urllib.error.URLError(socket.gaierror(socket.EAI_NONAME, 'missing')), 1))
+        self.assertIsNone(retry_delay(urllib.error.URLError(ssl.SSLCertVerificationError('certificate')), 1))
+
+    def test_index_metadata_retries_transient_failure(self):
+        digest = 'a' * 64
+        self.lock.write_text('--index-url https://example.invalid/simple\nexample==1.0 \\\n    --hash=sha256:' + digest + '\n')
+        metadata = {'name': 'example', 'files': [{'filename': self.name,
+                    'url': 'https://example.invalid/' + self.name, 'hashes': {'sha256': digest}}]}
+        with patch('wheelhouse_tool.locate.urllib.request.build_opener') as opener, \
+             patch('wheelhouse_tool.network.time.sleep') as sleep:
+            opener.return_value.open.side_effect = [urllib.error.URLError(TimeoutError('timeout')),
+                                                   io.BytesIO(json.dumps(metadata).encode())]
+            self.assertEqual('example', tomllib.loads(locate(self.lock))['packages'][0]['name'])
+        self.assertEqual(2, opener.return_value.open.call_count)
+        sleep.assert_called_once_with(1)
 
     def test_warm_reader_proceeds_while_acquisitions_share_one_download(self):
         cached = "cached-1.0-py3-none-any.whl"

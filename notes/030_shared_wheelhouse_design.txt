@@ -74,6 +74,14 @@ versions, a projection selects one version. Source preference and then cached
 wheel reuse take precedence over selecting the highest admitted version; this
 can differ from an independent pip selection.
 
+The shared publisher and locator retry transient network failures inside the
+owning acquisition worker, with at most three attempts and short backoff. A valid Retry-After is honored up
+to 30 seconds; longer requests stop with a clear error. Hash, certificate,
+invalid-input and local filesystem failures are terminal. A failed partial is
+removed before another attempt; uncertain worker retirement is never retried.
+Socket timeouts bound inactivity rather than total transfer time. Bootstrap
+clients that cannot distinguish temporary DNS failures report them without retry.
+
 Supply only selected files to BuildKit from the shared pool. Stream a curated
 primary build context containing source and selected files without an on-disk
 wheel staging directory; bind selected inputs to image identity and keep

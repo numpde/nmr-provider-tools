@@ -17,6 +17,7 @@ from packaging.specifiers import SpecifierSet
 from packaging.tags import sys_tags
 from packaging.utils import InvalidSdistFilename, InvalidWheelFilename, canonicalize_name, parse_sdist_filename, parse_wheel_filename
 from packaging.version import Version
+from wheelhouse_tool.network import request as network_request, retry
 
 
 class HttpsRedirects(urllib.request.HTTPRedirectHandler):
@@ -108,12 +109,14 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         version = Version(next(iter(requirement.specifier)).version)
         project_url = f"{index}/{name}/"
         request = urllib.request.Request(project_url, headers={"Accept": "application/vnd.pypi.simple.v1+json"})
+        opener = urllib.request.build_opener(HttpsRedirects())
+        def read_project():
+            with network_request(lambda: opener.open(request, timeout=60)) as response:
+                return network_request(response.read)
         try:
-            opener = urllib.request.build_opener(HttpsRedirects())
-            with opener.open(request, timeout=60) as response:
-                project = json.load(response)
-        except (OSError, ValueError) as error:
-            raise OSError(f"Cannot locate {name}: index metadata could not be read.") from error
+            project = json.loads(retry(read_project, f"Cannot locate {name}"))
+        except ValueError:
+            raise ValueError(f"Cannot locate {name}: index metadata is invalid.") from None
         if canonicalize_name(project["name"]) != name:
             raise ValueError(f"Cannot locate {name}: index returned a different project.")
         wheels, sources = [], []

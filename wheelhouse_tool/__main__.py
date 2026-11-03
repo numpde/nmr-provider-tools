@@ -8,12 +8,9 @@ import json
 import os
 import re
 import secrets
-import socket
-import ssl
 import stat
 import sys
 import tomllib
-import urllib.error
 import urllib.parse
 import urllib.request
 from contextlib import contextmanager
@@ -23,6 +20,7 @@ from pathlib import Path
 from packaging.pylock import PackageArchive, PackageSdist, PackageWheel, Pylock, PylockSelectError, PylockValidationError
 from packaging.tags import sys_tags
 from packaging.utils import InvalidSdistFilename, InvalidWheelFilename, canonicalize_name, parse_sdist_filename, parse_wheel_filename
+from wheelhouse_tool.network import RequestFailure, failure_detail, request, retry
 
 
 @contextmanager
@@ -156,59 +154,77 @@ def inspect_artifact(pool, name, digest, directory_fd=None):
     return True
 
 
-def download_failure(error):
-    if isinstance(error, urllib.error.HTTPError):
-        return f"the server returned HTTP {error.code}"
-    reason = error.reason if isinstance(error, urllib.error.URLError) else error
-    if isinstance(reason, socket.gaierror):
-        return "name resolution failed"
-    if isinstance(reason, TimeoutError):
-        return "the connection timed out"
-    if isinstance(reason, ssl.SSLError):
-        return "the TLS connection failed"
-    if isinstance(reason, OSError):
-        if match := re.match(r"^Tunnel connection failed: ([0-9]{3})(?:\s|$)", str(reason)):
-            return f"the proxy tunnel returned HTTP {match[1]}"
-        if isinstance(reason.errno, int):
-            return f"the network failed with error number {reason.errno}"
-    if isinstance(reason, http.client.HTTPException):
-        return "the HTTP connection failed"
-    return "the download request failed"
-
-
 def download(pool, name, digest, url, directory_fd):
+    retry(lambda: download_once(pool, name, digest, url, directory_fd), f"Cannot acquire {name}")
+
+
+def download_once(pool, name, digest, url, directory_fd):
     temporary = f".wheelhouse-{secrets.token_hex(16)}.part"
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=directory_fd)
+    published = False
+    winner_verified = False
+    winner_conflict = False
+    hash_mismatch = False
     try:
         with os.fdopen(descriptor, "wb") as target:
             try:
-                source = urllib.request.urlopen(url, timeout=60)
-            except (OSError, ValueError, http.client.HTTPException) as error:
-                raise OSError(f"Cannot acquire {name}: {download_failure(error)}.") from None
+                source = request(lambda: urllib.request.urlopen(url, timeout=60))
+            except ValueError:
+                raise ValueError(f"Cannot acquire {name}: the download request is invalid.") from None
             with source:
                 checksum = hashlib.sha256()
+                length = source.headers.get("Content-Length")
+                length = int(length) if isinstance(length, str) and length.isdecimal() else None
+                received = 0
                 while True:
-                    try:
-                        block = source.read(1024 * 1024)
-                    except (OSError, http.client.HTTPException) as error:
-                        raise OSError(f"Cannot acquire {name}: download interrupted; {download_failure(error)}.") from None
+                    block = request(lambda: source.read(1024 * 1024))
                     if not block:
                         break
+                    received += len(block)
                     checksum.update(block)
                     target.write(block)
+                if length is not None and received < length:
+                    raise RequestFailure(http.client.IncompleteRead(b"", length - received)) from None
             if checksum.hexdigest() != digest:
+                hash_mismatch = True
                 raise ValueError(f"Cannot acquire {name}: downloaded bytes differ from the lock.")
             target.flush()
             os.fchmod(target.fileno(), 0o644)
             os.fsync(target.fileno())
         try:
             os.link(temporary, name, src_dir_fd=directory_fd, dst_dir_fd=directory_fd, follow_symlinks=False)
+            published = True
         except FileExistsError:
-            if not inspect_artifact(pool, name, digest, directory_fd):
+            try:
+                present = inspect_artifact(pool, name, digest, directory_fd)
+            except ValueError:
+                winner_conflict = True
+                raise
+            if not present:
                 raise FileNotFoundError(f"Cannot acquire {name}: the competing file disappeared.")
+            winner_verified = True
         os.fsync(directory_fd)
     finally:
-        os.unlink(temporary, dir_fd=directory_fd)
+        pending = sys.exception()
+        try:
+            os.unlink(temporary, dir_fd=directory_fd)
+        except OSError:
+            details = []
+            if isinstance(pending, RequestFailure):
+                details.append(failure_detail(pending.error))
+            elif isinstance(pending, OSError):
+                number = f" (error number {pending.errno})" if isinstance(pending.errno, int) else ""
+                details.append(f"a local file operation failed{number}")
+            if hash_mismatch:
+                details.append("downloaded bytes differ from the lock")
+            if winner_conflict:
+                details.append("the competing final file differs from the lock")
+            if published:
+                details.append("the verified final file was published")
+            elif winner_verified:
+                details.append("a competing final file was verified")
+            details.append("could not remove the temporary file from the wheelhouse")
+            raise OSError(f"Cannot finish acquiring {name}: {'; '.join(details)}.") from None
 
 
 def run(action, lock, pool, prefer_sdist=(), require_sdist=(), artifacts=None):

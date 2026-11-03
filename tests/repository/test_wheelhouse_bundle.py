@@ -36,7 +36,7 @@ class WheelhouseBundleTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "wheelhouse_tool").mkdir()
-            for name in ("__init__.py", "__main__.py", "stream.py", "report.py", "identity.py", "locate.py"):
+            for name in ("__init__.py", "__main__.py", "stream.py", "report.py", "identity.py", "locate.py", "network.py"):
                 (root / "wheelhouse_tool" / name).write_text("# source\n")
             wheel = root / "example-1.0-py3-none-any.whl"
             with zipfile.ZipFile(wheel, "w") as archive:
