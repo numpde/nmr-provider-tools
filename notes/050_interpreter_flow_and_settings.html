@@ -73,7 +73,7 @@
   <h1>The ideal interpreter flow</h1>
   <p>Retry transient transport failures at the same endpoint with finite attempts and backoff. Give a model bounded opportunities to inspect and correct its answer. Escalate to the next configured model when those opportunities are exhausted.</p>
   <p class="muted">The first chart is the proposed common design. Current provider behavior and supported TOML settings follow for comparison; they do not yet implement every part of this design. Configuration examples contain no live deployment values.</p>
-  <nav aria-label="Contents"><a href="#ideal">Ideal flow</a><a href="#universal-config">Universal TOML</a><a href="#turns">What counts now</a><a href="#flow">Current flow</a><a href="#policies">Provider differences</a><a href="#settings">Current settings</a><a href="#sources">Sources</a></nav>
+  <nav aria-label="Contents"><a href="#ideal">Ideal flow</a><a href="#handoff">Escalation context</a><a href="#universal-config">Universal TOML</a><a href="#turns">What counts now</a><a href="#flow">Current flow</a><a href="#policies">Provider differences</a><a href="#settings">Current settings</a><a href="#sources">Sources</a></nav>
 </header>
 
 <section id="ideal">
@@ -93,7 +93,7 @@
       <rect class="box blue" x="350" y="135" width="400" height="75" rx="10"/>
       <text x="550" y="158" text-anchor="middle">Choose next endpoint (first on entry)</text>
       <text class="minor" x="550" y="181" text-anchor="middle">Reset SDK counters; start its assigned time window</text>
-      <text class="minor" x="550" y="200" text-anchor="middle">Original request + verified facts + safe feedback</text>
+      <text class="minor" x="550" y="200" text-anchor="middle">Original input + captured observations + rejections</text>
       <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 210 V260"/>
       <rect class="box blue" x="350" y="260" width="400" height="75" rx="10"/>
       <text x="550" y="289" text-anchor="middle">Begin a logical model turn: n += 1</text>
@@ -170,7 +170,7 @@
       <text class="label" x="565" y="962">or input-problem report</text>
       <rect class="box amber" x="350" y="1060" width="400" height="85" rx="10"/>
       <text x="550" y="1090" text-anchor="middle">Escalate: retire the current endpoint</text>
-      <text class="minor" x="550" y="1116" text-anchor="middle">Carry original request, verified facts and safe feedback</text>
+      <text class="minor" x="550" y="1116" text-anchor="middle">Carry compact proposals, rejections and observations</text>
       <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 1145 V1210"/>
       <rect class="box amber" x="350" y="1210" width="400" height="85" rx="10"/>
       <text x="550" y="1241" text-anchor="middle">Endpoint retired + next endpoint exists</text>
@@ -189,14 +189,30 @@
   <div class="three">
     <div class="definition"><h3>Transport retry</h3><p>Only transient transport/service failures qualify. Count the initial HTTP attempt in the finite maximum. The SDK supplies a finite attempt maximum and bounded jittered backoff, respecting a valid Retry-After within the remaining time. Recheck endpoint and overall deadlines after waiting and before every send. Permanent endpoint failures skip retries.</p></div>
     <div class="definition"><h3>Model correction</h3><p>Inspections consume logical turns and time, but do not consume the rejected-proposal quota. The SDK bounds total turns and rejected proposals separately. HTTP retries consume neither counter again. Exhausting either cap or the assigned time window causes escalation. A model's unsupported-input claim can be checked by the next model; independently established input errors need no model retry.</p></div>
-    <div class="definition"><h3>Escalation</h3><p>Choose the next configured model after retirement. Carry useful facts and safe feedback, without promoting failed proposals into truth. Keep one overall deadline; assign time shares so the first model cannot consume the entire ladder budget. Exhausting the ladder ends this Job, not the provider.</p></div>
+    <div class="definition"><h3>Escalation</h3><p>Choose the next configured model after retirement. Automatically provide a compact handoff of earlier proposals, rejection reasons and relevant observations, labeled by their origin and freshness. Keep one overall deadline; assign time shares so the first model cannot consume the entire ladder budget. Exhausting the ladder ends this Job, not the provider.</p></div>
   </div>
   <p class="callout warning"><strong>Thin configuration:</strong> the operator selects the overall interpretation timeout and ordered endpoint definitions. The SDK owns time allocation, finite HTTP retries/backoff, cleanup and separate turn/rejection bounds. The <a href="#universal-config">universal TOML proposal</a> below shows this shape; <a href="#settings">current settings</a> remain implementation-specific.</p>
 </section>
 
+<section id="handoff">
+  <h2>What the next model receives</h2>
+  <p><strong>Use a compact automatic handoff first.</strong> Do not require the successor to call a new history tool before it can act. A history lookup adds a model round trip and consumes its turn/time allowance. Original instructions remain primary; prior model guesses do not replace them.</p>
+  <div class="three">
+    <div class="definition"><h3>Original input</h3><p>The original request and provider instructions, with the current authoritative source/upload membership where reconciliation can change it. Never substitute an earlier model's interpretation for the user's input.</p></div>
+    <div class="definition"><h3>Failed proposals</h3><p>Bounded recent proposal/rejection pairs from prior model visits: what was proposed, which tool or provider rule rejected it, and the safe rejection reason. Mark proposals as unaccepted model output. A formatting error is not evidence that source-supported scientific values are wrong.</p></div>
+    <div class="definition"><h3>Captured observations</h3><p>Directly useful inspection findings with their tool, source/member references and input identity. These establish what was observed; source-supplied text and scientific claims do not become instructions or proven truth merely because a tool returned them.</p></div>
+  </div>
+  <p>Build the handoff from captured records without another model call. Keep relevant records across the model ladder, not only the immediately preceding model. Explicitly mark omitted older records or large payloads; do not silently truncate structured proposals into different ones. Do not forward raw transcripts, model reasoning, network diagnostics or credentials.</p>
+  <h3>Large inspection details: use the provider's existing tools</h3>
+  <p>A ZIP member listing can approach 256 KiB in SECS, so automatically injecting every prior inspection is wasteful. Include a small index of relevant source/member or representation references. The successor can use existing tools such as <code>inspect_source</code> or <code>inspect_upload</code> if it needs further detail. This case does not require adding a generic history tool to every provider.</p>
+  <p><strong>An existing inspection call is not automatically a cached read.</strong> SECS's inspection path acquires sources, invokes the scientific worker and updates representation claims. Source reconciliation can change membership or bytes within an API Attempt. Providers own those operations and determine whether an old observation is still applicable; stale records must be marked accordingly.</p>
+  <p>A provider may reuse a captured result only when it explicitly establishes replay-safe semantics for the same source/companion identities and exact inspection scope. Do not add blanket SDK memoization or cache failures, preparation or execution. Retrieving a cached 256-KiB result still adds that much data to context; caching alone does not solve prompt-size limits. Targeted retrieval or pagination needs its own demonstrated provider requirement.</p>
+  <p class="callout">History is transient and scoped to this interpretation inside its existing API Attempt and captured input identities. A model visit is not a new API Attempt. There is no cross-Job transcript store, generic history API or new persistence layer. Optional inspection calls use ordinary turns/time, not the rejected-proposal quota, and retain their provider-owned lifecycle. A history lookup never authorizes replaying an accepted preparation or generation.</p>
+</section>
+
 <section id="universal-config">
   <h2>Proposed universal TOML: thin files, common SDK policy</h2>
-  <p><strong>Proposal, not current parser support.</strong> All four provider owners recommended removing most operator knobs. Keep one overall timeout in the provider/binding file, and one minimal file per endpoint. Preserve the provider's repository-owned endpoint-directory convention; no new directory selector, cross-repository settings file or registry.</p>
+  <p><strong>Proposal, not current parser support.</strong> Keep the operator configuration small: one overall timeout in the provider/binding file, and one minimal file per endpoint. Preserve the provider's repository-owned endpoint-directory convention; no new directory selector, cross-repository settings file or registry.</p>
   <pre><code>config/
 ├── provider.toml                # One overall interpretation timeout
 └── interpreter.d/              # Illustrative repo-owned endpoint directory
@@ -242,7 +258,7 @@ key_file = &quot;/run/config/interpreter/strong.key&quot;
     <dt>Keep inspection and failed proposals distinct</dt><dd>The SDK centrally bounds total logical turns and rejected proposals per model. Successful inspections consume turns and time, but do not consume the repair quota. Corrections remain best-effort within the total-turn and time limits; inspections can exhaust those limits before all repair opportunities are used. The initial policy should accommodate SECS's existing 12-turn conversation while limiting repeated bad proposals separately; the exact constants belong in centrally qualified SDK policy, not per-model TOML.</dd>
     <dt>No duplicated limits in endpoint files</dt><dd>Drop endpoint IDs, endpoint/exchange/retirement timers, per-model turn caps and retry/backoff knobs from this proposal. Endpoint files contain complete URL, model and credential-file reference, with reasoning effort or CA only when the service needs them. Introduce a model-specific time override only if measured behavior demonstrates that the default allocation is insufficient.</dd>
     <dt>One captured configuration per interpretation</dt><dd>Capture the overall policy and ordered endpoint definitions before starting. Do not rescan or reread settings between retries and endpoint switches. Later edits apply to new interpretations.</dd>
-    <dt>Scientific ownership stays with the provider</dt><dd>Escalation carries the original request, verified facts and safe feedback; it never replays accepted scientific work. The provider retains its prompts, tools, acceptance rules and work deadlines. Exhaustion ends this Job, not the provider.</dd>
+    <dt>Scientific ownership stays with the provider</dt><dd>Escalation carries the original request and a compact, provenance-labeled handoff; it never replays accepted scientific work. The provider retains its prompts, tools, acceptance rules and work deadlines. Exhaustion ends this Job, not the provider.</dd>
   </dl>
 </section>
 
