@@ -33,8 +33,11 @@ The following items do not need to delay the current deployment:
   publisher and cached wheel. A normal preparation with a genuinely missing
   release wheel still needs qualification.
 - NMRPeak and SECS now recheck target selection after cold acquisition.
-  NMRPeak exercised this transition with a simulated engine; SECS has not yet
-  exercised its new cold branch. Both still need a genuine missing-wheel run.
+  NMRPeak exercised this transition with a simulated engine and still needs a
+  missing-wheel run. SECS passed a user-authorized local cold run: its 207324-byte
+  pinned provider-core wheel was removed under the pool locks, then its normal
+  provider/wheelhouse target downloaded it over the selected WLAN route and
+  completed in 24 seconds. The restored SHA-256 matches the provider lock.
 - A user-authorized local SECS witness temporarily removed its pinned release
   wheel. The normal cold target detected the miss, but the download request
   failed before the final recheck. The verified backup was restored under the
