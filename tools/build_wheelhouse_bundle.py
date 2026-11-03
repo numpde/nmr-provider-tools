@@ -14,6 +14,8 @@ from pathlib import Path
 
 from tools.wheelhouse import requirements
 
+# Bundle construction and release provenance describe the same authored modules.
+# repo-check: allow-module-constant
 SOURCE_MODULES = ("__init__.py", "__main__.py", "stream.py", "report.py", "identity.py", "locate.py", "network.py")
 
 def dependency_files(pool, lock):
