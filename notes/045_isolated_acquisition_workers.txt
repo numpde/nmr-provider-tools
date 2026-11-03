@@ -1,6 +1,11 @@
 Isolated acquisition workers
 ============================
 
+The qualified joint deployment baseline is 0.6.2. The 0.6.0 references below
+name the original milestone; use 0.6.2 for its bootstrap immutability and
+errexit cleanup corrections. The 0.6.0 release is superseded and 0.6.1 was held
+as a draft after the cleanup failure was exposed.
+
 0.6.0: one common acquisition owner
 ----------------------------------
 
