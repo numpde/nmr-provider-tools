@@ -10,6 +10,9 @@ All four provider repositories now pin shared tool 0.5.11 for future
 acquisition and streaming. NMRNet checked its own cached source-and-wheel
 stream on both hosts, but has not rebuilt all image roles with that new pin.
 NMRPeak built its CUDA benchmark image offline without running GPU inference.
+Its provider and CPU runner acquisition now also reuse a complete pool offline
+on both hosts; the CUDA benchmark selection passed locally. An incomplete or
+corrupt partial pool can still proceed to index metadata lookup.
 SECS built its migrated GPU worker image offline; its deployed GPU worker is
 still on the earlier image pending the separately scoped GPU qualification.
 Healthy deployments have not been restarted merely to update tool pins.
