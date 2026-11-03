@@ -129,4 +129,5 @@ checker_call 'shared delivery image publication' 30 stdio "${engine[@]}" image t
 checker_call 'shared delivery recipe publication' 30 stdio "${engine[@]}" image tag "$image" "nmr-provider-tools/delivery-recipe:$recipe"
 checker_call 'remove shared delivery operation base tag' 30 stdio "${engine[@]}" image rm --no-prune "$base_tag"
 retain_operation=false
+image_retire_after_success=true
 printf -v operation_success 'Prepared shared delivery %s with input fingerprint %s.\n' "$image" "$fingerprint"

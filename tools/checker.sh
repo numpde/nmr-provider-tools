@@ -117,4 +117,5 @@ if ! cmp -s "$operation_directory/built-label" <(printf '%s\n' "$captured"); the
 fi
 checker_call 'checker image publication' 30 stdio "${engine[@]}" image tag "$image" "nmr-provider-tools/checker:$captured"
 retain_operation=false
+image_retire_after_success=true
 printf -v operation_success 'Prepared checker %s with input fingerprint %s.\n' "$image" "$captured"

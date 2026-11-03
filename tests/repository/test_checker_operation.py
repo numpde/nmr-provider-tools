@@ -105,6 +105,29 @@ if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
         self.assertEqual(["create", "start", "ps", "rm", "ps"], (self.directory / "calls").read_text().splitlines())
         self.assertTrue(all(not path.exists() for path in self.owned_paths()))
 
+    def test_successful_build_retires_images_only_after_cleanup_and_lock_release(self):
+        shadow = self.directory / "checkout"
+        (shadow / "tools").mkdir(parents=True)
+        for name in ("checker_operation.sh", "docker_client.sh", "inference_native.sh", "image_lifecycle.sh"):
+            shutil.copyfile(ROOT / "tools" / name, shadow / "tools" / name)
+        (shadow / "tools/image_retirement.sh").write_text('''set -eu
+[[ $1 == --automatic ]]
+[[ ! -e $PROBE_STATE ]]
+readarray -t paths < "$PROBE_REPORT"
+[[ ! -e ${paths[0]} && ! -e ${paths[1]} ]]
+root=$(cd -- "$(dirname -- "$0")/.." && pwd -P)
+exec {borrow}< "$root"
+flock --exclusive --nonblock "$borrow"
+printf 'retired\\n' > "$PROBE_REPORT.retired"
+''')
+        command, environment = self.invocation("success")
+        command[-1] = str(shadow)
+        command[2] = command[2].replace('budget=10', 'image_retire_after_success=true\nbudget=10')
+        result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=15, check=False)
+        self.assertEqual(0, result.returncode, msg=result.stderr)
+        self.assertEqual("retired\n", Path(self.environment["PROBE_REPORT"] + ".retired").read_text())
+        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
+
     def test_false_success_removal_and_failed_enumeration_retain_inputs(self):
         for scenario in ("residue", "enumeration-failure", "malformed-list"):
             with self.subTest(scenario=scenario):

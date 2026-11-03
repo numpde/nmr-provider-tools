@@ -59,6 +59,7 @@ case "$action" in
             python3 -I -S "$tool" stream --pool "$pool" --source-allowlist "$allowlist" --manifest "$manifest" | "$@"
         ' bash "$wheelhouse_directory/$tool_name" "$wheelhouse_directory" "$operation_directory/source-allowlist.json" \
             "$operation_directory/manifest.json" "${engine[@]}" build --builder default --network none --pull=false \
+            --label org.nmr-provider-tools.role=wheelhouse-tool \
             --build-arg "BASE_IMAGE=$base_image" --file containers/wheelhouse/Dockerfile \
             --iidfile "$operation_directory/built-image" -
         built_image=
@@ -70,6 +71,7 @@ case "$action" in
             printf '%s\n' 'Cannot admit the wheelhouse tool build: no immutable image ID was returned.' >&2; exit 2;
         }
         checker_call 'publish wheelhouse tool image' 30 stdio "${engine[@]}" image tag "$built_image" "$image"
+        image_retire_after_success=true
         ;;
     test)
         checker_run 180 --pull never --network none --read-only --cap-drop ALL \

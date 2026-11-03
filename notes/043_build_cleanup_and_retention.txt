@@ -29,3 +29,25 @@ SIGKILL and host failure can bypass EXIT cleanup. Recovery of abandoned work
 needs its owner's evidence of stopped readers; this change does not introduce
 a blanket age-based /tmp sweep. Engine build-cache GC and owned-image
 retirement are separate from temporary-file cleanup.
+
+Owned image retirement
+----------------------
+
+Each repository retires its own positively identified obsolete outputs. The
+shared repository exposes make packages/images/retire with an explicit Docker
+context and invokes the same owner after successful checker, delivery and
+wheelhouse-tool image publication, once its build lock and inputs are released.
+An already-busy image owner defers automatic cleanup without failing the build.
+
+Preserve all container image references, current input/recipe selections,
+explicit staged image IDs, and exact retained build IID receipts. Unknown
+ownership, digest references, operation base tags and ambiguous multiple aliases
+remain untouched. Legacy incomplete labels preserve that image rather than
+blocking other positively owned candidates. Docker Created accepts native
+timezone offsets; its 24-hour grace is a buffer, not time-since-publication proof.
+
+Removal uses exact immutable IDs without force or parent pruning, with fresh
+borrower/alias checks under the maintained checkout lock. Uncoordinated manual
+tag changes are outside that lock; this is not an adversarial Docker-client
+sandbox. In particular, no generic engine-wide image or volume prune replaces
+the repositories' deployment and image ownership knowledge.

@@ -7,6 +7,9 @@ source "$root/tools/docker_client.sh"
 source "$root/tools/inference_native.sh"
 
 checker_begin() {
+    source "$root/tools/image_lifecycle.sh"
+    image_lifecycle_lock shared || return "$?"
+    image_retire_after_success=false
     operation_directory=$(umask 077; mktemp -d /tmp/nmr-provider-tools.XXXXXXXX) || return "$?"
     operation_label="org.nmr-provider-tools.operation=${operation_directory##*/}"
     docker_client_directory=
@@ -137,6 +140,13 @@ checker_finish() {
     else
         if rm -rf -- "$operation_directory" && docker_client_cleanup; then :; else
             if [[ $status == 0 ]]; then status=2; fi
+        fi
+    fi
+    # No automatic retirement may contend with this operation's own borrow.
+    image_lifecycle_unlock || { if [[ $status == 0 ]]; then status=2; fi; }
+    if [[ $status == 0 && $image_retire_after_success == true ]]; then
+        if bash "$root/tools/image_retirement.sh" --automatic >&2; then :; else
+            printf '%s\n' 'Build completed; automatic image retirement failed. Retry make packages/images/retire with the same Docker context.' >&2
         fi
     fi
     if [[ -n $operation_diagnostic ]]; then printf '%s' "$operation_diagnostic" >&2; fi

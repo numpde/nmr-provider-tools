@@ -35,3 +35,6 @@ elif [[ $cache != complete ]]; then
     printf '%s\n' 'Cannot inspect the shared delivery wheelhouse.' >&2; exit 2
 fi
 WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT=$wheelhouse_directory bash "$root/tools/delivery_image.sh"
+
+# A nested image builder may defer retirement while this outer borrower runs.
+image_retire_after_success=true
