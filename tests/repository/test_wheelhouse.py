@@ -17,7 +17,7 @@ from pathlib import Path
 from threading import Thread
 from unittest.mock import patch
 
-from tools import wheelhouse
+from tools import provider_core_acquire, wheelhouse
 
 
 class WheelhouseTests(unittest.TestCase):
@@ -82,6 +82,14 @@ class WheelhouseTests(unittest.TestCase):
         with patch.object(wheelhouse, "require_download_proxy", side_effect=AssertionError("No acquisition needed")):
             wheelhouse.populate_pool(self.lock, self.pool)
         self.assertEqual(before, {path.name: (path.read_bytes(), path.stat().st_ino) for path in self.pool.iterdir()})
+
+    def test_provider_core_cache_check_distinguishes_missing_and_corrupt(self):
+        self.assertEqual("missing", provider_core_acquire.cache_state(self.pool, [self.lock]))
+        shutil.copyfile(self.missing, self.pool / self.missing.name)
+        self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
+        (self.pool / self.missing.name).write_bytes(b"corrupt")
+        with self.assertRaisesRegex(ValueError, "cached bytes differ"):
+            provider_core_acquire.cache_state(self.pool, [self.lock])
 
     def test_partial_pool_downloads_only_missing_wheel_then_selects_offline(self):
         unrelated = self.pool / "other-project.txt"

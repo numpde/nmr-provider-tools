@@ -1,14 +1,18 @@
 Deferred wheelhouse work
 ========================
 
-Prioritize deployment of the qualified provider workflows. The following
-items do not require another rollout before the current joint deployment:
+The joint deployment is a milestone, not completion of the shared wheelhouse
+migration. Complete the provider-core dependency-download replacement, the
+shared delivery streamed build and every provider's remaining runner and
+worker migration. Qualify their normal cold paths before claiming completion.
+
+The following items do not need to delay the current deployment:
 
 - Shared delivery still uses a selected-file BuildKit named context against
   the live pool. Its eventual streamed context should remove the builder's
   pool access while preserving the existing service and storage.
-- The provider-core repository's own legacy dependency-download target still
-  uses pip directly in the pool; its replacement needs cold-path qualification.
+- The provider-core repository's shared-publisher replacement needs a genuine
+  missing-artifact cold-path qualification through its normal Make target.
 - A wheel downloaded and discarded by a lock compiler for metadata may be
   fetched again by acquisition when the index lacks a metadata sidecar.
 - Cache-aware projection uses current index metadata and excludes yanked

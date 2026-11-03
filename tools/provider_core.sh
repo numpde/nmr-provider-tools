@@ -38,10 +38,43 @@ if [[ $action == download ]]; then
             printf '%s\n' 'Cannot map the wheelhouse owner into the selected engine.' >&2; exit 2;
         }
         worker[4]="$checker_host_uid:$checker_host_gid"
+        mkdir -- "$operation_directory/locks"
+        cp -- "$root/requirements/provider-core.lock" "$operation_directory/locks/core-runtime.lock"
+        cp -- "$root/requirements/provider-core-build.lock" "$operation_directory/locks/core-build.lock"
+        cp -- "$root/requirements/wheelhouse-tool.lock" "$operation_directory/locks/wheelhouse-tool.lock"
+        for index in "${!worker[@]}"; do
+            case ${worker[index]} in
+                "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/core-runtime.lock,dst=/core-runtime.lock,readonly" ;;
+                "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/core-build.lock,dst=/core-build.lock,readonly" ;;
+                "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly" ;;
+            esac
+        done
+        checker_run 120 "${worker[@]}" --network none \
+            --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
+            --entrypoint python3 "$base_image" -B -m tools.provider_core_acquire check > "$operation_directory/pool-state"
+        checker_metadata "$operation_directory/pool-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
+        cmp -s "$operation_directory/pool-check-exit" <(printf 'false 0\n') || {
+            operation_diagnostic+=$'Cannot acquire dependencies: the pool check did not retire successfully.\n'; exit 2;
+        }
+        if cmp -s "$operation_directory/pool-state" <(printf 'complete\n'); then
+            printf '%s\n' 'All provider-core dependencies are already available in WHEELHOUSE.'
+            exit 0
+        fi
+        cmp -s "$operation_directory/pool-state" <(printf 'missing\n') || {
+            operation_diagnostic+=$'Cannot acquire dependencies: the pool check returned an unknown result.\n'; exit 2;
+        }
     fi
     "${network[@]}" run "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
-        --entrypoint python3 "$base_image" -B -m tools.wheelhouse download --pool /wheelhouse \
-        --lock /core-runtime.lock --lock /core-build.lock --lock /wheelhouse-tool.lock
+        --entrypoint python3 "$base_image" -B -m tools.provider_core_acquire
+    if ! "$printing"; then
+        checker_run 120 "${worker[@]}" --network none \
+            --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
+            --entrypoint python3 "$base_image" -B -m tools.wheelhouse check --pool /wheelhouse \
+            --lock /core-runtime.lock --lock /core-build.lock --lock /wheelhouse-tool.lock > /dev/null
+    fi
     exit
 fi
 require_wheelhouse_pool
