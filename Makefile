@@ -173,7 +173,7 @@ endif
 
 .PHONY: engine/cache/gc engine/cache/gc/install
 .PHONY: packages/images/retire
-.PHONY: tests/acquisition/network help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning tests/repository/release tests/repository/network tests/repository/network/identity
+.PHONY: tests/acquisition/identity tests/acquisition/network help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning tests/repository/release tests/repository/network tests/repository/network/identity
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
 .PHONY: delivery/deployment/up delivery/deployment/update delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
@@ -195,6 +195,7 @@ help:
 	  'make tests/repository/release    Run release and wheelhouse bundle fixtures offline.' \
 	  'make tests/repository/network    Run acquisition network-owner fixtures offline.' \
 	  'make tests/repository/network/identity Run the focused acquisition identity fixture.' \
+	  'make tests/acquisition/identity WHEELHOUSE=... Test cold identity mapping and retirement receipts offline.' \
 	  'make tests/delivery/publisher WHEELHOUSE=... Check the shared delivery publisher offline.' \
 	  'make wheelhouse/lock/locate LOCK=... NETWORK_INTERFACE=... [WHEELHOUSE=...] [INDEX_URL=...] [SOURCE_URLS=...] [REQUIRE_SOURCE=...] Project a pinned lock.' \
 	  'make wheelhouse/lock/acquire LOCK=... [SOURCE_LOCK=...] WHEELHOUSE=... NETWORK_INTERFACE=... Acquire locked artifacts.' \
@@ -301,6 +302,9 @@ checks/image/build:
 
 checks/prepare:
 	bash tools/checker.sh prepare
+
+tests/acquisition/identity:
+	@bash tools/acquisition_identity_test.sh
 
 tests: tests/repository tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/deployment
 
