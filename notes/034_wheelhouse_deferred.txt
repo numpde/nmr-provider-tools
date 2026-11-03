@@ -29,6 +29,9 @@ The following items do not need to delay the current deployment:
 - Shared delivery's generated lock has been checked offline with the released
   publisher and cached wheel. A normal preparation with a genuinely missing
   release wheel still needs qualification.
+- NMRPeak and SECS now recheck target selection after cold acquisition.
+  NMRPeak exercised this transition with a simulated engine; SECS has not yet
+  exercised its new cold branch. Both still need a genuine missing-wheel run.
 - A wheel downloaded and discarded by a lock compiler for metadata may be
   fetched again by acquisition when the index lacks a metadata sidecar.
 - Cache-aware projection uses current index metadata and excludes yanked
