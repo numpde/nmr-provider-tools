@@ -18,7 +18,9 @@ if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot mount provider-core inputs: use a nonzero UID/GID and repository path without control characters or commas.' >&2
     exit 2
 fi
-worker=(--pull never --read-only --user "$uid:$gid" --cap-drop ALL --security-opt no-new-privileges:true
+worker_identity=()
+if [[ $action != download ]]; then worker_identity=(--user "$uid:$gid"); fi
+worker=(--pull never --read-only "${worker_identity[@]}" --cap-drop ALL --security-opt no-new-privileges:true
     --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m --workdir /workspace
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1
@@ -39,7 +41,6 @@ if [[ $action == download ]]; then
         checker_host_identity "$base_image" python3 "$uid" "$gid" || {
             printf '%s\n' 'Cannot map the wheelhouse owner into the selected engine.' >&2; exit 2;
         }
-        worker[4]="$checker_host_uid:$checker_host_gid"
         mkdir -- "$operation_directory/locks"
         cp -- "$root/requirements/provider-core.lock" "$operation_directory/locks/core-runtime.lock"
         cp -- "$root/requirements/provider-core-build.lock" "$operation_directory/locks/core-build.lock"
@@ -60,7 +61,7 @@ if [[ $action == download ]]; then
                     worker[index]="type=bind,src=$operation_directory/locks/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly" ;;
             esac
         done
-        checker_run 120 "${worker[@]}" --network none \
+        checker_run 120 "${worker[@]}" --network none --user "$checker_host_uid:$checker_host_gid" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
             --entrypoint python3 "$base_image" -B -m tools.provider_core_acquire check > "$operation_directory/pool-state"
         checker_metadata "$operation_directory/pool-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
@@ -75,10 +76,15 @@ if [[ $action == download ]]; then
             operation_diagnostic+=$'Cannot acquire dependencies: the pool check returned an unknown result.\n'; exit 2;
         }
     fi
-    "${network[@]}" run "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
-        --entrypoint python3 "$base_image" -B -m tools.provider_core_acquire
+    acquisition_receipt_options=()
     if ! "$printing"; then
-        checker_run 120 "${worker[@]}" --network none \
+        checker_acquisition_receipt
+        acquisition_receipt_options=(--retired-receipt "$operation_acquisition_receipt")
+    fi
+    "${network[@]}" run --image "$base_image" "${acquisition_receipt_options[@]}" -- "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
+        --entrypoint python3 -- -B -m tools.provider_core_acquire
+    if ! "$printing"; then
+        checker_run 120 "${worker[@]}" --network none --user "$checker_host_uid:$checker_host_gid" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
             --entrypoint python3 "$base_image" -B -m tools.provider_core_acquire verify > /dev/null
         checker_metadata "$operation_directory/final-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"

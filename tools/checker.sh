@@ -38,7 +38,7 @@ if [[ $action != check ]]; then
     worker_uid=$checker_host_uid worker_gid=$checker_host_gid
 fi
 
-worker=(--pull never --read-only --user "$worker_uid:$worker_gid" --cap-drop ALL --security-opt no-new-privileges:true
+worker=(--pull never --read-only --cap-drop ALL --security-opt no-new-privileges:true
     --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --workdir /workspace
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace
@@ -50,9 +50,10 @@ if [[ $action == download || $action == prepare ]]; then
     # The transport owns both networked containers and their cleanup. Do not
     # put it beneath a signal-forwarding process-group killer.
     source "$root/tools/inference_native.sh"
-    if controller_native 'checker acquisition' untimed stdio bash "$root/tools/docker.sh" run \
+    checker_acquisition_receipt
+    if controller_native 'checker acquisition' untimed stdio bash "$root/tools/docker.sh" run --image "$base_image" --retired-receipt "$operation_acquisition_receipt" -- \
         "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
-        --entrypoint python3 "$base_image" -B -m tools.checker_dependencies download \
+        --entrypoint python3 -- -B -m tools.checker_dependencies download \
         --declaration /workspace/requirements/checker-dependencies.json --directory /wheelhouse; then :; else
         acquisition_status=$?
         printf '%s' "$inference_diagnostic" >&2
@@ -64,7 +65,7 @@ fi
 
 source "$root/tools/checker_inputs.sh"
 if [[ $action == check ]]; then
-    checker_run 60 --network none "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
+    checker_run 60 --network none --user "$worker_uid:$worker_gid" "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
         --entrypoint python3 "$base_image" -B -m tools.checker_dependencies check \
         --declaration /workspace/requirements/checker-dependencies.json --directory /wheelhouse
     exit

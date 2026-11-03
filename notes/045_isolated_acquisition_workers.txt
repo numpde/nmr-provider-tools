@@ -54,6 +54,15 @@ consumer bootstrap bytes from its qualified release. No additional operator
 configuration file, cross-checkout registry or scientific runtime dependency
 is required.
 
+This repository consumes the same qualified bootstrap as its providers. Its
+authored acquisition_tool remains the next release's input; build and download
+operations use the checked-in prior release under bootstrap/acquisition, with
+its public issuer record in requirements/acquisition-owner-release.json. This
+avoids requiring a new release to acquire its own build dependencies. Normal
+operations verify and source those bytes directly. Maintained
+packages/acquisition-bootstrap/check and packages/acquisition-bootstrap/refresh
+targets own verification and explicit refresh from reviewed ARTIFACTS.
+
 0.5.17 already supplies the qualified Unix proxy/relay transport below. Its
 consumer-owned lifecycle wrappers are the intermediate state being replaced
 for 0.6.0. Preserve working deployments and audited WIP while converging on the
@@ -184,6 +193,29 @@ were integrated. Existing offline cache checks remain network none.
 
 Deferred boundaries
 -------------------
+
+Bootstrap refresh is explicit checkout maintenance with acquisitions quiescent.
+It does not hot-swap source beneath running or unresolved owners. Ordinary
+refresh failure restores the old source/issuer pair; automatic recovery from
+abrupt termination during a source-directory exchange is deferred.
+
+The acquisition rollout updates the common host owner, provider controller and
+configured workers through their maintained deployment paths. Preserve each
+deployment's selected CPU or GPU hardware; acquisition qualification does not
+require running a scientific inference job.
+
+A Docker metadata timeout may leave an identity-probe creation unresolved.
+The owner retains its operation token and inputs instead of claiming absence;
+normal settled failures clean automatically. Automatic reconciliation of a
+late-created probe remains a library limitation. Recovery must verify the
+exact owned probe before removing it; it must not prune unrelated resources.
+
+The broad repository quality suite is not a green release claim for this
+rollout. Its outstanding findings include older silent-default annotations,
+assertion formatting, target-inventory assumptions and ignored Python caches.
+The acquisition, provisioning and bytecode lanes provide focused evidence;
+unrelated checker-policy cleanup is deferred rather than weakening detectors
+or turning this deployment into a repository-wide formatting migration.
 
 Docker daemon bootstrap-image pulls retain their explicitly permitted normal
 route. Git/source synchronization also retains its existing routing policy.

@@ -83,10 +83,10 @@ elif [[ $suite == bytecode ]]; then
 elif [[ $suite == acquisition-owner ]]; then
     arguments+=(tests.repository.test_acquisition_scope -v)
 elif [[ $suite == network ]]; then
-    arguments+=(tests.repository.test_network_gate tests.repository.test_network_cancellation -v)
+    arguments+=(tests.repository.test_network_gate tests.repository.test_acquisition_bootstrap tests.repository.test_acquisition_scope -v)
 elif [[ $suite == network-identity ]]; then
-    arguments+=(tests.repository.test_network_cancellation.ContainerIdentityTests.test_valid_ids_preserve_worker_status_start_and_removal_order
-                tests.repository.test_network_cancellation.ContainerIdentityTests.test_failed_create_without_cid_retains_possible_dependents_and_original_status -v)
+    arguments+=(tests.repository.test_acquisition_scope.AcquisitionScopeTests.test_worker_result_names_do_not_collide
+                tests.repository.test_acquisition_scope.AcquisitionScopeTests.test_failed_worker_or_relay_removal_retains_dependencies_and_receipt -v)
 elif [[ $suite == *.py ]]; then
     module=${suite%.py}
     arguments+=("${module//\//.}")

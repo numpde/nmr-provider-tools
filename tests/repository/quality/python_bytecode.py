@@ -141,14 +141,16 @@ def shell_findings(path, source):
                     and not arguments[0].rstrip(")").endswith((".py", ".pyz"))):
                 continue  # E.g. helper(image, python3, uid, gid), not a launch.
             prefix = tokens[:index]
-            enabled = global_env
+            enabled = global_env and not entrypoint
             for position, value in enumerate(prefix):
                 if value in {"-i", "--ignore-environment", "--unset=" + _ENV}:
                     enabled = False
                 elif value == "-u" and position + 1 < len(prefix) and prefix[position + 1] == _ENV:
                     enabled = False
                 elif value.startswith(_ENV + "="):
-                    if entrypoint or position == 0 or prefix[position - 1] != "--env":
+                    if entrypoint and position > 0 and prefix[position - 1] in {"--env", "-e"}:
+                        enabled = value == _ENV + "=1"
+                    elif not entrypoint and (position == 0 or prefix[position - 1] != "--env"):
                         enabled = value == _ENV + "=1"
             isolated = _needs_flag(arguments, True)
             if entrypoint and any("[@]" in value for value in prefix) and not isolated:

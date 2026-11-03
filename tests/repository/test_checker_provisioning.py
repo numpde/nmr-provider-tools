@@ -43,6 +43,7 @@ class CheckerProvisioningTests(unittest.TestCase):
     def test_network_caller_supplies_worker_grants_and_literal_shared_cache(self):
         (self.root / "tools/checker_operation.sh").write_text('''checker_begin() { :; }
 checker_host_identity() { checker_host_uid=$(id -u); checker_host_gid=$(id -g); }
+checker_acquisition_receipt() { operation_acquisition_receipt=$root/retired; }
 ''')
         (self.root / "tools/docker.sh").write_text('printf "%s\\0" "$@" > "$PROVISION_ARGUMENTS"\n')
         cache = self.root / "cache $literal 'quoted'"
@@ -52,7 +53,10 @@ checker_host_identity() { checker_host_uid=$(id -u); checker_host_gid=$(id -g); 
         self.assertEqual("run", arguments[0])
         self.assertIn(f"type=bind,src={cache},dst=/wheelhouse", arguments)
         self.assertIn("NMR_PROVIDER_TOOLS_IN_CONTAINER=1", arguments)
-        for flag, value in (("--pull", "never"), ("--user", f"{os.getuid()}:{os.getgid()}"), ("--cap-drop", "ALL"),
+        self.assertNotIn("--user", arguments)
+        self.assertIn("--image", arguments)
+        self.assertIn("--retired-receipt", arguments)
+        for flag, value in (("--pull", "never"), ("--cap-drop", "ALL"),
                             ("--security-opt", "no-new-privileges:true"), ("--memory", "512m"),
                             ("--memory-swap", "512m"), ("--cpus", "2"), ("--pids-limit", "64")):
             self.assertEqual(value, arguments[arguments.index(flag) + 1])

@@ -23,14 +23,13 @@ read -r -a sources <<< "${LOCATE_SOURCES_INPUT-}"
 for source in "${sources[@]}"; do arguments+=(--source "$source"); done
 read -r -a required <<< "${LOCATE_REQUIRED_INPUT-}"
 for source in "${required[@]}"; do arguments+=(--require-source "$source"); done
-identity=$(bash "$root/tools/host_identity.sh" nmr-provider-tools/wheelhouse-tool:local)
-command=(bash "$root/tools/docker.sh" run --pull never --read-only --user "$identity" \
+command=(bash "$root/tools/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \
     --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /opt \
     --mount "type=bind,src=$root/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \
     --mount "type=bind,src=$lock,dst=/input/requirements.lock,readonly" \
     "${pool_mount[@]}" \
-    --entrypoint python nmr-provider-tools/wheelhouse-tool:local -m wheelhouse_tool.locate "${arguments[@]}")
+    --entrypoint python -- -B -m wheelhouse_tool.locate "${arguments[@]}")
 if [[ ${OUTPUT_INPUT_ORIGIN-} != 'command line' ]]; then
     exec "${command[@]}"
 fi

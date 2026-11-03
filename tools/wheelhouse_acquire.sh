@@ -24,12 +24,11 @@ if [[ -n ${SOURCE_LOCK_INPUT-} ]]; then
 fi
 read -r -a required <<< "${LOCATE_REQUIRED_INPUT-}"
 for package in "${required[@]}"; do arguments+=(--require-sdist "$package"); done
-identity=$(bash "$root/tools/host_identity.sh" nmr-provider-tools/wheelhouse-tool:local)
-exec bash "$root/tools/docker.sh" run --pull never --read-only --user "$identity" \
+exec bash "$root/tools/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \
     --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /opt \
     --mount "type=bind,src=$root/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \
     --mount "type=bind,src=$lock,dst=/input/pylock.toml,readonly" \
     "${source_mount[@]}" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
-    --entrypoint python nmr-provider-tools/wheelhouse-tool:local -m wheelhouse_tool "${arguments[@]}"
+    --entrypoint python -- -B -m wheelhouse_tool "${arguments[@]}"

@@ -20,7 +20,7 @@ endif
 
 # Select once for every Docker goal in this invocation. Help and publish/release
 # use no Docker; child processes inherit the captured endpoint.
-ifneq ($(strip $(filter-out help publish/release,$(MAKECMDGOALS))),)
+ifneq ($(strip $(filter-out help publish/release packages/acquisition-bootstrap/check packages/acquisition-bootstrap/refresh,$(MAKECMDGOALS))),)
 ifeq ($(origin DOCKER_CONTEXT),command line)
 docker_context_quote = '$(subst ','"'"',$(1))'
 override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCKER_ENDPOINT -u DOCKER_CONTEXT_INPUT -u DOCKER_CONTEXT_INPUT_ORIGIN DOCKER_CONTEXT_INPUT_ORIGIN='command line' DOCKER_CONTEXT_INPUT=$(call docker_context_quote,$(value DOCKER_CONTEXT)) bash tools/docker_context.sh --endpoint)
@@ -193,6 +193,8 @@ help:
 	  'make tests/repository            Run repository conventions and detector fixtures offline.' \
 	  'make tests/repository/quality    Run code and operator convention checks offline.' \
 	  'make tests/repository/bytecode   Check maintained Python launches suppress source bytecode.' \
+	  'make packages/acquisition-bootstrap/check Verify the checked-in qualified acquisition owner.' \
+	  'make packages/acquisition-bootstrap/refresh ARTIFACTS=... Refresh owner source from reviewed release artifacts.' \
 	  'make tests/repository/provisioning Run checker preparation and cleanup fixtures offline.' \
 	  'make tests/repository/release    Run release and wheelhouse bundle fixtures offline.' \
 	  'make tests/repository/network    Run acquisition network-owner fixtures offline.' \
@@ -331,6 +333,13 @@ tests/repository/quality:
 .PHONY: tests/repository/bytecode
 tests/repository/bytecode:
 	@bash tools/repository.sh tests/repository/bytecode
+
+.PHONY: packages/acquisition-bootstrap/check packages/acquisition-bootstrap/refresh
+packages/acquisition-bootstrap/check:
+	@bash tools/acquisition_bootstrap.sh check
+
+packages/acquisition-bootstrap/refresh:
+	@bash tools/acquisition_bootstrap.sh refresh
 
 tests/repository/provisioning:
 	bash tools/repository.sh tests/repository/provisioning

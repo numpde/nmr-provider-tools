@@ -20,7 +20,8 @@ checker_host_identity "$base_image" python3 "$uid" "$gid" || {
 }
 cache=$(bash "$root/tools/delivery_cache_check.sh" "$wheelhouse_directory")
 if [[ $cache == missing ]]; then
-    bash "$root/tools/docker.sh" run --pull never --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL \
+    checker_acquisition_receipt
+    bash "$root/tools/docker.sh" run --image "$base_image" --retired-receipt "$operation_acquisition_receipt" -- --pull never --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /workspace \
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
@@ -29,7 +30,7 @@ if [[ $cache == missing ]]; then
     --mount "type=bind,src=$root/requirements/delivery-release.json,dst=/release.json,readonly" \
     --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
-    --entrypoint python3 "$base_image" -B -m tools.delivery_image acquire \
+    --entrypoint python3 -- -B -m tools.delivery_image acquire \
     --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --tool-pin /wheelhouse-tool-release.json
 elif [[ $cache != complete ]]; then
     printf '%s\n' 'Cannot inspect the shared delivery wheelhouse.' >&2; exit 2

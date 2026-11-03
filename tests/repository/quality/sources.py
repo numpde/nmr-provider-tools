@@ -52,7 +52,7 @@ def repo_path(path):
 
 def is_skipped(path):
     parts = path.relative_to(ROOT).parts
-    if parts and parts[0] == "release-artifacts":
+    if parts and parts[0] in {"release-artifacts", "bootstrap"}:
         return True
     return any(part in SKIP_DIRS for part in parts)
 

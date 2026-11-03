@@ -80,6 +80,9 @@ def unguarded_sources(root):
     sources.difference_update(portable_sources)
     # The shared guard must be importable before its caller checks the marker.
     sources.discard(root / "tools" / "container_guard.py")
+    # Cold bootstrap verification/refresh intentionally reads and updates this
+    # checkout before a container or installed SDK can be admitted.
+    sources.discard(root / "tools" / "acquisition_bootstrap.py")
     failures = [
         str(path.relative_to(root))
         for path in sorted(sources)

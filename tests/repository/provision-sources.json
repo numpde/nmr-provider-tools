@@ -46,9 +46,9 @@
     },
     {
       "source": "tests/test_network_cancellation.py",
-      "target": "tests/repository/test_network_cancellation.py",
+      "target": "tests/repository/test_acquisition_scope.py",
       "sha256": "e825945d3a02c2f7b9b4ce5aaf848b3477a57b875cbb3716531c1f774bcc669f",
-      "adaptation": "Local guard and operator variable names, test references and current official Python base pin; predicates unchanged."
+      "adaptation": "The private controller was removed after shared acquisition adoption. Lifecycle proof now targets the common scope and canonical native supervisor; thin caller tests cover argument, routing and retirement-receipt handoff."
     },
     {
       "source": "tests/test_network_gate.py",

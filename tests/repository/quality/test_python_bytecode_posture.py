@@ -32,6 +32,8 @@ class PythonBytecodePostureTests(unittest.TestCase):
                 self.assertEqual([], findings(Path("launcher.sh"), source))
         self.assertEqual(1, len(findings(Path("launcher.sh"),
             "env PYTHONDONTWRITEBYTECODE=1 -u PYTHONDONTWRITEBYTECODE python3 helper.py")))
+        self.assertEqual(1, len(findings(Path("launcher.sh"),
+            "PYTHONDONTWRITEBYTECODE=1 docker run --entrypoint python3 image helper.py")))
 
     def test_entrypoint_declarations_shared_arrays_and_compilers_are_explicit_boundaries(self):
         for source in ("options=(--entrypoint python3)",
@@ -60,9 +62,9 @@ class PythonBytecodePostureTests(unittest.TestCase):
             'subprocess.run([executable, *arguments])',
         ]
         for source in bad:
-            self.assertEqual(1, len(findings(Path("driver.py"), source)), source)
+            self.assertEqual(1, len(findings(Path("driver.py"), source)), msg=source)
         for source in good:
-            self.assertEqual([], findings(Path("driver.py"), source), source)
+            self.assertEqual([], findings(Path("driver.py"), source), msg=source)
 
     def test_inventory_is_automatic_and_diagnostics_do_not_echo_payload(self):
         with tempfile.TemporaryDirectory() as directory:

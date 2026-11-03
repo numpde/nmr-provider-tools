@@ -12,6 +12,7 @@ checker_begin() {
     image_retire_after_success=false
     ordered_container_retirement=false
     operation_retire_order=()
+    operation_acquisition_receipts=()
     operation_directory=$(umask 077; mktemp -d /tmp/nmr-provider-tools.XXXXXXXX) || return "$?"
     operation_label="org.nmr-provider-tools.operation=${operation_directory##*/}"
     docker_client_directory=
@@ -30,6 +31,11 @@ checker_begin() {
         operation_diagnostic+=$docker_client_diagnostic
         return 2
     fi
+}
+
+checker_acquisition_receipt() {
+    operation_acquisition_receipt=$operation_directory/acquisition-${#operation_acquisition_receipts[@]}.retired
+    operation_acquisition_receipts+=("$operation_acquisition_receipt")
 }
 
 checker_call() {
@@ -106,10 +112,13 @@ checker_teardown() {
 }
 
 checker_finish() {
-    local status=$? failed=false identifier
+    local status=$? failed=false identifier receipt
     local -a identifiers=()
     trap - EXIT
     trap '' HUP INT TERM
+    for receipt in "${operation_acquisition_receipts[@]}"; do
+        if ! cmp -s "$receipt" <(printf 'retired\n'); then retain_operation=true; fi
+    done
     if "$inference_retirement_confirmed" && [[ -n $docker_client_directory ]]; then
         if checker_teardown ps --all --quiet --no-trunc --filter "label=$operation_label" > "$operation_directory/containers"; then
             mapfile -t identifiers < "$operation_directory/containers"
