@@ -16,10 +16,20 @@ inference_diagnostic=''
 inference_retirement_confirmed=true
 inference_cancellation_status=0
 scratch=''
+disposable_scratch=false
 finish() {
     local status=$? report_status=0 message=$inference_diagnostic
     trap - EXIT
-    if [[ -n $scratch ]]; then message+="Release inputs and receipts retained at $scratch."$'\n'; fi
+    if [[ -n $scratch ]]; then
+        if "$disposable_scratch" && "$inference_retirement_confirmed"; then
+            if rm -rf -- "$scratch"; then :; else
+                message+="Cannot remove temporary publication files at $scratch."$'\n'
+                if [[ $status == 0 ]]; then status=2; fi
+            fi
+        else
+            message+="Release inputs and receipts retained at $scratch."$'\n'
+        fi
+    fi
     if "$inference_retirement_confirmed" && [[ -n $message ]]; then
         inference_native 'release reporting' 10 stdio printf '%s' "$message" || report_status=$?
         if [[ $status == 0 ]]; then status=$report_status; fi
@@ -106,6 +116,9 @@ private_directory "$ARTIFACTS_INPUT"
 publication_inputs=$ARTIFACTS_INPUT
 umask 077
 scratch=$(mktemp -d -t nmr-provider-publication.XXXXXXXX)
+# The reviewed preparation directory owns the qualified bytes; these copies
+# exist only while publishing and verifying the remote assets.
+disposable_scratch=true
 mkdir -m 700 -- "$scratch/assets"
 for name in "${names[@]}"; do
     native 'capture qualified artifact' 30 cp --no-dereference -- "$publication_inputs/artifacts/$name" "$scratch/assets/$name"

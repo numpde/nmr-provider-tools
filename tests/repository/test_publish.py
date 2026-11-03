@@ -93,6 +93,7 @@ class PublicationTests(unittest.TestCase):
                 self.assertRegex(result.stderr, "Git URL rewrite|Git URL routing")
                 self.assertNotIn("gh ", calls)
                 self.assertNotIn("git push", calls)
+                self.assertEqual([], list(self.root.glob("nmr-provider-publication.*")))
 
     def test_existing_release_and_uncertain_api_result_never_push(self):
         for scenario in ("existing", "api-error"):
@@ -121,6 +122,8 @@ class PublicationTests(unittest.TestCase):
         calls = self.trace.read_text()
         self.assertIn("gh release download", calls)
         self.assertNotIn("gh release edit", calls)
+        self.assertEqual([], list(self.root.glob("nmr-provider-publication.*")))
+        self.assertTrue((self.inputs / "artifacts").is_dir())
 
     def test_only_byte_verified_assets_are_made_public(self):
         result = self.run_publisher("publish", "release")
@@ -129,6 +132,8 @@ class PublicationTests(unittest.TestCase):
         self.assertLess(calls.index("gh release download"), calls.index("gh release edit"))
         self.assertEqual(9, len(list(Path(str(self.trace) + ".uploads").iterdir())))
         self.assertIn("--draft=false", calls)
+        self.assertEqual([], list(self.root.glob("nmr-provider-publication.*")))
+        self.assertTrue((self.inputs / "artifacts").is_dir())
 
     def test_unknown_native_retirement_stops_before_any_tag_or_draft_effect(self):
         (self.root / "tools/inference_native.sh").write_text("""inference_native() {
@@ -153,6 +158,7 @@ class PublicationTests(unittest.TestCase):
         self.assertNotIn("continued after unknown retirement", calls)
         self.assertNotIn("gh release create", calls)
         self.assertNotIn("refs/tags/v0.2.0:refs/tags/v0.2.0", calls)
+        self.assertEqual(1, len(list(self.root.glob("nmr-provider-publication.*"))))
 
     def test_failed_git_status_cannot_be_treated_as_clean_source(self):
         result = self.run_publisher("status-error", "release")

@@ -153,23 +153,25 @@ def wheelhouse_source_inventory(source):
 
 def normalize_sdist(path):
     """Remove host account metadata and use the same fixed epoch as the wheel."""
-    normalized = path.with_suffix(".normalized")
-    with tarfile.open(path, "r:gz") as original, normalized.open("xb") as output:
-        with gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=315532800) as compressed:
-            with tarfile.open(fileobj=compressed, mode="w") as target:
-                for member in sorted(original.getmembers(), key=lambda item: item.name):
-                    if not (member.isfile() or member.isdir()):
-                        raise ValueError("Cannot admit source distribution: archive contains an unsupported link or special file.")
-                    member.uid = member.gid = 0
-                    member.uname = member.gname = ""
-                    member.mtime = 315532800
-                    member.pax_headers = {}
-                    if member.isfile():
-                        with original.extractfile(member) as content:
-                            target.addfile(member, content)
-                    else:
-                        target.addfile(member)
-    normalized.replace(path)
+    # Keep replacement on the same filesystem, with automatic failure cleanup.
+    with tempfile.TemporaryDirectory(prefix="sdist-normalize-", dir=path.parent) as temporary:
+        normalized = Path(temporary) / "archive.tar.gz"
+        with tarfile.open(path, "r:gz") as original, normalized.open("xb") as output:
+            with gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=315532800) as compressed:
+                with tarfile.open(fileobj=compressed, mode="w") as target:
+                    for member in sorted(original.getmembers(), key=lambda item: item.name):
+                        if not (member.isfile() or member.isdir()):
+                            raise ValueError("Cannot admit source distribution: archive contains an unsupported link or special file.")
+                        member.uid = member.gid = 0
+                        member.uname = member.gname = ""
+                        member.mtime = 315532800
+                        member.pax_headers = {}
+                        if member.isfile():
+                            with original.extractfile(member) as content:
+                                target.addfile(member, content)
+                        else:
+                            target.addfile(member)
+        normalized.replace(path)
 
 
 def release(source, runtime_lock, build_lock, pool, output, revision):

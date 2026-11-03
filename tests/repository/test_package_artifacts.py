@@ -13,6 +13,7 @@ import zipfile
 from pathlib import Path
 
 from tools.package import artifact_names, check, source_payload, unpack_source, wheel_payload
+from tools.core_environment import normalize_sdist
 from tools.wheelhouse import digest
 
 
@@ -21,6 +22,26 @@ class PackageArtifactTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+
+    def test_source_normalization_cleans_scratch_and_preserves_failed_input(self):
+        for kind in (tarfile.REGTYPE, tarfile.SYMTYPE):
+            with self.subTest(kind=kind):
+                path = self.root / "source.tar.gz"
+                with tarfile.open(path, "w:gz") as archive:
+                    member = tarfile.TarInfo("package/member")
+                    member.type = kind
+                    member.uid = 123
+                    archive.addfile(member, io.BytesIO())
+                original = path.read_bytes()
+                if kind == tarfile.SYMTYPE:
+                    with self.assertRaisesRegex(ValueError, "unsupported link"):
+                        normalize_sdist(path)
+                    self.assertEqual(original, path.read_bytes())
+                else:
+                    normalize_sdist(path)
+                    with tarfile.open(path, "r:gz") as archive:
+                        self.assertEqual(0, archive.getmembers()[0].uid)
+                self.assertEqual([path], list(self.root.iterdir()))
 
     def test_source_archive_refuses_traversal_links_duplicate_and_special_members_before_extraction(self):
         for name, kind in (("provider_core-0.2.0/../../outside", tarfile.REGTYPE),
