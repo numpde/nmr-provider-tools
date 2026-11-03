@@ -74,6 +74,10 @@ if [[ $action == download ]]; then
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
             --entrypoint python3 "$base_image" -B -m tools.wheelhouse check --pool /wheelhouse \
             --lock /core-runtime.lock --lock /core-build.lock --lock /wheelhouse-tool.lock > /dev/null
+        checker_metadata "$operation_directory/final-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
+        cmp -s "$operation_directory/final-check-exit" <(printf 'false 0\n') || {
+            operation_diagnostic+=$'Cannot confirm dependency acquisition: the final pool check did not retire successfully.\n'; exit 2;
+        }
     fi
     exit
 fi
