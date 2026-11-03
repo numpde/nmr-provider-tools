@@ -16,6 +16,9 @@ corrupt partial pool can still proceed to index metadata lookup.
 SECS built its migrated GPU worker image offline; its deployed GPU worker is
 still on the earlier image pending the separately scoped GPU qualification.
 Healthy deployments have not been restarted merely to update tool pins.
+The shared tool image's normal build bootstrapped the genuinely absent 0.5.12
+streamer and streamed existing wheel inputs on both hosts. Version 0.5.12 also
+corrects 0.5.11's local-version projection limitation.
 
 The following items do not need to delay the current deployment:
 
@@ -24,18 +27,11 @@ The following items do not need to delay the current deployment:
 - Shared delivery's generated lock has been checked offline with the released
   publisher and cached wheel. A normal preparation with a genuinely missing
   release wheel still needs qualification.
-- The shared tool image streams its source and selected wheels. Its normal
-  build bootstrapped the genuinely absent 0.5.12 streamer on the local host;
-  the same cold path on the other host still needs qualification.
 - A wheel downloaded and discarded by a lock compiler for metadata may be
   fetched again by acquisition when the index lacks a metadata sidecar.
 - NMRNet's acquisition launcher selects a network route even when its pool is
   complete. Its offline check cannot yet safely authorize a network fallback
   after an interrupted container; the worker's retirement needs an owner.
-- Released tool 0.5.11 rejects a hash-authorized local-version wheel such as
-  1.0+local for a ==1.0 lock, although pip permits it. The source correction
-  is pending a release; no affected current provider lock was found in the
-  bounded inventory.
 - Cache-aware projection uses current index metadata and excludes yanked
   candidates when non-yanked candidates exist. It cannot reuse an artifact
   absent from that metadata, and may prefer a non-yanked download to a cached
