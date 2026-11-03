@@ -1,10 +1,10 @@
 Deferred wheelhouse work
 ========================
 
-The joint deployment is a milestone, not completion of the shared wheelhouse
-migration. Complete qualification of the provider-core dependency-download
-replacement and every provider's remaining runner and
-worker migration. Qualify their normal cold paths before claiming completion.
+Migration completion concerns the maintained acquisition and build paths.
+Replacing an already-built runtime image or qualifying GPU inference is a
+separate deployment task. Missing test coverage is not itself a demonstrated
+implementation defect. Record the exercised path and its limits directly.
 
 All four providers pin shared tool 0.5.14, which adds bounded retries for
 transient acquisition failures and clear terminal diagnostics. Their maintained
@@ -27,17 +27,17 @@ corrects 0.5.11's local-version projection limitation.
 The following items do not need to delay the current deployment:
 
 - The provider-core normal download target acquired two deliberately moved
-  aside pinned wheels locally and verified their hashes. This is a reversible
-  cold-path witness; a naturally missing dependency has not been observed.
+  aside pinned wheels locally and verified their hashes. This exercises its
+  missing-artifact acquisition path.
 - Shared delivery's generated lock has been checked offline with the released
   publisher and cached wheel. A normal preparation with a genuinely missing
   release wheel still needs qualification.
-- NMRPeak and SECS now recheck target selection after cold acquisition.
-  NMRPeak exercised this transition with a simulated engine and still needs a
-  missing-wheel run. SECS passed a user-authorized local cold run: its 207324-byte
-  pinned provider-core wheel was removed under the pool locks, then its normal
-  provider/wheelhouse target downloaded it over the selected WLAN route and
-  completed in 24 seconds. The restored SHA-256 matches the provider lock.
+- NMRPeak and SECS recheck target selection after cold acquisition. Both passed
+  user-authorized local runs with one missing pinned SDK wheel; the normal
+  acquisition target completed and the restored hash matched the lock.
+  Each check removed the 207324-byte pinned provider-core wheel under pool
+  locks and reacquired it over the selected WLAN route. SECS completed in
+  24 seconds; NMRPeak also completed its post-acquisition provider selection.
 - A user-authorized local SECS witness temporarily removed its pinned release
   wheel. The normal cold target detected the miss, but the download request
   failed before the final recheck. The verified backup was restored under the
@@ -61,7 +61,8 @@ the delivery runtime wheels, pinned release wheel and tool were also present
 with matching hashes. The normal provider-core download target also completed
 as a warm cache hit on both hosts with the 0.5.12 pin, and normal delivery
 preparation rebuilt from those inputs on both hosts without a service restart.
-No cached artifact was removed to manufacture a cold run.
+The later local cold checks above deliberately removed selected artifacts with
+user authorization; the earlier warm checks did not change pool contents.
 
 WLAN DNS failures during host-local acquisition remain an operational issue:
 retain the failing diagnostic and use the configured interface and resolver.
