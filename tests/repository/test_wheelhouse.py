@@ -10,7 +10,10 @@ import shutil
 import tempfile
 import unittest
 import zipfile
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
+from unittest.mock import patch
 
 from tools import provider_core_acquire, wheelhouse
 
@@ -50,6 +53,37 @@ class WheelhouseTests(unittest.TestCase):
         (self.pool / self.missing.name).write_bytes(b"corrupt")
         with self.assertRaisesRegex(ValueError, "cached bytes differ"):
             provider_core_acquire.cache_state(self.pool, [self.lock])
+
+    def test_pinned_tool_bootstrap_downloads_once_and_reuses(self):
+        content = b"synthetic tool release"
+        requests = []
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self):
+                requests.append(self.path)
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(content)
+
+            def log_message(self, *_args):
+                pass
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            pin = {"name": "synthetic-tool.pyz", "sha256": hashlib.sha256(content).hexdigest(),
+                   "url": f"http://127.0.0.1:{server.server_port}/synthetic-tool.pyz"}
+            with patch.object(provider_core_acquire, "require_download_proxy"):
+                path = provider_core_acquire.acquire_tool(self.pool, pin)
+                provider_core_acquire.acquire_tool(self.pool, pin)
+            self.assertEqual(content, path.read_bytes())
+            self.assertEqual(["/synthetic-tool.pyz"], requests)
+            self.assertFalse(list(self.pool.glob("*.part")))
+        finally:
+            server.shutdown()
+            thread.join()
+            server.server_close()
 
     def test_report_requires_the_actual_candidate_wheel(self):
         candidate_dir = self.root / "release"
