@@ -33,6 +33,22 @@ class NativeInstallationTests(unittest.TestCase):
 
         asyncio.run(run())
 
+    def test_native_interpreter_runs_shared_flow_without_api_dependencies(self):
+        from provider_core.interpreter import Interpreter
+        from provider_core.conversation import ToolFinished
+        from tests.fakes.conversation import call, endpoint
+
+        async def run():
+            model = endpoint("native", call("selected", "prepare", {}))
+            owner = Interpreter((lambda **grant: model,), timeout_seconds=30,
+                                context_bytes=16384, secrets=())
+            async def dispatch(name, arguments):
+                return ToolFinished("accepted")
+            self.assertEqual((await owner.run([], [], dispatch)).value, "accepted")
+            self.assertTrue(owner.retirement_confirmed)
+
+        asyncio.run(run())
+
     def test_native_imports_have_no_third_party_dependency_closure(self):
         for name in ("httpx", "httpcore", "http_sf", "cryptography", "tomli_w"):
             self.assertIsNone(importlib.util.find_spec(name), name)
@@ -42,6 +58,7 @@ class NativeInstallationTests(unittest.TestCase):
         import provider_core.process_status
         import provider_core.lifetime
         import provider_core.conversation
+        import provider_core.interpreter
         distribution = importlib.metadata.distribution("provider-core")
         self.assertTrue(distribution.requires)
         self.assertTrue(all('; extra == "api"' in requirement for requirement in distribution.requires))

@@ -23,6 +23,7 @@ class UnixHttpTransport(HttpTransport):
     def __init__(self, *, socket_path, exchange_seconds, retirement_seconds):
         require_unix_socket_path(socket_path)
         self._exchange_seconds = _positive_seconds(exchange_seconds)
+        self._connect_seconds = None
         self._retirement_seconds = _positive_seconds(retirement_seconds)
         self._socket_path = socket_path
         self._trust = self._proxy_socket = None

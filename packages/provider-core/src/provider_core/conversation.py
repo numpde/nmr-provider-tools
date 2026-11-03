@@ -133,12 +133,16 @@ class ToolConversation:
     repair. Without one, feedback is a plain tool message only. Invalid or
     unparsed argument text is still erased before continuation. Omitting the
     grant keeps JSON rejection feedback and strict tool-call admission.
+    max_corrections adds a separate repair cap; omitting it retains the existing
+    total-turn policy. Inspection replies do not count as corrections.
     """
 
-    def __init__(self, endpoints, *, max_turns, secrets, text_correction=None, argument_bytes=None):
+    def __init__(self, endpoints, *, max_turns, secrets, text_correction=None, argument_bytes=None, max_corrections=None):
         if type(endpoints) is not tuple or not endpoints:
             raise ValueError("Cannot configure interpretation: provide a nonempty ordered tuple of endpoints.")
         require_turn_limit(max_turns)
+        if max_corrections is not None:
+            require_turn_limit(max_corrections)
         if type(secrets) is not tuple or any(type(secret) is not str or not secret for secret in secrets):
             raise TypeError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
         if text_correction is not None and type(text_correction) is not TextCorrection:
@@ -147,6 +151,7 @@ class ToolConversation:
             raise ValueError("Cannot configure interpretation: argument_bytes must be a positive integer or None.")
         self._endpoints, self._max_turns = endpoints, max_turns
         self._argument_bytes = argument_bytes
+        self._max_corrections = max_corrections
         self._text_correction = text_correction
         self._secrets = tuple(sorted(set(secrets), key=len, reverse=True))
         self._used = self._retired = False
@@ -167,6 +172,16 @@ class ToolConversation:
         for secret in self._secrets:
             text = text.replace(secret, "[redacted]")
         return text
+
+    @property
+    def correction_count(self):
+        """Corrections admitted so far, including protocol and argument repairs."""
+        return self._corrections
+
+    @property
+    def observation(self):
+        """Bounded route and turn facts, also available after an unsuccessful run."""
+        return self._observation()
 
     def _require_no_secrets(self, value):
         if type(value) is str:
@@ -389,6 +404,10 @@ class ToolConversation:
         self.last_rejection = reason
         self._corrections += 1
         self.correction_failures.append((self._turns, rejection))
+        if self._max_corrections is not None and self._corrections >= self._max_corrections:
+            raise ConversationFailed(
+                f"Cannot interpret the request: the {self._max_corrections}-correction budget was exhausted."
+            )
         content = reason
         if self._text_correction is None:
             content = _encode({"rejected": reason}).decode("ascii")

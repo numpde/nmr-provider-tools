@@ -20,6 +20,7 @@ from provider_core.attempt_record import AcknowledgedAttempt
 from provider_core.chat import ChatFailed
 from provider_core.controller import ControllerFailed, ControllerRefused
 from provider_core.conversation import ConversationFailed, ConversationRetirementFailed, ToolRejected
+from provider_core.interpreter import InterpretationFailed, ModelReportedInputProblem
 from provider_core.credential import CredentialRejected
 from provider_core.delivery_client import DeliveryRejected, DeliveryUnavailable
 from provider_core.delivery_config import DeliveryConfigurationRejected
@@ -53,6 +54,11 @@ def owned_relationships(error):
     redact and bound this protected graph; ordinary Python chaining is not copied.
     """
     kind = type(error)
+    if kind is InterpretationFailed:
+        for visit, cause in error.failures:
+            yield f"interpreter model {visit} failure", cause
+        for visit, turn, cause in error.correction_failures:
+            yield f"interpreter model {visit} turn {turn} correction failure", cause
     if kind is ConversationRetirementFailed:
         for endpoint_index, cause in error.failures:
             yield f"interpreter endpoint {endpoint_index} cleanup", cause
@@ -76,6 +82,7 @@ def owned_relationships(error):
         UploadInputRejected,
         UploadFileReadFailed,
         ConversationFailed,
+        InterpretationFailed,
         ConversationRetirementFailed,
         DeliveryUnavailable,
         DeliveryStorageFailed,
@@ -159,8 +166,10 @@ def owned_details(error):
         StartRefused,
         ChatFailed,
         ConversationFailed,
+        InterpretationFailed,
         ConversationRetirementFailed,
         ToolRejected,
+        ModelReportedInputProblem,
         UploadFailed,
         UploadRecoveryExhausted,
         UploadInputRejected,

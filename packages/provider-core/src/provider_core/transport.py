@@ -275,16 +275,22 @@ class HttpTransport:
     None selects direct TCP. A configured proxy never falls back to direct I/O.
     Plain HTTP requires explicit allow_http=True and cannot use a proxy.
     TLS certificate and hostname verification remain required for HTTPS.
+    Optional connect_seconds bounds total setup through DNS, connection, CONNECT
+    and TLS; it ends when the origin request starts. Without it, the existing
+    aggregate exchange deadline also bounds setup.
     """
 
     # silent-defaults: allow-contract -- HTTPS remains required unless a direct model transport explicitly admits HTTP.
-    def __init__(self, *, trust, exchange_seconds, retirement_seconds, proxy_socket=None, allow_http=False):
+    def __init__(self, *, trust, exchange_seconds, retirement_seconds, proxy_socket=None, allow_http=False, connect_seconds=None):
         require_transport_settings(
             trust=trust, exchange_seconds=exchange_seconds, retirement_seconds=retirement_seconds, proxy_socket=proxy_socket, allow_http=allow_http
         )
         self._trust = trust
         self._allow_http = allow_http
         self._exchange_seconds = exchange_seconds
+        if connect_seconds is not None:
+            _positive_seconds(connect_seconds)
+        self._connect_seconds = connect_seconds
         self._retirement_seconds = retirement_seconds
         self._proxy_socket = proxy_socket
         self._active = None
@@ -353,17 +359,21 @@ class HttpTransport:
             }
             client = self._connection_pool(options)
             extensions = {"timeout": dict.fromkeys(("connect", "read", "write", "pool"), self._exchange_seconds)}
-            if self._proxy_socket is not None:
-                async def observe_connect(name, info):
-                    # httpcore 1.0.9 forwards extensions into CONNECT, whose
-                    # parsed head is the first HTTP/1.1 response. Retain only
-                    # its status before ProxyError discards that structure.
-                    # https://github.com/encode/httpcore/blob/1.0.9/httpcore/_async/http_proxy.py#L278-L297
-                    # https://github.com/encode/httpcore/blob/1.0.9/httpcore/_async/http11.py#L98-L114
-                    if name == "http11.receive_response_headers.complete" and outcome.proxy_connect_status is None:
-                        outcome.proxy_connect_status = info["return_value"][1]
+            if self._connect_seconds is not None:
+                extensions["timeout"]["connect"] = min(self._connect_seconds, self._exchange_seconds)
 
-                extensions["trace"] = observe_connect
+            async def observe_setup(name, info):
+                # The original request starts only after DNS, TCP/Unix, proxy
+                # CONNECT and TLS. Disable the aggregate setup timer here so a
+                # connected model can use the full response window. CONNECT's
+                # synthesized request is a different object (httpcore 1.0.9).
+                if name == "http11.send_request_headers.started" and info["request"] is wire_request:
+                    setup.reschedule(None)
+                if (self._proxy_socket is not None and name == "http11.receive_response_headers.complete"
+                        and outcome.proxy_connect_status is None):
+                    outcome.proxy_connect_status = info["return_value"][1]
+
+            extensions["trace"] = observe_setup
             wire_request = httpcore.Request(
                 method=request.method,
                 url=httpcore.URL(
@@ -374,9 +384,14 @@ class HttpTransport:
                 extensions=extensions,
             )
             try:
-                response = await client.handle_async_request(wire_request)
+                async with asyncio.timeout(self._connect_seconds) as setup:
+                    response = await client.handle_async_request(wire_request)
             except BaseException as failure:
-                outcome.network_failure = failure
+                if type(failure) is TimeoutError and setup.expired():
+                    network.observation.deadline_cancelled = True
+                    outcome.network_failure = network.observation.error
+                else:
+                    outcome.network_failure = failure
                 raise
             outcome.response_head = HttpResponseHead(response.status, tuple(response.headers))
             if before_body is not None:

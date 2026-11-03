@@ -11,6 +11,7 @@ inference, offerings, model configuration and their execution policy.
 - [Shared result delivery](#shared-result-delivery)
 - [Runner lifecycle](#runner-lifecycle)
 - [Conversations and tools](#conversations-and-tools)
+- [Shared interpretation](#shared-interpretation)
 - [API behavior](#api-behavior)
 - [Package and qualification](#package-and-qualification)
 - [Source history](#source-history)
@@ -296,6 +297,89 @@ Those fixtures establish recorded contract/content compatibility, not publisher
 authentication or live API availability. Synthetic provider adaptations qualify
 their declared seams; real NMRNet and Magnet integration is proved by their own
 consumer suites.
+
+## Shared interpretation
+
+`provider_core.interpreter.Interpreter` owns one interpretation across an ordered
+model ladder. It divides remaining time among untried models, fixes each model's
+deadline, and retires its I/O before retry or escalation. SDK policy currently
+allows 12 logical turns, 3 corrections per model, and at most 2 HTTP attempts per
+turn. Availability failures retry the same endpoint with jitter and valid
+`Retry-After`; permanent service failures advance immediately. A connected reply
+can use its model window. The 10-second setup cap covers DNS, TCP or Unix, CONNECT
+and TLS together; cleanup remains independently observed.
+
+Composition supplies synchronous endpoint factories, original messages, the
+provider's existing tool schemas, and its async dispatch:
+
+```python
+from provider_core.chat import ChatEndpoint
+from provider_core.interpreter import Interpreter
+from provider_core.transport import HttpTransport
+
+# spec, trust, proxy_socket and byte limits come from the provider's own config.
+def open_model(*, exchange_seconds, connect_seconds):
+    transport = HttpTransport(
+        trust=trust, proxy_socket=proxy_socket,
+        exchange_seconds=exchange_seconds, connect_seconds=connect_seconds,
+        retirement_seconds=retirement_seconds,
+    )
+    return ChatEndpoint(spec, transport=transport,
+                        request_bytes=request_bytes, response_bytes=response_bytes)
+
+interpretation = Interpreter(
+    (open_model,), timeout_seconds=240,
+    context_bytes=context_bytes, secrets=(spec.api_key,),
+)
+result = await interpretation.run(original_messages, provider_tools, dispatch,
+                                  not_after=job_deadline)
+prepared_input = result.value
+```
+
+Dispatch returns `ToolReply` for observations, `ToolFinished` for accepted
+preparation, and raises `ToolRejected` for a correctable proposal. Accepted
+preparation ends interpretation. Scientific exceptions and caller cancellation
+propagate without replay or model fallback. Exhaustion raises
+`InterpretationFailed`; this ends the Job rather than prescribing a provider
+shutdown. Retain the interpretation if retirement fails; its `retire()` can
+reobserve every visited owner. Results retain bounded route observations and
+private failures without placing them in the model's context.
+`correction_failures` on the interpreter, successful result and exhaustion error
+retains `(model_visit, logical_turn, original_error)` tuples, including protocol
+repairs before provider dispatch. The interpreter property remains readable after
+retirement; these protected causes are never model context.
+The caller still owns cancellation and joining of the `run()` task and settlement
+of provider scientific resources. `retire()` and `retirement_confirmed` cover model
+I/O; they do not prove an in-flight provider tool has stopped.
+Provider dispatch exceptions propagate immediately, leaving `retire()` with the
+caller. This permits prompt reporting of an established native crash while an
+owned cleanup task is separately joined. Normal success and model transitions
+settle retirement inside `run()`; a foreign scientific exception never escalates.
+For a model's unverified input-problem report, dispatch raises the shared
+`ModelReportedInputProblem`: this immediately advances to the next model after
+retirement and records the claim as unverified history. It is not `ToolFinished`,
+and agreement among models does not establish scientific input invalidity.
+
+The module adds two information tools: `describe_input_constraints` reads the
+actual supplied schemas (or an async provider-owned `describe_constraints`
+accessor), and `read_interpretation_records` reads captured proposal/rejection
+pairs and tool observations. Each model receives a compact catalogue and current
+budget with every request. All observation and information replies carry `value` and
+`interpreter_budget`; provider prompt/tool descriptions should account for this
+envelope. History is immutable, in memory, and scoped to this interpretation;
+retention is limited to 48 records and 1 MiB, with explicit unavailable counts.
+Catalogue entries identify the tool, model visit, kind, size and historical status;
+source/member identities remain in the provider-supplied captured arguments and
+observations and are never inferred. Large reads return explicitly partial JSON
+text and a per-record cursor. The
+whole outgoing messages/tools context is checked against the granted byte limit;
+the carrier also bounds the exact HTTP envelope. Neither proves a model token
+limit. Provider tools retain authority over current source membership, inspection,
+dynamic constraints and scientific truth. History never refreshes claims or
+performs inspection, downloads, preparation or generation.
+
+This API implements the tools-first design in note 050. It does not change the
+existing providers' parsers, deployment files or current interpreter wiring.
 
 ## Source history
 

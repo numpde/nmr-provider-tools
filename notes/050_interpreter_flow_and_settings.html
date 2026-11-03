@@ -212,7 +212,8 @@
 
 <section id="tools-first">
   <h2>Option B: the model fetches the context it needs</h2>
-  <p><strong>A concrete alternative, not implemented behavior.</strong> Give the successor the original request, provider instructions, current source inventory and a small catalogue of earlier work. Do not automatically inject prior proposals or large inspection payloads. The model chooses which records to retrieve, which sources to inspect now, or whether it can act directly.</p>
+  <p><strong>Implemented in the shared SDK; provider adoption remains separate.</strong> The <a href="../packages/provider-core/src/provider_core/interpreter.py"><code>Interpreter</code> module</a> implements the tools-first flow with the existing conversation and transport owners. Its API and integration example are in the <a href="../packages/provider-core/README.md#shared-interpretation">package README</a>. This does not change the current provider wiring described below.</p>
+  <p>Give the successor the original request, provider instructions, current source inventory and a small catalogue of earlier work. Do not automatically inject prior proposals or large inspection payloads. The model chooses which records to retrieve, which sources to inspect now, or whether it can act directly.</p>
   <p class="flow-line">Original task + catalogue → model chooses needed evidence → read captured record(s) → reason / inspect / submit<br><small>Reading history is optional. Each read uses the ordinary model-turn and time budget, but not the rejected-proposal quota. It never restarts a deadline.</small></p>
   <div class="table-scroll"><table>
     <thead><tr><th>Information</th><th>How it is available</th><th>Meaning</th></tr></thead>
