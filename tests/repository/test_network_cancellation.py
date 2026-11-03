@@ -61,10 +61,15 @@ case "$operation" in
     kind=${kind%.cid}
     if [[ "$kind" == proxy ]]; then
       identifier=$(printf 'c%.0s' {1..64})
+    elif [[ "$kind" == relay ]]; then
+      identifier=$(printf 'f%.0s' {1..64})
     else
       identifier=$(printf 'd%.0s' {1..64})
     fi
     printf '%s\n' "${receipt%/*}" > "$ENGINE_STATE/scratch"
+    if [[ "$kind" == "${FAIL_CREATE_WITHOUT_CID:-}" ]]; then
+      exit 37
+    fi
     recorded=$identifier
     returned=$identifier
     if [[ "$kind" == "${ALTER_IDENTITY:-}" ]]; then
@@ -79,7 +84,10 @@ case "$operation" in
       printf '%s\n' "$recorded" > "$receipt"
     fi
     if [[ "$kind" == proxy ]]; then
-      printf '12345\n' > "${receipt%/*}/ready/port"
+      python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.close()' "${receipt%/*}/gateway/proxy.sock"
+      printf '/gateway/proxy.sock\n' > "${receipt%/*}/ready/socket"
+    elif [[ "$kind" == relay ]]; then
+      printf '12345\n' > "${receipt%/*}/relay-ready/port"
     fi
     printf '%s\n' "$returned"
     if [[ "$kind" == "${DELAY_IDENTITY:-}" ]]; then
@@ -95,6 +103,7 @@ case "$operation" in
   start)
     case "${!#}" in
       $(printf 'c%.0s' {1..64})) kind=proxy ;;
+      $(printf 'f%.0s' {1..64})) kind=relay ;;
       $(printf 'd%.0s' {1..64})) kind=worker ;;
       *) exit 97 ;;
     esac
@@ -116,6 +125,7 @@ case "$operation" in
   rm)
     case "${!#}" in
       $(printf 'c%.0s' {1..64})) kind=proxy ;;
+      $(printf 'f%.0s' {1..64})) kind=relay ;;
       $(printf 'd%.0s' {1..64})) kind=worker ;;
       *) exit 97 ;;
     esac
@@ -169,7 +179,7 @@ class NetworkCancellationTests(unittest.TestCase):
                     self.assertEqual(143, process.returncode, msg=stderr)
                     self.assertEqual("", stderr)
                     self.assertEqual(
-                        ["rm --force " + "c" * 64],
+                        [],
                         [event for event in (state / "events").read_text().splitlines() if event.startswith("rm ")],
                     )
                     with self.assertRaises(ProcessLookupError):
@@ -188,10 +198,13 @@ class NetworkCancellationTests(unittest.TestCase):
     def test_term_during_identity_creation_removes_only_valid_receipted_containers(self):
         for phase, nul_receipt, no_lf in (
             ("proxy", False, False),
+            ("relay", False, False),
             ("worker", False, False),
             ("proxy", True, False),
+            ("relay", True, False),
             ("worker", True, False),
             ("proxy", False, True),
+            ("relay", False, True),
             ("worker", False, True),
         ):
             with self.subTest(phase=phase, nul_receipt=nul_receipt, no_lf=no_lf), tempfile.TemporaryDirectory() as temporary:
@@ -228,7 +241,7 @@ class NetworkCancellationTests(unittest.TestCase):
                         time.sleep(0.01)
                     self.assertTrue((state / "delaying").exists())
                     scratch = Path((state / "scratch").read_text().strip())
-                    identifier = {"proxy": "c" * 64, "worker": "d" * 64}[phase].encode()
+                    identifier = {"proxy": "c" * 64, "relay": "f" * 64, "worker": "d" * 64}[phase].encode()
                     if nul_receipt:
                         expected_cid, expected_stdout = identifier + b"\0", b"\n"
                     elif no_lf:
@@ -319,34 +332,45 @@ class ContainerIdentityTests(unittest.TestCase):
             }
         )
         self.assertEqual(2, result.returncode, msg=result.stderr)
-        self.assertIn("matching its CID file", result.stderr)
+        self.assertIn("relay" if phase == "relay" else "matching its CID file", result.stderr)
         effects = [event for event in events if event.startswith(("start ", "rm "))]
-        # silent-defaults: allow-contract -- Rejected proxy identity permits no effects; worker rejection permits only the already admitted proxy start and removal; proof=tests/repository/test_network_cancellation.py::ContainerIdentityTests.test_malformed_returned_and_recorded_identities_never_authorize_effects
-        expected = [] if phase == "proxy" else ["start " + "c" * 64, "rm --force " + "c" * 64]
+        # silent-defaults: allow-contract -- Rejected identities retain their dependencies; only previously admitted starts may have happened; proof=tests/repository/test_network_cancellation.py::ContainerIdentityTests.test_malformed_returned_and_recorded_identities_never_authorize_effects
+        expected = [] if phase == "proxy" else ["start " + "c" * 64]
+        if phase == "worker":
+            expected.append("start " + "f" * 64)
         self.assertEqual(expected, effects)
         self.assertTrue(retained, msg="Unadmitted container identity discarded its creation evidence")
 
     def test_malformed_returned_and_recorded_identities_never_authorize_effects(self):
-        for phase in ("proxy", "worker"):
+        for phase in ("proxy", "relay", "worker"):
             for identity in ("foreign-container", "C" * 64, "c" * 63, "", "c" * 64 + "\n" + "d" * 64):
                 with self.subTest(phase=phase, identity=identity):
                     self.assert_identity_rejected(phase, identity, identity)
 
     def test_mismatched_full_ids_never_authorize_start_or_removal(self):
-        for phase, returned in (("proxy", "c" * 64), ("worker", "d" * 64)):
+        for phase, returned in (("proxy", "c" * 64), ("relay", "f" * 64), ("worker", "d" * 64)):
             with self.subTest(phase=phase):
                 self.assert_identity_rejected(phase, returned, "e" * 64)
 
     def test_malformed_cid_file_cannot_authorize_returned_id_effects(self):
-        for phase, returned in (("proxy", "c" * 64), ("worker", "d" * 64)):
+        for phase, returned in (("proxy", "c" * 64), ("relay", "f" * 64), ("worker", "d" * 64)):
             for recorded in ("foreign-container", returned + "\n"):
                 with self.subTest(phase=phase, recorded=recorded):
                     self.assert_identity_rejected(phase, returned, recorded)
 
     def test_nul_bearing_cid_receipts_never_authorize_start_or_removal(self):
-        for phase, identifier in (("proxy", "c" * 64), ("worker", "d" * 64)):
+        for phase, identifier in (("proxy", "c" * 64), ("relay", "f" * 64), ("worker", "d" * 64)):
             with self.subTest(phase=phase):
                 self.assert_identity_rejected(phase, identifier, identifier, receipt_additions={"CID_NUL_PHASE": phase})
+
+    def test_failed_create_without_cid_retains_possible_dependents_and_original_status(self):
+        for phase in ("proxy", "relay", "worker"):
+            with self.subTest(phase=phase):
+                result, events, retained = self.operation({"FAIL_CREATE_WITHOUT_CID": phase})
+                self.assertEqual(37, result.returncode, msg=result.stderr)
+                self.assertTrue(retained)
+                self.assertFalse(any(event.startswith("rm ") for event in events))
+                self.assertIn(phase, result.stderr)
 
     def test_valid_ids_preserve_worker_status_start_and_removal_order(self):
         result, events, retained = self.operation({"WORKER_STATUS": "7"})
@@ -354,8 +378,10 @@ class ContainerIdentityTests(unittest.TestCase):
         self.assertEqual(
             [
                 "start " + "c" * 64,
+                "start " + "f" * 64,
                 "start --attach " + "d" * 64,
                 "rm --force " + "d" * 64,
+                "rm --force " + "f" * 64,
                 "rm --force " + "c" * 64,
             ],
             [event for event in events if event.startswith(("start ", "rm "))],
@@ -366,12 +392,11 @@ class ContainerIdentityTests(unittest.TestCase):
         result, events, retained = self.operation({"WORKER_STATUS": "7", "REMOVE_STATUS": "9"})
         self.assertEqual(7, result.returncode, msg=result.stderr)
         self.assertIn("worker removal", result.stderr)
-        self.assertIn("proxy removal", result.stderr)
+        self.assertNotIn("proxy removal", result.stderr)
         self.assertTrue(retained)
         self.assertEqual(
             [
                 "rm --force " + "d" * 64,
-                "rm --force " + "c" * 64,
             ],
             [event for event in events if event.startswith("rm ")],
         )

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Interface-bound HTTP transport and explicit default-route proxy bootstrap.
-# Transport precedent: explicit interface, loopback proxy, host-network clients.
+# Only the route-owning gateway uses host networking. Workers share the
+# disconnected relay namespace and reach the gateway over a private Unix socket.
 # https://github.com/numpde/secs-repro/blob/34f5915c1534278bbf61b4c6592afa44cf94ab08/tools/docker.sh
-# Containerizing the proxy and owning both container lifecycles are local changes.
+# The launcher owns worker, relay and gateway lifetime in that dependency order.
 set -euo pipefail
 
 readonly repository_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -48,6 +49,14 @@ esac
 if [[ "$operation" == run ]]; then
     require_interface
     shift
+    # Maintained callers own their image and mounts, not this network boundary.
+    for argument in "$@"; do
+        case "$argument" in
+            --network|--network=*|--net|--net=*)
+                printf '%s\n' 'Cannot start acquisition: network selection belongs to the acquisition launcher.' >&2
+                exit 2 ;;
+        esac
+    done
     readonly caller_uid="$(id -u)"
     readonly caller_gid="$(id -g)"
     if [[ "$caller_uid" == 0 || "$caller_gid" == 0 ]]; then
@@ -71,6 +80,7 @@ source "$repository_root/tools/inference_native.sh"
 docker_client_directory=
 scratch=
 proxy_id=
+relay_id=
 worker_id=
 pending_diagnostic=
 retain_preflight_receipts=false
@@ -193,6 +203,14 @@ cleanup() {
                     worker_id=$candidate
                 fi
             fi
+            if [[ -z "$relay_id" && -f "$scratch/relay.cid" && ! -L "$scratch/relay.cid" ]]; then
+                candidate=
+                if IFS= read -r -N 64 candidate < "$scratch/relay.cid" \
+                    && container_id_matches_receipt "$candidate" "$scratch/relay.cid" \
+                    && cancellation_stdout_allows_identity "$candidate" "$scratch/relay-create/stdout"; then
+                    relay_id=$candidate
+                fi
+            fi
             if [[ -z "$proxy_id" && -f "$scratch/proxy.cid" && ! -L "$scratch/proxy.cid" ]]; then
                 candidate=
                 if IFS= read -r -N 64 candidate < "$scratch/proxy.cid" \
@@ -202,7 +220,7 @@ cleanup() {
                 fi
             fi
         fi
-        if [[ -n "$scratch" && ( -e "$scratch/worker.cid" || -L "$scratch/worker.cid" || -n "$worker_id" ) ]]; then
+        if [[ -n "$scratch" && ( -d "$scratch/worker-create" || -e "$scratch/worker.cid" || -L "$scratch/worker.cid" || -n "$worker_id" ) ]]; then
             if ! container_id_matches_receipt "$worker_id" "$scratch/worker.cid"; then
                 printf -v pending_diagnostic '%sCannot confirm acquisition worker removal: its container ID was not admitted; evidence remains in %s.\n' "$pending_diagnostic" "$scratch"
                 cleanup_failed=true
@@ -216,7 +234,21 @@ cleanup() {
                 fi
             fi
         fi
-        if "$inference_retirement_confirmed" && [[ -n "$scratch" && ( -e "$scratch/proxy.cid" || -L "$scratch/proxy.cid" || -n "$proxy_id" ) ]]; then
+        if ! "$cleanup_failed" && "$inference_retirement_confirmed" && [[ -n "$scratch" && ( -d "$scratch/relay-create" || -e "$scratch/relay.cid" || -L "$scratch/relay.cid" || -n "$relay_id" ) ]]; then
+            if ! container_id_matches_receipt "$relay_id" "$scratch/relay.cid"; then
+                printf -v pending_diagnostic '%sCannot confirm relay removal: its container ID was not admitted; evidence remains in %s.\n' "$pending_diagnostic" "$scratch"
+                cleanup_failed=true
+            else
+                if inference_native 'acquisition relay removal' "$metadata_timeout" discard "${engine[@]}" rm --force "$relay_id"; then removal_status=0; else removal_status=$?; fi
+                pending_diagnostic+=$inference_diagnostic
+                if [[ $inference_cancellation_status != 0 ]]; then cleanup_cancellation=$inference_cancellation_status; fi
+                if [[ "$removal_status" != 0 ]] || ! "$inference_retirement_confirmed"; then
+                    printf -v pending_diagnostic '%sCannot confirm relay removal; container ID is recorded in %s/relay.cid.\n' "$pending_diagnostic" "$scratch"
+                    cleanup_failed=true
+                fi
+            fi
+        fi
+        if ! "$cleanup_failed" && "$inference_retirement_confirmed" && [[ -n "$scratch" && ( -d "$scratch/proxy-create" || -e "$scratch/proxy.cid" || -L "$scratch/proxy.cid" || -n "$proxy_id" ) ]]; then
             if ! container_id_matches_receipt "$proxy_id" "$scratch/proxy.cid"; then
                 printf -v pending_diagnostic '%sCannot confirm proxy removal: its container ID was not admitted; evidence remains in %s.\n' "$pending_diagnostic" "$scratch"
                 cleanup_failed=true
@@ -327,7 +359,7 @@ if "$print_command"; then
     proxy_user=HOST_IDENTITY
 else
     require_images "$proxy_image"
-    mkdir -m 700 -- "$scratch/ready"
+    mkdir -m 700 -- "$scratch/ready" "$scratch/gateway" "$scratch/relay-ready"
     proxy_user=$(bash "$repository_root/tools/host_identity.sh" "$proxy_image") || {
         printf '%s\n' 'Cannot map the acquisition proxy identity into the selected engine.' >&2
         exit 2
@@ -343,10 +375,12 @@ proxy=("${engine[@]}" create --cidfile "$scratch/proxy.cid" --pull never --netwo
     --mount "type=bind,src=$repository_root/packages/provider-core/src/provider_core/bound_http_proxy.py,dst=/workspace/provider_core/bound_http_proxy.py,readonly"
     --mount "type=bind,src=$repository_root/packages/provider-core/src/provider_core/container_guard.py,dst=/workspace/provider_core/container_guard.py,readonly"
     --mount "type=bind,src=$scratch/ready,dst=/ready"
-    "$proxy_image" python3 -B -m provider_core.bound_http_proxy --interface "$interface" --port 0 --ready-file /ready/port)
+    --mount "type=bind,src=$scratch/gateway,dst=/gateway"
+    "$proxy_image" python3 -B -m provider_core.bound_http_proxy --interface "$interface" --unix-socket /gateway/proxy.sock --ready-file /ready/socket)
 if "$print_command"; then
     printf '%q ' "${proxy[@]}"; printf '\n'
     printf '%q ' "${engine[@]}" start PROXY_ID; printf '\n'
+    relay_id=RELAY_ID
     proxy_port=PORT
 else
     mkdir -m 700 -- "$scratch/proxy-create"
@@ -422,7 +456,7 @@ else
             collect_proxy_logs "$@"
             exit 3
         fi
-    ' bash "$scratch/readiness" "$scratch/ready/port" "$proxy_id" "${engine[@]}"; then readiness_status=0; else readiness_status=$?; fi
+    ' bash "$scratch/readiness" "$scratch/ready/socket" "$proxy_id" "${engine[@]}"; then readiness_status=0; else readiness_status=$?; fi
     pending_diagnostic+=$inference_diagnostic
     if ! "$inference_retirement_confirmed"; then exit "$readiness_status"; fi
     case "$readiness_status" in
@@ -453,19 +487,136 @@ else
             exit "$readiness_status"
             ;;
     esac
-    # The fixed proxy publishes one decimal port plus LF. Reject unsupported
-    # types/extra bytes before a parent read outside the held metadata owner.
-    proxy_port=
-    if ! private_receipt_below_limit "$scratch/ready/port" \
-        || ! IFS= read -r proxy_port < "$scratch/ready/port" \
-        || [[ ! "$proxy_port" =~ ^[1-9][0-9]{0,4}$ || "$proxy_port" -gt 65535 ]] \
-        || ! cmp -s -- "$scratch/ready/port" <(printf '%s\n' "$proxy_port"); then
-        printf -v pending_diagnostic '%s%s\n' "$pending_diagnostic" 'Cannot start acquisition: the proxy readiness file contains an invalid port.'
+    # The gateway readiness describes its in-container socket path exactly.
+    if ! private_receipt_below_limit "$scratch/ready/socket" \
+        || ! cmp -s -- "$scratch/ready/socket" <(printf '/gateway/proxy.sock\n') \
+        || [[ ! -S "$scratch/gateway/proxy.sock" ]]; then
+        printf -v pending_diagnostic '%s%s\n' "$pending_diagnostic" 'Cannot start acquisition: gateway socket readiness is invalid.'
         exit 2
     fi
+
+fi
+relay=("${engine[@]}" create --cidfile "$scratch/relay.cid" --pull never --network none --read-only
+    --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PROVIDER_CORE_IN_CONTAINER=1 --workdir /workspace
+    --user "$proxy_user" --cap-drop ALL --security-opt no-new-privileges:true
+    --cpus 1 --memory 128m --memory-swap 128m --pids-limit 64
+    --tmpfs /tmp:rw,nosuid,nodev,noexec,size=16m
+    --mount "type=bind,src=$repository_root/packages/provider-core/src/provider_core/bound_http_proxy.py,dst=/workspace/provider_core/bound_http_proxy.py,readonly"
+    --mount "type=bind,src=$repository_root/packages/provider-core/src/provider_core/container_guard.py,dst=/workspace/provider_core/container_guard.py,readonly"
+    --mount "type=bind,src=$scratch/gateway,dst=/gateway,readonly"
+    --mount "type=bind,src=$scratch/relay-ready,dst=/ready"
+    "$proxy_image" python3 -B -m provider_core.bound_http_proxy --relay-socket /gateway/proxy.sock --port 0 --ready-file /ready/port)
+if "$print_command"; then
+    printf '%q ' "${relay[@]}"; printf '\n'
+    printf '%q ' "${engine[@]}" start RELAY_ID; printf '\n'
+else
+    mkdir -m 700 -- "$scratch/relay-create"
+    if inference_native 'acquisition relay creation' "$metadata_timeout" stdio bash -eu -c '
+        directory=$1; shift
+        umask 077; ulimit -f 4
+        exec "$@" > "$directory/stdout" 2> "$directory/stderr"
+    ' bash "$scratch/relay-create" "${relay[@]}"; then create_status=0; else create_status=$?; fi
+    pending_diagnostic+=$inference_diagnostic
+    if ! "$inference_retirement_confirmed"; then exit "$create_status"; fi
+    candidate=
+    if private_receipt_below_limit "$scratch/relay-create/stdout" \
+        && IFS= read -r -N 64 candidate < "$scratch/relay-create/stdout" \
+        && container_id_matches_receipt "$candidate" "$scratch/relay-create/stdout" \
+        && container_id_matches_receipt "$candidate" "$scratch/relay.cid"; then relay_id=$candidate; fi
+    if [[ "$create_status" != 0 ]]; then
+        printf -v pending_diagnostic '%sCannot start acquisition relay: its create client failed (status %s); receipts remain in %s/relay-create.\n' "$pending_diagnostic" "$create_status" "$scratch"
+        exit "$create_status"
+    fi
+    if [[ -z "$relay_id" ]] || ! private_receipt_below_limit "$scratch/relay-create/stderr"; then
+        printf -v pending_diagnostic '%sCannot start acquisition relay: create identity or result is unconfirmed (status %s); receipts remain in %s/relay-create.\n' "$pending_diagnostic" "$create_status" "$scratch"
+        exit 2
+    fi
+    if inference_native 'acquisition relay start' "$metadata_timeout" discard "${engine[@]}" start "$relay_id"; then start_status=0; else start_status=$?; fi
+    pending_diagnostic+=$inference_diagnostic
+    if ! "$inference_retirement_confirmed" || [[ "$start_status" != 0 ]]; then exit "$start_status"; fi
+    mkdir -m 700 -- "$scratch/relay-readiness"
+    # ONE owner bounds the entire existing fixed poll loop, including a stalled
+    # inspection/log request. No nested timeout or per-poll native owner exists.
+    if inference_native 'acquisition relay readiness' "$metadata_timeout" stdio bash -eu -c '
+        directory=$1 ready=$2 proxy=$3; shift 3
+        umask 077
+        ulimit -f 4
+        collect_proxy_logs() {
+            if "$@" logs "$proxy" > "$directory/logs.stdout" 2> "$directory/logs.stderr"; then
+                log_status=0
+            else
+                log_status=$?
+            fi
+            printf "%s\n" "$log_status" > "$directory/log-status"
+        }
+        for _ in {1..100}; do
+            [[ -s "$ready" ]] && exit 0
+            if "$@" inspect --format "{{.State.Running}}" "$proxy" > "$directory/state" 2> "$directory/inspect.stderr"; then
+                inspect_status=0
+            else
+                inspect_status=$?
+            fi
+            if [[ "$inspect_status" != 0 || ! -f "$directory/state" || -L "$directory/state" ]] \
+                || ! cmp -s -- "$directory/state" <(printf "true\n"); then
+                # Only a successful canonical false receipt proves stopped.
+                # Failed inspection or malformed state establishes uncertainty.
+                readiness_failure=4
+                if [[ "$inspect_status" == 0 && -f "$directory/state" && ! -L "$directory/state" ]] \
+                    && cmp -s -- "$directory/state" <(printf "false\n"); then
+                    readiness_failure=2
+                fi
+                collect_proxy_logs "$@"
+                exit "$readiness_failure"
+            fi
+            sleep 0.05
+        done
+        if [[ ! -s "$ready" ]]; then
+            collect_proxy_logs "$@"
+            exit 3
+        fi
+    ' bash "$scratch/relay-readiness" "$scratch/relay-ready/port" "$relay_id" "${engine[@]}"; then readiness_status=0; else readiness_status=$?; fi
+    pending_diagnostic+=$inference_diagnostic
+    if ! "$inference_retirement_confirmed"; then exit "$readiness_status"; fi
+    case "$readiness_status" in
+        0) ;;
+        2|3|4)
+            if [[ "$readiness_status" == 2 ]]; then
+                printf -v pending_diagnostic '%s%s\n' "$pending_diagnostic" 'Cannot start acquisition: the relay stopped before becoming ready.'
+            elif [[ "$readiness_status" == 3 ]]; then
+                printf -v pending_diagnostic '%s%s\n' "$pending_diagnostic" 'Cannot start acquisition: the relay did not become ready.'
+            else
+                printf -v pending_diagnostic '%sCannot start acquisition: the relay running state could not be verified; private receipts remain in %s/relay-readiness.\n' "$pending_diagnostic" "$scratch"
+            fi
+            log_status=
+            if private_receipt_below_limit "$scratch/relay-readiness/log-status" \
+                && IFS= read -r log_status < "$scratch/relay-readiness/log-status" \
+                && [[ "$log_status" =~ ^(0|[1-9][0-9]{0,2})$ && "$log_status" -le 255 ]] \
+                && cmp -s -- "$scratch/relay-readiness/log-status" <(printf '%s\n' "$log_status"); then
+                if [[ "$log_status" != 0 ]]; then
+                    printf -v pending_diagnostic '%sCannot retrieve acquisition relay logs (status %s); private receipts remain in %s/relay-readiness.\n' "$pending_diagnostic" "$log_status" "$scratch"
+                fi
+            else
+                printf -v pending_diagnostic '%s%s\n' "$pending_diagnostic" 'Cannot admit the private acquisition relay log-retrieval status receipt.'
+            fi
+            exit 2
+            ;;
+        *)
+            printf -v pending_diagnostic '%sCannot start acquisition: relay readiness metadata failed (status %s); private receipts remain in %s/relay-readiness.\n' "$pending_diagnostic" "$readiness_status" "$scratch"
+            exit "$readiness_status"
+            ;;
+    esac
+    proxy_port=
+    if ! private_receipt_below_limit "$scratch/relay-ready/port" \
+        || ! IFS= read -r proxy_port < "$scratch/relay-ready/port" \
+        || [[ ! "$proxy_port" =~ ^[1-9][0-9]{0,4}$ || "$proxy_port" -gt 65535 ]] \
+        || ! cmp -s -- "$scratch/relay-ready/port" <(printf '%s\n' "$proxy_port"); then
+        printf -v pending_diagnostic '%s%s\n' "$pending_diagnostic" 'Cannot start acquisition: relay readiness contains an invalid port.'
+        exit 2
+    fi
+
 fi
 proxy_url="http://127.0.0.1:$proxy_port"
-worker=("${engine[@]}" create --cidfile "$scratch/worker.cid" --network host
+worker=("${engine[@]}" create --cidfile "$scratch/worker.cid" --network "container:$relay_id"
     --env "HTTP_PROXY=$proxy_url" --env "HTTPS_PROXY=$proxy_url"
     --env "http_proxy=$proxy_url" --env "https_proxy=$proxy_url"
     --env NO_PROXY= --env no_proxy= --env ALL_PROXY= --env all_proxy= "$@")

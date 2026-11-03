@@ -79,7 +79,8 @@ if [[ $suite == release ]]; then
 elif [[ $suite == network ]]; then
     arguments+=(tests.repository.test_network_gate tests.repository.test_network_cancellation -v)
 elif [[ $suite == network-identity ]]; then
-    arguments+=(tests.repository.test_network_cancellation.ContainerIdentityTests.test_valid_ids_preserve_worker_status_start_and_removal_order -v)
+    arguments+=(tests.repository.test_network_cancellation.ContainerIdentityTests.test_valid_ids_preserve_worker_status_start_and_removal_order
+                tests.repository.test_network_cancellation.ContainerIdentityTests.test_failed_create_without_cid_retains_possible_dependents_and_original_status -v)
 elif [[ $suite == *.py ]]; then
     module=${suite%.py}
     arguments+=("${module//\//.}")

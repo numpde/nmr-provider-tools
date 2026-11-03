@@ -51,15 +51,16 @@ class NetworkGateTests(unittest.TestCase):
     def test_proxy_and_worker_are_contained_and_override_proxy_environment(self):
         result = self.invoke("lo")
         self.assertEqual(0, result.returncode, msg=result.stderr)
-        proxy, start_proxy, worker, start_worker = [shlex.split(line) for line in result.stdout.splitlines()]
+        proxy, start_proxy, relay, start_relay, worker, start_worker = [shlex.split(line) for line in result.stdout.splitlines()]
         self.assertEqual(["start", "PROXY_ID"], start_proxy[-2:])
+        self.assertEqual(["start", "RELAY_ID"], start_relay[-2:])
         self.assertEqual(["start", "--attach", "WORKER_ID"], start_worker[-3:])
-        for command in (proxy, worker):
+        for command in (proxy, relay, worker):
             self.assertIn("create", command)
             self.assertNotIn("--rm", command)
             self.assertIn("--read-only", command)
             self.assertIn("no-new-privileges:true", command)
-            expected_user = "HOST_IDENTITY" if command is proxy else f"{os.getuid()}:{os.getgid()}"
+            expected_user = "HOST_IDENTITY" if command in (proxy, relay) else f"{os.getuid()}:{os.getgid()}"
             self.assertEqual(expected_user, command[command.index("--user") + 1])
             self.assertEqual("ALL", command[command.index("--cap-drop") + 1])
             self.assertEqual("never", command[command.index("--pull") + 1])
@@ -77,12 +78,22 @@ class NetworkGateTests(unittest.TestCase):
                 f"type=bind,src={Path.cwd()}/packages/provider-core/src/provider_core/bound_http_proxy.py,dst=/workspace/provider_core/bound_http_proxy.py,readonly",
                 f"type=bind,src={Path.cwd()}/packages/provider-core/src/provider_core/container_guard.py,dst=/workspace/provider_core/container_guard.py,readonly",
                 "type=bind,src=/tmp/nmrnet-proxy.PRINT/ready,dst=/ready",
+                "type=bind,src=/tmp/nmrnet-proxy.PRINT/gateway,dst=/gateway",
             },
             set(proxy_mounts),
         )
         self.assertIn("type=bind,src=/tmp/nmrnet-proxy.PRINT/ready,dst=/ready", proxy)
         self.assertNotIn("type=bind,src=/tmp/nmrnet-proxy.PRINT,dst=/ready", proxy)
         self.assertEqual("lo", proxy[proxy.index("--interface") + 1])
+        self.assertEqual("host", proxy[proxy.index("--network") + 1])
+        self.assertEqual("none", relay[relay.index("--network") + 1])
+        self.assertEqual("container:RELAY_ID", worker[worker.index("--network") + 1])
+        self.assertEqual("/gateway/proxy.sock", proxy[proxy.index("--unix-socket") + 1])
+        self.assertEqual("/gateway/proxy.sock", relay[relay.index("--relay-socket") + 1])
+        relay_mounts = [relay[i + 1] for i, arg in enumerate(relay) if arg == "--mount"]
+        self.assertIn("type=bind,src=/tmp/nmrnet-proxy.PRINT/gateway,dst=/gateway,readonly", relay_mounts)
+        self.assertIn("type=bind,src=/tmp/nmrnet-proxy.PRINT/relay-ready,dst=/ready", relay_mounts)
+        self.assertFalse(any("/gateway" in worker[i + 1] for i, arg in enumerate(worker) if arg == "--mount"))
         for name in ("HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"):
             self.assertIn(f"{name}=http://127.0.0.1:PORT", worker)
         for name in ("NO_PROXY", "no_proxy", "ALL_PROXY", "all_proxy"):
