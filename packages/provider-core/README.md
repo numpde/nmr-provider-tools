@@ -183,6 +183,12 @@ identity and uncertainty; providers own the resulting availability policy.
 
 ## Conversations and tools
 
+`ToolConversation` can run with an injected carrier in the native-only install;
+it does not import HTTP libraries. Actual `ChatEndpoint` use requires the `api`
+extra. Lightweight `chat_errors` and `transport_errors` own the failure types;
+the existing `chat.ChatFailed` and `transport.ExchangeFailed` imports expose
+those same classes.
+
 `ToolConversation` keeps one bounded transcript and permits endpoint fallback
 only after a carrier failure. Providers own endpoint selection and scientific
 tool dispatch. An explicit `text_correction=TextCorrection(user_content=...)`

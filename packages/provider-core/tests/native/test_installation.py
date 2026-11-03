@@ -1,5 +1,6 @@
 """Scientific workers use installed native helpers without API dependencies."""
 
+import asyncio
 import hashlib
 import importlib.metadata
 import importlib.util
@@ -13,6 +14,25 @@ from tests.fakes.runner import RunningSupervisor, worker_pid
 
 
 class NativeInstallationTests(unittest.TestCase):
+    def test_native_conversation_dispatches_without_api_dependencies(self):
+        from provider_core.conversation import ToolConversation, ToolFinished
+        from tests.fakes.conversation import call, endpoint
+
+        async def run():
+            model = endpoint("native", call("selected", "prepare", {"record": 1}))
+            conversation = ToolConversation((model,), max_turns=1, secrets=())
+
+            async def dispatch(name, arguments):
+                self.assertEqual((name, arguments), ("prepare", {"record": 1}))
+                return ToolFinished("accepted")
+
+            try:
+                self.assertEqual((await conversation.run([], [], dispatch)).value, "accepted")
+            finally:
+                await conversation.retire()
+
+        asyncio.run(run())
+
     def test_native_imports_have_no_third_party_dependency_closure(self):
         for name in ("httpx", "httpcore", "http_sf", "cryptography", "tomli_w"):
             self.assertIsNone(importlib.util.find_spec(name), name)
@@ -21,6 +41,7 @@ class NativeInstallationTests(unittest.TestCase):
         import provider_core.runner_session
         import provider_core.process_status
         import provider_core.lifetime
+        import provider_core.conversation
         distribution = importlib.metadata.distribution("provider-core")
         self.assertTrue(distribution.requires)
         self.assertTrue(all('; extra == "api"' in requirement for requirement in distribution.requires))

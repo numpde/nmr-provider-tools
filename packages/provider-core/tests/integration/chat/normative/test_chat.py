@@ -12,6 +12,15 @@ from tests.fakes.tls_peer import TlsPeer
 
 
 class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
+    def test_failure_exports_keep_the_same_exception_identity(self):
+        from provider_core.chat_errors import ChatFailed as CarrierFailure
+        from provider_core.chat import ChatFailed
+        from provider_core.transport_errors import ExchangeFailed as TransportFailure
+        from provider_core.transport import ExchangeFailed
+
+        self.assertIs(ChatFailed, CarrierFailure)
+        self.assertIs(ExchangeFailed, TransportFailure)
+
     async def test_compressed_completion_is_decoded_under_the_shared_transport(self):
         message = {"role": "assistant", "content": "fixture reply"}
         body = json.dumps({"choices": [{"message": message, "finish_reason": "stop"}]}).encode()

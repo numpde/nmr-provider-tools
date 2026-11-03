@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
+from provider_core.chat_errors import ChatFailed
 from provider_core.response_json import ResponseRejected, read_document
 from provider_core.transport import ExchangeFailed
 
@@ -65,18 +66,6 @@ class ChatEndpointSpec:
             raise ValueError(
                 "Cannot configure interpreter endpoint: use a canonical HTTPS URL without credentials, query or fragment."
             )
-
-
-class ChatFailed(RuntimeError):
-    """Safe operation text; original HTTP response and causes stay private."""
-
-    def __init__(self, reason, message, *, cause=None, response=None, endpoint_error=None):
-        super().__init__(message)
-        self.reason = reason
-        self.cause = cause
-        self.response = response
-        self.endpoint_error = endpoint_error
-        self.interruption_cause = None
 
 
 def _request_echoes(messages, key):

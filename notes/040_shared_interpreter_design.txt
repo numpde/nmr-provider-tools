@@ -6,6 +6,11 @@ generic tool-carrier admission, transcript/turn bookkeeping, correction feedback
 and endpoint retirement. Providers own scientific prompts, tools, typed input
 construction, worker admission and outcome policy.
 
+The generic conversation and failure types must import without the API extra.
+Keep scientific workers' native dependency closure intact. Actual HTTP carriers
+still require the API dependencies; do not compose a second test-only package
+path to make generic fake-carrier tests import.
+
 Use ChatEndpoint for one HTTP attempt and ToolConversation for one bounded
 conversation. A provider may create a fresh single-endpoint conversation when
 its existing fallback policy calls for a reset; this does not require copying

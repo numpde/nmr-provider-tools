@@ -16,9 +16,9 @@ import json
 import re
 from dataclasses import dataclass, field
 
-from provider_core.chat import ChatFailed
+from provider_core.chat_errors import ChatFailed
 from provider_core.response_json import ResponseRejected, read_document
-from provider_core.transport import ExchangeFailed
+from provider_core.transport_errors import ExchangeFailed
 
 
 def _encode(value):
