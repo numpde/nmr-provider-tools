@@ -6,7 +6,7 @@ migration. Complete qualification of the provider-core dependency-download
 replacement and every provider's remaining runner and
 worker migration. Qualify their normal cold paths before claiming completion.
 
-All four provider repositories now pin shared tool 0.5.11 for future
+All four provider repositories now pin shared tool 0.5.12 for future
 acquisition and streaming. NMRNet checked its own cached source-and-wheel
 stream on both hosts, but has not rebuilt all image roles with that new pin.
 NMRPeak built its CUDA benchmark image offline without running GPU inference.
