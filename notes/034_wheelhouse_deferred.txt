@@ -6,6 +6,14 @@ Replacing an already-built runtime image or qualifying GPU inference is a
 separate deployment task. Missing test coverage is not itself a demonstrated
 implementation defect. Record the exercised path and its limits directly.
 
+The remaining test-build staging exception was fixed in Magnet commit d461716:
+its maintained test-image dependency build streams pool wheels and an explicitly
+selected SDK bundle directly. The wheelhouse suite, local ordinary and private
+bundle builds, and ProArt ordinary build passed. Missing or wrong bundles are
+refused even when the pool contains a valid alternative. Independent reviews of
+NMRNet, NMRPeak and SECS test/development paths found no corresponding wheel-copy
+staging exception. The common contract is recorded in note 030.
+
 All four providers pin shared tool 0.5.14, which adds bounded retries for
 transient acquisition failures and clear terminal diagnostics. Their maintained
 warm acquisition paths passed on both hosts; existing services were not
