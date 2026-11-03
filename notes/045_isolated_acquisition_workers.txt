@@ -210,12 +210,19 @@ normal settled failures clean automatically. Automatic reconciliation of a
 late-created probe remains a library limitation. Recovery must verify the
 exact owned probe before removing it; it must not prune unrelated resources.
 
-The broad repository quality suite is not a green release claim for this
-rollout. Its outstanding findings include older silent-default annotations,
-assertion formatting, target-inventory assumptions and ignored Python caches.
-The acquisition, provisioning and bytecode lanes provide focused evidence;
-unrelated checker-policy cleanup is deferred rather than weakening detectors
-or turning this deployment into a repository-wide formatting migration.
+The broad repository quality suite is not green: the recorded run has 216
+tests with 13 failing subjects. This includes findings introduced during this
+rollout, not only earlier backlog. In identity.py, the container-id fallback
+formats an explicitly unconfirmed diagnostic; it does not authorize cleanup.
+The bytecode checker's defaults and parse-failure returns classify literal
+syntax within its documented partial coverage, not operator settings. Those
+reviewed behaviors remain, with their policy annotations still unclosed.
+New acquisition fixtures and assertion-message formatting also contribute
+unclosed findings. Other subjects cover image retirement, wheelhouse inputs,
+target-inventory assumptions and ignored Python caches. A green baseline for
+the whole campaign has not been established. Focused acquisition, provisioning
+and bytecode checks provide their own evidence; they do not discharge these
+repository-policy findings. Defer that cleanup without weakening detectors.
 
 Docker daemon bootstrap-image pulls retain their explicitly permitted normal
 route. Git/source synchronization also retains its existing routing policy.
