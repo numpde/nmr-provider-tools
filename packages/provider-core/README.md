@@ -194,6 +194,27 @@ erased. Omitting the grant retains JSON rejection feedback and the existing
 tool-carrier requirements. Both modes reject reused call IDs and keep the same
 total turn budget and endpoint retirement requirements.
 
+`TextCorrection()` supplies plain tool feedback without an extra user message;
+it still requires an identifiable tool call. Set `argument_bytes` on the
+conversation when raw argument JSON needs a tighter bound than the response.
+The bound applies before decoding, so whitespace and encoding count too.
+
+An awaited scientific dispatch may return `ToolFinished` only after preparation
+is accepted, or raise `ToolRejected` to continue the same transcript. Keep its
+scientific work deadline separate from model/inspection deadlines when those
+budgets differ. No second conversation or suspend/resume framework is needed.
+
+`ChatEndpoint` sends one request without resending failed model calls. It decodes
+compressed bodies under `response_bytes` and optional `error_response_bytes`
+(which defaults to the same limit). Its optional `not_after` argument bounds the
+original exchange and retirement with one absolute event-loop deadline; the
+transport's exchange allowance still bounds each request. Exhausting the whole
+deadline can leave retirement unconfirmed. A received non-success HTTP head
+survives a failed body read in `ChatFailed.cause.response_head`; this is protected
+evidence, not a complete response. Response headers describe the wire entity
+even when the retained body has been decoded. Providers own retry, fresh-prompt
+fallback and the disposition of scientific outcomes.
+
 ## API behavior
 
 Retry permissions describe which next request is allowed; the consumer owns

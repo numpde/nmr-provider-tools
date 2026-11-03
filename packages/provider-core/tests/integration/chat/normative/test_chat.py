@@ -1,6 +1,7 @@
 """Actual local TLS checks the chat carrier; no external model is contacted."""
 
 import asyncio
+import gzip
 import json
 import unittest
 from dataclasses import replace
@@ -11,6 +12,22 @@ from tests.fakes.tls_peer import TlsPeer
 
 
 class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
+    async def test_compressed_completion_is_decoded_under_the_shared_transport(self):
+        message = {"role": "assistant", "content": "fixture reply"}
+        body = json.dumps({"choices": [{"message": message, "finish_reason": "stop"}]}).encode()
+        async with TlsPeer("success", response_body=gzip.compress(body),
+                           response_headers=((b"Content-Encoding", b"gzip"),)) as peer:
+            transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
+            endpoint = ChatEndpoint(
+                ChatEndpointSpec(configuration_id="compressed", model="fixture", url=peer.origin + "/chat",
+                                 api_key="PRIVATE_KEY", reasoning_effort=None),
+                transport=transport, request_bytes=4096, response_bytes=4096,
+            )
+            self.addAsyncCleanup(endpoint.retire)
+            self.assertEqual(await endpoint.complete([], []), message)
+            self.assertTrue(endpoint.retirement_confirmed)
+            self.assertEqual(len(peer.requests), 1)
+
     async def test_exact_explicit_request_and_complete_reply_retire_actual_tls_io(self):
         message = {
             "role": "assistant",

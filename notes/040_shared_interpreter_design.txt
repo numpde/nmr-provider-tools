@@ -1,0 +1,36 @@
+Shared interpreter implementation
+=================================
+
+Provider-core owns bounded Chat Completions transport, response decoding,
+generic tool-carrier admission, transcript/turn bookkeeping, correction feedback
+and endpoint retirement. Providers own scientific prompts, tools, typed input
+construction, worker admission and outcome policy.
+
+Use ChatEndpoint for one HTTP attempt and ToolConversation for one bounded
+conversation. A provider may create a fresh single-endpoint conversation when
+its existing fallback policy calls for a reset; this does not require copying
+the generic turn loop. Keep per-endpoint budgets, aggregate deadlines and
+unanimous/mixed endpoint outcomes explicit in the provider's policy.
+
+SECS can await source reconciliation and scientific preparation inside dispatch.
+An accepted preparation returns ToolFinished; a correctable input rejection
+raises ToolRejected and resumes the same transcript. Model and inspection work
+retain the interpretation deadline; preparation retains its work deadline. An
+accepted late preparation is usable, but a late rejection cannot start another
+model request. Plain tool feedback needs no added user instruction. Preserve
+the raw argument-byte bound before shared JSON decoding.
+
+NMRPeak retains its explicit bounded retry and fresh-endpoint outcome policy.
+It uses the shared single-attempt carrier, including decoded response limits
+and the original absolute turn/retirement deadline. Retry remains forbidden
+when cancellation or cleanup is uncertain. The shared carrier requires HTTPS
+and a completed stop/tool_calls reply; adopting it narrows NMRPeak's earlier
+HTTP and absent/truncated-finish acceptance. Configured endpoints inspected for
+this migration use HTTPS. Scientific parsing and runner validation remain local.
+
+Prove real compressed-response limits and deadline/retirement behavior in this
+repository. Prove scientific dispatch, correction, deadline differences and
+provider outcome aggregation in each owning repository. Do not change existing
+healthy deployments merely to test a source migration. Publish one qualified
+package release and adopt its exact pins through maintained Make targets.
+Record source verification separately from running-image verification.

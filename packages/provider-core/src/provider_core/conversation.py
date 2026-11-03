@@ -37,13 +37,15 @@ class ToolFinished:
 
 @dataclass(frozen=True, slots=True)
 class TextCorrection:
-    """Continue rejected turns with plain diagnostic text and this user instruction."""
+    """Use plain tool feedback, optionally followed by a user repair instruction."""
 
-    user_content: str = field(repr=False)
+    user_content: str | None = field(default=None, repr=False)
 
     def __post_init__(self):
+        if self.user_content is None:
+            return
         if type(self.user_content) is not str:
-            raise TypeError("Text correction requires a user instruction supplied as text.")
+            raise TypeError("Text correction requires a user instruction supplied as text or None.")
         if not self.user_content:
             raise ValueError("Text correction requires a nonempty user instruction.")
 
@@ -126,13 +128,14 @@ class ToolConversation:
     known endpoint secrets; transcripts are transient and never observations.
     retire() must also be observed after failure or cancellation. It may recheck
     cleanup, but neither run nor scientific effects can restart on this object.
-    TextCorrection additionally permits plain assistant turns to request repair
-    and retains canonical admitted arguments after caller rejection. Invalid or
+    TextCorrection retains canonical admitted arguments after caller rejection.
+    With a user instruction it also permits plain assistant turns to request
+    repair. Without one, feedback is a plain tool message only. Invalid or
     unparsed argument text is still erased before continuation. Omitting the
     grant keeps JSON rejection feedback and strict tool-call admission.
     """
 
-    def __init__(self, endpoints, *, max_turns, secrets, text_correction=None):
+    def __init__(self, endpoints, *, max_turns, secrets, text_correction=None, argument_bytes=None):
         if type(endpoints) is not tuple or not endpoints:
             raise ValueError("Cannot configure interpretation: provide a nonempty ordered tuple of endpoints.")
         require_turn_limit(max_turns)
@@ -140,7 +143,10 @@ class ToolConversation:
             raise TypeError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
         if text_correction is not None and type(text_correction) is not TextCorrection:
             raise TypeError("Cannot configure interpretation: text_correction must be TextCorrection or None.")
+        if argument_bytes is not None and (type(argument_bytes) is not int or argument_bytes <= 0):
+            raise ValueError("Cannot configure interpretation: argument_bytes must be a positive integer or None.")
         self._endpoints, self._max_turns = endpoints, max_turns
+        self._argument_bytes = argument_bytes
         self._text_correction = text_correction
         self._secrets = tuple(sorted(set(secrets), key=len, reverse=True))
         self._used = self._retired = False
@@ -301,7 +307,8 @@ class ToolConversation:
                 self._require_no_secrets(message[text_field])
                 canonical[text_field] = message[text_field]
         calls = message.get("tool_calls")
-        if calls is None and self._text_correction is not None:
+        if (calls is None and self._text_correction is not None
+                and self._text_correction.user_content is not None):
             return canonical, []
         if type(calls) is not list or not calls:
             raise ConversationFailed("Cannot interpret model action: the reply supplies no identifiable tool call.")
@@ -341,8 +348,13 @@ class ToolConversation:
 
     def _arguments(self, text):
         try:
-            # The enclosing consumed response already bounds this string.
             raw = text.encode("utf-8")
+        except UnicodeError as cause:
+            raise ToolRejected("Tool arguments must be valid UTF-8 JSON text.") from cause
+        if self._argument_bytes is not None and len(raw) > self._argument_bytes:
+            raise ToolRejected(f"Tool arguments exceed the {self._argument_bytes}-byte limit; submit a smaller JSON object.")
+        try:
+            # The consumed response and any caller-supplied tighter bound own size.
             arguments = read_document(raw, len(raw))
             _encode(arguments)
         except (
@@ -382,7 +394,7 @@ class ToolConversation:
             content = _encode({"rejected": reason}).decode("ascii")
         for call in calls:
             self._tool_message(call["id"], content)
-        if self._text_correction is not None:
+        if self._text_correction is not None and self._text_correction.user_content is not None:
             self._messages.append({"role": "user", "content": self._text_correction.user_content})
 
     def _observation(self):

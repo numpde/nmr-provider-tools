@@ -10,8 +10,34 @@ from tests.fakes.conversation import call, recording_endpoint
 
 
 class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
+    async def test_tool_feedback_only_mode_refuses_a_reply_without_tool_calls(self):
+        for extra in ({}, {"tool_calls": None}, {"tool_calls": []}):
+            with self.subTest(extra=extra):
+                model = recording_endpoint("only", {"role": "assistant", "content": "Try again."} | extra)
+                conversation = ToolConversation((model,), max_turns=2, secrets=(), text_correction=TextCorrection())
+                dispatch = AsyncMock()
+                with self.assertRaises(ConversationFailed):
+                    await conversation.run([], [], dispatch)
+                self.assertEqual(model.complete.await_count, 1)
+                dispatch.assert_not_awaited()
+                await conversation.retire()
+
+    async def test_argument_byte_limit_applies_before_decoding_and_correction_scrubs_the_text(self):
+        oversized = call("bad", "submit", {})
+        oversized["tool_calls"][0]["function"]["arguments"] = " " * 40 + "{}"
+        model = recording_endpoint("only", oversized, call("done", "submit", {}))
+        conversation = ToolConversation(
+            (model,), max_turns=2, secrets=(), text_correction=TextCorrection(), argument_bytes=8,
+        )
+        dispatch = AsyncMock(return_value=ToolFinished("selected"))
+        await conversation.run([], [], dispatch)
+        self.assertEqual(model.requests[1][0]["tool_calls"][0]["function"]["arguments"], "{}")
+        self.assertIn("8-byte limit", model.requests[1][1]["content"])
+        dispatch.assert_awaited_once_with("submit", {})
+        await conversation.retire()
+
     def test_instruction_requires_exact_nonempty_text(self):
-        for content in (None, 7, b"instruction"):
+        for content in (7, b"instruction"):
             with self.subTest(content=content), self.assertRaises(TypeError):
                 TextCorrection(user_content=content)
         with self.assertRaises(ValueError):

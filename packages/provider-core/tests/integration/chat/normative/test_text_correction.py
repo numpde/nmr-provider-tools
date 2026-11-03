@@ -10,6 +10,17 @@ from tests.fakes.conversation import call, recording_endpoint
 
 
 class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_plain_tool_feedback_does_not_add_a_user_instruction(self):
+        model = recording_endpoint("only", call("bad", "submit", {"record": 1}), call("good", "submit", {}))
+        conversation = ToolConversation(
+            (model,), max_turns=2, secrets=(), text_correction=conversation_api.TextCorrection(),
+        )
+        await conversation.run([], [], AsyncMock(side_effect=[ToolRejected("Choose another record."), ToolFinished("selected")]))
+        assistant, tool = model.requests[1]
+        self.assertEqual({"record": 1}, json.loads(assistant["tool_calls"][0]["function"]["arguments"]))
+        self.assertEqual({"role": "tool", "tool_call_id": "bad", "content": "Choose another record."}, tool)
+        await conversation.retire()
+
     async def test_plain_assistant_repairs_with_one_user_instruction_and_no_tool_reply(self):
         for extra in ({}, {"tool_calls": None}):
             with self.subTest(extra=extra):

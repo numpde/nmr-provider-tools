@@ -1,6 +1,7 @@
 """Chat failures preserve private causes without retries or leaked model text."""
 
 import asyncio
+import gzip
 import json
 import ssl
 import unittest
@@ -13,6 +14,36 @@ from tests.fakes.tls_peer import TlsPeer
 
 
 class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_error_body_limit_keeps_received_status_and_original_failure(self):
+        async with TlsPeer("success", response_status=429, response_body=gzip.compress(b"PRIVATE" * 1000),
+                           response_headers=((b"Content-Encoding", b"gzip"), (b"X-Request-ID", b"fixture-request"))) as peer:
+            transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
+            endpoint = ChatEndpoint(self.spec(peer.origin + "/chat"), transport=transport,
+                                    request_bytes=4096, response_bytes=8192, error_response_bytes=64)
+            self.addAsyncCleanup(endpoint.retire)
+            with self.assertRaises(ChatFailed) as caught:
+                await endpoint.complete([], [])
+            self.assertEqual(caught.exception.cause.response_head.status, 429)
+            self.assertEqual(caught.exception.cause.primary.reason, "size_limit")
+            self.assertIn((b"x-request-id", b"fixture-request"),
+                          [(name.lower(), value) for name, value in caught.exception.cause.response_head.headers])
+            self.assertTrue(endpoint.retirement_confirmed)
+            self.assertEqual(len(peer.requests), 1)
+            self.assertNotIn("PRIVATE", str(caught.exception))
+
+    async def test_absolute_turn_deadline_bounds_a_longer_exchange_budget(self):
+        async with TlsPeer("headers-stall") as peer:
+            transport = HttpTransport(trust=peer.trust, exchange_seconds=3, retirement_seconds=0.5)
+            endpoint = ChatEndpoint(self.spec(peer.origin + "/chat"), transport=transport,
+                                    request_bytes=4096, response_bytes=4096)
+            with self.assertRaises(ChatFailed):
+                await asyncio.wait_for(endpoint.complete([], [], not_after=asyncio.get_running_loop().time() + 0.25), 1.5)
+            self.assertEqual(len(peer.requests), 1)
+            with self.assertRaises(ChatFailed) as cleanup:
+                await endpoint.retire()
+            self.assertEqual(cleanup.exception.reason, "retirement_unconfirmed")
+            self.assertFalse(endpoint.retirement_confirmed)
+
     async def test_http_rejection_keeps_error_fields_without_complete_prompt_or_key_echoes(self):
         prompt = 'PRIVATE_INPUT quoted "source"\nC 0 0 0; api_key=PRIVATE_KEY'
         body = json.dumps({"error": {
@@ -21,7 +52,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             "request": "PRIVATE_UNRELATED_BODY",
         }}).encode()
         response = HttpResponse(400, ((b"content-type", b"application/json"),), body)
-        transport = SimpleNamespace(exchange=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True)
+        transport = SimpleNamespace(exchange_decoded=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True)
         endpoint = ChatEndpoint(self.spec("https://example.invalid/chat"), transport=transport,
                                 request_bytes=4096, response_bytes=16384)
         with self.assertRaises(ChatFailed) as caught:
@@ -33,14 +64,14 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("PRIVATE", json.dumps(evidence))
         self.assertNotIn("C 0 0 0", json.dumps(evidence))
         self.assertIs(caught.exception.response, response)
-        transport.exchange.assert_awaited_once()
+        transport.exchange_decoded.assert_awaited_once()
 
     async def test_unreadable_error_detail_preserves_status_without_partial_body(self):
         for body in (b"<html>PRIVATE</html>", b'{"error":{"message":"PRIVATE',
                      json.dumps({"error": {"message": "PRIVATE" * 2000}}).encode()):
             with self.subTest(length=len(body)):
                 response = HttpResponse(400, (), body)
-                transport = SimpleNamespace(exchange=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True)
+                transport = SimpleNamespace(exchange_decoded=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True)
                 endpoint = ChatEndpoint(self.spec("https://example.invalid/chat"), transport=transport,
                                         request_bytes=4096, response_bytes=32768)
                 with self.assertRaises(ChatFailed) as caught:
@@ -54,7 +85,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         interruption = asyncio.CancelledError()
         interruption.__cause__ = previous
         failure = ExchangeFailed("Authored interrupted exchange", primary=interruption)
-        transport = SimpleNamespace(exchange=AsyncMock(side_effect=interruption), last_failure=failure)
+        transport = SimpleNamespace(exchange_decoded=AsyncMock(side_effect=interruption), last_failure=failure)
         endpoint = ChatEndpoint(
             self.spec("https://example.invalid/chat"), transport=transport, request_bytes=4096, response_bytes=4096
         )
@@ -65,7 +96,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(interruption.__cause__.cause, failure)
         self.assertIs(failure.primary, interruption)
         self.assertIs(interruption.__cause__.interruption_cause, previous)
-        transport.exchange.assert_awaited_once()
+        transport.exchange_decoded.assert_awaited_once()
 
     async def test_peer_retires_an_observed_tls_handshake_that_never_reaches_its_http_handler(self):
         writer = None
@@ -95,13 +126,13 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_oversized_request_is_rejected_before_http(self):
-        transport = SimpleNamespace(exchange=AsyncMock(), retire=AsyncMock(), retirement_confirmed=True)
+        transport = SimpleNamespace(exchange_decoded=AsyncMock(), retire=AsyncMock(), retirement_confirmed=True)
         endpoint = ChatEndpoint(
             self.spec("https://example.invalid/chat"), transport=transport, request_bytes=64, response_bytes=4096
         )
         with self.assertRaisesRegex(ChatFailed, "request.*byte limit"):
             await endpoint.complete([{"role": "user", "content": "PRIVATE_SOURCE" * 100}], [])
-        transport.exchange.assert_not_awaited()
+        transport.exchange_decoded.assert_not_awaited()
 
     async def test_http_failure_and_malformed_replies_keep_raw_evidence_private(self):
         for status, body in (
@@ -116,14 +147,14 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(status=status, body=body):
                 response = HttpResponse(status, ((b"content-type", b"application/json"),), body)
                 transport = SimpleNamespace(
-                    exchange=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True
+                    exchange_decoded=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True
                 )
                 endpoint = ChatEndpoint(
                     self.spec("https://example.invalid/chat"), transport=transport, request_bytes=4096, response_bytes=4096
                 )
                 with self.assertRaises(ChatFailed) as caught:
                     await endpoint.complete([], [])
-                transport.exchange.assert_awaited_once()
+                transport.exchange_decoded.assert_awaited_once()
                 self.assertIs(caught.exception.response, response)
                 self.assertNotIn("PRIVATE", str(caught.exception))
 
@@ -161,7 +192,7 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_unconfirmed_retirement_preserves_the_transport_failure(self):
         failure = ExchangeFailed("Resource retirement is unconfirmed", primary=OSError("PRIVATE"))
         transport = SimpleNamespace(
-            exchange=AsyncMock(side_effect=failure), retire=AsyncMock(side_effect=failure), retirement_confirmed=False
+            exchange_decoded=AsyncMock(side_effect=failure), retire=AsyncMock(side_effect=failure), retirement_confirmed=False
         )
         endpoint = ChatEndpoint(
             self.spec("https://example.invalid/chat"), transport=transport, request_bytes=4096, response_bytes=4096

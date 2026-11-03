@@ -153,12 +153,16 @@ class ChatEndpoint:
     No API/Upload credentials, scientific arrays or filesystem access are granted.
     """
 
-    def __init__(self, spec, *, transport, request_bytes, response_bytes):
+    def __init__(self, spec, *, transport, request_bytes, response_bytes, error_response_bytes=None):
         if type(spec) is not ChatEndpointSpec:
             raise TypeError("Cannot configure interpreter carrier: explicit ChatEndpointSpec is required.")
         require_chat_limits(request_bytes=request_bytes, response_bytes=response_bytes)
+        if error_response_bytes is None:
+            error_response_bytes = response_bytes
+        require_chat_limits(request_bytes=request_bytes, response_bytes=error_response_bytes)
         self.spec, self._transport = spec, transport
         self._request_bytes, self._response_bytes = request_bytes, response_bytes
+        self._error_response_bytes = error_response_bytes
 
     @property
     def identity(self):
@@ -170,6 +174,7 @@ class ChatEndpoint:
             "reasoning_effort": self.spec.reasoning_effort,
             "request_bytes": self._request_bytes,
             "response_bytes": self._response_bytes,
+            "error_response_bytes": self._error_response_bytes,
         }
         return _json_bytes(
             {
@@ -193,8 +198,12 @@ class ChatEndpoint:
                 cause=cause,
             ) from None
 
-    async def complete(self, messages, tools):
-        """Send one bounded turn; return a complete assistant carrier after cleanup."""
+    async def complete(self, messages, tools, *, not_after=None):
+        """Send one bounded turn under an optional absolute retirement deadline.
+
+        Response bodies are decoded; retained headers still describe the wire
+        entity. The transport owns exchange and cleanup under not_after.
+        """
         request = {
             "model": self.spec.model,
             "messages": messages,
@@ -218,7 +227,10 @@ class ChatEndpoint:
             content=content,
         )
         try:
-            response = await self._transport.exchange(wire, maximum_bytes=self._response_bytes, owner=self)
+            response = await self._transport.exchange_decoded(
+                wire, maximum_bytes=self._response_bytes, error_maximum_bytes=self._error_response_bytes,
+                owner=self, not_after=not_after,
+            )
         except asyncio.CancelledError as interruption:
             failure = ChatFailed(
                 "request_cancelled",
