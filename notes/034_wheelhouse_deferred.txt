@@ -13,6 +13,9 @@ The following items do not need to delay the current deployment:
 - Shared delivery's generated lock has been checked offline with the released
   publisher and cached wheel. A normal preparation with a genuinely missing
   release wheel still needs qualification.
+- The shared tool image streams its source and selected wheels. Its normal
+  build can bootstrap the pinned streamer when absent; that cold bootstrap
+  still needs a genuine missing-tool qualification.
 - A wheel downloaded and discarded by a lock compiler for metadata may be
   fetched again by acquisition when the index lacks a metadata sidecar.
 - Cache-aware projection uses current index metadata and excludes yanked

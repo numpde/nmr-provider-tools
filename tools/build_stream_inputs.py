@@ -1,4 +1,4 @@
-"""Describe the captured delivery build inputs for the wheelhouse streamer."""
+"""Describe captured build inputs for the wheelhouse streamer."""
 
 import hashlib
 import json

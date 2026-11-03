@@ -1,7 +1,7 @@
 ARG BASE_IMAGE
 FROM scratch AS dependencies
-COPY --from=wheelhouse /packaging-26.3-py3-none-any.whl /packaging-26.3-py3-none-any.whl
-COPY --from=wheelhouse /tomli_w-1.2.0-py3-none-any.whl /tomli_w-1.2.0-py3-none-any.whl
+COPY ["wheelhouse/packaging-26.3-py3-none-any.whl", "/packaging-26.3-py3-none-any.whl"]
+COPY ["wheelhouse/tomli_w-1.2.0-py3-none-any.whl", "/tomli_w-1.2.0-py3-none-any.whl"]
 
 FROM ${BASE_IMAGE}
 USER root

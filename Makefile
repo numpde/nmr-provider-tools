@@ -187,7 +187,7 @@ help:
 	  'make checks/prepare WHEELHOUSE=... NETWORK_INTERFACE=... Acquire artifacts and build.'
 	@printf '%s\n' \
 	  'make packages/provider-core/download WHEELHOUSE=... NETWORK_INTERFACE=... Acquire locked wheels.' \
-	  'make wheelhouse/image/build WHEELHOUSE=... Build the standalone wheelhouse tool offline.' \
+	  'make wheelhouse/image/build WHEELHOUSE=... Build the wheelhouse tool; bootstrap its pinned streamer if missing.' \
 	  'make tests/wheelhouse WHEELHOUSE=... Run shared wheelhouse tests offline.' \
 	  'make packages/provider-core/check WHEELHOUSE=... Verify locked wheels offline.' \
 	  'make tests/unit/provider-core WHEELHOUSE=... Build and test the isolated installed core.' \

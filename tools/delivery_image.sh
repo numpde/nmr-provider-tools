@@ -12,7 +12,7 @@ if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot build shared delivery: use a nonzero caller and repository path without mount delimiters.' >&2; exit 2
 fi
 inputs=(tools/base_image.sh tools/container_guard.py tools/artifacts.py tools/wheelhouse.py tools/core_environment.py
-    tools/delivery_image.py tools/delivery_deployment.py tools/provider_core_acquire.py tools/delivery_stream_inputs.py
+    tools/delivery_image.py tools/delivery_deployment.py tools/provider_core_acquire.py tools/build_stream_inputs.py
     requirements/provider-core.lock requirements/delivery-release.json requirements/wheelhouse-tool-release.json
     containers/delivery/Dockerfile containers/delivery/check_runtime.py)
 source "$root/tools/checker_operation.sh"
@@ -62,7 +62,7 @@ fingerprint=$(root=$context checker_fingerprint)
 if ! python3 -I -S -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
     operation_diagnostic+=$'Cannot build shared delivery: host Python 3.11 or newer is needed to stream build inputs.\n'; exit 2
 fi
-tool_pin=$(python3 -I -S "$context/tools/delivery_stream_inputs.py" "$context" \
+tool_pin=$(python3 -I -S "$context/tools/build_stream_inputs.py" "$context" \
     "$operation_directory/source-allowlist.json" "${checker_input_paths[@]}")
 [[ $(root=$context checker_fingerprint) == "$fingerprint" ]] || {
     operation_diagnostic+=$'Cannot build shared delivery: captured inputs changed before streaming.\n'; exit 2;

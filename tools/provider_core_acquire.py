@@ -84,6 +84,8 @@ def main():
         return
     pin = json.loads(Path("/wheelhouse-tool-release.json").read_text())
     tool = acquire_tool(pool, pin)
+    if sys.argv[1:] == ["tool"]:
+        return
     with tempfile.TemporaryDirectory(prefix="provider-core-locks-") as temporary:
         for number, lock in enumerate(locks):
             projection = Path(temporary) / f"pylock.{number}.toml"
