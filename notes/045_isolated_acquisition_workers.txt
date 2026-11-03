@@ -89,6 +89,22 @@ real signal witnesses before claiming the shared scope is ready. Reconsider
 Go if measured host/bootstrap costs or actual consumer needs justify the
 session boundary and its complete, qualified replacement closure.
 
+Cleanup authority belongs to the owning shell process, not its function stack.
+Bash can unwind local variables before running EXIT after an unguarded command
+fails under set -e. Early tests covered explicit exit and ordinary return with
+errexit disabled, so they did not establish this failure path. Keep reserved
+session state alive through EXIT, bind it to the owning BASHPID, and initialize
+it afresh for every scope. A child callback shell has no authority to retire
+its parent's containers; the original process cleans once and preserves the
+caller trap and original status. Only one scope is active per shell process.
+
+Requiring every callback to guard every command leaves a recurring cleanup
+footgun. Calling callbacks inside a conditional would suppress their errexit
+semantics; a background scope would need another cancellation owner. Retain
+the inline API with process-owned state instead. Qualification includes an
+actual online session followed by bare failure under set -e, direct signals,
+dependent-removal failure, blocked diagnostic pipes and consecutive sessions.
+
 Joint first milestone
 ---------------------
 

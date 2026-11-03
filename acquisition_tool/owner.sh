@@ -304,6 +304,7 @@ _acq_finish() {
     fi
     if "$_acq_failed" && [[ $_acq_finish_status == 0 ]]; then _acq_finish_status=2; fi
     _acq_final_status=$_acq_finish_status
+    _acq_active=false
 }
 
 _acq_report() {
@@ -316,7 +317,9 @@ _acq_report() {
 }
 
 _acq_scope_exit() {
-    local _acq_exit_status=$?
+    local _acq_exit_status=$1
+    # A forked callback shell may inherit EXIT, but owns no parent containers.
+    [[ $BASHPID == "$_acq_owner_pid" ]] || return "$_acq_exit_status"
     trap - EXIT
     _acq_finish "$_acq_exit_status"
     _acq_restore_traps
@@ -351,7 +354,10 @@ _acq_cleanup_client() {
 }
 
 acquisition_scope() {
-    local _acq_endpoint= _acq_bootstrap_image= _acq_retired_receipt=
+    [[ ${_acq_active:-false} != true ]] || return 2
+    # Bash can unwind function locals before EXIT under errexit. Keep this
+    # process's cleanup authority alive until its owned trap has finished.
+    declare -g _acq_endpoint= _acq_bootstrap_image= _acq_retired_receipt=
     while [[ $# != 0 ]]; do
         case "$1" in
             --endpoint) _acq_endpoint=$2; shift 2 ;;
@@ -363,19 +369,20 @@ acquisition_scope() {
     done
     [[ -n $_acq_endpoint && -n $_acq_bootstrap_image && $# != 0 ]] || return 2
     [[ -z $_acq_retired_receipt || ( ! -e $_acq_retired_receipt && ! -L $_acq_retired_receipt ) ]] || return 2
-    local _acq_saved_exit _acq_saved_hup _acq_saved_int _acq_saved_term
+    declare -g _acq_saved_exit= _acq_saved_hup= _acq_saved_int= _acq_saved_term=
     _acq_saved_exit=$(trap -p EXIT); _acq_saved_hup=$(trap -p HUP); _acq_saved_int=$(trap -p INT); _acq_saved_term=$(trap -p TERM)
-    local _acq_bundle _acq_scratch _acq_route= _acq_port= _acq_sequence=0 _acq_active=true _acq_scope_uid= _acq_scope_gid=
-    local _acq_failed=false _acq_identity_unsettled=false _acq_cancelled=0 _acq_diagnostic= _acq_final_status=0
-    local _acq_native_retired=true _acq_client_directory=
-    local -a _acq_engine=() _acq_roles=()
-    local -A _acq_cids=() _acq_attempted=() _acq_removed=()
+    declare -g _acq_bundle= _acq_scratch= _acq_route= _acq_port= _acq_sequence=0 _acq_active=false _acq_scope_uid= _acq_scope_gid=
+    declare -g _acq_failed=false _acq_identity_unsettled=false _acq_cancelled=0 _acq_diagnostic= _acq_final_status=0
+    declare -g _acq_native_retired=true _acq_client_directory= _acq_owner_pid=$BASHPID
+    declare -ga _acq_engine=() _acq_roles=()
+    declare -gA _acq_cids=() _acq_attempted=() _acq_removed=()
     _acq_bundle=$(_acq_bundle_path) || return 2
     source "$_acq_bundle/tools/inference_native.sh"
     source "$_acq_bundle/tools/docker_client.sh"
     _acq_scratch=$(umask 077; mktemp -d /tmp/acquisition.XXXXXXXX) || return 2
     [[ -n $_acq_retired_receipt ]] || _acq_retired_receipt=$_acq_scratch/retired
-    trap _acq_scope_exit EXIT
+    _acq_active=true
+    trap '_acq_scope_exit "$?"' EXIT
     trap '_acq_cancelled=129; exit 129' HUP
     trap '_acq_cancelled=130; exit 130' INT
     trap '_acq_cancelled=143; exit 143' TERM

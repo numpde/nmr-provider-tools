@@ -20,8 +20,9 @@ import unittest
 ENGINE_STUB = r'''#!/bin/bash
 set -eu
 exec 2>>"$ENGINE_STATE/engine-error"
-printf '%s\n' "$*" >> "$ENGINE_STATE/engine-calls"
 [[ $# -ge 5 && "$1" == --config && "$3" == --host ]] || exit 97
+# Metadata inherits a per-file cap; retain only the client cleanup handle.
+printf '%s %s\n' "$1" "$2" > "$ENGINE_STATE/engine-client"
 shift 4
 operation=$1
 shift
@@ -108,6 +109,7 @@ class AcquisitionScopeTests(unittest.TestCase):
         docker.symlink_to(Path(__file__).resolve())
         script = r'''
 set -uo pipefail
+if [[ ${OWNER_ERREXIT:-0} == 1 ]]; then set -e; fi
 source acquisition_tool/owner.sh
 # Replace only the public mapping port: the scope, workers, native client
 # supervisor, signal handlers and engine retirement remain real.
@@ -144,7 +146,7 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
     def assert_exit(self, process, root, status):
         stdout, stderr = process.communicate(timeout=15)
         self.assertEqual(status, process.returncode, (stdout, stderr))
-        self.assertEqual([f'{status} yes'], (root / 'caller-exit').read_text().splitlines())
+        self.assertEqual([f'{status} yes'], (root / 'caller-exit').read_text().splitlines(), (stdout, stderr))
         return stdout
 
     def test_callback_return_and_exit_preserve_status_and_retire_before_caller_exit(self):
@@ -159,6 +161,25 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
         process.send_signal(signal.SIGTERM)
         self.assert_exit(process, root, 143)
         self.assertTrue((root / 'removed-worker').exists())
+
+    def test_errexit_unwind_retires_the_session_before_caller_exit(self):
+        process, root = self.launch(
+            'acquisition_set_route system; acquisition_worker online status fixture:local grants application; false',
+            env={'OWNER_ERREXIT': '1', 'WORKER_STATUS': '0'})
+        try:
+            self.assert_exit(process, root, 1)
+            self.assertEqual(['worker-1', 'relay', 'gateway'],
+                             (root / 'removal-attempts').read_text().splitlines())
+        finally:
+            # The negative control deliberately loses the old owner's locals;
+            # its fake engine has no live resources beyond these exact files.
+            if (root / 'scratch').exists():
+                shutil.rmtree(Path((root / 'scratch').read_text().strip()), ignore_errors=True)
+            if (root / 'engine-client').exists():
+                match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
+                                  (root / 'engine-client').read_text())
+                if match:
+                    shutil.rmtree(Path(match.group(1)), ignore_errors=True)
 
     def test_worker_result_names_do_not_collide(self):
         callback = r'''
@@ -227,7 +248,7 @@ _acq_fail 'fixture diagnostic'
                 operation = Path((root / 'scratch').read_text().strip())
                 self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
                 match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
-                                  (root / 'engine-calls').read_text())
+                                  (root / 'engine-client').read_text())
                 if match:
                     self.addCleanup(shutil.rmtree, Path(match.group(1)), ignore_errors=True)
                 self.assertNotEqual(process.returncode, 0, (stdout, stderr))
