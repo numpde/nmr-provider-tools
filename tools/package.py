@@ -24,13 +24,14 @@ from pathlib import Path, PurePosixPath
 
 from tools.artifacts import regular_file
 from tools.build_wheelhouse_bundle import build as build_wheelhouse_bundle
+from tools.build_acquisition_bundle import build as build_acquisition_bundle
 from tools.core_environment import build_candidate, install_environment, wheelhouse_source_inventory
 from tools.wheelhouse import digest, requirements
 
 
 def artifact_names(version):
     prefix = f"provider_core-{version}"
-    return {prefix + suffix for suffix in ("-py3-none-any.whl", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {f"wheelhouse-tool-{version}.pyz"}
+    return {prefix + suffix for suffix in ("-py3-none-any.whl", ".tar.gz", "-install.lock", "-native-install.lock", "-release.json", "-sha256.json")} | {f"wheelhouse-tool-{version}.pyz", f"acquisition-owner-{version}.tar.gz"}
 
 
 def qualify_wheelhouse_bundle(bundle, scratch):
@@ -85,6 +86,26 @@ def qualify_wheelhouse_bundle(bundle, scratch):
         with archive.extractfile("wheels/" + name) as selected:
             if hashlib.file_digest(selected, "sha256").hexdigest() != checksum:
                 raise ValueError("Cannot qualify wheelhouse bundle: streamed wheel differs from the lock.")
+
+
+def qualify_acquisition_bundle(bundle, scratch):
+    """Exercise cold source imports after exact pinned-source rebuild equality."""
+    destination = scratch / "acquisition-source"
+    destination.mkdir()
+    with tarfile.open(bundle, "r:gz") as archive:
+        for member in archive.getmembers():
+            target = destination / member.name
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.extractfile(member) as reader, target.open("xb") as writer:
+                shutil.copyfileobj(reader, writer)
+    subprocess.run(["bash", "-n", str(destination / "acquisition_tool/owner.sh")], check=True)
+    subprocess.run(["python3", "-I", "-S", "-B", "-c",
+                    "import sys; sys.path.insert(0, sys.argv[1]); import linux_idmap.probe; import provider_core.bound_http_proxy",
+                    str(destination)], check=True)
+    for entrypoint in ("identity.py", "proxy.py"):
+        subprocess.run(["python3", "-I", "-S", "-B",
+                        str(destination / "acquisition_tool" / entrypoint), "--help"],
+                       check=True, stdout=subprocess.DEVNULL)
 
 
 def unpack_source(archive, destination, version):
@@ -190,6 +211,17 @@ def check(artifacts, revision):
         if bundle.read_bytes() != rebuilt_bundle.read_bytes():
             raise ValueError("Cannot qualify package: wheelhouse bundle differs from its source rebuild.")
         qualify_wheelhouse_bundle(bundle, scratch)
+        acquisition = captured / f"acquisition-owner-{version}.tar.gz"
+        rebuilt_acquisition = scratch / acquisition.name
+        acquisition_record = build_acquisition_bundle(
+            Path("/wheelhouse"), rebuilt_acquisition, Path("/workspace"), wheels[0],
+            Path("/acquisition-bootstrap.pylock.toml"),
+        )
+        if (acquisition.read_bytes() != rebuilt_acquisition.read_bytes()
+                or record["acquisition_source_files"] != acquisition_record["source_files"]
+                or record["acquisition_dependency_inputs"] != acquisition_record["dependency_inputs"]):
+            raise ValueError("Cannot qualify acquisition source bundle: bytes or provenance differ from the pinned rebuild.")
+        qualify_acquisition_bundle(acquisition, scratch)
         source = unpack_source(captured / (prefix + ".tar.gz"), scratch / "source", version)
         document = tomllib.loads((source / "pyproject.toml").read_text())
         if document["project"]["name"] != "provider-core" or document["project"]["version"] != version:

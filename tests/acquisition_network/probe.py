@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import socket
 import sys
+from urllib.parse import urlsplit
 
 
 class Origin(http.server.BaseHTTPRequestHandler):
@@ -75,16 +76,28 @@ if sys.argv[1] == "origin":
     with http.server.HTTPServer(("127.0.0.2", 0), Origin) as server:
         Path(sys.argv[2]).write_text(str(server.server_port) + "\n")
         server.serve_forever()
-elif sys.argv[1] == "worker":
+elif sys.argv[1] == "session-offline":
+    check_routes()
+    if any(os.environ.get(name) for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")):
+        raise RuntimeError("offline worker inherited a proxy setting")
+    raise SystemExit(int(sys.argv[2]))
+elif sys.argv[1] in ("worker", "session-worker"):
+    if sys.argv[1] == "session-worker":
+        proxy = urlsplit(os.environ["HTTP_PROXY"])
+        if proxy.scheme != "http" or proxy.hostname != "127.0.0.1" or proxy.port is None:
+            raise RuntimeError("session proxy is not the loopback relay")
+        proxy_port, origin_port = proxy.port, int(sys.argv[2])
+    else:
+        proxy_port, origin_port = int(sys.argv[2]), int(sys.argv[3])
     check_routes()
     # The same known host origin must be unreachable directly and reachable
     # through the gateway. Its distinct loopback address avoids relay collisions.
-    denied(socket.AF_INET, ("127.0.0.2", int(sys.argv[3])))
+    denied(socket.AF_INET, ("127.0.0.2", origin_port))
     denied(socket.AF_INET, ("192.0.2.1", 443))
     if socket.has_ipv6:
         denied(socket.AF_INET6, ("2001:db8::1", 443, 0, 0))
-    exchange(int(sys.argv[2]), int(sys.argv[3]), False)
-    exchange(int(sys.argv[2]), int(sys.argv[3]), True)
+    exchange(proxy_port, origin_port, False)
+    exchange(proxy_port, origin_port, True)
     print(json.dumps({"netns": os.stat("/proc/self/ns/net").st_ino, "http": True, "connect": True}))
 else:
     raise SystemExit("unknown fixture mode")

@@ -8,6 +8,8 @@ import json
 import subprocess
 import sys
 import tempfile
+import tomllib
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -63,6 +65,17 @@ def tool_present(pool, pin):
     return True
 
 
+def bootstrap_present(pool, lock):
+    package, = tomllib.loads(lock.read_text())["packages"]
+    wheel, = package["wheels"]
+    path = pool / Path(urllib.parse.urlsplit(wheel["url"]).path).name
+    if not path.exists() and not path.is_symlink():
+        return False
+    if digest(path) != wheel["hashes"]["sha256"]:
+        raise ValueError("Cannot reuse the acquisition identity wheel: its bytes differ from the bootstrap pin.")
+    return True
+
+
 def acquire_tool(pool, pin):
     path = pool / pin["name"]
     with pool_lock(pool, exclusive=False):
@@ -86,8 +99,14 @@ def acquire_tool(pool, pin):
 def main():
     pool = Path("/wheelhouse")
     locks = (Path("/core-runtime.lock"), Path("/core-build.lock"), Path("/wheelhouse-tool.lock"))
-    if sys.argv[1:] == ["check"]:
-        print(cache_state(pool, locks))
+    bootstrap = Path("/acquisition-bootstrap.pylock.toml")
+    if sys.argv[1:] in (["check"], ["verify"]):
+        state = cache_state(pool, locks)
+        if not bootstrap_present(pool, bootstrap):
+            state = "missing"
+        if sys.argv[1:] == ["verify"] and state != "complete":
+            raise ValueError("Cannot use provider-core build inputs: acquire the missing locked dependencies first.")
+        print(state)
         return
     pin = json.loads(Path("/wheelhouse-tool-release.json").read_text())
     tool = acquire_tool(pool, pin)
@@ -102,6 +121,8 @@ def main():
                                           "--pool", str(pool)], stdout=output, check=True)
             subprocess.run(command + ["acquire", "--lock", str(projection), "--source-lock", str(lock),
                                       "--pool", str(pool)], check=True)
+    subprocess.run([sys.executable, "-I", "-B", str(tool), "acquire", "--lock", str(bootstrap),
+                    "--pool", str(pool)], check=True)
 
 
 if __name__ == "__main__":

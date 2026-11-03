@@ -13,7 +13,7 @@ case "$1 $2" in
         mkdir -- "$PUBLISH_TEST_TRACE.uploads"
         for argument in "$@"; do
             case "$argument" in
-                */provider_core-0.2.0-*|*/provider_core-0.2.0.tar.gz|*/wheelhouse-tool-0.2.0.pyz|*/release-build.log|*/release-test.log)
+                */provider_core-0.2.0-*|*/provider_core-0.2.0.tar.gz|*/wheelhouse-tool-0.2.0.pyz|*/acquisition-owner-0.2.0.tar.gz|*/release-build.log|*/release-test.log)
                     cp -- "$argument" "$PUBLISH_TEST_TRACE.uploads/" ;;
             esac
         done ;;

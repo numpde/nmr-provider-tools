@@ -21,6 +21,7 @@ case "$1" in
     tests/repository/release) suite=release ;;
     tests/repository/network) suite=network ;;
     tests/repository/network/identity) suite=network-identity ;;
+    tests/acquisition/owner) suite=acquisition-owner ;;
     tests/repository/runtime) suite=tests/repository/test_container_port_runtime.py ;;
     *) printf 'Cannot select repository checks: unknown target %q. Use make help.\n' "$1" >&2; exit 2 ;;
 esac
@@ -74,8 +75,10 @@ arguments=(--init --pull=never --network=none --read-only
     --mount "type=bind,src=$metadata,dst=/repository-source-inventory/root-entries,readonly"
     --entrypoint python3 "$image" -B -m unittest)
 if [[ $suite == release ]]; then
-    arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_wheelhouse_bundle
+    arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_wheelhouse_bundle tests.repository.test_acquisition_bundle
                 tests.repository.test_delivery_release tests.repository.test_wheelhouse -v)
+elif [[ $suite == acquisition-owner ]]; then
+    arguments+=(tests.repository.test_acquisition_scope -v)
 elif [[ $suite == network ]]; then
     arguments+=(tests.repository.test_network_gate tests.repository.test_network_cancellation -v)
 elif [[ $suite == network-identity ]]; then

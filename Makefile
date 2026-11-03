@@ -12,9 +12,9 @@ override DOCKER_CONTEXT_INPUT := $(value DOCKER_CONTEXT)
 export DOCKER_CONTEXT_INPUT
 endif
 
-ifneq ($(filter tests/acquisition/network,$(MAKECMDGOALS)),)
+ifneq ($(filter tests/acquisition/network tests/acquisition/shared-network,$(MAKECMDGOALS)),)
 ifneq ($(origin DOCKER_CONTEXT),command line)
-$(error tests/acquisition/network requires DOCKER_CONTEXT=<local-name> on the command line)
+$(error Acquisition network tests require DOCKER_CONTEXT=<local-name> on the command line)
 endif
 endif
 
@@ -189,6 +189,7 @@ help:
 	  'make engine/cache/gc/install DOCKER_CONTEXT=... ENGINE_CONFIG=/absolute/daemon.json Install per-engine cache GC without restarting Docker.' \
 	  'make engine/cache/gc DOCKER_CONTEXT=... ENGINE_CONFIG=/absolute/daemon.json Apply the native cache thresholds now.' \
 	  'make tests/acquisition/network DOCKER_CONTEXT=<name> Qualify the isolated relay on the selected engine.' \
+	  'make tests/acquisition/shared-network ARTIFACTS=... DOCKER_CONTEXT=<name> Qualify the released shared owner.' \
 	  'make tests/repository            Run repository conventions and detector fixtures offline.' \
 	  'make tests/repository/quality    Run code and operator convention checks offline.' \
 	  'make tests/repository/provisioning Run checker preparation and cleanup fixtures offline.' \
@@ -196,6 +197,7 @@ help:
 	  'make tests/repository/network    Run acquisition network-owner fixtures offline.' \
 	  'make tests/repository/network/identity Run the focused acquisition identity fixture.' \
 	  'make tests/acquisition/identity WHEELHOUSE=... Test cold identity mapping and retirement receipts offline.' \
+	  'make tests/acquisition/owner Test common session cancellation, streams and retirement offline.' \
 	  'make tests/delivery/publisher WHEELHOUSE=... Check the shared delivery publisher offline.' \
 	  'make wheelhouse/lock/locate LOCK=... NETWORK_INTERFACE=... [WHEELHOUSE=...] [INDEX_URL=...] [SOURCE_URLS=...] [REQUIRE_SOURCE=...] Project a pinned lock.' \
 	  'make wheelhouse/lock/acquire LOCK=... [SOURCE_LOCK=...] WHEELHOUSE=... NETWORK_INTERFACE=... Acquire locked artifacts.' \
@@ -306,7 +308,15 @@ checks/prepare:
 tests/acquisition/identity:
 	@bash tools/acquisition_identity_test.sh
 
+.PHONY: tests/acquisition/owner
+tests/acquisition/owner:
+	@bash tools/repository.sh tests/acquisition/owner
+
 tests: tests/repository tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/deployment
+
+.PHONY: tests/acquisition/shared-network
+tests/acquisition/shared-network:
+	bash tools/acquisition_owner_network_test.sh
 
 tests/acquisition/network:
 	bash tools/acquisition_network_test.sh

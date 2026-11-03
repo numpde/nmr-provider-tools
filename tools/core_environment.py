@@ -176,6 +176,7 @@ def normalize_sdist(path):
 
 def release(source, runtime_lock, build_lock, pool, output, revision):
     from tools.build_wheelhouse_bundle import build as build_wheelhouse_bundle, dependency_files
+    from tools.build_acquisition_bundle import build as build_acquisition_bundle
 
     if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
         raise ValueError("Cannot build release artifacts: source revision must identify the captured Git commit.")
@@ -187,11 +188,16 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
     native_lock = output / (prefix + "-native-install.lock")
     bundle = output / ("wheelhouse-tool-" + prefix.removeprefix("provider_core-") + ".pyz")
     build_wheelhouse_bundle(pool, bundle, Path("/workspace"), Path("/requirements/wheelhouse-tool.lock"))
-    payload = (wheel, sdist, lock, native_lock, bundle)
+    acquisition = output / ("acquisition-owner-" + prefix.removeprefix("provider_core-") + ".tar.gz")
+    acquisition_record = build_acquisition_bundle(pool, acquisition, Path("/workspace"), wheel,
+                                                  Path("/requirements/acquisition-bootstrap.pylock.toml"))
+    payload = (wheel, sdist, lock, native_lock, bundle, acquisition)
     record = output / (prefix + "-release.json")
     record.write_text(json.dumps({
         "source_revision": revision, "dependency_inputs": identities,
         "source_files": inventory, "tool_source_files": wheelhouse_source_inventory(Path("/workspace/wheelhouse_tool")),
+        "acquisition_source_files": acquisition_record["source_files"],
+        "acquisition_dependency_inputs": acquisition_record["dependency_inputs"],
         "files": {path.name: digest(path) for path in payload},
     }, sort_keys=True, indent=2) + "\n")
     manifest = output / (prefix + "-sha256.json")

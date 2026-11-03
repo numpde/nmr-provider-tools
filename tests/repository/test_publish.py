@@ -50,6 +50,7 @@ class PublicationTests(unittest.TestCase):
             "provider_core-0.2.0-install.lock": b"qualified lock",
             "provider_core-0.2.0-native-install.lock": b"qualified native lock",
             "wheelhouse-tool-0.2.0.pyz": b"qualified wheelhouse tool",
+            "acquisition-owner-0.2.0.tar.gz": b"qualified acquisition source",
             "provider_core-0.2.0-release.json": json.dumps({"source_revision": "0" * 39 + "1"}).encode(),
             "provider_core-0.2.0-sha256.json": b"{}",
         }
@@ -80,7 +81,7 @@ class PublicationTests(unittest.TestCase):
         result = self.run_publisher("publish", "prepare")
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual(self.note.read_bytes(), (self.root / "prepared/release-notes.md").read_bytes())
-        self.assertEqual(7, len(list((self.root / "prepared/artifacts").iterdir())))
+        self.assertEqual(8, len(list((self.root / "prepared/artifacts").iterdir())))
         self.assertNotIn("gh ", self.trace.read_text())
 
     def test_matching_url_rewrite_or_unreadable_configuration_stops_before_github(self):
@@ -113,7 +114,7 @@ class PublicationTests(unittest.TestCase):
                 self.trace.unlink(missing_ok=True)
                 result = self.run_publisher("publish", "release")
                 self.assertEqual(2, result.returncode, msg=result.stderr)
-                self.assertRegex(result.stderr, "artifact receipt|artifact name|all seven artifact hashes")
+                self.assertRegex(result.stderr, "artifact receipt|artifact name|all eight artifact hashes")
                 self.assertNotIn("gh ", self.trace.read_text())
 
     def test_downloaded_artifact_change_leaves_the_release_draft(self):
@@ -130,7 +131,7 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, msg=result.stderr)
         calls = self.trace.read_text()
         self.assertLess(calls.index("gh release download"), calls.index("gh release edit"))
-        self.assertEqual(9, len(list(Path(str(self.trace) + ".uploads").iterdir())))
+        self.assertEqual(10, len(list(Path(str(self.trace) + ".uploads").iterdir())))
         self.assertIn("--draft=false", calls)
         self.assertEqual([], list(self.root.glob("nmr-provider-publication.*")))
         self.assertTrue((self.inputs / "artifacts").is_dir())

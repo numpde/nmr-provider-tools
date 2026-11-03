@@ -59,6 +59,7 @@ class WheelhouseTests(unittest.TestCase):
         shutil.copyfile(wheel, self.pool / wheel.name)
         self.lock.write_text(f"pool-local==1.0 \\\n    --hash=sha256:{wheelhouse.digest(wheel)}\n")
         self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
+
         self.lock.write_text(self.lock.read_text().replace("==1.0 ", "==1.0+other "))
         self.assertEqual("missing", provider_core_acquire.cache_state(self.pool, [self.lock]))
         self.lock.write_text(self.lock.read_text().replace("==1.0+other ", "==1.0 "))
@@ -70,6 +71,18 @@ class WheelhouseTests(unittest.TestCase):
         self.lock.write_text(f"pool-local==1.0 \\\n    --hash=sha256:{wheelhouse.digest(wheel)} \\\n"
                              f"    --hash=sha256:{wheelhouse.digest(alternate)}\n")
         self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
+
+    def test_acquisition_bootstrap_dependency_is_checked_outside_runtime_lock(self):
+        lock = self.root / "bootstrap.toml"
+        lock.write_text('[[packages]]\nname = "identity-fixture"\nversion = "1.0"\n'
+                        '[[packages.wheels]]\nurl = "https://example.invalid/' + self.missing.name + '"\n'
+                        'hashes = {sha256 = "' + wheelhouse.digest(self.missing) + '"}\n')
+        self.assertFalse(provider_core_acquire.bootstrap_present(self.pool, lock))
+        shutil.copyfile(self.missing, self.pool / self.missing.name)
+        self.assertTrue(provider_core_acquire.bootstrap_present(self.pool, lock))
+        (self.pool / self.missing.name).write_bytes(b"corrupt bootstrap")
+        with self.assertRaisesRegex(ValueError, "bootstrap pin"):
+            provider_core_acquire.bootstrap_present(self.pool, lock)
 
     def test_pinned_tool_bootstrap_downloads_once_and_reuses(self):
         content = b"synthetic tool release"
