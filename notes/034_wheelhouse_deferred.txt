@@ -25,8 +25,8 @@ The following items do not need to delay the current deployment:
   publisher and cached wheel. A normal preparation with a genuinely missing
   release wheel still needs qualification.
 - The shared tool image streams its source and selected wheels. Its normal
-  build can bootstrap the pinned streamer when absent; that cold bootstrap
-  still needs a genuine missing-tool qualification.
+  build bootstrapped the genuinely absent 0.5.12 streamer on the local host;
+  the same cold path on the other host still needs qualification.
 - A wheel downloaded and discarded by a lock compiler for metadata may be
   fetched again by acquisition when the index lacks a metadata sidecar.
 - NMRNet's acquisition launcher selects a network route even when its pool is
