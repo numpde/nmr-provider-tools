@@ -85,13 +85,10 @@ identify the built wheel; identify the builder and resulting bytes before reuse.
 Current migration limits
 ------------------------
 
-The older requirements-lock acquisition path still invokes pip with the shared
-pool as its destination. It now refuses a conflicting compatible cached wheel
-and coordinates cooperating readers and writers, but it does not yet provide
-the new publisher's verified .part and no-replace guarantee for every download.
-An interrupted legacy download may therefore need operator attention. Replace
-that path as providers move to the shared publisher; do not claim it already
-has the same publication guarantees.
+Provider-core and shared delivery now use the released publisher for normal
+wheel acquisition; their normal Make targets still need a genuine missing-wheel
+cold-path qualification. Provider-specific migrations are tracked by their
+owners and must not be inferred from these shared-tool changes.
 
 The shared delivery image build now streams its selected wheels and captured
 source into BuildKit, without exposing the pool as a build context. Its normal

@@ -23,7 +23,7 @@ import urllib.request
 from contextlib import contextmanager
 from pathlib import Path
 
-from tools.artifacts import fsync_directory, regular_file, require_download_proxy
+from tools.artifacts import fsync_directory, regular_file
 
 # repo-check: allow-module-constant
 CHUNK_BYTES = 1024 * 1024
@@ -173,65 +173,15 @@ def publish_file(path, destination, checksum):
     fsync_directory(destination.parent)
 
 
-def populate_pool(lock, pool):
-    """Reuse the shared pool and download missing hash-locked wheels into it."""
-    if pool.is_symlink() or not pool.is_dir():
-        raise ValueError("Cannot acquire wheels: shared pool must be a directory without a symlink.")
-    descriptor = os.open(pool, os.O_RDONLY | os.O_DIRECTORY)
-    try:
-        fcntl.flock(descriptor, fcntl.LOCK_EX)
-        _populate_pool(lock, pool, descriptor)
-    finally:
-        os.close(descriptor)
-
-
-def _populate_pool(lock, pool, lock_fd):
-    from pip._vendor.packaging.tags import sys_tags
-    from pip._vendor.packaging.utils import InvalidWheelFilename, parse_wheel_filename
-    from pip._vendor.packaging.version import Version
-
-    locked = {(name, Version(version)): hashes for (name, version), hashes in requirements(lock).items()}
-    try:
-        select_wheels(lock, pool, lock_fd=lock_fd)
-    except subprocess.CalledProcessError:
-        pass
-    else:
-        print("All locked wheels are already available in WHEELHOUSE; no download is needed.", flush=True)
-        return
-    target_tags = set(sys_tags())
-    for path in pool.glob("*.whl"):
-        try:
-            name, version, _build, tags = parse_wheel_filename(path.name)
-        except InvalidWheelFilename:
-            continue
-        hashes = locked.get((name, version))
-        if hashes and tags.intersection(target_tags) and digest(path) not in hashes:
-            raise ValueError(f"Cannot acquire {path.name}: cached bytes differ from the lock; the existing file is preserved.")
-    require_download_proxy()
-    print("Acquiring missing locked wheels directly into WHEELHOUSE.", flush=True)
-    subprocess.run(
-        [sys.executable, "-I", "-m", "pip", "--isolated", "download", "--require-hashes",
-         "--only-binary=:all:", "--no-deps", "--no-cache-dir",
-         "--disable-pip-version-check", "--index-url", "https://pypi.org/simple",
-         "--find-links", str(pool), "--dest", str(pool), "-r", str(lock)],
-        check=True, pass_fds=(lock_fd,),
-    )
-    select_wheels(lock, pool, lock_fd=lock_fd)
-    fsync_directory(pool)
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("download", "check"))
+    parser.add_argument("action", choices=("check",))
     parser.add_argument("--pool", type=Path, required=True)
     parser.add_argument("--lock", type=Path, action="append", required=True)
     args = parser.parse_args()
     for lock in args.lock:
-        if args.action == "download":
-            populate_pool(lock, args.pool)
-        else:
-            with pool_read_lock(args.pool) as lock_fd:
-                print(json.dumps(select_wheels(lock, args.pool, lock_fd=lock_fd), sort_keys=True))
+        with pool_read_lock(args.pool) as lock_fd:
+            print(json.dumps(select_wheels(lock, args.pool, lock_fd=lock_fd), sort_keys=True))
 
 
 if __name__ == "__main__":
