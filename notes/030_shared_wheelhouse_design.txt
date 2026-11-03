@@ -98,7 +98,9 @@ source into BuildKit, without exposing the pool as a build context. Its normal
 preparation also uses the released shared publisher for missing release wheels.
 Maintained preparation and the offline released-publisher check passed on both
 hosts. These checks reused cached wheels; a genuinely missing release wheel
-through normal preparation still needs qualification.
+through normal preparation still needs qualification. A synthetic missing
+wheel was acquired and reused through the generated delivery lock and released
+publisher on both hosts without re-downloading a real dependency.
 
 The remote offline build completed, but its system shell emitted an unbound
 `PS1` warning in noninteractive execution. The host shell configuration needs
