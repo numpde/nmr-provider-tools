@@ -12,6 +12,12 @@ override DOCKER_CONTEXT_INPUT := $(value DOCKER_CONTEXT)
 export DOCKER_CONTEXT_INPUT
 endif
 
+ifneq ($(filter tests/acquisition/network,$(MAKECMDGOALS)),)
+ifneq ($(origin DOCKER_CONTEXT),command line)
+$(error tests/acquisition/network requires DOCKER_CONTEXT=<local-name> on the command line)
+endif
+endif
+
 # Select once for every Docker goal in this invocation. Help and publish/release
 # use no Docker; child processes inherit the captured endpoint.
 ifneq ($(strip $(filter-out help publish/release,$(MAKECMDGOALS))),)
@@ -167,7 +173,7 @@ endif
 
 .PHONY: engine/cache/gc engine/cache/gc/install
 .PHONY: packages/images/retire
-.PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning tests/repository/release tests/repository/network tests/repository/network/identity
+.PHONY: tests/acquisition/network help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning tests/repository/release tests/repository/network tests/repository/network/identity
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
 .PHONY: delivery/deployment/up delivery/deployment/update delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
@@ -182,11 +188,13 @@ help:
 	  'make packages/images/retire DOCKER_CONTEXT=... Retire exact obsolete project images, preserving current selections and borrowers.' \
 	  'make engine/cache/gc/install DOCKER_CONTEXT=... ENGINE_CONFIG=/absolute/daemon.json Install per-engine cache GC without restarting Docker.' \
 	  'make engine/cache/gc DOCKER_CONTEXT=... ENGINE_CONFIG=/absolute/daemon.json Apply the native cache thresholds now.' \
+	  'make tests/acquisition/network DOCKER_CONTEXT=<name> Qualify the isolated relay on the selected engine.' \
 	  'make tests/repository            Run repository conventions and detector fixtures offline.' \
 	  'make tests/repository/quality    Run code and operator convention checks offline.' \
 	  'make tests/repository/provisioning Run checker preparation and cleanup fixtures offline.' \
 	  'make tests/repository/release    Run release and wheelhouse bundle fixtures offline.' \
 	  'make tests/repository/network    Run acquisition network-owner fixtures offline.' \
+	  'make tests/repository/network/identity Run the focused acquisition identity fixture.' \
 	  'make tests/delivery/publisher WHEELHOUSE=... Check the shared delivery publisher offline.' \
 	  'make wheelhouse/lock/locate LOCK=... NETWORK_INTERFACE=... [WHEELHOUSE=...] [INDEX_URL=...] [SOURCE_URLS=...] [REQUIRE_SOURCE=...] Project a pinned lock.' \
 	  'make wheelhouse/lock/acquire LOCK=... [SOURCE_LOCK=...] WHEELHOUSE=... NETWORK_INTERFACE=... Acquire locked artifacts.' \
@@ -295,6 +303,9 @@ checks/prepare:
 	bash tools/checker.sh prepare
 
 tests: tests/repository tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/deployment
+
+tests/acquisition/network:
+	bash tools/acquisition_network_test.sh
 
 tests/repository:
 	bash tools/repository.sh tests/repository

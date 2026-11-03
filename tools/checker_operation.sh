@@ -10,6 +10,8 @@ checker_begin() {
     source "$root/tools/image_lifecycle.sh"
     image_lifecycle_lock shared || return "$?"
     image_retire_after_success=false
+    ordered_container_retirement=false
+    operation_retire_order=()
     operation_directory=$(umask 077; mktemp -d /tmp/nmr-provider-tools.XXXXXXXX) || return "$?"
     operation_label="org.nmr-provider-tools.operation=${operation_directory##*/}"
     docker_client_directory=
@@ -115,13 +117,49 @@ checker_finish() {
                 failed=true
                 identifiers=()
             fi
-            for identifier in "${identifiers[@]}"; do
-                if [[ $identifier =~ ^[0-9a-f]{64}$ ]]; then
-                    if checker_teardown rm --force --volumes "$identifier" > /dev/null; then :; else failed=true; fi
-                else
-                    failed=true
+            if [[ ${ordered_container_retirement:-false} == true ]]; then
+                # Refuse all removal if an unverified create may add a borrower,
+                # or if the census contains any container outside the order.
+                local expected seen
+                local -A ordered=() actual=()
+                if "$create_pending" || "$retain_operation"; then failed=true; fi
+                for identifier in "${operation_retire_order[@]}"; do
+                    [[ -z $identifier ]] && continue
+                    if [[ ! $identifier =~ ^[0-9a-f]{64}$ || -n ${ordered[$identifier]:-} ]]; then
+                        failed=true
+                    else
+                        ordered[$identifier]=1
+                    fi
+                done
+                for identifier in "${identifiers[@]}"; do
+                    if [[ ! $identifier =~ ^[0-9a-f]{64}$ || -z ${ordered[$identifier]:-} || -n ${actual[$identifier]:-} ]]; then
+                        failed=true
+                    else
+                        actual[$identifier]=1
+                    fi
+                done
+                if ! "$failed"; then
+                    for identifier in "${operation_retire_order[@]}"; do
+                        [[ -n $identifier && -n ${actual[$identifier]:-} ]] || continue
+                        if ! checker_teardown rm --force --volumes "$identifier" > /dev/null; then
+                            failed=true
+                            break
+                        fi
+                        if ! checker_teardown ps --all --quiet --no-trunc --filter "id=$identifier" > "$operation_directory/ordered-residue" || [[ -s $operation_directory/ordered-residue ]]; then
+                            failed=true
+                            break
+                        fi
+                    done
                 fi
-            done
+            else
+                for identifier in "${identifiers[@]}"; do
+                    if [[ $identifier =~ ^[0-9a-f]{64}$ ]]; then
+                        if checker_teardown rm --force --volumes "$identifier" > /dev/null; then :; else failed=true; fi
+                    else
+                        failed=true
+                    fi
+                done
+            fi
             if checker_teardown ps --all --quiet --no-trunc --filter "label=$operation_label" > "$operation_directory/residue"; then
                 if [[ -s $operation_directory/residue ]]; then failed=true; fi
             else

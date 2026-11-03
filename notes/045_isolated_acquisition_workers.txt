@@ -1,0 +1,92 @@
+Isolated acquisition workers
+============================
+
+Joint first milestone
+---------------------
+
+An acquisition worker must have no direct external network route. Its existing
+HTTP/CONNECT clients reach the selected-route proxy through a loopback relay.
+Proxy environment variables alone do not enforce that route when the worker
+shares host networking.
+
+Use three separately owned containers:
+
+* Gateway: existing interface-bound HTTP/CONNECT proxy in host networking,
+  listening on a private Unix socket. An explicit system selection retains
+  normal host routing without a device binding.
+* Relay: network none, loopback TCP listener forwarding only to that Unix
+  socket. It owns the worker's otherwise disconnected network namespace.
+* Worker: network container:<verified relay CID>, receiving the relay's
+  loopback HTTP_PROXY/HTTPS_PROXY address. There is no direct-route fallback.
+
+Do not substitute an internal bridge: a bridge can expose host gateway paths
+that are unnecessary for this topology. This change enforces route selection;
+proxy-mediated destination permissions retain their existing semantics.
+
+Shared transport and bootstrap
+------------------------------
+
+provider_core.bound_http_proxy owns the Unix listener and relay transport.
+Consumers use a verified release snapshot of that module, container_guard.py
+and __init__.py, checked into their own repository. Refresh it from the exact
+qualified wheel and pinned release/source record, using maintained targets.
+The snapshot must already be available with an empty wheel pool, before the
+wheelhouse tool or provider-core itself is acquired. No sibling checkout,
+private fork, additional runtime dependency, or staged wheel copy is required.
+
+The gateway publishes readiness only after binding its private socket. The
+relay publishes its actual loopback port only after binding. The launcher
+checks the exact owned relay container before admitting the worker, and uses
+the engine-probed mapped identity for socket access. The worker does not mount
+the Unix socket directory or receive host networking.
+
+Gateway invocation:
+
+    python -m provider_core.bound_http_proxy --interface <device-or-system> --unix-socket /gateway/proxy.sock --ready-file /ready/gateway
+
+Relay invocation:
+
+    python -m provider_core.bound_http_proxy --relay-socket /gateway/proxy.sock --port 0 --ready-file /ready/relay
+
+Both run in the guarded container environment. Gateway readiness is exactly
+the Unix socket path followed by a newline; relay readiness is its numeric
+TCP port followed by a newline. The Unix listener mode is 0600, accessible to
+the gateway and relay's mapped identity in their private directory. Existing
+TCP proxy callers retain their explicit --interface and --port invocation.
+
+Retire worker, then relay, then gateway. Preserve inputs while their actual
+process/container reader remains unresolved; ordinary settled failure cleans
+disposable inputs and preserves the primary failure. Do not let the new relay
+bypass the existing CID, cancellation and cleanup owner.
+If worker removal is unconfirmed, retain its supporting relay and gateway;
+if relay removal is unconfirmed, retain its gateway. Local client retirement
+alone cannot establish successful engine removal.
+
+Proof and adoption
+------------------
+
+The shared package tests HTTP/CONNECT over Unix transport, relay forwarding,
+bounded admission and failure without direct fallback. A maintained selected-
+engine qualification uses the existing pinned Python image without pulling:
+prove the worker shares the relay namespace, Unix socket access works, direct
+external connectivity fails, relay traffic succeeds, and failed/cancelled work
+retires in the required order. Qualify the actual topology on both deployment
+hosts, rather than treating printed arguments as runtime proof.
+
+Then prove real acquisition on each selected device, including DNS and TCP
+binding evidence, direct-to-pool publication and a cold tool bootstrap. Each
+provider owns its actual launcher/bootstrap tests and verifies peer findings
+were integrated. Existing offline cache checks remain network none.
+
+Deferred boundaries
+-------------------
+
+Docker daemon bootstrap-image pulls retain their explicitly permitted normal
+route. Git/source synchronization also retains its existing routing policy.
+These are not runtime acquisition-worker traffic.
+
+Networked BuildKit executors cannot use docker-run container namespace
+sharing. Existing runner/test-base/benchmark apt fetches and the frontend npm
+fixture require a separate offline-input/build design. They are not claimed
+isolated by this milestone. Avoid delaying the common worker deployment with
+an apt/npm mirror redesign or a new destination firewall.
