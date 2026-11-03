@@ -94,11 +94,13 @@ checker_run 60 --pull never --network none --read-only --user "$checker_host_uid
     --declaration /workspace/requirements/checker-dependencies.json --directory /wheelhouse --destination /capture
 
 # Local client retirement cannot establish that BuildKit stopped reading.
-# Retain captured inputs on every unsuccessful dispatched build/admission/tag.
+# Retain captured inputs on an unsuccessful dispatched build.
 retain_operation=true
 checker_call 'offline checker build' 900 stdio "${engine[@]}" build --builder default --platform linux/amd64 \
     --network none --pull=false --build-arg "BASE_IMAGE=$build_base_image" --label "org.nmr-provider-tools.inputs=$captured" \
     --iidfile "$operation_directory/built-image" --file "$context/containers/checker/Dockerfile" "$context"
+# A completed build no longer reads its context, even if admission later fails.
+retain_operation=false
 image=
 if [[ -f $operation_directory/built-image && ! -L $operation_directory/built-image && $(stat -c %s -- "$operation_directory/built-image") -le 72 ]]; then
     if IFS= read -r -N 71 image < "$operation_directory/built-image"; then :; else image=; fi

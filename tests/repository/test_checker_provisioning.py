@@ -41,6 +41,9 @@ class CheckerProvisioningTests(unittest.TestCase):
         return subprocess.run(arguments, cwd=self.root, env=self.environment, capture_output=True, text=True, check=False)
 
     def test_network_caller_supplies_worker_grants_and_literal_shared_cache(self):
+        (self.root / "tools/checker_operation.sh").write_text('''checker_begin() { :; }
+checker_host_identity() { checker_host_uid=$(id -u); checker_host_gid=$(id -g); }
+''')
         (self.root / "tools/docker.sh").write_text('printf "%s\\0" "$@" > "$PROVISION_ARGUMENTS"\n')
         cache = self.root / "cache $literal 'quoted'"
         result = self.invoke_make("checks/dependencies/download", wheelhouse=str(cache), interface="lo")

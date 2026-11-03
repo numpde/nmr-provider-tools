@@ -1,0 +1,31 @@
+Build cleanup and retention
+===========================
+
+Temporary build inputs must clean themselves up through their owning Make
+workflow. Remove source captures, selection manifests, and disposable copies
+after success, ordinary failure, or cancellation once their local readers and
+mounted workers have stopped. Cleanup must preserve the original failure.
+
+A streamed build passes bytes to Docker over stdin. After both producer and
+client have finished, an uncertain daemon outcome does not require retaining
+the source files: the daemon has no host mount through which to read them.
+Do not confuse this with a container that still mounts the captured files.
+
+Caller-selected release artifacts, configured deployment pins, and small image
+ownership receipts have a separate lifetime. Retain what the corresponding
+deployment or image-retirement owner actually uses, rather than keeping all
+build scratch beside it. Temporary publication copies are disposable; their
+reviewed preparation directory remains the artifact authority.
+
+Deferred limits
+---------------
+
+An interrupted stream whose local producer has not been confirmed stopped
+must retain its inputs. A still-needed network proxy or unresolved mounted
+worker must also remain owned until reconciled. Keep these exceptions narrow
+and report them explicitly; do not retain ordinary failed builds indefinitely.
+
+SIGKILL and host failure can bypass EXIT cleanup. Recovery of abandoned work
+needs its owner's evidence of stopped readers; this change does not introduce
+a blanket age-based /tmp sweep. Engine build-cache GC and owned-image
+retirement are separate from temporary-file cleanup.

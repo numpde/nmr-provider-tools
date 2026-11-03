@@ -51,8 +51,8 @@ case "$action" in
             printf '%s\n' 'Cannot build the wheelhouse tool: the selection worker did not complete.' >&2; exit 2;
         }
         python3 -I -S "$root/tools/wheelhouse_image_manifest.py" "$operation_directory/selection.json" "$operation_directory/manifest.json"
-        # A client exit does not establish that BuildKit has retired.
-        retain_operation=true
+        # BuildKit receives a stream, not host mounts. Once the pipeline is
+        # joined it no longer reads scratch; checker_call retains unjoined work.
         checker_call 'offline wheelhouse tool build' 900 stdio bash -o pipefail -c '
             tool=$1 pool=$2 allowlist=$3 manifest=$4
             shift 4
@@ -70,7 +70,6 @@ case "$action" in
             printf '%s\n' 'Cannot admit the wheelhouse tool build: no immutable image ID was returned.' >&2; exit 2;
         }
         checker_call 'publish wheelhouse tool image' 30 stdio "${engine[@]}" image tag "$built_image" "$image"
-        retain_operation=false
         ;;
     test)
         checker_run 180 --pull never --network none --read-only --cap-drop ALL \

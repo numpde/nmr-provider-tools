@@ -76,6 +76,12 @@ if [[ $PROBE_SCENARIO == unknown-retirement ]]; then
     inference_retirement_confirmed=false
     checker_call 'forbidden dispatch' 1 stdio true
 fi
+if [[ $PROBE_SCENARIO == settled-stream-failure ]]; then
+    printf 'captured build input\\n' > "$operation_directory/source"
+    checker_call 'settled failed stream build stage' 2 stdio bash -o pipefail -c '
+        cat "$1" | { cat > "$2"; exit 23; }
+    ' bash "$operation_directory/source" "$PROBE_REPORT.stream"
+fi
 budget=10
 if [[ $PROBE_SCENARIO == attachment-timeout ]]; then budget=1; fi
 if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
@@ -123,6 +129,13 @@ if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertFalse((self.directory / "calls").exists())
         self.assertTrue(all(path.is_dir() for path in self.owned_paths()))
+
+    def test_settled_failed_stream_releases_temporary_inputs(self):
+        result = self.run_probe("settled-stream-failure")
+        self.assertEqual(23, result.returncode, msg=result.stderr)
+        self.assertEqual("captured build input\n", Path(self.environment["PROBE_REPORT"] + ".stream").read_text())
+        self.assertEqual(["ps", "ps"], (self.directory / "calls").read_text().splitlines())
+        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
 
     def test_attachment_deadline_retires_client_and_container_before_releasing_inputs(self):
         result = self.run_probe("attachment-timeout")
