@@ -99,6 +99,9 @@ through normal preparation still needs qualification. A synthetic missing
 wheel was acquired and reused through the generated delivery lock and released
 publisher on both hosts without re-downloading a real dependency.
 
+The shared tool's own image likewise streams its selected wheels and source;
+its image build and wheelhouse suite passed on both hosts using cached inputs.
+
 The remote offline build completed, but its system shell emitted an unbound
 `PS1` warning in noninteractive execution. The host shell configuration needs
 separate cleanup; the warning did not change the build result.
