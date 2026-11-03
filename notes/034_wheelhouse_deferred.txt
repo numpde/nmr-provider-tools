@@ -6,6 +6,14 @@ migration. Complete qualification of the provider-core dependency-download
 replacement and every provider's remaining runner and
 worker migration. Qualify their normal cold paths before claiming completion.
 
+All four provider repositories now pin shared tool 0.5.11 for future
+acquisition and streaming. NMRNet checked its own cached source-and-wheel
+stream on both hosts, but has not rebuilt all image roles with that new pin.
+NMRPeak built its CUDA benchmark image offline without running GPU inference.
+SECS built its migrated GPU worker image offline; its deployed GPU worker is
+still on the earlier image pending the separately scoped GPU qualification.
+Healthy deployments have not been restarted merely to update tool pins.
+
 The following items do not need to delay the current deployment:
 
 - The provider-core repository's shared-publisher replacement needs a genuine
@@ -25,6 +33,10 @@ The following items do not need to delay the current deployment:
 - The broad repository quality lane reports existing source-inventory,
   generated-file and policy findings alongside the wheelhouse changes. Triage
   those separately rather than expanding the provider deployment.
+
+Offline checks on both hosts found the current provider-core locks complete;
+the delivery runtime wheels, pinned release wheel and tool were also present
+with matching hashes. No cached artifact was removed to manufacture a cold run.
 
 WLAN DNS failures during host-local acquisition remain an operational issue:
 retain the failing diagnostic and use the configured interface and resolver.
