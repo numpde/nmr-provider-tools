@@ -1,0 +1,8 @@
+# PROPOSAL: common interpreter policy, not current parser support.
+# Embed in the provider's own selected provider/binding configuration.
+# Keep its existing repository-owned endpoint-directory convention.
+
+[interpreter]
+# Overall window for model calls, HTTP retries, backoff and correction turns.
+# No new model request after expiry; cleanup must still settle independently.
+timeout_seconds = 240

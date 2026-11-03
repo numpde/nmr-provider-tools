@@ -1,0 +1,5 @@
+# PROPOSAL: install as 10-strong.toml, after 00-fast.toml in filename order.
+url = "https://strong.example.invalid/v1/chat/completions"
+model = "more-capable-model"
+key_file = "/run/config/interpreter/strong.key"
+# Model names choose capability; filenames determine priority, not intelligence.

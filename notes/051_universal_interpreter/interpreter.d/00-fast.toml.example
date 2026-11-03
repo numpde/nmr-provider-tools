@@ -1,0 +1,10 @@
+# PROPOSAL: same endpoint fields in every provider; no private keys in this file.
+# Install as 00-fast.toml. Only *.toml files are selected, in filename order.
+# The filename supplies the endpoint label and priority; no separate id field.
+# Complete request URL, not a base URL.
+url = "https://fast.example.invalid/v1/chat/completions"
+model = "first-model"
+key_file = "/run/config/interpreter/fast.key"
+# Optional: omit to leave the model service's reasoning default unchanged.
+# reasoning_effort = "none"
+# ca_file = "/run/config/interpreter/ca.pem"

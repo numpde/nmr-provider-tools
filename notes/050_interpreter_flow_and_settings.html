@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Ideal interpreter flow and current settings · Note 050</title>
+<style>
+  :root { --bg:#f5f6f8; --paper:#fff; --ink:#182536; --muted:#526176; --line:#ccd6e1;
+    --blue:#175da6; --blue-bg:#edf5ff; --green:#126047; --green-bg:#edf8f2;
+    --amber:#82510d; --amber-bg:#fff6e6; --red:#993b39; --red-bg:#fff0ef; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:17px/1.6 system-ui,sans-serif; }
+  main { max-width:1120px; margin:auto; padding:44px 28px 64px; }
+  header { max-width:850px; margin-bottom:30px; }
+  .eyebrow { color:var(--blue); font-size:.8rem; font-weight:750; letter-spacing:.12em; text-transform:uppercase; }
+  h1 { font-size:clamp(2rem,5vw,3.1rem); line-height:1.12; margin:12px 0 20px; }
+  h2 { line-height:1.25; margin:0 0 18px; font-size:1.55rem; }
+  h3 { line-height:1.3; font-size:1.05rem; margin:0 0 8px; }
+  p { margin:0 0 15px; } a { color:var(--blue); text-underline-offset:3px; }
+  nav { display:flex; flex-wrap:wrap; gap:9px 24px; margin-top:22px; }
+  section { background:var(--paper); border:1px solid var(--line); border-radius:16px; padding:28px; margin-top:24px; }
+  .muted, small { color:var(--muted); } small { display:block; font-size:.83rem; }
+  .callout { padding:15px 18px; border-left:4px solid var(--blue); background:var(--blue-bg); border-radius:0 8px 8px 0; }
+  .warning { border-color:var(--amber); background:var(--amber-bg); }
+  .three { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:18px; }
+  .definition { border-top:3px solid var(--blue); padding-top:12px; }
+  code { font: .87em/1.5 ui-monospace,SFMono-Regular,Consolas,monospace; overflow-wrap:anywhere; }
+  pre { padding:18px; overflow-x:auto; background:var(--bg); border:1px solid var(--line); border-radius:8px; }
+  pre code { overflow-wrap:normal; }
+  .diagram { overflow-x:auto; padding:8px 0; }
+  svg { display:block; width:100%; min-width:740px; height:auto; color:var(--ink); }
+  svg text { fill:var(--ink); font-family:system-ui,sans-serif; font-size:17px; }
+  svg .minor { fill:var(--muted); font-size:14px; }
+  svg .label { font-size:14px; font-weight:650; }
+  svg .box { fill:var(--paper); stroke:var(--line); stroke-width:1.5; }
+  svg .blue { fill:var(--blue-bg); stroke:var(--blue); }
+  svg .green { fill:var(--green-bg); stroke:var(--green); }
+  svg .amber { fill:var(--amber-bg); stroke:var(--amber); }
+  svg .edge { fill:none; stroke:var(--muted); stroke-width:2; marker-end:url(#arrow); }
+  svg.branches { min-width:980px; }
+  svg .red { fill:var(--red-bg); stroke:var(--red); }
+  svg .provider { font-weight:750; fill:var(--blue); }
+  .table-scroll { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:.94rem; }
+  th,td { vertical-align:top; text-align:left; padding:14px 12px; border-bottom:1px solid var(--line); }
+  th { font-size:.8rem; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+  td:first-child { font-weight:700; white-space:nowrap; }
+  .timeline { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; margin:20px 0; }
+  .turn { padding:18px; background:var(--blue-bg); border-radius:10px; }
+  .turn strong { display:block; color:var(--blue); margin-bottom:10px; }
+  details { border-top:1px solid var(--line); padding:18px 0; }
+  summary { cursor:pointer; font-size:1.1rem; font-weight:700; }
+  details > div { padding:18px 0 0; }
+  dl { margin:0; } dt { font-weight:650; margin-top:14px; } dd { margin:3px 0 14px; color:var(--muted); }
+  .flow-line { padding:14px 16px; background:var(--blue-bg); border-radius:8px; margin-bottom:16px; }
+  .sources { font-size:.88rem; } .sources li { margin:9px 0; }
+  footer { margin-top:26px; color:var(--muted); font-size:.84rem; }
+  @media (max-width:700px) { main { padding:25px 14px 40px; } section { padding:20px 16px; }
+    .three,.timeline { grid-template-columns:1fr; } th,td { padding:12px 8px; } }
+  @media (prefers-color-scheme:dark) { :root { --bg:#101820; --paper:#17232f; --ink:#e5edf5;
+    --muted:#adbdcd; --line:#3e5061; --blue:#8ac0ff; --blue-bg:#20374e;
+    --green:#8bd4b2; --green-bg:#203e33; --amber:#edc285; --amber-bg:#403321;
+    --red:#efa09a; --red-bg:#402928; } }
+  @media print { body { background:white; } main { max-width:none; padding:0; }
+    section { break-inside:avoid; } details > div { display:block; } nav { display:none; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <div class="eyebrow">Note 050 · Proposed flow and current implementation · 3 November 2026</div>
+  <h1>The ideal interpreter flow</h1>
+  <p>Retry transient transport failures at the same endpoint with finite attempts and backoff. Give a model bounded opportunities to inspect and correct its answer. Escalate to the next configured model when those opportunities are exhausted.</p>
+  <p class="muted">The first chart is the proposed common design. Current provider behavior and supported TOML settings follow for comparison; they do not yet implement every part of this design. Configuration examples contain no live deployment values.</p>
+  <nav aria-label="Contents"><a href="#ideal">Ideal flow</a><a href="#universal-config">Universal TOML</a><a href="#turns">What counts now</a><a href="#flow">Current flow</a><a href="#policies">Provider differences</a><a href="#settings">Current settings</a><a href="#sources">Sources</a></nav>
+</header>
+
+<section id="ideal">
+  <h2>Proposed common flow</h2>
+  <p><strong>Separate SDK bounds:</strong> transport attempts per logical turn, total turns and rejected proposals at one model, and the overall interpretation deadline. Backoff retries repeat the same model request; correction feedback starts a new logical turn.</p>
+  <p class="callout">The endpoint list determines the escalation order. Configure more capable models later; there is no automatic intelligence ranking. The SDK assigns each endpoint a time share from the remaining overall budget.</p>
+  <div class="diagram">
+    <svg class="branches" viewBox="0 0 1100 1510" role="img" aria-labelledby="ideal-title ideal-desc">
+      <title id="ideal-title">Ideal interpretation with bounded transport retries and model escalation</title>
+      <desc id="ideal-desc">Choose an endpoint, start a logical turn, and send an HTTP attempt. On transport failure retire the failed request. Unconfirmed cleanup stops the interpretation with ownership retained. If the failure is retryable and attempts and time remain, wait with capped backoff and retry the same endpoint within the same turn. Otherwise escalate. On a reply, accept usable final input; inspection or correctable rejection produces feedback and another turn if the model's turn and time budgets remain. Unusable replies, unverified input-problem reports and exhausted model budgets escalate. Retire the endpoint and choose the next if there is one and the overall deadline permits. Exhausting the ladder fails only this Job; the provider continues.</desc>
+      <defs><marker id="ideal-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
+      <g>
+      <rect class="box" x="350" y="20" width="400" height="65" rx="10"/>
+      <text x="550" y="48" text-anchor="middle">Original request + ordered endpoint list</text>
+      <text class="minor" x="550" y="70" text-anchor="middle">One overall deadline for this interpretation</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 85 V135"/>
+      <rect class="box blue" x="350" y="135" width="400" height="75" rx="10"/>
+      <text x="550" y="158" text-anchor="middle">Choose next endpoint (first on entry)</text>
+      <text class="minor" x="550" y="181" text-anchor="middle">Reset SDK counters; start its assigned time window</text>
+      <text class="minor" x="550" y="200" text-anchor="middle">Original request + verified facts + safe feedback</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 210 V260"/>
+      <rect class="box blue" x="350" y="260" width="400" height="75" rx="10"/>
+      <text x="550" y="289" text-anchor="middle">Begin a logical model turn: n += 1</text>
+      <text class="minor" x="550" y="315" text-anchor="middle">Reset this turn's HTTP-attempt counter: k = 0</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 335 V390"/>
+      <rect class="box" x="350" y="390" width="400" height="75" rx="10"/>
+      <text x="550" y="413" text-anchor="middle">Before every HTTP attempt: check time</text>
+      <text class="minor" x="550" y="436" text-anchor="middle">Endpoint + overall deadlines must still permit a send</text>
+      <text class="minor" x="550" y="455" text-anchor="middle">Then k += 1; send the same prompt / context</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M750 427 H770 V1100 H750"/>
+      <text class="label" x="782" y="420">No time → escalate / end</text>
+
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M350 427 H290"/>
+      <text class="label" x="300" y="413">Failed</text>
+      <rect class="box amber" x="30" y="390" width="260" height="75" rx="10"/>
+      <text x="160" y="419" text-anchor="middle">Transport / service failure</text>
+      <text class="minor" x="160" y="445" text-anchor="middle">Retire the failed request</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M160 465 V520"/>
+      <rect class="box amber" x="30" y="520" width="260" height="70" rx="10"/>
+      <text x="160" y="562" text-anchor="middle">Request cleanup confirmed?</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M30 555 H10 V170 H30"/>
+      <text class="label" x="40" y="507">No → stop</text>
+      <rect class="box red" x="30" y="125" width="260" height="90" rx="10"/>
+      <text x="160" y="154" text-anchor="middle">Stop this interpretation</text>
+      <text class="minor" x="160" y="178" text-anchor="middle">Keep unresolved ownership</text>
+      <text class="minor" x="160" y="199" text-anchor="middle">Do not replay scientific work</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M160 590 V650"/>
+      <text class="label" x="177" y="622">Yes</text>
+      <rect class="box amber" x="30" y="650" width="260" height="85" rx="10"/>
+      <text x="160" y="681" text-anchor="middle">Retryable transport failure</text>
+      <text x="160" y="708" text-anchor="middle">+ attempts and time left?</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M160 735 V795"/>
+      <text class="label" x="177" y="768">Yes</text>
+      <rect class="box blue" x="30" y="795" width="260" height="85" rx="10"/>
+      <text x="160" y="825" text-anchor="middle">Wait bounded backoff + jitter</text>
+      <text class="minor" x="160" y="850" text-anchor="middle">Same endpoint · same logical turn</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow);stroke:var(--blue)" d="M290 837 H320 V365 H550 V390"/>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M30 693 H0 V1100 H350"/>
+      <text class="label" x="40" y="762">No → escalate</text>
+
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 465 V520"/>
+      <text class="label" x="565" y="497">Reply</text>
+      <rect class="box" x="350" y="520" width="400" height="70" rx="10"/>
+      <text x="550" y="562" text-anchor="middle">Read reply / perform permitted tool</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 590 V650"/>
+      <rect class="box" x="350" y="650" width="400" height="85" rx="10"/>
+      <text x="550" y="681" text-anchor="middle">Usable final input accepted</text>
+      <text x="550" y="708" text-anchor="middle">by the provider?</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M750 693 H820"/>
+      <text class="label" x="772" y="678">Yes</text>
+      <rect class="box green" x="820" y="650" width="260" height="85" rx="10"/>
+      <text x="950" y="681" text-anchor="middle">Finish interpretation</text>
+      <text class="minor" x="950" y="708" text-anchor="middle">Preserve accepted work; no escalation</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 735 V795"/>
+      <text class="label" x="565" y="768">No</text>
+      <rect class="box" x="350" y="795" width="400" height="85" rx="10"/>
+      <text x="550" y="826" text-anchor="middle">Inspection result or correctable proposal?</text>
+      <text class="minor" x="550" y="853" text-anchor="middle">A model's input-problem claim is not proof</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M750 837 H820"/>
+      <text class="label" x="772" y="822">Yes</text>
+      <rect class="box blue" x="820" y="795" width="260" height="85" rx="10"/>
+      <text x="950" y="826" text-anchor="middle">Return facts / correction</text>
+      <text class="minor" x="950" y="852" text-anchor="middle">Track rejected proposals separately</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M950 880 V940"/>
+      <rect class="box amber" x="820" y="940" width="260" height="85" rx="10"/>
+      <text x="950" y="971" text-anchor="middle">SDK turn / rejection caps</text>
+      <text x="950" y="998" text-anchor="middle">+ endpoint time available?</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow);stroke:var(--blue)" d="M1080 982 H1090 V297 H750"/>
+      <text class="label" x="1002" y="927">Yes → new turn</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M820 982 H790 V1100 H750"/>
+      <text class="label" x="777" y="1052">No</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 880 V1060"/>
+      <text class="label" x="565" y="940">No: unusable reply</text>
+      <text class="label" x="565" y="962">or input-problem report</text>
+      <rect class="box amber" x="350" y="1060" width="400" height="85" rx="10"/>
+      <text x="550" y="1090" text-anchor="middle">Escalate: retire the current endpoint</text>
+      <text class="minor" x="550" y="1116" text-anchor="middle">Carry original request, verified facts and safe feedback</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 1145 V1210"/>
+      <rect class="box amber" x="350" y="1210" width="400" height="85" rx="10"/>
+      <text x="550" y="1241" text-anchor="middle">Endpoint retired + next endpoint exists</text>
+      <text x="550" y="1268" text-anchor="middle">+ overall time remains?</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow);stroke:var(--blue)" d="M350 1252 H305 V172 H350"/>
+      <text class="label" x="315" y="1238">Yes</text>
+      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 1295 V1370"/>
+      <text class="label" x="565" y="1333">No</text>
+      <rect class="box red" x="350" y="1370" width="400" height="75" rx="10"/>
+      <text x="550" y="1399" text-anchor="middle">End this interpretation / Job outcome</text>
+      <text class="minor" x="550" y="1424" text-anchor="middle">Retain unresolved owners; provider continues other Jobs</text>
+      </g>
+      <text class="minor" x="550" y="1489" text-anchor="middle">Overall deadline, cancellation or a positive scientific failure interrupts this flow; never replay accepted work to recover it.</text>
+    </svg>
+  </div>
+  <div class="three">
+    <div class="definition"><h3>Transport retry</h3><p>Only transient transport/service failures qualify. Count the initial HTTP attempt in the finite maximum. The SDK supplies a finite attempt maximum and bounded jittered backoff, respecting a valid Retry-After within the remaining time. Recheck endpoint and overall deadlines after waiting and before every send. Permanent endpoint failures skip retries.</p></div>
+    <div class="definition"><h3>Model correction</h3><p>Inspections consume logical turns and time, but do not consume the rejected-proposal quota. The SDK bounds total turns and rejected proposals separately. HTTP retries consume neither counter again. Exhausting either cap or the assigned time window causes escalation. A model's unsupported-input claim can be checked by the next model; independently established input errors need no model retry.</p></div>
+    <div class="definition"><h3>Escalation</h3><p>Choose the next configured model after retirement. Carry useful facts and safe feedback, without promoting failed proposals into truth. Keep one overall deadline; assign time shares so the first model cannot consume the entire ladder budget. Exhausting the ladder ends this Job, not the provider.</p></div>
+  </div>
+  <p class="callout warning"><strong>Thin configuration:</strong> the operator selects the overall interpretation timeout and ordered endpoint definitions. The SDK owns time allocation, finite HTTP retries/backoff, cleanup and separate turn/rejection bounds. The <a href="#universal-config">universal TOML proposal</a> below shows this shape; <a href="#settings">current settings</a> remain implementation-specific.</p>
+</section>
+
+<section id="universal-config">
+  <h2>Proposed universal TOML: thin files, common SDK policy</h2>
+  <p><strong>Proposal, not current parser support.</strong> All four provider owners recommended removing most operator knobs. Keep one overall timeout in the provider/binding file, and one minimal file per endpoint. Preserve the provider's repository-owned endpoint-directory convention; no new directory selector, cross-repository settings file or registry.</p>
+  <pre><code>config/
+├── provider.toml                # One overall interpretation timeout
+└── interpreter.d/              # Illustrative repo-owned endpoint directory
+    ├── 00-fast.toml             # URL, model, credential reference
+    └── 10-strong.toml           # Next endpoint, same schema</code></pre>
+  <p>Only <code>*.toml</code> endpoint files are selected, in lexicographic filename order. Remove <code>.example</code> when installing templates. The captured filename supplies the endpoint label and priority; there is no separate <code>id</code>.</p>
+  <h3>Provider or binding policy: <code>config/provider.toml</code></h3>
+  <p><a href="051_universal_interpreter/provider.toml.example">Open provider.toml.example</a></p>
+  <pre><code># PROPOSAL: common interpreter policy, not current parser support.
+# Embed in the provider&#x27;s own selected provider/binding configuration.
+# Keep its existing repository-owned endpoint-directory convention.
+
+[interpreter]
+# Overall window for model calls, HTTP retries, backoff and correction turns.
+# No new model request after expiry; cleanup must still settle independently.
+timeout_seconds = 240
+</code></pre>
+  <h3>First endpoint: <code>interpreter.d/00-fast.toml</code></h3>
+  <p><a href="051_universal_interpreter/interpreter.d/00-fast.toml.example">Open interpreter.d/00-fast.toml.example</a></p>
+  <pre><code># PROPOSAL: same endpoint fields in every provider; no private keys in this file.
+# Install as 00-fast.toml. Only *.toml files are selected, in filename order.
+# The filename supplies the endpoint label and priority; no separate id field.
+# Complete request URL, not a base URL.
+url = &quot;https://fast.example.invalid/v1/chat/completions&quot;
+model = &quot;first-model&quot;
+key_file = &quot;/run/config/interpreter/fast.key&quot;
+# Optional: omit to leave the model service&#x27;s reasoning default unchanged.
+# reasoning_effort = &quot;none&quot;
+# ca_file = &quot;/run/config/interpreter/ca.pem&quot;
+</code></pre>
+  <h3>Later endpoint: <code>interpreter.d/10-strong.toml</code></h3>
+  <p><a href="051_universal_interpreter/interpreter.d/10-strong.toml.example">Open interpreter.d/10-strong.toml.example</a></p>
+  <pre><code># PROPOSAL: install as 10-strong.toml, after 00-fast.toml in filename order.
+url = &quot;https://strong.example.invalid/v1/chat/completions&quot;
+model = &quot;more-capable-model&quot;
+key_file = &quot;/run/config/interpreter/strong.key&quot;
+# Model names choose capability; filenames determine priority, not intelligence.
+</code></pre>
+  <dl>
+    <dt>Agreed default: divide remaining time among untried models</dt><dd>After previous endpoint cleanup settles, divide the remaining overall time by the number of endpoints still to try, including the one being selected. Fix that model's deadline once; retries and corrections never restart it. Unused time rolls forward. With 240 seconds and two models, the first receives at most 120 seconds. If its model work ends after 20 seconds, the second receives approximately 220 seconds minus cleanup time; if it uses its full 120 seconds, the second receives approximately 120 seconds minus cleanup time. Cleanup consumes overall time rather than extending the interpretation window. The caller's earlier Job/work deadline still takes precedence.</dd>
+    <dt>No arbitrary short response ceiling</dt><dd>A connected model request may use its remaining model window. An 80-second response can fit a 120-second window; it must not be repeatedly aborted by an unrelated 25-second SDK read limit. A short SDK connection-establishment bound, including DNS and TLS setup, can detect unreachable services. Confirm cleanup before retrying; retire safely before escalation.</dd>
+    <dt>Retries are a maximum, not a promise</dt><dd>A quick transient failure leaves time for a same-endpoint retry after backoff. A request that consumes the entire model window causes escalation; there is no time left to promise another full-length request. The proposed initial SDK policy allows at most two HTTP attempts per logical turn, including the first, with one bounded jittered backoff and Retry-After handling. These are SDK policy, not endpoint-file settings.</dd>
+    <dt>Keep inspection and failed proposals distinct</dt><dd>The SDK centrally bounds total logical turns and rejected proposals per model. Successful inspections consume turns and time, but do not consume the repair quota. Corrections remain best-effort within the total-turn and time limits; inspections can exhaust those limits before all repair opportunities are used. The initial policy should accommodate SECS's existing 12-turn conversation while limiting repeated bad proposals separately; the exact constants belong in centrally qualified SDK policy, not per-model TOML.</dd>
+    <dt>No duplicated limits in endpoint files</dt><dd>Drop endpoint IDs, endpoint/exchange/retirement timers, per-model turn caps and retry/backoff knobs from this proposal. Endpoint files contain complete URL, model and credential-file reference, with reasoning effort or CA only when the service needs them. Introduce a model-specific time override only if measured behavior demonstrates that the default allocation is insufficient.</dd>
+    <dt>One captured configuration per interpretation</dt><dd>Capture the overall policy and ordered endpoint definitions before starting. Do not rescan or reread settings between retries and endpoint switches. Later edits apply to new interpretations.</dd>
+    <dt>Scientific ownership stays with the provider</dt><dd>Escalation carries the original request, verified facts and safe feedback; it never replays accepted scientific work. The provider retains its prompts, tools, acceptance rules and work deadlines. Exhaustion ends this Job, not the provider.</dd>
+  </dl>
+</section>
+
+
+
+<section id="turns">
+  <h2>Current implementation: three things to count</h2>
+  <div class="three">
+    <div class="definition"><h3>Logical turn</h3><p>One call to an endpoint adapter to obtain and handle a model reply. The counter increments before that call, so a failed exchange also uses a turn.</p></div>
+    <div class="definition"><h3>HTTP attempt</h3><p>One network request. NMRPeak can make up to two HTTP attempts inside one logical turn for selected operational failures. That retry does not create another conversation turn.</p></div>
+    <div class="definition"><h3>Tool feedback</h3><p>The provider returns inspection findings or explains a rejection. Sending that feedback does not itself use a turn; the model's next response requires the next turn.</p></div>
+  </div>
+  <div class="timeline" aria-label="Example of a three-turn conversation">
+    <div class="turn"><strong>Turn 1 · Inspect</strong>Model asks to inspect an upload.<br>Provider returns facts.</div>
+    <div class="turn"><strong>Turn 2 · Propose</strong>Model proposes input.<br>Provider rejects it and explains why.</div>
+    <div class="turn"><strong>Turn 3 · Repair</strong>Model proposes corrected input.<br>Provider accepts it and finishes interpretation.</div>
+  </div>
+  <p class="callout"><strong>A limit of three means three total turns.</strong> It includes the initial turn and useful inspections. If turn 3 is rejected, there is no turn 4 in that conversation. A provider may then try another endpoint under the policy below.</p>
+</section>
+
+<section id="flow">
+  <h2>One conversation, at the current endpoint</h2>
+  <p class="muted">An endpoint is a configured model service and model name. Deadlines and cancellation can interrupt this flow; cleanup still has to settle.</p>
+  <div class="diagram">
+    <svg viewBox="0 0 1000 620" role="img" aria-labelledby="flow-title flow-desc">
+      <title id="flow-title">Interpreter conversation flow</title>
+      <desc id="flow-desc">Start a conversation and check its remaining turn budget. If exhausted, apply provider fallback policy. Otherwise increment the turn counter and call the model adapter. Inspection or correctable rejection returns feedback and loops to the budget check at the same endpoint. An accepted final result finishes interpretation. Model failures or reported input problems follow provider policy.</desc>
+      <defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/></marker></defs>
+      <rect class="box" x="320" y="12" width="360" height="56" rx="10"/>
+      <text x="500" y="47" text-anchor="middle">Start / current endpoint</text>
+      <path class="edge" d="M500 68 V105"/>
+      <rect class="box" x="320" y="105" width="360" height="62" rx="10"/>
+      <text x="500" y="142" text-anchor="middle">Conversation turns remaining?</text>
+      <path class="edge" d="M680 136 H750"/>
+      <text class="label" x="713" y="122" text-anchor="middle">No</text>
+      <rect class="box amber" x="750" y="105" width="235" height="80" rx="10"/>
+      <text x="867" y="135" text-anchor="middle">Stop this conversation</text>
+      <text class="minor" x="867" y="160" text-anchor="middle">Continue at the provider branches ↓</text>
+      <path class="edge" d="M500 167 V210"/>
+      <text class="label" x="520" y="194">Yes</text>
+      <rect class="box blue" x="290" y="210" width="420" height="83" rx="10"/>
+      <text x="500" y="242" text-anchor="middle">Increment turn counter → ask model adapter</text>
+      <text class="minor" x="500" y="268" text-anchor="middle">An adapter may retry HTTP within this logical turn</text>
+      <path class="edge" d="M500 293 V330"/>
+      <rect class="box" x="320" y="330" width="360" height="57" rx="10"/>
+      <text x="500" y="365" text-anchor="middle">Handle reply / perform requested tool</text>
+      <path class="edge" d="M320 358 H170 V437"/>
+      <path class="edge" d="M500 387 V437"/>
+      <path class="edge" d="M680 358 H840 V437"/>
+      <rect class="box blue" x="30" y="437" width="280" height="119" rx="10"/>
+      <text x="170" y="468" text-anchor="middle">Inspection / correctable rejection</text>
+      <text class="minor" x="170" y="496" text-anchor="middle">Return findings or correction feedback</text>
+      <text class="minor" x="170" y="523" text-anchor="middle">Same endpoint, another turn if allowed</text>
+      <path class="edge" d="M30 493 H12 V136 H320"/>
+      <rect class="box green" x="360" y="437" width="280" height="119" rx="10"/>
+      <text x="500" y="468" text-anchor="middle">Accepted final tool result</text>
+      <text class="minor" x="500" y="496" text-anchor="middle">Finish interpretation</text>
+      <text class="minor" x="500" y="523" text-anchor="middle">Do not repeat accepted work to escalate</text>
+      <rect class="box amber" x="700" y="437" width="280" height="119" rx="10"/>
+      <text x="840" y="468" text-anchor="middle">Model / protocol failure</text>
+      <text x="840" y="493" text-anchor="middle">or reported input problem</text>
+      <text class="minor" x="840" y="523" text-anchor="middle">Continue at the provider branches ↓</text>
+      <text class="minor" x="500" y="598" text-anchor="middle">Tool execution can include scientific inspection or preparation; those effects have their own ownership and deadlines.</text>
+    </svg>
+  </div>
+  <p class="callout warning"><strong>Before switching:</strong> the previous model I/O must retire safely. Unconfirmed cleanup blocks ordinary fallback. Scientific crashes, uncertain scientific outcomes and cancellation are not permission to repeat work with another model.</p>
+  <h3 id="fallback-branches">Provider branches: what happens next</h3>
+  <p>Both amber boxes above enter this chart. A deadline or cancellation can end the operation at any point. “Retired” means the previous model connection's cleanup is confirmed.</p>
+  <div class="diagram">
+    <svg class="branches" viewBox="0 0 1100 805" role="img" aria-labelledby="branches-title branches-desc">
+      <title id="branches-title">Actual provider fallback decisions</title>
+      <desc id="branches-desc">Magnet ends on an input-problem report; other model failures or exhausted corrections can advance after retirement if another endpoint and time remain. NMRPeak allows all three kinds to advance under the same gate. NMRNet advances only for carrier or protocol failure, and only with another endpoint, remaining shared turns, time and confirmed retirement; reports or exhausted corrections end interpretation. SECS has one endpoint and no fallback. Unconfirmed cleanup retains ownership and blocks switching.</desc>
+      <text class="provider" x="16" y="38">MAGNET</text>
+      <rect class="box" x="170" y="10" width="240" height="65" rx="9"/>
+      <text x="290" y="37" text-anchor="middle">Input-problem report?</text>
+      <text class="minor" x="290" y="59" text-anchor="middle">Includes exhausted repairs</text>
+      <path class="edge" d="M290 75 V115"/><text class="label" x="305" y="101">Yes</text>
+      <rect class="box red" x="170" y="115" width="240" height="48" rx="9"/>
+      <text x="290" y="145" text-anchor="middle">End interpretation</text>
+      <path class="edge" d="M410 42 H485"/><text class="label" x="442" y="29">No</text>
+      <rect class="box amber" x="485" y="10" width="300" height="80" rx="9"/>
+      <text x="635" y="39" text-anchor="middle">Next endpoint + time left</text>
+      <text x="635" y="65" text-anchor="middle">+ previous I/O retired?</text>
+      <path class="edge" d="M785 50 H855"/><text class="label" x="806" y="36">Yes</text>
+      <rect class="box blue" x="855" y="10" width="230" height="80" rx="9"/>
+      <text x="970" y="37" text-anchor="middle">Try next endpoint</text>
+      <text class="minor" x="970" y="61" text-anchor="middle">Fresh transcript · up to 3 turns</text>
+      <path class="edge" d="M635 90 V115"/><text class="label" x="650" y="108">No</text>
+      <rect class="box red" x="485" y="115" width="300" height="48" rx="9"/>
+      <text class="minor" x="635" y="145" text-anchor="middle">End; retain unresolved cleanup</text>
+
+      <text class="provider" x="16" y="228">NMRPEAK</text>
+      <rect class="box" x="170" y="200" width="240" height="80" rx="9"/>
+      <text x="290" y="228" text-anchor="middle">Failure / exhausted repairs</text>
+      <text x="290" y="254" text-anchor="middle">/ input-problem report</text>
+      <path class="edge" d="M410 240 H485"/>
+      <rect class="box amber" x="485" y="200" width="300" height="80" rx="9"/>
+      <text x="635" y="229" text-anchor="middle">Next endpoint + time left</text>
+      <text x="635" y="255" text-anchor="middle">+ previous I/O retired?</text>
+      <path class="edge" d="M785 240 H855"/><text class="label" x="806" y="226">Yes</text>
+      <rect class="box blue" x="855" y="200" width="230" height="80" rx="9"/>
+      <text x="970" y="227" text-anchor="middle">Try next endpoint</text>
+      <text class="minor" x="970" y="251" text-anchor="middle">Fresh transcript · up to 3 turns</text>
+      <path class="edge" d="M635 280 V310"/><text class="label" x="650" y="301">No</text>
+      <rect class="box red" x="485" y="310" width="300" height="65" rx="9"/>
+      <text x="635" y="337" text-anchor="middle">Otherwise end</text>
+      <text class="minor" x="635" y="359" text-anchor="middle">Classify; retain unresolved cleanup</text>
+
+      <text class="provider" x="16" y="438">NMRNET</text>
+      <rect class="box" x="170" y="410" width="240" height="80" rx="9"/>
+      <text x="290" y="438" text-anchor="middle">Carrier / protocol failure?</text>
+      <text class="minor" x="290" y="463" text-anchor="middle">Report or exhausted repairs → No</text>
+      <path class="edge" d="M290 490 V530"/><text class="label" x="305" y="516">No</text>
+      <rect class="box red" x="170" y="530" width="240" height="48" rx="9"/>
+      <text x="290" y="560" text-anchor="middle">End interpretation</text>
+      <path class="edge" d="M410 450 H485"/><text class="label" x="432" y="437">Yes</text>
+      <rect class="box amber" x="485" y="410" width="300" height="80" rx="9"/>
+      <text x="635" y="438" text-anchor="middle">Next endpoint + shared turns left</text>
+      <text x="635" y="464" text-anchor="middle">+ time left + I/O retired?</text>
+      <path class="edge" d="M785 450 H855"/><text class="label" x="806" y="436">Yes</text>
+      <rect class="box blue" x="855" y="410" width="230" height="80" rx="9"/>
+      <text x="970" y="437" text-anchor="middle">Try next endpoint</text>
+      <text class="minor" x="970" y="461" text-anchor="middle">Keep transcript · turns left</text>
+      <path class="edge" d="M635 490 V530"/><text class="label" x="650" y="516">No</text>
+      <rect class="box red" x="485" y="530" width="300" height="48" rx="9"/>
+      <text class="minor" x="635" y="560" text-anchor="middle">End; retain unresolved cleanup</text>
+
+      <text class="provider" x="16" y="648">SECS</text>
+      <rect class="box" x="170" y="620" width="240" height="80" rx="9"/>
+      <text x="290" y="648" text-anchor="middle">Failure / exhausted turns</text>
+      <text x="290" y="674" text-anchor="middle">/ cannot-analyse decision</text>
+      <path class="edge" d="M410 660 H485"/>
+      <rect class="box red" x="485" y="620" width="300" height="80" rx="9"/>
+      <text x="635" y="648" text-anchor="middle">End interpretation</text>
+      <text class="minor" x="635" y="674" text-anchor="middle">One endpoint; no fallback ladder</text>
+      <text class="minor" x="550" y="762" text-anchor="middle">A switch returns to “Start / current endpoint” in the first diagram. Accepted scientific work is not replayed.</text>
+      <text class="minor" x="550" y="787" text-anchor="middle">These branches decide interpretation outcome; Job failure handling and provider continuation are separate.</text>
+    </svg>
+  </div>
+</section>
+
+<section id="policies">
+  <h2>What happens after failure or exhaustion?</h2>
+  <p>“Next” means the next configured endpoint. It can be a more capable model if configured that way; the code does not assess intelligence or reorder endpoints.</p>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Provider</th><th>Turn budget</th><th>When it advances</th><th>Context at next endpoint</th></tr></thead>
+    <tbody>
+      <tr><td>Magnet</td><td>3 per endpoint; fixed in code.</td><td>Transport/protocol failure or exhausted corrections. A model-reported input problem stops interpretation rather than trying another endpoint.</td><td>Fresh conversation from the original prompt. Failed-endpoint corrections are not passed forward.</td></tr>
+      <tr><td>NMRPeak</td><td>3 per endpoint; fixed in code.</td><td>Transport/protocol failure, exhausted corrections, or a model-reported input problem. The provider classifies the combined endpoint outcomes if none succeeds.</td><td>Fresh conversation from the original prompt. Failed-endpoint corrections are not passed forward.</td></tr>
+      <tr><td>NMRNet</td><td>One configurable total across endpoints.</td><td>Carrier/transport failure or malformed reply. Correctable tool rejections stay on the same endpoint. Exhausting turns or a model-reported input problem ends interpretation.</td><td>The same admitted transcript and feedback, with the remaining total budget.</td></tr>
+      <tr><td>SECS</td><td>One configurable total for one endpoint.</td><td>No endpoint ladder. Corrections stay in the same conversation. A “cannot analyse” decision finishes it.</td><td>No next endpoint in the current configuration model.</td></tr>
+    </tbody>
+  </table></div>
+  <p style="margin-top:18px"><strong>No reserved allowance for a stronger model exists today.</strong> Magnet and NMRPeak share one overall interpretation deadline across their endpoint attempts. An earlier endpoint can consume the time a later one would need. Turn allowance and elapsed-time allowance are separate.</p>
+</section>
+
+<section id="settings">
+  <h2>Settings and their scope</h2>
+  <p>These names come from the current source and tracked examples. The TOML below shows actual configuration fields with example values. These are fragments, not complete deployment files; credentials and unrelated required fields are omitted.</p>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Provider</th><th>Editable in configuration</th><th>Fixed in code today</th></tr></thead>
+    <tbody>
+      <tr><td>Magnet</td><td>Models, endpoint order, reasoning effort; HTTP, turn and interpretation timeouts.</td><td>3 turns per endpoint; at most 4 endpoints; fallback/reset and input-report rules.</td></tr>
+      <tr><td>NMRPeak</td><td>Models, endpoint order, reasoning effort; HTTP, turn and interpretation timeouts.</td><td>3 turns per endpoint; 2 HTTP attempts per turn; 1-second retry delay; at most 4 endpoints; fallback/reset and input-report rules.</td></tr>
+      <tr><td>NMRNet</td><td>Total turns; models and endpoint order; reasoning effort; exchange, retirement and preparation time limits.</td><td>Fallback trigger rules and retaining the same transcript/remaining budget.</td></tr>
+      <tr><td>SECS</td><td>Total turns; one model/URL and reasoning effort; interpretation and work time limits.</td><td>Single-endpoint configuration model; correction and cannot-analyse behavior.</td></tr>
+    </tbody>
+  </table></div>
+  <details open id="magnet-settings"><summary>Magnet · per-endpoint conversations</summary><div>
+    <p class="flow-line">Endpoint A: ≤3 turns → retire → endpoint B: ≤3 turns → …<br><small>All endpoint attempts share <code>interpretation_timeout_seconds</code>; fallback starts a fresh conversation.</small></p>
+    <dl>
+      <dt>Endpoint selection and order</dt><dd>The interpreter directory's <code>*.toml</code> files are read in lexicographic filename order, for example <code>00-fast.toml</code> before <code>10-strong.toml</code>. The <code>id</code> field does not set priority. <code>base_url</code>, <code>model</code> and optional <code>reasoning_effort</code> select each service/model. At most 4 endpoints.</dd>
+      <dt>Binding configuration: <code>[interpreter]</code></dt><dd><code>request_timeout_seconds</code> bounds one HTTP exchange; <code>turn_timeout_seconds</code> bounds the adapter turn; <code>interpretation_timeout_seconds</code> bounds the whole endpoint sequence. These live in the selected binding's configuration, such as the tracked <code>e01.toml.example</code>, rather than the top-level provider example.</dd>
+      <dt>Turn count</dt><dd><code>MAX_TURNS_PER_ENDPOINT = 3</code> is a code constant, not a TOML setting. Raising a time limit does not raise the turn count.</dd>
+    </dl>
+    <h3>The TOML</h3>
+    <p><a href="../../magnet-deploy/models/e_01_jvae_nmrexp/provider/e01.toml.example">Binding example: <code>e01.toml.example</code></a> · interpreter fragment:</p>
+    <pre><code>[interpreter]
+request_timeout_seconds = 25
+turn_timeout_seconds = 60
+interpretation_timeout_seconds = 240
+# No configurable max_turns field here: 3 per endpoint is fixed.</code></pre>
+    <p>In the selected endpoint directory, for example <code>00-first.toml</code> (a later file selects the fallback model):</p>
+    <pre><code>id = "first-endpoint"
+base_url = "https://models.example.invalid/v1"
+model = "first-model"
+# reasoning_effort = "none"  # Optional; depends on endpoint support.
+# Required api_key is omitted here; keep it in the private endpoint file.</code></pre>
+  </div></details>
+  <details open id="peak-settings"><summary>NMRPeak · per-endpoint turns, with HTTP retry inside a turn</summary><div>
+    <p class="flow-line">One turn: HTTP attempt 1 → selected operational failure → 1-second delay → HTTP attempt 2<br><small>This remains one turn. The retry does not repair a rejected scientific proposal.</small></p>
+    <dl>
+      <dt>Endpoint selection and order</dt><dd>Endpoint <code>*.toml</code> files are read in lexicographic filename order, for example <code>00-fast.toml</code> before <code>10-strong.toml</code>. The <code>id</code> field does not set priority. <code>base_url</code>, <code>model</code> and optional <code>reasoning_effort</code> select each service/model. At most 4 endpoints.</dd>
+      <dt><code>config/provider.toml</code>: <code>[interpreter]</code></dt><dd><code>request_timeout_seconds</code> bounds each HTTP attempt; <code>turn_timeout_seconds</code> bounds both attempts and their delay; <code>interpretation_timeout_seconds</code> bounds all endpoint attempts in one interpretation invocation.</dd>
+      <dt>Fixed limits</dt><dd>3 logical turns per endpoint. <code>maximum_attempts = 2</code> and <code>retry_delay_seconds = 1.0</code> are fixed call-policy fields, not operator-configurable TOML settings. The turn timeout must accommodate the configured request budgets and the fixed delay.</dd>
+    </dl>
+    <h3>The TOML</h3>
+    <p><a href="../../nmrpeak-repro/config/provider.toml.example">Provider example: <code>config/provider.toml.example</code></a> · interpreter fragment:</p>
+    <pre><code>[interpreter]
+request_timeout_seconds = 25
+turn_timeout_seconds = 60
+interpretation_timeout_seconds = 240
+# 3 turns, 2 HTTP attempts and the 1-second delay are fixed in code.</code></pre>
+    <p>Each ordered endpoint file uses <code>id</code>, <code>base_url</code>, <code>model</code>, a private <code>api_key</code> and optional <code>reasoning_effort</code>, as in the Magnet endpoint fragment above.</p>
+  </div></details>
+  <details open id="net-settings"><summary>NMRNet · one conversation budget across endpoints</summary><div>
+    <p class="flow-line">Turn 1 at A → carrier failure → retire A → turn 2 at B → …<br><small>Fallback preserves the transcript and consumes the same total allowance; it does not reset the turn counter.</small></p>
+    <dl>
+      <dt><code>config/provider.toml</code>: <code>[interpreter].max_turns</code></dt><dd>Total logical turns across the ordered <code>[[interpreter.endpoints]]</code> list. The tracked example uses 6. This is not six turns per endpoint.</dd>
+      <dt><code>[[interpreter.endpoints]]</code></dt><dd>Endpoints run in their array declaration order, not sorted by <code>configuration_id</code>. <code>url</code> is the complete request URL and is sent verbatim: include <code>/chat/completions</code> when that is the service's route. It is not Magnet/NMRPeak's <code>base_url</code>. <code>model</code> and optional <code>reasoning_effort</code> select the model; <code>exchange_seconds</code> and <code>retirement_seconds</code> bound exchange and transport retirement.</dd>
+      <dt><code>[preparation].seconds</code></dt><dd>The input-preparation owner bounds the selection phase, including its interpreter chooser. This is a different setting from endpoint exchange time and from the logical turn count.</dd>
+    </dl>
+    <h3>The TOML</h3>
+    <p><a href="../../nmrnet-repro/config/provider.toml.example">Provider example: <code>config/provider.toml.example</code></a> · selection fragment:</p>
+    <pre><code>[interpreter]
+max_turns = 6                    # Total across ALL endpoints.
+
+[[interpreter.endpoints]]        # First endpoint, by declaration order.
+configuration_id = "first-endpoint"
+url = "https://models.example.invalid/v1/chat/completions"
+model = "first-model"
+key_file = "/path/to/private/key"
+request_bytes = 65536
+response_bytes = 262144
+exchange_seconds = 25
+retirement_seconds = 5
+# reasoning_effort = "none"
+
+[[interpreter.endpoints]]        # Fallback, still within the same 6 turns.
+configuration_id = "fallback-endpoint"
+url = "https://fallback.example.invalid/v1/chat/completions"
+model = "fallback-model"
+key_file = "/path/to/private/fallback-key"
+request_bytes = 65536
+response_bytes = 262144
+exchange_seconds = 25
+retirement_seconds = 5
+
+[preparation]
+seconds = 240                   # Other preparation fields omitted.</code></pre>
+  </div></details>
+  <details open id="secs-settings"><summary>SECS · one configured interpreter</summary><div>
+    <p class="flow-line">One endpoint → inspect / propose / correct → accept, cannot-analyse, or exhaust budget</p>
+    <dl>
+      <dt><code>config/provider.toml</code>: <code>[execution]</code></dt><dd><code>interpreter_url</code>, <code>interpreter_model</code> and optional <code>interpreter_reasoning_effort</code> select one model service. There is no ordered endpoint list.</dd>
+      <dt><code>max_turns</code></dt><dd>Total turns for that endpoint. The tracked configuration example supplies 12; the lower-level session constructor has a default of 8. A deployed value must be read from its own configuration.</dd>
+      <dt><code>interpretation_seconds</code> and <code>work_seconds</code></dt><dd>The interpretation deadline is the earlier of the remaining work deadline and a new interpretation window. The same <code>interpretation_seconds</code> also supplies the chat exchange budget. Scientific preparation can run inside a tool call under the work deadline; a late rejection cannot start another model request.</dd>
+    </dl>
+    <h3>The TOML</h3>
+    <p><a href="../../secs-repro/config/provider.toml.example">Provider example: <code>config/provider.toml.example</code></a> · execution fragment:</p>
+    <pre><code>[execution]
+interpreter_url = "https://models.example.invalid/v1/chat/completions"
+interpreter_model = "first-model"
+# interpreter_reasoning_effort = "none"
+max_turns = 12
+interpretation_seconds = 120
+work_seconds = 1800
+# Other required execution fields omitted; no endpoint-list setting exists.</code></pre>
+  </div></details>
+  <p class="callout warning"><strong>What this does not configure:</strong> retrying API observations, retrying a scientific generation, or deciding whether the provider continues to another Job. Those are separate provider/controller policies. Exhausting model turns is not a provider shutdown instruction.</p>
+</section>
+
+<section id="sources" class="sources">
+  <h2>Source map</h2>
+  <p>These links point to local source checkouts. Snapshot revisions: provider-core <code>v0.6.2</code> (<code>9ce6a60</code>), Magnet <code>a47db31</code>, NMRNet <code>d988dc3</code>, NMRPeak <code>fb44da4</code>, SECS <code>6368341</code>. Later edits can change the linked working files.</p>
+  <ul>
+    <li><a href="../packages/provider-core/src/provider_core/conversation.py">Shared conversation: counter, feedback, carrier fallback and retirement</a> · <a href="040_shared_interpreter_design.txt">Shared interpreter design</a></li>
+    <li>Magnet: <a href="../../magnet-deploy/magnet_provider/interpreter.py">endpoint loop</a> · <a href="../../magnet-deploy/magnet_provider/openai_chat_interpreter.py">carrier/timeouts</a> · <a href="../../magnet-deploy/models/e_01_jvae_nmrexp/provider/e01.toml.example">binding example</a></li>
+    <li>NMRPeak: <a href="../../nmrpeak-repro/nmrpeak_provider/interpreter.py">endpoint loop</a> · <a href="../../nmrpeak-repro/nmrpeak_provider/openai_chat_interpreter.py">HTTP retry</a> · <a href="../../nmrpeak-repro/nmrpeak_provider/interpreter_policy.py">fixed retry policy</a> · <a href="../../nmrpeak-repro/config/provider.toml.example">configuration example</a></li>
+    <li>NMRNet: <a href="../../nmrnet-repro/nmrnet_provider/interpreter.py">conversation binding</a> · <a href="../../nmrnet-repro/nmrnet_provider/input_preparation.py">selection deadline</a> · <a href="../../nmrnet-repro/config/provider.toml.example">configuration example</a></li>
+    <li>SECS: <a href="../../secs-repro/src/secs_inference/provider/interpreter.py">conversation</a> · <a href="../../secs-repro/src/secs_inference/provider/session.py">work/interpretation deadlines</a> · <a href="../../secs-repro/src/secs_inference/provider/main.py">endpoint binding</a> · <a href="../../secs-repro/config/provider.toml.example">configuration example</a></li>
+  </ul>
+</section>
+<footer>Standalone HTML · no scripts, external assets, credentials or live-service calls. Settings panels start open; collapse them to shorten the page.</footer>
+</main>
+</body>
+</html>
