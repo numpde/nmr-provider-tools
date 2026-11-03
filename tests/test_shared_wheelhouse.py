@@ -2,15 +2,21 @@
 
 import hashlib
 import fcntl
+import http.client
 import io
 import json
 import os
+import socket
+import ssl
+import sys
 import tarfile
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stderr
 import tempfile
 import threading
 import tomllib
+import traceback
 import unittest
+import urllib.error
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -89,6 +95,42 @@ class WheelhouseTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "downloaded bytes differ"):
             tool.run("acquire", self.lock, self.pool)
         self.assertEqual([".wheelhouse-acquire.lock"], [path.name for path in self.pool.iterdir()])
+
+    def test_download_failure_reports_safe_network_evidence(self):
+        errors = [
+            (urllib.error.HTTPError('https://secret.invalid/path', 502, 'private response', {}, None), 'HTTP 502'),
+            (urllib.error.URLError(socket.gaierror(-2, 'private resolver')), 'name resolution failed'),
+            (urllib.error.URLError(TimeoutError('private endpoint')), 'timed out'),
+            (urllib.error.URLError(ssl.SSLError('private certificate')), 'TLS connection failed'),
+            (urllib.error.URLError(OSError('Tunnel connection failed: 502 private proxy')), 'proxy tunnel returned HTTP 502'),
+            (socket.gaierror(-2, 'private resolver'), 'name resolution failed'),
+            (ssl.SSLError('private certificate'), 'TLS connection failed'),
+            (ConnectionResetError(104, 'private endpoint'), 'error number 104'),
+            (http.client.HTTPException('private response'), 'HTTP connection failed'),
+        ]
+        for error, expected in errors:
+            with self.subTest(expected=expected):
+                output = io.StringIO()
+                with patch.object(sys, 'argv', ['wheelhouse', 'acquire', '--pool', str(self.pool), '--lock', str(self.lock)]), \
+                     patch.object(tool.urllib.request, 'urlopen', side_effect=error), redirect_stderr(output):
+                    self.assertEqual(1, tool.main())
+                self.assertIn(expected, output.getvalue())
+                self.assertNotIn('private', output.getvalue())
+                self.assertNotIn('secret.invalid', output.getvalue())
+                self.assertEqual(['.wheelhouse-acquire.lock'], [path.name for path in self.pool.iterdir()])
+        with patch.object(tool.urllib.request, 'urlopen', side_effect=urllib.error.URLError('private endpoint')):
+            with self.assertRaises(OSError) as captured:
+                tool.run('acquire', self.lock, self.pool)
+        self.assertNotIn('private', ''.join(traceback.format_exception(captured.exception)))
+
+    def test_download_read_timeout_is_reported_without_private_text(self):
+        source = unittest.mock.MagicMock()
+        source.read.side_effect = TimeoutError('private endpoint')
+        with patch.object(tool.urllib.request, 'urlopen', return_value=source):
+            with self.assertRaisesRegex(OSError, 'download interrupted; the connection timed out') as captured:
+                tool.run('acquire', self.lock, self.pool)
+        self.assertNotIn('private', ''.join(traceback.format_exception(captured.exception)))
+        self.assertEqual(['.wheelhouse-acquire.lock'], [path.name for path in self.pool.iterdir()])
 
     def test_warm_reader_proceeds_while_acquisitions_share_one_download(self):
         cached = "cached-1.0-py3-none-any.whl"

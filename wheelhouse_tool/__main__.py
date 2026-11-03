@@ -8,6 +8,8 @@ import json
 import os
 import re
 import secrets
+import socket
+import ssl
 import stat
 import sys
 import tomllib
@@ -154,6 +156,26 @@ def inspect_artifact(pool, name, digest, directory_fd=None):
     return True
 
 
+def download_failure(error):
+    if isinstance(error, urllib.error.HTTPError):
+        return f"the server returned HTTP {error.code}"
+    reason = error.reason if isinstance(error, urllib.error.URLError) else error
+    if isinstance(reason, socket.gaierror):
+        return "name resolution failed"
+    if isinstance(reason, TimeoutError):
+        return "the connection timed out"
+    if isinstance(reason, ssl.SSLError):
+        return "the TLS connection failed"
+    if isinstance(reason, OSError):
+        if match := re.match(r"^Tunnel connection failed: ([0-9]{3})(?:\s|$)", str(reason)):
+            return f"the proxy tunnel returned HTTP {match[1]}"
+        if isinstance(reason.errno, int):
+            return f"the network failed with error number {reason.errno}"
+    if isinstance(reason, http.client.HTTPException):
+        return "the HTTP connection failed"
+    return "the download request failed"
+
+
 def download(pool, name, digest, url, directory_fd):
     temporary = f".wheelhouse-{secrets.token_hex(16)}.part"
     descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600, dir_fd=directory_fd)
@@ -161,15 +183,15 @@ def download(pool, name, digest, url, directory_fd):
         with os.fdopen(descriptor, "wb") as target:
             try:
                 source = urllib.request.urlopen(url, timeout=60)
-            except (urllib.error.URLError, ValueError) as error:
-                raise OSError(f"Cannot acquire {name}: the download request failed.") from error
+            except (OSError, ValueError, http.client.HTTPException) as error:
+                raise OSError(f"Cannot acquire {name}: {download_failure(error)}.") from None
             with source:
                 checksum = hashlib.sha256()
                 while True:
                     try:
                         block = source.read(1024 * 1024)
                     except (OSError, http.client.HTTPException) as error:
-                        raise OSError(f"Cannot acquire {name}: the download was interrupted.") from error
+                        raise OSError(f"Cannot acquire {name}: download interrupted; {download_failure(error)}.") from None
                     if not block:
                         break
                     checksum.update(block)
