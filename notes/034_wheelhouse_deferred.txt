@@ -29,3 +29,10 @@ The following items do not need to delay the current deployment:
 WLAN DNS failures during host-local acquisition remain an operational issue:
 retain the failing diagnostic and use the configured interface and resolver.
 Do not silently switch the download route to complete a deployment.
+The ProArt WLAN proxy also returned 502 for a GitHub release asset. The explicitly
+allowed system route obtained that asset; package downloads remain on WLAN.
+
+The first ProArt 0.5.10 release qualification saw an integration test expect
+a direct aggregate timeout but receive a wrapped read timeout. The preserved
+attempt failed; a second full ProArt qualification and the local qualification
+passed. The timeout distinction remains uninvestigated beyond source review.
