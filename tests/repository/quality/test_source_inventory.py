@@ -35,7 +35,7 @@ ROOT_ENTRY_MANIFEST = Path("/repository-source-inventory/root-entries")
 # The coordinator explicitly keeps checkout control, credentials and writable
 # acquisition/runtime state outside source-check authority. Capturing their
 # names in the manifest proves classification without exposing their contents.
-PRIVATE_ROOT_ENTRIES = frozenset({".git", ".agents", ".codex", ".aws", "secrets"})
+PRIVATE_ROOT_ENTRIES = frozenset({".git", ".agents", ".codex", ".aws", "secrets", "release-artifacts"})
 
 
 def root_entry_visibility_findings(manifest, root):
@@ -74,6 +74,19 @@ def root_entry_visibility_findings(manifest, root):
 
 
 class SourceInventoryUnitTests(unittest.TestCase):
+    def test_release_outputs_are_private_only_at_checkout_root(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            private = root / "release-artifacts/private.txt"
+            authored = root / "tools/release-artifacts/authored.sh"
+            for path in (private, authored):
+                path.parent.mkdir(parents=True)
+                path.write_text("fixture\n")
+            with patch.object(sources, "ROOT", root):
+                observed = sources.iter_repo_text_files()
+            self.assertNotIn(private, observed)
+            self.assertIn(authored, observed)
+
     def test_python_source_selection_respects_explicit_scope(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -252,6 +265,7 @@ class SourceInventoryRepositoryTests(unittest.TestCase):
         for name in ("Makefile", "README.md"):
             self.assertIn(f"type=bind,src={ROOT / name},dst=/workspace/{name},readonly", mounts)
         self.assertFalse(any(f"src={ROOT / 'secrets'}" in mount for mount in mounts))
+        self.assertFalse(any(f"src={ROOT / 'release-artifacts'}" in mount for mount in mounts))
         self.assertNotIn(f"type=bind,src={ROOT / '.git'},dst=/workspace/.git,readonly", mounts)
         for mount in mounts:
             self.assertNotIn("docker.sock", mount)

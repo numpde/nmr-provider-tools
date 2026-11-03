@@ -146,6 +146,7 @@ class LauncherTests(unittest.TestCase):
             (root / "future-source").mkdir()
             (root / ".work").mkdir()
             (root / ".aws").mkdir()
+            (root / "release-artifacts").mkdir()
             launcher = root / "tools/repository.sh"
             launcher.write_bytes((ROOT / "tools/repository.sh").read_bytes())
             environment = os.environ | {"NMR_SELECTED_DOCKER_ENDPOINT": "unix:///var/run/docker.sock"}
@@ -155,6 +156,7 @@ class LauncherTests(unittest.TestCase):
             arguments = shlex.split(result.stdout)
             self.assertIn(f"type=bind,src={root}/future-source,dst=/workspace/future-source,readonly", arguments)
             self.assertNotIn(f"type=bind,src={root}/.aws,dst=/workspace/.aws,readonly", arguments)
+            self.assertNotIn(f"type=bind,src={root}/release-artifacts,dst=/workspace/release-artifacts,readonly", arguments)
             self.assertIn(f"type=bind,src={root}/.work,dst=/workspace/.work,readonly", arguments)
             (root / "linked").symlink_to(root / "future-source", target_is_directory=True)
             result = subprocess.run(command, env=environment, capture_output=True, text=True, check=False)

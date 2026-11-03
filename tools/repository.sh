@@ -41,7 +41,7 @@ mounts=()
 shopt -s dotglob nullglob
 for entry in ./*; do
     name=${entry#./}
-    case "$name" in .git|.agents|.codex|.aws|secrets) continue ;; esac
+    case "$name" in .git|.agents|.codex|.aws|secrets|release-artifacts) continue ;; esac
     if [[ -L $entry || ! -f $entry && ! -d $entry || $name =~ [[:cntrl:],] ]]; then
         printf 'Cannot grant repository source %q: public entries must be regular files or directories with mountable names.\n' "$name" >&2
         exit 2

@@ -51,7 +51,10 @@ def repo_path(path):
 
 
 def is_skipped(path):
-    return any(part in SKIP_DIRS for part in path.relative_to(ROOT).parts)
+    parts = path.relative_to(ROOT).parts
+    if parts and parts[0] == "release-artifacts":
+        return True
+    return any(part in SKIP_DIRS for part in parts)
 
 
 def read_text(path):
