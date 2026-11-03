@@ -133,15 +133,27 @@ shared_owner_sequence() {
     acquisition_worker --timeout 30 offline status "$base_image" grants final || return "$?"
     [[ $status == 0 ]]
 }
-owner_started=true
-acquisition_scope --endpoint "$NMR_SELECTED_DOCKER_ENDPOINT" --bootstrap-image "$base_image" \
-    --retired-receipt "$owner_receipt" -- shared_owner_sequence > "$operation_directory/worker-result"
-cmp -s "$owner_receipt" <(printf 'retired\n')
-python3 -I -B - "$operation_directory/worker-result" <<'RESULT'
-import json, pathlib, sys
+records=("$artifacts"/provider_core-*-release.json)
+for iteration in 1 2; do
+    owner_receipt=$operation_directory/acquisition-retired-$iteration
+    owner_started=true
+    acquisition_scope --endpoint "$NMR_SELECTED_DOCKER_ENDPOINT" --bootstrap-image "$base_image" \
+        --retired-receipt "$owner_receipt" -- shared_owner_sequence > "$operation_directory/worker-result"
+    cmp -s "$owner_receipt" <(printf 'retired\n')
+    python3 -I -B - "$operation_directory/worker-result" "${records[0]}" "$bundle" <<'RESULT'
+import hashlib, json, pathlib, stat, sys
 result = json.loads(pathlib.Path(sys.argv[1]).read_text())
 if (set(result) != {"netns", "http", "connect"} or type(result["netns"]) is not int
         or result["http"] is not True or result["connect"] is not True):
     raise SystemExit("Shared owner worker did not prove both proxy paths with JSON-only stdout.")
+expected = json.loads(pathlib.Path(sys.argv[2]).read_text())["acquisition_source_files"]
+bundle = pathlib.Path(sys.argv[3])
+actual = {path.relative_to(bundle).as_posix(): {
+    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    "size": path.stat().st_size, "mode": stat.S_IMODE(path.stat().st_mode),
+} for path in bundle.rglob("*") if path.is_file()}
+if actual != expected:
+    raise SystemExit("Acquisition changed its verified bootstrap; repeated use is unsafe.")
 RESULT
-printf -v operation_success 'Shared acquisition owner network test passed on the selected engine.\n'
+done
+printf -v operation_success 'Repeated shared acquisition owner network test passed with unchanged bootstrap.\n'

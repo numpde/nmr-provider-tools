@@ -111,7 +111,7 @@ set -uo pipefail
 source acquisition_tool/owner.sh
 # Replace only the public mapping port: the scope, workers, native client
 # supervisor, signal handlers and engine retirement remain real.
-acquisition_map_owner() { printf -v "$1" '%s' 0; printf -v "$2" '%s' 0; }
+acquisition_map_owner() { printf -v "$1" '%s' 0; printf -v "$2" '%s' 0; printf '%s\n' "$3" >> "$STATE/map-images"; }
 receipt="$STATE/retired"
 trap 'code=$?; if [[ -f "$receipt" ]] && cmp -s "$receipt" <(printf "retired\n"); then ready=yes; else ready=no; fi; printf "%s %s\n" "$code" "$ready" >> "$STATE/caller-exit"; if [[ ${CALLER_EXITS:-0} == 1 ]]; then exit "$code"; fi' EXIT
 grants=(--read-only --entrypoint python)
@@ -119,7 +119,7 @@ application=(-c ignored)
 callback() {
     CALLBACK_BODY
 }
-acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixture:local --retired-receipt "$receipt" -- callback
+acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixture:bootstrap --retired-receipt "$receipt" -- callback
 '''.replace('CALLBACK_BODY', callback)
         environment = {**os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}',
                        'STATE': str(root), 'ENGINE_STATE': str(root), **(env or {})}
@@ -165,12 +165,13 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
 local status=91 report_status=92
 local -a engine=(false)
 local inference_retirement_confirmed=false inference_cancellation_status=999
-acquisition_worker offline status fixture:local grants application || return $?
-acquisition_worker offline report_status fixture:local grants application || return $?
+acquisition_worker offline status fixture:first-worker grants application || return $?
+acquisition_worker offline report_status fixture:second-worker grants application || return $?
 printf '%s %s\n' "$status" "$report_status"
 '''
         process, root = self.launch(callback, env={'WORKER_STATUS': '7'})
         self.assertIn(b'7 7\n', self.assert_exit(process, root, 0))
+        self.assertEqual(['fixture:bootstrap'], (root / 'map-images').read_text().splitlines())
 
     def test_worker_stdout_is_streamed_before_worker_finishes(self):
         process, root = self.launch(

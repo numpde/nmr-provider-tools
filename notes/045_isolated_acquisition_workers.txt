@@ -25,6 +25,21 @@ status is available only after its lifecycle is settled; Engine/client failure
 or unconfirmed retirement cannot become a cache miss. Preserve clean data
 stdout, original failure/cancellation and the exact unresolved ownership fact.
 
+Probe the pinned bootstrap image once per scope and reuse its mapped host owner
+for gateway, relay and workers on the same selected engine and default user
+namespace policy. The owner rejects a worker user-namespace override. Worker
+images do not need a Python probe interpreter. The standalone mapping API
+remains available for callers outside an acquisition scope.
+
+Docker's engine-level mappings and default namespace policy are documented at
+https://docs.docker.com/engine/security/rootless/uid-gid-mapping/ and
+https://docs.docker.com/engine/security/userns-remap/.
+
+Python bootstrap imports must not write bytecode into the verified source.
+Use -B explicitly for isolated Python: -I ignores PYTHONDONTWRITEBYTECODE.
+Qualify two complete sessions against one source snapshot, checking its exact
+inventory after each; a successful first run alone does not prove reuse.
+
 An explicitly requested acquisition target may attempt locked repair after a
 settled offline report fails to establish a usable selection. This does not
 classify every report failure as a missing wheel. Keep the report diagnostic,

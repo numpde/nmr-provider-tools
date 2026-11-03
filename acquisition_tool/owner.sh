@@ -90,7 +90,7 @@ acquisition_map_owner() {
     _acq_map_directory=$(umask 077; mktemp -d /tmp/acquisition-map.XXXXXXXX) || return 2
     if controller_native 'acquisition identity probe' untimed stdio bash -eu -c '
         output=$1; shift; umask 077; exec "$@" > "$output" 2> "$output.stderr"
-    ' bash "$_acq_map_directory/output" python3 -I -S "$_acq_map_bundle/acquisition_tool/identity.py"         --endpoint "$_acq_map_endpoint" --image "$_acq_map_image"         --host-uid "$_acq_host_uid" --host-gid "$_acq_host_gid"         --retired-receipt "$_acq_map_directory/retired"; then :; else _acq_map_status=$?; fi
+    ' bash "$_acq_map_directory/output" python3 -I -S -B "$_acq_map_bundle/acquisition_tool/identity.py"         --endpoint "$_acq_map_endpoint" --image "$_acq_map_image"         --host-uid "$_acq_host_uid" --host-gid "$_acq_host_gid"         --retired-receipt "$_acq_map_directory/retired"; then :; else _acq_map_status=$?; fi
     _acq_map_diagnostic=$inference_diagnostic
     if [[ -s $_acq_map_directory/output.stderr ]]; then
         _acq_map_diagnostic+=$(<"$_acq_map_directory/output.stderr")
@@ -186,13 +186,19 @@ acquisition_set_route() {
     _acq_route=$1
 }
 
+_acq_scope_identity() {
+    [[ -z $_acq_scope_uid ]] || return 0
+    # Mapping belongs to the selected engine's default user namespace. All
+    # scope containers use that policy; application images need no interpreter.
+    acquisition_map_owner _acq_scope_uid _acq_scope_gid "$_acq_bootstrap_image"
+}
+
 _acq_start_route() {
     [[ -z ${_acq_cids[relay]:-} ]] || return 0
     [[ -n $_acq_route ]] || { _acq_fail 'Select an explicit acquisition route before online work.'; return 2; }
-    local _acq_gateway_uid _acq_gateway_gid
-    acquisition_map_owner _acq_gateway_uid _acq_gateway_gid "$_acq_bootstrap_image" || { _acq_failed=true; return 2; }
+    _acq_scope_identity || { _acq_failed=true; return 2; }
     mkdir -m 700 -- "$_acq_scratch/gateway-socket" "$_acq_scratch/gateway-ready" "$_acq_scratch/relay-ready" || return 2
-    local -a _acq_base_options=(--pull never --read-only --user "$_acq_gateway_uid:$_acq_gateway_gid"
+    local -a _acq_base_options=(--pull never --read-only --user "$_acq_scope_uid:$_acq_scope_gid"
         --cap-drop ALL --security-opt no-new-privileges:true --cpus 1 --memory 128m --memory-swap 128m --pids-limit 64
         --tmpfs /tmp:rw,nosuid,nodev,noexec,size=16m --env PROVIDER_CORE_IN_CONTAINER=1
         --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/bootstrap
@@ -225,18 +231,18 @@ acquisition_worker() {
     if [[ ${1:-} == --timeout ]]; then _acq_budget=$2; shift 2; fi
     [[ $# == 5 && ${_acq_active:-false} == true ]] || return 2
     local _acq_mode=$1 _acq_result_name=$2 _acq_image=$3 _acq_create_name=$4 _acq_app_name=$5
-    local _acq_uid _acq_gid _acq_token _acq_attach_status=0 _acq_running _acq_exit _acq_extra
+    local _acq_token _acq_attach_status=0 _acq_running _acq_exit _acq_extra
     local -n _acq_create_ref=$_acq_create_name _acq_app_ref=$_acq_app_name
     [[ $_acq_result_name =~ ^[A-Za-z_][A-Za-z0-9_]*$ && $_acq_result_name != _acq_* ]] || return 2
     [[ $_acq_mode == offline || $_acq_mode == online ]] || return 2
     for _acq_token in "${_acq_create_ref[@]}"; do
         case "$_acq_token" in
-            --network|--network=*|--net|--net=*|--cidfile|--cidfile=*|--user|--user=*)
-                _acq_fail 'Worker creation network, user and CID belong to the acquisition owner.'; return 2 ;;
+            --network|--network=*|--net|--net=*|--cidfile|--cidfile=*|--user|--user=*|--userns|--userns=*)
+                _acq_fail 'Worker creation network, user namespace, user and CID belong to the acquisition owner.'; return 2 ;;
         esac
     done
-    acquisition_map_owner _acq_uid _acq_gid "$_acq_image" || { _acq_failed=true; return 2; }
-    local -a _acq_worker_options=(--pull never --user "$_acq_uid:$_acq_gid" "${_acq_create_ref[@]}")
+    _acq_scope_identity || { _acq_failed=true; return 2; }
+    local -a _acq_worker_options=(--pull never --user "$_acq_scope_uid:$_acq_scope_gid" "${_acq_create_ref[@]}")
     if [[ $_acq_mode == online ]]; then
         _acq_start_route || { _acq_failed=true; return 2; }
         _acq_worker_options+=(--network "container:${_acq_cids[relay]}"
@@ -359,7 +365,7 @@ acquisition_scope() {
     [[ -z $_acq_retired_receipt || ( ! -e $_acq_retired_receipt && ! -L $_acq_retired_receipt ) ]] || return 2
     local _acq_saved_exit _acq_saved_hup _acq_saved_int _acq_saved_term
     _acq_saved_exit=$(trap -p EXIT); _acq_saved_hup=$(trap -p HUP); _acq_saved_int=$(trap -p INT); _acq_saved_term=$(trap -p TERM)
-    local _acq_bundle _acq_scratch _acq_route= _acq_port= _acq_sequence=0 _acq_active=true
+    local _acq_bundle _acq_scratch _acq_route= _acq_port= _acq_sequence=0 _acq_active=true _acq_scope_uid= _acq_scope_gid=
     local _acq_failed=false _acq_identity_unsettled=false _acq_cancelled=0 _acq_diagnostic= _acq_final_status=0
     local _acq_native_retired=true _acq_client_directory=
     local -a _acq_engine=() _acq_roles=()
