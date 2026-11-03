@@ -1,0 +1,46 @@
+Engine cache maintenance
+========================
+
+Build cache belongs to the Docker engine, shared by all provider builds.
+Install one maintenance timer per selected engine, rather than independent
+provider cache sweepers. Per-repository image retirement remains responsible
+for its own published images and deployment pins.
+
+Use the maintained targets:
+
+    make engine/cache/gc/install DOCKER_CONTEXT=<context> ENGINE_CONFIG=/absolute/daemon.json
+    make engine/cache/gc DOCKER_CONTEXT=<context> ENGINE_CONFIG=/absolute/daemon.json
+
+ENGINE_CONFIG explicitly identifies the selected daemon's existing native
+configuration file. The operator owns that association; the installer does
+not discover it from the daemon. Edit it while installation is quiescent.
+Host-specific files and installed user units stay outside Git.
+
+Installation preserves unrelated JSON settings, validates with dockerd, and
+sets native builder.gc defaults: enabled, 10GB reserved, 32GB maximum used,
+and 20GB minimum free. These are space targets, not exact disk guarantees;
+in-use cache and the reserved floor constrain reclamation.
+
+An hourly user timer reads those same native settings on every invocation.
+It uses the isolated explicitly selected Docker client and its default Docker
+driver builder. It prunes unused BuildKit cache, including internal/frontend
+cache. Active build references remain protected by BuildKit. Images,
+containers, volumes and the shared wheel pool are outside this operation.
+
+Docker does not reload builder GC settings on SIGHUP. The timer supplies live
+collection without restarting the engine or providers; the native daemon
+policy takes effect at the next planned engine restart. Installation activates
+the timer; the second target applies the thresholds immediately. Editing the
+native thresholds changes the next timer run. Disabling native GC also makes
+the timer skip collection. Custom native GC policy rules require a separate
+decision: the timer refuses to pretend that one prune reproduces such rules.
+
+The unit is tied to the selected Unix endpoint. A context that later points
+elsewhere fails until the timer is reinstalled. Installation failures after
+the native file has changed explicitly report that partial state. There is
+no engine restart or automatic rollback of an already-saved operator policy.
+
+Background: Docker Build cache garbage collection and dockerd configuration
+reload documentation distinguish native GC defaults from reloadable settings:
+https://docs.docker.com/build/cache/garbage-collection/
+https://docs.docker.com/reference/cli/dockerd/#configuration-reload-behavior

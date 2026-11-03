@@ -26,6 +26,13 @@ $(error Select a local Docker context for this operation)
 endif
 endif
 
+unexport ENGINE_CONFIG ENGINE_CONFIG_INPUT ENGINE_CONFIG_INPUT_ORIGIN
+override export ENGINE_CONFIG_INPUT_ORIGIN := $(origin ENGINE_CONFIG)
+ifeq ($(origin ENGINE_CONFIG),command line)
+override ENGINE_CONFIG_INPUT := $(value ENGINE_CONFIG)
+export ENGINE_CONFIG_INPUT
+endif
+
 unexport NETWORK_INTERFACE
 unexport NETWORK_INTERFACE_INPUT
 unexport NETWORK_INTERFACE_INPUT_ORIGIN
@@ -158,6 +165,7 @@ override PROJECT_INPUT := $(value PROJECT)
 export PROJECT_INPUT
 endif
 
+.PHONY: engine/cache/gc engine/cache/gc/install
 .PHONY: help tests tests/repository tests/repository/quality tests/repository/runtime tests/repository/command tests/repository/provisioning tests/repository/release tests/repository/network tests/repository/network/identity
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
 .PHONY: delivery/deployment/up delivery/deployment/update delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
@@ -170,6 +178,8 @@ help:
 	  'Docker commands require DOCKER_CONTEXT=<local context>, or an interactive selection.' \
 	  'make help                        Show maintained commands.' \
 	  'make tests                       Run all current validation lanes.' \
+	  'make engine/cache/gc/install DOCKER_CONTEXT=... ENGINE_CONFIG=/absolute/daemon.json Install per-engine cache GC without restarting Docker.' \
+	  'make engine/cache/gc DOCKER_CONTEXT=... ENGINE_CONFIG=/absolute/daemon.json Apply the native cache thresholds now.' \
 	  'make tests/repository            Run repository conventions and detector fixtures offline.' \
 	  'make tests/repository/quality    Run code and operator convention checks offline.' \
 	  'make tests/repository/provisioning Run checker preparation and cleanup fixtures offline.' \
@@ -342,3 +352,10 @@ publish/prepare:
 
 publish/release:
 	bash tools/publish.sh release
+
+engine/cache/gc/install:
+	bash tools/engine_cache_gc.sh install
+
+engine/cache/gc:
+	[[ $$DOCKER_CONTEXT_INPUT_ORIGIN == 'command line' && $$ENGINE_CONFIG_INPUT_ORIGIN == 'command line' && -v ENGINE_CONFIG_INPUT && -n $$ENGINE_CONFIG_INPUT ]] || { printf '%s\n' 'Supply DOCKER_CONTEXT=<context> and ENGINE_CONFIG=/absolute/daemon.json on the Make command line.' >&2; exit 2; }
+	bash tools/engine_cache_gc.sh run "$$DOCKER_CONTEXT_INPUT" "$$NMR_SELECTED_DOCKER_ENDPOINT" "$$ENGINE_CONFIG_INPUT"
