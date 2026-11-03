@@ -20,6 +20,9 @@ Installation preserves unrelated JSON settings, validates with dockerd, and
 sets native builder.gc defaults: enabled, 10GB reserved, 32GB maximum used,
 and 20GB minimum free. These are space targets, not exact disk guarantees;
 in-use cache and the reserved floor constrain reclamation.
+BuildKit's GC accounting excludes image-shared records, while buildx du also
+reports them. Its total can therefore exceed the configured cache target;
+do not add that shared total to image size as independent occupied storage.
 
 An hourly user timer reads those same native settings on every invocation.
 It uses the isolated explicitly selected Docker client and its default Docker
@@ -44,3 +47,4 @@ Background: Docker Build cache garbage collection and dockerd configuration
 reload documentation distinguish native GC defaults from reloadable settings:
 https://docs.docker.com/build/cache/garbage-collection/
 https://docs.docker.com/reference/cli/dockerd/#configuration-reload-behavior
+https://docs.docker.com/reference/cli/docker/buildx/du/
