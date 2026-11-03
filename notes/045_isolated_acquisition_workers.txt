@@ -1,6 +1,79 @@
 Isolated acquisition workers
 ============================
 
+0.6.0: one common acquisition owner
+----------------------------------
+
+The shared end state includes lifecycle ownership, not just proxy transport.
+One host-side implementation in this repository owns offline worker probes,
+Engine-relative identity mapping, lazy gateway/relay startup, ordered worker
+execution, readiness, cancellation and confirmed dependency retirement. Provider
+repositories must replace their repeated lifecycle implementations with thin
+adapters to that owner. Do not copy another repository's shell controller.
+
+Adapters retain target/profile selection, worker image and application argv,
+explicit filesystem grants, stdout destinations and interpretation of their
+settled worker results. Docker creation grants and application argv are
+separate inputs, so an application argument named --network is not mistaken
+for an Engine option. Existing pool locking, hashing and publication retain
+their current authorities.
+
+An owned scope supports multiple ordered workers: offline checks, then locate
+and acquire operations with per-worker output, then final offline checks. A
+warm hit must not select a route or start gateway/relay containers. Worker exit
+status is available only after its lifecycle is settled; Engine/client failure
+or unconfirmed retirement cannot become a cache miss. Preserve clean data
+stdout, original failure/cancellation and the exact unresolved ownership fact.
+
+An explicitly requested acquisition target may attempt locked repair after a
+settled offline report fails to establish a usable selection. This does not
+classify every report failure as a missing wheel. Keep the report diagnostic,
+existing input/hash checks and mandatory final offline verification. Do not
+build a second dependency resolver merely to distinguish pip's exit status 1.
+
+Ship the complete release-verified bootstrap closure in each consumer before
+an empty wheel pool is used. Include the exact qualified linux-idmap identity
+component if used; an ambient host installation or an initial network fetch is
+not a bootstrap dependency. Reuse one upstream implementation and generate
+consumer bootstrap bytes from its qualified release. No additional operator
+configuration file, cross-checkout registry or scientific runtime dependency
+is required.
+
+0.5.17 already supplies the qualified Unix proxy/relay transport below. Its
+consumer-owned lifecycle wrappers are the intermediate state being replaced
+for 0.6.0. Preserve working deployments and audited WIP while converging on the
+shared owner. Common conformance tests cover the lifecycle once; each repo
+also proves its actual thin adapter and selected-host acquisition path.
+
+Implementation and language choice
+----------------------------------
+
+Use a sourced Bash session API for 0.6.0, reusing the existing native process
+supervisor and qualified linux-idmap probe. All four maintained acquisition
+drivers already use Bash. Their callbacks make decisions between workers,
+hold existing pool locks, and stream or capture output for the next worker.
+Separate image, creation-option and application-argument arrays preserve
+those contracts without adding a Docker command-line parser.
+
+A static Go executable could simplify distribution and eliminate ambient
+Python dependencies if it also supplied the identity implementation. A Go
+session API is viable, but existing Bash consumers would need an explicit
+session boundary or compiled adapters. Existing local Go subprocess helpers
+do not establish acquisition cancellation, namespace identity or dependency
+retirement. Reimplementing those for this release would add qualification
+work; wrapping one-shot commands would still leave lifecycle duplication.
+Keep Go as a possible replacement behind the same behavioral tests, rather
+than making a language migration prerequisite for joint deployment.
+
+The source bundle carries the complete pinned Python identity/proxy closure
+and canonical shell supervisor; consumers do not install host packages or
+compile during cold acquisition. The scope must preserve caller traps and
+primary status, handle callback exit and direct cancellation, and clean once.
+An extra background shell is not cancellation ownership. Confirm these with
+real signal witnesses before claiming the shared scope is ready. Reconsider
+Go if measured host/bootstrap costs or actual consumer needs justify the
+session boundary and its complete, qualified replacement closure.
+
 Joint first milestone
 ---------------------
 
@@ -23,12 +96,12 @@ Do not substitute an internal bridge: a bridge can expose host gateway paths
 that are unnecessary for this topology. This change enforces route selection;
 proxy-mediated destination permissions retain their existing semantics.
 
-Shared transport and bootstrap
-------------------------------
+Implemented transport and initial bootstrap
+------------------------------------------
 
 provider_core.bound_http_proxy owns the Unix listener and relay transport.
-Consumers use a verified release snapshot of that module, container_guard.py
-and __init__.py, checked into their own repository. Refresh it from the exact
+0.5.17 provides a release-verifiable snapshot of that module, container_guard.py
+and __init__.py for consumers to check into their own repository. Refresh it from the exact
 qualified wheel and pinned release/source record, using maintained targets.
 The snapshot must already be available with an empty wheel pool, before the
 wheelhouse tool or provider-core itself is acquired. No sibling checkout,

@@ -21,7 +21,7 @@ class Origin(http.server.BaseHTTPRequestHandler):
 def exchange(proxy_port, origin_port, tunnel):
     with socket.create_connection(("127.0.0.1", proxy_port), timeout=3) as client:
         if tunnel:
-            client.sendall(f"CONNECT 127.0.0.1:{origin_port} HTTP/1.1\r\nHost: fixture\r\n\r\n".encode())
+            client.sendall(f"CONNECT 127.0.0.2:{origin_port} HTTP/1.1\r\nHost: fixture\r\n\r\n".encode())
             response = b""
             while b"\r\n\r\n" not in response:
                 block = client.recv(4096)
@@ -32,7 +32,7 @@ def exchange(proxy_port, origin_port, tunnel):
                 raise RuntimeError("CONNECT did not reach the gateway")
             client.sendall(b"GET /proof HTTP/1.1\r\nHost: fixture\r\nConnection: close\r\n\r\n")
         else:
-            client.sendall(f"GET http://127.0.0.1:{origin_port}/proof HTTP/1.1\r\nHost: fixture\r\nConnection: close\r\n\r\n".encode())
+            client.sendall(f"GET http://127.0.0.2:{origin_port}/proof HTTP/1.1\r\nHost: fixture\r\nConnection: close\r\n\r\n".encode())
         client.shutdown(socket.SHUT_WR)
         data = b""
         while block := client.recv(4096):
@@ -72,11 +72,14 @@ def check_routes():
 
 
 if sys.argv[1] == "origin":
-    with http.server.HTTPServer(("127.0.0.1", 0), Origin) as server:
+    with http.server.HTTPServer(("127.0.0.2", 0), Origin) as server:
         Path(sys.argv[2]).write_text(str(server.server_port) + "\n")
         server.serve_forever()
 elif sys.argv[1] == "worker":
     check_routes()
+    # The same known host origin must be unreachable directly and reachable
+    # through the gateway. Its distinct loopback address avoids relay collisions.
+    denied(socket.AF_INET, ("127.0.0.2", int(sys.argv[3])))
     denied(socket.AF_INET, ("192.0.2.1", 443))
     if socket.has_ipv6:
         denied(socket.AF_INET6, ("2001:db8::1", 443, 0, 0))
