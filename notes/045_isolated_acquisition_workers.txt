@@ -119,6 +119,13 @@ the inline API with process-owned state instead. Qualification includes an
 actual online session followed by bare failure under set -e, direct signals,
 dependent-removal failure, blocked diagnostic pipes and consecutive sessions.
 
+An outer launcher must supervise another lifecycle owner cooperatively. Forward
+cancellation and wait for that owner to settle; do not apply the ordinary
+short process-group escalation used for a disposable Docker client. That can
+kill the owner before it retires its dependencies. Keep caller inputs until
+the owner has settled and supplied the required retirement evidence. A signal
+witness must allow owner cleanup to outlast that ordinary escalation interval.
+
 Joint first milestone
 ---------------------
 
