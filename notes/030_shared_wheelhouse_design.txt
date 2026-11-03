@@ -3,8 +3,9 @@ Shared wheelhouse design
 
 Goal: one reusable host-local artifact pool; no wheel staging directories,
 unnecessary downloads or cross-host artifact transfers. This is a joint design
-for joint implementation. The shared tool is released; provider integration and
-end-to-end qualification remain in progress.
+for joint implementation. The shared tool is released and adopted by all four
+providers. Qualification evidence and operational limits are recorded in
+note 034 and the provider repositories.
 
 Dependency authority
 --------------------
@@ -88,6 +89,15 @@ wheel staging directory; bind selected inputs to image identity and keep
 wheels out of runtime images. BuildKit may retain selected bytes in its cache.
 Protect inputs until build retirement, including uncertain client disconnects.
 
+Apply the same streaming rule to test and development image builds. An explicit
+SDK artifact bundle remains authoritative when supplied: target-environment
+selection must choose its exact pinned wheel and fail when it is missing or
+wrong, even if the pool has a usable copy. Stream that wheel directly through
+the existing hash-verified source allowlist; keep dependency wheels in the pool
+manifest. Select a container identity that can read the operator's private
+bundle files. Do not copy wheels or change their permissions to make selection
+work. Tag the built image only after both the stream and Docker build succeed.
+
 Qualification and rollout
 -------------------------
 
@@ -104,10 +114,11 @@ identify the built wheel; identify the builder and resulting bytes before reuse.
 Current migration limits
 ------------------------
 
-Provider-core and shared delivery now use the released publisher for normal
-wheel acquisition; their normal Make targets still need a genuine missing-wheel
-cold-path qualification. Provider-specific migrations are tracked by their
-owners and must not be inferred from these shared-tool changes.
+Provider-core and shared delivery use the released publisher for normal wheel
+acquisition. Provider-core's normal download target passed a local
+missing-artifact run. Shared delivery's normal preparation checks reused cached
+release wheels; its separate missing-release-wheel check remains unperformed.
+Provider-specific evidence is recorded by its owners.
 
 The shared delivery image build now streams its selected wheels and captured
 source into BuildKit, without exposing the pool as a build context. Its normal
