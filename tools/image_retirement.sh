@@ -51,4 +51,4 @@ if [[ ${SHARED_RUNTIME_IMAGE_INPUT_ORIGIN:-} == 'command line' ]]; then
     }
 fi
 inference_native 'exact project image retirement' 180 stdio \
-    python3 -I -S "$root/tools/image_retirement.py" "$root" "$staged" "${engine[@]}"
+    python3 -I -S -B "$root/tools/image_retirement.py" "$root" "$staged" "${engine[@]}"

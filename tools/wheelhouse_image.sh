@@ -12,13 +12,13 @@ checker_begin
 image=nmr-provider-tools/wheelhouse-tool:local
 case "$action" in
     build)
-        if ! python3 -I -S -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
+        if ! python3 -I -S -B -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
             printf '%s\n' 'Cannot build the wheelhouse tool: host Python 3.11 or newer is required.' >&2; exit 2
         fi
         checker_host_identity "$base_image" python3 "$(id -u)" "$(id -g)"
         sources=(containers/wheelhouse/Dockerfile requirements/wheelhouse-tool.lock requirements/wheelhouse-tool-release.json)
         for path in "$root"/wheelhouse_tool/*.py; do sources+=("${path#"$root"/}"); done
-        tool_pin=$(python3 -I -S "$root/tools/build_stream_inputs.py" "$root" \
+        tool_pin=$(python3 -I -S -B "$root/tools/build_stream_inputs.py" "$root" \
             "$operation_directory/source-allowlist.json" "${sources[@]}")
         read -r tool_name tool_hash <<< "$tool_pin"
         [[ $tool_name =~ ^wheelhouse-tool-[0-9.]+\.pyz$ && $tool_hash =~ ^[0-9a-f]{64}$ ]] || {
@@ -50,13 +50,13 @@ case "$action" in
         cmp -s "$operation_directory/selection-exit" <(printf 'false 0\n') || {
             printf '%s\n' 'Cannot build the wheelhouse tool: the selection worker did not complete.' >&2; exit 2;
         }
-        python3 -I -S "$root/tools/wheelhouse_image_manifest.py" "$operation_directory/selection.json" "$operation_directory/manifest.json"
+        python3 -I -S -B "$root/tools/wheelhouse_image_manifest.py" "$operation_directory/selection.json" "$operation_directory/manifest.json"
         # BuildKit receives a stream, not host mounts. Once the pipeline is
         # joined it no longer reads scratch; checker_call retains unjoined work.
         checker_call 'offline wheelhouse tool build' 900 stdio bash -o pipefail -c '
             tool=$1 pool=$2 allowlist=$3 manifest=$4
             shift 4
-            python3 -I -S "$tool" stream --pool "$pool" --source-allowlist "$allowlist" --manifest "$manifest" | "$@"
+            python3 -I -S -B "$tool" stream --pool "$pool" --source-allowlist "$allowlist" --manifest "$manifest" | "$@"
         ' bash "$wheelhouse_directory/$tool_name" "$wheelhouse_directory" "$operation_directory/source-allowlist.json" \
             "$operation_directory/manifest.json" "${engine[@]}" build --builder default --network none --pull=false \
             --label org.nmr-provider-tools.role=wheelhouse-tool \
@@ -79,7 +79,7 @@ case "$action" in
             --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m \
             --mount "type=bind,src=$root/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \
             --mount "type=bind,src=$root/tests/test_shared_wheelhouse.py,dst=/tests/test_shared_wheelhouse.py,readonly" \
-            --entrypoint python "$image" -m unittest discover -s /tests -p test_shared_wheelhouse.py -v
+            --entrypoint python "$image" -B -m unittest discover -s /tests -p test_shared_wheelhouse.py -v
         ;;
     *) printf 'Unknown wheelhouse image operation: %s\n' "$action" >&2; exit 2 ;;
 esac

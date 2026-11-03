@@ -59,10 +59,10 @@ for path in provider-core-install.lock provider-core-wheel-inputs.json provider-
     checker_input_paths+=("$path")
 done
 fingerprint=$(root=$context checker_fingerprint)
-if ! python3 -I -S -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
+if ! python3 -I -S -B -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
     operation_diagnostic+=$'Cannot build shared delivery: host Python 3.11 or newer is needed to stream build inputs.\n'; exit 2
 fi
-tool_pin=$(python3 -I -S "$context/tools/build_stream_inputs.py" "$context" \
+tool_pin=$(python3 -I -S -B "$context/tools/build_stream_inputs.py" "$context" \
     "$operation_directory/source-allowlist.json" "${checker_input_paths[@]}")
 [[ $(root=$context checker_fingerprint) == "$fingerprint" ]] || {
     operation_diagnostic+=$'Cannot build shared delivery: captured inputs changed before streaming.\n'; exit 2;
@@ -102,7 +102,7 @@ fi
 checker_call 'offline shared delivery image build' 900 stdio bash -o pipefail -c '
     tool=$1 pool=$2 allowlist=$3 manifest=$4
     shift 4
-    python3 -I -S "$tool" stream --pool "$pool" --source-allowlist "$allowlist" --manifest "$manifest" | "$@"
+    python3 -I -S -B "$tool" stream --pool "$pool" --source-allowlist "$allowlist" --manifest "$manifest" | "$@"
 ' bash "$wheelhouse_directory/$tool_name" "$wheelhouse_directory" "$operation_directory/source-allowlist.json" \
     "$context/provider-core-stream.json" "${engine[@]}" build --builder default --platform linux/amd64 \
     --network none --pull=false --build-arg "BASE_IMAGE=$base_tag" --label "org.nmr-provider-tools.inputs=$fingerprint" --label "org.nmr-provider-tools.recipe=$recipe" --label org.nmr-provider-tools.role=delivery \

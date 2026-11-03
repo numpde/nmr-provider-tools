@@ -17,6 +17,7 @@ pattern='test*.py'
 case "$1" in
     tests/repository) suite=tests/repository ;;
     tests/repository/quality) suite=tests/repository/quality ;;
+    tests/repository/bytecode) suite=bytecode ;;
     tests/repository/provisioning) suite=tests/repository; pattern='test_checker*.py' ;;
     tests/repository/release) suite=release ;;
     tests/repository/network) suite=network ;;
@@ -77,6 +78,8 @@ arguments=(--init --pull=never --network=none --read-only
 if [[ $suite == release ]]; then
     arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_wheelhouse_bundle tests.repository.test_acquisition_bundle
                 tests.repository.test_delivery_release tests.repository.test_wheelhouse -v)
+elif [[ $suite == bytecode ]]; then
+    arguments+=(tests.repository.quality.test_python_bytecode_posture -v)
 elif [[ $suite == acquisition-owner ]]; then
     arguments+=(tests.repository.test_acquisition_scope -v)
 elif [[ $suite == network ]]; then

@@ -192,6 +192,7 @@ help:
 	  'make tests/acquisition/shared-network ARTIFACTS=... DOCKER_CONTEXT=<name> Qualify the released shared owner.' \
 	  'make tests/repository            Run repository conventions and detector fixtures offline.' \
 	  'make tests/repository/quality    Run code and operator convention checks offline.' \
+	  'make tests/repository/bytecode   Check maintained Python launches suppress source bytecode.' \
 	  'make tests/repository/provisioning Run checker preparation and cleanup fixtures offline.' \
 	  'make tests/repository/release    Run release and wheelhouse bundle fixtures offline.' \
 	  'make tests/repository/network    Run acquisition network-owner fixtures offline.' \
@@ -326,6 +327,10 @@ tests/repository:
 
 tests/repository/quality:
 	bash tools/repository.sh tests/repository/quality
+
+.PHONY: tests/repository/bytecode
+tests/repository/bytecode:
+	@bash tools/repository.sh tests/repository/bytecode
 
 tests/repository/provisioning:
 	bash tools/repository.sh tests/repository/provisioning
