@@ -36,12 +36,12 @@ class WheelhouseTests(unittest.TestCase):
             for name, path in (("pool-cached", self.cached), ("pool-missing", self.missing))
         ))
 
-    def make_wheel(self, name):
+    def make_wheel(self, name, version="1.0"):
         distribution = name.replace("-", "_")
-        path = self.index / f"{distribution}-1.0-py3-none-any.whl"
+        path = self.index / f"{distribution}-{version}-py3-none-any.whl"
         with zipfile.ZipFile(path, "w") as archive:
-            prefix = f"{distribution}-1.0.dist-info"
-            archive.writestr(f"{prefix}/METADATA", f"Metadata-Version: 2.1\nName: {name}\nVersion: 1.0\n")
+            prefix = f"{distribution}-{version}.dist-info"
+            archive.writestr(f"{prefix}/METADATA", f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
             archive.writestr(f"{prefix}/WHEEL", "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
             archive.writestr(f"{prefix}/RECORD", "")
         return path
@@ -53,6 +53,23 @@ class WheelhouseTests(unittest.TestCase):
         (self.pool / self.missing.name).write_bytes(b"corrupt")
         with self.assertRaisesRegex(ValueError, "cached bytes differ"):
             provider_core_acquire.cache_state(self.pool, [self.lock])
+
+    def test_provider_core_cache_check_reuses_admitted_local_version(self):
+        wheel = self.make_wheel("pool-local", "1.0+cpu")
+        shutil.copyfile(wheel, self.pool / wheel.name)
+        self.lock.write_text(f"pool-local==1.0 \\\n    --hash=sha256:{wheelhouse.digest(wheel)}\n")
+        self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
+        self.lock.write_text(self.lock.read_text().replace("==1.0 ", "==1.0+other "))
+        self.assertEqual("missing", provider_core_acquire.cache_state(self.pool, [self.lock]))
+        self.lock.write_text(self.lock.read_text().replace("==1.0+other ", "==1.0 "))
+        (self.pool / wheel.name).write_bytes(b"corrupt")
+        with self.assertRaisesRegex(ValueError, "cached bytes differ"):
+            provider_core_acquire.cache_state(self.pool, [self.lock])
+        alternate = self.make_wheel("pool-local", "1.0+z")
+        shutil.copyfile(alternate, self.pool / alternate.name)
+        self.lock.write_text(f"pool-local==1.0 \\\n    --hash=sha256:{wheelhouse.digest(wheel)} \\\n"
+                             f"    --hash=sha256:{wheelhouse.digest(alternate)}\n")
+        self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
 
     def test_pinned_tool_bootstrap_downloads_once_and_reuses(self):
         content = b"synthetic tool release"

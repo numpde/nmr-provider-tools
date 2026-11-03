@@ -17,6 +17,7 @@ from tools.wheelhouse import digest, pool_lock, publish_file, requirements, sele
 
 def cache_state(pool, locks):
     from pip._vendor.packaging.tags import sys_tags
+    from pip._vendor.packaging.specifiers import Specifier
     from pip._vendor.packaging.utils import InvalidWheelFilename, parse_wheel_filename
     from pip._vendor.packaging.version import Version
 
@@ -26,6 +27,7 @@ def cache_state(pool, locks):
     missing = False
     with pool_lock(pool) as lock_fd:
         for lock, expected in expected_locks:
+            specifiers = {identity: Specifier(f"=={identity[1]}") for identity in expected}
             found = set()
             conflicting = {}
             for path in pool.glob("*.whl"):
@@ -33,13 +35,15 @@ def cache_state(pool, locks):
                     name, version, _, tags = parse_wheel_filename(path.name)
                 except InvalidWheelFilename:
                     continue
-                identity = (name, version)
-                if identity not in expected or not tags.intersection(target_tags):
+                if not tags.intersection(target_tags):
                     continue
-                if digest(path) not in expected[identity]:
-                    conflicting[identity] = path.name
-                else:
-                    found.add(identity)
+                for identity, specifier in specifiers.items():
+                    if identity[0] != name or not specifier.contains(version, prereleases=True):
+                        continue
+                    if digest(path) not in expected[identity]:
+                        conflicting[identity] = path.name
+                    else:
+                        found.add(identity)
             if unavailable := set(conflicting) - found:
                 name = conflicting[next(iter(unavailable))]
                 raise ValueError(f"Cannot reuse {name}: cached bytes differ from the lock.")
