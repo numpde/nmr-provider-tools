@@ -341,6 +341,56 @@ class WheelhouseTests(unittest.TestCase):
             locate(self.lock, direct_sources=[url.replace("#sha256=", "?signature=private#sha256=")])
         self.assertNotIn("private", str(error.exception))
 
+    def test_locator_projects_one_admitted_local_version(self):
+        hashes = {name: hashlib.sha256(name.encode()).hexdigest() for name in (
+            "example-1.0-py3-none-any.whl", "example-1.0+local-py3-none-any.whl",
+            "example-1.0+local.tar.gz")}
+        self.lock.write_text('--index-url https://example.invalid/simple\nexample==1.0 \\\n' +
+                             ''.join('    --hash=sha256:' + digest + ' \\\n' for digest in hashes.values()))
+        direct = 'https://example.invalid/example-1.0%2Blocal-py3-none-any.whl#sha256=' + hashes['example-1.0+local-py3-none-any.whl']
+        derived = self.root / 'pylock.derived.toml'
+        derived.write_text(locate(self.lock, direct_sources=[direct]))
+        self.assertEqual('1.0+local', tomllib.loads(derived.read_text())['packages'][0]['version'])
+        self.assertEqual('example-1.0+local-py3-none-any.whl', tool.selected(derived, [], source_lock=self.lock)[0][0])
+        metadata = {'name': 'example', 'files': [
+            {'filename': name, 'url': 'https://example.invalid/' + name.replace('+', '%2B'), 'hashes': {'sha256': digest}}
+            for name, digest in hashes.items()]}
+        with patch('wheelhouse_tool.locate.urllib.request.build_opener') as opener:
+            opener.return_value.open.return_value = io.BytesIO(json.dumps(metadata).encode())
+            derived.write_text(locate(self.lock, allowed_sources=['example']))
+        package = tomllib.loads(derived.read_text())['packages'][0]
+        original_lock = self.lock.read_text()
+        self.assertEqual('1.0+local', package['version'])
+        self.assertEqual(1, len(package['wheels']))
+        self.assertTrue(tool.selected(derived, ['example'], source_lock=self.lock)[0][0].endswith('.tar.gz'))
+        base = 'example-1.0-py3-none-any.whl'
+        (self.pool / base).write_bytes(base.encode())
+        with patch('wheelhouse_tool.locate.urllib.request.build_opener') as opener:
+            opener.return_value.open.side_effect = lambda *args, **kwargs: io.BytesIO(json.dumps(metadata).encode())
+            cached = tomllib.loads(locate(self.lock, pool=self.pool))['packages'][0]
+            self.assertEqual('1.0', cached['version'])
+            metadata['files'][1]['yanked'] = True
+            unyanked = tomllib.loads(locate(self.lock))['packages'][0]
+            self.assertEqual('1.0', unyanked['version'])
+            metadata['files'][1]['yanked'] = False
+            source_name = 'example-1.0.tar.gz'
+            hashes[source_name] = hashlib.sha256(source_name.encode()).hexdigest()
+            self.lock.write_text(self.lock.read_text() + '    --hash=sha256:' + hashes[source_name] + '\n')
+            metadata['files'] = [entry for entry in metadata['files'] if not entry['filename'].endswith('.tar.gz')]
+            metadata['files'].append({'filename': source_name, 'url': 'https://example.invalid/' + source_name,
+                                      'hashes': {'sha256': hashes[source_name]}})
+            source = tomllib.loads(locate(self.lock, required_sources=['example'], pool=self.pool))['packages'][0]
+            self.assertEqual('1.0', source['version'])
+            self.assertTrue(source['sdist']['url'].endswith(source_name))
+        self.lock.write_text(self.lock.read_text().replace('example==1.0 ', 'example==1.0+other '))
+        with self.assertRaisesRegex(ValueError, 'differs from its locked identity'):
+            locate(self.lock, direct_sources=[direct])
+        self.lock.write_text(original_lock)
+        altered = derived.read_text().replace('1.0+local', '2.0').replace('1.0%2Blocal', '2.0')
+        derived.write_text(altered)
+        with self.assertRaisesRegex(ValueError, 'different locked version'):
+            tool.selected(derived, [], source_lock=self.lock)
+
     def test_locator_handles_direct_only_and_required_source(self):
         digest = "a" * 64
         url = "https://example.invalid/torch-2.3.0%2Bcpu-cp312-cp312-linux_x86_64.whl#sha256=" + digest

@@ -69,6 +69,10 @@ wheel into the projection. Consume that projection throughout acquisition and
 build when the same artifact choice must be preserved; a later independent pip
 selection over the whole pool may choose a different compatible wheel. This
 preference must not override an issuer's direct source or source policy.
+When an equality pin admits more than one concrete version, such as local
+versions, a projection selects one version. Source preference and then cached
+wheel reuse take precedence over selecting the highest admitted version; this
+can differ from an independent pip selection.
 
 Supply only selected files to BuildKit from the shared pool. Stream a curated
 primary build context containing source and selected files without an on-disk

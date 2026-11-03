@@ -98,7 +98,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             fragment = urllib.parse.parse_qs(url.fragment)
             checksum = fragment.get("sha256", [None])[0]
             if (distribution != name or checksum not in hashes or name in required_sources or not tags.intersection(sys_tags())
-                    or (supplied and version != Version(next(iter(requirement.specifier)).version))):
+                    or (supplied and not requirement.specifier.contains(version, prereleases=True))):
                 raise ValueError(f"Cannot locate {name}: direct artifact differs from its locked identity.")
             packages.append({"name": name, "version": str(version), "archive": {
                 "url": urllib.parse.urlunsplit(url._replace(fragment="")), "hashes": {"sha256": checksum}}})
@@ -136,7 +136,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
                     kind = "source"
                 except InvalidSdistFilename:
                     continue
-            if distribution != name or artifact_version != version:
+            if distribution != name or not requirement.specifier.contains(artifact_version, prereleases=True):
                 continue
             url = urllib.parse.urljoin(project_url, artifact["url"])
             parsed = urllib.parse.urlsplit(url)
@@ -144,7 +144,7 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
                     or urllib.parse.unquote(parsed.path.rsplit("/", 1)[-1]) != filename):
                 raise ValueError(f"Cannot locate {name}: index returned an inconsistent artifact URL.")
             item = {"url": url, "hashes": {"sha256": checksum}}
-            (wheels if kind == "wheel" else sources).append((filename, item, bool(artifact.get("yanked"))))
+            (wheels if kind == "wheel" else sources).append((filename, item, bool(artifact.get("yanked")), artifact_version))
         wheels.sort(key=lambda item: item[0])
         sources.sort(key=lambda item: (not item[0].endswith(".tar.gz"), item[0]))
         wheels = [item for item in wheels if not item[2]] or wheels
@@ -165,9 +165,14 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
                         continue
             if cached:
                 wheels = cached
+        candidates = sources if name in allowed_sources and sources else wheels
+        if candidates:
+            version = max(item[3] for item in candidates)
+            wheels = [item for item in wheels if item[3] == version]
+            sources = [item for item in sources if item[3] == version]
         package = {"name": name, "version": str(version)}
         if wheels:
-            package["wheels"] = [item for _, item, _ in wheels]
+            package["wheels"] = [item for _, item, _, _ in wheels]
         if name in allowed_sources and sources:
             package["sdist"] = sources[0][1]
         if name in required_sources and "sdist" not in package:

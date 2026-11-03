@@ -21,7 +21,6 @@ from pathlib import Path
 from packaging.pylock import PackageArchive, PackageSdist, PackageWheel, Pylock, PylockSelectError, PylockValidationError
 from packaging.tags import sys_tags
 from packaging.utils import InvalidSdistFilename, InvalidWheelFilename, canonicalize_name, parse_sdist_filename, parse_wheel_filename
-from packaging.version import Version
 
 
 @contextmanager
@@ -103,7 +102,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
             requirement = entry[0]
             if requirement.url is not None and artifact.url != urllib.parse.urldefrag(requirement.url).url:
                 raise ValueError(f"Cannot use projected lock: {package.name} has a different locked URL.")
-            if requirement.url is None and package.version != Version(next(iter(requirement.specifier)).version):
+            if requirement.url is None and (package.version is None or not requirement.specifier.contains(package.version, prereleases=True)):
                 raise ValueError(f"Cannot use projected lock: {package.name} has a different locked version.")
         if not name or name in (".", "..") or "/" in name or "\\" in name:
             raise ValueError(f"Cannot acquire {package.name}: the artifact filename is invalid.")
