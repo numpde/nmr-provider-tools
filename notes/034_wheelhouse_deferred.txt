@@ -29,6 +29,9 @@ The following items do not need to delay the current deployment:
   still needs a genuine missing-tool qualification.
 - A wheel downloaded and discarded by a lock compiler for metadata may be
   fetched again by acquisition when the index lacks a metadata sidecar.
+- NMRNet's acquisition launcher selects a network route even when its pool is
+  complete. Its offline check cannot yet safely authorize a network fallback
+  after an interrupted container; the worker's retirement needs an owner.
 - Cache-aware projection uses current index metadata and excludes yanked
   candidates when non-yanked candidates exist. It cannot reuse an artifact
   absent from that metadata, and may prefer a non-yanked download to a cached
