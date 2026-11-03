@@ -24,14 +24,20 @@ corrects 0.5.11's local-version projection limitation.
 
 The following items do not need to delay the current deployment:
 
-- The provider-core repository's shared-publisher replacement needs a genuine
-  missing-artifact cold-path qualification through its normal Make target.
+- The provider-core normal download target acquired two deliberately moved
+  aside pinned wheels locally and verified their hashes. This is a reversible
+  cold-path witness; a naturally missing dependency has not been observed.
 - Shared delivery's generated lock has been checked offline with the released
   publisher and cached wheel. A normal preparation with a genuinely missing
   release wheel still needs qualification.
 - NMRPeak and SECS now recheck target selection after cold acquisition.
   NMRPeak exercised this transition with a simulated engine; SECS has not yet
   exercised its new cold branch. Both still need a genuine missing-wheel run.
+- A user-authorized local SECS witness temporarily removed its pinned release
+  wheel. The normal cold target detected the miss, but the download request
+  failed before the final recheck. The verified backup was restored under the
+  pool lease without overwriting; operation retirement remains unconfirmed and
+  its retained stage must be preserved.
 - A wheel downloaded and discarded by a lock compiler for metadata may be
   fetched again by acquisition when the index lacks a metadata sidecar.
 - Cache-aware projection uses current index metadata and excludes yanked
