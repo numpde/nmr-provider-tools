@@ -73,7 +73,7 @@
   <h1>The ideal interpreter flow</h1>
   <p>Retry transient transport failures at the same endpoint with finite attempts and backoff. Give a model bounded opportunities to inspect and correct its answer. Escalate to the next configured model when those opportunities are exhausted.</p>
   <p class="muted">The first chart is the proposed common design. Current provider behavior and supported TOML settings follow for comparison; they do not yet implement every part of this design. Configuration examples contain no live deployment values.</p>
-  <nav aria-label="Contents"><a href="#ideal">Ideal flow</a><a href="#handoff">Escalation context</a><a href="#universal-config">Universal TOML</a><a href="#turns">What counts now</a><a href="#flow">Current flow</a><a href="#policies">Provider differences</a><a href="#settings">Current settings</a><a href="#sources">Sources</a></nav>
+  <nav aria-label="Contents"><a href="#ideal">Ideal flow</a><a href="#handoff">Automatic context</a><a href="#tools-first">Tools-first alternative</a><a href="#universal-config">Universal TOML</a><a href="#turns">What counts now</a><a href="#flow">Current flow</a><a href="#policies">Provider differences</a><a href="#settings">Current settings</a><a href="#sources">Sources</a></nav>
 </header>
 
 <section id="ideal">
@@ -93,7 +93,7 @@
       <rect class="box blue" x="350" y="135" width="400" height="75" rx="10"/>
       <text x="550" y="158" text-anchor="middle">Choose next endpoint (first on entry)</text>
       <text class="minor" x="550" y="181" text-anchor="middle">Reset SDK counters; start its assigned time window</text>
-      <text class="minor" x="550" y="200" text-anchor="middle">Original input + captured observations + rejections</text>
+      <text class="minor" x="550" y="200" text-anchor="middle">Original input + context for the next model</text>
       <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 210 V260"/>
       <rect class="box blue" x="350" y="260" width="400" height="75" rx="10"/>
       <text x="550" y="289" text-anchor="middle">Begin a logical model turn: n += 1</text>
@@ -170,7 +170,7 @@
       <text class="label" x="565" y="962">or input-problem report</text>
       <rect class="box amber" x="350" y="1060" width="400" height="85" rx="10"/>
       <text x="550" y="1090" text-anchor="middle">Escalate: retire the current endpoint</text>
-      <text class="minor" x="550" y="1116" text-anchor="middle">Carry compact proposals, rejections and observations</text>
+      <text class="minor" x="550" y="1116" text-anchor="middle">Prepare successor context (alternatives below)</text>
       <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 1145 V1210"/>
       <rect class="box amber" x="350" y="1210" width="400" height="85" rx="10"/>
       <text x="550" y="1241" text-anchor="middle">Endpoint retired + next endpoint exists</text>
@@ -189,14 +189,14 @@
   <div class="three">
     <div class="definition"><h3>Transport retry</h3><p>Only transient transport/service failures qualify. Count the initial HTTP attempt in the finite maximum. The SDK supplies a finite attempt maximum and bounded jittered backoff, respecting a valid Retry-After within the remaining time. Recheck endpoint and overall deadlines after waiting and before every send. Permanent endpoint failures skip retries.</p></div>
     <div class="definition"><h3>Model correction</h3><p>Inspections consume logical turns and time, but do not consume the rejected-proposal quota. The SDK bounds total turns and rejected proposals separately. HTTP retries consume neither counter again. Exhausting either cap or the assigned time window causes escalation. A model's unsupported-input claim can be checked by the next model; independently established input errors need no model retry.</p></div>
-    <div class="definition"><h3>Escalation</h3><p>Choose the next configured model after retirement. Automatically provide a compact handoff of earlier proposals, rejection reasons and relevant observations, labeled by their origin and freshness. Keep one overall deadline; assign time shares so the first model cannot consume the entire ladder budget. Exhausting the ladder ends this Job, not the provider.</p></div>
+    <div class="definition"><h3>Escalation</h3><p>Choose the next configured model after retirement. Give the successor the original request and access to prior work through one of the context strategies below. Label earlier proposals and observations by origin and freshness. Keep one overall deadline; assign time shares so the first model cannot consume the entire ladder budget. Exhausting the ladder ends this Job, not the provider.</p></div>
   </div>
   <p class="callout warning"><strong>Thin configuration:</strong> the operator selects the overall interpretation timeout and ordered endpoint definitions. The SDK owns time allocation, finite HTTP retries/backoff, cleanup and separate turn/rejection bounds. The <a href="#universal-config">universal TOML proposal</a> below shows this shape; <a href="#settings">current settings</a> remain implementation-specific.</p>
 </section>
 
 <section id="handoff">
-  <h2>What the next model receives</h2>
-  <p><strong>Use a compact automatic handoff first.</strong> Do not require the successor to call a new history tool before it can act. A history lookup adds a model round trip and consumes its turn/time allowance. Original instructions remain primary; prior model guesses do not replace them.</p>
+  <h2>Option A: compact automatic handoff</h2>
+  <p><strong>This candidate supplies selected history directly.</strong> Do not require the successor to call a new history tool before it can act. A history lookup adds a model round trip and consumes its turn/time allowance. Original instructions remain primary; prior model guesses do not replace them.</p>
   <div class="three">
     <div class="definition"><h3>Original input</h3><p>The original request and provider instructions, with the current authoritative source/upload membership where reconciliation can change it. Never substitute an earlier model's interpretation for the user's input.</p></div>
     <div class="definition"><h3>Failed proposals</h3><p>Bounded recent proposal/rejection pairs from prior model visits: what was proposed, which tool or provider rule rejected it, and the safe rejection reason. Mark proposals as unaccepted model output. A formatting error is not evidence that source-supported scientific values are wrong.</p></div>
@@ -208,6 +208,42 @@
   <p><strong>An existing inspection call is not automatically a cached read.</strong> SECS's inspection path acquires sources, invokes the scientific worker and updates representation claims. Source reconciliation can change membership or bytes within an API Attempt. Providers own those operations and determine whether an old observation is still applicable; stale records must be marked accordingly.</p>
   <p>A provider may reuse a captured result only when it explicitly establishes replay-safe semantics for the same source/companion identities and exact inspection scope. Do not add blanket SDK memoization or cache failures, preparation or execution. Retrieving a cached 256-KiB result still adds that much data to context; caching alone does not solve prompt-size limits. Targeted retrieval or pagination needs its own demonstrated provider requirement.</p>
   <p class="callout">History is transient and scoped to this interpretation inside its existing API Attempt and captured input identities. A model visit is not a new API Attempt. There is no cross-Job transcript store, generic history API or new persistence layer. Optional inspection calls use ordinary turns/time, not the rejected-proposal quota, and retain their provider-owned lifecycle. A history lookup never authorizes replaying an accepted preparation or generation.</p>
+</section>
+
+<section id="tools-first">
+  <h2>Option B: the model fetches the context it needs</h2>
+  <p><strong>A concrete alternative, not implemented behavior.</strong> Give the successor the original request, provider instructions, current source inventory and a small catalogue of earlier work. Do not automatically inject prior proposals or large inspection payloads. The model chooses which records to retrieve, which sources to inspect now, or whether it can act directly.</p>
+  <p class="flow-line">Original task + catalogue → model chooses needed evidence → read captured record(s) → reason / inspect / submit<br><small>Reading history is optional. Each read uses the ordinary model-turn and time budget, but not the rejected-proposal quota. It never restarts a deadline.</small></p>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Information</th><th>How it is available</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td>Task and tools</td><td>Original request, provider instructions, source inventory and tool schemas supplied at model entry.</td><td>The model can act without a compulsory history-discovery call.</td></tr>
+      <tr><td>Prior-work catalogue</td><td>Small descriptors for every readable retained record: reference, kind, model visit, source/member scope, capture order, known validity and size. Explicitly report records evicted or unavailable under the bounded retention policy.</td><td>Enough to choose a relevant record; it does not contain every old payload.</td></tr>
+      <tr><td>Earlier proposals</td><td>Read a captured candidate/rejection pair by reference.</td><td>A failed model proposal plus the provider's safe rejection, not established truth.</td></tr>
+      <tr><td>Earlier observations</td><td>Read the immutable observation originally returned by a tool.</td><td>Historical evidence, with capture-time source identities and known invalidations. Reading it does not refresh it.</td></tr>
+      <tr><td>Fresh observations</td><td>Call the provider's existing inspection tools explicitly.</td><td>A live provider-owned operation that can read sources and update claims; it is distinct from reading history.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>One shared record-reading tool</h3>
+  <p>A proposed SDK-owned <code>read_interpretation_records</code> tool can read one or several catalogue references in one invocation:</p>
+  <pre><code>{"records": [{"ref": "proposal-3"}, {"ref": "inspection-2"}]}</code></pre>
+  <p>Batching fits the existing one-tool-call-per-model-turn pattern without serial round trips for every small record. The tool returns captured data only: it does not download, inspect, prepare or execute scientific work. Its authority is closed over this interpretation inside its existing API Attempt; the model supplies no cross-Job selector.</p>
+  <p>Each result identifies its kind, origin, source scope, capture-time identity, historical/invalidated status, payload size and whether the response is complete. A batch explicitly identifies every returned, unavailable or deferred record; missing output is not evidence that no record existed. A malformed proposal that was not safely retained is reported as unavailable; raw model text or private transport diagnostics are not reconstructed.</p>
+  <h3>Large records: bound responses without forcing tiny pages</h3>
+  <p>Return selected records together when they fit the existing response and the entire next model request, including its prior messages and tool framing. Byte size alone does not establish token fit; respect known model context limits without claiming an unknown token limit has been proved. A 256-KiB record does not inherently require four 64-KiB model round trips. When a selected record cannot fit, return an explicit incomplete result with a cursor bound to that immutable captured record. The same reader can request the next part:</p>
+  <pre><code>{"records": [{"ref": "inspection-2", "cursor": "returned-cursor"}]}</code></pre>
+  <p>Chunks are explicitly fragments, not silently truncated complete JSON records. Reading a page does not prove that the whole observation or source has been examined. Pagination helps the model select less data; if it ultimately reads every page, those bytes still consume context and additional model turns. No generic search language, cross-Job archive, new service or extra TOML controls are proposed.</p>
+  <h3>A useful trace</h3>
+  <ol>
+    <li>An earlier model proposed source-supported scientific values but placed a verbosity field at the wrong location. Its candidate and provider rejection are retained as <code>proposal-3</code>.</li>
+    <li>The successor sees that catalogue entry and chooses to read it, rather than receiving every previous conversation.</li>
+    <li>It sees the formatting rejection, preserves the useful scientific values as proposals to check against the original input, and submits the corrected shape.</li>
+  </ol>
+  <p>For SECS, it could instead retrieve a relevant captured ZIP inspection. If that observation is stale or current source identity matters, it explicitly requests a fresh inspection; the historical reader neither updates representation claims nor makes an old representation valid again.</p>
+  <h3>The real tradeoff</h3>
+  <p><strong>Strength:</strong> the model chooses evidence instead of inheriting an automatically selected narrative. It can avoid irrelevant proposals and large old observations, and historical reads have an honest read-only contract separate from live inspection.</p>
+  <p><strong>Cost:</strong> optional reads still add model latency and consume time/turns. The model can overlook relevant records, spend its entire window retrieving pages, or miss a contradiction in an unread part. Unread history does not justify claiming that no prior rejection or observation exists. A claim about the completeness or absence of original-source content requires the relevant source evidence; access markers alone do not prove comprehension. Ordinary provider validation does not generally guarantee that a partial reading found every scientifically relevant fact.</p>
+  <p class="callout">If chosen, this strategy would replace automatic history-payload injection with catalogue-plus-pull access. It reuses bounded per-interpretation memory; it does not require a persistent record store or a configurable handoff-mode matrix. Original input, provenance, source freshness and scientific ownership remain the same requirements under either strategy.</p>
 </section>
 
 <section id="universal-config">
