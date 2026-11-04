@@ -1,0 +1,147 @@
+Shared interpreter confidence and prompt policy
+==============================================
+
+Status: proposed design, not implemented in provider-core 0.6.5.
+Companions: 052_interpreter_tool_refactor_plan.txt and
+050_interpreter_flow_and_settings.html describe the deployed contract.
+Continue the qualified rollout while reviewing this next shared change.
+
+Problem and intended behavior
+-----------------------------
+
+A common scheduler is insufficient if providers retain conflicting instructions
+about information tools, uncertain interpretations and submission. The shared
+package should own the common model-facing workflow as well as its enforcement.
+Providers retain scientific instructions, source access, input contracts and
+preparation effects. Keep the implementation in interpreter.py and its existing
+conversation/transport owners; no additional agent framework or service.
+
+Confidence is a routing signal for an interpretation. Define it as the model's
+self-assessed confidence that the complete proposed input faithfully implements
+the request, including source selection, field meaning, units and any permitted
+normalization. It is not confidence in a scientific prediction, chemical
+plausibility, or eventual execution success. It is not a calibrated probability
+of correctness merely because it is expressed between zero and one.
+
+Shared prompt and provider information
+-------------------------------------
+
+The SDK supplies the common instructions for one tool call per turn, optional
+constraint/history lookup, source-faithful correction, uncertainty reporting,
+confidence assessment and completion. Providers supply task-specific semantics.
+The composed prompt must distinguish provider instructions, the original source,
+tool observations, untrusted historical claims and current scheduler state.
+Do not rely on every later user message being repair feedback, or describe a
+model report as a verified input problem.
+
+Use describe_input_constraints for the actual provider input contract. Small
+enums remain in the submission schema; larger or runtime-dependent catalogues
+come from the provider's existing constraint callback and authoritative data.
+Do not copy solvent lists or supported-value tables into prose as a second
+authority. Information calls are optional unless the scientific operation
+already requires inspection. Existing inspection effects and budgets still
+apply: inspecting an archive is not necessarily free or side-effect-free.
+
+Allowed values identify representations the provider accepts; they do not
+identify which value the source actually states or permits. Examples:
+
+- A named solvent might describe the reaction rather than the NMR measurement.
+- A plausible coordinate array does not establish its unit or intended record
+  order. Exact archive membership and source instructions remain authoritative.
+- A spelling such as `br s` may map to `brs` only under a product-owned alias
+  rule. A model's confidence does not create that rule.
+- A source formula's hydrogen count does not imply that a runner using implicit
+  hydrogens accepts explicit hydrogen entries in its model-input representation.
+
+Proposed submission contract
+----------------------------
+
+Providers explicitly identify their existing preparation/submission tool names
+when starting an interpretation. Inferring effects from names, descriptions or
+the eventual ToolFinished result is too late. The SDK augments only those tools
+with one required top-level interpretation_confidence number between 0 and 1.
+Inspection, constraint lookup, history and problem-reporting tools are unchanged.
+No additional confidence-only call or confirmation round is needed.
+
+The SDK consumes this field before calling provider dispatch and before capturing
+provider arguments for cross-model history. Provider scientific arguments remain
+unchanged. Keep the provider schema and SDK-owned envelope distinguishable;
+provider constraint callbacks do not own the confidence field. Reject a tool
+declaration that already uses the reserved field rather than overwriting it.
+
+Flow for a preparation call
+--------------------------
+
+1. Check the existing admission deadline and read the candidate's confidence.
+   Missing or malformed confidence uses the existing bounded tool-repair path.
+   A JSON number here is finite, within [0, 1], and not a boolean. Equality with
+   the cutoff passes; a value below it takes the handoff path.
+2. If the valid score is below the captured shared cutoff, do not invoke provider
+   preparation. End this model visit through the existing handoff and retirement
+   path. Try the next configured model using the remaining original deadline.
+3. Otherwise dispatch the scientific arguments to the existing provider owner.
+   The score never bypasses provider admission or grants additional authority.
+4. A settled provider rejection can still request a corrected candidate through
+   the existing finite repair loop. Once preparation is accepted, preserve that
+   exact result and never replay it because of model retirement or later doubts.
+5. If the configured ladder is exhausted, end this interpretation operationally.
+   Do not restart it, reinterpret the source as invalid, or stop unrelated Jobs.
+
+Low confidence is sufficient reason to spend another configured model visit,
+not evidence that the next model will succeed. Do not tell the current model to
+increase its score until admitted. Do not lower the cutoff merely because time
+is running out. Later models get the original task and available source evidence;
+do not pass prior scores as an anchor or rank candidates by scores from different
+models. Existing untrusted history remains available on demand.
+
+The existing accepted-preparation and cleanup owners remain authoritative.
+This proposal adds no persistence registry, status service, manual disposition
+queue, second validator, or validate-then-prepare phase. Preparation may have
+effects, so applying the confidence gate after validation/preparation is wrong.
+
+Policy decision and proportionate proof
+--------------------------------------
+
+Use one SDK-owned cutoff for the first implementation, captured before the first
+model visit. A proposed starting cutoff is 0.8: below it, route to the next model.
+This is an explicit operating heuristic, not a claim of 80 percent accuracy or
+an evidence-backed optimum. The number remains a design decision before runtime
+implementation. Do not add per-provider scales, calibration stores or another
+configuration file to introduce this mechanism.
+
+A concrete objection must be resolved before making that cutoff mandatory:
+an accurate model might consistently report 0.7. Rejecting all its proposals
+would turn valid Jobs into operational failures even though provider admission
+would accept them. Calling the cutoff a heuristic does not prevent this cost.
+Use representative valid and ambiguous cases in the existing model-behavior
+lane to compare the proposed gate with current behavior across the intended
+models. If the scalar fails to distinguish useful deferrals from valid work,
+revise the cutoff or keep confidence as recorded information; do not enforce
+0.8 merely because the field and threshold comparison are implemented. This
+bounded policy evaluation does not block the qualified 0.6.5 rollout.
+
+Check the behavioral boundary with focused witnesses: a low score never invokes
+preparation; a passing score still encounters real provider rejection; accepted
+preparation survives retirement without replay. Include missing information,
+ambiguous source roles and explicit product-owned normalization in the existing
+small model-behavior cases. Judge whether routing improves interpretations and
+what it costs in latency/failures; do not treat a mocked score test as evidence
+of model calibration. Broad calibration infrastructure is outside this change.
+
+Research informing the proposal
+-------------------------------
+
+Tian et al. found verbalized confidence useful on several question-answering
+benchmarks; this supports evaluating it as a routing signal, not transferring
+those calibration results to arbitrary scientific interpretation tasks.
+https://arxiv.org/abs/2305.14975
+
+Lin et al. demonstrated learned verbal uncertainty on a defined evaluation
+suite. Calibrated output was an empirical result, not a property guaranteed by
+adding a numeric field to a tool schema.
+https://openai.com/index/teaching-models-to-express-their-uncertainty-in-words/
+
+Anthropic's tool guidance emphasizes useful tool boundaries, informative
+responses and clear descriptions. Here the actual provider contract supplies
+allowed values, while the shared prompt explains when and how to consult it.
+https://www.anthropic.com/research/writing-tools-for-agents

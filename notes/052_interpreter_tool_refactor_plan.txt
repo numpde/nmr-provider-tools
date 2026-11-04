@@ -1,7 +1,7 @@
 Shared interpreter tool refactor plan
 ====================================
 
-Status: provider-core 0.6.3 is released; provider integration and deployment are in progress.
+Status: provider-core 0.6.5 is released; provider integration and deployment are in progress.
 Scope: integrate the released shared interpreter in Magnet, NMRPeak, NMRNet and
 SECS, then deploy each existing provider deployment through its maintained targets.
 All four source integrations now use the shared carrier factory. This is source
@@ -9,6 +9,9 @@ uptake, not proof of completed integration or running deployment.
 SDK completion alone does not complete the joint workflow.
 Companion: 050_interpreter_flow_and_settings.html explains the common flow and
 separately labels the pre-migration provider behavior and settings.
+Proposed follow-up: 056_interpreter_confidence_and_prompt_policy.txt addresses
+shared prompt ownership and confidence gating before preparation. It is not
+part of the released 0.6.5 runtime contract.
 
 Outcome and boundaries
 ----------------------
@@ -94,7 +97,7 @@ sleep, transport-retry, endpoint-selector or generic validation tool is needed.
 Released baseline and next action
 ---------------------------------
 
-Reuse provider-core 0.6.3 (ded24f6): Interpreter, ChatEndpointFactory,
+Reuse provider-core 0.6.5 (ce06831), including the 0.6.3 Interpreter, ChatEndpointFactory,
 https_trust, deadline-aware callbacks, report handoff and protected failure
 projection are released. Do not repeat the SDK refactor or wait for another
 publication before integrating this contract. Current source in all four
