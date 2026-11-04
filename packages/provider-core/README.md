@@ -381,6 +381,16 @@ performs inspection, downloads, preparation or generation.
 This API implements the tools-first design in note 050. It does not change the
 existing providers' parsers, deployment files or current interpreter wiring.
 
+The implementation stays in `interpreter.py`: the interpreter schedules model
+visits, each visit owns its conversation and cleanup, and immutable history
+records own their metadata and pages. `ModelEndpoint` and `EndpointFactory` are
+[structural typing contracts](https://typing.python.org/en/latest/spec/protocol.html);
+adapters need no SDK base class. The structure follows
+[PEP 8's guidance on narrow exception handling](https://peps.python.org/pep-0008/#programming-recommendations),
+uses [frozen dataclasses](https://docs.python.org/3.12/library/dataclasses.html#frozen-instances)
+for captured records, and preserves
+[asyncio cancellation propagation](https://docs.python.org/3.12/library/asyncio-task.html#task-cancellation).
+
 ## Source history
 
 Repository names below identify [NMRNet](https://github.com/numpde/nmrnet-repro),

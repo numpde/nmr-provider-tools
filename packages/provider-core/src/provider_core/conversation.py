@@ -174,6 +174,11 @@ class ToolConversation:
         return text
 
     @property
+    def turns_started(self):
+        """Logical turns admitted so far; HTTP retries do not add turns."""
+        return self._turns
+
+    @property
     def correction_count(self):
         """Corrections admitted so far, including protocol and argument repairs."""
         return self._corrections

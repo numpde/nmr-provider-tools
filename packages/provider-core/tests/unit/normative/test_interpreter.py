@@ -416,3 +416,50 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         catalogue = state(second.complete.await_args.args[0])["history"]
         self.assertEqual(catalogue["records"][0]["kind"], "unverified_input_problem")
         first.retire.assert_awaited()
+
+    async def test_endpoint_construction_time_consumes_its_existing_model_window(self):
+        clock = [100.0]
+        model = endpoint("fixture", call("done", "prepare", {}))
+
+        def build(**grant):
+            clock[0] += 20
+            return model
+
+        owner = Interpreter((build,), timeout_seconds=240, context_bytes=16384, secrets=())
+        with patch("provider_core.interpreter._now", side_effect=lambda: clock[0]):
+            result = await owner.run(
+                [], TOOLS, AsyncMock(return_value=ToolFinished("ready")), not_after=135,
+            )
+        self.assertEqual(result.value, "ready")
+        self.assertEqual(model.complete.await_args.kwargs["not_after"], 135)
+        self.assertEqual(
+            state(model.complete.await_args.args[0])["budget"]["model_seconds_remaining"], 15,
+        )
+
+    async def test_history_cursor_resumes_the_same_captured_json_without_reinspection(self):
+        model = endpoint(
+            "fixture",
+            call("inspect", "inspect", {}),
+            call("full", "read_interpretation_records", {"records": [{"ref": "record-1"}]}),
+            call("tail", "read_interpretation_records", {"records": [{"ref": "record-1", "cursor": 17}]}),
+            call("done", "prepare", {}),
+        )
+        captures = []
+        original = model.complete
+
+        async def complete(messages, tools, **kwargs):
+            captures.append(deepcopy(messages))
+            return await original(messages, tools, **kwargs)
+
+        model.complete = AsyncMock(side_effect=complete)
+        observation = {"text": 'Quoted "spectrum" and Unicode: λ'}
+        dispatch = AsyncMock(side_effect=[ToolReply(observation), ToolFinished("ready")])
+        await interpreter(model).run([], TOOLS, dispatch)
+        full = json.loads(captures[2][-1]["content"])["value"]["records"][0]
+        tail = json.loads(captures[3][-1]["content"])["value"]["records"][0]
+        self.assertEqual(tail["cursor"], 17)
+        self.assertTrue(tail["complete"])
+        self.assertNotIn("next_cursor", tail)
+        self.assertEqual(full["json_text"][:17] + tail["json_text"], full["json_text"])
+        self.assertEqual(json.loads(full["json_text"])["value"], observation)
+        self.assertEqual(dispatch.await_count, 2)
