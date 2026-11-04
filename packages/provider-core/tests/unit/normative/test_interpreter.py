@@ -820,6 +820,35 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         first.retire.side_effect = None
         await owner.retire()
 
+    async def test_retirement_during_admitted_preparation_retains_late_acceptance(self):
+        entered, finish = asyncio.Event(), asyncio.Event()
+        first = endpoint("first", call("prepare", "prepare", {}))
+        unused = endpoint("unused")
+
+        async def prepare(name, arguments, *, not_after):
+            entered.set()
+            await finish.wait()
+            return ToolFinished(None)
+
+        dispatch = AsyncMock(side_effect=prepare)
+        owner = interpreter(first, unused)
+        running = asyncio.create_task(owner.run([], TOOLS, dispatch))
+        try:
+            await entered.wait()
+            await owner.retire()
+            self.assertFalse(running.done())
+            finish.set()
+            result = await running
+            self.assertIsNone(result.value)
+            self.assertIsNotNone(owner.accepted_result)
+            self.assertEqual(owner.accepted_result.model_visit, 1)
+            dispatch.assert_awaited_once()
+            self.assertFalse(hasattr(unused, "grant"))
+        finally:
+            finish.set()
+            await asyncio.gather(running, return_exceptions=True)
+            await owner.retire()
+
     async def test_dynamic_constraint_reader_can_defer_to_schema_without_duplicating_it(self):
         for metadata in (NotImplemented, None):
             with self.subTest(schema_fallback=metadata is NotImplemented):

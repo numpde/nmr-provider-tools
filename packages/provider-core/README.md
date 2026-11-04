@@ -334,6 +334,13 @@ retires the model before advancing. Ordinary provider timeouts, scientific
 failures and uncertain cleanup still propagate without fallback. Neither the
 deadline nor this API retires provider work on the caller's behalf.
 
+Since 0.6.4, retirement racing an already-admitted preparation also preserves
+its late `ToolFinished` result. Retirement prevents new dispatch and model turns;
+it does not undo scientific acceptance. Keep the original run task and join it
+through the provider's existing settlement owner. Do not cancel that task as a
+substitute for stopping new model I/O or treat a retained result as permission to
+execute after the Job has stopped.
+
 `InterpretationInputRejected` identifies an initial-context credential refusal
 before any model or scientific work starts. `InterpretationFailed` identifies
 exhausted model allocations. Scientific callback failures retain their original

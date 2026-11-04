@@ -325,11 +325,13 @@ class ToolConversation:
                     call["function"]["arguments"] = "{}"
                 self._correct_turn(calls, rejection)
                 continue
-            self._require_active()
             if type(outcome) is ToolFinished:
+                # Retirement stops new work, not acceptance from an already
+                # admitted dispatch. Its caller still owns scientific settlement.
                 return ConversationResult(
                     outcome.value, self._observation(), tuple(self.endpoint_failures), tuple(self.correction_failures)
                 )
+            self._require_active()
             if type(outcome) is ToolHandoff:
                 return ConversationHandoff(
                     outcome.reason, self._observation(), tuple(self.endpoint_failures), tuple(self.correction_failures)
