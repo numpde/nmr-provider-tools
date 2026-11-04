@@ -15,7 +15,10 @@ from tests.fakes.conversation import call, endpoint
 
 TOOLS = [{"type": "function", "function": {"name": "prepare", "parameters": {
     "type": "object", "properties": {"verbosity": {"type": "string", "enum": ["quiet", "full"]}},
-    "required": ["verbosity"]}}}]
+    "required": ["verbosity"]}}},
+    {"type": "function", "function": {"name": "inspect", "parameters": {"type": "object"}}},
+    {"type": "function", "function": {"name": "report_input_problem", "parameters": {"type": "object"}}},
+]
 
 
 def factory(model):
@@ -31,7 +34,11 @@ def interpreter(*models, timeout=240, context=1024 * 1024):
 
 
 def state(messages):
-    return json.loads(messages[0]["content"].split(": ", 1)[1])
+    return json.loads(messages[-1]["content"].split(": ", 1)[1])
+
+
+def feedback(messages):
+    return json.loads(next(message["content"] for message in reversed(messages) if message["role"] == "tool"))
 
 
 class InterpreterTests(unittest.IsolatedAsyncioTestCase):
@@ -127,9 +134,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         result = await interpreter(bad, good).run(original, TOOLS, dispatch)
         self.assertEqual(bad.complete.await_count, 3)
-        self.assertEqual(captures[0][1:], original)
+        self.assertEqual(captures[0][:-1], original)
         self.assertEqual(len(state(captures[0])["history"]["records"]), 3)
-        returned = json.loads(captures[1][-1]["content"])["value"]["records"][0]
+        returned = feedback(captures[1])["value"]["records"][0]
         self.assertEqual(json.loads(returned["json_text"])["arguments"], {"verbosity": "invalid"})
         self.assertEqual(result.value, {"verbosity": "quiet"})
 
@@ -138,7 +145,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                          call("done", "prepare", {"verbosity": "quiet"}))
         dispatch = AsyncMock(return_value=ToolFinished("ready"))
         await interpreter(model).run([], TOOLS, dispatch)
-        reply = json.loads(model.complete.await_args_list[-1].args[0][-1]["content"])["value"]
+        reply = feedback(model.complete.await_args_list[-1].args[0])["value"]
         self.assertEqual(reply["schema"]["enum"], ["quiet", "full"])
         self.assertTrue(reply["required"])
         dispatch.assert_awaited_once_with("prepare", {"verbosity": "quiet"})
@@ -148,7 +155,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         describe = AsyncMock(return_value={"available_sources": ["source-1"]})
         await interpreter(model).run([], TOOLS, AsyncMock(return_value=ToolFinished("ready")), describe_constraints=describe)
         describe.assert_awaited_once_with("prepare", None)
-        self.assertEqual(json.loads(model.complete.await_args_list[-1].args[0][-1]["content"])["value"], {"available_sources": ["source-1"]})
+        self.assertEqual(feedback(model.complete.await_args_list[-1].args[0])["value"], {"available_sources": ["source-1"]})
 
     async def test_history_reads_captured_observation_without_repeating_live_inspection(self):
         observation = {"source": "source-1", "spectrum": [1, 2]}
@@ -165,7 +172,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         model.complete = AsyncMock(side_effect=complete)
         dispatch = AsyncMock(side_effect=[ToolReply(observation), ToolFinished("ready")])
         await interpreter(model).run([], TOOLS, dispatch)
-        record = json.loads(captures[2][-1]["content"])["value"]["records"][0]
+        record = feedback(captures[2])["value"]["records"][0]
         self.assertEqual(json.loads(record["json_text"])["value"]["spectrum"], [1, 2])
         self.assertIn("historical", record["validity"])
         self.assertEqual(dispatch.await_count, 2)
@@ -239,7 +246,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         second.complete = AsyncMock(side_effect=complete)
         result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
         self.assertEqual(result.correction_failures, ())
-        reply = json.loads(captures[1][-1]["content"])["value"]["records"][0]
+        reply = feedback(captures[1])["value"]["records"][0]
         self.assertFalse(reply["complete"])
         self.assertEqual(reply["next_cursor"], len(reply["json_text"]))
         self.assertLess(reply["next_cursor"], reply["bytes"])
@@ -261,7 +268,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         catalogue = state(captures[0])["history"]
         self.assertEqual(catalogue["unavailable_records"], 1)
         self.assertEqual([record["ref"] for record in catalogue["records"]], ["record-2"])
-        reply = json.loads(captures[1][-1]["content"])["value"]["records"]
+        reply = feedback(captures[1])["value"]["records"]
         self.assertEqual(reply[0], {"ref": "record-1", "status": "unavailable"})
         self.assertTrue(reply[1]["complete"])
 
@@ -456,8 +463,8 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         observation = {"text": 'Quoted "spectrum" and Unicode: λ'}
         dispatch = AsyncMock(side_effect=[ToolReply(observation), ToolFinished("ready")])
         await interpreter(model).run([], TOOLS, dispatch)
-        full = json.loads(captures[2][-1]["content"])["value"]["records"][0]
-        tail = json.loads(captures[3][-1]["content"])["value"]["records"][0]
+        full = feedback(captures[2])["value"]["records"][0]
+        tail = feedback(captures[3])["value"]["records"][0]
         self.assertEqual(tail["cursor"], 17)
         self.assertTrue(tail["complete"])
         self.assertNotIn("next_cursor", tail)
@@ -488,7 +495,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         model.complete = AsyncMock(side_effect=complete)
         await interpreter(model).run([], TOOLS, dispatch)
-        record = json.loads(captures[2][-1]["content"])["value"]["records"][0]
+        record = feedback(captures[2])["value"]["records"][0]
         self.assertEqual(
             json.loads(record["json_text"])["arguments"],
             {"source": "source-1", "selection": [1, 2]},
@@ -568,8 +575,86 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         ])
         result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
         self.assertEqual(result.correction_failures, ())
-        records = json.loads(second.complete.await_args.args[0][-1]["content"])["value"]["records"]
+        records = feedback(second.complete.await_args.args[0])["value"]["records"]
         self.assertEqual([record["ref"] for record in records], ["record-2", "record-1"])
         self.assertFalse(records[0]["complete"])
         self.assertIn(records[1]["status"], {"returned", "deferred"})
         self.assertEqual(dispatch.await_count, 3)
+
+    async def test_unlisted_tool_is_repaired_before_any_provider_code_runs(self):
+        model = endpoint(
+            "fixture", call("unknown", "unlisted_operation", {}),
+            call("accepted", "prepare", {"verbosity": "quiet"}),
+        )
+        dispatch = AsyncMock(return_value=ToolFinished("ready"))
+        result = await interpreter(model).run([], TOOLS, dispatch)
+        dispatch.assert_awaited_once_with("prepare", {"verbosity": "quiet"})
+        self.assertEqual(result.value, "ready")
+        self.assertEqual(len(result.correction_failures), 1)
+
+    async def test_stable_instructions_precede_changing_turn_context(self):
+        messages = [
+            {"role": "system", "content": "Provider instructions: preserve original scientific input."},
+            {"role": "user", "content": "Original source text."},
+        ]
+        model = endpoint(
+            "fixture", call("inspect", "inspect", {}), call("done", "prepare", {}),
+        )
+        captures = []
+        original = model.complete
+
+        async def complete(current_messages, tools, **kwargs):
+            captures.append(deepcopy(current_messages))
+            return await original(current_messages, tools, **kwargs)
+
+        model.complete = AsyncMock(side_effect=complete)
+        await interpreter(model).run(
+            messages, TOOLS, AsyncMock(side_effect=[ToolReply({"rows": 2}), ToolFinished("ready")]),
+        )
+        self.assertEqual(captures[0][:len(messages)], messages)
+        self.assertEqual(captures[1][:len(messages)], messages)
+        self.assertEqual(captures[0][-1]["role"], "user")
+        self.assertEqual(captures[1][-1]["role"], "user")
+        self.assertEqual(state(captures[0])["budget"]["turns_remaining"], 11)
+        self.assertEqual(state(captures[1])["budget"]["turns_remaining"], 10)
+
+    async def test_handoff_is_not_accepted_preparation_and_waits_for_retirement(self):
+        from provider_core.interpreter import ModelReportedInputProblem
+        entered, release = asyncio.Event(), asyncio.Event()
+        report = ModelReportedInputProblem("This model could not interpret the source.")
+        first = endpoint("first", call("report", "report_input_problem", {}))
+        second = endpoint("second", call("prepare", "prepare", {}))
+
+        async def retire():
+            entered.set()
+            await release.wait()
+
+        first.retire.side_effect = retire
+        dispatch = AsyncMock(side_effect=[report, ToolFinished("ready")])
+        owner = interpreter(first, second)
+        running = asyncio.create_task(owner.run([], TOOLS, dispatch))
+        try:
+            await asyncio.wait_for(entered.wait(), 2)
+            self.assertIsNone(owner.accepted_result)
+            self.assertFalse(hasattr(second, "grant"))
+        finally:
+            release.set()
+            result = await running
+        self.assertEqual(result.value, "ready")
+        self.assertEqual(result.failures, ((1, report),))
+        self.assertEqual(result.correction_failures, ())
+        self.assertNotIn("failure", json.loads(result.observations[0])["routes"][0])
+
+    async def test_unverified_reports_remain_claims_when_the_model_ladder_is_exhausted(self):
+        from provider_core.interpreter import ModelReportedInputProblem
+        reports = [ModelReportedInputProblem("First model declined."),
+                   ModelReportedInputProblem("Second model declined.")]
+        first = endpoint("first", call("first-report", "report_input_problem", {}))
+        second = endpoint("second", call("second-report", "report_input_problem", {}))
+        owner = interpreter(first, second)
+        with self.assertRaises(InterpretationFailed) as caught:
+            await owner.run([], TOOLS, AsyncMock(side_effect=reports))
+        self.assertEqual(caught.exception.failures, ((1, reports[0]), (2, reports[1])))
+        self.assertIsNone(owner.accepted_result)
+        self.assertEqual(caught.exception.correction_failures, ())
+        self.assertTrue(owner.retirement_confirmed)

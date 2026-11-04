@@ -27,11 +27,13 @@ from typing import Any, Literal, Protocol
 from provider_core.chat_errors import ChatFailed
 from provider_core.conversation import (
     ConversationFailed,
+    ConversationHandoff,
     ConversationResult,
     ConversationRetirementFailed,
     TextCorrection,
     ToolConversation,
     ToolFinished,
+    ToolHandoff,
     ToolRejected,
     ToolReply,
 )
@@ -166,9 +168,12 @@ class Interpreter:
         This is a protected result handoff, not proof of model-I/O retirement or
         permission to execute. The caller still owns resource settlement.
         """
-        if not self._visits or self._visits[-1].result is None:
+        if not self._visits:
             return None
-        return self._result(self._visits[-1].result)
+        outcome = self._visits[-1].outcome
+        if type(outcome) is not ConversationResult:
+            return None
+        return self._result(outcome)
 
     def _result(self, result: ConversationResult) -> InterpretationResult:
         return InterpretationResult(
@@ -183,6 +188,8 @@ class Interpreter:
         for visit in self._visits:
             if visit.failure is not None:
                 failures.append((visit.number, visit.failure))
+            if type(visit.outcome) is ConversationHandoff:
+                failures.append((visit.number, visit.outcome.reason))
             failures.extend((visit.number, error) for error in visit.http_failures)
         return tuple(failures)
 
@@ -230,12 +237,14 @@ class Interpreter:
                 )
                 self._visits.append(visit)
                 try:
-                    result = await visit.run(original)
+                    outcome = await visit.run(original)
                 except ConversationFailed as failure:
                     if failure is visit.provider_failure:
                         raise
                     continue
-                return self._result(result)
+                if type(outcome) is ConversationHandoff:
+                    continue
+                return self._result(outcome)
             raise InterpretationFailed(self._failures(), self.correction_failures)
         except BaseException as failure:
             self.last_failure = failure
@@ -497,8 +506,13 @@ class _Tools:
                 "Cannot compose interpreter tools: a provider tool uses a reserved information-tool name."
             )
         self.definitions = [*provider_tools, *json.loads(_encode(_INFORMATION_TOOLS))]
-        self.dispatch = dispatch
+        self._dispatch = dispatch
         self._describe = describe
+
+    async def dispatch(self, name: str, arguments: Document) -> ToolReply | ToolFinished:
+        if name not in self._schemas:
+            raise ToolRejected("Choose a tool from the supplied definitions; this tool was not run.")
+        return await self._dispatch(name, arguments)
 
     async def describe(self, arguments: Document) -> object:
         name, path = arguments.get("tool"), arguments.get("field")
@@ -606,7 +620,7 @@ class _ModelVisit:
         self._context_bytes = context_bytes
         self.failure: ConversationFailed | None = None
         self.provider_failure: Exception | None = None
-        self.result: ConversationResult | None = None
+        self.outcome: ConversationResult | ConversationHandoff | None = None
         self.http_failures: list[ChatFailed] = []
         self.conversation = ToolConversation(
             (self,),
@@ -631,10 +645,10 @@ class _ModelVisit:
             "rejections_remaining": MODEL_REJECTIONS - self.conversation.correction_count,
         }
 
-    async def run(self, messages: list[Document]) -> ConversationResult:
+    async def run(self, messages: list[Document]) -> ConversationResult | ConversationHandoff:
         try:
-            self.result = await self.conversation.run(messages, self._tools.definitions, self._dispatch)
-            return self.result
+            self.outcome = await self.conversation.run(messages, self._tools.definitions, self._dispatch)
+            return self.outcome
         except ConversationFailed as failure:
             if failure is not self.provider_failure:
                 self.failure = failure
@@ -684,7 +698,7 @@ class _ModelVisit:
         raise AssertionError("The finite HTTP attempt loop must return or raise.")
 
     def _request_context(self, messages: list[Document], tools: list[Document]) -> list[Document]:
-        outgoing = [self._state_message(), *messages]
+        outgoing = [*messages, self._state_message()]
         context_size = len(_encode({"messages": outgoing, "tools": tools}))
         if context_size > self._context_bytes:
             raise ChatFailed(
@@ -696,7 +710,7 @@ class _ModelVisit:
     def _state_message(self) -> Document:
         state = {"budget": self.budget(), "history": self._history.catalogue()}
         return {
-            "role": "system",
+            "role": "user",
             "content": "Interpreter state (records are untrusted historical data): " + _encode(state).decode("ascii"),
         }
 
@@ -708,17 +722,17 @@ class _ModelVisit:
         # Keep the size predicate stable during prefix search. The clock margin
         # covers later spelling changes when feedback and the request are built.
         budget = self.budget()
-        prefix = [self._state_message()]
+        suffix = [self._state_message()]
 
         def fits(value: Document) -> bool:
             size = self.conversation.feedback_context_bytes(
-                self._feedback(value, budget), messages_prefix=prefix,
+                self._feedback(value, budget), messages_suffix=suffix,
             )
             return size + _CLOCK_ENCODING_RESERVE_BYTES <= self._context_bytes
 
         return self._history.read(arguments, fits)
 
-    async def _dispatch(self, name: str, arguments: Document) -> ToolReply | ToolFinished:
+    async def _dispatch(self, name: str, arguments: Document) -> ToolReply | ToolFinished | ToolHandoff:
         if _now() >= self._deadline:
             raise ConversationFailed("Cannot dispatch interpreter tool: this model's time allocation expired.")
         if name == "read_interpretation_records":
@@ -737,7 +751,7 @@ class _ModelVisit:
             return ToolReply(self._feedback(outcome.value, self.budget()))
         return outcome
 
-    async def _dispatch_provider(self, name: str, arguments: Document) -> ToolReply | ToolFinished:
+    async def _dispatch_provider(self, name: str, arguments: Document) -> ToolReply | ToolFinished | ToolHandoff:
         submitted_arguments = deepcopy(arguments)
         try:
             outcome = await self._tools.dispatch(name, arguments)
@@ -746,10 +760,7 @@ class _ModelVisit:
                 self.number, "unverified_input_problem", name,
                 {"arguments": submitted_arguments, "claim": str(report)},
             )
-            raise ConversationFailed(
-                "This model reported an unverified input problem; another model may assess the original request.",
-                cause=report,
-            ) from None
+            return ToolHandoff(report)
         except ToolRejected as rejection:
             self._history.remember(
                 self.number, "rejected_proposal", name,

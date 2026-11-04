@@ -210,6 +210,10 @@ An awaited scientific dispatch may return `ToolFinished` only after preparation
 is accepted, or raise `ToolRejected` to continue the same transcript. Keep its
 scientific work deadline separate from model/inspection deadlines when those
 budgets differ. No second conversation or suspend/resume framework is needed.
+`ToolHandoff(reason)` returns a `ConversationHandoff` normally, leaving model
+selection with the caller. The handoff is a next-step decision, separate from
+accepted preparation and endpoint failures. Observe retirement before starting
+the successor.
 
 `ChatEndpoint` sends one request without resending failed model calls. It decodes
 compressed bodies under `response_bytes` and optional `error_response_bytes`
@@ -363,6 +367,15 @@ For a model's unverified input-problem report, dispatch raises the shared
 `ModelReportedInputProblem`: this immediately advances to the next model after
 retirement and records the claim as unverified history. It is not `ToolFinished`,
 and agreement among models does not establish scientific input invalidity.
+Internally this is a normal `ToolHandoff` decision; the original claim remains in
+protected attempt diagnostics without inventing a failed model request.
+
+A turn is one logical model request and its admitted tool action. Transport
+retries remain inside that turn. Observation tools continue the conversation;
+accepted preparation finishes it; an unverified input-problem report hands
+control back to the model chooser. Tool names come from the supplied definitions
+and are checked before entering provider code; scientific argument validation
+remains with that provider.
 
 The module adds two information tools: `describe_input_constraints` reads the
 actual supplied schemas (or an async provider-owned `describe_constraints`
@@ -370,7 +383,13 @@ accessor), and `read_interpretation_records` reads captured proposal/rejection
 pairs and tool observations. Each model receives a compact catalogue and current
 budget with every request. All observation and information replies carry `value` and
 `interpreter_budget`; provider prompt/tool descriptions should account for this
-envelope. History is immutable, in memory, and scoped to this interpretation;
+envelope.
+
+Stable provider instructions and original inputs lead each request. Changing
+budget/catalogue state is appended as user-level context, keeping those facts
+outside the instruction layer and preserving the stable prompt prefix.
+
+History is immutable, in memory, and scoped to this interpretation;
 retention is limited to 48 records and 1 MiB, with explicit unavailable counts.
 Catalogue entries identify the tool, model visit, kind, size and historical status;
 source/member identities remain in the provider-supplied captured arguments and
@@ -400,6 +419,18 @@ assistant call, reasoning and escaped feedback; one fixed size projection keeps
 the prefix search stable while clock values change. Provider constraint-reader
 failures propagate without model fallback; unknown property paths remain
 correctable even under valid Boolean schemas.
+
+Agent-loop references inspected on 2026-11-04:
+
+- [Anthropic's async `_steps()`](https://github.com/anthropics/anthropic-sdk-python/blob/5752c132041af71055584632caab5ca2325cae5e/src/anthropic/lib/tools/_beta_runner.py#L1249)
+  is the clearest reference for request, decision and tool-result ordering.
+- [OpenAI's explicit next-step types](https://github.com/openai/openai-agents-python/blob/23e9996ac146109bdcd9b871e3564f70dc13aae1/src/agents/run_internal/run_steps.py#L163)
+  inform the separate continue, handoff and final outcomes.
+- [Anthropic's context-engineering guidance](https://www.anthropic.com/research/effective-context-engineering-for-ai-agents)
+  supports the existing catalogue and on-demand retrieval design.
+- [OpenAI's prompt-caching guidance](https://developers.openai.com/api/docs/guides/prompt-caching)
+  supports placing stable instructions before changing context. Cache-hit and
+  live-model performance improvements require separate deployment evidence.
 
 ## Source history
 

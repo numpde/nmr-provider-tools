@@ -95,7 +95,8 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                                     request_bytes=32768, response_bytes=8192)
             owner = Interpreter((build,), timeout_seconds=10, context_bytes=16384, secrets=("PRIVATE_KEY",))
             dispatch = AsyncMock(return_value=ToolFinished("prepared"))
-            result = await owner.run([], [], dispatch)
+            tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
+            result = await owner.run([], tools, dispatch)
             self.assertEqual(result.value, "prepared")
             self.assertEqual(len(peer.requests), 2)
             self.assertEqual(len(proxy.headers), 2)

@@ -36,6 +36,13 @@ class ToolFinished:
 
 
 @dataclass(frozen=True, slots=True)
+class ToolHandoff:
+    """End this conversation; its caller owns selection of the next model."""
+
+    reason: BaseException = field(repr=False)
+
+
+@dataclass(frozen=True, slots=True)
 class TextCorrection:
     """Use plain tool feedback, optionally followed by a user repair instruction."""
 
@@ -56,6 +63,16 @@ class ConversationResult:
     observation: bytes = field(repr=False)
     endpoint_failures: tuple = field(default=(), repr=False)
     correction_failures: tuple = field(default=(), repr=False)
+
+
+@dataclass(frozen=True, slots=True)
+class ConversationHandoff:
+    """An observed decision to yield control, without accepting preparation."""
+
+    reason: BaseException = field(repr=False)
+    observation: bytes = field(repr=False)
+    endpoint_failures: tuple = field(repr=False)
+    correction_failures: tuple = field(repr=False)
 
 
 class ToolRejected(ValueError):
@@ -123,8 +140,10 @@ def require_turn_limit(max_turns):
 class ToolConversation:
     """One serial conversation; only a carrier failure permits endpoint fallback.
 
-    dispatch is awaited exactly once for an admitted call, returning ToolReply or
-    ToolFinished. Only ToolRejected requests correction. The caller supplies all
+    dispatch is awaited exactly once for an admitted call, returning ToolReply,
+    ToolFinished or ToolHandoff. A handoff ends the conversation normally; its
+    caller observes retirement before selecting another model. Only ToolRejected
+    requests correction. The caller supplies all
     known endpoint secrets; transcripts are transient and never observations.
     retire() must also be observed after failure or cancellation. It may recheck
     cleanup, but neither run nor scientific effects can restart on this object.
@@ -188,17 +207,17 @@ class ToolConversation:
         """Bounded route and turn facts, also available after an unsuccessful run."""
         return self._observation()
 
-    def feedback_context_bytes(self, value, *, messages_prefix):
+    def feedback_context_bytes(self, value, *, messages_suffix):
         """Measure prospective feedback during dispatch, including its admitted call.
 
         Keep sizing with the transcript owner so escaped tool content, model
         reasoning and call identifiers use the same framing as actual feedback.
-        The caller supplies its own request prefix and decides the byte grant.
+        The caller supplies its own request suffix and decides the byte grant.
         """
         identifier = self._messages[-1]["tool_calls"][0]["id"]
         feedback = self._tool_message(identifier, _encode(value).decode("ascii"))
         return len(_encode({
-            "messages": [*messages_prefix, *self._messages, feedback],
+            "messages": [*self._messages, feedback, *messages_suffix],
             "tools": self._tools,
         }))
 
@@ -311,8 +330,12 @@ class ToolConversation:
                 return ConversationResult(
                     outcome.value, self._observation(), tuple(self.endpoint_failures), tuple(self.correction_failures)
                 )
+            if type(outcome) is ToolHandoff:
+                return ConversationHandoff(
+                    outcome.reason, self._observation(), tuple(self.endpoint_failures), tuple(self.correction_failures)
+                )
             if type(outcome) is not ToolReply:
-                raise TypeError("Interpreter tool dispatch must return ToolReply or ToolFinished.")
+                raise TypeError("Interpreter tool dispatch must return ToolReply, ToolFinished or ToolHandoff.")
             self._feedback(call["id"], outcome.value)
         # silent-defaults: allow-contract -- Absent usable correction text reports exhaustion without choosing another endpoint or input.
         reason = self.last_rejection or "No tool submitted a supported input."

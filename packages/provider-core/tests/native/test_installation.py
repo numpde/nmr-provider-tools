@@ -33,6 +33,28 @@ class NativeInstallationTests(unittest.TestCase):
 
         asyncio.run(run())
 
+    def test_native_conversation_handoff_returns_control_without_a_model_failure(self):
+        from provider_core.conversation import ConversationHandoff, ToolConversation, ToolHandoff, ToolRejected
+        from tests.fakes.conversation import call, endpoint
+
+        async def run():
+            model = endpoint("native", call("report", "report_input_problem", {}))
+            reason = ToolRejected("This model needs to hand the decision back to its caller.")
+            conversation = ToolConversation((model,), max_turns=1, secrets=())
+            async def dispatch(name, arguments):
+                return ToolHandoff(reason)
+            try:
+                outcome = await conversation.run([], [], dispatch)
+                self.assertIsInstance(outcome, ConversationHandoff)
+                self.assertIs(outcome.reason, reason)
+                self.assertIsNone(conversation.last_failure)
+                self.assertEqual(model.complete.await_count, 1)
+                model.retire.assert_not_awaited()
+            finally:
+                await conversation.retire()
+
+        asyncio.run(run())
+
     def test_native_interpreter_runs_shared_flow_without_api_dependencies(self):
         from provider_core.interpreter import Interpreter
         from provider_core.conversation import ToolFinished
@@ -44,7 +66,8 @@ class NativeInstallationTests(unittest.TestCase):
                                 context_bytes=16384, secrets=())
             async def dispatch(name, arguments):
                 return ToolFinished("accepted")
-            self.assertEqual((await owner.run([], [], dispatch)).value, "accepted")
+            tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
+            self.assertEqual((await owner.run([], tools, dispatch)).value, "accepted")
             self.assertTrue(owner.retirement_confirmed)
 
         asyncio.run(run())
