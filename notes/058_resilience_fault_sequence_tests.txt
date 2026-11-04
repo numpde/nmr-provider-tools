@@ -10,8 +10,8 @@ consumer tests; this package owns reusable transport, interpreter and outbox
 behavior. Findings need a test at the owning boundary and verified consumer
 uptake. Do not store private incident data or coordination dialogue here.
 
-First implementation
---------------------
+Implemented first slice
+-----------------------
 1. Transport deadlines and retirement. Exercise real local TLS stalls and
    generated cooperative/held cleanup schedules. The request deadline stops new
    work. The configured retirement allowance observes closure of the original
@@ -50,10 +50,10 @@ tests use a disposable local peer, never a paid model endpoint. Every test must
 release held work and await its owner even when an assertion fails. Assert
 observable effects and ownership, not a copied implementation algorithm.
 
-The existing absolute-deadline tests deliberately deny cleanup observation after
-the request deadline. That conflicts with the transport's documented additional
-cleanup allowance and can leave promptly cancellable I/O unconfirmed. Changing
-this contract requires updating those tests and documentation together. It must
+The pre-0.6.6 absolute-deadline tests denied cleanup observation after the request
+deadline. That conflicted with the transport's documented additional cleanup
+allowance and left promptly cancellable I/O unconfirmed. The repair updates the
+owning implementation, tests and documentation together. It must
 not permit new request work after the deadline or renew cleanup time on retries.
 Do not extend this change to calls without an inherited deadline: existing API,
 upload and delivery recovery deliberately re-observe the original transport
@@ -73,6 +73,48 @@ predicate, not on an exception's borrowed Attempt record. A matching relay ACK
 can free terminal-report pressure while the same controller still owns cleanup.
 The predicate derives from existing acceptance/checkpoint state; it neither
 proves API publication nor authorizes full claim release or science replay.
+
+Qualification of the implemented slice
+-------------------------------------
+Released provider-core 0.6.6 includes the repair and generated corpus. The real
+TLS witness failed in all eight inherited-deadline cases before the repair;
+the corresponding aggregate-deadline cases already retired correctly. The full
+corpus now passes: 16 TLS scenarios, 24 controlled cleanup scenarios, 32
+interpreter histories and 16 outbox histories containing 1,024 transitions.
+
+Run the focused installed-wheel lane with:
+
+    make tests/fuzz/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/path/to/wheelhouse
+
+Exact release-artifact qualification passed 748 unit, 198 integration, 36 native
+and 15 contract tests, plus 15 contract tests against the source-rebuilt wheel.
+The separate focused Make lane also passed. The release workflow downloaded and
+compared the published artifacts against the qualified bytes.
+
+Installed consumer qualification against 0.6.6:
+
+- Magnet: 778 unit, 19 contract and 161 integration tests. The two incident
+  regressions exercise retired model timeout, exact failure acknowledgement and
+  the next Job without scientific admission. Their acknowledgement transport is
+  synthetic; they do not prove durable outbox or API publication.
+- NMRNet: 44 recovery, 55 interpreter, 23 delivery and 64 process tests. A failed
+  capacity notice no longer stops otherwise settled work. Process tests require
+  a clean shutdown after cooperative model retirement and still require retained
+  ownership for an independent cleanup failure; the exact original Attempt and
+  terminal failure remain checked.
+- NMRPeak: 477 unit tests with one skip, and 44 integration tests. A real durable
+  inbox acknowledgement clears unrelated-lane admission pressure while the
+  original controller, claim and interpreter cleanup remain held.
+- SECS: 135 provider tests. Idle-worker replacement receives a fresh bounded
+  startup window only after retirement; a failed logging sink cannot veto that
+  recovery. A two-Job witness checks durable failure handoff before the next
+  admission and retains both outcomes after reopening the inbox.
+
+These checks establish installed-code uptake and scoped recovery behavior.
+They do not establish deployment of the new version, live model quality or live
+scientific inference. NMRPeak's separate policy for resuming a failed lane after
+independent cleanup failures remains deferred in its bounded-recovery note;
+delivery acknowledgement alone is insufficient authority for that decision.
 
 Deferred and limits
 -------------------
