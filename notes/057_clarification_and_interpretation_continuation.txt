@@ -1,0 +1,266 @@
+Clarification and interpretation continuation
+============================================
+
+Status: design proposal; no resume or archive behavior is implemented by this
+note. The current qualified interpreter rollout remains a separate task.
+Companions: 052 describes current interpretation ownership; 056 proposes shared
+prompt and confidence policy. Neither supplies durable conversation history.
+
+Desired outcome
+---------------
+
+A failed interpretation should not force a user to start from an empty context.
+The user can supply clarification, see the relationship to the failed work,
+and request continuation. A provider can recover the relevant conversation
+after a process restart, consider the clarification, and perform newly
+authorized work. Waiting for clarification holds no worker or provider slot.
+Unrelated Jobs continue. Earlier failures and results remain truthful history.
+
+Resuming interpretation and resuming execution are different operations.
+Conversation history supplies context. It is not a worker handle, proof of
+cleanup, permission to replay a tool, or authority to reopen an API Attempt.
+
+What exists now
+---------------
+
+The SDK's ToolConversation keeps admitted prompts, tool definitions and model
+messages in memory. Its public observation is a summary of routes, turns,
+corrections and the tool-schema hash. The shared Interpreter also holds a
+selective cross-model catalogue, bounded to 48 records and 1 MiB with eviction.
+It contains selected rejections, tool observations and unverified report
+summaries, not every model turn. InterpretationFailed retains failure objects,
+not a serializable complete conversation. Process restart loses this state.
+
+All four providers have this gap. Their protected diagnostics or interpretation
+records preserve useful selections, provenance and failure facts, but do not
+reconstruct the complete conversation after restart. Some records are produced
+only on success. A prompt hash is not the original prompt text.
+
+The compact producer checkpoint explicitly stores live control metadata and
+prepared identity digests, not durable scientific recovery state. The shared
+delivery queue stores pending terminal publication and removes published items.
+It must remain a push-only delivery boundary, not become a readable history
+database or a cross-provider archive.
+
+The API allows a Job to move between open and closed, but a failed
+ExecutionAttempt is terminal. Reusing its provider_attempt_key returns that
+same terminal Attempt. A Job description edit does not replace the immutable
+canonical JobInputDocument. Selected Upload membership can change, but the
+current Attempt does not bind an immutable historical input/upload revision.
+The unattempted-Job feed excludes Jobs previously attempted by that provider;
+reopening a Job alone is not a clarification-discovery protocol.
+
+Recommended identity: continue the analysis through a linked Attempt
+------------------------------------------------------------------
+
+Preserve the failed ExecutionAttempt and create a new linked Attempt under the
+same Job, bound to an immutable clarification revision. The interface can say
+"Continue with clarification" and show one analysis history while the protocol
+keeps each execution run distinct. Do not require users to recreate the Job.
+
+A clarification submission records its author, original failed Attempt,
+clarification text, parent input revision and the exact selected/additional
+Upload identities and relevant metadata. Preserve the original request. The
+effective input is an identified revision, not whatever mutable descriptions
+or Upload membership happen to exist when a provider later reads them.
+
+API admission binds the successor to continued_from_attempt_ref and the
+clarification revision. A stable operation identity makes repeated clicks and
+delivery retries return the same continuation rather than start duplicate work.
+Provider discovery must expose explicitly unconsumed clarification work; the
+provider must not infer a new execution grant from a description change.
+The successor is fresh admission: under the current rules the Job must be open
+and the provider currently selected. An old Attempt or accessible archive does
+not preserve a deselected provider's authority. Cancelled Jobs cannot reopen.
+
+Why not reset the old Attempt to in_progress? Existing terminal commands carry
+the Attempt reference, without a run-generation precondition. An old queued
+failure could then fail the resumed work; a late completion has the same risk.
+A client reread cannot close this race. With a new Attempt reference, the old
+terminal command remains an exact replay or conflict against the old Attempt.
+Existing one-result-per-Attempt and immutable terminal delivery still fit.
+
+If retaining the same public Attempt reference is essential, introduce an
+explicit run generation throughout start, reads, progress, terminal commands,
+receipts, results, claims, checkpoints, expiry and outbox keys. Old generationless
+mutations must not affect a reopened run. This is a larger protocol change,
+effectively a new run entity; a failed-to-in_progress flag alone is insufficient.
+
+First shared-package capability: a durable interpretation archive
+---------------------------------------------------------------
+
+Provide one versioned archive/event contract at the interpreter boundary, with
+an Attempt-scoped durable writer supplied by the provider. The SDK owns event
+meaning and ordering. Storage and access policy must be explicit; ordinary logs
+and best-effort diagnostic callbacks do not satisfy this contract.
+
+The archive must be readable on both success and failure and contain:
+
+- Stable interpretation, source Attempt, input-revision and archive identities.
+- The admitted original instructions and tool schemas, or immutable retrievable
+  content references; hashes alone are insufficient. Record SDK/provider policy
+  versions and the source/upload identities actually consumed.
+- Each model visit's configured model identity and observed revision when the
+  endpoint provides one. A mutable model alias is not a pinned model revision.
+- Ordered model-visible turns: admitted assistant messages and tool calls,
+  corresponding replies, rejections, handoffs and clarification messages.
+- The scheduler state messages added to each model request and the exact budget
+  wrappers around tool feedback, in their actual order or by immutable content
+  reference. These are part of what the model saw, even though they are not in
+  the provider's initial prompt or the conversation's stored message list.
+- Tool action identity, whether dispatch was admitted, the observed outcome,
+  and provider-owned effect/settlement facts needed to distinguish completed,
+  rejected, not-dispatched and unresolved work.
+- Final interpretation outcome and an explicit completeness/availability state.
+
+Capture events when they happen, including the failing visit, rather than
+exporting a snapshot only after success. Record an effectful call durably before
+dispatch and its actual outcome after settlement. A crash between those records
+leaves an unresolved action; absence of an outcome never proves nothing ran.
+This does not make external effects transactional or create exactly-once
+execution. The existing provider effect owner remains authoritative.
+
+Do not archive credentials, authentication headers, raw transport dumps or
+unnecessary model reasoning. Preserve the admitted visible/tool conversation,
+not a promise to extract hidden reasoning. Current deliberate erasure of unsafe
+malformed arguments must remain explicit as an omitted/rejected event; do not
+restore those bytes for the sake of claiming completeness. Private reports and
+source content remain private even after known credentials are screened.
+
+Storage, access and retention
+----------------------------
+
+A provider-private durable store on a persistent volume is the smallest useful
+first implementation: it survives process/container replacement on that host.
+The shared package should supply a consistent format and small writer/reader,
+not four unrelated journal formats. An existing suitable durable store can own
+the bytes; do not create a new daemon just to append history.
+
+That alone does not make history available to a different host or to the user.
+For portable continuation and user-facing history, the API needs an authorized
+archive reference and a retrieval route backed by retained storage. Prefer the
+existing object-storage authority if it can support private Attempt artifacts;
+this capability is not present merely because ordinary Uploads exist. Decide
+the archive's storage/retention and audience before claiming end-to-end resume.
+Do not add a read interface to the shared outbox or mount one provider's private
+archive into another provider.
+
+Separate the protected archive from two derived views: the user's permitted
+history and the model's bounded continuation context. Private failure graphs,
+credentials and operational details do not become user-visible automatically.
+Model reports remain unverified claims. Source and tool content remain untrusted
+data. Authorization follows the Job/project and the selected provider, with
+explicit expiry/deletion behavior. Original source bytes must remain available
+for the supported clarification window or be reported unavailable.
+
+Bound storage and context separately. The in-memory 1 MiB history limit is not
+an archive retention policy. Paginate or reference durable records; never silently
+evict required history while promising complete continuation. A missing or
+incomplete archive needs a visible limitation, not a fabricated reconstruction.
+
+If an archive write fails before an effectful dispatch, do not start that effect
+under a promise of resumability. If it fails after dispatch, settle/retain the
+actual work and report that continuation evidence is incomplete. Do not retry
+science to regenerate a transcript. This affects the current interpretation;
+it does not automatically stop independent Jobs. A persistently unavailable
+required archive can separately justify the existing service-availability policy.
+
+Continuation flow and SDK responsibilities
+------------------------------------------
+
+1. Finish or retire the old live owners. API expiry is not proof that a native
+   computation or reader stopped. A failed interpretation with no entered science
+   is the simplest continuation case; it is not the only possible failure class.
+2. Accept an authorized clarification revision and admit one successor Attempt.
+   The API owns eligibility, replay identity, lineage and resource limits.
+3. Load the archive bound to the predecessor and input revision. Append the new
+   clarification as new input; never overwrite the old prompt or outcome.
+4. Start a fresh interpreter owner with a fresh, bounded budget authorized by
+   this continuation. Do not reuse an expired monotonic deadline or restart the
+   exhausted ladder automatically without a new clarification/admission.
+   Archived budget/state messages remain historical evidence, not the budget
+   or scheduling instructions for the new interpretation.
+5. Supply the original request, explicit clarification and a catalogue of prior
+   records. Extend read_interpretation_records for bounded archive retrieval;
+   its current implementation reads only the current in-memory catalogue. A new model
+   must be able to revise previous interpretations; earlier scores, conclusions
+   and tool observations are not current authority. Do not require the full
+   archive to fit in one model request.
+6. Reacquire current authorization and source/worker ownership for genuinely new
+   actions. Historical tool calls are never executed merely to rebuild context.
+   Reuse prior prepared state only when the provider can establish an explicit
+   supported recovery contract; serialized Python objects are not such a contract.
+7. Publish the successor outcome under its new Attempt reference and keep both
+   runs linked. The old terminal delivery remains unchanged.
+
+Examples that distinguish history from executable state: conformer generation
+may already have produced coordinates; an Upload inspection may have acquired
+bytes and consumed a reader call; a prepared spectrum may own a single-use worker
+handle; a generation with a lost reply may have finished. Clarification neither
+refunds those effects nor proves their absence. Provider-specific reconciliation
+may permit new work, but a transcript alone cannot decide that.
+
+The SDK should offer explicit archive recording, snapshot/catalogue reading and
+construction of a new interpretation from predecessor evidence plus clarification.
+It must not acquire API authority by restoring a transcript, rerun an old object,
+or deserialize arbitrary provider handles. Keep scheduler/tool history semantics
+in the shared interpreter; providers supply scientific continuation eligibility.
+
+Archive retrieval needs stable archive-scoped record references and an authorized
+paginated reader. Current in-memory names such as record-1 restart for each
+interpretation and cannot identify predecessor records globally. Do not load the
+archive into the current evicting cache and call that restoration. Keep immutable
+archive identity separate from the bounded current-session view; missing, expired
+or inaccessible history must have explicit outcomes within the caller's authority.
+
+Questions to settle before implementing reopening
+------------------------------------------------
+
+- Is the same public Attempt reference required, or is a linked run acceptable?
+- Is a clarification directed to one provider, or a revised request for several?
+- Is one continuation allowed per clarification, or may users branch analyses?
+- Who can view full admitted model turns versus the protected archive?
+- Must continuation survive host loss, and what source/archive retention window
+  is promised? What is shown when that window expires?
+- Which failure classes permit interpretation continuation, scientific recovery,
+  or only a fresh explicitly requested run? Unknown effects need their own answer.
+- How do clarification rounds consume admission limits? The current API permits
+  five lifetime Attempts per Job/provider; a linked-run design must handle this
+  deliberately rather than assume unlimited retries.
+
+Implementation order and concrete proof
+---------------------------------------
+
+First establish the shared archive contract and durable provider integration.
+Prove a failed interpretation survives process restart with its admitted turns,
+schemas and outcome intact, and that private material stays within its audience.
+This is useful independently but must not be advertised as complete resumption.
+
+Next implement API clarification revisions, lineage/admission/discovery and
+authorized archive retrieval, together with the user-facing continuation action.
+Then integrate provider eligibility and reconstruction using new owners. Prove
+that repeating a clarification submission does not start duplicate work, a late
+old terminal message cannot affect the successor, and a crash after tool entry
+does not trigger replay. A restored model context must not itself invoke tools.
+
+These are the consequential boundaries. Do not build a generic workflow engine,
+an unbounded event bus, speculative migrations, or a second scientific validator.
+
+Code anchors for this proposal
+-----------------------------
+
+Shared repository:
+  packages/provider-core/src/provider_core/conversation.py
+  packages/provider-core/src/provider_core/interpreter.py
+  packages/provider-core/src/provider_core/producer_checkpoint.py
+  packages/provider-core/src/provider_core/delivery_store.py
+  packages/provider-core/src/provider_core/delivery_worker.py
+
+API repository:
+  nmr_api/operations/execution_attempt_lifecycle.py
+  nmr_api/operations/execution_attempt_start.py
+  nmr_api/operations/execution_attempt_outcome.py
+  nmr_api/operations/job_lifecycle.py
+  nmr_api/operations/provider_job_input_read_service.py
+  nmr_api/operations/job_upload_set.py
+  nmr_api/operations/provider_job_feed_service.py
