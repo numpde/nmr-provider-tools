@@ -314,7 +314,20 @@ can use its model window. The 10-second setup cap covers DNS, TCP or Unix, CONNE
 and TLS together; cleanup remains independently observed.
 
 Composition supplies synchronous endpoint factories, original messages, the
-provider's existing tool schemas, and its async dispatch:
+provider's existing tool schemas, and its async dispatch. Both
+`dispatch(name, arguments, *, not_after)` and optional
+`describe_constraints(tool, field, *, not_after)` receive the current fixed
+absolute monotonic model deadline. Inspection uses it without resetting time;
+admitted preparation retains its separate provider work deadline. Do not wrap
+all dispatch in the model timeout or treat `ToolFinished(None)` as rejection.
+
+A provider may raise `ModelWindowExpired` only after a timed-out inspection has
+settled enough to permit another model. The SDK then retires the model before
+advancing. Ordinary provider timeouts, scientific failures and uncertain cleanup
+still propagate without fallback. Neither the deadline nor this API retires
+provider work on the caller's behalf.
+
+Composition example:
 
 ```python
 from provider_core.chat import ChatEndpoint
@@ -352,6 +365,9 @@ If model cleanup fails after preparation was accepted, `accepted_result` retains
 that exact preparation on the interpreter. Read it after settling the retained
 resources; its presence proves neither model-I/O retirement nor execution
 permission, and it does not authorize repeating preparation.
+`failures` exposes model failures observed so far, including inside provider
+callbacks before scientific effects and after retirement. It projects the same
+owned facts as a result's failures without a second diagnostic store.
 `correction_failures` on the interpreter, successful result and exhaustion error
 retains `(model_visit, logical_turn, original_error)` tuples, including protocol
 repairs before provider dispatch. The interpreter property remains readable after
@@ -363,9 +379,11 @@ Provider dispatch exceptions propagate immediately, leaving `retire()` with the
 caller. This permits prompt reporting of an established native crash while an
 owned cleanup task is separately joined. Normal success and model transitions
 settle retirement inside `run()`; a foreign scientific exception never escalates.
-For a model's unverified input-problem report, dispatch raises the shared
-`ModelReportedInputProblem`: this immediately advances to the next model after
-retirement and records the claim as unverified history. It is not `ToolFinished`,
+For the provider's `report_interpretation_problem` tool, dispatch raises
+`ModelReportedInterpretationProblem(model_summary=safe_summary)` from its original
+protected report cause. This immediately advances after retirement and records
+only the explicit summary as unverified history. Raw report arguments are omitted
+from history even when malformed report fields receive correction. It is not `ToolFinished`,
 and agreement among models does not establish scientific input invalidity.
 Internally this is a normal `ToolHandoff` decision; the original claim remains in
 protected attempt diagnostics without inventing a failed model request.
@@ -377,7 +395,8 @@ control back to the model chooser. Tool names come from the supplied definitions
 and are checked before entering provider code; scientific argument validation
 remains with that provider.
 
-The module adds two information tools: `describe_input_constraints` reads the
+Two ordinary tool objects bind each shared definition to its invocation;
+advertisement and routing derive from those same objects. The module adds two information tools: `describe_input_constraints` reads the
 actual supplied schemas (or an async provider-owned `describe_constraints`
 accessor), and `read_interpretation_records` reads captured proposal/rejection
 pairs and tool observations. Each model receives a compact catalogue and current

@@ -5,7 +5,7 @@ import json
 import unittest
 from copy import deepcopy
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import ANY, AsyncMock, patch
 
 from provider_core.chat_errors import ChatFailed
 from provider_core.conversation import ConversationFailed, ConversationRetirementFailed, ToolFinished, ToolRejected, ToolReply
@@ -17,7 +17,7 @@ TOOLS = [{"type": "function", "function": {"name": "prepare", "parameters": {
     "type": "object", "properties": {"verbosity": {"type": "string", "enum": ["quiet", "full"]}},
     "required": ["verbosity"]}}},
     {"type": "function", "function": {"name": "inspect", "parameters": {"type": "object"}}},
-    {"type": "function", "function": {"name": "report_input_problem", "parameters": {"type": "object"}}},
+    {"type": "function", "function": {"name": "report_interpretation_problem", "parameters": {"type": "object"}}},
 ]
 
 
@@ -127,7 +127,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             return await original_complete(messages, tools, **kwargs)
 
         good.complete = AsyncMock(side_effect=complete)
-        async def dispatch(name, args):
+        async def dispatch(name, args, *, not_after):
             if args["verbosity"] == "invalid":
                 raise ToolRejected("Use a supported verbosity; the source remains valid.")
             return ToolFinished(args)
@@ -148,13 +148,13 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         reply = feedback(model.complete.await_args_list[-1].args[0])["value"]
         self.assertEqual(reply["schema"]["enum"], ["quiet", "full"])
         self.assertTrue(reply["required"])
-        dispatch.assert_awaited_once_with("prepare", {"verbosity": "quiet"})
+        dispatch.assert_awaited_once_with("prepare", {"verbosity": "quiet"}, not_after=ANY)
 
     async def test_dynamic_constraints_remain_provider_owned(self):
         model = endpoint("fixture", call("query", "describe_input_constraints", {"tool": "prepare"}), call("done", "prepare", {}))
         describe = AsyncMock(return_value={"available_sources": ["source-1"]})
         await interpreter(model).run([], TOOLS, AsyncMock(return_value=ToolFinished("ready")), describe_constraints=describe)
-        describe.assert_awaited_once_with("prepare", None)
+        describe.assert_awaited_once_with("prepare", None, not_after=ANY)
         self.assertEqual(feedback(model.complete.await_args_list[-1].args[0])["value"], {"available_sources": ["source-1"]})
 
     async def test_history_reads_captured_observation_without_repeating_live_inspection(self):
@@ -320,7 +320,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         dispatch = AsyncMock(return_value=ToolFinished("ready"))
         with patch("provider_core.interpreter._now", side_effect=lambda: clock[0]):
             await interpreter(first, second).run([], TOOLS, dispatch)
-        dispatch.assert_awaited_once_with("prepare", {})
+        dispatch.assert_awaited_once_with("prepare", {}, not_after=ANY)
         self.assertEqual(first.complete.await_count, 1)
         self.assertEqual(second.complete.await_count, 1)
 
@@ -346,7 +346,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
     async def test_accepted_preparation_is_not_replayed_if_it_finishes_after_model_window(self):
         clock = [100.0]
         first, second = endpoint("first", call("prepare", "prepare", {})), endpoint("unused")
-        async def dispatch(name, arguments):
+        async def dispatch(name, arguments, *, not_after):
             clock[0] += 200
             return ToolFinished("prepared")
         with patch("provider_core.interpreter._now", side_effect=lambda: clock[0]):
@@ -359,9 +359,19 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         first = endpoint("first", earlier)
         second = endpoint("second", call("prepare", "prepare", {}))
         scientific = RuntimeError("Scientific operation failed.")
+        owner = interpreter(first, second)
+        observed_before_effects = []
+
+        async def dispatch(name, arguments, *, not_after):
+            observed_before_effects.extend(owner.failures)
+            raise scientific
+
         with self.assertRaises(RuntimeError) as caught:
-            await interpreter(first, second).run([], TOOLS, AsyncMock(side_effect=scientific))
+            await owner.run([], TOOLS, dispatch)
         self.assertIs(caught.exception, scientific)
+        self.assertTrue(any(cause is earlier for _, cause in observed_before_effects))
+        await owner.retire()
+        self.assertTrue(any(cause is earlier for _, cause in owner.failures))
         context = scientific.__cause__
         self.assertIsInstance(context, ConversationFailed)
         self.assertTrue(any(cause is earlier for _, cause in context.endpoint_failures))
@@ -409,12 +419,12 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(owner.correction_failures, result.correction_failures)
 
     async def test_unverified_model_input_problem_advances_without_finishing_or_invalidating_job(self):
-        from provider_core.interpreter import ModelReportedInputProblem
-        first = endpoint("first", call("claim", "report_input_problem", {"detail": "Cannot encode this source."}))
+        from provider_core.interpreter import ModelReportedInterpretationProblem
+        first = endpoint("first", call("claim", "report_interpretation_problem", {"detail": "Cannot encode this source."}))
         second = endpoint("second", call("prepare", "prepare", {}))
-        async def dispatch(name, arguments):
-            if name == "report_input_problem":
-                raise ModelReportedInputProblem("The model could not interpret the source; invalidity is not established.")
+        async def dispatch(name, arguments, *, not_after):
+            if name == "report_interpretation_problem":
+                raise ModelReportedInterpretationProblem(model_summary="The model could not interpret the source; invalidity is not established.")
             return ToolFinished("prepared")
         result = await interpreter(first, second).run([], TOOLS, dispatch)
         self.assertEqual(result.value, "prepared")
@@ -422,7 +432,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(second.complete.await_count, 1)
         self.assertEqual(result.correction_failures, ())
         catalogue = state(second.complete.await_args.args[0])["history"]
-        self.assertEqual(catalogue["records"][0]["kind"], "unverified_input_problem")
+        self.assertEqual(catalogue["records"][0]["kind"], "unverified_interpretation_problem")
         first.retire.assert_awaited()
 
     async def test_endpoint_construction_time_consumes_its_existing_model_window(self):
@@ -486,7 +496,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             captures.append(deepcopy(messages))
             return await original(messages, tools, **kwargs)
 
-        async def dispatch(name, arguments):
+        async def dispatch(name, arguments, *, not_after):
             if name == "inspect":
                 arguments.pop("source")
                 arguments["selection"].append(3)
@@ -588,7 +598,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         )
         dispatch = AsyncMock(return_value=ToolFinished("ready"))
         result = await interpreter(model).run([], TOOLS, dispatch)
-        dispatch.assert_awaited_once_with("prepare", {"verbosity": "quiet"})
+        dispatch.assert_awaited_once_with("prepare", {"verbosity": "quiet"}, not_after=ANY)
         self.assertEqual(result.value, "ready")
         self.assertEqual(len(result.correction_failures), 1)
 
@@ -619,10 +629,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(state(captures[1])["budget"]["turns_remaining"], 10)
 
     async def test_handoff_is_not_accepted_preparation_and_waits_for_retirement(self):
-        from provider_core.interpreter import ModelReportedInputProblem
+        from provider_core.interpreter import ModelReportedInterpretationProblem
         entered, release = asyncio.Event(), asyncio.Event()
-        report = ModelReportedInputProblem("This model could not interpret the source.")
-        first = endpoint("first", call("report", "report_input_problem", {}))
+        report = ModelReportedInterpretationProblem(model_summary="This model could not interpret the source.")
+        first = endpoint("first", call("report", "report_interpretation_problem", {}))
         second = endpoint("second", call("prepare", "prepare", {}))
 
         async def retire():
@@ -646,11 +656,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIn("failure", json.loads(result.observations[0])["routes"][0])
 
     async def test_unverified_reports_remain_claims_when_the_model_ladder_is_exhausted(self):
-        from provider_core.interpreter import ModelReportedInputProblem
-        reports = [ModelReportedInputProblem("First model declined."),
-                   ModelReportedInputProblem("Second model declined.")]
-        first = endpoint("first", call("first-report", "report_input_problem", {}))
-        second = endpoint("second", call("second-report", "report_input_problem", {}))
+        from provider_core.interpreter import ModelReportedInterpretationProblem
+        reports = [ModelReportedInterpretationProblem(model_summary="First model declined."),
+                   ModelReportedInterpretationProblem(model_summary="Second model declined.")]
+        first = endpoint("first", call("first-report", "report_interpretation_problem", {}))
+        second = endpoint("second", call("second-report", "report_interpretation_problem", {}))
         owner = interpreter(first, second)
         with self.assertRaises(InterpretationFailed) as caught:
             await owner.run([], TOOLS, AsyncMock(side_effect=reports))
@@ -658,3 +668,131 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(owner.accepted_result)
         self.assertEqual(caught.exception.correction_failures, ())
         self.assertTrue(owner.retirement_confirmed)
+
+    async def test_report_history_excludes_private_arguments_but_retains_protected_cause(self):
+        from provider_core.failure_projection import owned_details
+        from provider_core.interpreter import ModelReportedInterpretationProblem
+
+        for final_report in (False, True):
+            with self.subTest(exhaustion=final_report):
+                private = "PRIVATE_REPORT_CANARY"
+                original = RuntimeError(private)
+                report = ModelReportedInterpretationProblem(model_summary="This model could not choose an input.")
+                first = endpoint(
+                    "first",
+                    call("malformed", "report_interpretation_problem", {"message": private, "extra": True}),
+                    call("report", "report_interpretation_problem", {"message": private}),
+                )
+                second = endpoint(
+                    "second",
+                    call("history", "read_interpretation_records", {
+                        "records": [{"ref": "record-1"}, {"ref": "record-2"}],
+                    }),
+                    call("final", "report_interpretation_problem" if final_report else "prepare", {}),
+                )
+
+                async def dispatch(name, arguments, *, not_after):
+                    if "extra" in arguments:
+                        raise ToolRejected("Use only the report fields supplied in the schema.")
+                    if name == "report_interpretation_problem":
+                        raise report from original
+                    return ToolFinished(None)
+
+                owner = interpreter(first, second)
+                if final_report:
+                    with self.assertRaises(InterpretationFailed) as caught:
+                        await owner.run([], TOOLS, dispatch)
+                    failures = caught.exception.failures
+                    self.assertIsNone(owner.accepted_result)
+                else:
+                    result = await owner.run([], TOOLS, dispatch)
+                    self.assertIsNone(result.value)
+                    self.assertIsNotNone(owner.accepted_result)
+                    failures = result.failures
+                await owner.retire()
+                self.assertIs(failures[0][1], report)
+                self.assertIs(report.__cause__, original)
+                self.assertEqual(owned_details(report)["message"], report.model_summary)
+                for request in second.complete.await_args_list:
+                    self.assertNotIn(private, json.dumps(request.args))
+                records = feedback(second.complete.await_args.args[0])["value"]["records"]
+                for record in records:
+                    self.assertNotIn("arguments", json.loads(record["json_text"]))
+                self.assertEqual(json.loads(records[1]["json_text"])["claim"], report.model_summary)
+
+    async def test_settled_inspection_expiry_advances_only_after_provider_and_model_cleanup(self):
+        from provider_core.interpreter import ModelWindowExpired
+
+        for through_constraints in (False, True):
+            with self.subTest(constraints=through_constraints):
+                entered, settled = asyncio.Event(), asyncio.Event()
+                events = []
+                action = ("describe_input_constraints", {"tool": "prepare"}) if through_constraints else ("inspect", {})
+                first = endpoint("first", call("inspect", *action))
+                second = endpoint("second", call("done", "prepare", {}))
+                expired = ModelWindowExpired()
+
+                async def inspect(*args, not_after):
+                    self.assertEqual(not_after, first.complete.await_args.kwargs["not_after"])
+                    entered.set()
+                    await settled.wait()
+                    events.append("provider settled")
+                    raise expired
+
+                async def dispatch(name, arguments, *, not_after):
+                    if name == "inspect":
+                        return await inspect(not_after=not_after)
+                    events.append("prepare")
+                    return ToolFinished(None)
+
+                first.retire.side_effect = lambda: events.append("model retired")
+                owner = interpreter(first, second)
+                running = asyncio.create_task(owner.run(
+                    [], TOOLS, dispatch, describe_constraints=inspect if through_constraints else None,
+                ))
+                await asyncio.wait_for(entered.wait(), 2)
+                try:
+                    self.assertFalse(hasattr(second, "grant"))
+                    first.retire.assert_not_awaited()
+                finally:
+                    settled.set()
+                result = await running
+                self.assertIsNone(result.value)
+                self.assertEqual(events, ["provider settled", "model retired", "prepare"])
+                self.assertIs(result.failures[0][1].__cause__, expired)
+
+    async def test_independent_inspection_timeout_is_not_a_model_window_signal(self):
+        first = endpoint("first", call("inspect", "inspect", {}))
+        second = endpoint("unused", call("unexpected", "prepare", {}))
+        failure = TimeoutError("Scientific reader did not settle.")
+        owner = interpreter(first, second)
+        with self.assertRaises(TimeoutError) as caught:
+            await owner.run([], TOOLS, AsyncMock(side_effect=failure))
+        self.assertIs(caught.exception, failure)
+        self.assertFalse(hasattr(second, "grant"))
+        first.retire.assert_not_awaited()
+        await owner.retire()
+
+    async def test_deadline_grant_does_not_cancel_late_none_valued_acceptance(self):
+        clock = [100.0]
+        first = endpoint("first", call("prepare", "prepare", {}))
+        second = endpoint("unused")
+        first.retire.side_effect = OSError("Model retirement failed.")
+        prepared = []
+
+        async def dispatch(name, arguments, *, not_after):
+            self.assertEqual(not_after, 220)
+            prepared.append(object())
+            clock[0] = 230
+            return ToolFinished(None)
+
+        owner = interpreter(first, second)
+        with patch("provider_core.interpreter._now", side_effect=lambda: clock[0]):
+            with self.assertRaises(ConversationRetirementFailed):
+                await owner.run([], TOOLS, dispatch)
+        self.assertIsNotNone(owner.accepted_result)
+        self.assertIsNone(owner.accepted_result.value)
+        self.assertEqual(len(prepared), 1)
+        self.assertFalse(hasattr(second, "grant"))
+        first.retire.side_effect = None
+        await owner.retire()

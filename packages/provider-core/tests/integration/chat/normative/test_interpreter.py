@@ -3,7 +3,7 @@
 import asyncio
 import json
 import unittest
-from unittest.mock import AsyncMock
+from unittest.mock import ANY, AsyncMock
 
 import httpx
 
@@ -45,7 +45,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(result.value, "prepared")
             self.assertEqual(len(peer.requests), 3)
             self.assertEqual(json.loads(result.observations[0])["turns_started"], 2)
-            dispatch.assert_awaited_once_with("prepare", {"format": "text"})
+            dispatch.assert_awaited_once_with("prepare", {"format": "text"}, not_after=ANY)
             self.assertTrue(owner.retirement_confirmed)
 
     async def test_setup_cap_does_not_become_a_response_timeout_direct_or_through_proxy(self):

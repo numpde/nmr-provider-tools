@@ -38,7 +38,7 @@ class NativeInstallationTests(unittest.TestCase):
         from tests.fakes.conversation import call, endpoint
 
         async def run():
-            model = endpoint("native", call("report", "report_input_problem", {}))
+            model = endpoint("native", call("report", "report_interpretation_problem", {}))
             reason = ToolRejected("This model needs to hand the decision back to its caller.")
             conversation = ToolConversation((model,), max_turns=1, secrets=())
             async def dispatch(name, arguments):
@@ -64,7 +64,7 @@ class NativeInstallationTests(unittest.TestCase):
             model = endpoint("native", call("selected", "prepare", {}))
             owner = Interpreter((lambda **grant: model,), timeout_seconds=30,
                                 context_bytes=16384, secrets=())
-            async def dispatch(name, arguments):
+            async def dispatch(name, arguments, *, not_after):
                 return ToolFinished("accepted")
             tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
             self.assertEqual((await owner.run([], tools, dispatch)).value, "accepted")

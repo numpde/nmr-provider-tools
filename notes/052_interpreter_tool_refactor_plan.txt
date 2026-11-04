@@ -1,7 +1,7 @@
 Shared interpreter tool refactor plan
 ====================================
 
-Status: design for review; implementation has not started.
+Status: implementation underway; SDK and provider integration are not yet jointly qualified.
 Scope: one shared interpreter module and a coordinated migration of Magnet,
 NMRPeak, NMRNet and SECS. Implement and qualify these as separate coherent slices;
 SDK completion alone does not complete the joint workflow.
@@ -210,7 +210,10 @@ before ToolFinished proves no SDK acceptance, even if the provider must retain
 partially completed work. Never infer absence of effects or permission to replay.
 
 A timeout does not prove worker retirement. The provider must preserve the real
-settlement owner; its exceptions still propagate without arbitrary fallback.
+settlement owner. After inspection actually expires and settles, it may raise
+ModelWindowExpired to permit ordinary model advancement after model-I/O
+retirement. Ordinary TimeoutError, ConversationFailed and independent cleanup
+failures remain provider failures, not signals to advance.
 A narrower callback signature is an intentional new API change: update local
 fixtures and each adopting adapter together, not a signature-probing fallback.
 

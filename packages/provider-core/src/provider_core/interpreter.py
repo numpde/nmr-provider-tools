@@ -17,7 +17,7 @@ import math
 import random
 import time
 from collections import OrderedDict
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import timezone
@@ -53,11 +53,21 @@ _RETRYABLE_STATUSES = {408, 429, 500, 502, 503, 504}
 # Tool documents are provider-defined JSON; this module owns their envelopes,
 # not the scientific fields inside them.
 type Document = dict[str, Any]
-type ToolDispatch = Callable[[str, Document], Awaitable[ToolReply | ToolFinished]]
-type ConstraintReader = Callable[[str, str | None], Awaitable[object]]
 type ModelFailure = tuple[int, BaseException]
 type CorrectionFailure = tuple[int, int, BaseException]
-type RecordKind = Literal["rejected_proposal", "tool_observation", "unverified_input_problem"]
+type RecordKind = Literal["rejected_proposal", "tool_observation", "unverified_interpretation_problem"]
+
+
+class ToolDispatch(Protocol):
+    async def __call__(
+        self, name: str, arguments: Document, *, not_after: float
+    ) -> ToolReply | ToolFinished: ...
+
+
+class ConstraintReader(Protocol):
+    async def __call__(
+        self, tool: str, field: str | None, *, not_after: float
+    ) -> object: ...
 
 
 class ModelEndpoint(Protocol):
@@ -97,8 +107,20 @@ class InterpretationFailed(ConversationFailed):
         self.correction_failures = tuple(correction_failures)
 
 
-class ModelReportedInputProblem(ToolRejected):
-    """A safe, unverified model claim: escalate, without declaring the Job invalid."""
+class ModelReportedInterpretationProblem(Exception):
+    """Hand off an unverified claim; keep private report details in its cause."""
+
+    def __init__(self, *, model_summary: str):
+        super().__init__(model_summary)
+        self.model_summary = model_summary
+
+
+class ModelWindowExpired(Exception):
+    """The provider settled expired inspection; another model may be considered.
+
+    Raise only after work admitted under not_after has settled. A timeout alone
+    does not grant this signal, and it never cancels or rolls back preparation.
+    """
 
 
 class Interpreter:
@@ -107,7 +129,7 @@ class Interpreter:
     A factory receives the selected model's exchange_seconds and the SDK's short
     connect_seconds. Provider dispatch returns ToolReply for inspection and
     ToolFinished for accepted preparation; ToolRejected requests repair, while
-    ModelReportedInputProblem advances an unverified claim to the next model.
+    ModelReportedInterpretationProblem advances an unverified claim to the next model.
     Scientific exceptions propagate without fallback. Preparation is never replayed.
 
     Normal completion and model transitions observe I/O retirement. On a provider
@@ -151,6 +173,11 @@ class Interpreter:
     def retirement_confirmed(self) -> bool:
         """Confirm model I/O only; the caller still owns run-task/science settlement."""
         return all(visit.retirement_confirmed for visit in self._visits)
+
+    @property
+    def failures(self) -> tuple[ModelFailure, ...]:
+        """Protected failures observed so far, including before scientific effects."""
+        return self._failures()
 
     @property
     def correction_failures(self) -> tuple[CorrectionFailure, ...]:
@@ -208,7 +235,7 @@ class Interpreter:
         self._used = True
         _no_secrets((messages, tools), self._secrets)
         original = json.loads(_encode(messages))
-        toolset = _Tools(tools, dispatch=dispatch, describe=describe_constraints)
+        provider_tools = _ProviderTools(tools, dispatch=dispatch, describe=describe_constraints)
         deadline = _now() + self.timeout_seconds
         if not_after is not None:
             if type(not_after) not in (int, float) or not math.isfinite(not_after):
@@ -224,12 +251,12 @@ class Interpreter:
                     break
                 window = remaining / (len(self._factories) - index)
                 model_deadline = now + window
-                endpoint = factory(exchange_seconds=window, connect_seconds=CONNECT_SECONDS)
                 visit = _ModelVisit(
-                    endpoint,
+                    factory,
+                    exchange_seconds=window,
                     number=index + 1,
                     deadline=model_deadline,
-                    tools=toolset,
+                    tools=provider_tools,
                     history=self._history,
                     stopped=self._stopped,
                     context_bytes=self.context_bytes,
@@ -319,46 +346,6 @@ def _tool(
             },
         },
     }
-
-
-_INFORMATION_TOOLS = (
-    _tool(
-        "describe_input_constraints",
-        "Read the provider's input schema. Allowed values do not establish suitability for the original source. "
-        "Imperative or dynamic restrictions may require the provider's other tools.",
-        {
-            "tool": {"type": "string"},
-            "field": {
-                "type": "string",
-                "description": "Optional dot-separated property path; omit to read the complete input schema.",
-            },
-        },
-        ["tool"],
-    ),
-    _tool(
-        "read_interpretation_records",
-        "Read immutable historical records from this interpretation's catalogue. This performs no live inspection. "
-        "Partial JSON text must be assembled before parsing; a record is not proof of current source validity.",
-        {
-            "records": {
-                "type": "array",
-                "minItems": 1,
-                "maxItems": 8,
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "ref": {"type": "string"},
-                        "cursor": {"type": "integer", "minimum": 0},
-                    },
-                    "required": ["ref"],
-                    "additionalProperties": False,
-                },
-            },
-        },
-        ["records"],
-    ),
-)
-_INFORMATION_NAMES = {tool["function"]["name"] for tool in _INFORMATION_TOOLS}
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -491,30 +478,38 @@ class _History:
         return record.page(cursor, low)
 
 
-class _Tools:
-    """Keep discovery tied to the exact schemas and callbacks granted by a provider."""
+class _InformationTool(Protocol):
+    @property
+    def definition(self) -> Document: ...
 
-    def __init__(
-        self, definitions: list[Document], dispatch: ToolDispatch, describe: ConstraintReader | None
-    ):
-        provider_tools = json.loads(_encode(definitions))
-        self._schemas = {
-            tool["function"]["name"]: tool["function"]["parameters"] for tool in provider_tools
-        }
-        if _INFORMATION_NAMES.intersection(self._schemas):
-            raise ValueError(
-                "Cannot compose interpreter tools: a provider tool uses a reserved information-tool name."
-            )
-        self.definitions = [*provider_tools, *json.loads(_encode(_INFORMATION_TOOLS))]
-        self._dispatch = dispatch
-        self._describe = describe
+    async def invoke(self, arguments: Document, *, not_after: float) -> ToolReply: ...
 
-    async def dispatch(self, name: str, arguments: Document) -> ToolReply | ToolFinished:
-        if name not in self._schemas:
-            raise ToolRejected("Choose a tool from the supplied definitions; this tool was not run.")
-        return await self._dispatch(name, arguments)
 
-    async def describe(self, arguments: Document) -> object:
+class _DescribeInputConstraints:
+    """Discover the provider's actual schema or explicitly granted live metadata."""
+
+    def __init__(self, schemas: dict[str, Document], reader: ConstraintReader | None):
+        self._schemas = schemas
+        self._reader = reader
+
+    @property
+    def definition(self) -> Document:
+        return _tool(
+            "describe_input_constraints",
+            "Read the provider's declared schema or supplied dynamic constraints. "
+            "Allowed values do not establish suitability for the original source. "
+            "Static lookup follows simple property paths, not arbitrary schema references.",
+            {
+                "tool": {"type": "string"},
+                "field": {
+                    "type": "string",
+                    "description": "Optional dot-separated property path; omit for the complete input schema.",
+                },
+            },
+            ["tool"],
+        )
+
+    async def invoke(self, arguments: Document, *, not_after: float) -> ToolReply:
         name, path = arguments.get("tool"), arguments.get("field")
         if (
             set(arguments) - {"tool", "field"}
@@ -523,8 +518,8 @@ class _Tools:
             or (path is not None and (not isinstance(path, str) or not path))
         ):
             raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
-        if self._describe is not None:
-            return await self._describe(name, path)
+        if self._reader is not None:
+            return ToolReply(await self._reader(name, path, not_after=not_after))
 
         schema = self._schemas[name]
         result = {
@@ -532,7 +527,7 @@ class _Tools:
             "scope": "declared schema; additional provider rules may apply",
         }
         if path is None:
-            return {**result, "schema": schema}
+            return ToolReply({**result, "schema": schema})
         parent = schema
         required = False
         for part in path.split("."):
@@ -544,13 +539,83 @@ class _Tools:
                 )
             schema = properties[part]
             required = part in parent.get("required", [])
-        return {
+        return ToolReply({
             **result,
             "field": path,
             "schema": schema,
             "required": required,
             "parent_schema": parent,
+        })
+
+
+class _ReadInterpretationRecords:
+    """Read captured evidence through the visit's complete-context byte budget."""
+
+    def __init__(self, read: Callable[[Document], Document]):
+        self._read = read
+
+    @property
+    def definition(self) -> Document:
+        return _tool(
+            "read_interpretation_records",
+            "Read immutable historical records from this interpretation's catalogue. "
+            "This performs no live inspection. Partial JSON text must be assembled before parsing; "
+            "a record is not proof of current source validity.",
+            {
+                "records": {
+                    "type": "array", "minItems": 1, "maxItems": 8,
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "ref": {"type": "string"},
+                            "cursor": {"type": "integer", "minimum": 0},
+                        },
+                        "required": ["ref"], "additionalProperties": False,
+                    },
+                },
+            },
+            ["records"],
+        )
+
+    async def invoke(self, arguments: Document, *, not_after: float) -> ToolReply:
+        return ToolReply(self._read(arguments))
+
+
+class _ProviderTools:
+    """Capture the provider's declared capabilities once per interpretation."""
+
+    def __init__(
+        self, definitions: list[Document], dispatch: ToolDispatch, describe: ConstraintReader | None
+    ):
+        self.definitions = json.loads(_encode(definitions))
+        self.schemas = {
+            tool["function"]["name"]: tool["function"]["parameters"] for tool in self.definitions
         }
+        self.dispatch = dispatch
+        self.describe = describe
+
+
+class _Tools:
+    """Derive advertised information tools and dispatch from the same instances."""
+
+    def __init__(self, provider: _ProviderTools, information: tuple[_InformationTool, ...]):
+        self.provider = provider
+        self.information: dict[str, _InformationTool] = {}
+        self.definitions = list(provider.definitions)
+        for tool in information:
+            definition = tool.definition
+            name = definition["function"]["name"]
+            if name in provider.schemas or name in self.information:
+                raise ValueError(
+                    "Cannot compose interpreter tools: an information-tool name is already in use."
+                )
+            self.information[name] = tool
+            self.definitions.append(definition)
+
+    async def dispatch(self, name: str, arguments: Document, *, not_after: float) -> ToolReply | ToolFinished:
+        if name not in self.provider.schemas:
+            raise ToolRejected("Choose a tool from the supplied definitions; this tool was not run.")
+        return await self.provider.dispatch(name, arguments, not_after=not_after)
 
 
 def _retryable(failure: ChatFailed) -> bool:
@@ -601,20 +666,19 @@ class _ModelVisit:
 
     def __init__(
         self,
-        endpoint: ModelEndpoint,
+        factory: EndpointFactory,
         *,
+        exchange_seconds: float,
         number: int,
         deadline: float,
-        tools: _Tools,
+        tools: _ProviderTools,
         history: _History,
         stopped: asyncio.Event,
         context_bytes: int,
         secrets: tuple[str, ...],
     ):
-        self._endpoint = endpoint
         self.number = number
         self._deadline = deadline
-        self._tools = tools
         self._history = history
         self._stopped = stopped
         self._context_bytes = context_bytes
@@ -622,6 +686,23 @@ class _ModelVisit:
         self.provider_failure: Exception | None = None
         self.outcome: ConversationResult | ConversationHandoff | None = None
         self.http_failures: list[ChatFailed] = []
+        reader = tools.describe
+        guarded_reader = None
+        if reader is not None:
+            async def guarded_reader(name: str, field: str | None, *, not_after: float) -> object:
+                try:
+                    return await reader(name, field, not_after=not_after)
+                except (ToolRejected, ModelWindowExpired):
+                    raise
+                except Exception as failure:
+                    self.provider_failure = failure
+                    raise
+
+        self._tools = _Tools(tools, (
+            _DescribeInputConstraints(tools.schemas, guarded_reader),
+            _ReadInterpretationRecords(self._read_history),
+        ))
+        self._endpoint = factory(exchange_seconds=exchange_seconds, connect_seconds=CONNECT_SECONDS)
         self.conversation = ToolConversation(
             (self,),
             max_turns=MODEL_TURNS,
@@ -735,36 +816,40 @@ class _ModelVisit:
     async def _dispatch(self, name: str, arguments: Document) -> ToolReply | ToolFinished | ToolHandoff:
         if _now() >= self._deadline:
             raise ConversationFailed("Cannot dispatch interpreter tool: this model's time allocation expired.")
-        if name == "read_interpretation_records":
-            outcome = ToolReply(self._read_history(arguments))
-        elif name == "describe_input_constraints":
-            try:
-                outcome = ToolReply(await self._tools.describe(arguments))
-            except ToolRejected:
-                raise
-            except Exception as failure:
-                self.provider_failure = failure
-                raise
-        else:
-            outcome = await self._dispatch_provider(name, arguments)
+        try:
+            information_tool = self._tools.information.get(name)
+            if information_tool is not None:
+                outcome = await information_tool.invoke(arguments, not_after=self._deadline)
+            else:
+                outcome = await self._dispatch_provider(name, arguments)
+        except ModelWindowExpired as expired:
+            raise ConversationFailed(
+                "This model's inspection window expired after provider work settled.", cause=expired,
+            ) from expired
         if type(outcome) is ToolReply:
             return ToolReply(self._feedback(outcome.value, self.budget()))
         return outcome
 
     async def _dispatch_provider(self, name: str, arguments: Document) -> ToolReply | ToolFinished | ToolHandoff:
-        submitted_arguments = deepcopy(arguments)
+        # Reports may contain provider-private explanations, even when rejected.
+        captured_arguments = (
+            {} if name == "report_interpretation_problem"
+            else {"arguments": deepcopy(arguments)}
+        )
         try:
-            outcome = await self._tools.dispatch(name, arguments)
-        except ModelReportedInputProblem as report:
+            outcome = await self._tools.dispatch(name, arguments, not_after=self._deadline)
+        except ModelReportedInterpretationProblem as report:
             self._history.remember(
-                self.number, "unverified_input_problem", name,
-                {"arguments": submitted_arguments, "claim": str(report)},
+                self.number, "unverified_interpretation_problem", name,
+                {"claim": report.model_summary},
             )
             return ToolHandoff(report)
+        except ModelWindowExpired:
+            raise
         except ToolRejected as rejection:
             self._history.remember(
                 self.number, "rejected_proposal", name,
-                {"arguments": submitted_arguments, "rejection": str(rejection)},
+                {**captured_arguments, "rejection": str(rejection)},
             )
             raise
         except Exception as failure:
@@ -773,6 +858,6 @@ class _ModelVisit:
         if type(outcome) is ToolReply:
             self._history.remember(
                 self.number, "tool_observation", name,
-                {"arguments": submitted_arguments, "value": outcome.value},
+                {**captured_arguments, "value": outcome.value},
             )
         return outcome
