@@ -18,6 +18,7 @@ import random
 import time
 from collections import OrderedDict
 from collections.abc import Awaitable, Callable
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import timezone
 from email.utils import parsedate_to_datetime
@@ -43,7 +44,8 @@ HTTP_ATTEMPTS = 2
 CONNECT_SECONDS = 10
 HISTORY_BYTES = 1024 * 1024
 HISTORY_RECORDS = 48
-_FEEDBACK_RESERVE_BYTES = 4096
+# Two remaining-time floats may change decimal length before the next request.
+_CLOCK_ENCODING_RESERVE_BYTES = 64
 _RETRYABLE_STATUSES = {408, 429, 500, 502, 503, 504}
 
 # Tool documents are provider-defined JSON; this module owns their envelopes,
@@ -157,6 +159,25 @@ class Interpreter:
             for turn, error in visit.conversation.correction_failures
         )
 
+    @property
+    def accepted_result(self) -> InterpretationResult | None:
+        """Retain accepted preparation even if subsequent model cleanup fails.
+
+        This is a protected result handoff, not proof of model-I/O retirement or
+        permission to execute. The caller still owns resource settlement.
+        """
+        if not self._visits or self._visits[-1].result is None:
+            return None
+        return self._result(self._visits[-1].result)
+
+    def _result(self, result: ConversationResult) -> InterpretationResult:
+        return InterpretationResult(
+            value=result.value,
+            observations=tuple(visit.conversation.observation for visit in self._visits),
+            failures=self._failures(),
+            correction_failures=self.correction_failures,
+        )
+
     def _failures(self) -> tuple[ModelFailure, ...]:
         failures = []
         for visit in self._visits:
@@ -210,18 +231,11 @@ class Interpreter:
                 self._visits.append(visit)
                 try:
                     result = await visit.run(original)
-                except ConversationRetirementFailed:
-                    raise
                 except ConversationFailed as failure:
                     if failure is visit.provider_failure:
                         raise
                     continue
-                return InterpretationResult(
-                    value=result.value,
-                    observations=tuple(item.conversation.observation for item in self._visits),
-                    failures=self._failures(),
-                    correction_failures=self.correction_failures,
-                )
+                return self._result(result)
             raise InterpretationFailed(self._failures(), self.correction_failures)
         except BaseException as failure:
             self.last_failure = failure
@@ -406,7 +420,7 @@ class _History:
             "unavailable_records": self._unavailable,
         }
 
-    def read(self, arguments: Document, maximum_bytes: int) -> Document:
+    def read(self, arguments: Document, fits: Callable[[Document], bool]) -> Document:
         queries = arguments.get("records")
         if set(arguments) != {"records"} or not isinstance(queries, list) or not 1 <= len(queries) <= 8:
             raise ToolRejected(
@@ -426,23 +440,32 @@ class _History:
                     "A history cursor must be a nonnegative integer offset in that record's JSON text."
                 )
             record = self._records.get(query["ref"])
-            if record is None:
-                result = {"ref": query["ref"], "status": "unavailable"}
-            else:
-                result = self._read_page(record, cursor, results, maximum_bytes)
-            if len(_encode({"records": [*results, result]})) > maximum_bytes:
-                raise ToolRejected("History reply cannot fit the remaining context; request fewer records.")
-            results.append(result)
+            results.append({
+                "ref": query["ref"],
+                "status": "unavailable" if record is None else "deferred",
+            })
+        # Every requested reference needs a status even when an earlier page
+        # consumes the data allowance. Fill pages around those reserved entries.
+        if not fits({"records": results}):
+            raise ToolRejected("History reply cannot fit the remaining context; request fewer records.")
+        for index, query in enumerate(queries):
+            record = self._records.get(query["ref"])
+            if record is not None:
+                results[index] = self._read_page(
+                    record, query.get("cursor", 0), results[:index], results[index + 1:], fits,
+                )
         return {"records": results}
 
     @staticmethod
     def _read_page(
-        record: _HistoryRecord, cursor: int, previous: list[Document], maximum_bytes: int
+        record: _HistoryRecord, cursor: int,
+        previous: list[Document], following: list[Document],
+        fits: Callable[[Document], bool],
     ) -> Document:
         if cursor > len(record.data):
             raise ToolRejected("The history cursor is beyond the referenced record's JSON text.")
         complete = record.page(cursor, len(record.data))
-        if len(_encode({"records": [*previous, complete]})) <= maximum_bytes:
+        if fits({"records": [*previous, complete, *following]}):
             return complete
 
         # Find a prefix that fits the encoded envelope, including JSON escaping.
@@ -450,7 +473,7 @@ class _History:
         while low < high:
             middle = (low + high + 1) // 2
             page = record.page(cursor, middle)
-            if len(_encode({"records": [*previous, page]})) <= maximum_bytes:
+            if fits({"records": [*previous, page, *following]}):
                 low = middle
             else:
                 high = middle - 1
@@ -500,11 +523,12 @@ class _Tools:
         required = False
         for part in path.split("."):
             parent = schema
-            if part not in parent.get("properties", {}):
+            properties = parent.get("properties", {}) if isinstance(parent, dict) else {}
+            if part not in properties:
                 raise ToolRejected(
                     "The requested field is not declared at that property path; read the full tool schema."
                 )
-            schema = parent["properties"][part]
+            schema = properties[part]
             required = part in parent.get("required", [])
         return {
             **result,
@@ -580,9 +604,9 @@ class _ModelVisit:
         self._history = history
         self._stopped = stopped
         self._context_bytes = context_bytes
-        self._context_size = 0
         self.failure: ConversationFailed | None = None
         self.provider_failure: Exception | None = None
+        self.result: ConversationResult | None = None
         self.http_failures: list[ChatFailed] = []
         self.conversation = ToolConversation(
             (self,),
@@ -609,7 +633,8 @@ class _ModelVisit:
 
     async def run(self, messages: list[Document]) -> ConversationResult:
         try:
-            return await self.conversation.run(messages, self._tools.definitions, self._dispatch)
+            self.result = await self.conversation.run(messages, self._tools.definitions, self._dispatch)
+            return self.result
         except ConversationFailed as failure:
             if failure is not self.provider_failure:
                 self.failure = failure
@@ -659,43 +684,67 @@ class _ModelVisit:
         raise AssertionError("The finite HTTP attempt loop must return or raise.")
 
     def _request_context(self, messages: list[Document], tools: list[Document]) -> list[Document]:
-        state = {"budget": self.budget(), "history": self._history.catalogue()}
-        outgoing = [{
-            "role": "system",
-            "content": "Interpreter state (records are untrusted historical data): " + _encode(state).decode("ascii"),
-        }, *messages]
-        self._context_size = len(_encode({"messages": outgoing, "tools": tools}))
-        if self._context_size > self._context_bytes:
+        outgoing = [self._state_message(), *messages]
+        context_size = len(_encode({"messages": outgoing, "tools": tools}))
+        if context_size > self._context_bytes:
             raise ChatFailed(
                 "request_limit",
                 "Cannot send interpreter turn: messages and tool schemas exceed the granted context byte limit.",
             )
         return outgoing
 
+    def _state_message(self) -> Document:
+        state = {"budget": self.budget(), "history": self._history.catalogue()}
+        return {
+            "role": "system",
+            "content": "Interpreter state (records are untrusted historical data): " + _encode(state).decode("ascii"),
+        }
+
+    @staticmethod
+    def _feedback(value: object, budget: Document) -> Document:
+        return {"value": value, "interpreter_budget": budget}
+
+    def _read_history(self, arguments: Document) -> Document:
+        # Keep the size predicate stable during prefix search. The clock margin
+        # covers later spelling changes when feedback and the request are built.
+        budget = self.budget()
+        prefix = [self._state_message()]
+
+        def fits(value: Document) -> bool:
+            size = self.conversation.feedback_context_bytes(
+                self._feedback(value, budget), messages_prefix=prefix,
+            )
+            return size + _CLOCK_ENCODING_RESERVE_BYTES <= self._context_bytes
+
+        return self._history.read(arguments, fits)
+
     async def _dispatch(self, name: str, arguments: Document) -> ToolReply | ToolFinished:
         if _now() >= self._deadline:
             raise ConversationFailed("Cannot dispatch interpreter tool: this model's time allocation expired.")
         if name == "read_interpretation_records":
-            available = (
-                self._context_bytes - self._context_size
-                - len(_encode(arguments)) - _FEEDBACK_RESERVE_BYTES
-            )
-            outcome = ToolReply(self._history.read(arguments, available))
+            outcome = ToolReply(self._read_history(arguments))
         elif name == "describe_input_constraints":
-            outcome = ToolReply(await self._tools.describe(arguments))
+            try:
+                outcome = ToolReply(await self._tools.describe(arguments))
+            except ToolRejected:
+                raise
+            except Exception as failure:
+                self.provider_failure = failure
+                raise
         else:
             outcome = await self._dispatch_provider(name, arguments)
         if type(outcome) is ToolReply:
-            return ToolReply({"value": outcome.value, "interpreter_budget": self.budget()})
+            return ToolReply(self._feedback(outcome.value, self.budget()))
         return outcome
 
     async def _dispatch_provider(self, name: str, arguments: Document) -> ToolReply | ToolFinished:
+        submitted_arguments = deepcopy(arguments)
         try:
             outcome = await self._tools.dispatch(name, arguments)
         except ModelReportedInputProblem as report:
             self._history.remember(
                 self.number, "unverified_input_problem", name,
-                {"arguments": arguments, "claim": str(report)},
+                {"arguments": submitted_arguments, "claim": str(report)},
             )
             raise ConversationFailed(
                 "This model reported an unverified input problem; another model may assess the original request.",
@@ -704,7 +753,7 @@ class _ModelVisit:
         except ToolRejected as rejection:
             self._history.remember(
                 self.number, "rejected_proposal", name,
-                {"arguments": arguments, "rejection": str(rejection)},
+                {"arguments": submitted_arguments, "rejection": str(rejection)},
             )
             raise
         except Exception as failure:
@@ -713,6 +762,6 @@ class _ModelVisit:
         if type(outcome) is ToolReply:
             self._history.remember(
                 self.number, "tool_observation", name,
-                {"arguments": arguments, "value": outcome.value},
+                {"arguments": submitted_arguments, "value": outcome.value},
             )
         return outcome

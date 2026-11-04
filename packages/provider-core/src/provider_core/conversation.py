@@ -188,6 +188,20 @@ class ToolConversation:
         """Bounded route and turn facts, also available after an unsuccessful run."""
         return self._observation()
 
+    def feedback_context_bytes(self, value, *, messages_prefix):
+        """Measure prospective feedback during dispatch, including its admitted call.
+
+        Keep sizing with the transcript owner so escaped tool content, model
+        reasoning and call identifiers use the same framing as actual feedback.
+        The caller supplies its own request prefix and decides the byte grant.
+        """
+        identifier = self._messages[-1]["tool_calls"][0]["id"]
+        feedback = self._tool_message(identifier, _encode(value).decode("ascii"))
+        return len(_encode({
+            "messages": [*messages_prefix, *self._messages, feedback],
+            "tools": self._tools,
+        }))
+
     def _require_no_secrets(self, value):
         if type(value) is str:
             if any(secret in value for secret in self._secrets):
@@ -392,16 +406,11 @@ class ToolConversation:
 
     def _feedback(self, identifier, value):
         self._require_no_secrets(value)
-        self._tool_message(identifier, _encode(value).decode("ascii"))
+        self._messages.append(self._tool_message(identifier, _encode(value).decode("ascii")))
 
-    def _tool_message(self, identifier, content):
-        self._messages.append(
-            {
-                "role": "tool",
-                "tool_call_id": identifier,
-                "content": content,
-            }
-        )
+    @staticmethod
+    def _tool_message(identifier, content):
+        return {"role": "tool", "tool_call_id": identifier, "content": content}
 
     def _correct_turn(self, calls, rejection):
         reason = str(rejection)
@@ -417,7 +426,7 @@ class ToolConversation:
         if self._text_correction is None:
             content = _encode({"rejected": reason}).decode("ascii")
         for call in calls:
-            self._tool_message(call["id"], content)
+            self._messages.append(self._tool_message(call["id"], content))
         if self._text_correction is not None and self._text_correction.user_content is not None:
             self._messages.append({"role": "user", "content": self._text_correction.user_content})
 

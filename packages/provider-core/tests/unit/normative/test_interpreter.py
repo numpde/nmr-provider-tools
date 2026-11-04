@@ -237,7 +237,8 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             captures.append(deepcopy(messages))
             return await original(messages, tools, **kwargs)
         second.complete = AsyncMock(side_effect=complete)
-        await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
+        result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
+        self.assertEqual(result.correction_failures, ())
         reply = json.loads(captures[1][-1]["content"])["value"]["records"][0]
         self.assertFalse(reply["complete"])
         self.assertEqual(reply["next_cursor"], len(reply["json_text"]))
@@ -463,3 +464,112 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(full["json_text"][:17] + tail["json_text"], full["json_text"])
         self.assertEqual(json.loads(full["json_text"])["value"], observation)
         self.assertEqual(dispatch.await_count, 2)
+
+    async def test_provider_argument_normalization_does_not_rewrite_captured_history(self):
+        model = endpoint(
+            "fixture",
+            call("inspect", "inspect", {"source": "source-1", "selection": [1, 2]}),
+            call("history", "read_interpretation_records", {"records": [{"ref": "record-1"}]}),
+            call("done", "prepare", {}),
+        )
+        captures = []
+        original = model.complete
+
+        async def complete(messages, tools, **kwargs):
+            captures.append(deepcopy(messages))
+            return await original(messages, tools, **kwargs)
+
+        async def dispatch(name, arguments):
+            if name == "inspect":
+                arguments.pop("source")
+                arguments["selection"].append(3)
+                return ToolReply({"rows": 2})
+            return ToolFinished("ready")
+
+        model.complete = AsyncMock(side_effect=complete)
+        await interpreter(model).run([], TOOLS, dispatch)
+        record = json.loads(captures[2][-1]["content"])["value"]["records"][0]
+        self.assertEqual(
+            json.loads(record["json_text"])["arguments"],
+            {"source": "source-1", "selection": [1, 2]},
+        )
+
+    async def test_history_pagination_budgets_escaped_payload_and_current_assistant_message(self):
+        for text in ('"\\' * 40000, "λ" * 40000):
+            with self.subTest(escape=text[0]):
+                first = endpoint("first", call("inspect", "inspect", {}))
+                read = call("read", "read_interpretation_records", {"records": [{"ref": "record-1"}]})
+                read["reasoning_content"] = "model reasoning " * 700
+                second = endpoint("second", read, call("done", "prepare", {}))
+                dispatch = AsyncMock(side_effect=[ToolReply({"text": text}), ToolFinished("ready")])
+                result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
+                self.assertEqual(result.value, "ready")
+                self.assertEqual(second.complete.await_count, 2)
+                final_messages, final_tools = second.complete.await_args.args
+                size = len(json.dumps({"messages": final_messages, "tools": final_tools},
+                                      ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii"))
+                self.assertLessEqual(size, 32768)
+                self.assertEqual(dispatch.await_count, 2)
+
+    async def test_provider_constraint_reader_failure_propagates_without_model_fallback(self):
+        first = endpoint("first", call("query", "describe_input_constraints", {"tool": "prepare"}))
+        second = endpoint("unused", call("unexpected", "prepare", {}))
+        failure = ConversationFailed("Provider constraints are unavailable.")
+        owner = interpreter(first, second)
+        with self.assertRaises(ConversationFailed) as caught:
+            await owner.run([], TOOLS, AsyncMock(return_value=ToolFinished("unexpected fallback")),
+                            describe_constraints=AsyncMock(side_effect=failure))
+        self.assertIs(caught.exception, failure)
+        self.assertFalse(hasattr(second, "grant"))
+        await owner.retire()
+
+    async def test_unknown_path_below_boolean_schema_gets_correction_instead_of_provider_failure(self):
+        tools = [{"type": "function", "function": {"name": "prepare", "parameters": {
+            "type": "object", "properties": {"opaque": True}}}}]
+        model = endpoint(
+            "fixture",
+            call("query", "describe_input_constraints", {"tool": "prepare", "field": "opaque.anything"}),
+            call("done", "prepare", {}),
+        )
+        result = await interpreter(model).run([], tools, AsyncMock(return_value=ToolFinished("ready")))
+        self.assertEqual(result.value, "ready")
+        self.assertEqual(len(result.correction_failures), 1)
+        self.assertIsInstance(result.correction_failures[0][2], ToolRejected)
+
+    async def test_accepted_preparation_remains_owned_when_model_retirement_fails(self):
+        prepared = object()
+        model = endpoint("fixture", call("prepare", "prepare", {}))
+        model.retire.side_effect = OSError("Model cleanup failed.")
+        owner = interpreter(model)
+        dispatch = AsyncMock(return_value=ToolFinished(prepared))
+        with self.assertRaises(ConversationRetirementFailed):
+            await owner.run([], TOOLS, dispatch)
+        self.assertIs(owner.accepted_result.value, prepared)
+        self.assertIsInstance(owner.last_failure, ConversationRetirementFailed)
+        model.retire.side_effect = None
+        await owner.retire()
+        self.assertIs(owner.accepted_result.value, prepared)
+        dispatch.assert_awaited_once()
+
+    async def test_partial_history_page_reserves_status_for_later_batch_records(self):
+        first = endpoint(
+            "first", call("small", "inspect", {"source": "small"}),
+            call("large", "inspect", {"source": "large"}),
+        )
+        second = endpoint(
+            "second",
+            call("batch", "read_interpretation_records", {
+                "records": [{"ref": "record-2"}, {"ref": "record-1"}],
+            }),
+            call("done", "prepare", {}),
+        )
+        dispatch = AsyncMock(side_effect=[
+            ToolReply({"rows": 2}), ToolReply({"text": "x" * 80000}), ToolFinished("ready"),
+        ])
+        result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
+        self.assertEqual(result.correction_failures, ())
+        records = json.loads(second.complete.await_args.args[0][-1]["content"])["value"]["records"]
+        self.assertEqual([record["ref"] for record in records], ["record-2", "record-1"])
+        self.assertFalse(records[0]["complete"])
+        self.assertIn(records[1]["status"], {"returned", "deferred"})
+        self.assertEqual(dispatch.await_count, 3)

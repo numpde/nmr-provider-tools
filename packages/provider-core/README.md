@@ -344,6 +344,10 @@ propagate without replay or model fallback. Exhaustion raises
 shutdown. Retain the interpretation if retirement fails; its `retire()` can
 reobserve every visited owner. Results retain bounded route observations and
 private failures without placing them in the model's context.
+If model cleanup fails after preparation was accepted, `accepted_result` retains
+that exact preparation on the interpreter. Read it after settling the retained
+resources; its presence proves neither model-I/O retirement nor execution
+permission, and it does not authorize repeating preparation.
 `correction_failures` on the interpreter, successful result and exhaustion error
 retains `(model_visit, logical_turn, original_error)` tuples, including protocol
 repairs before provider dispatch. The interpreter property remains readable after
@@ -390,6 +394,12 @@ adapters need no SDK base class. The structure follows
 uses [frozen dataclasses](https://docs.python.org/3.12/library/dataclasses.html#frozen-instances)
 for captured records, and preserves
 [asyncio cancellation propagation](https://docs.python.org/3.12/library/asyncio-task.html#task-cancellation).
+History captures arguments before provider normalization. Pagination measures the
+prospective full context through its conversation owner, including the current
+assistant call, reasoning and escaped feedback; one fixed size projection keeps
+the prefix search stable while clock values change. Provider constraint-reader
+failures propagate without model fallback; unknown property paths remain
+correctable even under valid Boolean schemas.
 
 ## Source history
 
