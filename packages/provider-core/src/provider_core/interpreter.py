@@ -110,6 +110,10 @@ class InterpretationFailed(ConversationFailed):
         self.correction_failures = tuple(correction_failures)
 
 
+class InterpretationInputRejected(ConversationFailed):
+    """Initial context cannot be sent; no model or scientific work was started."""
+
+
 class ModelReportedInterpretationProblem(Exception):
     """Hand off an unverified claim; keep private report details in its cause."""
 
@@ -237,15 +241,21 @@ class Interpreter:
         if self._used or self._stopped.is_set():
             raise ValueError("This interpretation already ran or retired; create a new interpretation for another Attempt.")
         self._used = True
-        _no_secrets((messages, tools), self._secrets)
-        original = json.loads(_encode(messages))
-        provider_tools = _ProviderTools(tools, dispatch=dispatch, describe=describe_constraints)
         deadline = _now() + self.timeout_seconds
         if not_after is not None:
             if type(not_after) not in (int, float) or not math.isfinite(not_after):
                 raise ValueError("Cannot start interpretation: not_after must be a finite monotonic deadline.")
             deadline = min(deadline, not_after)
         try:
+            try:
+                _no_secrets((messages, tools), self._secrets)
+            except ConversationFailed as cause:
+                raise InterpretationInputRejected(
+                    "Cannot start interpretation: initial context contains a configured credential.",
+                    cause=cause,
+                ) from cause
+            original = json.loads(_encode(messages))
+            provider_tools = _ProviderTools(tools, dispatch=dispatch, describe=describe_constraints)
             for index, factory in enumerate(self._factories):
                 if self._stopped.is_set():
                     raise ConversationFailed("Interpretation was retired; no successor model may start.")

@@ -20,7 +20,7 @@ from provider_core.attempt_record import AcknowledgedAttempt
 from provider_core.chat import ChatFailed
 from provider_core.controller import ControllerFailed, ControllerRefused
 from provider_core.conversation import ConversationFailed, ConversationRetirementFailed, ToolRejected
-from provider_core.interpreter import InterpretationFailed, ModelReportedInterpretationProblem
+from provider_core.interpreter import InterpretationFailed, InterpretationInputRejected, ModelReportedInterpretationProblem
 from provider_core.credential import CredentialRejected
 from provider_core.delivery_client import DeliveryRejected, DeliveryUnavailable
 from provider_core.delivery_config import DeliveryConfigurationRejected
@@ -83,6 +83,7 @@ def owned_relationships(error):
         UploadFileReadFailed,
         ConversationFailed,
         InterpretationFailed,
+        InterpretationInputRejected,
         ConversationRetirementFailed,
         DeliveryUnavailable,
         DeliveryStorageFailed,
@@ -167,6 +168,7 @@ def owned_details(error):
         ChatFailed,
         ConversationFailed,
         InterpretationFailed,
+        InterpretationInputRejected,
         ConversationRetirementFailed,
         ToolRejected,
         ModelReportedInterpretationProblem,

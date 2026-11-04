@@ -81,7 +81,13 @@ def _require_explicit_tls_environment():
         raise ApiConfigurationRejected("remove ambient SSL_CERT_FILE, SSL_CERT_DIR and SSLKEYLOGFILE; configure each explicit ca_file instead.")
 
 
-def _https_from_material(table, label, raw):
+def https_trust(raw, *, label):
+    """Build explicit TLS trust from admitted CA bytes, or system roots for None.
+
+    The caller owns bounded file capture. This function performs no path reads
+    and needs no transport timeouts; ambient TLS settings never grant authority.
+    """
+    _require_explicit_tls_environment()
     if raw is not None:
         try:
             pem = raw.decode("ascii")
@@ -97,7 +103,11 @@ def _https_from_material(table, label, raw):
             trust = ssl.create_default_context()
         except (OSError, ssl.SSLError) as cause:
             raise ApiConfigurationRejected(f"{label} system TLS roots could not be loaded.", cause=cause) from None
-    return HttpsSettings(trust, table["exchange_seconds"], table["retirement_seconds"])
+    return trust
+
+
+def _https_from_material(table, label, raw):
+    return HttpsSettings(https_trust(raw, label=label), table["exchange_seconds"], table["retirement_seconds"])
 
 
 def _read_https_settings(table, label, read_file):
@@ -156,7 +166,6 @@ def api_settings_from_material(table, *, credential_bytes, ca_bytes=None):
     if type(credential_bytes) is not bytes or len(credential_bytes) > MAX_CREDENTIAL_BYTES:
         raise ApiConfigurationRejected("API signing credential requires bounded issued-document bytes.")
     identity, provider_ref = _signing_identity(table, credential_bytes)
-    _require_explicit_tls_environment()
     if ca_bytes is not None and (type(ca_bytes) is not bytes or len(ca_bytes) > 1048576):
         raise ApiConfigurationRejected("API CA requires bytes within the 1048576-byte limit.")
     return ApiSettings(identity, _https_from_material(table, "API", ca_bytes), table["topology"]), provider_ref

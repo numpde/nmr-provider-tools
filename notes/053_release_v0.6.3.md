@@ -22,6 +22,13 @@ ownership remain with providers.
 - `Interpreter.failures` exposes observed protected model failures before
   scientific effects and after retirement. `accepted_result` continues to retain
   accepted preparation, including `ToolFinished(None)`, through cleanup failure.
+- `InterpretationInputRejected` distinguishes an initial-context credential
+  refusal from exhausted model allocations and scientific callback failures.
+- `api_config.https_trust` builds trust directly from captured CA bytes, retaining
+  the shared TLS environment policy without dummy transport settings or rereads.
+- `ChatEndpointFactory` binds captured endpoint grants to fresh per-visit HTTP
+  owners. Its `context_bytes` reserves the exact carrier envelope, so history
+  pagination does not fill space needed for model and request-control fields.
 
 This intentionally updates the new shared Interpreter callback/report API.
 Provider adoption must update callbacks, prompts, report names, protected

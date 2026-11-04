@@ -9,7 +9,7 @@ from unittest.mock import ANY, AsyncMock, patch
 
 from provider_core.chat_errors import ChatFailed
 from provider_core.conversation import ConversationFailed, ConversationRetirementFailed, ToolFinished, ToolRejected, ToolReply
-from provider_core.interpreter import Interpreter, InterpretationFailed
+from provider_core.interpreter import Interpreter, InterpretationFailed, InterpretationInputRejected
 from tests.fakes.conversation import call, endpoint
 
 
@@ -42,6 +42,28 @@ def feedback(messages):
 
 
 class InterpreterTests(unittest.IsolatedAsyncioTestCase):
+    async def test_private_initial_context_is_rejected_before_any_model_or_science(self):
+        from provider_core.diagnostics import failure_evidence
+
+        for messages, tools in (([{"role": "user", "content": "PRIVATE_CREDENTIAL"}], TOOLS),
+                                ([], [{"description": "PRIVATE_CREDENTIAL"}])):
+            with self.subTest(messages=bool(messages)):
+                create = AsyncMock()
+                dispatch = AsyncMock()
+                owner = Interpreter((create,), timeout_seconds=30, context_bytes=4096,
+                                    secrets=("PRIVATE_CREDENTIAL",))
+                with self.assertRaises(InterpretationInputRejected) as caught:
+                    await owner.run(messages, tools, dispatch)
+                self.assertIs(owner.last_failure, caught.exception)
+                self.assertTrue(owner.retirement_confirmed)
+                self.assertEqual(owner.failures, ())
+                create.assert_not_called()
+                dispatch.assert_not_called()
+                rendered = json.dumps(failure_evidence(caught.exception, secrets=()))
+                self.assertIn("initial context", rendered)
+                self.assertNotIn("PRIVATE_CREDENTIAL", rendered)
+                self.assertNotIn("exhausted", rendered)
+
     async def test_time_rolls_forward_only_after_cleanup_and_windows_do_not_restart(self):
         clock = [100.0]
         deadlines = []

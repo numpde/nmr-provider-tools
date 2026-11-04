@@ -327,32 +327,43 @@ advancing. Ordinary provider timeouts, scientific failures and uncertain cleanup
 still propagate without fallback. Neither the deadline nor this API retires
 provider work on the caller's behalf.
 
+`InterpretationInputRejected` identifies an initial-context credential refusal
+before any model or scientific work starts. `InterpretationFailed` identifies
+exhausted model allocations. Scientific callback failures retain their original
+identity; do not classify them by matching generic `ConversationFailed` text.
+
+Endpoint loaders can use `api_config.https_trust(captured_ca_bytes, label=...)`
+to construct TLS trust without reopening files or supplying dummy transport
+timeouts. `None` selects system roots. The shared function rejects ambient TLS
+overrides; providers still own capturing their configuration and credentials.
+
 Composition example:
 
 ```python
-from provider_core.chat import ChatEndpoint
+from provider_core.chat import ChatEndpointFactory
 from provider_core.interpreter import Interpreter
-from provider_core.transport import HttpTransport
 
 # spec, trust, proxy_socket and byte limits come from the provider's own config.
-def open_model(*, exchange_seconds, connect_seconds):
-    transport = HttpTransport(
-        trust=trust, proxy_socket=proxy_socket,
-        exchange_seconds=exchange_seconds, connect_seconds=connect_seconds,
-        retirement_seconds=retirement_seconds,
-    )
-    return ChatEndpoint(spec, transport=transport,
-                        request_bytes=request_bytes, response_bytes=response_bytes)
+open_model = ChatEndpointFactory(
+    spec=spec, trust=trust, proxy_socket=proxy_socket,
+    retirement_seconds=retirement_seconds,
+    request_bytes=request_bytes, response_bytes=response_bytes,
+)
 
 interpretation = Interpreter(
     (open_model,), timeout_seconds=240,
-    context_bytes=context_bytes, secrets=(spec.api_key,),
+    context_bytes=open_model.context_bytes, secrets=(spec.api_key,),
 )
 result = await interpretation.run(original_messages, provider_tools, dispatch,
                                   not_after=job_deadline)
 prepared_input = result.value
 # result.model_visit is the one-based index in the captured endpoint order.
 ```
+
+For several factories, use the smallest `factory.context_bytes`, or a smaller
+provider context limit. The factory derives available space from the same request
+encoder as the carrier, including model and reasoning fields. Each call constructs
+a fresh transport; the shared scheduler supplies its exchange and setup deadlines.
 
 Dispatch returns `ToolReply` for observations, `ToolFinished` for accepted
 preparation, and raises `ToolRejected` for a correctable proposal. Accepted

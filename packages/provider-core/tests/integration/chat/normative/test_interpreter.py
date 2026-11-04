@@ -7,8 +7,8 @@ from unittest.mock import ANY, AsyncMock
 
 import httpx
 
-from provider_core.chat import ChatEndpoint, ChatEndpointSpec
-from provider_core.conversation import ToolFinished
+from provider_core.chat import ChatEndpointSpec, ChatEndpointFactory
+from provider_core.conversation import ToolFinished, ToolReply
 from provider_core.interpreter import Interpreter
 from provider_core.network import network_availability
 from provider_core.transport import ExchangeFailed, HttpTransport
@@ -18,6 +18,37 @@ from tests.fakes.unix_proxy import UnixProxy
 
 
 class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
+    async def test_history_page_reserves_the_actual_carrier_envelope(self):
+        replies = [call("inspect", "inspect", {}),
+                   call("history", "read_interpretation_records", {"records": [{"ref": "record-1"}]}),
+                   call("finish", "prepare", {})]
+
+        async def response(request, body):
+            return json.dumps({"choices": [{"message": replies.pop(0), "finish_reason": "tool_calls"}]}).encode()
+
+        async def dispatch(name, arguments, *, not_after):
+            return ToolReply({"text": "x" * 16000}) if name == "inspect" else ToolFinished("prepared")
+
+        async with TlsPeer("success", response_factory=response) as peer:
+            factories = tuple(ChatEndpointFactory(
+                spec=ChatEndpointSpec(configuration_id=name, model="fixture-" + name,
+                                      url=peer.origin + "/chat", api_key="PRIVATE_KEY", reasoning_effort="high"),
+                trust=peer.trust, retirement_seconds=0.5, request_bytes=6000, response_bytes=8192,
+            ) for name in ("first", "second"))
+            owner = Interpreter(factories, timeout_seconds=10,
+                                context_bytes=min(item.context_bytes for item in factories), secrets=("PRIVATE_KEY",))
+            tools = [{"type": "function", "function": {"name": name, "parameters": {"type": "object"}}}
+                     for name in ("inspect", "prepare")]
+            result = await owner.run([], tools, dispatch)
+            self.assertEqual(result.value, "prepared")
+            self.assertEqual(result.model_visit, 2)
+            self.assertTrue(owner.retirement_confirmed)
+            self.assertEqual(len(peer.request_bodies), 3)
+            self.assertTrue(all(len(body) <= 6000 for body in peer.request_bodies))
+            messages = json.loads(peer.request_bodies[-1])["messages"]
+            history = json.loads(next(message["content"] for message in messages if message["role"] == "tool"))
+            self.assertFalse(history["value"]["records"][0]["complete"])
+
     async def test_real_https_retry_schema_query_and_single_preparation(self):
         count = 0
         async def response(request, body):
@@ -32,11 +63,11 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
             return json.dumps({"choices": [{"message": message, "finish_reason": "tool_calls"}]}).encode()
 
         async with TlsPeer("success", response_factory=response) as peer:
-            def build(**grant):
-                return ChatEndpoint(ChatEndpointSpec(configuration_id="fixture", model="fixture", url=peer.origin + "/chat",
-                                                     api_key="PRIVATE_KEY", reasoning_effort=None),
-                                    transport=HttpTransport(trust=peer.trust, retirement_seconds=0.5, **grant),
-                                    request_bytes=32768, response_bytes=8192)
+            build = ChatEndpointFactory(
+                spec=ChatEndpointSpec(configuration_id="fixture", model="fixture", url=peer.origin + "/chat",
+                                      api_key="PRIVATE_KEY", reasoning_effort=None),
+                trust=peer.trust, retirement_seconds=0.5, request_bytes=32768, response_bytes=8192,
+            )
             owner = Interpreter((build,), timeout_seconds=10, context_bytes=16384, secrets=("PRIVATE_KEY",))
             dispatch = AsyncMock(return_value=ToolFinished("prepared"))
             tools = [{"type": "function", "function": {"name": "prepare", "parameters": {
@@ -87,12 +118,12 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                 return None
             return json.dumps({"choices": [{"message": call("finish", "prepare", {}), "finish_reason": "tool_calls"}]}).encode()
         async with TlsPeer("success", response_factory=response) as peer, UnixProxy(peer.origin, "tunnel") as proxy:
-            def build(**grant):
-                return ChatEndpoint(ChatEndpointSpec(configuration_id="fixture", model="fixture", url=peer.origin + "/chat",
-                                                     api_key="PRIVATE_KEY", reasoning_effort=None),
-                                    transport=HttpTransport(trust=peer.trust, proxy_socket=proxy.path,
-                                                            retirement_seconds=0.5, **grant),
-                                    request_bytes=32768, response_bytes=8192)
+            build = ChatEndpointFactory(
+                spec=ChatEndpointSpec(configuration_id="fixture", model="fixture", url=peer.origin + "/chat",
+                                      api_key="PRIVATE_KEY", reasoning_effort=None),
+                trust=peer.trust, proxy_socket=proxy.path, retirement_seconds=0.5,
+                request_bytes=32768, response_bytes=8192,
+            )
             owner = Interpreter((build,), timeout_seconds=10, context_bytes=16384, secrets=("PRIVATE_KEY",))
             dispatch = AsyncMock(return_value=ToolFinished("prepared"))
             tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]

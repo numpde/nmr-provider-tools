@@ -15,13 +15,14 @@ import asyncio
 import hashlib
 import json
 import re
+import ssl
 from dataclasses import dataclass, field
 
 import httpx
 
 from provider_core.chat_errors import ChatFailed
 from provider_core.response_json import ResponseRejected, read_document
-from provider_core.transport import ExchangeFailed
+from provider_core.transport import ExchangeFailed, HttpTransport
 
 
 def _json_bytes(value):
@@ -66,6 +67,52 @@ class ChatEndpointSpec:
             raise ValueError(
                 "Cannot configure interpreter endpoint: use a canonical HTTPS URL without credentials, query or fragment."
             )
+
+
+def _encode_request(spec, messages, tools):
+    request = {
+        "model": spec.model,
+        "messages": messages,
+        "tools": tools,
+        "tool_choice": "required",
+        "parallel_tool_calls": False,
+        "stream": False,
+    }
+    if spec.reasoning_effort is not None:
+        request["reasoning_effort"] = spec.reasoning_effort
+    return _json_bytes(request)
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ChatEndpointFactory:
+    """Bind captured endpoint grants; each model visit receives fresh HTTP ownership."""
+
+    spec: ChatEndpointSpec = field(repr=False)
+    trust: ssl.SSLContext = field(repr=False)
+    retirement_seconds: float
+    request_bytes: int
+    response_bytes: int
+    proxy_socket: str | None = field(default=None, repr=False)
+    error_response_bytes: int | None = None
+
+    @property
+    def context_bytes(self):
+        """Exact messages/tools capacity after reserving this carrier's envelope."""
+        empty_context = _json_bytes({"messages": [], "tools": []})
+        overhead = len(_encode_request(self.spec, [], [])) - len(empty_context)
+        return self.request_bytes - overhead
+
+    def __call__(self, *, exchange_seconds, connect_seconds):
+        return ChatEndpoint(
+            self.spec,
+            transport=HttpTransport(
+                trust=self.trust, exchange_seconds=exchange_seconds,
+                connect_seconds=connect_seconds, retirement_seconds=self.retirement_seconds,
+                proxy_socket=self.proxy_socket,
+            ),
+            request_bytes=self.request_bytes, response_bytes=self.response_bytes,
+            error_response_bytes=self.error_response_bytes,
+        )
 
 
 def _request_echoes(messages, key):
@@ -193,17 +240,7 @@ class ChatEndpoint:
         Response bodies are decoded; retained headers still describe the wire
         entity. The transport owns exchange and cleanup under not_after.
         """
-        request = {
-            "model": self.spec.model,
-            "messages": messages,
-            "tools": tools,
-            "tool_choice": "required",
-            "parallel_tool_calls": False,
-            "stream": False,
-        }
-        if self.spec.reasoning_effort is not None:
-            request["reasoning_effort"] = self.spec.reasoning_effort
-        content = _json_bytes(request)
+        content = _encode_request(self.spec, messages, tools)
         if len(content) > self._request_bytes:
             raise ChatFailed(
                 "request_limit",

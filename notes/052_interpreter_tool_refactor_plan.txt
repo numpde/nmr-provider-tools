@@ -483,6 +483,26 @@ unmeasured until exercised; scripted tests prove the protocol, not model quality
 Working rules for implementation handoffs
 ----------------------------------------
 
+Reuse the shared carrier composition as well as the shared turn loop.
+ChatEndpointFactory captures an endpoint specification, TLS trust, proxy,
+retirement and byte limits; each model visit gets fresh HTTP ownership and the
+scheduler's fixed exchange/setup deadlines. Its context_bytes subtracts the
+actual request envelope using the carrier encoder. Use the smallest endpoint
+capacity, or a smaller provider context limit, rather than guessed reserves.
+https_trust builds TLS trust from captured CA bytes without rereading paths,
+accepting ambient TLS overrides or requiring dummy transport timeout values.
+InterpretationInputRejected distinguishes initial-context refusal before any
+model/science work from exhausted allocations and provider-owned failures.
+
+Cross-audit actual provider integrations and bring reusable corrections into
+the shared owner. Confirm uptake in resulting code and meaningful tests.
+Provider-specific configuration capture, scientific effects and settlement
+remain with their existing owners. A source timeout permits model advancement
+only after the original source and reader have settled without an independent
+failure; otherwise retain that failure through the existing Job outcome path.
+Do not infer clean retirement from a cancelled waiter or start terminal delivery
+while original inspection work can still produce an unobserved failure.
+
 Carry the owning boundary and completion criterion with each small task. A
 partial handoff must not invite a new validator, compatibility layer, provider
 shutdown rule or all-provider deployment gate. Review resulting code/evidence;

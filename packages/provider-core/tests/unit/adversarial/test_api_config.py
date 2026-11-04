@@ -5,11 +5,32 @@ import ssl
 import unittest
 from unittest.mock import Mock, patch
 
-from provider_core.api_config import ApiConfigurationRejected, https_settings
+from provider_core.api_config import ApiConfigurationRejected, https_settings, https_trust
 from provider_core.diagnostics import failure_evidence
 
 
 class HttpsAdmissionTests(unittest.TestCase):
+    def test_captured_ca_builds_trust_without_transport_settings_or_path_reads(self):
+        context = Mock()
+        with patch.dict("os.environ", {}, clear=True), \
+                patch("provider_core.api_config.ssl.SSLContext", return_value=context), \
+                patch("provider_core.api_config.ssl.create_default_context") as roots:
+            self.assertIs(https_trust(b"CAPTURED_CA", label="Interpreter"), context)
+        context.load_verify_locations.assert_called_once_with(cadata="CAPTURED_CA")
+        roots.assert_not_called()
+
+    def test_captured_trust_rejects_ambient_tls_authority(self):
+        for variable in ("SSL_CERT_FILE", "SSL_CERT_DIR", "SSLKEYLOGFILE"):
+            for material in (None, b"CAPTURED_CA"):
+                with self.subTest(variable=variable, explicit=material is not None), \
+                        patch.dict("os.environ", {variable: "PRIVATE_PATH"}, clear=True), \
+                        patch("provider_core.api_config.ssl.SSLContext") as context, \
+                        patch("provider_core.api_config.ssl.create_default_context") as roots, \
+                        self.assertRaises(ApiConfigurationRejected):
+                    https_trust(material, label="Interpreter")
+                context.assert_not_called()
+                roots.assert_not_called()
+
     def settings(self, read_file):
         return https_settings({"ca_file": "/PRIVATE_PATH/ca.pem", "exchange_seconds": 10, "retirement_seconds": 5},
                               "API", read_file)
