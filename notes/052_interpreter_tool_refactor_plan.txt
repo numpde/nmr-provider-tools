@@ -55,6 +55,17 @@ other provider operations at their own owners and deadlines. End an unresolved
 Job with safe operational wording; do not label the source invalid or stop
 independent Jobs merely because interpretation failed.
 
+Retaining a cancellation's independent cause preserves failure evidence; it does
+not prove that cleanup is still pending. The shared
+independent_interruption_failure helper can return a historical model or native
+failure after its owners have settled. Keep/report the original cause without
+turning it into an unconditional, never-cleared retirement failure. Check the
+exact model owner, run task and native cleanup owners for current settlement.
+Preserve simultaneous operation and cleanup failures together; reporting the
+historical cause must not hide a currently unresolved cleanup failure.
+An injected exception named "cleanup failure" without an owned resource proves
+evidence retention only; it cannot establish an unresolved-resource obligation.
+
 Ready slices may progress without an all-provider readiness gate. Joint closure
 still requires demonstrated adoption by all four, removal of superseded ladders,
 and provider-level evidence. A partial migration is reported as partial.
