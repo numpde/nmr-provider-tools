@@ -219,13 +219,13 @@ class UploadRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(owner.recovery_failure, notices[0])
         self.assertEqual(owner.requests_started, 4)
 
-    async def test_original_deadline_is_not_extended_by_waiting(self):
-        owner, _, _ = self.owner(recovery=self.policy(initial=1), seconds=0.08)
+    async def test_recovery_wait_that_cannot_fit_original_deadline_is_rejected(self):
+        owner, _, _ = self.owner(recovery=self.policy(initial=60), seconds=10)
         clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT), store_reply(failure=temporary_read_error())]
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
-            with self.assertRaisesRegex(UploadFailed, "deadline"):
-                await asyncio.wait_for(owner.acquire(UPLOAD_REF), 0.5)
+            with self.assertRaisesRegex(UploadRecoveryExhausted, "source recovery wait .* cannot fit .* original deadline"):
+                await asyncio.wait_for(owner.acquire(UPLOAD_REF), 5)
         self.assertEqual(owner.requests_started, 4)
 
     async def test_first_outage_and_first_uncertain_issuance_are_bounded_exact_references(self):
