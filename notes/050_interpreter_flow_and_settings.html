@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<title>Ideal interpreter flow and current settings · Note 050</title>
+<title>Shared interpreter flow and migration settings · Note 050</title>
 <style>
   :root { --bg:#f5f6f8; --paper:#fff; --ink:#182536; --muted:#526176; --line:#ccd6e1;
     --blue:#175da6; --blue-bg:#edf5ff; --green:#126047; --green-bg:#edf8f2;
@@ -69,16 +69,16 @@
 <body>
 <main>
 <header>
-  <div class="eyebrow">Note 050 · Flow revision for review · 4 November 2026</div>
+  <div class="eyebrow">Note 050 · Released SDK and provider migration · 4 November 2026</div>
   <h1>The shared interpreter flow</h1>
   <p>Retry transient transport failures at the same endpoint with finite attempts and backoff. Give a model bounded opportunities to inspect and correct its answer. Escalate to the next configured model when those opportunities are exhausted.</p>
-  <p class="muted">The first chart is the proposed common design. Current provider behavior and supported TOML settings follow for comparison; they do not yet implement every part of this design. Configuration examples contain no live deployment values.</p>
-  <nav aria-label="Contents"><a href="#ideal">Proposed flow</a><a href="#handoff">Earlier alternative</a><a href="#tools-first">History and constraints</a><a href="#universal-config">Universal TOML</a><a href="#turns">What counts now</a><a href="#flow">Current flow</a><a href="#policies">Provider differences</a><a href="#settings">Current settings</a><a href="#sources">Sources</a></nav>
+  <p class="muted">The first chart describes the shared workflow released in provider-core 0.6.3. Provider integration and deployment are in progress; source uptake does not prove running behavior. Later provider comparisons and settings record the pre-migration baseline, not current deployment state. Configuration examples contain no live deployment values.</p>
+  <nav aria-label="Contents"><a href="#ideal">Shared flow</a><a href="#handoff">Earlier alternative</a><a href="#tools-first">History and constraints</a><a href="#universal-config">Migration TOML</a><a href="#turns">Turn counting</a><a href="#flow">Earlier flow</a><a href="#policies">Provider differences</a><a href="#settings">Earlier settings</a><a href="#sources">Sources</a></nav>
 </header>
 
 <section id="ideal">
-  <h2>Proposed common flow: choose evidence, then submit</h2>
-  <p><strong>Design revision for review; module refactor pending. See <a href="052_interpreter_tool_refactor_plan.txt">the implementation plan in note 052</a>.</strong> The model chooses a permitted action. The provider decides whether scientific input is acceptable. The SDK owns requests, bounded correction, model selection and retirement. A model's final prose or input-problem claim cannot accept preparation or prove invalid input.</p>
+  <h2>Released common flow: choose evidence, then submit</h2>
+  <p><strong>Available in provider-core 0.6.3. Integrate it and deploy each ready provider independently; see <a href="052_interpreter_tool_refactor_plan.txt">the rollout plan in note 052</a>.</strong> The model chooses a permitted action. The provider decides whether scientific input is acceptable. The SDK owns requests, bounded correction, model selection and retirement. A model's final prose or input-problem claim cannot accept preparation or prove invalid input.</p>
   <p class="callout">Keep one API Attempt and one overall deadline. Choose endpoints in configured order, dividing remaining time among untried endpoints after prior cleanup. Fix each model's deadline once. “Later” means configured later, not automatically smarter.</p>
   <div class="diagram">
     <svg class="branches" viewBox="0 0 1100 1140" role="img" aria-labelledby="ideal-title ideal-desc">
@@ -181,9 +181,10 @@
     <li><strong>Count corrections honestly.</strong> The current SDK's three-correction allowance includes protocol repairs and rejected tool arguments, not just scientific proposals. Successful information calls consume turns and time, but no correction allowance. Each model has 12 turns; each turn has at most two HTTP attempts.</li>
     <li><strong>Do not make a tool a mandatory preflight.</strong> The first model can submit directly when the original input and supplied schema suffice. A successor can inspect fresh data without first reading history. Provider-specific scientific prerequisites still apply.</li>
     <li><strong>Keep acceptance before cleanup.</strong> A preparation accepted after its model window expires is retained. Cleanup trouble cannot turn that acceptance into permission to replay preparation. Provider failures propagate promptly; their caller retains resource settlement.</li>
+    <li><strong>Inspection expiry is a narrow handoff signal.</strong> The provider may raise <code>ModelWindowExpired</code> only after the original inspection and reader have settled without an independent failure. The SDK then retires model I/O before advancing. An ordinary timeout or cancelled waiter does not prove scientific retirement.</li>
     <li><strong>Do not promise fresh inventory in successor context.</strong> The module reuses captured original messages and adds its catalogue. Only provider operations establish current source membership or validity.</li>
   </ul>
-  <h3>Limits to keep visible before implementing</h3>
+  <h3>Limits to keep visible during adoption</h3>
   <p><strong>History pagination is not context management.</strong> Earlier pages remain in the transcript. Filling the remaining request allowance with one page can leave no room for another page or useful reasoning. Keep the current bounded reader, but do not promise that a model can read an arbitrarily large record page by page. Targeted provider inspection is preferable when available; record selection or transcript compaction needs a separate demonstrated requirement.</p>
   <p><strong>A constraint lookup need not discover anything new.</strong> Its static fallback repeats the supplied schema and handles simple property paths; it is not a full JSON Schema resolver. Source-specific allowed values require the provider accessor. Keep this distinction in the tool description.</p>
   <p class="callout warning"><strong>Refactor boundary:</strong> keep one module. Bind each shared tool's schema and execution behavior together; derive advertised definitions and lookup from the same instances. The model visit retains deadlines, retries, correction accounting and cleanup. Provider callbacks retain scientific validation and effects. Use the agreed <code>report_interpretation_problem</code> name and keep scientific report fields provider-owned; no additional handoff tool.</p>
@@ -207,7 +208,7 @@
 
 <section id="tools-first">
   <h2>Selected approach: the model fetches the context it needs</h2>
-  <p><strong>Implemented in the shared SDK; provider adoption remains separate.</strong> The <a href="../packages/provider-core/src/provider_core/interpreter.py"><code>Interpreter</code> module</a> implements the tools-first flow with the existing conversation and transport owners. Its API and integration example are in the <a href="../packages/provider-core/README.md#shared-interpretation">package README</a>. This does not change the current provider wiring described below.</p>
+  <p><strong>Released in provider-core 0.6.3; provider integration and deployment remain in progress.</strong> The <a href="../packages/provider-core/src/provider_core/interpreter.py"><code>Interpreter</code> module</a> implements the tools-first flow with the existing conversation and transport owners. Its API and integration example are in the <a href="../packages/provider-core/README.md#shared-interpretation">package README</a>. All four providers now use the shared carrier factory in source. Finish and verify each integration, then deploy its existing deployments. The historical provider comparisons below explain the behavior being replaced; they are not instructions to preserve old scheduling or terminal model-report rules.</p>
   <p>Give the successor the original request, provider instructions, captured source inventory when supplied and a small catalogue of earlier work. Do not automatically inject prior proposals or large inspection payloads. The model chooses which records to retrieve, which sources to inspect now, or whether it can act directly.</p>
   <p class="flow-line">Original task + catalogue → model chooses needed evidence → read captured record(s) → reason / inspect / submit<br><small>Reading history is optional. Each read uses the ordinary model-turn and time budget, but not the correction quota when successful. It never restarts a deadline.</small></p>
   <div class="table-scroll"><table>
@@ -248,8 +249,8 @@
 </section>
 
 <section id="universal-config">
-  <h2>Proposed universal TOML: thin files, common SDK policy</h2>
-  <p><strong>Proposal, not current parser support.</strong> Keep the operator configuration small: one overall timeout in the provider/binding file, and one minimal file per endpoint. Preserve the provider's repository-owned endpoint-directory convention; no new directory selector, cross-repository settings file or registry.</p>
+  <h2>Provider migration target: thin TOML files, common SDK policy</h2>
+  <p><strong>Common adoption target, not an SDK configuration parser.</strong> Each provider owns migrating its parser, tracked examples and installed configuration together, using <a href="051_universal_interpreter/provider.toml.example">note 051</a>. Keep the operator configuration small: one overall timeout in the provider/binding file, and one minimal file per endpoint. Preserve the provider's repository-owned endpoint-directory convention; no new directory selector, cross-repository settings file or registry.</p>
   <pre><code>config/
 ├── provider.toml                # One overall interpretation timeout
 └── interpreter.d/              # Illustrative repo-owned endpoint directory
@@ -258,7 +259,7 @@
   <p>Only <code>*.toml</code> endpoint files are selected, in lexicographic filename order. Remove <code>.example</code> when installing templates. The captured filename supplies the endpoint label and priority; there is no separate <code>id</code>.</p>
   <h3>Provider or binding policy: <code>config/provider.toml</code></h3>
   <p><a href="051_universal_interpreter/provider.toml.example">Open provider.toml.example</a></p>
-  <pre><code># PROPOSAL: common interpreter policy, not current parser support.
+  <pre><code># Migration target: implement in the provider-owned parser and configuration.
 # Embed in the provider&#x27;s own selected provider/binding configuration.
 # Keep its existing repository-owned endpoint-directory convention.
 
@@ -269,7 +270,7 @@ timeout_seconds = 240
 </code></pre>
   <h3>First endpoint: <code>interpreter.d/00-fast.toml</code></h3>
   <p><a href="051_universal_interpreter/interpreter.d/00-fast.toml.example">Open interpreter.d/00-fast.toml.example</a></p>
-  <pre><code># PROPOSAL: same endpoint fields in every provider; no private keys in this file.
+  <pre><code># Migration target: same endpoint fields in every provider; no private keys here.
 # Install as 00-fast.toml. Only *.toml files are selected, in filename order.
 # The filename supplies the endpoint label and priority; no separate id field.
 # Complete request URL, not a base URL.
@@ -282,7 +283,7 @@ key_file = &quot;/run/config/interpreter/fast.key&quot;
 </code></pre>
   <h3>Later endpoint: <code>interpreter.d/10-strong.toml</code></h3>
   <p><a href="051_universal_interpreter/interpreter.d/10-strong.toml.example">Open interpreter.d/10-strong.toml.example</a></p>
-  <pre><code># PROPOSAL: install as 10-strong.toml, after 00-fast.toml in filename order.
+  <pre><code># Migration target: install as 10-strong.toml, after 00-fast.toml in filename order.
 url = &quot;https://strong.example.invalid/v1/chat/completions&quot;
 model = &quot;more-capable-model&quot;
 key_file = &quot;/run/config/interpreter/strong.key&quot;
@@ -291,9 +292,9 @@ key_file = &quot;/run/config/interpreter/strong.key&quot;
   <dl>
     <dt>Agreed default: divide remaining time among untried models</dt><dd>After previous endpoint cleanup settles, divide the remaining overall time by the number of endpoints still to try, including the one being selected. Fix that model's deadline once; retries and corrections never restart it. Unused time rolls forward. With 240 seconds and two models, the first receives at most 120 seconds. If its model work ends after 20 seconds, the second receives approximately 220 seconds minus cleanup time; if it uses its full 120 seconds, the second receives approximately 120 seconds minus cleanup time. Cleanup consumes overall time rather than extending the interpretation window. The caller's earlier Job/work deadline still takes precedence.</dd>
     <dt>No arbitrary short response ceiling</dt><dd>A connected model request may use its remaining model window. An 80-second response can fit a 120-second window; it must not be repeatedly aborted by an unrelated 25-second SDK read limit. A short SDK connection-establishment bound, including DNS and TLS setup, can detect unreachable services. Confirm cleanup before retrying; retire safely before escalation.</dd>
-    <dt>Retries are a maximum, not a promise</dt><dd>A quick transient failure leaves time for a same-endpoint retry after backoff. A request that consumes the entire model window causes escalation; there is no time left to promise another full-length request. The proposed initial SDK policy allows at most two HTTP attempts per logical turn, including the first, with one bounded jittered backoff and Retry-After handling. These are SDK policy, not endpoint-file settings.</dd>
-    <dt>Keep inspection and failed proposals distinct</dt><dd>The SDK centrally bounds total logical turns and corrections per model, including protocol repairs and rejected tool arguments. Successful inspections consume turns and time, but do not consume the repair quota. Corrections remain best-effort within the total-turn and time limits; inspections can exhaust those limits before all repair opportunities are used. The initial policy should accommodate SECS's existing 12-turn conversation while limiting repeated bad proposals separately; the exact constants belong in centrally qualified SDK policy, not per-model TOML.</dd>
-    <dt>No duplicated limits in endpoint files</dt><dd>Drop endpoint IDs, endpoint/exchange/retirement timers, per-model turn caps and retry/backoff knobs from this proposal. Endpoint files contain complete URL, model and credential-file reference, with reasoning effort or CA only when the service needs them. Introduce a model-specific time override only if measured behavior demonstrates that the default allocation is insufficient.</dd>
+    <dt>Retries are a maximum, not a promise</dt><dd>A quick transient failure leaves time for a same-endpoint retry after backoff. A request that consumes the entire model window causes escalation; there is no time left to promise another full-length request. The released SDK policy allows at most two HTTP attempts per logical turn, including the first, with one bounded jittered backoff and Retry-After handling. These are SDK policy, not endpoint-file settings.</dd>
+    <dt>Keep inspection and failed proposals distinct</dt><dd>The SDK centrally bounds total logical turns and corrections per model, including protocol repairs and rejected tool arguments. Successful inspections consume turns and time, but do not consume the repair quota. Corrections remain best-effort within the total-turn and time limits; inspections can exhaust those limits before all repair opportunities are used. Released SDK policy permits 12 logical turns and 3 corrections per model. These bounds belong to the SDK, not per-model TOML.</dd>
+    <dt>No duplicated limits in endpoint files</dt><dd>Drop endpoint IDs, endpoint/exchange/retirement timers, per-model turn caps and retry/backoff knobs during migration. Endpoint files contain complete URL, model and credential-file reference, with reasoning effort or CA only when the service needs them. Introduce a model-specific time override only if measured behavior demonstrates that the default allocation is insufficient.</dd>
     <dt>One captured configuration per interpretation</dt><dd>Capture the overall policy and ordered endpoint definitions before starting. Do not rescan or reread settings between retries and endpoint switches. Later edits apply to new interpretations.</dd>
     <dt>Scientific ownership stays with the provider</dt><dd>Escalation carries the original request and a provenance-labelled catalogue with optional record retrieval; it never replays accepted scientific work. The provider retains its prompts, tools, acceptance rules and work deadlines. Exhaustion ends this Job, not the provider.</dd>
   </dl>
@@ -302,10 +303,10 @@ key_file = &quot;/run/config/interpreter/strong.key&quot;
 
 
 <section id="turns">
-  <h2>Current implementation: three things to count</h2>
+  <h2>Turn counting: three distinct allowances</h2>
   <div class="three">
     <div class="definition"><h3>Logical turn</h3><p>One call to an endpoint adapter to obtain and handle a model reply. The counter increments before that call, so a failed exchange also uses a turn.</p></div>
-    <div class="definition"><h3>HTTP attempt</h3><p>One network request. NMRPeak can make up to two HTTP attempts inside one logical turn for selected operational failures. That retry does not create another conversation turn.</p></div>
+    <div class="definition"><h3>HTTP attempt</h3><p>One network request. The shared SDK allows at most two HTTP attempts inside one logical turn for selected operational failures. That retry does not create another conversation turn.</p></div>
     <div class="definition"><h3>Tool feedback</h3><p>The provider returns inspection findings or explains a rejection. Sending that feedback does not itself use a turn; the model's next response requires the next turn.</p></div>
   </div>
   <div class="timeline" aria-label="Example of a three-turn conversation">
@@ -313,11 +314,11 @@ key_file = &quot;/run/config/interpreter/strong.key&quot;
     <div class="turn"><strong>Turn 2 · Propose</strong>Model proposes input.<br>Provider rejects it and explains why.</div>
     <div class="turn"><strong>Turn 3 · Repair</strong>Model proposes corrected input.<br>Provider accepts it and finishes interpretation.</div>
   </div>
-  <p class="callout"><strong>A limit of three means three total turns.</strong> It includes the initial turn and useful inspections. If turn 3 is rejected, there is no turn 4 in that conversation. A provider may then try another endpoint under the policy below.</p>
+  <p class="callout"><strong>Illustration: a limit of three means three total turns.</strong> The released shared policy allows 12 turns and 3 corrections per model; three corrections do not mean three total turns. A total-turn limit includes the initial turn and useful inspections. Under the illustrative three-turn limit, a rejection on turn 3 leaves no turn 4 at that model. The released scheduler advances only after retirement, within the captured overall deadline.</p>
 </section>
 
 <section id="flow">
-  <h2>One conversation, at the current endpoint</h2>
+  <h2>Pre-migration conversation flow</h2>
   <p class="muted">An endpoint is a configured model service and model name. Deadlines and cancellation can interrupt this flow; cleanup still has to settle.</p>
   <div class="diagram">
     <svg viewBox="0 0 1000 620" role="img" aria-labelledby="flow-title flow-desc">
@@ -438,7 +439,7 @@ key_file = &quot;/run/config/interpreter/strong.key&quot;
 </section>
 
 <section id="policies">
-  <h2>What happens after failure or exhaustion?</h2>
+  <h2>Pre-migration fallback differences</h2>
   <p>“Next” means the next configured endpoint. It can be a more capable model if configured that way; the code does not assess intelligence or reorder endpoints.</p>
   <div class="table-scroll"><table>
     <thead><tr><th>Provider</th><th>Turn budget</th><th>When it advances</th><th>Context at next endpoint</th></tr></thead>
@@ -449,14 +450,14 @@ key_file = &quot;/run/config/interpreter/strong.key&quot;
       <tr><td>SECS</td><td>One configurable total for one endpoint.</td><td>No endpoint ladder. Corrections stay in the same conversation. A “cannot analyse” decision finishes it.</td><td>No next endpoint in the current configuration model.</td></tr>
     </tbody>
   </table></div>
-  <p style="margin-top:18px"><strong>No reserved allowance for a stronger model exists today.</strong> Magnet and NMRPeak share one overall interpretation deadline across their endpoint attempts. An earlier endpoint can consume the time a later one would need. Turn allowance and elapsed-time allowance are separate.</p>
+  <p style="margin-top:18px"><strong>The pre-migration schedulers had no reserved allowance for a later model.</strong> Magnet and NMRPeak share one overall interpretation deadline across their endpoint attempts. An earlier endpoint can consume the time a later one would need. Turn allowance and elapsed-time allowance are separate.</p>
 </section>
 
 <section id="settings">
-  <h2>Settings and their scope</h2>
-  <p>These names come from the current source and tracked examples. The TOML below shows actual configuration fields with example values. These are fragments, not complete deployment files; credentials and unrelated required fields are omitted.</p>
+  <h2>Pre-migration settings and their scope</h2>
+  <p>These names and fragments come from the pre-migration source snapshots listed below. They explain settings to migrate, not fields to reinstall unchanged. Read each adopting provider's current parser and tracked examples for supported fields. These are fragments, not complete deployment files; credentials and unrelated required fields are omitted.</p>
   <div class="table-scroll"><table>
-    <thead><tr><th>Provider</th><th>Editable in configuration</th><th>Fixed in code today</th></tr></thead>
+    <thead><tr><th>Provider</th><th>Editable in configuration</th><th>Fixed in the snapshot</th></tr></thead>
     <tbody>
       <tr><td>Magnet</td><td>Models, endpoint order, reasoning effort; HTTP, turn and interpretation timeouts.</td><td>3 turns per endpoint; at most 4 endpoints; fallback/reset and input-report rules.</td></tr>
       <tr><td>NMRPeak</td><td>Models, endpoint order, reasoning effort; HTTP, turn and interpretation timeouts.</td><td>3 turns per endpoint; 2 HTTP attempts per turn; 1-second retry delay; at most 4 endpoints; fallback/reset and input-report rules.</td></tr>
@@ -560,7 +561,7 @@ work_seconds = 1800
 
 <section id="sources" class="sources">
   <h2>Source map</h2>
-  <p>These links point to local source checkouts. Snapshot revisions: provider-core <code>v0.6.2</code> (<code>9ce6a60</code>), Magnet <code>a47db31</code>, NMRNet <code>d988dc3</code>, NMRPeak <code>fb44da4</code>, SECS <code>6368341</code>. Later edits can change the linked working files.</p>
+  <p>These links point to local source checkouts. Pre-migration comparison snapshots: provider-core <code>v0.6.2</code> (<code>9ce6a60</code>), Magnet <code>a47db31</code>, NMRNet <code>d988dc3</code>, NMRPeak <code>fb44da4</code>, SECS <code>6368341</code>. Later edits can change the linked working files. The shared workflow above is released in provider-core 0.6.3 (<code>ded24f6</code>); these older snapshots do not describe current integration or live deployment status.</p>
   <ul>
     <li><a href="../packages/provider-core/src/provider_core/conversation.py">Shared conversation: counter, feedback, carrier fallback and retirement</a> · <a href="040_shared_interpreter_design.txt">Shared interpreter design</a></li>
     <li>Magnet: <a href="../../magnet-deploy/magnet_provider/interpreter.py">endpoint loop</a> · <a href="../../magnet-deploy/magnet_provider/openai_chat_interpreter.py">carrier/timeouts</a> · <a href="../../magnet-deploy/models/e_01_jvae_nmrexp/provider/e01.toml.example">binding example</a></li>

@@ -304,6 +304,12 @@ consumer suites.
 
 ## Shared interpretation
 
+Released in `provider-core[api]==0.6.3`. Provider owners should integrate this
+contract, check their actual adapter with the installed package, then deploy
+each ready existing deployment through its maintained targets. Keep source,
+installed-package and running-deployment evidence distinct; SDK qualification
+does not prove provider behavior or require waiting for other providers.
+
 `provider_core.interpreter.Interpreter` owns one interpretation across an ordered
 model ladder. It divides remaining time among untried models, fixes each model's
 deadline, and retires its I/O before retry or escalation. SDK policy currently
@@ -322,10 +328,11 @@ admitted preparation retains its separate provider work deadline. Do not wrap
 all dispatch in the model timeout or treat `ToolFinished(None)` as rejection.
 
 A provider may raise `ModelWindowExpired` only after a timed-out inspection has
-settled enough to permit another model. The SDK then retires the model before
-advancing. Ordinary provider timeouts, scientific failures and uncertain cleanup
-still propagate without fallback. Neither the deadline nor this API retires
-provider work on the caller's behalf.
+settled and its original reader can no longer produce an unobserved failure.
+Independent work or cleanup failures still belong to the provider. The SDK then
+retires the model before advancing. Ordinary provider timeouts, scientific
+failures and uncertain cleanup still propagate without fallback. Neither the
+deadline nor this API retires provider work on the caller's behalf.
 
 `InterpretationInputRejected` identifies an initial-context credential refusal
 before any model or scientific work starts. `InterpretationFailed` identifies
@@ -434,8 +441,15 @@ limit. Provider tools retain authority over current source membership, inspectio
 dynamic constraints and scientific truth. History never refreshes claims or
 performs inspection, downloads, preparation or generation.
 
-This API implements the tools-first design in note 050. It does not change the
-existing providers' parsers, deployment files or current interpreter wiring.
+This API implements the tools-first workflow in note 050. Providers own migrating
+their parsers, deployment configuration and adapters to the common contract in
+notes 051 and 052. Reuse `ChatEndpointFactory` and `https_trust` alongside
+`Interpreter`; remove superseded model schedulers and transport composition.
+Provider-specific scientific admission, source inspection, preparation and
+settlement stay with their existing owners. Exhaustion must not restart the
+ladder through an outer availability retry or treat a model report as proof of
+invalid input. Verify actual package/image identity, health and behavior after
+deploying; imports and package tests alone do not complete provider adoption.
 
 The implementation stays in `interpreter.py`: the interpreter schedules model
 visits, each visit owns its conversation and cleanup, and immutable history

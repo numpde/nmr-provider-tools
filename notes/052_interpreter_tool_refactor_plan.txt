@@ -1,11 +1,14 @@
 Shared interpreter tool refactor plan
 ====================================
 
-Status: implementation underway; SDK and provider integration are not yet jointly qualified.
-Scope: one shared interpreter module and a coordinated migration of Magnet,
-NMRPeak, NMRNet and SECS. Implement and qualify these as separate coherent slices;
+Status: provider-core 0.6.3 is released; provider integration and deployment are in progress.
+Scope: integrate the released shared interpreter in Magnet, NMRPeak, NMRNet and
+SECS, then deploy each existing provider deployment through its maintained targets.
+All four source integrations now use the shared carrier factory. This is source
+uptake, not proof of completed integration or running deployment.
 SDK completion alone does not complete the joint workflow.
-Companion: 050_interpreter_flow_and_settings.html describes the proposed flow.
+Companion: 050_interpreter_flow_and_settings.html explains the common flow and
+separately labels the pre-migration provider behavior and settings.
 
 Outcome and boundaries
 ----------------------
@@ -88,21 +91,23 @@ budget are supplied without discovery calls. Information calls are optional;
 provider-required scientific inspection still applies. No task-reader, budget,
 sleep, transport-retry, endpoint-selector or generic validation tool is needed.
 
-Current caller evidence
------------------------
+Released baseline and next action
+---------------------------------
 
-The checked source imports the new shared Interpreter in SDK unit, native and
-integration fixtures. The inspected Magnet, NMRNet, NMRPeak and SECS interpreter
-sources still use their own orchestration; none imports this new module. A
-similarly named NMRNet exception is provider-local, not this SDK's type.
-Recheck these callers before implementation because concurrent work can change
-them. Qualify the SDK slice first; then migrate all four providers as required
-parts of joint completion, without blocking useful SDK work on their readiness.
+Reuse provider-core 0.6.3 (ded24f6): Interpreter, ChatEndpointFactory,
+https_trust, deadline-aware callbacks, report handoff and protected failure
+projection are released. Do not repeat the SDK refactor or wait for another
+publication before integrating this contract. Current source in all four
+providers imports Interpreter and uses ChatEndpointFactory; each owner must
+finish and verify its actual integration rather than treating imports as parity.
 
-failure_projection.py imports ModelReportedInputProblem and admits its exact
-type for protected diagnostics. Its import and allowlist must follow the SDK
-exception rename together. Preserve safe diagnostic details and causal edges;
-a missed projection update can lose evidence despite a passing handoff test.
+For each provider: finish the adapter and configuration migration, run focused
+provider checks with the released installed package, then deploy its existing
+deployments and observe actual package/image identity, health and behavior.
+Integration and deployment are authorized parts of this rollout. Progress each
+ready provider independently; do not wait for all four or a speculative SDK
+improvement. Shared improvements require actual uptake by affected owners.
+Report any remaining source, installed-package or running-deployment gap.
 
 Programming patterns and concrete module shape
 ----------------------------------------------
@@ -188,12 +193,11 @@ this refactor does not move their implementations into interpreter.py.
 Operation-scoped deadlines, not a whole-interpreter context
 ---------------------------------------------------------
 
-The current dispatch(name, arguments) signature has a real SECS adoption gap:
-live inspection needs the selected model's absolute deadline, while preparation
-uses the provider's independent work deadline. Add the explicit keyword
-not_after to provider dispatch and to a dynamic constraint accessor that performs
-provider work. Supply the current fixed model deadline; do not recalculate a
-fresh timeout in the callback. Static constraint reads need no timing machinery.
+The released dispatch(name, arguments, *, not_after) and optional dynamic
+constraint accessor receive the selected model's absolute deadline. Live
+inspection uses that grant, while preparation uses the provider's independent
+work deadline. Update each adopting callback to this contract; do not recalculate
+a fresh timeout. Static constraint reads need no timing machinery.
 
 Inspection/source acquisition uses that grant together with any earlier Job
 limit. Preparation admitted before the model deadline retains its work deadline
@@ -214,14 +218,14 @@ settlement owner. After inspection actually expires and settles, it may raise
 ModelWindowExpired to permit ordinary model advancement after model-I/O
 retirement. Ordinary TimeoutError, ConversationFailed and independent cleanup
 failures remain provider failures, not signals to advance.
-A narrower callback signature is an intentional new API change: update local
-fixtures and each adopting adapter together, not a signature-probing fallback.
+The narrower callback signature is the released API: update each adopting
+adapter and its fixtures together, without a signature-probing fallback.
 
 Handoff and naming
 ------------------
 
-Use ModelReportedInterpretationProblem for the shared provider-to-SDK report
-signal, replacing ModelReportedInputProblem in the new API and its fixtures.
+The released shared provider-to-SDK report signal is
+ModelReportedInterpretationProblem. Migrate provider adapters to that signal.
 The visit records the explicitly selected model-safe summary as an unverified
 interpretation claim and returns ToolHandoff; the conversation yields
 ConversationHandoff normally.
@@ -302,50 +306,39 @@ Failure decisions that travel with each handoff
   retirement; already assigned model windows never restart. Information reads
   use turns/time, while malformed queries also consume correction allowance.
 
-Implementation sequence
------------------------
+Integration and deployment sequence
+-----------------------------------
 
-1. Inventory the two built-ins and provider report paths. Record actual callers,
-   definitions, prompts and diagnostics touched by the common report rename.
-   Keep changes limited to active code, fixtures and current documentation;
-   historical release notes and private operator configuration are not rewritten.
+1. Use released provider-core 0.6.3. The information tools, report naming,
+   deadline callbacks, carrier composition and installed-wheel qualification are
+   the SDK baseline, not work to repeat in each provider. Inspect only remaining
+   integration gaps; keep changes limited to active code, fixtures and current
+   documentation, preserving unrelated edits and private operator configuration.
 
-2. Refactor the two information tools together with composition and dispatch.
-   Preserve wire names, argument shapes and feedback envelopes. Keep the exact
-   full-request history sizing with ToolConversation, including escaped content,
-   current assistant message, reply budget and catalogue suffix. Retain the
-   fixed sizing projection during pagination.
+2. Each provider owner finishes its adapter with the shared scheduler and carrier
+   factory. Migrate endpoint/config semantics to the common target in note 051,
+   report/outcome handling, callbacks and protected diagnostics together. Preserve
+   scientific admission and settlement owners; remove duplicate inner and outer
+   model ladders. Choose the owning unresolved Job outcome explicitly: model
+   reports and exhaustion do not prove invalid input or authorize a fresh ladder.
 
-3. Apply the agreed report vocabulary in the shared API, failure_projection.py,
-   SDK fixtures and examples. Keep model-facing naming, the SDK signal and the
-   in-memory record kind consistent. Apply the report privacy boundary above.
-   Check protected report diagnostics as well as successful handoff. This
-   completes the local naming slice, an intermediate joint milestone.
+3. Reuse existing witnesses and add focused checks only for changed wiring.
+   Verify the provider's actual adapter with the released installed package.
+   Resolve demonstrated ownership or behavior failures before replacing its
+   running deployment; do not make unrelated redesign or exhaustive repeated
+   validation a deployment prerequisite.
 
-   In each subsequent provider adoption slice, update that
-   provider's advertised name, prompt and dispatch together. Preserve scientific
-   report fields and verify its actual pinned dependency supports the new API.
-   Publication is a prerequisite for released consumer proof, not a reason to
-   block this local refactor. Do not claim provider rollout from package tests.
+4. Deploy each ready provider's existing deployments through its maintained
+   push/pull/build targets. Verify actual package/image identity, health and
+   behavior; source tests alone prove none of these. Keep uncertain scientific
+   work and its real settlement owners intact during cutover. No all-provider
+   readiness gate or bundle transfers.
 
-4. Add the narrow per-operation deadline seam and qualify it with real provider
-   inspection/preparation boundaries. Reconcile note 050 and the package README.
-   Run the SDK installed-wheel lanes and commit coherent slices with Sentence
-   case subjects and rationale/validation bodies. Publish a supporting version
-   through the existing release workflow during authorized implementation.
-
-5. Each provider owner adopts that exact qualified package and common policy,
-   migrating endpoint/config semantics, report/outcome handling, callbacks and
-   diagnostics together. Remove duplicate inner and outer ladders. Providers
-   can work in parallel after the contract is fixed; share any demonstrated
-   improvement with all owners and verify uptake in source and tests.
-
-6. Close the joint implementation only when all four use the shared scheduler
-   and pass their provider-level parity witnesses. Where deployment is part of
-   the authorized rollout, push/pull/build through maintained targets and verify
-   actual package/image identity, health and behavior; no bundle transfers or
-   inference from source tests. Distinguish source, installed-package and live
-   proof. This planning turn itself makes no release or deployment changes.
+5. Cross-audit concrete integration findings. Put demonstrated reusable fixes in
+   the shared owner, and verify affected providers adopt them in code and tests.
+   Close the joint rollout only after all four use the common workflow, remove
+   superseded schedulers and have provider-level and running-deployment evidence.
+   State remaining gaps rather than equating a released SDK with joint completion.
 
 Provider adoption checklist (required for joint completion)
 ----------------------------------------------------------
@@ -354,7 +347,7 @@ For each provider, inspect the actual preparation and retirement boundaries
 before replacing its loop. Reuse its credential/TLS composition and repository
 config location; migrate scheduling fields to the common thin configuration.
 Preserve endpoint order while changing representation. No cross-repo config.
-Use a supporting package version before claiming an installable migration.
+Use released 0.6.3 before claiming an installable migration.
 
 - Replace duplicate model selection/retry orchestration with Interpreter and
   endpoint factories. Do not leave a second outer model/retry ladder around it.
@@ -381,18 +374,22 @@ or live proof. Keep private data and coordination dialogue out of this plan.
 Provider-specific adoption decisions
 ------------------------------------
 
-Magnet: magnet_provider/interpreter.py and the E01/E02 processors currently map
+The following findings describe the pre-migration baseline and the behavior each
+adoption must preserve or replace. They are not a current integration status
+inventory; inspect the resulting source and evidence before assigning new work.
+
+Magnet: magnet_provider/interpreter.py and the E01/E02 processors mapped
 model reports to a reported_input_problem failure. Update schema, correction
 prompt, dispatch and processor outcome together. Report-only exhaustion must not
 reuse a caller-input classification. Preserve the separate deterministic runner
 admission rejection classification, endpoint IDs/events and protected causes.
-Its current endpoint parser uses base_url and derives the chat-completions path;
-do not pretend the proposed full-URL/key-file configuration is already supported.
+Its pre-migration endpoint parser used base_url and derived the chat-completions path;
+verify the adopting parser supports the full-URL/key-file target before cutover.
 Map captured TLS, proxy, credential and timeout settings explicitly.
 NativeWorkerExited must still reach its owner promptly with the exact model
 cleanup task retained and joined. Shared model retirement does not settle native
 work. Choose the final unresolved Job mapping before changing the adapter.
-E01/E02 currently retry AnalysisUnavailable outside interpretation; mapping
+E01/E02 retried AnalysisUnavailable outside interpretation; mapping
 exhaustion into that category would restart the ladder. Use a terminal operational
 Job disposition for exhausted interpretation and preserve only separately
 justified availability recovery. Verify this on both scientific bindings.
@@ -402,15 +399,15 @@ runner owns final admission; constraints must not invent enums absent from that
 schema. There is no live inspection tool to manufacture. Preserve the existing
 report's message field and bounded validation, map visit numbers to captured
 endpoint IDs, and retain typed-construction versus runner rejection diagnostics.
-Change the current all-reports ReportedInputProblem outcome into a deliberate
+Change the pre-migration all-reports ReportedInputProblem outcome into a deliberate
 unresolved-interpretation mapping. InterpretationSession must retain the shared
 Interpreter through observed worker crash, run-task joining and cleanup.
 Replace three-turn endpoint limits and the request/turn/overall timeout stack
-with shared policy. analysis_session._prepare_prose currently loops on
+with shared policy. analysis_session._prepare_prose looped on
 InterpreterUnavailable; it must not restart exhausted shared interpretation.
 Map final exhaustion separately and remove that obsolete outer interpreter retry.
 
-NMRNet: nmrnet_provider/interpreter.py currently ends selection with a structured
+NMRNet: nmrnet_provider/interpreter.py ended selection with a structured
 issue/private-message report; session.py turns it into a Job failure. Replace
 that immediate terminal path with shared handoff, preserving fields and provider
 written public guidance without declaring verified invalidity. InputPreparation
@@ -423,14 +420,14 @@ Replace its global conversation-turn cap across endpoints with shared per-visit
 policy. Migrate ordered endpoint arrays to the agreed provider-owned file layout
 without changing their order; do not retain max_turns as an ignored setting.
 
-SECS: input_operations.py, interpreter.py and session.py currently turn an
+SECS: input_operations.py, interpreter.py and session.py turned an
 explanation-only CannotAnalyse result into cannot_analyse. Change the model
 report path together; report-only exhaustion can use the existing
 interpretation_failed outcome. Preserve interpretation_rejections and protected
 failure_evidence without treating PreparationRejected as a protocol correction.
 Preparation can retain a native handle past the interpretation deadline; model
 cleanup neither releases that handle nor proves readers stopped before source
-release. Existing ExecutionConfig has one endpoint and configurable max_turns:
+release. Pre-migration ExecutionConfig had one endpoint and configurable max_turns:
 migrate to provider-owned ordered endpoint definitions and shared policy,
 removing the obsolete max_turns setting explicitly. Configuring one endpoint
 remains valid, but permanently retaining single-endpoint-only code is not joint
@@ -456,19 +453,18 @@ one-module diff rather than imposing implementation-shaped class-count tests.
 Maintained commands, with the selected local engine and existing wheel pool:
   make tests/unit/provider-core DOCKER_CONTEXT=science WHEELHOUSE=<wheel-pool>
   make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=<wheel-pool>
-Provider wiring needs that provider's own tests when it changes. No release,
-push, deployment or live-model quality claim follows from this planning task.
+Provider wiring needs that provider's focused tests when it changes. These SDK
+commands do not prove provider deployment or live-model quality; verify those
+on the actual deployment as part of this rollout.
 
 Completion and deferred work
 ----------------------------
 
-This plan is complete when its contracts, concrete implementation slices and
-acceptance boundaries withstand independent partial-context roadmap probes.
-SDK completion is intermediate: definitions, handlers, report naming, callback
-deadlines, examples and installed-wheel tests agree, with meaningful commits.
-Joint completion additionally requires all four providers to use that qualified
-implementation and common policy, prove their actual wiring and remove old
-schedulers. Source, installed-package and deployment evidence are distinct;
+The SDK contract is released in 0.6.3; documentation review does not reopen its
+qualification as a prerequisite for adoption. Joint completion requires all four
+providers to use that released implementation and common policy, prove their
+actual wiring, remove old schedulers and verify their existing running
+deployments. Source, installed-package and deployment evidence are distinct;
 state any remaining layer explicitly rather than claiming the whole task done.
 A successful provider test or a sent finding is not proof of the other owners'
 uptake. Inspect their resulting source and evidence.
