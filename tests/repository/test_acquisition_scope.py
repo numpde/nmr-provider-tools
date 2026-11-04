@@ -28,6 +28,7 @@ operation=$1
 shift
 case "$operation" in
   create)
+    printf '%s\n' "$@" >> "$ENGINE_STATE/create-arguments"
     while [[ "$1" != --cidfile ]]; do shift; done
     receipt=$2
     role=${receipt%/cid}
@@ -193,6 +194,20 @@ printf '%s %s\n' "$status" "$report_status"
         process, root = self.launch(callback, env={'WORKER_STATUS': '7'})
         self.assertIn(b'7 7\n', self.assert_exit(process, root, 0))
         self.assertEqual(['fixture:bootstrap'], (root / 'map-images').read_text().splitlines())
+
+    def test_online_workers_share_one_private_resolver_capture(self):
+        process, root = self.launch(
+            'acquisition_set_route system; acquisition_worker online status fixture:first grants application; '
+            'acquisition_worker online status fixture:second grants application',
+            env={'WORKER_STATUS': '0'})
+        self.assert_exit(process, root, 0)
+        arguments = (root / 'create-arguments').read_text().splitlines()
+        self.assertEqual(arguments.count('--resolver-file'), 1)
+        self.assertEqual(arguments.count('/gateway-resolv.conf'), 1)
+        mounts = [value for value in arguments if 'dst=/gateway-resolv.conf' in value]
+        self.assertEqual(len(mounts), 1)
+        self.assertTrue(mounts[0].endswith('/resolv.conf,dst=/gateway-resolv.conf,readonly'))
+        self.assertNotIn('/run/systemd/resolve/resolv.conf', '\n'.join(arguments))
 
     def test_worker_stdout_is_streamed_before_worker_finishes(self):
         process, root = self.launch(

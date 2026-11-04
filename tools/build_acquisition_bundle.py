@@ -22,6 +22,7 @@ from tools.artifacts import fsync_directory
 # repo-check: allow-module-constant
 SOURCE_FILES = (
     "acquisition_tool/owner.sh", "acquisition_tool/__init__.py", "acquisition_tool/identity.py", "acquisition_tool/proxy.py",
+    "acquisition_tool/dns.py",
     "tools/inference_native.sh", "tools/docker_client.sh",
 )
 # Proxy bootstrap is deliberately the same three members as the SDK wheel.

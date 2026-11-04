@@ -10,19 +10,33 @@ Prepare the checked-in delivery release in the shared wheelhouse, then start the
 named deployment:
 
 ```sh
-make delivery/prepare DOCKER_CONTEXT=default WHEELHOUSE=/path/to/wheelhouse NETWORK_INTERFACE=system
-make delivery/deployment/up DOCKER_CONTEXT=default DEPLOYMENT=localhost
+make delivery/prepare DOCKER_CONTEXT=science WHEELHOUSE=/path/to/wheelhouse NETWORK_INTERFACE=system
+make delivery/deployment/up DOCKER_CONTEXT=science DEPLOYMENT=localhost
 ```
 
-On a new host, first run `make checks/base-image/download DOCKER_CONTEXT=default` to acquire the pinned
+On a new host, first run `make checks/base-image/download DOCKER_CONTEXT=science` to acquire the pinned
 container base through Docker. Preparation downloads missing pinned wheels,
 verifies them, and builds offline.
 `system` uses the host's normal network routing; an interface name binds
 acquisition to that interface. Updating the checked-in release pin and preparing
 it again selects a new image. Starting the outbox retains its queue and leaves an
-existing proxy running. `make delivery/deployment/proxy/restart DOCKER_CONTEXT=default DEPLOYMENT=localhost`
+existing proxy running. `make delivery/deployment/proxy/restart DOCKER_CONTEXT=science DEPLOYMENT=localhost`
 updates the proxy separately. Status, logs, and down use `PROJECT` from the
 settings file so they remain available for recovery without a prepared image.
+
+Acquisition captures DNS configuration once per operation. A named interface
+uses its configured NetworkManager DNS first, then systemd-resolved link DNS;
+if neither supplies usable IPv4 resolvers, it uses the host's configured global
+resolvers. The `system` route uses global configuration directly. DNS queries
+and destination connections remain bound to the selected route, with no
+hard-coded public fallback. Configuration changes apply to the next operation.
+
+The shared source bundle includes `acquisition_tool/dns.py` for host-owned build
+launchers. Invoke it with `--interface <name> --output <private-scratch>/resolv.conf`,
+then give that file to the proxy with `--resolver-file`. Keep it until the proxy
+has retired. Containers receive the captured file, not host manager sockets or
+tools. See [NetworkManager's device interface](https://networkmanager.dev/docs/api/latest/nmcli.html)
+and [systemd-resolved's link DNS](https://www.freedesktop.org/software/systemd/man/latest/resolvectl.html).
 
 Outbox byte limits count terminal request bodies, not all disk use. Allow space
 for each retained handoff's encoded credential and CA (up to 16 KiB and 1 MiB

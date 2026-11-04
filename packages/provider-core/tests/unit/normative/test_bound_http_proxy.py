@@ -17,6 +17,26 @@ from provider_core import bound_http_proxy
 
 
 class BoundProxyTests(unittest.TestCase):
+    def test_explicit_resolver_file_cannot_fall_back_to_global_configuration(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "resolv.conf"
+            for content in ("", "nameserver 127.0.0.53\n", "nameserver invalid\n"):
+                path.write_text(content)
+                with self.subTest(content=content), self.assertRaises(bound_http_proxy.ProxyResolutionFailed):
+                    bound_http_proxy._dns_servers(path)
+            path.write_text("nameserver 192.0.2.53\n")
+            self.assertEqual(bound_http_proxy._dns_servers(path), ("192.0.2.53",))
+
+    def test_captured_resolvers_remain_bound_without_rereading_configuration(self):
+        with patch.object(bound_http_proxy, "_dns_servers") as discover, \
+                patch.object(bound_http_proxy, "_query_ipv4", return_value=({"api.example": ["192.0.2.1"]}, {})) as query, \
+                patch.object(bound_http_proxy.time, "monotonic", return_value=0):
+            addresses = bound_http_proxy.resolve_ipv4_bound(
+                "api.example", "wlan0", deadline=30, dns_servers=("192.0.2.53",))
+        self.assertEqual(addresses, ("192.0.2.1",))
+        query.assert_called_once_with("api.example", "192.0.2.53", "wlan0", deadline=30)
+        discover.assert_not_called()
+
     def test_capacity_can_change_without_displacing_active_connections(self):
         slots = bound_http_proxy.ConnectionAdmission(2)
         self.assertTrue(slots.acquire())
@@ -70,11 +90,11 @@ class BoundProxyTests(unittest.TestCase):
                     redirect_stderr(errors),
                 ):
                     if isinstance(reply_failure, OSError):
-                        bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo"))
+                        bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
                         self.assertEqual("proxy request admission failed: ValueError\n", errors.getvalue())
                     else:
                         with self.assertRaises(RuntimeError) as rejected:
-                            bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo"))
+                            bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
                         self.assertIs(reply_failure, rejected.exception)
                         self.assertEqual("", errors.getvalue())
                 connect.assert_not_called()
@@ -143,7 +163,7 @@ class BoundProxyTests(unittest.TestCase):
                     request.recv.return_value = header
                     errors = io.StringIO()
                     with redirect_stderr(errors):
-                        bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo"))
+                        bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
                     connect.assert_not_called()
                     request.sendall.assert_called_once_with(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
                     self.assertIn("request admission", errors.getvalue())
@@ -161,7 +181,7 @@ class BoundProxyTests(unittest.TestCase):
                     patch.object(bound_http_proxy, "connect_bound") as connect,
                     redirect_stderr(errors),
                 ):
-                    bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo"))
+                    bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
                 connect.assert_not_called()
                 request.sendall.assert_called_once_with(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
                 self.assertIn("request admission", errors.getvalue())
@@ -193,7 +213,7 @@ class BoundProxyTests(unittest.TestCase):
                     patch.object(bound_http_proxy, "relay", side_effect=OSError(private)) as relay,
                     redirect_stderr(errors),
                 ):
-                    bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo"))
+                    bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
                 if phase == "http_header":
                     request.sendall.assert_not_called()
                 else:
@@ -269,7 +289,7 @@ class BoundProxyTests(unittest.TestCase):
             patch.object(bound_http_proxy, "connect_bound", return_value=outbound),
             patch.object(bound_http_proxy, "relay"),
         ):
-            bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo"))
+            bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
         self.assertEqual([call.args[0] for call in request.settimeout.call_args_list], [30, 1, 120])
         self.assertEqual(observed, [(120, 120)])
 
@@ -354,6 +374,6 @@ class BoundProxyTests(unittest.TestCase):
                 ):
                     server.return_value.__enter__.return_value = listener
                     bound_http_proxy.main()
-                server.assert_called_once_with(("127.0.0.1", requested), "eth0")
+                server.assert_called_once_with(("127.0.0.1", requested), "eth0", dns_servers=None)
                 self.assertEqual(f"{observed}\n".encode(), ready.read_bytes())
                 listener.serve_forever.assert_called_once_with()

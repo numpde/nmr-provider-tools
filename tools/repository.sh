@@ -81,7 +81,7 @@ if [[ $suite == release ]]; then
 elif [[ $suite == bytecode ]]; then
     arguments+=(tests.repository.quality.test_python_bytecode_posture -v)
 elif [[ $suite == acquisition-owner ]]; then
-    arguments+=(tests.repository.test_acquisition_scope -v)
+    arguments+=(tests.repository.test_acquisition_scope tests.repository.test_acquisition_dns -v)
 elif [[ $suite == network ]]; then
     arguments+=(tests.repository.test_network_gate tests.repository.test_acquisition_bootstrap tests.repository.test_acquisition_scope -v)
 elif [[ $suite == network-identity ]]; then

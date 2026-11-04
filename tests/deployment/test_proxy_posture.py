@@ -490,7 +490,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             patch.object(_PROXY, "parse_destination", side_effect=ValueError(_PRIVATE)),
             redirect_stderr(stderr),
         ):
-            _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0"))
+            _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
         request.sendall.assert_called_once_with(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
         self.assertIn("request admission", stderr.getvalue())
         self.assertIn("ValueError", stderr.getvalue())
@@ -507,7 +507,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             redirect_stderr(stderr),
             redirect_stdout(stdout),
         ):
-            _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0"))
+            _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
         request.sendall.assert_called_once_with(b"HTTP/1.1 200 Connection Established\r\n\r\n")
         self.assertNotIn(_PRIVATE, stderr.getvalue() + stdout.getvalue())
 
@@ -534,7 +534,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                     redirect_stderr(stderr),
                     redirect_stdout(stdout),
                 ):
-                    _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0"))
+                    _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
                 if phase == "http_header":
                     request.sendall.assert_not_called()
                 else:
