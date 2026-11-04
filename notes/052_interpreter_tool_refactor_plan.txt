@@ -1,0 +1,491 @@
+Shared interpreter tool refactor plan
+====================================
+
+Status: design for review; implementation has not started.
+Scope: one shared interpreter module and a coordinated migration of Magnet,
+NMRPeak, NMRNet and SECS. Implement and qualify these as separate coherent slices;
+SDK completion alone does not complete the joint workflow.
+Companion: 050_interpreter_flow_and_settings.html describes the proposed flow.
+
+Outcome and boundaries
+----------------------
+
+Make the tool surface express what a model can learn and do. Keep orchestration
+in packages/provider-core/src/provider_core/interpreter.py. Reuse the existing
+conversation and transport owners; do not introduce an agent framework,
+additional interpreter module, persistence service or configuration surface.
+
+The model chooses an advertised action. The provider owns scientific admission,
+source inspection and preparation effects. The SDK owns fixed model windows,
+HTTP retries, correction/turn bounds, handoff and model-I/O retirement. A model
+report is evidence of interpretation difficulty, never proof of invalid input.
+
+Common end state for all four providers
+---------------------------------------
+
+Adopt the best supported common workflow, not a wrapper around each old loop.
+All four providers use the shared Interpreter as the sole model scheduler:
+ordered endpoints, one captured overall deadline, fixed fair model windows,
+unused time rolling forward after retirement, finite same-endpoint HTTP retries,
+separate turn/correction bounds, optional information retrieval, unverified
+report handoff, accepted-result retention and explicit cleanup ownership.
+The current shared policy is 12 turns and 3 corrections per model, at most
+2 HTTP attempts per turn and a 10-second connection-setup cap. A connected
+response can use its model window; obsolete short per-request ceilings must
+not defeat that policy in a provider wrapper.
+
+A provider may configure only one model, but all four must support the ordered
+model contract. Configuration remains provider-owned in its existing folder,
+with one overall interpretation timeout and ordered endpoint definitions as in
+note 051. Migrate existing ordering, URL/credential conventions and removed
+settings explicitly; old settings must not be silently accepted and ignored.
+The scientific work deadline, transport retirement and byte limits remain
+separate facts, not additional operator model-scheduling knobs.
+
+One Interpreter instance owns one interpretation inside the original API Attempt.
+Exhaustion is terminal for that interpretation. Do not restart a fresh ladder
+under an outer availability catch. Keep independently authorized recovery for
+other provider operations at their own owners and deadlines. End an unresolved
+Job with safe operational wording; do not label the source invalid or stop
+independent Jobs merely because interpretation failed.
+
+Ready slices may progress without an all-provider readiness gate. Joint closure
+still requires demonstrated adoption by all four, removal of superseded ladders,
+and provider-level evidence. A partial migration is reported as partial.
+
+Five capabilities, not five mandatory sequential steps
+-----------------------------------------------------
+
+1. describe_input_constraints(tool, field?) is a shared information tool.
+   Query the supplied provider schema or its optional constraint accessor.
+   Keep small enums in the schema. The static fallback returns simple property
+   paths and their parent declaration; it does not resolve every JSON Schema
+   construct or establish suitability for the source. No second rule catalogue.
+
+2. read_interpretation_records(records) is a shared information tool.
+   Retrieve immutable captured observations, rejected candidates and unverified
+   reports by reference, with existing batch/status/cursor semantics. It does
+   not download, inspect again, refresh source claims or validate input.
+
+3. Existing provider inspection tools discover and inspect sources as needed.
+   Preserve their names, arguments, prerequisites and actual effects. Source
+   discovery can require provider work; original captured inventory may be stale.
+
+4. Existing provider submission/preparation tools admit candidates. ToolReply
+   continues, ToolRejected permits correction, and ToolFinished preserves the
+   exact accepted preparation and finishes interpretation. Preparation may have
+   effects; do not add an obligatory validate-then-prepare pair.
+
+5. report_interpretation_problem replaces the common model-facing name
+   report_input_problem. The name describes the model's own difficulty. Its
+   provider adapter produces the shared unverified handoff outcome. Keep useful
+   provider-specific structured report arguments rather than inventing a second
+   universal scientific taxonomy. Do not advertise both names or add a separate
+   request_model_handoff tool. A report cannot choose an endpoint or reset time.
+
+Original instructions, tool definitions, the history catalogue and current
+budget are supplied without discovery calls. Information calls are optional;
+provider-required scientific inspection still applies. No task-reader, budget,
+sleep, transport-retry, endpoint-selector or generic validation tool is needed.
+
+Current caller evidence
+-----------------------
+
+The checked source imports the new shared Interpreter in SDK unit, native and
+integration fixtures. The inspected Magnet, NMRNet, NMRPeak and SECS interpreter
+sources still use their own orchestration; none imports this new module. A
+similarly named NMRNet exception is provider-local, not this SDK's type.
+Recheck these callers before implementation because concurrent work can change
+them. Qualify the SDK slice first; then migrate all four providers as required
+parts of joint completion, without blocking useful SDK work on their readiness.
+
+failure_projection.py imports ModelReportedInputProblem and admits its exact
+type for protected diagnostics. Its import and allowlist must follow the SDK
+exception rename together. Preserve safe diagnostic details and causal edges;
+a missed projection update can lose evidence despite a passing handoff test.
+
+Programming patterns and concrete module shape
+----------------------------------------------
+
+Use composition, small command objects, narrow adapters and explicit outcomes.
+These are local structures for actual owners, not a new workflow framework.
+
+1. Tool objects bind description to behavior.
+   _DescribeInputConstraints and _ReadInterpretationRecords own their wire
+   definition, model argument handling and invocation. An internal structural
+   protocol with definition and async invoke(arguments) -> ToolReply suffices
+   if common typing is useful. Their result is information, not acceptance or
+   scheduler control. Keep existing schema lookup and history storage owners;
+   do not duplicate them inside the tool object.
+
+2. Composition creates one authoritative tool set.
+   Build the two shared tools with explicit narrow dependencies and derive their
+   advertised definitions and name lookup from those same instances. Compose
+   provider definitions/callbacks at this boundary and reject collisions before
+   a model request. No independent switch statement or second list of names.
+   No decorators, plugin discovery, mutable process-global tools or inheritance
+   hierarchy. Provider operations remain existing schema/callback adapters;
+   five capabilities do not require five SDK classes or provider subclasses.
+
+3. Provider adapters translate once, at the boundary.
+   Capture each provider's endpoint settings into endpoint factories and map
+   scientific callbacks/results into the shared contract. Do not copy the
+   scheduler into an adapter. Preserve real scientific differences, not legacy
+   retries, terminal model-report policy or incompatible time accounting.
+   Use narrow Protocols for keyword-bearing provider callback contracts;
+   provider implementations need no common base class.
+
+4. Explicit outcomes represent decisions, not truthiness.
+   Reuse ToolReply, ToolFinished and ToolHandoff and the corresponding existing
+   conversation outcomes. ToolFinished(None) is accepted preparation: the
+   provider can hold the actual candidate. Inspect the outcome type, never
+   value truthiness. ToolFinished is the provider's authoritative acceptance
+   signal; do not add a second candidate-presence test in the SDK. It does not
+   prove model retirement, Job completion or permission to execute before
+   settlement. A valid report signal becomes ToolHandoff only at provider
+   dispatch; the shared report marker should be distinct from ToolRejected,
+   so a generic correction handler cannot swallow a handoff. Do not add a
+   second result hierarchy or infer acceptance by peeking into provider state.
+
+5. One orchestrator owns progress; one visit owns model resources.
+   Interpreter selects models; _ModelVisit owns the fixed deadline, endpoint,
+   conversation and retirement. ToolConversation remains the authority for
+   transcript and turn/correction counters. History remains scoped to this
+   Interpreter. Derive budgets from existing owners instead of adding a second
+   run ledger, mirrored flags or persistent workflow state. Retry only adjacent
+   to the HTTP operation whose availability failures are understood.
+
+6. Resource ownership remains explicit across asynchronous effects.
+   Retain accepted_result before awaiting model cleanup. The provider owns its
+   candidate/native handle, scientific settlement and run-task joining. Cleanup
+   is not rollback. If provider work fails after an effect but before returning
+   ToolFinished, preserve that provider failure and ownership; do not fabricate
+   SDK acceptance or replay the effect. No generic retry decorator, broad
+   finally-based failure suppression or context manager that erases acceptance.
+
+7. Immutable evidence and explicit projections separate disclosure.
+   _History retains captured records; the visit owns the exact feedback-sizing
+   projection supplied to the reader. Freeze that projection during pagination.
+   Provider-selected model_summary is the only report material forwarded;
+   protected original causes follow the existing diagnostic path. Do not solve
+   this with arbitrary object serialization or a shared data-classification
+   framework. Preserve original arguments for ordinary scientific observations
+   before provider normalization, subject to the report exception below.
+
+Intended composition, all orchestration classes remaining in interpreter.py:
+
+  provider captured config -> endpoint factories -> Interpreter
+  provider schemas + dispatch + constraints -------> _ModelVisit / tool set
+                                                       |-- information tools
+                                                       |-- provider adapter
+                                                       |-- ToolConversation
+                                                       `-- endpoint / retirement
+  Interpreter ---------------------------------------> _History (immutable records)
+
+The existing conversation and transport modules remain their current owners;
+this refactor does not move their implementations into interpreter.py.
+
+Operation-scoped deadlines, not a whole-interpreter context
+---------------------------------------------------------
+
+The current dispatch(name, arguments) signature has a real SECS adoption gap:
+live inspection needs the selected model's absolute deadline, while preparation
+uses the provider's independent work deadline. Add the explicit keyword
+not_after to provider dispatch and to a dynamic constraint accessor that performs
+provider work. Supply the current fixed model deadline; do not recalculate a
+fresh timeout in the callback. Static constraint reads need no timing machinery.
+
+Inspection/source acquisition uses that grant together with any earlier Job
+limit. Preparation admitted before the model deadline retains its work deadline
+and may complete later. Do not put an asyncio timeout around all tool dispatch:
+that could cancel committed preparation and invite replay. Do not pass a mutable
+ModelVisit/Interpreter object, a generic context bag or a factory side channel.
+
+Admission and acceptance are different events. For example, the model deadline
+is 100, the SDK admits preparation dispatch at 99, and ToolFinished arrives at
+130 under a Job work deadline of 200. That preparation is accepted and retained;
+it does not have to finish before 100. If model cleanup then fails, retain the
+accepted result and surface cleanup failure. By contrast, a provider exception
+before ToolFinished proves no SDK acceptance, even if the provider must retain
+partially completed work. Never infer absence of effects or permission to replay.
+
+A timeout does not prove worker retirement. The provider must preserve the real
+settlement owner; its exceptions still propagate without arbitrary fallback.
+A narrower callback signature is an intentional new API change: update local
+fixtures and each adopting adapter together, not a signature-probing fallback.
+
+Handoff and naming
+------------------
+
+Use ModelReportedInterpretationProblem for the shared provider-to-SDK report
+signal, replacing ModelReportedInputProblem in the new API and its fixtures.
+The visit records the explicitly selected model-safe summary as an unverified
+interpretation claim and returns ToolHandoff; the conversation yields
+ConversationHandoff normally.
+Use unverified_interpretation_problem for the matching in-memory record kind.
+An accepted report terminates this model visit immediately; it is not an
+observation followed by more turns at the same model. Reports do not consume the
+correction quota and never set accepted_result. A malformed report argument is
+still a correctable ToolRejected, not a handoff. The provider validates its own
+report fields; the SDK does not insert a second report validator. Once
+preparation is accepted,
+the model loop is finished and no later report tool can run.
+
+ToolHandoff/ConversationHandoff are internal transition outcomes, not the public
+result of Interpreter.run(). If no model/time remains, raise InterpretationFailed
+and retain the reports in its private failure evidence. Do not return a dangling
+handoff, declare input invalid, or shut down the provider. The provider controller
+owns the Job's final outcome and independent Jobs can continue.
+
+Do not catch every ToolRejected as a handoff. A rejected candidate or malformed
+query stays a correction. A provider exception, including ConversationFailed
+from provider code, stays that exact provider failure and does not escalate.
+Actual scientific input errors and existing API outcome vocabularies are not
+renamed merely because their names contain input_problem.
+
+Before changing these names, inspect actual imports and callback composition in
+this repository and the provider consumers. Separate adoption of the new shared
+Interpreter API from old provider-specific loops. The implementation slice must
+not leave an adopting consumer advertising the new name while dispatching the
+old one. Do not add silent aliases as a substitute for an explicit migration.
+
+Report privacy: model history versus protected evidence
+------------------------------------------------------
+
+A successor may be a different model service. Do not infer permission to forward
+a private report explanation merely because the previous model produced it or
+credentials were redacted. NMRNet explicitly separates provider-written guidance
+from its private structured report; preserve that boundary across model visits.
+
+Make the shared report signal accept an explicit model_summary chosen by the
+provider. Read that field for history, not generic str(exception). The provider
+can retain its original structured report as the signal's normal exception cause;
+the existing protected evidence traversal retains causes without a new store.
+The signal remains in InterpretationResult.failures or InterpretationFailed
+when later models succeed or the ladder ends, and stays reachable after retire.
+
+For the identified report_interpretation_problem tool, never copy raw submitted
+report arguments into model-readable history. This applies to both an accepted
+report and a malformed report rejected for correction. Only a provider-selected
+safe summary or safe correction reason is eligible; omission is preferable to
+reconstructing private explanation. Do not pass the original transcript to the
+successor. SDK observations contain route/counter metadata, not a retained full
+transcript: private structured report retention depends on the explicit provider
+cause above. Do not add raw malformed-report storage to fill that distinction.
+Keep ordinary argument capture for unrelated scientific tools in this slice.
+
+Add a focused private-report canary witness: the successor's catalogue, history
+pages and outgoing requests exclude it, while original protected report evidence
+survives both later success and exhaustion. Retain the existing credential screens
+and provider report bounds. This addresses an actual consumer boundary, not a
+new general data-classification framework.
+
+Failure decisions that travel with each handoff
+----------------------------------------------
+
+- A provider constraint accessor raising ConversationFailed is still a provider
+  failure. Preserve its identity, stop model fallback, and retain caller-owned
+  cleanup; do not let a shared tool wrapper misclassify it by exception type.
+- A preparation admitted before expiry and accepted after the model deadline
+  remains accepted. Preserve accepted_result before cleanup. If retirement fails,
+  raise that failure and retain the result; never call preparation again. The
+  caller still owns scientific settlement and permission to execute the result.
+- History reads retain the existing bounded status/page behavior. When a complete
+  outgoing request does not fit, the existing context-limit failure ends that
+  model visit and the scheduler may try an untried model after retirement. Do not
+  bypass the byte bound, reset counters, or add compaction to make this refactor
+  pass. A deferred page is not proof that a record was absent or read completely.
+- Keep the existing fair-share policy: unused time rolls forward only after
+  retirement; already assigned model windows never restart. Information reads
+  use turns/time, while malformed queries also consume correction allowance.
+
+Implementation sequence
+-----------------------
+
+1. Inventory the two built-ins and provider report paths. Record actual callers,
+   definitions, prompts and diagnostics touched by the common report rename.
+   Keep changes limited to active code, fixtures and current documentation;
+   historical release notes and private operator configuration are not rewritten.
+
+2. Refactor the two information tools together with composition and dispatch.
+   Preserve wire names, argument shapes and feedback envelopes. Keep the exact
+   full-request history sizing with ToolConversation, including escaped content,
+   current assistant message, reply budget and catalogue suffix. Retain the
+   fixed sizing projection during pagination.
+
+3. Apply the agreed report vocabulary in the shared API, failure_projection.py,
+   SDK fixtures and examples. Keep model-facing naming, the SDK signal and the
+   in-memory record kind consistent. Apply the report privacy boundary above.
+   Check protected report diagnostics as well as successful handoff. This
+   completes the local naming slice, an intermediate joint milestone.
+
+   In each subsequent provider adoption slice, update that
+   provider's advertised name, prompt and dispatch together. Preserve scientific
+   report fields and verify its actual pinned dependency supports the new API.
+   Publication is a prerequisite for released consumer proof, not a reason to
+   block this local refactor. Do not claim provider rollout from package tests.
+
+4. Add the narrow per-operation deadline seam and qualify it with real provider
+   inspection/preparation boundaries. Reconcile note 050 and the package README.
+   Run the SDK installed-wheel lanes and commit coherent slices with Sentence
+   case subjects and rationale/validation bodies. Publish a supporting version
+   through the existing release workflow during authorized implementation.
+
+5. Each provider owner adopts that exact qualified package and common policy,
+   migrating endpoint/config semantics, report/outcome handling, callbacks and
+   diagnostics together. Remove duplicate inner and outer ladders. Providers
+   can work in parallel after the contract is fixed; share any demonstrated
+   improvement with all owners and verify uptake in source and tests.
+
+6. Close the joint implementation only when all four use the shared scheduler
+   and pass their provider-level parity witnesses. Where deployment is part of
+   the authorized rollout, push/pull/build through maintained targets and verify
+   actual package/image identity, health and behavior; no bundle transfers or
+   inference from source tests. Distinguish source, installed-package and live
+   proof. This planning turn itself makes no release or deployment changes.
+
+Provider adoption checklist (required for joint completion)
+----------------------------------------------------------
+
+For each provider, inspect the actual preparation and retirement boundaries
+before replacing its loop. Reuse its credential/TLS composition and repository
+config location; migrate scheduling fields to the common thin configuration.
+Preserve endpoint order while changing representation. No cross-repo config.
+Use a supporting package version before claiming an installable migration.
+
+- Replace duplicate model selection/retry orchestration with Interpreter and
+  endpoint factories. Do not leave a second outer model/retry ladder around it.
+- Keep prompts, source membership, inspection, preparation, scientific checks
+  and work-resource ownership local. Supply existing schemas and callbacks.
+- Change report name, prompt and dispatch together, preserve useful structured
+  fields, and translate accepted reports to the shared unverified signal.
+- Preserve accepted results through cleanup failures; join the run task and
+  settle scientific resources separately from model-I/O retirement. Translate
+  exhausted interpretation into the owning Job outcome without stopping
+  independent Jobs or treating model agreement as proof of invalid input.
+- Adapt protected diagnostics explicitly, including the shared correction tuples
+  (model visit, logical turn, original error). Keep private causes out of model
+  context and public messages. Remove superseded paths only within that migration.
+- Qualify the provider's actual adapter with a supporting installed package:
+  direct success, correction, report then next-model success, report-only
+  exhaustion, operational failure and accepted preparation plus cleanup failure.
+
+No provider needs another history store, information-tool class, retry engine
+or parallel configuration system. Shared unit tests do not substitute for its integration
+proof. Provider-specific constraints below are source-review findings, not migration
+or live proof. Keep private data and coordination dialogue out of this plan.
+
+Provider-specific adoption decisions
+------------------------------------
+
+Magnet: magnet_provider/interpreter.py and the E01/E02 processors currently map
+model reports to a reported_input_problem failure. Update schema, correction
+prompt, dispatch and processor outcome together. Report-only exhaustion must not
+reuse a caller-input classification. Preserve the separate deterministic runner
+admission rejection classification, endpoint IDs/events and protected causes.
+Its current endpoint parser uses base_url and derives the chat-completions path;
+do not pretend the proposed full-URL/key-file configuration is already supported.
+Map captured TLS, proxy, credential and timeout settings explicitly.
+NativeWorkerExited must still reach its owner promptly with the exact model
+cleanup task retained and joined. Shared model retirement does not settle native
+work. Choose the final unresolved Job mapping before changing the adapter.
+E01/E02 currently retry AnalysisUnavailable outside interpretation; mapping
+exhaustion into that category would restart the ladder. Use a terminal operational
+Job disposition for exhausted interpretation and preserve only separately
+justified availability recovery. Verify this on both scientific bindings.
+
+NMRPeak: nmrpeak_provider/input_interpreter.py owns typed construction and the
+runner owns final admission; constraints must not invent enums absent from that
+schema. There is no live inspection tool to manufacture. Preserve the existing
+report's message field and bounded validation, map visit numbers to captured
+endpoint IDs, and retain typed-construction versus runner rejection diagnostics.
+Change the current all-reports ReportedInputProblem outcome into a deliberate
+unresolved-interpretation mapping. InterpretationSession must retain the shared
+Interpreter through observed worker crash, run-task joining and cleanup.
+Replace three-turn endpoint limits and the request/turn/overall timeout stack
+with shared policy. analysis_session._prepare_prose currently loops on
+InterpreterUnavailable; it must not restart exhausted shared interpretation.
+Map final exhaustion separately and remove that obsolete outer interpreter retry.
+
+NMRNet: nmrnet_provider/interpreter.py currently ends selection with a structured
+issue/private-message report; session.py turns it into a Job failure. Replace
+that immediate terminal path with shared handoff, preserving fields and provider
+written public guidance without declaring verified invalidity. InputPreparation
+owns the candidate; prepare_* returns ToolFinished(None), so a None result does
+not mean preparation was absent. Preserve that provider-held candidate on late
+acceptance or retirement failure. Adapt the versioned interpretation evidence,
+operation history and (visit, turn, cause) diagnostics deliberately. The outer
+selection timeout and shielded scientific settlement are not model deadlines.
+Replace its global conversation-turn cap across endpoints with shared per-visit
+policy. Migrate ordered endpoint arrays to the agreed provider-owned file layout
+without changing their order; do not retain max_turns as an ignored setting.
+
+SECS: input_operations.py, interpreter.py and session.py currently turn an
+explanation-only CannotAnalyse result into cannot_analyse. Change the model
+report path together; report-only exhaustion can use the existing
+interpretation_failed outcome. Preserve interpretation_rejections and protected
+failure_evidence without treating PreparationRejected as a protocol correction.
+Preparation can retain a native handle past the interpretation deadline; model
+cleanup neither releases that handle nor proves readers stopped before source
+release. Existing ExecutionConfig has one endpoint and configurable max_turns:
+migrate to provider-owned ordered endpoint definitions and shared policy,
+removing the obsolete max_turns setting explicitly. Configuring one endpoint
+remains valid, but permanently retaining single-endpoint-only code is not joint
+completion. Ordered support, per-endpoint credentials/trust/reasoning and the
+inspection deadline grant belong to the SECS adoption slice.
+
+Acceptance evidence
+-------------------
+
+Use existing witnesses where they already prove the contract. Add focused tests
+only for changed behavior: advertised information tools reach their own handler;
+unknown tools never invoke science; malformed tool arguments remain corrections;
+constraint accessor failures remain provider failures; history reads never repeat
+live inspection; reporting difficulty hands off after retirement without being
+accepted preparation. Prove both report-only ladder exhaustion and a later model
+success. Preserve accepted preparation across cleanup failure without replay.
+
+Retain the existing tests for fixed time shares, retries inside one logical turn,
+retirement before another owner, cancellation, late accepted preparation, history
+immutability, whole-context bounds and native-only imports. Inspect the actual
+one-module diff rather than imposing implementation-shaped class-count tests.
+
+Maintained commands, with the selected local engine and existing wheel pool:
+  make tests/unit/provider-core DOCKER_CONTEXT=science WHEELHOUSE=<wheel-pool>
+  make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=<wheel-pool>
+Provider wiring needs that provider's own tests when it changes. No release,
+push, deployment or live-model quality claim follows from this planning task.
+
+Completion and deferred work
+----------------------------
+
+This plan is complete when its contracts, concrete implementation slices and
+acceptance boundaries withstand independent partial-context roadmap probes.
+SDK completion is intermediate: definitions, handlers, report naming, callback
+deadlines, examples and installed-wheel tests agree, with meaningful commits.
+Joint completion additionally requires all four providers to use that qualified
+implementation and common policy, prove their actual wiring and remove old
+schedulers. Source, installed-package and deployment evidence are distinct;
+state any remaining layer explicitly rather than claiming the whole task done.
+A successful provider test or a sent finding is not proof of the other owners'
+uptake. Inspect their resulting source and evidence.
+
+Do not turn deferred limitations into implementation gates. Pagination cannot
+make arbitrarily large history fit: earlier pages remain in the transcript.
+Targeted source inspection is provider-owned. Generic record search, transcript
+compaction, a full schema resolver, new budget knobs and a second handoff tool
+have no demonstrated requirement for this refactor. Live-model behavior remains
+unmeasured until exercised; scripted tests prove the protocol, not model quality.
+
+Working rules for implementation handoffs
+----------------------------------------
+
+Carry the owning boundary and completion criterion with each small task. A
+partial handoff must not invite a new validator, compatibility layer, provider
+shutdown rule or all-provider deployment gate. Review resulting code/evidence;
+receiving a proposed fix or sending a finding is not proof of uptake.
+
+Use the main checkout and maintained Make targets. Preserve unrelated edits.
+Keep private source content, credentials, host details and session discourse
+out of notes, tests and commit messages. This note records decisions and
+rationale, not reviewer transcripts or coordination identifiers.

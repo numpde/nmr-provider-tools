@@ -69,134 +69,129 @@
 <body>
 <main>
 <header>
-  <div class="eyebrow">Note 050 · Proposed flow and current implementation · 3 November 2026</div>
-  <h1>The ideal interpreter flow</h1>
+  <div class="eyebrow">Note 050 · Flow revision for review · 4 November 2026</div>
+  <h1>The shared interpreter flow</h1>
   <p>Retry transient transport failures at the same endpoint with finite attempts and backoff. Give a model bounded opportunities to inspect and correct its answer. Escalate to the next configured model when those opportunities are exhausted.</p>
   <p class="muted">The first chart is the proposed common design. Current provider behavior and supported TOML settings follow for comparison; they do not yet implement every part of this design. Configuration examples contain no live deployment values.</p>
-  <nav aria-label="Contents"><a href="#ideal">Ideal flow</a><a href="#handoff">Automatic context</a><a href="#tools-first">Tools-first alternative</a><a href="#universal-config">Universal TOML</a><a href="#turns">What counts now</a><a href="#flow">Current flow</a><a href="#policies">Provider differences</a><a href="#settings">Current settings</a><a href="#sources">Sources</a></nav>
+  <nav aria-label="Contents"><a href="#ideal">Proposed flow</a><a href="#handoff">Earlier alternative</a><a href="#tools-first">History and constraints</a><a href="#universal-config">Universal TOML</a><a href="#turns">What counts now</a><a href="#flow">Current flow</a><a href="#policies">Provider differences</a><a href="#settings">Current settings</a><a href="#sources">Sources</a></nav>
 </header>
 
 <section id="ideal">
-  <h2>Proposed common flow</h2>
-  <p><strong>Separate SDK bounds:</strong> transport attempts per logical turn, total turns and rejected proposals at one model, and the overall interpretation deadline. Backoff retries repeat the same model request; correction feedback starts a new logical turn.</p>
-  <p class="callout">The endpoint list determines the escalation order. Configure more capable models later; there is no automatic intelligence ranking. The SDK assigns each endpoint a time share from the remaining overall budget.</p>
+  <h2>Proposed common flow: choose evidence, then submit</h2>
+  <p><strong>Design revision for review; module refactor pending. See <a href="052_interpreter_tool_refactor_plan.txt">the implementation plan in note 052</a>.</strong> The model chooses a permitted action. The provider decides whether scientific input is acceptable. The SDK owns requests, bounded correction, model selection and retirement. A model's final prose or input-problem claim cannot accept preparation or prove invalid input.</p>
+  <p class="callout">Keep one API Attempt and one overall deadline. Choose endpoints in configured order, dividing remaining time among untried endpoints after prior cleanup. Fix each model's deadline once. “Later” means configured later, not automatically smarter.</p>
   <div class="diagram">
-    <svg class="branches" viewBox="0 0 1100 1510" role="img" aria-labelledby="ideal-title ideal-desc">
-      <title id="ideal-title">Ideal interpretation with bounded transport retries and model escalation</title>
-      <desc id="ideal-desc">Choose an endpoint, start a logical turn, and send an HTTP attempt. On transport failure retire the failed request. Unconfirmed cleanup stops the interpretation with ownership retained. If the failure is retryable and attempts and time remain, wait with capped backoff and retry the same endpoint within the same turn. Otherwise escalate. On a reply, accept usable final input; inspection or correctable rejection produces feedback and another turn if the model's turn and time budgets remain. Unusable replies, unverified input-problem reports and exhausted model budgets escalate. Retire the endpoint and choose the next if there is one and the overall deadline permits. Exhausting the ladder fails only this Job; the provider continues.</desc>
+    <svg class="branches" viewBox="0 0 1100 1140" role="img" aria-labelledby="ideal-title ideal-desc">
+      <title id="ideal-title">Interpretation with explicit tool choices and four distinct outcomes</title>
+      <desc id="ideal-desc">Start with original inputs, provider instructions and tool definitions. Choose a model with a fixed share of the remaining time. Each turn supplies a history catalogue and remaining budget. Retry transient HTTP failures at the same endpoint only after cleanup and within finite attempts and time. Admit one advertised tool call. Correct recoverable call errors without executing tools; unusable carriers escalate. Execute the selected tool. Information or correctable rejection returns to the same model if budget remains. Accepted preparation finishes interpretation and is preserved through cleanup. An unverified inability report requests handoff after retirement. Provider failures propagate without model fallback. Exhausted models or overall time end interpretation; the provider owns the Job outcome and continues independent Jobs.</desc>
       <defs><marker id="ideal-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10z" fill="currentColor"/></marker></defs>
-      <g>
-      <rect class="box" x="350" y="20" width="400" height="65" rx="10"/>
-      <text x="550" y="48" text-anchor="middle">Original request + ordered endpoint list</text>
-      <text class="minor" x="550" y="70" text-anchor="middle">One overall deadline for this interpretation</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 85 V135"/>
-      <rect class="box blue" x="350" y="135" width="400" height="75" rx="10"/>
-      <text x="550" y="158" text-anchor="middle">Choose next endpoint (first on entry)</text>
-      <text class="minor" x="550" y="181" text-anchor="middle">Reset SDK counters; start its assigned time window</text>
-      <text class="minor" x="550" y="200" text-anchor="middle">Original input + context for the next model</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 210 V260"/>
-      <rect class="box blue" x="350" y="260" width="400" height="75" rx="10"/>
-      <text x="550" y="289" text-anchor="middle">Begin a logical model turn: n += 1</text>
-      <text class="minor" x="550" y="315" text-anchor="middle">Reset this turn's HTTP-attempt counter: k = 0</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 335 V390"/>
-      <rect class="box" x="350" y="390" width="400" height="75" rx="10"/>
-      <text x="550" y="413" text-anchor="middle">Before every HTTP attempt: check time</text>
-      <text class="minor" x="550" y="436" text-anchor="middle">Endpoint + overall deadlines must still permit a send</text>
-      <text class="minor" x="550" y="455" text-anchor="middle">Then k += 1; send the same prompt / context</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M750 427 H770 V1100 H750"/>
-      <text class="label" x="782" y="420">No time → escalate / end</text>
-
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M350 427 H290"/>
-      <text class="label" x="300" y="413">Failed</text>
-      <rect class="box amber" x="30" y="390" width="260" height="75" rx="10"/>
-      <text x="160" y="419" text-anchor="middle">Transport / service failure</text>
-      <text class="minor" x="160" y="445" text-anchor="middle">Retire the failed request</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M160 465 V520"/>
-      <rect class="box amber" x="30" y="520" width="260" height="70" rx="10"/>
-      <text x="160" y="562" text-anchor="middle">Request cleanup confirmed?</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M30 555 H10 V170 H30"/>
-      <text class="label" x="40" y="507">No → stop</text>
-      <rect class="box red" x="30" y="125" width="260" height="90" rx="10"/>
-      <text x="160" y="154" text-anchor="middle">Stop this interpretation</text>
-      <text class="minor" x="160" y="178" text-anchor="middle">Keep unresolved ownership</text>
-      <text class="minor" x="160" y="199" text-anchor="middle">Do not replay scientific work</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M160 590 V650"/>
-      <text class="label" x="177" y="622">Yes</text>
-      <rect class="box amber" x="30" y="650" width="260" height="85" rx="10"/>
-      <text x="160" y="681" text-anchor="middle">Retryable transport failure</text>
-      <text x="160" y="708" text-anchor="middle">+ attempts and time left?</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M160 735 V795"/>
-      <text class="label" x="177" y="768">Yes</text>
-      <rect class="box blue" x="30" y="795" width="260" height="85" rx="10"/>
-      <text x="160" y="825" text-anchor="middle">Wait bounded backoff + jitter</text>
-      <text class="minor" x="160" y="850" text-anchor="middle">Same endpoint · same logical turn</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow);stroke:var(--blue)" d="M290 837 H320 V365 H550 V390"/>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M30 693 H0 V1100 H350"/>
-      <text class="label" x="40" y="762">No → escalate</text>
-
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 465 V520"/>
-      <text class="label" x="565" y="497">Reply</text>
-      <rect class="box" x="350" y="520" width="400" height="70" rx="10"/>
-      <text x="550" y="562" text-anchor="middle">Read reply / perform permitted tool</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 590 V650"/>
-      <rect class="box" x="350" y="650" width="400" height="85" rx="10"/>
-      <text x="550" y="681" text-anchor="middle">Usable final input accepted</text>
-      <text x="550" y="708" text-anchor="middle">by the provider?</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M750 693 H820"/>
-      <text class="label" x="772" y="678">Yes</text>
-      <rect class="box green" x="820" y="650" width="260" height="85" rx="10"/>
-      <text x="950" y="681" text-anchor="middle">Finish interpretation</text>
-      <text class="minor" x="950" y="708" text-anchor="middle">Preserve accepted work; no escalation</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 735 V795"/>
-      <text class="label" x="565" y="768">No</text>
-      <rect class="box" x="350" y="795" width="400" height="85" rx="10"/>
-      <text x="550" y="826" text-anchor="middle">Inspection result or correctable proposal?</text>
-      <text class="minor" x="550" y="853" text-anchor="middle">A model's input-problem claim is not proof</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M750 837 H820"/>
-      <text class="label" x="772" y="822">Yes</text>
-      <rect class="box blue" x="820" y="795" width="260" height="85" rx="10"/>
-      <text x="950" y="826" text-anchor="middle">Return facts / correction</text>
-      <text class="minor" x="950" y="852" text-anchor="middle">Track rejected proposals separately</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M950 880 V940"/>
-      <rect class="box amber" x="820" y="940" width="260" height="85" rx="10"/>
-      <text x="950" y="971" text-anchor="middle">SDK turn / rejection caps</text>
-      <text x="950" y="998" text-anchor="middle">+ endpoint time available?</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow);stroke:var(--blue)" d="M1080 982 H1090 V297 H750"/>
-      <text class="label" x="1002" y="927">Yes → new turn</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M820 982 H790 V1100 H750"/>
-      <text class="label" x="777" y="1052">No</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 880 V1060"/>
-      <text class="label" x="565" y="940">No: unusable reply</text>
-      <text class="label" x="565" y="962">or input-problem report</text>
-      <rect class="box amber" x="350" y="1060" width="400" height="85" rx="10"/>
-      <text x="550" y="1090" text-anchor="middle">Escalate: retire the current endpoint</text>
-      <text class="minor" x="550" y="1116" text-anchor="middle">Prepare successor context (alternatives below)</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 1145 V1210"/>
-      <rect class="box amber" x="350" y="1210" width="400" height="85" rx="10"/>
-      <text x="550" y="1241" text-anchor="middle">Endpoint retired + next endpoint exists</text>
-      <text x="550" y="1268" text-anchor="middle">+ overall time remains?</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow);stroke:var(--blue)" d="M350 1252 H305 V172 H350"/>
-      <text class="label" x="315" y="1238">Yes</text>
-      <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 1295 V1370"/>
-      <text class="label" x="565" y="1333">No</text>
-      <rect class="box red" x="350" y="1370" width="400" height="75" rx="10"/>
-      <text x="550" y="1399" text-anchor="middle">End this interpretation / Job outcome</text>
-      <text class="minor" x="550" y="1424" text-anchor="middle">Retain unresolved owners; provider continues other Jobs</text>
+      <g style="marker-end:url(#ideal-arrow)">
+        <rect class="box" x="350" y="20" width="400" height="85" rx="10"/>
+        <text x="550" y="48" text-anchor="middle">Original input + provider instructions</text>
+        <text class="minor" x="550" y="73" text-anchor="middle">Advertised tools + ordered endpoint list</text>
+        <text class="minor" x="550" y="94" text-anchor="middle">No old model reasoning injected as instructions</text>
+        <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 105 V155"/>
+        <rect class="box blue" x="350" y="155" width="400" height="100" rx="10"/>
+        <text x="550" y="184" text-anchor="middle">1. Select next model; fix its deadline</text>
+        <text class="minor" x="550" y="210" text-anchor="middle">Previous model I/O must be retired first</text>
+        <text class="minor" x="550" y="234" text-anchor="middle">No model or overall time left → end interpretation</text>
+        <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 255 V315"/>
+        <rect class="box blue" x="350" y="315" width="400" height="100" rx="10"/>
+        <text x="550" y="344" text-anchor="middle">2. Request one action from this model</text>
+        <text class="minor" x="550" y="369" text-anchor="middle">Check time / turn limits; supply catalogue + budget</text>
+        <text class="minor" x="550" y="394" text-anchor="middle">HTTP retries stay inside this logical turn</text>
+        <path class="edge" style="marker-end:url(#ideal-arrow)" d="M350 365 H295"/>
+        <rect class="box amber" x="20" y="290" width="275" height="190" rx="10"/>
+        <text x="157" y="321" text-anchor="middle">HTTP failure</text>
+        <text class="minor" x="157" y="349" text-anchor="middle">Retire the failed exchange</text>
+        <text class="minor" x="157" y="377" text-anchor="middle">Transient + attempts + time left?</text>
+        <text class="minor" x="157" y="405" text-anchor="middle">Yes: backoff → retry same endpoint</text>
+        <text class="minor" x="157" y="433" text-anchor="middle">No: retire → step 1</text>
+        <text class="minor" x="157" y="461" text-anchor="middle">Uncertain cleanup: stop; retain owner</text>
+        <path class="edge" style="marker-end:url(#ideal-arrow)" d="M157 290 V275 H420 V315"/>
+        <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 415 V495"/>
+        <text class="label" x="568" y="461">Reply</text>
+        <rect class="box" x="350" y="495" width="400" height="100" rx="10"/>
+        <text x="550" y="524" text-anchor="middle">3. Admit one advertised tool call</text>
+        <text class="minor" x="550" y="549" text-anchor="middle">Decode arguments; check tool name</text>
+        <text class="minor" x="550" y="574" text-anchor="middle">No tool executes on an ambiguous / multiple call</text>
+        <path class="edge" style="marker-end:url(#ideal-arrow)" d="M750 545 H805"/>
+        <rect class="box amber" x="805" y="495" width="275" height="125" rx="10"/>
+        <text x="942" y="524" text-anchor="middle">Recoverable call error?</text>
+        <text class="minor" x="942" y="552" text-anchor="middle">Correction → step 2 if budget permits</text>
+        <text class="minor" x="942" y="580" text-anchor="middle">Unusable carrier / exhausted quota:</text>
+        <text class="minor" x="942" y="605" text-anchor="middle">retire → step 1</text>
+        <path class="edge" style="marker-end:url(#ideal-arrow)" d="M942 495 V365 H750"/>
+        <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 595 V675"/>
+        <rect class="box" x="350" y="675" width="400" height="100" rx="10"/>
+        <text x="550" y="704" text-anchor="middle">4. Execute the chosen tool</text>
+        <text class="minor" x="550" y="729" text-anchor="middle">Read constraints / history, inspect, submit or report</text>
+        <text class="minor" x="550" y="754" text-anchor="middle">Check time before dispatch; provider owns effects</text>
+        <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 775 V825 H145 V870"/>
+        <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 825 H415 V870"/>
+        <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 825 H685 V870"/>
+        <path class="edge" style="marker-end:url(#ideal-arrow)" d="M550 825 H955 V870"/>
+        <rect class="box blue" x="20" y="870" width="250" height="160" rx="10"/>
+        <text x="145" y="901" text-anchor="middle">Information / correction</text>
+        <text class="minor" x="145" y="931" text-anchor="middle">Return facts or safe rejection</text>
+        <text class="minor" x="145" y="959" text-anchor="middle">Same model → step 2</text>
+        <text class="minor" x="145" y="987" text-anchor="middle">If budget exhausted:</text>
+        <text class="minor" x="145" y="1011" text-anchor="middle">retire → step 1</text>
+        <rect class="box green" x="290" y="870" width="250" height="160" rx="10"/>
+        <text x="415" y="901" text-anchor="middle">Preparation accepted</text>
+        <text class="minor" x="415" y="931" text-anchor="middle">Preserve the exact result</text>
+        <text class="minor" x="415" y="959" text-anchor="middle">Settle model I/O; return</text>
+        <text class="minor" x="415" y="987" text-anchor="middle">No new model / preparation</text>
+        <text class="minor" x="415" y="1011" text-anchor="middle">Cleanup failure retains result</text>
+        <rect class="box amber" x="560" y="870" width="250" height="160" rx="10"/>
+        <text x="685" y="901" text-anchor="middle">Model cannot proceed</text>
+        <text class="minor" x="685" y="931" text-anchor="middle">Record an unverified claim</text>
+        <text class="minor" x="685" y="959" text-anchor="middle">Retire → step 1</text>
+        <text class="minor" x="685" y="987" text-anchor="middle">No next model: end unresolved</text>
+        <text class="minor" x="685" y="1011" text-anchor="middle">Not proof of invalid input</text>
+        <rect class="box red" x="830" y="870" width="250" height="160" rx="10"/>
+        <text x="955" y="901" text-anchor="middle">Provider operation fails</text>
+        <text class="minor" x="955" y="931" text-anchor="middle">Propagate the actual failure</text>
+        <text class="minor" x="955" y="959" text-anchor="middle">Caller retains cleanup owners</text>
+        <text class="minor" x="955" y="987" text-anchor="middle">No model fallback / replay</text>
+        <text class="minor" x="955" y="1011" text-anchor="middle">Independent Jobs can continue</text>
       </g>
-      <text class="minor" x="550" y="1489" text-anchor="middle">Overall deadline, cancellation or a positive scientific failure interrupts this flow; never replay accepted work to recover it.</text>
+      <text class="minor" x="550" y="1081" text-anchor="middle">Cancellation stops new work. An in-flight scientific operation keeps its provider-owned deadline and settlement.</text>
+      <text class="minor" x="550" y="1110" text-anchor="middle">The SDK does not shut down the provider or declare the API Job invalid. Those decisions remain with its controller.</text>
     </svg>
   </div>
-  <div class="three">
-    <div class="definition"><h3>Transport retry</h3><p>Only transient transport/service failures qualify. Count the initial HTTP attempt in the finite maximum. The SDK supplies a finite attempt maximum and bounded jittered backoff, respecting a valid Retry-After within the remaining time. Recheck endpoint and overall deadlines after waiting and before every send. Permanent endpoint failures skip retries.</p></div>
-    <div class="definition"><h3>Model correction</h3><p>Inspections consume logical turns and time, but do not consume the rejected-proposal quota. The SDK bounds total turns and rejected proposals separately. HTTP retries consume neither counter again. Exhausting either cap or the assigned time window causes escalation. A model's unsupported-input claim can be checked by the next model; independently established input errors need no model retry.</p></div>
-    <div class="definition"><h3>Escalation</h3><p>Choose the next configured model after retirement. Give the successor the original request and access to prior work through one of the context strategies below. Label earlier proposals and observations by origin and freshness. Keep one overall deadline; assign time shares so the first model cannot consume the entire ladder budget. Exhausting the ladder ends this Job, not the provider.</p></div>
-  </div>
-  <p class="callout warning"><strong>Thin configuration:</strong> the operator selects the overall interpretation timeout and ordered endpoint definitions. The SDK owns time allocation, finite HTTP retries/backoff, cleanup and separate turn/rejection bounds. The <a href="#universal-config">universal TOML proposal</a> below shows this shape; <a href="#settings">current settings</a> remain implementation-specific.</p>
+  <h3>Which tools does the model actually need?</h3>
+  <p>Tool access should answer a concrete question or perform a permitted action. Reading information is optional unless the provider's scientific contract requires an inspection. Do not force every model through discover → inspect → validate → submit.</p>
+  <div class="table-scroll"><table>
+    <thead><tr><th>Need</th><th>Interface and owner</th><th>Decision</th></tr></thead>
+    <tbody>
+      <tr><td>Understand the task</td><td>Original request and provider instructions in initial context.</td><td>No task-reading tool: the model must see the request before choosing anything.</td></tr>
+      <tr><td>Know allowed input</td><td>Provider tool schemas; shared <code>describe_input_constraints(tool, field?)</code> queries those schemas or the provider's accessor.</td><td>Keep small enums directly visible. Query larger or dynamic constraints only when useful. Never invent a second scientific rule catalogue.</td></tr>
+      <tr><td>Find or inspect a source</td><td>Provider tools such as <code>inspect_uploads</code>, <code>inspect_upload</code> or <code>inspect_source</code>.</td><td>Keep provider names and semantics. A live inspection may download data or update claims; the shared module cannot promise a pure read or current membership.</td></tr>
+      <tr><td>Use earlier work</td><td>Shared <code>read_interpretation_records</code>; catalogue supplied automatically.</td><td>Read immutable observations or rejected proposals without repeating inspection. Historical evidence is neither current validity nor a new instruction.</td></tr>
+      <tr><td>Submit a candidate</td><td>Provider's existing submission / preparation tool.</td><td>The provider accepts, returns a correctable rejection, or fails. Preparation may have effects. No extra universal “validate then execute” pair.</td></tr>
+      <tr><td>Report inability</td><td>Provider <code>report_interpretation_problem</code> mapped to an unverified handoff; replaces the common <code>report_input_problem</code> name.</td><td>Preserve provider-owned structured report fields as protected evidence; only an explicitly selected safe summary enters successor history. The name describes interpretation difficulty, not proven bad input. No second handoff tool: the scheduler chooses any successor without resetting the overall budget.</td></tr>
+      <tr><td>Know remaining allowance</td><td>SDK budget supplied with every model request and information reply.</td><td>No budget tool, sleep tool or retry tool. Transport recovery and scheduling happen without another model decision.</td></tr>
+    </tbody>
+  </table></div>
+  <h3>Corrections to the earlier chart</h3>
+  <ul>
+    <li><strong>Separate model claims from provider decisions.</strong> An inability report requests handoff; it is not a rejected proposal, accepted preparation or verified bad input. Repeated model agreement does not change that.</li>
+    <li><strong>Repair identifiable call mistakes; escalate unusable carriers.</strong> Unknown tools, invalid argument JSON and multiple calls can receive safe correction without running anything. A reply whose call identity cannot be trusted cannot be repaired as an ordinary tool result.</li>
+    <li><strong>Count corrections honestly.</strong> The current SDK's three-correction allowance includes protocol repairs and rejected tool arguments, not just scientific proposals. Successful information calls consume turns and time, but no correction allowance. Each model has 12 turns; each turn has at most two HTTP attempts.</li>
+    <li><strong>Do not make a tool a mandatory preflight.</strong> The first model can submit directly when the original input and supplied schema suffice. A successor can inspect fresh data without first reading history. Provider-specific scientific prerequisites still apply.</li>
+    <li><strong>Keep acceptance before cleanup.</strong> A preparation accepted after its model window expires is retained. Cleanup trouble cannot turn that acceptance into permission to replay preparation. Provider failures propagate promptly; their caller retains resource settlement.</li>
+    <li><strong>Do not promise fresh inventory in successor context.</strong> The module reuses captured original messages and adds its catalogue. Only provider operations establish current source membership or validity.</li>
+  </ul>
+  <h3>Limits to keep visible before implementing</h3>
+  <p><strong>History pagination is not context management.</strong> Earlier pages remain in the transcript. Filling the remaining request allowance with one page can leave no room for another page or useful reasoning. Keep the current bounded reader, but do not promise that a model can read an arbitrarily large record page by page. Targeted provider inspection is preferable when available; record selection or transcript compaction needs a separate demonstrated requirement.</p>
+  <p><strong>A constraint lookup need not discover anything new.</strong> Its static fallback repeats the supplied schema and handles simple property paths; it is not a full JSON Schema resolver. Source-specific allowed values require the provider accessor. Keep this distinction in the tool description.</p>
+  <p class="callout warning"><strong>Refactor boundary:</strong> keep one module. Bind each shared tool's schema and execution behavior together; derive advertised definitions and lookup from the same instances. The model visit retains deadlines, retries, correction accounting and cleanup. Provider callbacks retain scientific validation and effects. Use the agreed <code>report_interpretation_problem</code> name and keep scientific report fields provider-owned; no additional handoff tool.</p>
 </section>
 
 <section id="handoff">
-  <h2>Option A: compact automatic handoff</h2>
-  <p><strong>This candidate supplies selected history directly.</strong> Do not require the successor to call a new history tool before it can act. A history lookup adds a model round trip and consumes its turn/time allowance. Original instructions remain primary; prior model guesses do not replace them.</p>
+  <h2>Earlier alternative: compact automatic handoff</h2>
+  <p><strong>Not the selected SDK approach.</strong> This alternative would supply selected history directly. Do not require the successor to call a new history tool before it can act. A history lookup adds a model round trip and consumes its turn/time allowance. Original instructions remain primary; prior model guesses do not replace them.</p>
   <div class="three">
     <div class="definition"><h3>Original input</h3><p>The original request and provider instructions, with the current authoritative source/upload membership where reconciliation can change it. Never substitute an earlier model's interpretation for the user's input.</p></div>
     <div class="definition"><h3>Failed proposals</h3><p>Bounded recent proposal/rejection pairs from prior model visits: what was proposed, which tool or provider rule rejected it, and the safe rejection reason. Mark proposals as unaccepted model output. A formatting error is not evidence that source-supported scientific values are wrong.</p></div>
@@ -207,41 +202,41 @@
   <p>A ZIP member listing can approach 256 KiB in SECS, so automatically injecting every prior inspection is wasteful. Include a small index of relevant source/member or representation references. The successor can use existing tools such as <code>inspect_source</code> or <code>inspect_upload</code> if it needs further detail. This case does not require adding a generic history tool to every provider.</p>
   <p><strong>An existing inspection call is not automatically a cached read.</strong> SECS's inspection path acquires sources, invokes the scientific worker and updates representation claims. Source reconciliation can change membership or bytes within an API Attempt. Providers own those operations and determine whether an old observation is still applicable; stale records must be marked accordingly.</p>
   <p>A provider may reuse a captured result only when it explicitly establishes replay-safe semantics for the same source/companion identities and exact inspection scope. Do not add blanket SDK memoization or cache failures, preparation or execution. Retrieving a cached 256-KiB result still adds that much data to context; caching alone does not solve prompt-size limits. Targeted retrieval or pagination needs its own demonstrated provider requirement.</p>
-  <p class="callout">History is transient and scoped to this interpretation inside its existing API Attempt and captured input identities. A model visit is not a new API Attempt. There is no cross-Job transcript store, generic history API or new persistence layer. Optional inspection calls use ordinary turns/time, not the rejected-proposal quota, and retain their provider-owned lifecycle. A history lookup never authorizes replaying an accepted preparation or generation.</p>
+  <p class="callout">History is transient and scoped to this interpretation inside its existing API Attempt and captured input identities. A model visit is not a new API Attempt. There is no cross-Job transcript store, generic history API or new persistence layer. Optional inspection calls use ordinary turns/time, not the correction quota when successful, and retain their provider-owned lifecycle. A history lookup never authorizes replaying an accepted preparation or generation.</p>
 </section>
 
 <section id="tools-first">
-  <h2>Option B: the model fetches the context it needs</h2>
+  <h2>Selected approach: the model fetches the context it needs</h2>
   <p><strong>Implemented in the shared SDK; provider adoption remains separate.</strong> The <a href="../packages/provider-core/src/provider_core/interpreter.py"><code>Interpreter</code> module</a> implements the tools-first flow with the existing conversation and transport owners. Its API and integration example are in the <a href="../packages/provider-core/README.md#shared-interpretation">package README</a>. This does not change the current provider wiring described below.</p>
-  <p>Give the successor the original request, provider instructions, current source inventory and a small catalogue of earlier work. Do not automatically inject prior proposals or large inspection payloads. The model chooses which records to retrieve, which sources to inspect now, or whether it can act directly.</p>
-  <p class="flow-line">Original task + catalogue → model chooses needed evidence → read captured record(s) → reason / inspect / submit<br><small>Reading history is optional. Each read uses the ordinary model-turn and time budget, but not the rejected-proposal quota. It never restarts a deadline.</small></p>
+  <p>Give the successor the original request, provider instructions, captured source inventory when supplied and a small catalogue of earlier work. Do not automatically inject prior proposals or large inspection payloads. The model chooses which records to retrieve, which sources to inspect now, or whether it can act directly.</p>
+  <p class="flow-line">Original task + catalogue → model chooses needed evidence → read captured record(s) → reason / inspect / submit<br><small>Reading history is optional. Each read uses the ordinary model-turn and time budget, but not the correction quota when successful. It never restarts a deadline.</small></p>
   <div class="table-scroll"><table>
     <thead><tr><th>Information</th><th>How it is available</th><th>Meaning</th></tr></thead>
     <tbody>
-      <tr><td>Task and tools</td><td>Original request, provider instructions, source inventory and tool schemas supplied at model entry.</td><td>The model can act without a compulsory history-discovery call.</td></tr>
-      <tr><td>Prior-work catalogue</td><td>Small descriptors for every readable retained record: reference, kind, model visit, source/member scope, capture order, known validity and size. Explicitly report records evicted or unavailable under the bounded retention policy.</td><td>Enough to choose a relevant record; it does not contain every old payload.</td></tr>
+      <tr><td>Task and tools</td><td>Original request, provider instructions, captured source inventory when supplied, and tool schemas at model entry.</td><td>The model can act without a compulsory history-discovery call.</td></tr>
+      <tr><td>Prior-work catalogue</td><td>Descriptors for readable retained records: reference, kind, model visit, tool, size and historical status, in capture order. Source/member identities remain in provider-supplied payloads; the SDK does not infer freshness. Report the number of records evicted or unavailable under bounded retention.</td><td>Enough to choose a relevant record; it does not contain every old payload.</td></tr>
       <tr><td>Earlier proposals</td><td>Read a captured candidate/rejection pair by reference.</td><td>A failed model proposal plus the provider's safe rejection, not established truth.</td></tr>
-      <tr><td>Earlier observations</td><td>Read the immutable observation originally returned by a tool.</td><td>Historical evidence, with capture-time source identities and known invalidations. Reading it does not refresh it.</td></tr>
+      <tr><td>Earlier observations</td><td>Read the immutable observation originally returned by a tool.</td><td>Historical evidence with any source identities captured in the payload. Reading it neither refreshes it nor establishes whether it has since been invalidated.</td></tr>
       <tr><td>Fresh observations</td><td>Call the provider's existing inspection tools explicitly.</td><td>A live provider-owned operation that can read sources and update claims; it is distinct from reading history.</td></tr>
     </tbody>
   </table></div>
   <h3>One shared record-reading tool</h3>
-  <p>A proposed SDK-owned <code>read_interpretation_records</code> tool can read one or several catalogue references in one invocation:</p>
-  <pre><code>{"records": [{"ref": "proposal-3"}, {"ref": "inspection-2"}]}</code></pre>
+  <p>The SDK-owned <code>read_interpretation_records</code> tool reads one or several catalogue references in one invocation:</p>
+  <pre><code>{"records": [{"ref": "record-3"}, {"ref": "record-2"}]}</code></pre>
   <p>Batching fits the existing one-tool-call-per-model-turn pattern without serial round trips for every small record. The tool returns captured data only: it does not download, inspect, prepare or execute scientific work. Its authority is closed over this interpretation inside its existing API Attempt; the model supplies no cross-Job selector.</p>
-  <p>Each result identifies its kind, origin, source scope, capture-time identity, historical/invalidated status, payload size and whether the response is complete. A batch explicitly identifies every returned, unavailable or deferred record; missing output is not evidence that no record existed. A malformed proposal that was not safely retained is reported as unavailable; raw model text or private transport diagnostics are not reconstructed.</p>
+  <p>Each returned page identifies its kind, model visit, tool, historical status, retained record size and whether the response is complete. Source identities are part of the captured provider payload, when supplied. A batch explicitly identifies every returned, unavailable or deferred record; missing output is not evidence that no record existed. Malformed carrier or argument text is not retained as a history record; the unavailable count covers records dropped by retention limits, not every failed model turn. Raw model text and private transport diagnostics are not reconstructed.</p>
   <h3>Large records: bound responses without forcing tiny pages</h3>
   <p>Return selected records together when they fit the existing response and the entire next model request, including its prior messages and tool framing. Byte size alone does not establish token fit; respect known model context limits without claiming an unknown token limit has been proved. A 256-KiB record does not inherently require four 64-KiB model round trips. When a selected record cannot fit, return an explicit incomplete result with a cursor bound to that immutable captured record. The same reader can request the next part:</p>
-  <pre><code>{"records": [{"ref": "inspection-2", "cursor": "returned-cursor"}]}</code></pre>
+  <pre><code>{"records": [{"ref": "record-2", "cursor": 4096}]}</code></pre>
   <p>Chunks are explicitly fragments, not silently truncated complete JSON records. Reading a page does not prove that the whole observation or source has been examined. Pagination helps the model select less data; if it ultimately reads every page, those bytes still consume context and additional model turns. No generic search language, cross-Job archive, new service or extra TOML controls are proposed.</p>
   <h3>Queryable capabilities and allowed values</h3>
-  <p>Model-directed access can also expose the active input contract. A proposed <code>describe_input_constraints</code> tool could answer a targeted query such as:</p>
+  <p>Model-directed access can also expose the active input contract. The <code>describe_input_constraints</code> tool answers a targeted query such as:</p>
   <pre><code>{"tool": "submit_interpretation", "field": "verbosity"}</code></pre>
-  <p>The response identifies the field's supported type, allowed values or range, required status and relevant dependencies. Other useful queries include accepted formats, units and source-dependent representation choices. Return provider-owned capability/validator metadata from the same authority that admits inputs; do not maintain a second handwritten list in the SDK or TOML. The provider owns scientific constraints, while the SDK supplies a common query interface.</p>
-  <p>Keep essential tool names and argument shapes visible so the model knows what it can ask. Small static enums may remain in the tool schema; larger or dynamic sets can be fetched when needed. These metadata reads consume normal turns/time, without spending the rejected-proposal quota or performing a scientific preparation. Knowing a value is allowed does not establish that it matches the user's request or source data.</p>
+  <p>The static response returns the declared field schema, required status and parent schema; dependencies remain as declared, not resolved. A provider accessor can supply dynamic restrictions. Other useful queries include accepted formats, units and source-dependent representation choices. Return provider-owned capability/validator metadata from the same authority that admits inputs; do not maintain a second handwritten list in the SDK or TOML. The provider owns scientific constraints, while the SDK supplies a common query interface.</p>
+  <p>Keep essential tool names and argument shapes visible so the model knows what it can ask. Small static enums may remain in the tool schema; larger or dynamic sets can be fetched when needed. These metadata reads consume normal turns/time, without spending the correction quota when successful or performing a scientific preparation. Knowing a value is allowed does not establish that it matches the user's request or source data.</p>
   <h3>A useful trace</h3>
   <ol>
-    <li>An earlier model proposed source-supported scientific values but placed a verbosity field at the wrong location. Its candidate and provider rejection are retained as <code>proposal-3</code>.</li>
+    <li>An earlier model proposed source-supported scientific values but placed a verbosity field at the wrong location. Its candidate and provider rejection are retained as <code>record-3</code>.</li>
     <li>The successor sees that catalogue entry and chooses to read it, rather than receiving every previous conversation.</li>
     <li>It sees the formatting rejection, preserves the useful scientific values as proposals to check against the original input, and submits the corrected shape.</li>
   </ol>
@@ -249,7 +244,7 @@
   <h3>The real tradeoff</h3>
   <p><strong>Strength:</strong> the model chooses evidence instead of inheriting an automatically selected narrative. It can avoid irrelevant proposals and large old observations, and historical reads have an honest read-only contract separate from live inspection.</p>
   <p><strong>Cost:</strong> optional reads still add model latency and consume time/turns. The model can overlook relevant records, spend its entire window retrieving pages, or miss a contradiction in an unread part. Unread history does not justify claiming that no prior rejection or observation exists. A claim about the completeness or absence of original-source content requires the relevant source evidence; access markers alone do not prove comprehension. Ordinary provider validation does not generally guarantee that a partial reading found every scientifically relevant fact.</p>
-  <p class="callout">If chosen, this strategy would replace automatic history-payload injection with catalogue-plus-pull access. It reuses bounded per-interpretation memory; it does not require a persistent record store or a configurable handoff-mode matrix. Original input, provenance, source freshness and scientific ownership remain the same requirements under either strategy.</p>
+  <p class="callout">The SDK uses catalogue-plus-pull access instead of automatic history-payload injection. It reuses bounded per-interpretation memory; it does not require a persistent record store or a configurable handoff-mode matrix. Original input, provenance, source freshness and scientific ownership remain the same requirements under either strategy.</p>
 </section>
 
 <section id="universal-config">
@@ -297,10 +292,10 @@ key_file = &quot;/run/config/interpreter/strong.key&quot;
     <dt>Agreed default: divide remaining time among untried models</dt><dd>After previous endpoint cleanup settles, divide the remaining overall time by the number of endpoints still to try, including the one being selected. Fix that model's deadline once; retries and corrections never restart it. Unused time rolls forward. With 240 seconds and two models, the first receives at most 120 seconds. If its model work ends after 20 seconds, the second receives approximately 220 seconds minus cleanup time; if it uses its full 120 seconds, the second receives approximately 120 seconds minus cleanup time. Cleanup consumes overall time rather than extending the interpretation window. The caller's earlier Job/work deadline still takes precedence.</dd>
     <dt>No arbitrary short response ceiling</dt><dd>A connected model request may use its remaining model window. An 80-second response can fit a 120-second window; it must not be repeatedly aborted by an unrelated 25-second SDK read limit. A short SDK connection-establishment bound, including DNS and TLS setup, can detect unreachable services. Confirm cleanup before retrying; retire safely before escalation.</dd>
     <dt>Retries are a maximum, not a promise</dt><dd>A quick transient failure leaves time for a same-endpoint retry after backoff. A request that consumes the entire model window causes escalation; there is no time left to promise another full-length request. The proposed initial SDK policy allows at most two HTTP attempts per logical turn, including the first, with one bounded jittered backoff and Retry-After handling. These are SDK policy, not endpoint-file settings.</dd>
-    <dt>Keep inspection and failed proposals distinct</dt><dd>The SDK centrally bounds total logical turns and rejected proposals per model. Successful inspections consume turns and time, but do not consume the repair quota. Corrections remain best-effort within the total-turn and time limits; inspections can exhaust those limits before all repair opportunities are used. The initial policy should accommodate SECS's existing 12-turn conversation while limiting repeated bad proposals separately; the exact constants belong in centrally qualified SDK policy, not per-model TOML.</dd>
+    <dt>Keep inspection and failed proposals distinct</dt><dd>The SDK centrally bounds total logical turns and corrections per model, including protocol repairs and rejected tool arguments. Successful inspections consume turns and time, but do not consume the repair quota. Corrections remain best-effort within the total-turn and time limits; inspections can exhaust those limits before all repair opportunities are used. The initial policy should accommodate SECS's existing 12-turn conversation while limiting repeated bad proposals separately; the exact constants belong in centrally qualified SDK policy, not per-model TOML.</dd>
     <dt>No duplicated limits in endpoint files</dt><dd>Drop endpoint IDs, endpoint/exchange/retirement timers, per-model turn caps and retry/backoff knobs from this proposal. Endpoint files contain complete URL, model and credential-file reference, with reasoning effort or CA only when the service needs them. Introduce a model-specific time override only if measured behavior demonstrates that the default allocation is insufficient.</dd>
     <dt>One captured configuration per interpretation</dt><dd>Capture the overall policy and ordered endpoint definitions before starting. Do not rescan or reread settings between retries and endpoint switches. Later edits apply to new interpretations.</dd>
-    <dt>Scientific ownership stays with the provider</dt><dd>Escalation carries the original request and a compact, provenance-labeled handoff; it never replays accepted scientific work. The provider retains its prompts, tools, acceptance rules and work deadlines. Exhaustion ends this Job, not the provider.</dd>
+    <dt>Scientific ownership stays with the provider</dt><dd>Escalation carries the original request and a provenance-labelled catalogue with optional record retrieval; it never replays accepted scientific work. The provider retains its prompts, tools, acceptance rules and work deadlines. Exhaustion ends this Job, not the provider.</dd>
   </dl>
 </section>
 
