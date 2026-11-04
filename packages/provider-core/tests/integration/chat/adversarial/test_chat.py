@@ -39,10 +39,9 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ChatFailed):
                 await asyncio.wait_for(endpoint.complete([], [], not_after=asyncio.get_running_loop().time() + 0.25), 1.5)
             self.assertEqual(len(peer.requests), 1)
-            with self.assertRaises(ChatFailed) as cleanup:
-                await endpoint.retire()
-            self.assertEqual(cleanup.exception.reason, "retirement_unconfirmed")
-            self.assertFalse(endpoint.retirement_confirmed)
+            await endpoint.retire()
+            self.assertTrue(endpoint.retirement_confirmed)
+            await asyncio.wait_for(peer.closed.wait(), 1)
 
     async def test_http_rejection_keeps_error_fields_without_complete_prompt_or_key_echoes(self):
         prompt = 'PRIVATE_INPUT quoted "source"\nC 0 0 0; api_key=PRIVATE_KEY'

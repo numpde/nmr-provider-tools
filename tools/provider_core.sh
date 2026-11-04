@@ -6,7 +6,7 @@ printing=false
 if [[ $# -gt 0 && $1 == --print ]]; then printing=true; shift; fi
 if [[ $# != 1 ]]; then printf '%s\n' 'Supply one provider-core target from make help.' >&2; exit 2; fi
 action=$1
-case "$action" in download|check|unit|contract|integration|integration/delivery|build|package) ;;
+case "$action" in download|check|unit|contract|integration|integration/delivery|fuzz|build|package) ;;
     *) printf 'Cannot select provider-core operation %q. Use make help.\n' "$action" >&2; exit 2 ;;
 esac
 source "$root/tools/base_image.sh"
@@ -101,13 +101,15 @@ case "$action" in
             --entrypoint python3 "$base_image" -B -m tools.provider_core_acquire verify)
         budget=60
         ;;
-    unit|contract|integration|integration/delivery)
+    unit|contract|integration|integration/delivery|fuzz)
         # The installed cryptography extension requires executable mappings.
         # Only /runtime has that grant; build scratch remains noexec under /tmp.
+        pattern='test*.py'
+        if [[ $action == fuzz ]]; then pattern='test_fuzz*.py'; fi
         arguments=("${worker[@]}" --network none --init --tmpfs /runtime:rw,nosuid,nodev,exec,size=256m,mode=1777
             --mount "type=bind,src=$root/packages/provider-core,dst=/package,readonly"
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
-            --entrypoint python3 "$base_image" -B -m tools.provider_core_tests "$action" --pattern 'test*.py')
+            --entrypoint python3 "$base_image" -B -m tools.provider_core_tests "$action" --pattern "$pattern")
         budget=untimed
         ;;
     package)

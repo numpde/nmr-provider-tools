@@ -401,6 +401,11 @@ class AttemptExecutor:
         return self._delivery_diagnostic_failure
 
     @property
+    def delivery_accepted(self):
+        """The relay owns this terminal body; cleanup and API publication may remain."""
+        return self._delivery_acceptance is not None and type(self._checkpoint) is DeliveryAcceptedCheckpoint
+
+    @property
     def work_settled(self):
         """Confirm original task/I/O/native cleanup, independently of retained reports."""
         return (
@@ -422,8 +427,7 @@ class AttemptExecutor:
 
 
     def require_terminal_release_ready(self, claim):
-        if (claim is not self.claim or self._delivery_acceptance is None
-                or type(self._checkpoint) is not DeliveryAcceptedCheckpoint):
+        if claim is not self.claim or not self.delivery_accepted:
             raise ExecutionRefused("Cannot release report capacity before this executor receives its matching delivery acknowledgement")
 
     async def run(self, acknowledged):

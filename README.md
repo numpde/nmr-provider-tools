@@ -62,6 +62,14 @@ when an earlier connection's delay holds up others). Both settings reload live.
 
 Run `make help` to see the available commands. Builds, tests and deployments use Docker on Linux/amd64.
 
+Run the reproducible failure-sequence corpus against the installed package with
+`make tests/fuzz/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/path/to/wheelhouse`.
+It covers local TLS stalls, cooperative and blocked cleanup, interpreter retries
+and handoffs, and durable outbox replay/restart histories. Failures identify their
+seed and scenario. These cases also run in the ordinary unit/integration suites;
+they use synthetic inputs and make no external model calls. See the
+[resilience plan](notes/058_resilience_fault_sequence_tests.txt) for scope and limits.
+
 Select a local Docker context for builds, tests and deployments with
 `DOCKER_CONTEXT=<name>` on the Make command line, or choose one interactively.
 There is no default. Contexts must use a Unix socket on the machine running

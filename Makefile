@@ -177,7 +177,7 @@ endif
 .PHONY: checks/base-image/download checks/dependencies/download checks/dependencies/check checks/image/build checks/prepare
 .PHONY: delivery/deployment/up delivery/deployment/update delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
-.PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery
+.PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery tests/fuzz/provider-core
 .PHONY: wheelhouse/image/build wheelhouse/lock/locate wheelhouse/lock/acquire tests/wheelhouse tests/delivery/publisher
 
 help:
@@ -217,6 +217,7 @@ help:
 	  'make tests/wheelhouse WHEELHOUSE=... Run shared wheelhouse tests offline.' \
 	  'make packages/provider-core/check WHEELHOUSE=... Verify locked wheels offline.' \
 	  'make tests/unit/provider-core WHEELHOUSE=... Build and test the isolated installed core.' \
+	  'make tests/fuzz/provider-core WHEELHOUSE=... Run reproducible lifecycle fault sequences.' \
 	  'make tests/contract/provider-core WHEELHOUSE=... Qualify installed package contracts.' \
 	  'make tests/integration/provider-core WHEELHOUSE=... Run contained package integrations.' \
 	  'make tests/integration/provider-core/delivery WHEELHOUSE=... Qualify real delivery IPC and recovery.' \
@@ -283,6 +284,9 @@ tests/package:
 
 tests/unit/provider-core:
 	bash tools/provider_core.sh unit
+
+tests/fuzz/provider-core:
+	bash tools/provider_core.sh fuzz
 
 tests/contract/provider-core:
 	bash tools/provider_core.sh contract

@@ -229,6 +229,7 @@ class _Exchange:
     outcome: _Outcome
     owner: object
     not_after: float | None
+    retirement_deadline: float | None = None
 
 
 def _positive_seconds(value):
@@ -470,11 +471,13 @@ class HttpTransport:
         return outcome
 
     async def _observe_retirement(self, exchange):
-        """Observe original cleanup without renewing its inherited absolute cap."""
+        """Observe original cleanup; an inherited cap gets one fixed grace period."""
         task = exchange.task
         deadline = asyncio.get_running_loop().time() + self._retirement_seconds
         if exchange.not_after is not None:
-            deadline = min(deadline, exchange.not_after)
+            if exchange.retirement_deadline is None:
+                exchange.retirement_deadline = deadline
+            deadline = exchange.retirement_deadline
         cancellation = None
         while not task.done():
             remaining = deadline - asyncio.get_running_loop().time()
@@ -504,9 +507,12 @@ class HttpTransport:
         before_body is an optional bounded synchronous head-admission callback.
         It runs before body iteration, accounting or writes; a refusal still
         retires the original response, connection and file I/O. not_after is an
-        optional absolute running-loop deadline for request and all retirement
-        observations. Expiry retains unresolved original work; later retire
-        cannot extend that cap, but can observe work that has already finished.
+        optional absolute running-loop deadline for request work. On interruption,
+        the original task receives one additional retirement_seconds allowance
+        for closure. Later retire calls share that cleanup deadline; they cannot
+        renew it, but can observe original work that has already finished.
+        Without not_after, each retirement observation retains its configured
+        bounded wait; the caller owns its overall recovery/shutdown deadline.
         """
         return await self._exchange(
             request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=None,

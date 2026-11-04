@@ -235,10 +235,11 @@ class ChatEndpoint:
             ) from None
 
     async def complete(self, messages, tools, *, not_after=None):
-        """Send one bounded turn under an optional absolute retirement deadline.
+        """Send one bounded turn under an optional absolute request deadline.
 
         Response bodies are decoded; retained headers still describe the wire
-        entity. The transport owns exchange and cleanup under not_after.
+        entity. not_after bounds request work; the transport separately owns one
+        configured cleanup allowance for the original exchange.
         """
         content = _encode_request(self.spec, messages, tools)
         if len(content) > self._request_bytes:

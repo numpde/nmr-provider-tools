@@ -30,7 +30,10 @@ def run_suite(suite, patterns):
                                      extra_pools=(output,), required_files={wheel.name: wheel})
         run = root / "run"
         shutil.copytree(Path("/package/tests"), run / "tests")
-        subprocess.run([str(python), "-I", "-B", str(run / "tests/run_suite.py"), suite, *patterns], cwd=run, check=True)
+        # silent-defaults: allow-contract -- Fuzz selects both owned suites; each other admitted selector names one suite.
+        selections = ("integration", "unit") if suite == "fuzz" else (suite,)
+        for selection in selections:
+            subprocess.run([str(python), "-I", "-B", str(run / "tests/run_suite.py"), selection, *patterns], cwd=run, check=True)
         if suite == "unit":
             native_lock = output / wheel.name.replace("-py3-none-any.whl", "-native-install.lock")
             native_python = install_environment(Path("/runtime/native-proof"), native_lock, Path("/wheelhouse"),
@@ -40,7 +43,7 @@ def run_suite(suite, patterns):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("suite", choices=("unit", "contract", "integration", "integration/delivery"))
+    parser.add_argument("suite", choices=("unit", "contract", "integration", "integration/delivery", "fuzz"))
     parser.add_argument("--pattern", action="append", required=True)
     args = parser.parse_args()
     run_suite(args.suite, args.pattern)

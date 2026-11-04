@@ -64,6 +64,12 @@ provider. `LiveCapacityFull` identifies expected backpressure; settle the
 rejected controller before waiting for capacity, and preserve independent cleanup
 failures. Other ownership refusals are not capacity signals.
 
+`AttemptExecutor.delivery_accepted` reports that the relay acknowledged the exact
+terminal handoff. A provider may clear delivery backpressure for other Jobs at
+that point, even if this executor still owns cleanup. This does not prove API
+publication or permit releasing the full claim, replacing the worker, or
+repeating science; those decisions still require their existing ownership checks.
+
 ## Crashes and recovery
 
 `work_settled` confirms that original work, I/O and required native cleanup have
@@ -217,10 +223,11 @@ the successor.
 
 `ChatEndpoint` sends one request without resending failed model calls. It decodes
 compressed bodies under `response_bytes` and optional `error_response_bytes`
-(which defaults to the same limit). Its optional `not_after` argument bounds the
-original exchange and retirement with one absolute event-loop deadline; the
-transport's exchange allowance still bounds each request. Exhausting the whole
-deadline can leave retirement unconfirmed. A received non-success HTTP head
+(which defaults to the same limit). Its optional `not_after` argument bounds
+request work with an absolute event-loop deadline; the transport's exchange
+allowance still bounds each request. With `not_after`, the original exchange gets one additional
+configured retirement allowance to close its resources. Repeated retirement
+calls cannot renew it, and blocked cleanup remains owned. A received non-success HTTP head
 survives a failed body read in `ChatFailed.cause.response_head`; this is protected
 evidence, not a complete response. Response headers describe the wire entity
 even when the retained body has been decoded. Providers own retry, fresh-prompt
@@ -256,10 +263,14 @@ for framing and compatibility limits. Direct model HTTP requires explicit opt-in
 signed API requests retain HTTPS verification.
 
 Supply `not_after` when the caller already owns an absolute event-loop deadline
-for both the request and cleanup observation. Expiry leaves unfinished resources
-with their original owner; later retirement cannot renew that cap. A response
-observed after the cap is not returned as success. Without a cap, the configured
-exchange and retirement allowances apply.
+for request work. A response observed after that cap is not returned as success.
+On interruption, cleanup of the original exchange has one separate, fixed
+`retirement_seconds` allowance, including after caller cancellation. Subsequent
+retirement calls share that deadline; completed cleanup can still be observed
+after it expires. Neither cleanup observation nor an expired request cap permits
+new request work. Without a cap, the configured exchange allowance bounds work
+and each retirement observation retains its existing bounded wait; the caller
+owns the overall recovery or shutdown deadline.
 
 `provider_core.network.network_availability` classifies original native I/O
 evidence from SDK-owned API or model HTTP exchanges. A positive result grants no

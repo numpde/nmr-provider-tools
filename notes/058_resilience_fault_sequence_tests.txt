@@ -1,0 +1,91 @@
+Resilience through generated failure sequences
+=============================================
+
+Aim
+---
+Exercise failures across real ownership transitions, so a failed job does not
+silently duplicate work, lose its terminal outcome, or stop unrelated jobs after
+its resources have retired. Providers inspect their complete flows and own their
+consumer tests; this package owns reusable transport, interpreter and outbox
+behavior. Findings need a test at the owning boundary and verified consumer
+uptake. Do not store private incident data or coordination dialogue here.
+
+First implementation
+--------------------
+1. Transport deadlines and retirement. Exercise real local TLS stalls and
+   generated cooperative/held cleanup schedules. The request deadline stops new
+   work. The configured retirement allowance observes closure of the original
+   exchange, including after the request deadline. Give exchanges carrying an
+   inherited absolute deadline one fixed cleanup deadline: repeated retire calls
+   cannot renew it. Preserve existing bounded re-observation for API, upload and
+   outbox exchanges without an inherited deadline; those callers own their
+   recovery/shutdown budgets. Preserve cancellation,
+   original failures and genuine unresolved ownership. A completed read failure
+   is not itself an unresolved resource.
+2. Interpreter sequences. Generate mixes of observations, rejected proposals,
+   transient transport failures and endpoint handoffs before acceptance. Require
+   the same deadline within each model visit, retirement before retry/escalation,
+   and exactly one accepted preparation with no later model or tool dispatch.
+   Keep provider scientific admission authoritative.
+3. Durable delivery sequences. Generate intake, lost-ack replay, conflicting
+   payloads, hold, publication and reopen operations against a simple independent
+   outstanding-record model. Assert exact retained bytes, provider isolation,
+   capacity accounting and persistence after reopening. Published rows are
+   removed: the queue does not promise lifetime deduplication.
+
+These are bounded, deterministic generative tests using the standard library and
+the existing unittest runner. Report the seed and operation trace on failure.
+Fixed seeds make failures reproducible; no new runtime dependency or production
+configuration is needed. This is fault-sequence fuzzing, not coverage-guided
+native fuzzing. Keep generated cases in ordinary unit/integration discovery, with
+a focused Make target for the generated corpus. Test the installed wheel using
+the selected science context and the host's existing wheelhouse.
+
+Evidence and failure discipline
+------------------------------
+First make a realistic witness fail on the existing implementation. Correct the
+owning behavior, then run the generated corpus and ordinary relevant suites.
+Use events to control ordering, rather than random millisecond races. Real TLS
+tests use a disposable local peer, never a paid model endpoint. Every test must
+release held work and await its owner even when an assertion fails. Assert
+observable effects and ownership, not a copied implementation algorithm.
+
+The existing absolute-deadline tests deliberately deny cleanup observation after
+the request deadline. That conflicts with the transport's documented additional
+cleanup allowance and can leave promptly cancellable I/O unconfirmed. Changing
+this contract requires updating those tests and documentation together. It must
+not permit new request work after the deadline or renew cleanup time on retries.
+Do not extend this change to calls without an inherited deadline: existing API,
+upload and delivery recovery deliberately re-observe the original transport
+before deciding whether retry is safe. Removing that bounded observation would
+reduce recovery for unrelated callers.
+
+Joint provider pass
+-------------------
+Each provider checks discovery, interpretation, scientific admission, cancellation,
+cleanup, terminal delivery and admission of the next job. Test a failed job
+followed by an unrelated valid job; distinguish safely retired failure from
+genuinely unsettled work. Cross-review another provider's findings and adopt
+reusable fixes through this package, without local deadline workarounds.
+
+Delivery pressure clears on the executor's authoritative delivery_accepted
+predicate, not on an exception's borrowed Attempt record. A matching relay ACK
+can free terminal-report pressure while the same controller still owns cleanup.
+The predicate derives from existing acceptance/checkpoint state; it neither
+proves API publication nor authorizes full claim release or science replay.
+
+Deferred and limits
+-------------------
+Keep a measured boundary between scripted proof and deployment evidence. These
+tests do not establish live model quality, live endpoint latency or successful
+scientific inference. Process-kill/power-loss durability, coverage-guided protocol
+fuzzing and long soak runs are follow-up work; ordinary queue reopen tests do not
+prove those properties. Add them when a concrete failure or coverage gap makes
+them useful, without delaying the initial ownership/deadline repair. No claim of
+complete resiliency follows from a passing finite corpus.
+
+The repository-wide quality lane remains non-green on existing source/posture
+findings and cache hygiene. The generated scenarios' intentional branches and
+captured fixture defaults are documented at their owning statements. Keep this
+broader quality debt separate from runtime qualification; passing the package
+suites must not be described as passing every repository check.

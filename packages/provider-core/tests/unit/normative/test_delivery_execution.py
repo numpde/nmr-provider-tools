@@ -50,7 +50,9 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         store, acknowledged, claim = await live_attempt()
         session, delivery = CheckpointSession(store), RecordingDelivery()
         executor = executor_at(store, acknowledged, claim, session, delivery)
+        self.assertFalse(executor.delivery_accepted)
         accepted = await executor.run(acknowledged)
+        self.assertTrue(executor.delivery_accepted)
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
         self.assertIs(type(session.events[1][1]), EnteredCheckpoint)
         self.assertEqual(session.events[1][1].prepared, EvidenceDigest.from_evidence(session.handle.identity))
@@ -101,6 +103,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ExecutionFailed) as failed:
             await executor.run(acknowledged)
         self.assertIsNotNone(failed.exception.delivery_acceptance)
+        self.assertTrue(executor.delivery_accepted)
         self.assertIsNone(failed.exception.outcome)
         self.assertEqual(len(delivery.items), 1)
         self.assertFalse(executor.retirement_confirmed)
@@ -159,18 +162,27 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
                 await super().retire()
 
         store, acknowledged, claim = await live_attempt()
-        session, delivery = PausedRetirement(store), RecordingDelivery()
+        session, delivery = PausedRetirement(store), FullUntilReleased()
         executor = executor_at(store, acknowledged, claim, session, delivery)
         task = asyncio.create_task(executor.run(acknowledged))
         try:
+            await asyncio.wait_for(delivery.full_seen.wait(), 1)
+            await asyncio.wait_for(session.retirement_started.wait(), 1)
+            self.assertFalse(executor.delivery_accepted)
+            delivery.release.set()
             await asyncio.wait_for(delivery.accepted.wait(), 1)
+            self.assertTrue(executor.delivery_accepted)
             self.assertFalse(task.done())
             self.assertFalse(executor.retirement_confirmed)
+            self.assertIsNone(executor.last_failure)
+            with self.assertRaises(OwnershipRefused):
+                claim.release(owner=claim.lifecycle_owner)
             self.assertIsNone(executor._outcome)
             session.release.set()
             await asyncio.wait_for(task, 1)
             claim.release(owner=claim.lifecycle_owner)
         finally:
+            delivery.release.set()
             session.release.set()
             if not task.done():
                 task.cancel()
@@ -192,6 +204,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
                 await executor.settle()
             self.assertEqual(len(delivery.attempted), count)
             self.assertEqual(delivery.items, [])
+            self.assertFalse(executor.delivery_accepted)
             self.assertIsNotNone(executor._outcome)
         finally:
             delivery.release.set()
