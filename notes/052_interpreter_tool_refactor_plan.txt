@@ -1,17 +1,20 @@
 Shared interpreter tool refactor plan
 ====================================
 
-Status: provider-core 0.6.5 is released; provider integration and deployment are in progress.
-Scope: integrate the released shared interpreter in Magnet, NMRPeak, NMRNet and
-SECS, then deploy each existing provider deployment through its maintained targets.
-All four source integrations now use the shared carrier factory. This is source
-uptake, not proof of completed integration or running deployment.
+Status: the provider-core 0.6.5 joint integration and deployment baseline is complete.
+Scope: the shared interpreter in Magnet, NMRPeak, NMRNet and SECS, with each
+existing provider deployment updated through its maintained targets.
+The baseline includes installed-package tests and running service/readiness
+checks. It does not claim a live scientific inference. Future updates must still
+verify source uptake, installed artifacts and running deployments separately;
 SDK completion alone does not complete the joint workflow.
 Companion: 050_interpreter_flow_and_settings.html explains the common flow and
 separately labels the pre-migration provider behavior and settings.
 Proposed follow-up: 056_interpreter_confidence_and_prompt_policy.txt addresses
 shared prompt ownership and confidence gating before preparation. It is not
 part of the released 0.6.5 runtime contract.
+057_clarification_and_interpretation_continuation.txt proposes durable history
+and clarification-driven continuation; those capabilities are not implemented.
 
 Outcome and boundaries
 ----------------------
@@ -105,18 +108,19 @@ budget are supplied without discovery calls. Information calls are optional;
 provider-required scientific inspection still applies. No task-reader, budget,
 sleep, transport-retry, endpoint-selector or generic validation tool is needed.
 
-Released baseline and next action
----------------------------------
+Released baseline and deployment requirements
+---------------------------------------------
 
-Reuse provider-core 0.6.5 (ce06831), including the 0.6.3 Interpreter, ChatEndpointFactory,
+Reuse provider-core 0.6.5 (ce06831), including Interpreter, ChatEndpointFactory,
 https_trust, deadline-aware callbacks, report handoff and protected failure
-projection are released. Do not repeat the SDK refactor or wait for another
-publication before integrating this contract. Current source in all four
-providers imports Interpreter and uses ChatEndpointFactory; each owner must
-finish and verify its actual integration rather than treating imports as parity.
+projection. All four providers use the common carrier and model scheduler.
+Keep package pins, acquisition bundles and interpreter-consuming images aligned;
+an import or a rebuilt controller alone does not prove that its scientific
+workers use the intended release. Stable transport services remain separately
+qualified components, not interpreter consumers.
 
-For each provider: finish the adapter and configuration migration, run focused
-provider checks with the released installed package, then deploy its existing
+For each provider update: complete any contract/configuration migration, run
+focused checks with the released installed package, then update its existing
 deployments and observe actual package/image identity, health and behavior.
 Integration and deployment are authorized parts of this rollout. Progress each
 ready provider independently; do not wait for all four or a speculative SDK
@@ -323,7 +327,7 @@ Failure decisions that travel with each handoff
 Integration and deployment sequence
 -----------------------------------
 
-1. Use released provider-core 0.6.3. The information tools, report naming,
+1. Use released provider-core 0.6.5. The information tools, report naming,
    deadline callbacks, carrier composition and installed-wheel qualification are
    the SDK baseline, not work to repeat in each provider. Inspect only remaining
    integration gaps; keep changes limited to active code, fixtures and current
@@ -361,7 +365,7 @@ For each provider, inspect the actual preparation and retirement boundaries
 before replacing its loop. Reuse its credential/TLS composition and repository
 config location; migrate scheduling fields to the common thin configuration.
 Preserve endpoint order while changing representation. No cross-repo config.
-Use released 0.6.3 before claiming an installable migration.
+Use released 0.6.5 before claiming an installable migration.
 
 - Replace duplicate model selection/retry orchestration with Interpreter and
   endpoint factories. Do not leave a second outer model/retry ladder around it.
@@ -474,7 +478,7 @@ on the actual deployment as part of this rollout.
 Completion and deferred work
 ----------------------------
 
-The SDK contract is released in 0.6.3; documentation review does not reopen its
+The SDK baseline is released in 0.6.5; documentation review does not reopen its
 qualification as a prerequisite for adoption. Joint completion requires all four
 providers to use that released implementation and common policy, prove their
 actual wiring, remove old schedulers and verify their existing running
