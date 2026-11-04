@@ -75,6 +75,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/chat.py",
                 "provider_core/chat_errors.py",
                 "provider_core/conversation.py",
+                "provider_core/interpreter.py",
                 "provider_core/credential.py",
                 "provider_core/failure_projection.py",
                 "provider_core/hello.py",

@@ -65,6 +65,8 @@ class ToolDispatch(Protocol):
 
 
 class ConstraintReader(Protocol):
+    """Return provider metadata, or NotImplemented to use the declared schema."""
+
     async def __call__(
         self, tool: str, field: str | None, *, not_after: float
     ) -> object: ...
@@ -92,6 +94,7 @@ class EndpointFactory(Protocol):
 
 @dataclass(frozen=True, slots=True)
 class InterpretationResult:
+    model_visit: int
     value: object = field(repr=False)
     observations: tuple[bytes, ...] = field(repr=False)
     failures: tuple[ModelFailure, ...] = field(repr=False)
@@ -204,6 +207,7 @@ class Interpreter:
 
     def _result(self, result: ConversationResult) -> InterpretationResult:
         return InterpretationResult(
+            model_visit=self._visits[-1].number,
             value=result.value,
             observations=tuple(visit.conversation.observation for visit in self._visits),
             failures=self._failures(),
@@ -519,7 +523,9 @@ class _DescribeInputConstraints:
         ):
             raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
         if self._reader is not None:
-            return ToolReply(await self._reader(name, path, not_after=not_after))
+            metadata = await self._reader(name, path, not_after=not_after)
+            if metadata is not NotImplemented:
+                return ToolReply(metadata)
 
         schema = self._schemas[name]
         result = {

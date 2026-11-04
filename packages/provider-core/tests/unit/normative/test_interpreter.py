@@ -68,6 +68,7 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             result = await owner.run([], TOOLS, AsyncMock(return_value=ToolFinished("ready")))
         self.assertEqual(result.value, "ready")
         self.assertEqual(deadlines, [220, 340])
+        self.assertEqual(result.model_visit, 2)
         self.assertEqual(first.grant, {"exchange_seconds": 120, "connect_seconds": 10})
         self.assertEqual(second.grant["exchange_seconds"], 215)
         self.assertEqual(len(result.observations), 2)
@@ -796,3 +797,25 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(hasattr(second, "grant"))
         first.retire.side_effect = None
         await owner.retire()
+
+    async def test_dynamic_constraint_reader_can_defer_to_schema_without_duplicating_it(self):
+        for metadata in (NotImplemented, None):
+            with self.subTest(schema_fallback=metadata is NotImplemented):
+                model = endpoint(
+                    "fixture",
+                    call("constraints", "describe_input_constraints", {"tool": "prepare", "field": "verbosity"}),
+                    call("done", "prepare", {}),
+                )
+                reader = AsyncMock(return_value=metadata)
+                await interpreter(model).run(
+                    [], TOOLS, AsyncMock(return_value=ToolFinished(None)), describe_constraints=reader,
+                )
+                value = feedback(model.complete.await_args.args[0])["value"]
+                if metadata is NotImplemented:
+                    self.assertEqual(value["schema"]["enum"], ["quiet", "full"])
+                else:
+                    self.assertIsNone(value)
+                self.assertEqual(
+                    reader.await_args.kwargs["not_after"],
+                    model.complete.await_args_list[0].kwargs["not_after"],
+                )

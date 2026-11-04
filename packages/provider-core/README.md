@@ -351,6 +351,7 @@ interpretation = Interpreter(
 result = await interpretation.run(original_messages, provider_tools, dispatch,
                                   not_after=job_deadline)
 prepared_input = result.value
+# result.model_visit is the one-based index in the captured endpoint order.
 ```
 
 Dispatch returns `ToolReply` for observations, `ToolFinished` for accepted
@@ -398,7 +399,9 @@ remains with that provider.
 Two ordinary tool objects bind each shared definition to its invocation;
 advertisement and routing derive from those same objects. The module adds two information tools: `describe_input_constraints` reads the
 actual supplied schemas (or an async provider-owned `describe_constraints`
-accessor), and `read_interpretation_records` reads captured proposal/rejection
+accessor). That accessor returns `NotImplemented` for queries that should use
+the SDK schema lookup; `None` remains an actual metadata value.
+`read_interpretation_records` reads captured proposal/rejection
 pairs and tool observations. Each model receives a compact catalogue and current
 budget with every request. All observation and information replies carry `value` and
 `interpreter_budget`; provider prompt/tool descriptions should account for this

@@ -16,6 +16,9 @@ ownership remain with providers.
   handoff. Successor history receives only the provider-selected summary, while
   the structured report can remain as a protected exception cause. Raw report
   arguments are excluded from history on both handoff and corrective rejection.
+- Dynamic constraint accessors may return `NotImplemented` to retain ordinary
+  SDK schema lookup without duplicating it. `InterpretationResult.model_visit`
+  identifies the selected model by its one-based captured endpoint order.
 - `Interpreter.failures` exposes observed protected model failures before
   scientific effects and after retirement. `accepted_result` continues to retain
   accepted preparation, including `ToolFinished(None)`, through cleanup failure.
