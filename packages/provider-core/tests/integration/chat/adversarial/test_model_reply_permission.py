@@ -133,6 +133,74 @@ class InterpretedSession:
         await self.science.retire()
 
 
+class InterruptedRefusalSession(InterpretedSession):
+    """Keep cleanup pending after refusal until the actual executor interrupts it."""
+
+    def __init__(self, peer):
+        super().__init__(peer)
+        self.refused = asyncio.Event()
+        self.interruption = self.interruption_cause = None
+
+    async def prepare(self, acknowledged, instructions, *, report_condition):
+        try:
+            return await super().prepare(acknowledged, instructions, report_condition=report_condition)
+        except ExecutionStopped:
+            self.refused.set()
+            try:
+                await asyncio.Future()
+            except asyncio.CancelledError as interruption:
+                self.interruption = interruption
+                if self.interruption_cause is not None:
+                    raise interruption from self.interruption_cause
+                raise
+
+
+class ShieldedSession(InterpretedSession):
+    """Mirror NMRPeak's shielded interpreter task and once-observed join failure."""
+
+    def __init__(self, peer):
+        super().__init__(peer)
+        self.original = None
+        self.observed = False
+        self.outer_cancelled = asyncio.Event()
+        self.resume_monitor = None
+        self.retirement_calls = 0
+        self.retirement_failure = None
+        self.retirement_reentered = asyncio.Event()
+        self.release_retirement = asyncio.Event()
+        self.cleanup_confirmed = False
+
+    async def prepare(self, acknowledged, instructions, *, report_condition):
+        self.original = asyncio.create_task(super().prepare(
+            acknowledged, instructions, report_condition=report_condition,
+        ))
+        # Register before shield's completion callback: the monitor may resume
+        # before outer prepare consumes the inner task's already-ready failure.
+        self.original.add_done_callback(lambda task: self.resume_monitor())
+        try:
+            return await asyncio.shield(self.original)
+        except asyncio.CancelledError:
+            self.outer_cancelled.set()
+            raise
+        except BaseException:
+            self.observed = True
+            raise
+
+    async def retire(self):
+        self.retirement_calls += 1
+        await super().retire()
+        if self.original is not None and not self.observed:
+            try:
+                await asyncio.shield(self.original)
+            except BaseException as failure:
+                self.observed = True
+                self.retirement_failure = failure
+                raise
+        self.retirement_reentered.set()
+        await self.release_retirement.wait()
+        self.cleanup_confirmed = True
+
+
 class ObservationGap:
     """Extend the monitor's existing wait after its original read verifies stop."""
 
@@ -155,13 +223,13 @@ class ObservationGap:
 
 
 class ReplyRun:
-    def __init__(self, peer, claims, job):
+    def __init__(self, peer, claims, job, session_type):
         self.peer = peer
         base = record("permission:" + job)
         self.pending = StartPending(scope(), base.analysis_kind_ref, replace(base.input, job_ref=job),
                                     retained_start(job_ref=job, provider_attempt_key="permission:" + job))
         self.transport = ObservedAPI(job, "execution_attempt:sha256:" + sha256(job.encode()).hexdigest())
-        self.session = InterpretedSession(peer)
+        self.session = session_type(peer)
         self.controller = AttemptController.live(
             api(self.transport, scope().api_origin), claims, self.session, scope=scope(), stopping=asyncio.Event(),
             start_policy=LiveStartPolicy(1, Mock(), Mock()),
@@ -180,7 +248,8 @@ class ReplyRun:
 
 
 @asynccontextmanager
-async def reply_run(claims, job):
+# silent-defaults: allow-contract -- Ordinary fixtures await interpretation directly; explicit variants retain an extra task or await cancellation after refusal.
+async def reply_run(claims, job, *, session_type=InterpretedSession):
     release_reply = asyncio.Event()
 
     async def response_body(request, body):
@@ -189,7 +258,7 @@ async def reply_run(claims, job):
                                         "finish_reason": "tool_calls"}]}).encode()
 
     async with TlsPeer("success", response_factory=response_body) as peer:
-        running = ReplyRun(peer, claims, job)
+        running = ReplyRun(peer, claims, job, session_type)
         with patch("provider_core.execution.asyncio.wait", new=running.observation):
             running.task = asyncio.create_task(running.controller.run(running.pending))
             try:
@@ -202,7 +271,13 @@ async def reply_run(claims, job):
                     running.controller.request_stop()
                 await asyncio.wait_for(asyncio.gather(running.task, return_exceptions=True), 3)
                 if not running.controller.work_settled:
-                    await asyncio.wait_for(running.controller.settle(), 3)
+                    try:
+                        await asyncio.wait_for(running.controller.settle(), 3)
+                    except ControllerFailed:
+                        # A failed assertion may leave a deliberately held
+                        # claim. Teardown still requires real resource closure.
+                        if not running.controller.work_settled:
+                            raise
 
 
 def failure_contains(root, expected):
@@ -241,24 +316,24 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ControllerFailed) as failed:
                 await asyncio.wait_for(running.task, 3)
             self.assertIs(failed.exception.cause.cause, running.observation.stop)
-            self.assertEqual(session.preparations, 1)
-            self.assertEqual(session.dispatches, 1)
+            self.assertEqual(1, session.preparations)
+            self.assertEqual(1, session.dispatches)
             self.assertLess(session.dispatch_at, session.dispatch_deadline)
-            self.assertEqual(running.start_count, 1)
-            self.assertEqual(len(running.peer.requests), 1)
-            self.assertEqual(session.science.executions, 0)
+            self.assertEqual(1, running.start_count)
+            self.assertEqual(1, len(running.peer.requests))
+            self.assertEqual(0, session.science.executions)
             self.assertTrue(session.interpreter.retirement_confirmed)
             self.assertTrue(controller.work_settled)
-            self.assertEqual(controller.delivery.items, [])
-            self.assertEqual(preparations, 0,
+            self.assertEqual([], controller.delivery.items)
+            self.assertEqual(0, preparations,
                              msg="A complete timely model reply entered science after the SDK verified " + str(stop))
             if independent_failure is None:
                 self.assertIs(await controller.settle_revocation(failed.exception), running.observation.stop.observation)
-                self.assertEqual(len(claims.live_owners()), 0)
+                self.assertEqual(0, len(claims.live_owners()))
             else:
                 self.assertTrue(failure_contains(failed.exception, independent_failure))
                 self.assertIsNone(await controller.settle_revocation(failed.exception))
-                self.assertEqual(len(claims.live_owners()), 1)
+                self.assertEqual(1, len(claims.live_owners()))
 
         if independent_failure is None:
             await self._next_job(claims)
@@ -268,12 +343,12 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
             running.session.science.release.set()
             release_reply.set()
             await asyncio.wait_for(running.task, 3)
-            self.assertEqual((running.session.preparations, running.session.science.preparations,
-                              running.session.science.executions), (1, 1, 1))
+            self.assertEqual((1, 1, 1), (running.session.preparations, running.session.science.preparations,
+                              running.session.science.executions))
             self.assertIs(running.session.science.retired_handle, running.session.science.handle)
-            self.assertEqual(running.session.science.retirements, 1)
-            self.assertEqual(running.start_count, 1)
-            self.assertEqual(len(claims.live_owners()), 0)
+            self.assertEqual(1, running.session.science.retirements)
+            self.assertEqual(1, running.start_count)
+            self.assertEqual(0, len(claims.live_owners()))
 
     async def test_verified_job_cancellation_prevents_science_before_monitor_resumes(self):
         await self._verified_stop_before_reply({"job_state": "cancelled"}, independent_failure=None)
@@ -284,6 +359,96 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
     async def test_independent_failure_after_permission_refusal_keeps_claim(self):
         await self._verified_stop_before_reply({"job_state": "cancelled"},
                                                 independent_failure=RuntimeError("independent adapter failure"))
+
+    async def _owned_cancellation_after_refusal(self, independent_failure):
+        claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
+        async with reply_run(claims, "job:refused", session_type=InterruptedRefusalSession) as (running, release_reply):
+            session, controller = running.session, running.controller
+            session.interruption_cause = independent_failure
+            await asyncio.wait_for(running.peer.received.wait(), 3)
+            running.transport.stop = {"job_state": "cancelled"}
+            await asyncio.wait_for(running.observation.verified.wait(), 3)
+            release_reply.set()
+            await asyncio.wait_for(session.refused.wait(), 3)
+            self.assertEqual(0, session.science.preparations)
+            running.observation.resume.set()
+            with self.assertRaises(ControllerFailed) as failed:
+                await asyncio.wait_for(running.task, 3)
+            self.assertIs(failed.exception.cause.cause, running.observation.stop)
+            self.assertIsInstance(session.interruption, asyncio.CancelledError)
+            self.assertEqual((1, 1, 1), (session.preparations, session.dispatches, running.start_count))
+            self.assertEqual(0, session.science.executions)
+            self.assertTrue(controller.work_settled)
+            self.assertTrue(session.interpreter.retirement_confirmed)
+            observed = await asyncio.wait_for(controller.settle_revocation(failed.exception), 3)
+            if independent_failure is None:
+                self.assertIs(observed, running.observation.stop.observation,
+                              msg="A settled SDK-owned cancellation still held the stopped Attempt")
+                self.assertEqual(0, len(claims.live_owners()))
+            else:
+                self.assertIsNone(observed)
+                self.assertTrue(failure_contains(failed.exception, independent_failure))
+                self.assertEqual(1, len(claims.live_owners()))
+            self.assertIs(failed.exception.cause.operation_interruption, session.interruption)
+        if independent_failure is None:
+            await self._next_job(claims)
+
+    async def test_owned_cancellation_after_permission_refusal_releases_settled_claim(self):
+        await self._owned_cancellation_after_refusal(None)
+
+    async def test_owned_cancellation_with_independent_cause_after_refusal_keeps_claim(self):
+        await self._owned_cancellation_after_refusal(RuntimeError("independent cancellation cleanup failure"))
+
+    async def test_shielded_interpreter_stop_requires_positive_session_retirement(self):
+        claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
+        async with reply_run(claims, "job:shielded", session_type=ShieldedSession) as (running, release_reply):
+            session, controller = running.session, running.controller
+            session.resume_monitor = running.observation.resume.set
+            settlement = reentered = None
+            try:
+                await asyncio.wait_for(running.peer.received.wait(), 3)
+                running.transport.stop = {"job_state": "cancelled"}
+                await asyncio.wait_for(running.observation.verified.wait(), 3)
+                release_reply.set()
+                with self.assertRaises(ControllerFailed) as failed:
+                    await asyncio.wait_for(running.task, 3)
+                self.assertTrue(session.outer_cancelled.is_set())
+                self.assertIs(session.original.exception(), running.observation.stop)
+                self.assertIs(session.retirement_failure, running.observation.stop)
+                self.assertIs(failed.exception.cause.cause, running.observation.stop)
+                self.assertEqual(1, session.retirement_calls)
+                self.assertFalse(session.cleanup_confirmed)
+                self.assertFalse(controller.work_settled)
+                self.assertEqual(1, len(claims.live_owners()))
+                # Observing the same exception again is not cleanup success.
+                # Only the original session's later positive return can release.
+                settlement = asyncio.create_task(controller.settle_revocation(failed.exception))
+                reentered = asyncio.create_task(session.retirement_reentered.wait())
+                done, _ = await asyncio.wait({settlement, reentered}, timeout=3,
+                                            return_when=asyncio.FIRST_COMPLETED)
+                self.assertIn(reentered, done, msg="Revocation settlement gave up before reobserving its original session")
+                self.assertFalse(settlement.done())
+                self.assertFalse(session.cleanup_confirmed)
+                self.assertEqual(1, len(claims.live_owners()))
+                session.release_retirement.set()
+                observed = await asyncio.wait_for(settlement, 3)
+                self.assertIs(observed, running.observation.stop.observation)
+                self.assertTrue(session.cleanup_confirmed)
+                self.assertTrue(controller.work_settled)
+                self.assertEqual(2, session.retirement_calls)
+                self.assertEqual((1, 1, 1), (session.preparations, session.dispatches, running.start_count))
+                self.assertEqual((0, 0), (session.science.preparations, session.science.executions))
+                self.assertEqual(1, len(running.peer.requests))
+                self.assertEqual(0, len(claims.live_owners()))
+            finally:
+                session.release_retirement.set()
+                waits = [task for task in (settlement, reentered) if task is not None]
+                for task in waits:
+                    if not task.done():
+                        task.cancel()
+                if waits:
+                    await asyncio.gather(*waits, return_exceptions=True)
+        await self._next_job(claims)
 
     async def test_timely_reply_starts_science_once(self):
         await self._next_job(AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1)))
@@ -300,17 +465,17 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
             running.observation.resume.set()
             with self.assertRaises(ControllerFailed) as failed:
                 await asyncio.wait_for(running.task, 3)
-            self.assertEqual(len(claims.live_owners()), 1)
+            self.assertEqual(1, len(claims.live_owners()))
             self.assertFalse(original.done())
-            self.assertEqual(science.preparations, 1)
+            self.assertEqual(1, science.preparations)
             science.release.set()
             observed = await asyncio.wait_for(controller.settle_revocation(failed.exception), 3)
             self.assertIs(observed, running.observation.stop.observation)
             self.assertIs(science.pending, original)
             self.assertIs(original.result(), science.handle)
             self.assertIs(science.retired_handle, science.handle)
-            self.assertEqual((running.session.preparations, science.preparations, science.executions,
-                              science.retirements, running.start_count), (1, 1, 0, 1, 1))
+            self.assertEqual((1, 1, 0, 1, 1), (running.session.preparations, science.preparations, science.executions,
+                              science.retirements, running.start_count))
             self.assertTrue(running.session.interpreter.retirement_confirmed)
-            self.assertEqual(len(claims.live_owners()), 0)
+            self.assertEqual(0, len(claims.live_owners()))
         await self._next_job(claims)

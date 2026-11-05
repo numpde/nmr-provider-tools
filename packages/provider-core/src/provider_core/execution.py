@@ -383,6 +383,7 @@ class AttemptExecutor:
         self._acknowledged = None
         self._checkpoint = None
         self._outcome = None
+        self._observed_stop = None
         self._server_revocation = None
         self._observed_crash = None
         self._crash_notice = asyncio.Event()
@@ -442,12 +443,16 @@ class AttemptExecutor:
         return self._revocation() if self.shutdown_ready else None
 
     def _revocation(self):
-        """Identify the original server stop without granting resource release."""
+        """Identify the original server stop without granting resource release.
+
+        Joining a child can reobserve this same stop during retirement. It is
+        still necessary to confirm retirement before releasing the claim.
+        """
         stop = self._server_revocation
         if (stop is not None and self.last_failure is not None and self.last_failure.cause is stop
                 and type(self._checkpoint) is AcknowledgedCheckpoint
                 and self._outcome is None and self._delivery_outcome is None
-                and all(type(error) is _SettlementPending and error.executor is self
+                and all(error is stop or (type(error) is _SettlementPending and error.executor is self)
                         for error in self.last_failure.cleanup_failures)
                 and (self._operation_interruption is None
                      or (self._cancel_requested and independent_interruption_failure(self._operation_interruption) is None))):
@@ -576,6 +581,16 @@ class AttemptExecutor:
                 result = await contain_task_exit(operation, *args, report_condition=reporter)
             except (Exception, BaseExceptionGroup, asyncio.CancelledError) as cause:
                 if reporter.failure is not None and cause is not reporter.failure:
+                    if reporter.failure is self._observed_stop:
+                        if isinstance(cause, asyncio.CancelledError) and self._cancel_requested:
+                            # Retirement may add independent evidence to this
+                            # original interruption before release is considered.
+                            self._operation_interruption = cause
+                            self._refresh_failure()
+                        else:
+                            # The verified stop still forbids work, but this
+                            # independent phase failure prevents claim release.
+                            self._server_revocation = None
                     # Re-raising inside this handler keeps the later binding
                     # failure as context. An explicit chain would overwrite the
                     # report's original cancellation or transport cause.
@@ -668,6 +683,8 @@ class AttemptExecutor:
             reporter.active = False
 
     def _require_live_permission(self):
+        if self._observed_stop is not None:
+            raise self._observed_stop
         self.claim.lifecycle_owner.require_execution_ready(self.claim, self, self._acknowledged)
 
     def _cancel_task(self):
@@ -688,11 +705,13 @@ class AttemptExecutor:
             )
         task = self._task
         self._task = None
-        if not task.cancelled() and task.exception() is not None:
-            # A failed phase can race the revocation read. Its independent
-            # failure must remain held even after all local resources close.
-            self._server_revocation = None
-            task.result()
+        if not task.cancelled():
+            cause = task.exception()
+            # The phase may have observed this same stop at its permission gate.
+            # Every independent failure still prevents revocation release.
+            if cause is not None and cause is not self._observed_stop:
+                self._server_revocation = None
+                task.result()
 
     async def _api(self, operation, *args, **kwargs):
         async with self._api_lock:
@@ -828,10 +847,13 @@ class AttemptExecutor:
                     self._observation_deadline = None
 
     def _require_observed_active(self, observed):
+        if self._observed_stop is not None:
+            raise self._observed_stop
         # Terminal Attempts and cancelled Jobs stop work. Job closure policy is
         # explicit in composition: e.g. SECS continues closed Jobs, NMRNet stops.
         if observed.state != "in_progress" or observed.job_state not in self._allowed_job_states:
             stop = ExecutionStopped(observed)
+            self._observed_stop = stop
             if observed.state == "expired" or (observed.state == "in_progress" and observed.job_state == "cancelled"):
                 # Only the correlated API read can confer this disposition.
                 # An adapter can also raise ExecutionStopped with identical fields.
