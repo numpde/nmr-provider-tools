@@ -38,6 +38,7 @@ from provider_core.attempt_record import (
 )
 from provider_core.attempt_request import complete_body, fail_body
 from provider_core.attempt_response import JOB_STATES
+from provider_core.conversation import independent_interruption_failure
 from provider_core.delivery_client import DeliveryUnavailable
 from provider_core.delivery_store import DeliveryFull, DeliveryOutcome
 from provider_core.delivery_worker import require_delivery_retry_settings
@@ -374,6 +375,7 @@ class AttemptExecutor:
         self._acknowledged = None
         self._checkpoint = None
         self._outcome = None
+        self._server_revocation = None
         self._observed_crash = None
         self._crash_notice = asyncio.Event()
         self._delivery_outcome = self._delivery_acceptance = None
@@ -425,6 +427,17 @@ class AttemptExecutor:
         """Confirm cleanup and that no unhanded outcome/report would be lost."""
         return self.work_settled and self._outcome is None and self._delivery_outcome is None
 
+
+    @property
+    def settled_revocation(self):
+        """Return the SDK's verified pre-entry server stop once this Attempt has no remaining work or report."""
+        stop = self._server_revocation
+        if (stop is not None and self.last_failure is not None and self.last_failure.cause is stop
+                and type(self._checkpoint) is AcknowledgedCheckpoint and self.shutdown_ready
+                and (self._operation_interruption is None
+                     or (self._cancel_requested and independent_interruption_failure(self._operation_interruption) is None))):
+            return stop.observation
+        return None
 
     def require_terminal_release_ready(self, claim):
         if claim is not self.claim or not self.delivery_accepted:
@@ -644,6 +657,8 @@ class AttemptExecutor:
 
     def _cancel_task(self):
         if self._task is not None and not self._task.done() and not self._cancel_requested:
+            if self._task.cancelling():
+                self._server_revocation = None  # A different owner already interrupted this phase.
             self._cancel_requested = True
             self._task.cancel()
 
@@ -655,7 +670,10 @@ class AttemptExecutor:
             raise TimeoutError("Analysis task has not stopped; retain ownership and settle the original task")
         task = self._task
         self._task = None
-        if not task.cancelled():
+        if not task.cancelled() and task.exception() is not None:
+            # A failed phase can race the revocation read. Its independent
+            # failure must remain held even after all local resources close.
+            self._server_revocation = None
             task.result()
 
     async def _api(self, operation, *args, **kwargs):
@@ -795,7 +813,12 @@ class AttemptExecutor:
         # Terminal Attempts and cancelled Jobs stop work. Job closure policy is
         # explicit in composition: e.g. SECS continues closed Jobs, NMRNet stops.
         if observed.state != "in_progress" or observed.job_state not in self._allowed_job_states:
-            raise ExecutionStopped(observed)
+            stop = ExecutionStopped(observed)
+            if observed.state == "expired" or (observed.state == "in_progress" and observed.job_state == "cancelled"):
+                # Only the correlated API read can confer this disposition.
+                # An adapter can also raise ExecutionStopped with identical fields.
+                self._server_revocation = stop
+            raise stop
 
     async def _observe_with_interruption_evidence(self, deadline):
         try:

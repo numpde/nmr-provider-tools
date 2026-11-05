@@ -70,6 +70,15 @@ that point, even if this executor still owns cleanup. This does not prove API
 publication or permit releasing the full claim, replacing the worker, or
 repeating science; those decisions still require their existing ownership checks.
 
+A verified cancelled Job or expired Attempt before execution can free its
+slot without a terminal report. Core preserves the original `ExecutionStopped`
+in the controller failure. Once preparation and session retirement have
+settled with no result or report pending, `executor.settled_revocation` exposes
+the original server observation. The controller releases its claim during
+the failed run if already settled, or at subsequent `settle()`. An uncertain
+START, a local stop and a stop after execution entry retain their existing
+disposition requirements.
+
 ## Crashes and recovery
 
 `work_settled` confirms that original work, I/O and required native cleanup have

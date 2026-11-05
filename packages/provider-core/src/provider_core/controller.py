@@ -430,6 +430,10 @@ class AttemptController:
                 raise BaseExceptionGroup("Attempt lifecycle raised a process-control exception", (cause, self.last_failure)) from None
             if cleanup_fatal is not None:
                 raise BaseExceptionGroup("Attempt cleanup raised a process-control exception", (cleanup_fatal, self.last_failure)) from None
+            if (isinstance(self._operation, AttemptExecutor) and cause is self._operation.last_failure
+                    and self._operation.settled_revocation is not None and self.api.retirement_confirmed):
+                self._claim.release(owner=self)
+                self._lifetime = _Lifetime.RELEASED
             raise self.last_failure from None
         finally:
             if self._lifetime is _Lifetime.RUNNING:
@@ -507,9 +511,10 @@ class AttemptController:
             if (
                 executor.claim is not claim or executor._active or executor._observing
                 or not executor.retirement_confirmed
-                or type(executor._checkpoint) not in (DeliveryAcceptedCheckpoint, SuppressedCheckpoint)
+                or (type(executor._checkpoint) not in (DeliveryAcceptedCheckpoint, SuppressedCheckpoint)
+                    and executor.settled_revocation is None)
             ):
-                raise ControllerRefused("Cannot release live ownership before the executor settles cleanup and records a delivery or suppression disposition")
+                raise ControllerRefused("Cannot release live ownership before the executor settles cleanup and records a delivery, suppression or server revocation disposition")
             return
         if not self._retired_by_controller:
             raise ControllerRefused("Cannot release live ownership before this session's cleanup is confirmed")

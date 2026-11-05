@@ -97,9 +97,9 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(failure.cause.cause, forged)
         with self.assertRaises(ControllerFailed):
             await controller.settle()
-        self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
-        self.assertEqual(claims.live_owners(), (controller,))
-        self.assertEqual(delivery.items, [])
+        self.assertEqual(["prepare", "retire"], [event[0] for event in session.events])
+        self.assertEqual((controller,), claims.live_owners())
+        self.assertEqual([], delivery.items)
 
     async def test_server_revocation_after_scientific_entry_keeps_an_unreturned_outcome_owned(self):
         claims, selected = AttemptClaims.live(), pending("a")
@@ -119,9 +119,9 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(failure.cause.outcome)
         with self.assertRaises(ControllerFailed):
             await controller.settle()
-        self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
-        self.assertEqual(claims.live_owners(), (controller,))
-        self.assertEqual(delivery.items, [])
+        self.assertEqual(["prepare", "execute", "retire"], [event[0] for event in session.events])
+        self.assertEqual((controller,), claims.live_owners())
+        self.assertEqual([], delivery.items)
 
     async def test_two_actual_controllers_retain_jobs_attempts_and_capacity_without_fail(self):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(

@@ -9,6 +9,7 @@ from unittest.mock import Mock, patch
 
 import httpcore
 
+from provider_core.chat import ChatEndpointFactory, ChatEndpointSpec, ChatFailed
 from provider_core.controller import ActiveStartReplayHeld, AttemptController, ControllerFailed, ControllerRefused, LiveStartPolicy, StartDeferred
 from provider_core.execution import ExecutionStopped
 from provider_core.job_input import verify_job_input
@@ -23,6 +24,7 @@ from tests.fakes.attempts import observation, progress_response, retained_start,
 from tests.fakes.checkpoint_execution import RecordingDelivery
 from tests.fakes.job_input import response
 from tests.fakes.live_analysis import LiveSession
+from tests.fakes.transport import Client, Stream
 
 
 class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
@@ -517,16 +519,26 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                             await asyncio.wait_for(session.retiring.wait(), 1)
                             self.assertTrue(claims.owns_job(scope(), job))
                             self.assertFalse(controller.work_settled)
+                            if cycle:
+                                # The SDK can return the original stop before retirement finishes.
+                                await asyncio.wait((run,), timeout=1)
+                                self.assertTrue(run.done())
+                                self.assertIsNone(controller.operation.settled_revocation)
+                                self.assertTrue(claims.owns_job(scope(), job))
                         finally:
                             session.release.set()
                             failure, = await asyncio.wait_for(asyncio.gather(run, return_exceptions=True), 1)
                         self.assertIsInstance(failure, ControllerFailed)
                         self.assertIsInstance(failure.cause.cause, ExecutionStopped)
-                        self.assertEqual(["prepare", "retire"], session.events)
                         self.assertEqual([], controller.delivery.items)
-                        # Exercise the next real START even if the old release rule refused settlement.
+                        if cycle == 0:
+                            self.assertFalse(claims.owns_job(scope(), job))
+                        # Settlement must also release a session whose original retirement finished late.
                         result, = await asyncio.gather(controller.settle(), return_exceptions=True)
                         settlements.append((result, claims.live_owners()))
+                        self.assertIs(controller.operation.settled_revocation, failure.cause.cause.observation)
+                        self.assertIsNone(await controller.settle())
+                        self.assertEqual(["prepare", "retire"], session.events)
 
                     if cycle == 0:
                         next_job = self.controller(self.lifecycle(), claims=claims,
@@ -542,6 +554,80 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(1, len(next_job.delivery.items))
                     self.assertEqual([(None, ()), (None, ())], settlements)
                     self.assertEqual((), claims.live_owners())
+
+    async def test_server_revocation_releases_a_cleanly_cancelled_model_request(self):
+        client = Client(Stream([]), send_gate=asyncio.Event())
+        revoked = reply(observation(job_state="cancelled"))
+        endpoint = ChatEndpointFactory(
+            spec=ChatEndpointSpec(configuration_id="model", model="fixture", url="https://model.invalid/chat",
+                                  api_key="fixture-only", reasoning_effort=None),
+            trust=ssl.create_default_context(), request_bytes=4096, response_bytes=4096, retirement_seconds=1,
+        )(exchange_seconds=30, connect_seconds=1)
+
+        class ModelPreparation(LiveSession):
+            async def prepare(self, acknowledged, instructions, *, report_condition):
+                return await endpoint.complete([], [], not_after=asyncio.get_running_loop().time() + 30)
+
+            async def retire(self):
+                await endpoint.retire()
+
+        class StopAfterDispatch(Transport):
+            async def exchange(self, request, *, maximum_bytes, owner):
+                response = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+                if response is revoked:
+                    await client.sent.wait()
+                return response
+
+        transport = StopAfterDispatch(reply(start_response()), reply(observation()), reply(progress_response()), revoked)
+        claims = AttemptClaims.live()
+        controller = self.controller(
+            transport, claims=claims, session=ModelPreparation(), poll_seconds=0.01,
+            preverified_input=verify_job_input(response(), feed=record().input),
+        )
+        with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
+            with self.assertRaises(ControllerFailed) as stopped:
+                await asyncio.wait_for(controller.run(record()), 2)
+        failure = stopped.exception.cause
+        self.assertIs(type(failure.cause), ExecutionStopped)
+        self.assertIs(type(failure.operation_interruption.__cause__), ChatFailed)
+        self.assertTrue(client.closed)
+        self.assertTrue(controller.shutdown_ready)
+        self.assertEqual([], controller.delivery.items)
+        self.assertEqual((), claims.live_owners())
+
+    async def test_revocation_does_not_absorb_an_independent_preparation_failure(self):
+        for phase_error in (RuntimeError("preparation failed"), asyncio.CancelledError()):
+            with self.subTest(error=type(phase_error).__name__):
+                reading, stopped = asyncio.Event(), asyncio.Event()
+                revocation = reply(observation(job_state="cancelled"))
+
+                class ConcurrentStop(Transport):
+                    async def exchange(self, request, *, maximum_bytes, owner):
+                        response = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+                        if response is revocation:
+                            reading.set()
+                            await stopped.wait()
+                        return response
+
+                class FailedPreparation(LiveSession):
+                    async def prepare(self, acknowledged, instructions, *, report_condition):
+                        # Finish the phase independently while the SDK is reading server state.
+                        asyncio.current_task().add_done_callback(lambda _: stopped.set())
+                        await reading.wait()
+                        raise phase_error
+
+                transport = ConcurrentStop(reply(start_response()), reply(observation()),
+                                           reply(progress_response()), revocation)
+                claims = AttemptClaims.live()
+                controller = self.controller(transport, claims=claims, session=FailedPreparation(),
+                                             preverified_input=verify_job_input(response(), feed=record().input),
+                                             poll_seconds=0.01)
+                with self.assertRaises(ControllerFailed) as failed:
+                    await asyncio.wait_for(controller.run(record()), 1)
+                self.assertIsInstance(failed.exception.cause.cause, ExecutionStopped)
+                self.assertIsNone(controller.operation.settled_revocation)
+                self.assertEqual((controller,), claims.live_owners())
+                self.assertEqual([], controller.delivery.items)
 
     async def test_capacity_refusal_is_typed_and_rejected_controller_can_settle(self):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_control_bytes=1))
