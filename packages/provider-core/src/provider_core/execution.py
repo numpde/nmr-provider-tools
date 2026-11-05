@@ -64,6 +64,14 @@ class ExecutionStopRequested(ExecutionRefused):
     """The actual supervising owner withdrew permission to continue work."""
 
 
+class _SettlementPending(TimeoutError):
+    """This executor's observation ended while its original task was still owned."""
+
+    def __init__(self, message, *, executor, task):
+        super().__init__(message)
+        self.executor, self.task = executor, task
+
+
 def require_observation_gap(seconds):
     if not (type(seconds) in (int, float) and math.isfinite(seconds) and 0 < seconds):
         raise ValueError("Observation gap_seconds must be finite and positive")
@@ -431,9 +439,16 @@ class AttemptExecutor:
     @property
     def settled_revocation(self):
         """Return the SDK's verified pre-entry server stop once this Attempt has no remaining work or report."""
+        return self._revocation() if self.shutdown_ready else None
+
+    def _revocation(self):
+        """Identify the original server stop without granting resource release."""
         stop = self._server_revocation
         if (stop is not None and self.last_failure is not None and self.last_failure.cause is stop
-                and type(self._checkpoint) is AcknowledgedCheckpoint and self.shutdown_ready
+                and type(self._checkpoint) is AcknowledgedCheckpoint
+                and self._outcome is None and self._delivery_outcome is None
+                and all(type(error) is _SettlementPending and error.executor is self
+                        for error in self.last_failure.cleanup_failures)
                 and (self._operation_interruption is None
                      or (self._cancel_requested and independent_interruption_failure(self._operation_interruption) is None))):
             return stop.observation
@@ -667,7 +682,10 @@ class AttemptExecutor:
             return
         await asyncio.wait((self._task,), timeout=self._task_settle_seconds)
         if not self._task.done():
-            raise TimeoutError("Analysis task has not stopped; retain ownership and settle the original task")
+            raise _SettlementPending(
+                "Analysis task has not stopped; retain ownership and settle the original task",
+                executor=self, task=self._task,
+            )
         task = self._task
         self._task = None
         if not task.cancelled() and task.exception() is not None:
@@ -1059,7 +1077,10 @@ class AttemptExecutor:
                 # or the retirement child while retaining the original task.
                 await asyncio.wait({self._retirement_task}, timeout=self._task_settle_seconds)
                 if not self._retirement_task.done():
-                    raise TimeoutError("Original session retirement has not finished; retain it before worker reuse.")
+                    raise _SettlementPending(
+                        "Original session retirement has not finished; retain it before worker reuse.",
+                        executor=self, task=self._retirement_task,
+                    )
                 task = self._retirement_task
                 self._retirement_task = None
                 task.result()

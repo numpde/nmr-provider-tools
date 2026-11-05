@@ -204,6 +204,7 @@ class AttemptController:
         self._lifetime = _Lifetime.NEW
         self._driver = None
         self._driver_interruption = None
+        self._revocation_settlement = None
         self._stop_requested = asyncio.Event()
         self._claim = None
         self._operation = None
@@ -226,6 +227,7 @@ class AttemptController:
         """Confirm cleanup without granting permission to forget a held Job."""
         if (self._lifetime in (_Lifetime.NEW, _Lifetime.RUNNING, _Lifetime.SETTLING)
                 or not self.api.retirement_confirmed or not self.delivery.retirement_confirmed
+                or (self._revocation_settlement is not None and not self._revocation_settlement.done())
                 ):
             return False
         if isinstance(self._operation, AttemptExecutor):
@@ -245,6 +247,45 @@ class AttemptController:
         return self.work_settled and (
             not isinstance(self._operation, AttemptExecutor) or self._operation.shutdown_ready
         )
+
+    async def settle_revocation(self, failure):
+        """Return this verified server stop after its original resources and claim settle.
+
+        An unrelated failure returns None without changing ownership. An admitted
+        cancellation or expiry waits for existing cleanup, including cleanup that
+        outlived run(). It starts no preparation, science, report or new timeout.
+        Cancelling this observation leaves those original tasks and claim owned.
+        Independent cleanup failures still propagate through normal settlement.
+        Composition must check its worker readiness before accepting another Job.
+        """
+        executor = self._operation
+        if (type(failure) is not ControllerFailed or failure is not self.last_failure
+                or type(executor) is not AttemptExecutor
+                or failure.cause is not executor.last_failure
+                or executor.claim is not self._claim
+                or executor._acknowledged is not self._acknowledged):
+            return None
+        if self._revocation_settlement is None:
+            if (self._lifetime not in (_Lifetime.HELD, _Lifetime.RELEASED)
+                    or failure.cleanup_failures or failure.interruption_cause is not None
+                    or executor._revocation() is None):
+                return None
+            if self._lifetime is _Lifetime.RELEASED:
+                return executor.settled_revocation
+            self._revocation_settlement = _create_owned_task(self._settle_revocation(executor))
+            self._revocation_settlement.add_done_callback(_observe_task_failure)
+        return await asyncio.shield(self._revocation_settlement)
+
+    async def _settle_revocation(self, executor):
+        # One retained operation observes original work and normal settlement.
+        # Concurrent or cancelled observers cannot replace or interrupt it.
+        tasks = {task for task in (
+            executor._task, executor._retirement_task, executor._observation_wait,
+        ) if task is not None}
+        if tasks:
+            await asyncio.wait(tasks)
+        await self.settle()
+        return executor.settled_revocation
 
     def require_held_failure(self, pending, failure):
         """Confirm this selected START's quiescent held failure, without release.
@@ -609,6 +650,10 @@ class AttemptController:
 
     async def settle(self):
         """Settle exact owners and release only after confirmed session retirement."""
+        revocation = self._revocation_settlement
+        if revocation is not None and not revocation.done() and asyncio.current_task() is not revocation:
+            await asyncio.shield(revocation)
+            return None
         if self._lifetime in (_Lifetime.RUNNING, _Lifetime.SETTLING):
             raise ControllerRefused("The controller is already observing its lifetime; await that invocation before settlement")
         if self._lifetime is _Lifetime.RELEASED:

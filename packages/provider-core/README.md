@@ -79,6 +79,15 @@ the failed run if already settled, or at subsequent `settle()`. An uncertain
 START, a local stop and a stop after execution entry retain their existing
 disposition requirements.
 
+Provider loops can pass their original `ControllerFailed` to
+`await controller.settle_revocation(failure)`. It returns the original verified
+server observation only after cleanup and claim release, including retirement
+that outlived `run()`. A different or independently failed lifecycle returns
+`None` without changing ownership. Late independent cleanup failures still
+propagate. Cancelling this wait leaves original tasks owned; it never restarts
+preparation or science. Record the stop and check the worker's readiness before
+accepting another Job. This operation does not terminate hung cleanup.
+
 ## Crashes and recovery
 
 `work_settled` confirms that original work, I/O and required native cleanup have
