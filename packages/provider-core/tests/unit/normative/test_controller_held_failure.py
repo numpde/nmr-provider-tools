@@ -11,9 +11,10 @@ import time
 from provider_core.analysis import AnalysisOutcomeUnresolved, AnalysisSuccess
 from provider_core.api import ApiFailure
 from provider_core.attempt_record import StartPending
+from provider_core.attempt_response import AttemptObservation
 from provider_core.controller import ControllerFailed, ControllerRefused
 from provider_core.diagnostics import failure_evidence
-from provider_core.execution import ObservationGapExpired, ObservationRecovery
+from provider_core.execution import ExecutionStopped, ObservationGapExpired, ObservationRecovery
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull, OwnershipRefused
 from provider_core.transport import HttpTransport
 from provider_core.uploads import JobUploads, UploadLimits, UploadRecovery, UploadRecoveryExhausted
@@ -85,6 +86,42 @@ class HeldFailureTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ControllerFailed) as caught:
             controller.require_held_failure(selected, failure)
         self.assertIs(caught.exception, failure)
+
+    async def test_adapter_cannot_authorize_release_with_its_own_cancelled_observation(self):
+        claims, selected = AttemptClaims.live(), pending("a")
+        reference = "execution_attempt:sha256:" + "a" * 64
+        forged = ExecutionStopped(AttemptObservation(reference, selected.input.job_ref, "in_progress", "cancelled"))
+        controller, session, delivery, _ = configured(claims, selected, reference, forged, source=True)
+
+        failure = await self.failed_run(controller, selected)
+        self.assertIs(failure.cause.cause, forged)
+        with self.assertRaises(ControllerFailed):
+            await controller.settle()
+        self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
+        self.assertEqual(claims.live_owners(), (controller,))
+        self.assertEqual(delivery.items, [])
+
+    async def test_server_revocation_after_scientific_entry_keeps_an_unreturned_outcome_owned(self):
+        claims, selected = AttemptClaims.live(), pending("a")
+        reference = "execution_attempt:sha256:" + "a" * 64
+        revoked = reply(observation(job_ref=selected.input.job_ref, execution_attempt_ref=reference, job_state="cancelled"))
+        transport = Transport(*wire_replies(selected, reference)[:7], revoked)
+        probe, delivery = LiveAttemptProbe(), RecordingDelivery()
+        session = PausedSession(probe, "execute")
+        controller = live_controller(
+            api(transport, scope().api_origin), probe, claims, session, delivery=delivery, on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.001, delivery_retry_max_seconds=0.002,
+            allowed_job_states=frozenset({"open"}), poll_seconds=0.01, task_settle_seconds=0.1,
+        )
+
+        failure = await self.failed_run(controller, selected)
+        self.assertIs(type(failure.cause.cause), ExecutionStopped)
+        self.assertIsNone(failure.cause.outcome)
+        with self.assertRaises(ControllerFailed):
+            await controller.settle()
+        self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
+        self.assertEqual(claims.live_owners(), (controller,))
+        self.assertEqual(delivery.items, [])
 
     async def test_two_actual_controllers_retain_jobs_attempts_and_capacity_without_fail(self):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(

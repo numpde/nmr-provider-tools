@@ -3,12 +3,14 @@
 import asyncio
 import ssl
 import unittest
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import httpcore
 
 from provider_core.controller import ActiveStartReplayHeld, AttemptController, ControllerFailed, ControllerRefused, LiveStartPolicy, StartDeferred
+from provider_core.execution import ExecutionStopped
 from provider_core.job_input import verify_job_input
 from provider_core.delivery_client import DeliveryUnavailable
 from provider_core.delivery_store import DeliveryFull
@@ -17,7 +19,7 @@ from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from provider_core.transport import ExchangeFailed
 from tests.fakes.api import Transport, api, io_failure, reply, response_headers, signature_window_problem
 from tests.fakes.attempt_store import record, scope
-from tests.fakes.attempts import observation, progress_response, start_response
+from tests.fakes.attempts import observation, progress_response, retained_start, start_response
 from tests.fakes.checkpoint_execution import RecordingDelivery
 from tests.fakes.job_input import response
 from tests.fakes.live_analysis import LiveSession
@@ -25,7 +27,7 @@ from tests.fakes.live_analysis import LiveSession
 
 class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
     # silent-defaults: allow-contract -- Ordinary specimens refuse active replays; the explicit same-live NMR specimen grants its preserved policy.
-    def controller(self, transport, *, claims=None, session=None, policy=None, preverified_input=None, allow_active_start_replay=False, stopping=None, admission_stopping=None):
+    def controller(self, transport, *, claims=None, session=None, policy=None, preverified_input=None, allow_active_start_replay=False, stopping=None, admission_stopping=None, poll_seconds=1):
         if claims is None:
             claims = AttemptClaims.live()
         if session is None:
@@ -41,7 +43,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             allow_active_start_replay=allow_active_start_replay,
             delivery=RecordingDelivery(), on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
             delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-            poll_seconds=1, task_settle_seconds=0.05,
+            poll_seconds=poll_seconds, task_settle_seconds=0.05,
         )
 
     def lifecycle(self):
@@ -483,6 +485,63 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             await controller.settle()
         self.assertTrue(controller.work_settled)
         self.assertFalse(controller.shutdown_ready)
+
+    async def test_preparation_revocations_leave_capacity_for_the_next_live_job(self):
+        class PendingPreparation(LiveSession):
+            async def prepare(self, acknowledged, instructions, *, report_condition):
+                self.events.append("prepare")
+                await asyncio.Future()  # Only the controller's server observation interrupts this call.
+
+        for stop in ({"job_state": "cancelled"}, {"state": "expired"}):
+            with self.subTest(stop=stop):
+                claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=2))
+                for cycle in range(2):
+                    settlements = []
+                    for slot in range(2):
+                        index = cycle * 2 + slot
+                        job = f"job:stopped-{index}"
+                        identity = {"job_ref": job, "execution_attempt_ref": f"execution_attempt:sha256:{index:064x}"}
+                        pending = replace(record(), input=replace(record().input, job_ref=job),
+                                          body=retained_start(job_ref=job, provider_attempt_key=f"key:{index}"))
+                        transport = Transport(reply(start_response(**identity)), reply(observation(**identity)),
+                                              reply(progress_response(execution_attempt_ref=identity["execution_attempt_ref"])),
+                                              reply(observation(**identity, **stop)))
+                        session = PendingPreparation()
+                        session.release.clear()
+                        controller = self.controller(
+                            transport, claims=claims, session=session, poll_seconds=0.01,
+                            preverified_input=verify_job_input(response(job_ref=job), feed=pending.input),
+                        )
+                        run = asyncio.create_task(controller.run(pending))
+                        try:
+                            await asyncio.wait_for(session.retiring.wait(), 1)
+                            self.assertTrue(claims.owns_job(scope(), job))
+                            self.assertFalse(controller.work_settled)
+                        finally:
+                            session.release.set()
+                            failure, = await asyncio.wait_for(asyncio.gather(run, return_exceptions=True), 1)
+                        self.assertIsInstance(failure, ControllerFailed)
+                        self.assertIsInstance(failure.cause.cause, ExecutionStopped)
+                        self.assertEqual(["prepare", "retire"], session.events)
+                        self.assertEqual([], controller.delivery.items)
+                        # Exercise the next real START even if the old release rule refused settlement.
+                        result, = await asyncio.gather(controller.settle(), return_exceptions=True)
+                        settlements.append((result, claims.live_owners()))
+
+                    if cycle == 0:
+                        next_job = self.controller(self.lifecycle(), claims=claims,
+                                                   preverified_input=verify_job_input(response(), feed=record().input))
+                        try:
+                            accepted = await next_job.run(record())
+                        except ControllerFailed as failure:
+                            if type(failure.cause) is not LiveCapacityFull:
+                                raise
+                            self.fail("Two stopped preparations retired without reports, but capacity refused the next Job")
+                        self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
+                        self.assertEqual(["prepare", "execute", "retire"], next_job.session.events)
+                        self.assertEqual(1, len(next_job.delivery.items))
+                    self.assertEqual([(None, ()), (None, ())], settlements)
+                    self.assertEqual((), claims.live_owners())
 
     async def test_capacity_refusal_is_typed_and_rejected_controller_can_settle(self):
         claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_control_bytes=1))
