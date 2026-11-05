@@ -52,7 +52,7 @@ class PublicationMaterialTests(unittest.TestCase):
         reader.assert_called_once()
 
     def test_explicit_bad_ca_never_falls_back_to_system_roots(self):
-        with patch("provider_core.api_config.ssl.create_default_context") as roots:
+        with patch("provider_core.api_config.new_https_trust") as roots:
             with self.assertRaises(ApiConfigurationRejected):
                 api_settings_from_material(self.fields, credential_bytes=self.credential, ca_bytes=b"")
         roots.assert_not_called()

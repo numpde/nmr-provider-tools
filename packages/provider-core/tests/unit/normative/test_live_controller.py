@@ -9,7 +9,7 @@ from unittest.mock import Mock, patch
 
 import httpcore
 
-from provider_core.chat import ChatEndpointFactory, ChatEndpointSpec, ChatFailed
+from provider_core.chat import ChatEndpoint, ChatEndpointSpec, ChatFailed
 from provider_core.controller import ActiveStartReplayHeld, AttemptController, ControllerFailed, ControllerRefused, LiveStartPolicy, StartDeferred
 from provider_core.execution import ExecutionStopped
 from provider_core.job_input import verify_job_input
@@ -17,7 +17,7 @@ from provider_core.delivery_client import DeliveryUnavailable
 from provider_core.delivery_store import DeliveryFull
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
-from provider_core.transport import ExchangeFailed
+from provider_core.transport import ExchangeFailed, HttpTransport
 from tests.fakes.api import Transport, api, io_failure, reply, response_headers, signature_window_problem
 from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import observation, progress_response, retained_start, start_response
@@ -558,11 +558,15 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
     async def test_server_revocation_releases_a_cleanly_cancelled_model_request(self):
         client = Client(Stream([]), send_gate=asyncio.Event())
         revoked = reply(observation(job_state="cancelled"))
-        endpoint = ChatEndpointFactory(
-            spec=ChatEndpointSpec(configuration_id="model", model="fixture", url="https://model.invalid/chat",
-                                  api_key="fixture-only", reasoning_effort=None),
-            trust=ssl.create_default_context(), request_bytes=4096, response_bytes=4096, retirement_seconds=1,
-        )(exchange_seconds=30, connect_seconds=1)
+        # This controller proof injects its client into the explicit transport.
+        # Factory-owned child I/O has its own real-TLS recovery regression.
+        endpoint = ChatEndpoint(
+            ChatEndpointSpec(configuration_id="model", model="fixture", url="https://model.invalid/chat",
+                             api_key="fixture-only", reasoning_effort=None),
+            transport=HttpTransport(trust=ssl.create_default_context(), exchange_seconds=30,
+                                    connect_seconds=1, retirement_seconds=1),
+            request_bytes=4096, response_bytes=4096,
+        )
 
         class ModelPreparation(LiveSession):
             async def prepare(self, acknowledged, instructions, *, report_condition):

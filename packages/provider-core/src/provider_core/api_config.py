@@ -14,6 +14,7 @@ import ssl
 from dataclasses import dataclass
 
 from provider_core.api import require_api_topology
+from provider_core.chat_tls import CapturedSSLContext, new_https_trust
 from provider_core.credential import MAX_CREDENTIAL_BYTES, parse_provider_credential
 from provider_core.signing import SigningIdentity
 from provider_core.transport import HttpTransport, require_transport_settings
@@ -84,8 +85,8 @@ def _require_explicit_tls_environment():
 def https_trust(raw, *, label):
     """Build explicit TLS trust from admitted CA bytes, or system roots for None.
 
-    The caller owns bounded file capture. This function performs no path reads
-    and needs no transport timeouts; ambient TLS settings never grant authority.
+    The caller owns explicit CA file capture. System trust is captured once from
+    its fixed selectors, so a model HTTP child needs no ambient root authority.
     """
     _require_explicit_tls_environment()
     if raw is not None:
@@ -94,13 +95,13 @@ def https_trust(raw, *, label):
         except UnicodeDecodeError as cause:
             raise ApiConfigurationRejected(f"Cannot load {label} CA: the PEM certificate text must be ASCII.", cause=cause) from None
         try:
-            trust = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            trust = CapturedSSLContext(ssl.PROTOCOL_TLS_CLIENT)
             trust.load_verify_locations(cadata=pem)
         except (ValueError, OSError) as cause:
             raise ApiConfigurationRejected(f"Cannot configure {label} CA trust: OpenSSL could not load the PEM certificate data.", cause=cause) from None
     else:
         try:
-            trust = ssl.create_default_context()
+            trust = new_https_trust(None)
         except (OSError, ssl.SSLError) as cause:
             raise ApiConfigurationRejected(f"{label} system TLS roots could not be loaded.", cause=cause) from None
     return trust

@@ -14,6 +14,8 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.x509.oid import NameOID
 
+from provider_core.api_config import https_trust
+
 
 class TlsPeer:
     # silent-defaults: allow-contract -- The ordinary TLS peer has synthetic body/status and loopback trust; scenarios override those facts.
@@ -78,7 +80,7 @@ class TlsPeer:
             self.handshake_received.set()
 
         server_trust.set_servername_callback(observe_server_name)
-        self.trust = ssl.create_default_context(cafile=str(root / "cert.pem"))
+        self.trust = https_trust((root / "cert.pem").read_bytes(), label="Test peer")
         tls = {}
         if self.mode != "tls-stall":
             # Accepted TLS handshakes precede handle(), so its task set cannot

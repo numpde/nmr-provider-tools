@@ -5,6 +5,7 @@ import hashlib
 import importlib.metadata
 import importlib.util
 import os
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -82,6 +83,10 @@ class NativeInstallationTests(unittest.TestCase):
         import provider_core.lifetime
         import provider_core.conversation
         import provider_core.interpreter
+        self.assertFalse({
+            "provider_core.chat", "provider_core.chat_process", "provider_core.chat_tls",
+            "provider_core.chat_wire", "provider_core.chat_worker",
+        }.intersection(sys.modules), msg="Native conversation imports must not acquire model HTTP/process dependencies")
         distribution = importlib.metadata.distribution("provider-core")
         self.assertTrue(distribution.requires)
         self.assertTrue(all('; extra == "api"' in requirement for requirement in distribution.requires))

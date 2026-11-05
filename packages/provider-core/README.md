@@ -348,6 +348,21 @@ turn. Availability failures retry the same endpoint with jitter and valid
 can use its model window. The 10-second setup cap covers DNS, TCP or Unix, CONNECT
 and TLS together; cleanup remains independently observed.
 
+`ChatEndpointFactory` runs each outbound model HTTP exchange in a fresh Python
+child. The parent retains the conversation, retry policy, tool dispatch,
+Attempt and scientific worker. Only the admitted request and its transport
+settings cross the bounded data pipe. Child startup, HTTP work and receipt of a
+complete reply all consume the original absolute model deadline.
+
+On interruption, the parent gives the original child one fixed
+`retirement_seconds` allowance: cooperative cancellation, then TERM, then KILL
+if needed, with exit observation in that same allowance. Repeated retirement
+waits cannot renew it. A reply is admitted only after complete bounded framing,
+EOF and successful child exit before the request deadline. An unconfirmed exit
+retains the original owner and capacity obligation; later observation joins that
+same cleanup. The original failure retains child evidence and observed process
+facts for diagnostics. Recovery starts no new preparation or scientific worker.
+
 Composition supplies synchronous endpoint factories, original messages, the
 provider's existing tool schemas, and its async dispatch. Both
 `dispatch(name, arguments, *, not_after)` and optional
@@ -377,8 +392,21 @@ identity; do not classify them by matching generic `ConversationFailed` text.
 
 Endpoint loaders can use `api_config.https_trust(captured_ca_bytes, label=...)`
 to construct TLS trust without reopening files or supplying dummy transport
-timeouts. `None` selects system roots. The shared function rejects ambient TLS
-overrides; providers still own capturing their configuration and credentials.
+timeouts. `None` captures the runtime's system roots and default verification
+policy. The shared function rejects ambient TLS overrides; providers still own
+capturing their configuration and credentials.
+
+Model factories require a context constructed by this helper or
+`https_settings`. Capture preserves explicit PEM/DER anchors, fixed CA files
+including trust/reject attributes and CRLs, and lazy hashed trust directories
+with their exact lookup names. Supported TLS options, verification flags,
+version bounds, ciphers, ALPN and ECDH settings follow that context into the
+child. Trust capture is bounded to 4 MiB and 4096 material records. The parent
+owns any private directory copies through confirmed child and pipe retirement.
+This process carrier requires the Linux/POSIX facilities used by the provider
+containers. Arbitrary prebuilt contexts and opaque features such as client
+private keys, callbacks, custom socket classes, key logging, DH parameters and
+NPN customization are refused explicitly when model transport is constructed.
 
 Composition example:
 

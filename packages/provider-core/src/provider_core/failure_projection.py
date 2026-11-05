@@ -18,6 +18,7 @@ from provider_core.analysis import AnalysisOutcomeUnresolved, ObservedWorkerCras
 from provider_core.api_config import ApiConfigurationRejected
 from provider_core.attempt_record import AcknowledgedAttempt
 from provider_core.chat import ChatFailed
+from provider_core.chat_process import ChatProcessResult
 from provider_core.controller import ControllerFailed, ControllerRefused
 from provider_core.conversation import ConversationFailed, ConversationRetirementFailed, ToolRejected
 from provider_core.interpreter import InterpretationFailed, InterpretationInputRejected, ModelReportedInterpretationProblem
@@ -124,6 +125,8 @@ def owned_relationships(error):
     if kind is ExchangeFailed:
         yield "transport primary", error.primary
         yield "transport interruption", error.interruption
+        if error.child_failure is not None:
+            yield "model HTTP child evidence", error.child_failure
         if error.caller_interruption is not None:
             yield "transport caller interruption", error.caller_interruption
         if type(error.network_io) is NetworkIOObservation and error.network_io.error is not None:
@@ -261,6 +264,11 @@ def owned_details(error):
         details.update(status=error.response_head.status, request_id=response_request_id(error.response_head.headers))
     if kind is ExchangeFailed and error.proxy_connect_status is not None:
         details["proxy_connect_status"] = error.proxy_connect_status
+    if kind is ExchangeFailed and type(error.process) is ChatProcessResult:
+        # silent-defaults: allow-contract -- No sent signal has no last-signal identity; retain that absence alongside its zero count.
+        details.update(model_http_pid=error.process.pid, model_http_returncode=error.process.returncode,
+                       model_http_signals_sent=len(error.process.signals_sent),
+                       model_http_last_signal=error.process.signals_sent[-1] if error.process.signals_sent else None)
     if kind is StartFailed:
         details["acknowledgement_received"] = error.acknowledgement is not None
         if error.acknowledgement is not None:

@@ -26,3 +26,5 @@ class ExchangeFailed(RuntimeError):
         self.network_failure = network_failure
         self.network_io = network_io
         self.caller_interruption = caller_interruption
+        self.child_failure = None
+        self.process = None

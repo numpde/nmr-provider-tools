@@ -22,7 +22,8 @@ import httpx
 
 from provider_core.chat_errors import ChatFailed
 from provider_core.response_json import ResponseRejected, read_document
-from provider_core.transport import ExchangeFailed, HttpTransport
+from provider_core.transport import ExchangeFailed
+from provider_core.chat_process import SupervisedChatTransport
 
 
 def _json_bytes(value):
@@ -105,7 +106,7 @@ class ChatEndpointFactory:
     def __call__(self, *, exchange_seconds, connect_seconds):
         return ChatEndpoint(
             self.spec,
-            transport=HttpTransport(
+            transport=SupervisedChatTransport(
                 trust=self.trust, exchange_seconds=exchange_seconds,
                 connect_seconds=connect_seconds, retirement_seconds=self.retirement_seconds,
                 proxy_socket=self.proxy_socket,
