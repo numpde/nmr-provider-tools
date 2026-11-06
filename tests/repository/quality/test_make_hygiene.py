@@ -247,6 +247,11 @@ class RepositoryHygieneTest(unittest.TestCase):
         ):
             self.test_make_phony_targets_are_real_targets()
 
+    def test_empty_aggregate_recipe_stops_before_subsequent_phony(self):
+        makefile = "tests: tests/repository\n\n.PHONY: later\nlater:\n\t@echo ready\n"
+        self.assertEqual("", self.make_target_recipe(makefile, "tests").strip())
+        self.assertEqual("\t@echo ready", self.make_target_recipe(makefile, "later"))
+
     def make_help_recipe(self, makefile: str) -> str:
         lines = makefile.splitlines()
         start = lines.index("help:") + 1
@@ -264,7 +269,7 @@ class RepositoryHygieneTest(unittest.TestCase):
             if match is not None and target in match.group("names").split():
                 recipe: list[str] = []
                 for recipe_line in lines[index + 1 :]:
-                    if MAKE_TARGET_RE.match(recipe_line):
+                    if MAKE_TARGET_RE.match(recipe_line) or recipe_line.startswith(".PHONY:"):
                         break
                     recipe.append(recipe_line)
                 return "\n".join(recipe)

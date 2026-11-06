@@ -223,9 +223,9 @@ class Interpreter:
             raise ValueError(
                 "Cannot configure interpretation: provide an ordered nonempty tuple of endpoint factories."
             )
-        if type(timeout_seconds) not in (int, float) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+        if not (type(timeout_seconds) in (int, float) and math.isfinite(timeout_seconds) and 0 < timeout_seconds):
             raise ValueError("Cannot configure interpretation: timeout_seconds must be finite positive seconds.")
-        if type(context_bytes) is not int or context_bytes <= 0:
+        if not (type(context_bytes) is int and 0 < context_bytes):
             raise ValueError("Cannot configure interpretation: context_bytes must be a positive byte limit.")
         if not isinstance(secrets, tuple) or any(not isinstance(secret, str) or not secret for secret in secrets):
             raise TypeError(
