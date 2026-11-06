@@ -4,6 +4,9 @@ override .DEFAULT_GOAL := help
 
 # Make documents the CLI and forwards explicit arguments; invoked scripts
 # own input validation, avoiding two independent sets of admission rules.
+# Non-isolated host Python helpers must never write bytecode into source trees.
+# Isolated Python (-I) still requires an explicit -B in its own launch argv.
+override export PYTHONDONTWRITEBYTECODE := 1
 
 unexport DOCKER_CONTEXT
 unexport DOCKER_CONTEXT_INPUT
@@ -23,7 +26,7 @@ endif
 
 # Select once for every Docker goal in this invocation. Help and publish/release
 # use no Docker; child processes inherit the captured endpoint.
-ifneq ($(strip $(filter-out help publish/release packages/acquisition-bootstrap/check packages/acquisition-bootstrap/refresh,$(MAKECMDGOALS))),)
+ifneq ($(strip $(filter-out help publish/release checks/python-cache/clean packages/acquisition-bootstrap/check packages/acquisition-bootstrap/refresh,$(MAKECMDGOALS))),)
 ifeq ($(origin DOCKER_CONTEXT),command line)
 docker_context_quote = '$(subst ','"'"',$(1))'
 override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCKER_ENDPOINT -u DOCKER_CONTEXT_INPUT -u DOCKER_CONTEXT_INPUT_ORIGIN DOCKER_CONTEXT_INPUT_ORIGIN='command line' DOCKER_CONTEXT_INPUT=$(call docker_context_quote,$(value DOCKER_CONTEXT)) bash tools/docker_context.sh --endpoint)
@@ -182,6 +185,7 @@ endif
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery tests/fuzz/provider-core
 .PHONY: wheelhouse/image/build wheelhouse/lock/locate wheelhouse/lock/acquire tests/wheelhouse tests/delivery/publisher
+.PHONY: checks/python-cache/clean
 
 help:
 	@printf '%s\n' \
@@ -272,6 +276,7 @@ help:
 	  'make tests/repository            Run repository conventions and detector fixtures offline.' \
 	  'make tests/repository/quality    Run code and operator convention checks offline.' \
 	  'make tests/repository/bytecode   Check maintained Python launches suppress source bytecode.' \
+	  'make checks/python-cache/clean    Explicitly remove generated first-party .pyc/.pyo files and empty __pycache__ directories.' \
 	  'make tests/repository/provisioning Run checker preparation and cleanup fixtures offline.' \
 	  'make tests/repository/release    Run release and wheelhouse bundle fixtures offline.' \
 	  'make tests/repository/network    Run acquisition network-owner fixtures offline.' \
@@ -351,6 +356,9 @@ checks/image/build:
 
 checks/prepare:
 	bash tools/checker.sh prepare
+
+checks/python-cache/clean:
+	bash tools/python_cache_clean.sh
 
 tests/acquisition/identity:
 	@bash tools/acquisition_identity_test.sh
