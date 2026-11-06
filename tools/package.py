@@ -174,7 +174,13 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
     test_root = root / "run"
     shutil.copytree(source / "tests", test_root / "tests")
     for suite in suites:
-        subprocess.run([str(python), "-I", "-B", str(test_root / "tests/run_suite.py"), suite, "test*.py"], cwd=test_root, check=True)
+        command = [str(python), "-I", "-B", str(test_root / "tests/run_suite.py"), suite, "test*.py"]
+        outcome = subprocess.run(command, cwd=test_root)
+        if outcome.returncode:
+            raise SystemExit(
+                f"Installed provider-core {suite} release qualification failed (exit {outcome.returncode}). "
+                "See the failure index above and the retained release-test.log."
+            )
 
 
 def check(artifacts, revision):

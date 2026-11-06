@@ -58,6 +58,17 @@ nested() {
     return "$status"
 }
 fail() { printf '%s\n' "$1" >&2; exit 2; }
+report_preparation_failure() {
+    local stage=$1 status=$2 log=$3 summary="$scratch/release-failures.txt"
+    printf 'provider-core %s failed (exit %s). Full log: %s\n' "$stage" "$status" "$log" >&2
+    if grep -q '^=== PROVIDER-CORE FAILURE SUMMARY' "$log"; then
+        sed -n '/^=== PROVIDER-CORE FAILURE SUMMARY/,/^=== END PROVIDER-CORE FAILURE SUMMARY ===/p' "$log" > "$summary"
+    else
+        tail -n 35 -- "$log" > "$summary"
+    fi
+    printf 'Failure index: %s\n' "$summary" >&2
+    cat -- "$summary" >&2
+}
 private_directory() {
     local label=$1 directory=$2
     # Keep one diagnostic for missing paths instead of leaking realpath -e errors.
@@ -122,9 +133,21 @@ if [[ $action == prepare ]]; then
     select_docker_context
     mkdir -m 700 -- "$scratch/artifacts"
     cp -- "${notes[0]}" "$scratch/release-notes.md"
-    nested 'release package build' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" OUTPUT_INPUT_ORIGIN='command line' OUTPUT_INPUT="$scratch/artifacts" bash "$root/tools/provider_core.sh" build > "$scratch/release-build.log" 2>&1
+    if nested 'release package build' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" OUTPUT_INPUT_ORIGIN='command line' OUTPUT_INPUT="$scratch/artifacts" bash "$root/tools/provider_core.sh" build > "$scratch/release-build.log" 2>&1; then
+        :
+    else
+        status=$?
+        report_preparation_failure build "$status" "$scratch/release-build.log"
+        exit "$status"
+    fi
     [[ -f $scratch/artifacts/$wheel && -f $scratch/artifacts/$sdist ]] || fail 'TAG must match the built package version.'
-    nested 'exact release artifact qualification' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" ARTIFACTS_INPUT_ORIGIN='command line' ARTIFACTS_INPUT="$scratch/artifacts" bash "$root/tools/provider_core.sh" package > "$scratch/release-test.log" 2>&1
+    if nested 'exact release artifact qualification' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" ARTIFACTS_INPUT_ORIGIN='command line' ARTIFACTS_INPUT="$scratch/artifacts" bash "$root/tools/provider_core.sh" package > "$scratch/release-test.log" 2>&1; then
+        :
+    else
+        status=$?
+        report_preparation_failure qualification "$status" "$scratch/release-test.log"
+        exit "$status"
+    fi
     require_unchanged_source
     printf 'Prepared %s in %s. Review artifacts/, release-build.log, release-test.log and release-notes.md, then run:\n  make publish/release TAG=%s ARTIFACTS=%q\n' "$tag" "$scratch" "$tag" "$scratch"
     exit

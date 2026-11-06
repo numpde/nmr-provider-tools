@@ -33,12 +33,26 @@ def run_suite(suite, patterns):
         # silent-defaults: allow-contract -- Fuzz selects both owned suites; each other admitted selector names one suite.
         selections = ("integration", "unit") if suite == "fuzz" else (suite,)
         for selection in selections:
-            subprocess.run([str(python), "-I", "-B", str(run / "tests/run_suite.py"), selection, *patterns], cwd=run, check=True)
+            outcome = subprocess.run(
+                [str(python), "-I", "-B", str(run / "tests/run_suite.py"), selection, *patterns], cwd=run,
+            )
+            if outcome.returncode:
+                raise SystemExit(
+                    f"Installed provider-core {selection} tests failed (exit {outcome.returncode}); "
+                    "see the failure index immediately above."
+                )
         if suite == "unit":
             native_lock = output / wheel.name.replace("-py3-none-any.whl", "-native-install.lock")
             native_python = install_environment(Path("/runtime/native-proof"), native_lock, Path("/wheelhouse"),
                                                 extra_pools=(output,), required_files={wheel.name: wheel})
-            subprocess.run([str(native_python), "-I", "-B", str(run / "tests/run_suite.py"), "native", "test*.py"], cwd=run, check=True)
+            outcome = subprocess.run(
+                [str(native_python), "-I", "-B", str(run / "tests/run_suite.py"), "native", "test*.py"], cwd=run,
+            )
+            if outcome.returncode:
+                raise SystemExit(
+                    f"Installed provider-core native tests failed (exit {outcome.returncode}); "
+                    "see the failure index immediately above."
+                )
 
 
 if __name__ == "__main__":
