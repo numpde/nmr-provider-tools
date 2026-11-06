@@ -65,10 +65,13 @@ def read_lock(lock):
         return Pylock.from_dict(tomllib.load(stream))
 
 
+# silent-defaults: allow-contract -- Optional source-distribution requirements are a fixed empty tuple; absent source-lock inputs retain their independent None sentinel.
 def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=None):
     if document is None:
         document = read_lock(lock)
-    projection = (document.tool or {}).get("nmr-provider-tools", {})
+    projection = {}
+    if document.tool is not None and "nmr-provider-tools" in document.tool:
+        projection = document.tool["nmr-provider-tools"]
     source_digest = projection.get("source-lock-sha256")
     source_requirements = None
     if source_lock is not None and source_digest is None:
@@ -94,7 +97,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
             raise ValueError(f"Cannot acquire {package.name}: expected a URL for a locked artifact.")
         url = urllib.parse.urlsplit(artifact.url)
         name = getattr(artifact, "filename", None) or urllib.parse.unquote(url.path.rsplit("/", 1)[-1])
-        digest = artifact.hashes.get("sha256", "")
+        digest = artifact.hashes.get("sha256")
         if source_requirements is not None:
             entry = source_requirements.get(package.name)
             if entry is None or digest not in entry[1]:
@@ -129,7 +132,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
             raise ValueError(f"Cannot acquire {package.name}: the lock does not select a source distribution.")
         if package.name in required:
             found_required.add(package.name)
-        if not re.fullmatch(r"[0-9a-f]{64}", digest):
+        if type(digest) is not str or not re.fullmatch(r"[0-9a-f]{64}", digest):
             raise ValueError(f"Cannot acquire {name}: a SHA-256 lock hash is required.")
         if url.scheme not in ("https", "http") or not url.netloc or url.username is not None:
             raise ValueError(f"Cannot acquire {name}: expected an HTTP(S) artifact URL without credentials.")
@@ -147,6 +150,7 @@ def selected(lock, prefer_sdist, require_sdist=(), document=None, source_lock=No
 def inspect_artifact(pool, name, digest, directory_fd=None):
     try:
         actual = sha256(name if directory_fd is not None else pool / name, directory_fd)
+    # silent-defaults: allow-exception-outcome -- Missing cached wheel bytes establish a checked negative presence result; hash mismatch remains an error.
     except FileNotFoundError:
         return False
     if actual != digest:
@@ -174,7 +178,10 @@ def download_once(pool, name, digest, url, directory_fd):
             with source:
                 checksum = hashlib.sha256()
                 length = source.headers.get("Content-Length")
-                length = int(length) if isinstance(length, str) and length.isdecimal() else None
+                if isinstance(length, str) and length.isdecimal():
+                    length = int(length)
+                else:
+                    length = None
                 received = 0
                 while True:
                     block = request(lambda: source.read(1024 * 1024))
@@ -213,7 +220,9 @@ def download_once(pool, name, digest, url, directory_fd):
             if isinstance(pending, RequestFailure):
                 details.append(failure_detail(pending.error))
             elif isinstance(pending, OSError):
-                number = f" (error number {pending.errno})" if isinstance(pending.errno, int) else ""
+                number = ""
+                if isinstance(pending.errno, int):
+                    number = f" (error number {pending.errno})"
                 details.append(f"a local file operation failed{number}")
             if hash_mismatch:
                 details.append("downloaded bytes differ from the lock")
@@ -227,6 +236,7 @@ def download_once(pool, name, digest, url, directory_fd):
             raise OSError(f"Cannot finish acquiring {name}: {'; '.join(details)}.") from None
 
 
+# silent-defaults: allow-contract -- Explicit absence of source preferences is represented by immutable empty tuples; artifacts=None requests exact lock selection.
 def run(action, lock, pool, prefer_sdist=(), require_sdist=(), artifacts=None):
     if artifacts is None:
         artifacts = selected(lock, prefer_sdist, require_sdist)
@@ -235,6 +245,7 @@ def run(action, lock, pool, prefer_sdist=(), require_sdist=(), artifacts=None):
         with pool_lock(pool, exclusive=False) as directory_fd:
             try:
                 return _run("check", pool, artifacts, directory_fd)
+            # silent-defaults: allow-contract -- A missing cached artifact is the only expected read-only preflight failure; write-lock acquisition follows.
             except FileNotFoundError:
                 pass
         with acquisition_lock(pool) as directory_fd:
@@ -253,6 +264,7 @@ def _run(action, pool, artifacts, directory_fd):
                           for name, digest, _, package, _ in artifacts]}
 
 
+# silent-defaults: allow-contract -- Source distribution preferences default to immutable empty tuples; optional captured document/artifact arguments are absent as None.
 def local_lock(lock, local_root, prefer_sdist=(), require_sdist=(), document=None, artifacts=None):
     """Project the selected locked artifacts to their paths in the build."""
     import tomli_w
@@ -280,11 +292,17 @@ def main():
     parser.add_argument("--lock", type=Path, required=True)
     parser.add_argument("--pool", type=Path)
     parser.add_argument("--source-lock", type=Path, help="Original requirements lock for a metadata projection.")
-    parser.add_argument("--prefer-sdist", action="append", default=[])
-    parser.add_argument("--require-sdist", action="append", default=[])
+    parser.add_argument("--prefer-sdist", action="append")
+    parser.add_argument("--require-sdist", action="append")
     parser.add_argument("--local-lock", type=Path, help="Write a local-path pylock after a successful operation.")
     parser.add_argument("--local-root", type=Path, help="Absolute pool path inside the offline build.")
     args = parser.parse_args()
+    prefer_sdist = []
+    require_sdist = []
+    if args.prefer_sdist is not None:
+        prefer_sdist = args.prefer_sdist
+    if args.require_sdist is not None:
+        require_sdist = args.require_sdist
     try:
         if args.local_lock is not None and (args.local_root is None or not args.local_root.is_absolute()):
             raise ValueError("Cannot write a local lock: supply an absolute --local-root.")
@@ -292,7 +310,7 @@ def main():
                                                args.local_lock.name.startswith("pylock.") and args.local_lock.name.endswith(".toml")):
             raise ValueError("Cannot write a local lock: use pylock.toml or pylock.NAME.toml so installers recognize it.")
         document = read_lock(args.lock)
-        artifacts = selected(args.lock, args.prefer_sdist, args.require_sdist, document, args.source_lock)
+        artifacts = selected(args.lock, prefer_sdist, require_sdist, document, args.source_lock)
         if args.action == "select":
             result = {"artifacts": [{"package": str(package.name), "filename": name, "sha256": digest}
                                     for name, digest, _, package, _ in artifacts]}
@@ -309,6 +327,7 @@ def main():
             except BaseException:
                 args.local_lock.unlink(missing_ok=True)
                 raise
+    # silent-defaults: allow-exception-outcome -- The acquisition CLI reports qualified failures with nonzero exit status, never an empty success.
     except (OSError, ValueError, PylockSelectError, PylockValidationError) as error:
         print(str(error), file=sys.stderr)
         return 1

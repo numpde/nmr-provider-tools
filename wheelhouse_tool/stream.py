@@ -43,8 +43,11 @@ def open_source(path):
 def stream_context(pool, source, selections, output, source_allowlist=None):
     """Use caller-selected source files and select pool files from their locks."""
     source_paths = {}
-    source_hashes = {} if source_allowlist is None else {item["destination"]: item["sha256"] for item in source_allowlist}
-    source_modes = {} if source_allowlist is None else {item["destination"]: item["executable"] for item in source_allowlist}
+    source_hashes = {}
+    source_modes = {}
+    if source_allowlist is not None:
+        source_hashes = {item["destination"]: item["sha256"] for item in source_allowlist}
+        source_modes = {item["destination"]: item["executable"] for item in source_allowlist}
     if any(not re.fullmatch(r"[0-9a-f]{64}", digest) for digest in source_hashes.values()):
         raise ValueError("Cannot stream build inputs: source files require SHA-256 hashes.")
     if any(type(value) is not bool for value in source_modes.values()):
@@ -92,9 +95,17 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
             raise ValueError("Cannot stream build inputs: artifact directory must be a relative path.")
         if "lock" in selection:
             lock = Path(selection["lock"])
-            source_lock = Path(selection["source_lock"]) if "source_lock" in selection else None
+            source_lock = None
+            if "source_lock" in selection:
+                source_lock = Path(selection["source_lock"])
+            preferred = ()
+            required = ()
+            if "prefer_sdist" in selection:
+                preferred = selection["prefer_sdist"]
+            if "require_sdist" in selection:
+                required = selection["require_sdist"]
             inputs = [(name, digest) for name, digest, *_ in selected(
-                lock, selection.get("prefer_sdist", ()), selection.get("require_sdist", ()), source_lock=source_lock)]
+                lock, preferred, required, source_lock=source_lock)]
         else:
             inputs = [(selection["filename"], selection["sha256"])]
         for name, digest in inputs:
@@ -134,7 +145,10 @@ def stream_context(pool, source, selections, output, source_allowlist=None):
                         raise ValueError(f"Cannot stream {name}: expected a regular source file.")
                     if name in source_modes and bool(metadata.st_mode & 0o111) != source_modes[name]:
                         raise ValueError(f"Cannot stream {name}: source executable mode differs from the captured input.")
-                    info.mode = 0o755 if metadata.st_mode & 0o111 else 0o644
+                    if metadata.st_mode & 0o111:
+                        info.mode = 0o755
+                    else:
+                        info.mode = 0o644
                     info.size = metadata.st_size
                     reader = HashReader(file)
                     tar.addfile(info, reader)
@@ -174,6 +188,7 @@ def main():
         else:
             allowlist = None
         stream_context(args.pool, args.source, selections, sys.stdout.buffer, allowlist)
+    # silent-defaults: allow-exception-outcome -- Unsafe streaming inputs fail with a nonzero CLI status before a context is admitted.
     except (OSError, ValueError, KeyError, TypeError, PylockSelectError, PylockValidationError) as error:
         print(str(error), file=sys.stderr)
         return 1

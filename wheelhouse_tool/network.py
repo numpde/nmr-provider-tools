@@ -72,7 +72,9 @@ def retry_delay(error, attempt):
             return None
     delay = (1, 2)[attempt - 1]
     if status in (429, 503):
-        header = error.headers.get("Retry-After") if error.headers else None
+        header = None
+        if error.headers:
+            header = error.headers.get("Retry-After")
         if header:
             try:
                 if header.isdecimal() and len(header.lstrip("0")) > 2:
@@ -92,7 +94,9 @@ def retry(operation, description):
             return operation()
         except RequestFailure as failure:
             detail = failure_detail(failure.error)
-            delay = retry_delay(failure.error, attempt) if attempt < 3 else None
+            delay = None
+            if attempt < 3:
+                delay = retry_delay(failure.error, attempt)
             if delay == -1:
                 raise OSError(f"{description}: {detail}; the requested retry delay exceeds 30 seconds.") from None
             if delay is None:

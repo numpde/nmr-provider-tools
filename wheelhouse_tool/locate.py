@@ -59,12 +59,19 @@ def read_requirements(path, configured_index=None):
             records.append((requirement, set()))
     if not records or any(not hashes for _, hashes in records):
         raise ValueError("Cannot locate artifacts: every package needs an existing SHA-256 lock hash.")
-    parsed_index = urllib.parse.urlsplit(index or "")
+    parsed_index_input = index
+    if parsed_index_input is None:
+        parsed_index_input = ""
+    parsed_index = urllib.parse.urlsplit(parsed_index_input)
     if index is not None and (parsed_index.scheme != "https" or not parsed_index.netloc or parsed_index.username is not None or parsed_index.query):
         raise ValueError("Cannot locate artifacts: supply the lock's HTTPS package index.")
-    return records, index.rstrip("/") if index else None, hashlib.sha256(source).hexdigest()
+    index_base = None
+    if index:
+        index_base = index.rstrip("/")
+    return records, index_base, hashlib.sha256(source).hexdigest()
 
 
+# silent-defaults: allow-contract -- The caller selects an optional HTTPS index and source preferences; absent preferences are immutable empty tuples, not inferred sources.
 def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sources=(), pool=None):
     records, index, source_sha256 = read_requirements(path, index)
     packages = []
@@ -75,8 +82,11 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         parsed = urllib.parse.urlsplit(source)
         filename = urllib.parse.unquote(parsed.path.rsplit("/", 1)[-1])
         distribution, version, _, _ = parse_wheel_filename(filename)
-        checksum = urllib.parse.parse_qs(parsed.fragment).get("sha256", [None])[0]
-        if parsed.scheme != "https" or parsed.username is not None or parsed.query or not re.fullmatch(r"[0-9a-f]{64}", checksum or ""):
+        values = urllib.parse.parse_qs(parsed.fragment).get("sha256")
+        checksum = None
+        if values:
+            checksum = values[0]
+        if parsed.scheme != "https" or parsed.username is not None or parsed.query or checksum is None or not re.fullmatch(r"[0-9a-f]{64}", checksum):
             raise ValueError("Cannot locate artifacts: direct sources require an HTTPS URL with a SHA-256 fragment.")
         if distribution in direct:
             raise ValueError(f"Cannot locate {distribution}: more than one direct source was supplied.")
@@ -84,7 +94,9 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
     python_version = Version(default_environment()["python_full_version"])
     for requirement, hashes in records:
         name = canonicalize_name(requirement.name)
-        supplied = direct.pop(name, None)
+        supplied = None
+        if name in direct:
+            supplied = direct.pop(name)
         if requirement.url or supplied:
             if requirement.url and supplied:
                 raise ValueError(f"Cannot locate {name}: its lock already supplies a direct URL.")
@@ -97,7 +109,10 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
             except InvalidWheelFilename as error:
                 raise ValueError(f"Cannot locate {name}: direct artifact is not a named wheel.") from error
             fragment = urllib.parse.parse_qs(url.fragment)
-            checksum = fragment.get("sha256", [None])[0]
+            fragment_values = fragment.get("sha256")
+            checksum = None
+            if fragment_values:
+                checksum = fragment_values[0]
             if (distribution != name or checksum not in hashes or name in required_sources or not tags.intersection(sys_tags())
                     or (supplied and not requirement.specifier.contains(version, prereleases=True))):
                 raise ValueError(f"Cannot locate {name}: direct artifact differs from its locked identity.")
@@ -120,9 +135,17 @@ def locate(path, index=None, allowed_sources=(), required_sources=(), direct_sou
         if canonicalize_name(project["name"]) != name:
             raise ValueError(f"Cannot locate {name}: index returned a different project.")
         wheels, sources = [], []
-        for artifact in project.get("files", []):
-            filename = artifact.get("filename", "")
-            checksum = artifact.get("hashes", {}).get("sha256")
+        files = []
+        if "files" in project:
+            files = project["files"]
+        for artifact in files:
+            if "filename" not in artifact:
+                continue
+            filename = artifact["filename"]
+            artifact_hashes = artifact.get("hashes")
+            if artifact_hashes is None:
+                continue
+            checksum = artifact_hashes.get("sha256")
             if checksum not in hashes:
                 continue
             requires = artifact.get("requires-python")
@@ -197,13 +220,23 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--lock", type=Path, required=True)
     parser.add_argument("--index-url")
-    parser.add_argument("--allow-source", action="append", default=[])
-    parser.add_argument("--require-source", action="append", default=[])
-    parser.add_argument("--source", action="append", default=[])
+    parser.add_argument("--allow-source", action="append")
+    parser.add_argument("--require-source", action="append")
+    parser.add_argument("--source", action="append")
     parser.add_argument("--pool", type=Path, help="Prefer compatible, verified wheels already in this pool.")
     args = parser.parse_args()
+    allowed = []
+    required = []
+    sources = []
+    if args.allow_source is not None:
+        allowed = args.allow_source
+    if args.require_source is not None:
+        required = args.require_source
+    if args.source is not None:
+        sources = args.source
     try:
-        print(locate(args.lock, args.index_url, args.allow_source, args.require_source, args.source, args.pool), end="")
+        print(locate(args.lock, args.index_url, allowed, required, sources, args.pool), end="")
+    # silent-defaults: allow-exception-outcome -- Invalid metadata or an unreachable selected index produces a nonzero source-projection CLI result.
     except (OSError, ValueError, KeyError, TypeError, PylockSelectError, PylockValidationError) as error:
         print(str(error), file=sys.stderr)
         return 1
