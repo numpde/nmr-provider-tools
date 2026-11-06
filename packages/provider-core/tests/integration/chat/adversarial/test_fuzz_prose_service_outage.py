@@ -88,11 +88,21 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
                 result = await run_outage(Path(directory) / "outbox", mode="retry_after", backlog=backlog, seed=17)
                 self.assert_outage_recovered(result)
                 evidence = json.dumps(result, sort_keys=True)
-                # Each unavailable reply requests another whole second. The last
-                # such response still binds the first request after restoration.
-                for previous, following in zip(result["requests"], result["requests"][1:]):
-                    if not previous["available"]:
-                        self.assertGreaterEqual(following["at"] - previous["at"], 1, msg=evidence)
+                # The peer seeing a request does not establish that the client
+                # received its complete 503 and Retry-After. In particular, an
+                # exchange that times out before the HTTP response is available
+                # correctly uses the SDK's shorter fallback. Only a confirmed
+                # client-side 503 with Retry-After binds subsequent requests.
+                for observation in result["retry_observations"]:
+                    if observation["status"] != 503:
+                        continue
+                    self.assertEqual(observation["retry_after"], ["1"], msg=evidence)
+                    following = next(
+                        (request for request in result["requests"]
+                         if request["at"] > observation["at"]), None
+                    )
+                    if following is not None:
+                        self.assertGreaterEqual(following["at"] - observation["at"], 1, msg=evidence)
 
     async def test_seeded_outage_modes_preserve_original_publication_and_warm_science(self):
         for mode, seed in (("unavailable", 14), ("invalid_retry_after", 41), ("disconnect", 97), ("blocked", 23)):

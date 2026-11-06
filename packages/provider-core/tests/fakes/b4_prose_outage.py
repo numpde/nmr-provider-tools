@@ -19,6 +19,7 @@ from provider_core.analysis import AnalysisFailure, AnalysisSuccess, PreparedAna
 from provider_core.attempt_record import ProtectedEvidence, StartPending
 from provider_core.attempt_request import read_complete_body, read_fail_body
 from provider_core.chat import ChatEndpointFactory, ChatEndpointSpec
+from provider_core.chat_errors import ChatFailed
 from provider_core.controller import AttemptController, LiveStartPolicy
 from provider_core.conversation import ToolFinished
 from provider_core.delivery_client import DeliveryEndpoint
@@ -55,6 +56,27 @@ class ObservedFactory:
         endpoint = self.factory(exchange_seconds=exchange_seconds, connect_seconds=connect_seconds)
         self.endpoints.append(endpoint)
         return endpoint
+
+
+class ObservedProseService(ProseService):
+    """Record what the SDK actually received, not what the peer intended to send."""
+
+    def __init__(self, factory):
+        super().__init__(factory)
+        self.retry_observations = []
+
+    def _postpone(self, failure: ChatFailed, delay: float) -> None:
+        super()._postpone(failure, delay)
+        response = failure.response
+        self.retry_observations.append({
+            "at": asyncio.get_running_loop().time(),
+            "reason": failure.reason,
+            "status": None if response is None else response.status,
+            "retry_after": [] if response is None else [
+                value.decode("ascii", errors="replace")
+                for name, value in response.headers if name.lower() == b"retry-after"
+            ],
+        })
 
 
 class JobsControlTransport(Transport):
@@ -258,7 +280,8 @@ async def run_outage(directory, *, mode, backlog, seed):
                                   url=peer.origin + "/chat", api_key="B4_TEST_CREDENTIAL", reasoning_effort=None),
             trust=peer.trust, retirement_seconds=retirement_seconds, request_bytes=32768, response_bytes=8192,
         )) for name, peer in (("unavailable-prose-service", failed_peer), ("independent-prose-service", healthy_peer)))
-        failed_service, healthy_service = (ProseService(factory) for factory in observed_factories)
+        failed_service = ObservedProseService(observed_factories[0])
+        healthy_service = ProseService(observed_factories[1])
         directory.mkdir(mode=0o700)
         queue = DeliveryQueue(directory, limits=QueueLimits(backlog + 8, 1048576, backlog + 8, 1048576))
         inbox = DeliveryInbox(queue, (), request_seconds=1, on_accepted=Mock(), on_failure=Mock(), binding_status=Mock())
@@ -349,7 +372,9 @@ async def run_outage(directory, *, mode, backlog, seed):
                 "mode": mode, "seed": seed, "backlog": backlog, "maximum_attempts": maximum_attempts,
                 "outage_seconds": outage_seconds, "request_ceiling": request_ceiling,
                 "minimum_request_delay": minimum_delay, "recovery_seconds": recovery_seconds,
-                "receipt_release_phase": receipt_release_phase, "requests": requests, "trace": trace, "jobs": jobs,
+                "receipt_release_phase": receipt_release_phase, "requests": requests,
+                "retry_observations": failed_service.retry_observations,
+                "trace": trace, "jobs": jobs,
                 "restored_at": restored_at, "publication_times": published, "notices": notices,
                 "peak_claims": peak_claims, "peak_prose_connections": peak_prose_connections,
                 "provider_pid": os.getpid(), "scientific_worker_before": scientific_worker.initial,
