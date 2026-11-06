@@ -13,6 +13,7 @@ from tests.repository.quality.sources import ROOT
 
 
 class OrderedRetirementTests(unittest.TestCase):
+    # silent-defaults: allow-contract -- Ordered-cleanup fixtures start without unexpected borrowers, pending operations or prior errors unless a test injects one.
     def exercise(self, fail, *, unexpected=False, pending=False, primary=0):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
@@ -59,12 +60,23 @@ set +e
 (exit "$PRIMARY")
 checker_finish
 '''
-            env = os.environ | {"CALLS": str(directory / "calls"), "FAIL": "yes" if fail else "no",
-                               "UNEXPECTED": "yes" if unexpected else "no",
-                               "PENDING": "true" if pending else "false", "PRIMARY": str(primary)}
+            fail_text = "no"
+            unexpected_text = "no"
+            pending_text = "false"
+            if fail:
+                fail_text = "yes"
+            if unexpected:
+                unexpected_text = "yes"
+            if pending:
+                pending_text = "true"
+            env = os.environ | {"CALLS": str(directory / "calls"), "FAIL": fail_text,
+                               "UNEXPECTED": unexpected_text,
+                               "PENDING": pending_text, "PRIMARY": str(primary)}
             result = subprocess.run(["bash", "-c", script, "bash", str(ROOT), str(directory / "operation")],
                                     env=env, capture_output=True, text=True, timeout=10)
-            calls = (directory / "calls").read_text().splitlines() if (directory / "calls").exists() else []
+            calls = []
+            if (directory / "calls").exists():
+                calls = (directory / "calls").read_text().splitlines()
             return result, calls
 
     def test_removes_in_dependency_order(self):
