@@ -30,7 +30,18 @@ class TlsPeer:
         response_status=200,
         response_mode=None,
         bind_host="127.0.0.1",
+        handshake_seconds=3.0,
+        shutdown_seconds=0.5,
     ):
+        # One test-server TLS policy, distinct from HttpTransport's outbound
+        # connect/exchange budget and the supervised interpreter child lifetime.
+        for label, seconds in (
+            ("handshake_seconds", handshake_seconds),
+            ("shutdown_seconds", shutdown_seconds),
+        ):
+            if type(seconds) not in (int, float) or not 0 < seconds < float("inf"):
+                raise ValueError(f"TlsPeer {label} must be finite positive seconds")
+        self.handshake_seconds, self.shutdown_seconds = handshake_seconds, shutdown_seconds
         self.mode = mode
         self.response_body = response_body
         self.response_bodies = response_bodies
@@ -83,9 +94,14 @@ class TlsPeer:
         self.trust = https_trust((root / "cert.pem").read_bytes(), label="Test peer")
         tls = {}
         if self.mode != "tls-stall":
-            # Accepted TLS handshakes precede handle(), so its task set cannot
-            # retire them. Native TLS deadlines must fit inside teardown's 2s.
-            tls = {"ssl": server_trust, "ssl_handshake_timeout": 0.5, "ssl_shutdown_timeout": 0.5}
+            # SSL handshakes precede handle(), hence they have no test-handler
+            # task yet. Keep the server's two TLS limits independent, and give
+            # teardown enough time to observe a pending handshake's own bound.
+            tls = {
+                "ssl": server_trust,
+                "ssl_handshake_timeout": self.handshake_seconds,
+                "ssl_shutdown_timeout": self.shutdown_seconds,
+            }
         self.server = await asyncio.start_server(self.handle, self.bind_host, 0, **tls)
         self.origin = f"https://127.0.0.1:{self.server.sockets[0].getsockname()[1]}"
         return self
@@ -180,7 +196,14 @@ class TlsPeer:
         for task in cancelled:
             task.cancel()
         try:
-            await asyncio.wait_for(self.server.wait_closed(), 2)
+            # Pending TLS handshakes are not in self.handlers. Observe the
+            # server through its configured handshake and shutdown allowances,
+            # instead of an unrelated shorter two-second teardown ceiling.
+            close_seconds = (
+                2 if self.mode == "tls-stall"
+                else max(2, self.handshake_seconds + self.shutdown_seconds + 0.5)
+            )
+            await asyncio.wait_for(self.server.wait_closed(), close_seconds)
             # A handshake can finish after the cancellation snapshot. Its late
             # closing handler also belongs to this fixture, including failures.
             handlers = tuple(self.handlers)
