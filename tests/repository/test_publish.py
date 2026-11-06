@@ -63,7 +63,7 @@ class PublicationTests(unittest.TestCase):
         self.trace = self.root / "calls"
         self.bin = Path("tests/fixtures/publish-tools").resolve()
 
-    def run_publisher(self, scenario, action):
+    def run_publisher(self, scenario, action, *, environment=None):
         return subprocess.run(
             ["bash", str(self.root / "tools/publish.sh"), action], cwd=self.root,
             env={"PATH": str(self.bin) + os.pathsep + os.defpath, "TMPDIR": str(self.root),
@@ -71,7 +71,8 @@ class PublicationTests(unittest.TestCase):
                  "ARTIFACTS_INPUT_ORIGIN": "command line", "ARTIFACTS_INPUT": str(self.inputs),
                  "OUTPUT_INPUT_ORIGIN": "command line", "OUTPUT_INPUT": str(self.root / "prepared"),
                  "WHEELHOUSE_INPUT_ORIGIN": "command line", "WHEELHOUSE_INPUT": str(self.root / "pool"),
-                 "PUBLISH_TEST_MODE": scenario, "PUBLISH_TEST_TRACE": str(self.trace)},
+                 "PUBLISH_TEST_MODE": scenario, "PUBLISH_TEST_TRACE": str(self.trace),
+                 **(environment or {})},
             capture_output=True, text=True, timeout=15, check=False,
         )
 
@@ -83,6 +84,37 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(self.note.read_bytes(), (self.root / "prepared/release-notes.md").read_bytes())
         self.assertEqual(8, len(list((self.root / "prepared/artifacts").iterdir())))
         self.assertNotIn("gh ", self.trace.read_text())
+
+    def test_prepare_missing_output_explains_how_to_create_a_private_destination(self):
+        result = self.run_publisher("publish", "prepare", environment={
+            "OUTPUT_INPUT_ORIGIN": "undefined", "OUTPUT_INPUT": "",
+        })
+        self.assertEqual(2, result.returncode, msg=result.stderr)
+        self.assertIn("OUTPUT=", result.stderr)
+        self.assertIn("mkdir -m 700", result.stderr)
+        self.assertIn("release-artifacts/v0.2.0", result.stderr)
+        self.assertFalse(self.trace.exists(), "Missing input unexpectedly started the build")
+
+    def test_prepare_refuses_nonempty_destination_without_erasing_evidence(self):
+        destination = self.root / "prepared"
+        destination.mkdir(mode=0o700)
+        previous = destination / "release-build.log"
+        previous.write_text("existing evidence must stay intact")
+        result = self.run_publisher("publish", "prepare")
+        self.assertEqual(2, result.returncode, msg=result.stderr)
+        self.assertIn("OUTPUT", result.stderr)
+        self.assertIn("empty", result.stderr)
+        self.assertEqual("existing evidence must stay intact", previous.read_text())
+        self.assertFalse(self.trace.exists(), "Nonempty OUTPUT unexpectedly started the build")
+
+    def test_release_requires_the_reviewed_prepare_directory(self):
+        result = self.run_publisher("publish", "release", environment={
+            "ARTIFACTS_INPUT_ORIGIN": "undefined", "ARTIFACTS_INPUT": "",
+        })
+        self.assertEqual(2, result.returncode, msg=result.stderr)
+        self.assertIn("ARTIFACTS=", result.stderr)
+        self.assertIn("publish/prepare", result.stderr)
+        self.assertFalse(self.trace.exists(), "Missing release inputs unexpectedly reached GitHub")
 
     def test_matching_url_rewrite_or_unreadable_configuration_stops_before_github(self):
         for scenario in ("matching", "config-error"):
