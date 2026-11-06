@@ -5,6 +5,10 @@ printf 'make %s\n' "$*" >> "$PUBLISH_TEST_TRACE"
 [[ $# == 4 && $1 == --no-print-directory ]] || exit 97
 action=$2
 if [[ $action == package/build ]]; then
+    if [[ $PUBLISH_TEST_MODE == failed-build ]]; then
+        printf '%s\n' 'ERROR: release build failed in the synthetic package fixture.'
+        exit 1
+    fi
     artifacts=${4#OUTPUT=}
     printf 'qualified wheel\n' > "$artifacts/provider_core-0.2.0-py3-none-any.whl"
     printf 'qualified source\n' > "$artifacts/provider_core-0.2.0.tar.gz"
@@ -15,6 +19,14 @@ if [[ $action == package/build ]]; then
     printf '{"source_revision":"%040d"}\n' 1 > "$artifacts/provider_core-0.2.0-release.json"
     printf '{}\n' > "$artifacts/provider_core-0.2.0-sha256.json"
 elif [[ $action == tests/package ]]; then
+    if [[ $PUBLISH_TEST_MODE == failed-qualification ]]; then
+        printf '%s\n' 'Ran 225 tests in 139.5s' 'FAILED (failures=1)' \
+          '=== PROVIDER-CORE FAILURE SUMMARY (integration): 1 failing cases ===' \
+          '  FAIL test_blocked (tests.integration.chat) (mode=blocked)' \
+          '    tests/integration/chat/test_blocked.py:41 — AssertionError: Original Job was not published' \
+          '=== END PROVIDER-CORE FAILURE SUMMARY ==='
+        exit 1
+    fi
     artifacts=${4#ARTIFACTS=}
     for file in "$artifacts/"*; do
         printf 'QUALIFIED_SHA256 %s %s\n' "$(sha256sum "$file" | cut -d ' ' -f1)" "${file##*/}"

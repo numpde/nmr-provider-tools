@@ -130,6 +130,31 @@ class PublicationTests(unittest.TestCase):
         self.assertIn("artifacts/ child", result.stderr)
         self.assertNotIn("gh ", self.trace.read_text())
 
+    def test_failed_release_qualification_prints_a_short_summary_and_retains_evidence(self):
+        (self.root / "prepared").mkdir(mode=0o700)
+        (self.root / "pool").mkdir()
+        result = self.run_publisher("failed-qualification", "prepare")
+        self.assertEqual(1, result.returncode, msg=result.stderr)
+        destination = self.root / "prepared"
+        self.assertEqual(8, len(list((destination / "artifacts").iterdir())))
+        self.assertIn("test_blocked", result.stderr)
+        self.assertIn("AssertionError: Original Job was not published", result.stderr)
+        self.assertIn("release-test.log", result.stderr)
+        summary = destination / "release-failures.txt"
+        self.assertTrue(summary.is_file(), msg=result.stderr)
+        self.assertIn("=== END PROVIDER-CORE FAILURE SUMMARY ===", summary.read_text())
+        self.assertNotIn("gh ", self.trace.read_text())
+
+    def test_failed_release_build_prints_log_location_and_cause(self):
+        (self.root / "prepared").mkdir(mode=0o700)
+        (self.root / "pool").mkdir()
+        result = self.run_publisher("failed-build", "prepare")
+        self.assertEqual(1, result.returncode, msg=result.stderr)
+        self.assertIn("release-build.log", result.stderr)
+        self.assertIn("release build failed in the synthetic package fixture", result.stderr)
+        self.assertTrue((self.root / "prepared/release-build.log").is_file())
+        self.assertNotIn("gh ", self.trace.read_text())
+
     def test_matching_url_rewrite_or_unreadable_configuration_stops_before_github(self):
         for scenario in ("matching", "config-error"):
             with self.subTest(scenario=scenario):
