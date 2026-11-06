@@ -348,6 +348,22 @@ turn. Availability failures retry the same endpoint with jitter and valid
 can use its model window. The 10-second setup cap covers DNS, TCP or Unix, CONNECT
 and TLS together; cleanup remains independently observed.
 
+At provider startup, wrap each captured endpoint factory in a `ProseService`
+and reuse that binding across Jobs. It preserves the existing retry delay,
+including the HTTPS service's `Retry-After`, when the current Job has no time
+or attempts left. Every subsequent HTTP send checks that shared delay against
+its own original deadline. Bindings have independent state; a late successful
+request cannot cancel a newer refusal received by another request. No global
+cache or second HTTP retry loop is involved.
+
+For admission, `service.retry_seconds` lets the provider postpone a Job it
+already knows requires that unavailable prose service. If several services
+can interpret the Job, the earliest available one determines that delay.
+Typed input and independent services remain eligible. This scheduling hint
+does not grant START, replace the Attempt permission check, or move a provider's
+verified-input boundary. Plain endpoint factories retain the one-interpretation
+behavior and do not preserve postponements between Jobs.
+
 `ChatEndpointFactory` runs each outbound model HTTP exchange in a fresh Python
 child. The parent retains the conversation, retry policy, tool dispatch,
 Attempt and scientific worker. Only the admitted request and its transport
@@ -412,18 +428,19 @@ Composition example:
 
 ```python
 from provider_core.chat import ChatEndpointFactory
-from provider_core.interpreter import Interpreter
+from provider_core.interpreter import Interpreter, ProseService
 
 # spec, trust, proxy_socket and byte limits come from the provider's own config.
-open_model = ChatEndpointFactory(
+# Capture this service once, outside the per-Job interpretation function.
+prose_service = ProseService(ChatEndpointFactory(
     spec=spec, trust=trust, proxy_socket=proxy_socket,
     retirement_seconds=retirement_seconds,
     request_bytes=request_bytes, response_bytes=response_bytes,
-)
+))
 
 interpretation = Interpreter(
-    (open_model,), timeout_seconds=240,
-    context_bytes=open_model.context_bytes, secrets=(spec.api_key,),
+    (prose_service,), timeout_seconds=240,
+    context_bytes=prose_service.context_bytes, secrets=(spec.api_key,),
 )
 result = await interpretation.run(original_messages, provider_tools, dispatch,
                                   not_after=job_deadline)

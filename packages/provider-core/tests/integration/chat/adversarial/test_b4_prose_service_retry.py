@@ -10,7 +10,7 @@ import unittest
 
 from provider_core.chat import ChatEndpointFactory, ChatEndpointSpec
 from provider_core.conversation import ToolFinished
-from provider_core.interpreter import InterpretationFailed, Interpreter
+from provider_core.interpreter import InterpretationFailed, Interpreter, ProseService
 from tests.fakes.conversation import call
 from tests.fakes.tls_peer import TlsPeer
 
@@ -43,13 +43,13 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
             restored.set()
 
         async with TlsPeer("success", response_factory=response) as peer:
-            service = ChatEndpointFactory(
+            service = ProseService(ChatEndpointFactory(
                 spec=ChatEndpointSpec(
                     configuration_id="b4-prose-service", model="local-prose-test-model",
                     url=peer.origin + "/chat", api_key="B4_TEST_CREDENTIAL", reasoning_effort=None,
                 ),
                 trust=peer.trust, retirement_seconds=0.3, request_bytes=32768, response_bytes=8192,
-            )
+            ))
             restoration = asyncio.create_task(restore_only_the_prose_service())
 
             async def interpret(job, seconds):

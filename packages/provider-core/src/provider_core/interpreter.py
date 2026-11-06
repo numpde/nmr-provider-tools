@@ -92,6 +92,68 @@ class EndpointFactory(Protocol):
     def __call__(self, *, exchange_seconds: float, connect_seconds: float) -> ModelEndpoint: ...
 
 
+class ProseService:
+    """Share one configured prose interpreter's retry delay across Jobs.
+
+    Construct this binding once when the provider captures an endpoint's URL,
+    language model, credentials, TLS trust and proxy route. Pass the same
+    binding to every Interpreter using those grants. Each visit still gets a
+    fresh HTTP owner; this object never owns an Attempt or retries its science.
+    Separate bindings share no state, even when their display names match.
+    """
+
+    def __init__(self, factory: EndpointFactory):
+        self._factory = factory
+        self._not_before = 0.0
+        self._revision = 0
+        self.last_failure: ChatFailed | None = None
+
+    @property
+    def context_bytes(self) -> int:
+        """Keep the captured carrier's byte allowance available to its caller."""
+        return self._factory.context_bytes
+
+    @property
+    def retry_seconds(self) -> float:
+        """Delay for known dependent Jobs; the HTTP send checks it again."""
+        return max(0.0, self._not_before - _now())
+
+    def __call__(self, *, exchange_seconds: float, connect_seconds: float) -> ModelEndpoint:
+        return self._factory(exchange_seconds=exchange_seconds, connect_seconds=connect_seconds)
+
+    async def _wait(self, *, deadline: float, stopped: asyncio.Event) -> int:
+        while True:
+            if stopped.is_set():
+                raise ConversationFailed("Prose interpretation was retired; no HTTP request may start.")
+            now = _now()
+            if now >= deadline:
+                raise ChatFailed(
+                    "service_wait_deadline",
+                    "Cannot contact the prose interpretation service: this Job's time allowance for that service expired while waiting; no request was sent.",
+                    cause=self.last_failure,
+                )
+            if now >= self._not_before:
+                return self._revision
+            try:
+                await asyncio.wait_for(stopped.wait(), timeout=min(self._not_before, deadline) - now)
+            except TimeoutError:
+                # A concurrent failure may have postponed this same service
+                # again. Recheck both that delay and the original deadline.
+                continue
+
+    def _postpone(self, failure: ChatFailed, delay: float) -> None:
+        self._revision += 1
+        self._not_before = max(self._not_before, _now() + delay)
+        self.last_failure = failure
+
+    def _recovered(self, revision: int) -> None:
+        # A request already in flight when a newer refusal arrived cannot
+        # revoke that refusal's Retry-After on behalf of subsequent Jobs.
+        if revision == self._revision:
+            self._not_before = 0.0
+            self.last_failure = None
+
+
 @dataclass(frozen=True, slots=True)
 class InterpretationResult:
     model_visit: int
@@ -138,6 +200,9 @@ class Interpreter:
     ToolFinished for accepted preparation; ToolRejected requests repair, while
     ModelReportedInterpretationProblem advances an unverified claim to the next model.
     Scientific exceptions propagate without fallback. Preparation is never replayed.
+
+    Providers share a ProseService binding across Jobs to retain endpoint retry
+    delays. Plain factories remain suitable for independent one-off callers.
 
     Normal completion and model transitions observe I/O retirement. On a provider
     dispatch exception, the caller retains this object and owns retire(), allowing
@@ -718,6 +783,7 @@ class _ModelVisit:
             _DescribeInputConstraints(tools.schemas, guarded_reader),
             _ReadInterpretationRecords(self._read_history),
         ))
+        self._service = factory if isinstance(factory, ProseService) else None
         self._endpoint = factory(exchange_seconds=exchange_seconds, connect_seconds=CONNECT_SECONDS)
         self.conversation = ToolConversation(
             (self,),
@@ -778,20 +844,30 @@ class _ModelVisit:
                 raise ChatFailed(
                     "model_deadline", "Cannot send interpreter turn: this model's time allocation expired."
                 )
-            outgoing = self._request_context(messages, tools)
             try:
+                revision = None
+                if self._service is not None:
+                    revision = await self._service._wait(deadline=self._deadline, stopped=self._stopped)
+                outgoing = self._request_context(messages, tools)
                 # Bound I/O, not scientific dispatch: an accepted preparation
                 # finishing late must never become an invitation to replay it.
-                return await self._endpoint.complete(outgoing, tools, not_after=self._deadline)
+                reply = await self._endpoint.complete(outgoing, tools, not_after=self._deadline)
             except ChatFailed as failure:
                 self.http_failures.append(failure)
                 await self.retire()
-                if attempt + 1 == HTTP_ATTEMPTS or not _retryable(failure):
+                if not _retryable(failure):
                     raise
                 delay = max(random.uniform(0.25, 0.75), _retry_after(failure))
-                if _now() + delay >= self._deadline:
+                if self._service is not None:
+                    self._service._postpone(failure, delay)
+                if attempt + 1 == HTTP_ATTEMPTS or _now() + delay >= self._deadline:
                     raise
-                await asyncio.sleep(delay)
+                if self._service is None:
+                    await asyncio.sleep(delay)
+            else:
+                if self._service is not None:
+                    self._service._recovered(revision)
+                return reply
         raise AssertionError("The finite HTTP attempt loop must return or raise.")
 
     def _request_context(self, messages: list[Document], tools: list[Document]) -> list[Document]:
