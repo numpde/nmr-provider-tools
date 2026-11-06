@@ -22,7 +22,7 @@ owner_checker_finish() {
     if (exit "$status"); then checker_finish; else checker_finish; fi
 }
 trap owner_checker_finish EXIT
-if [[ ${ARTIFACTS_INPUT_ORIGIN:-} != 'command line' || -z ${ARTIFACTS_INPUT:-} || -L $ARTIFACTS_INPUT ]]; then
+if [[ ! -v ARTIFACTS_INPUT_ORIGIN || $ARTIFACTS_INPUT_ORIGIN != 'command line' || ! -v ARTIFACTS_INPUT || -z $ARTIFACTS_INPUT || -L $ARTIFACTS_INPUT ]]; then
     printf '%s\n' 'Select ARTIFACTS as an existing owned release directory on the Make command line.' >&2
     exit 2
 fi
