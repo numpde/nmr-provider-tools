@@ -16,7 +16,7 @@ _GUIDANCE = "Keep each paragraph or list item on one source line; remove hard wr
 _FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 _HEADING = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
 _SEPARATOR = re.compile(r"^ {0,3}(?:[-*_][ \t]*){3,}$|^ {0,3}=+[ \t]*$")
-_LIST_ITEM = re.compile(r"^[ \t]*(?:[-+*]|[0-9]{1,9}[.)])[ \t]+\\S")
+_LIST_ITEM = re.compile(r"^[ \t]*(?:[-+*]|[0-9]{1,9}[.)])[ \t]+\S")
 
 
 def wrapped_lines(source: str) -> list[int]:
