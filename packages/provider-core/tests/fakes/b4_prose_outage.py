@@ -107,8 +107,15 @@ async def run_outage(directory, *, mode, backlog, seed):
     random_order = random.Random(seed)
     # These limits precede observation of the implementation under test. The
     # long blocked-I/O window spans more Jobs than the two configured slots.
-    outage_seconds = 2.0 if mode == "blocked" else 1.2
-    interpretation_seconds, retirement_seconds, recovery_seconds = 0.55, 0.3, 3
+    # The blocked-response variant deliberately times out a complete HTTP
+    # child while the peer withholds headers. A 0.55-second *total* model
+    # deadline was too close to process startup + TLS + model-tool acceptance
+    # on a resource-constrained release builder, making even a restored peer
+    # unable to complete the tool dispatch. Keep outage > model allowance so
+    # the first blocked request still has to expire and retire its child.
+    outage_seconds = 3.0 if mode == "blocked" else 1.2
+    interpretation_seconds = 1.2 if mode == "blocked" else 0.55
+    retirement_seconds, recovery_seconds = 0.3, 3
     minimum_delay = 1 if mode == "retry_after" else 0.25
     request_ceiling = (1 + math.floor(outage_seconds / interpretation_seconds)
                        if mode == "blocked" else 1 + math.floor(outage_seconds / minimum_delay))
