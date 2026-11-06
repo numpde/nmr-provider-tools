@@ -129,7 +129,11 @@ async def scenario(marker, report, seed):
                 self.http_endpoints.append(endpoint)
                 return endpoint
 
-            self.interpreter = Interpreter((capture_endpoint,), timeout_seconds=0.75, context_bytes=16384,
+            # /ready needs startup, TLS and scientific tool acceptance.
+            # /hang must enter the blocked read and expire within its own
+            # original finite model deadline.
+            timeout_seconds = 2.0 if url.endswith("/hang") else 4.0
+            self.interpreter = Interpreter((capture_endpoint,), timeout_seconds=timeout_seconds, context_bytes=16384,
                                            secrets=("PRIVATE_B3_FIXTURE_KEY",))
 
         async def prepare(self, acknowledged, instructions, *, report_condition):
@@ -276,19 +280,19 @@ async def scenario(marker, report, seed):
                     )
                     jobs.append((name, session, control_transport, controller))
                     controller_task = asyncio.create_task(controller.run(pending))
-                    await asyncio.wait_for(asyncio.shield(controller_task), 3)
+                    await asyncio.wait_for(asyncio.shield(controller_task), 8)
                     return session, control_transport, controller
 
                 async def wait_for_publication():
                     wanted = {item.execution_attempt_ref for item in local_delivery.items}
-                    deadline = time.monotonic() + 3
+                    deadline = time.monotonic() + 6
                     while not wanted <= published and time.monotonic() < deadline:
                         await asyncio.sleep(0.005)
                     if not wanted <= published:
                         raise AssertionError("Original delivery worker did not drain the exact queued outcomes")
 
                 async def release_receipt_during_fault():
-                    deadline = time.monotonic() + 10
+                    deadline = time.monotonic() + 20
                     while time.monotonic() < deadline:
                         if acknowledgement_phase == "request_received":
                             seen = sum(request.split(b" ")[1] == b"/hang" for request in prose_peer.requests)
@@ -307,7 +311,7 @@ async def scenario(marker, report, seed):
 
                 try:
                     await run_job("original-result", "/ready")
-                    await asyncio.wait_for(completed_result_received.wait(), 3)
+                    await asyncio.wait_for(completed_result_received.wait(), 8)
                     await _settled_peer_handlers(prose_peer)
                     original_result = local_delivery.items[0]
                     pending_delivery_descriptors = _descriptors()

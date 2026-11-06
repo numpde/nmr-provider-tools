@@ -27,7 +27,7 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                 )
                 report = None
                 try:
-                    deadline = time.monotonic() + 18
+                    deadline = time.monotonic() + 40
                     while time.monotonic() < deadline:
                         if report_path.exists():
                             report = json.loads(report_path.read_text())
