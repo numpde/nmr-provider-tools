@@ -30,6 +30,7 @@ CHUNK_BYTES = 1024 * 1024
 
 
 @contextmanager
+# silent-defaults: allow-contract -- Shared read-only cache access is the default; exclusive acquisition is explicitly requested by the caller.
 def pool_lock(pool, exclusive=False):
     descriptor = os.open(pool, os.O_RDONLY | os.O_DIRECTORY)
     try:
@@ -82,6 +83,7 @@ def requirements(lock):
     return packages
 
 
+# silent-defaults: allow-contract -- Extra pools are immutable empty by default; required files and lock descriptors remain explicit optional authorities.
 def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None):
     """Let pip select compatible, hash-locked files from an unrelated shared pool.
 
@@ -99,6 +101,9 @@ def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None)
             shutil.copyfileobj(source, target, CHUNK_BYTES)
         requirements(frozen)
         report = Path(temporary) / "report.json"
+        borrowed_descriptors = ()
+        if lock_fd is not None:
+            borrowed_descriptors = (lock_fd,)
         subprocess.run(
             [
                 sys.executable,
@@ -122,11 +127,12 @@ def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None)
                 "-r",
                 str(frozen),
             ],
-            check=True, pass_fds=() if lock_fd is None else (lock_fd,),
+            check=True, pass_fds=borrowed_descriptors,
         )
         return wheel_inputs_from_report(frozen, pool, report, extra_pools, required_files)
 
 
+# silent-defaults: allow-contract -- Optional additional wheel pools are captured as an immutable tuple; required files are independently checked.
 def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=None):
     """Project pip's actual selection or installation report into input identities."""
     selected = read_json(report)

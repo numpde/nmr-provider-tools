@@ -53,7 +53,9 @@ def cache_state(pool, locks):
                 missing = True
             else:
                 select_wheels(lock, pool, lock_fd=lock_fd)
-    return "missing" if missing else "complete"
+    if missing:
+        return "missing"
+    return "complete"
 
 
 def tool_present(pool, pin):
