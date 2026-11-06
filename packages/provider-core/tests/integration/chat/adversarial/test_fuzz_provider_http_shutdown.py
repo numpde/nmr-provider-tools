@@ -42,7 +42,6 @@ class ProviderHttpShutdownTests(unittest.TestCase):
                 try:
                     os.killpg(process.pid, signal.SIGTERM)
                 # silent-defaults: allow-contract -- An already exited process has no remaining process group to terminate; cleanup continues to reap.
-                # silent-defaults: allow-contract -- A process reaped before escalation cannot receive SIGKILL; the caller still collects shutdown evidence.
                 except ProcessLookupError:
                     pass
                 try:
@@ -52,6 +51,7 @@ class ProviderHttpShutdownTests(unittest.TestCase):
                     pass
                 try:
                     os.killpg(process.pid, signal.SIGKILL)
+                # silent-defaults: allow-contract -- A process already reaped before escalation cannot receive SIGKILL; final shutdown evidence is still collected.
                 except ProcessLookupError:
                     pass
                 stdout, stderr = process.communicate(timeout=2)
