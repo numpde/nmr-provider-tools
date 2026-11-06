@@ -119,6 +119,17 @@ class PublicationTests(unittest.TestCase):
         self.assertNotIn("make ", self.trace.read_text())
         self.assertNotIn("gh ", self.trace.read_text())
 
+    def test_release_rejects_artifacts_child_before_publication(self):
+        selected = self.inputs / "artifacts"
+        selected.chmod(0o700)
+        result = self.run_publisher("publish", "release", environment={
+            "ARTIFACTS_INPUT": str(selected),
+        })
+        self.assertEqual(2, result.returncode, msg=result.stderr)
+        self.assertIn("whole reviewed publish/prepare OUTPUT root", result.stderr)
+        self.assertIn("artifacts/ child", result.stderr)
+        self.assertNotIn("gh ", self.trace.read_text())
+
     def test_matching_url_rewrite_or_unreadable_configuration_stops_before_github(self):
         for scenario in ("matching", "config-error"):
             with self.subTest(scenario=scenario):

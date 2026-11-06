@@ -210,9 +210,9 @@ help:
 	  ''
 	@printf '%s\n' \
 	  '== Release and versioned package artifacts ==' \
-	  'make package/build WHEELHOUSE=<cache-dir> OUTPUT=<empty-private-dir>  Build committed source into a fresh destination.' \
-	  'make tests/package WHEELHOUSE=<cache-dir> ARTIFACTS=<artifact-dir>  Qualify the eight files under OUTPUT/artifacts.' \
-	  'make publish/prepare TAG=<version> WHEELHOUSE=<cache-dir> OUTPUT=<empty-private-dir>  Build and qualify; never publish.' \
+	  'make package/build DOCKER_CONTEXT=<context> WHEELHOUSE=<cache-dir> OUTPUT=<empty-private-dir>  Build committed source into a fresh destination.' \
+	  'make tests/package DOCKER_CONTEXT=<context> WHEELHOUSE=<cache-dir> ARTIFACTS=<artifact-dir>  Qualify the eight files under OUTPUT/artifacts.' \
+	  'make publish/prepare TAG=<version> DOCKER_CONTEXT=<context> WHEELHOUSE=<cache-dir> OUTPUT=<empty-private-dir>  Build and qualify; never publish.' \
 	  'make publish/release TAG=<version> ARTIFACTS=<prepared-output-root>  Publish the reviewed bundle; NOT its artifacts/ child.' \
 	  ''
 	@printf '%s\n' \

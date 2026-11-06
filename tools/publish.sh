@@ -70,7 +70,10 @@ private_directory() {
     fi
     if [[ $(realpath -e -- "$directory") != "$directory" \
           || $(stat -c '%u:%a' -- "$directory") != "$(id -u):700" ]]; then
-        fail "$label must be owned by the invoking user, canonical (no symlinked parent), and mode 0700. Choose a new empty directory if old release evidence exists."
+        if [[ $label == OUTPUT ]]; then
+            fail 'OUTPUT must be canonical, owned by the invoking user, and mode 0700. Preserve prior release evidence and choose another empty destination.'
+        fi
+        fail 'ARTIFACTS must be the canonical mode-0700 reviewed publish/prepare OUTPUT root, owned by this user; correct the selected prepared directory rather than creating an empty one.'
     fi
 }
 require_clean_source() {
@@ -131,6 +134,9 @@ if [[ ! -v ARTIFACTS_INPUT_ORIGIN || $ARTIFACTS_INPUT_ORIGIN != 'command line' |
     fail "publish/release requires ARTIFACTS=<absolute path to the reviewed publish/prepare OUTPUT directory>. Example: make publish/release TAG=$tag ARTIFACTS=\"\$PWD/release-artifacts/$tag\". Supply the whole directory, not its artifacts/ child."
 fi
 private_directory ARTIFACTS "$ARTIFACTS_INPUT"
+[[ -d $ARTIFACTS_INPUT/artifacts && -f $ARTIFACTS_INPUT/release-build.log \
+    && -f $ARTIFACTS_INPUT/release-test.log && -f $ARTIFACTS_INPUT/release-notes.md ]] \
+    || fail 'ARTIFACTS must point to the whole reviewed publish/prepare OUTPUT root containing artifacts/, release-build.log, release-test.log and release-notes.md; do not select the artifacts/ child.'
 publication_inputs=$ARTIFACTS_INPUT
 umask 077
 scratch=$(mktemp -d -t nmr-provider-publication.XXXXXXXX)
