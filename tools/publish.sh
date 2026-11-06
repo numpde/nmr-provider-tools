@@ -63,7 +63,10 @@ private_directory() {
     # Keep one diagnostic for missing paths instead of leaking realpath -e errors.
     if [[ $directory != /* || $directory == / || $directory =~ [[:cntrl:],] \
           || ! -d $directory || -L $directory ]]; then
-        fail "$label must identify an existing canonical absolute directory below /, without symlinks or mount delimiters. Create a fresh destination with: mkdir -m 700 -- release-artifacts/$tag"
+        if [[ $label == OUTPUT ]]; then
+            fail "OUTPUT must be an existing canonical absolute directory below /, without symlinks or mount delimiters. Create a fresh one with: mkdir -m 700 -- release-artifacts/$tag"
+        fi
+        fail 'ARTIFACTS must be the existing reviewed publish/prepare OUTPUT root (with artifacts/ and qualification logs); do not create a new empty directory.'
     fi
     if [[ $(realpath -e -- "$directory") != "$directory" \
           || $(stat -c '%u:%a' -- "$directory") != "$(id -u):700" ]]; then

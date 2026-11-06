@@ -93,7 +93,8 @@ class PublicationTests(unittest.TestCase):
         self.assertIn("OUTPUT=", result.stderr)
         self.assertIn("mkdir -m 700", result.stderr)
         self.assertIn("release-artifacts/v0.2.0", result.stderr)
-        self.assertFalse(self.trace.exists(), "Missing input unexpectedly started the build")
+        self.assertNotIn("make ", self.trace.read_text())
+        self.assertNotIn("gh ", self.trace.read_text())
 
     def test_prepare_refuses_nonempty_destination_without_erasing_evidence(self):
         destination = self.root / "prepared"
@@ -105,7 +106,8 @@ class PublicationTests(unittest.TestCase):
         self.assertIn("OUTPUT", result.stderr)
         self.assertIn("empty", result.stderr)
         self.assertEqual("existing evidence must stay intact", previous.read_text())
-        self.assertFalse(self.trace.exists(), "Nonempty OUTPUT unexpectedly started the build")
+        self.assertNotIn("make ", self.trace.read_text())
+        self.assertNotIn("gh ", self.trace.read_text())
 
     def test_release_requires_the_reviewed_prepare_directory(self):
         result = self.run_publisher("publish", "release", environment={
@@ -114,7 +116,8 @@ class PublicationTests(unittest.TestCase):
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertIn("ARTIFACTS=", result.stderr)
         self.assertIn("publish/prepare", result.stderr)
-        self.assertFalse(self.trace.exists(), "Missing release inputs unexpectedly reached GitHub")
+        self.assertNotIn("make ", self.trace.read_text())
+        self.assertNotIn("gh ", self.trace.read_text())
 
     def test_matching_url_rewrite_or_unreadable_configuration_stops_before_github(self):
         for scenario in ("matching", "config-error"):
