@@ -27,7 +27,7 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                 )
                 report = None
                 try:
-                    deadline = time.monotonic() + 18
+                    deadline = time.monotonic() + 40
                     while time.monotonic() < deadline:
                         if report_path.exists():
                             report = json.loads(report_path.read_text())
@@ -58,9 +58,17 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                 for cycle in report["cycles"]:
                     self.assertEqual(report["provider_pid"], cycle["provider_pid"], msg=evidence)
                     self.assertFalse(cycle["http_child_alive"], msg=evidence)
-                    self.assertEqual(-signal.SIGKILL, cycle["http_child_returncode"], msg=evidence)
+                    # Before expecting TERM/KILL escalation, prove that the
+                    # original request actually reached the cancellable read
+                    # and the intentionally noncooperative cleanup. An early
+                    # SIGUSR1 during child startup is a different failure.
+                    self.assertTrue(
+                        {"read_cancelled", "cleanup_engaged", "term_ignored"} <= set(cycle["fault_events"]),
+                        msg="Fault was not engaged before HTTP child exit; "
+                            "inspect the original model startup deadline: " + evidence,
+                    )
                     self.assertEqual([signal.SIGUSR1, signal.SIGTERM, signal.SIGKILL], cycle["signals_sent"], msg=evidence)
-                    self.assertTrue({"read_cancelled", "cleanup_engaged", "term_ignored"} <= set(cycle["fault_events"]), msg=evidence)
+                    self.assertEqual(-signal.SIGKILL, cycle["http_child_returncode"], msg=evidence)
                     self.assertEqual(0, cycle["open_prose_connections"], msg=evidence)
                     self.assertEqual(0, cycle["live_claims"], msg=evidence)
                     self.assertTrue(cycle["controller_shutdown_ready"], msg=evidence)

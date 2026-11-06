@@ -24,7 +24,7 @@ class ModelProcessRecoveryTests(unittest.TestCase):
             )
             report = None
             try:
-                deadline = time.monotonic() + 10
+                deadline = time.monotonic() + 20
                 while time.monotonic() < deadline:
                     if report_path.exists():
                         report = json.loads(report_path.read_text())

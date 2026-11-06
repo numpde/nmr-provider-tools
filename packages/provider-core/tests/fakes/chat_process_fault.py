@@ -18,14 +18,17 @@ import time
 from unittest.mock import Mock, patch
 
 
-# Fixed model and cleanup deadlines make the behavioral witness reproducible.
+# Healthy model requests include Python startup, TLS and tool acceptance.
+# The blocked request must instead reach the actual read and expire.
 # repo-check: allow-module-constant
-MODEL_SECONDS = 0.75
+HEALTHY_MODEL_SECONDS = 4.0
 # repo-check: allow-module-constant
-CLEANUP_SECONDS = 0.1
-# The next Job must complete before the outer fixture begins teardown.
+BLOCKED_MODEL_SECONDS = 2.0
 # repo-check: allow-module-constant
-RECOVERY_SECONDS = 3.0
+CLEANUP_SECONDS = 0.3
+# A bounded verdict precedes fixture teardown, including child cleanup.
+# repo-check: allow-module-constant
+RECOVERY_SECONDS = 7.0
 
 
 def _event(path, kind, **facts):
@@ -140,7 +143,8 @@ class WarmWorker:
     async def call(self, operation, job=None):
         self.process.stdin.write(json.dumps({"operation": operation, "job": job}).encode() + b"\n")
         await self.process.stdin.drain()
-        line = await asyncio.wait_for(self.process.stdout.readline(), 1)
+        # Worker IPC is not the original model HTTP request's deadline.
+        line = await asyncio.wait_for(self.process.stdout.readline(), 3)
         if not line:
             raise AssertionError("The persistent worker stopped before the recovery verdict")
         return json.loads(line)
@@ -219,8 +223,11 @@ async def scenario(marker, report):
                 trust=trust, retirement_seconds=CLEANUP_SECONDS,
                 request_bytes=32768, response_bytes=8192,
             )
-            self.interpreter = Interpreter((factory,), timeout_seconds=MODEL_SECONDS,
-                                           context_bytes=16384, secrets=("PRIVATE_FIXTURE_KEY",))
+            self.interpreter = Interpreter(
+                (factory,),
+                timeout_seconds=BLOCKED_MODEL_SECONDS if endpoint.endswith("/hang") else HEALTHY_MODEL_SECONDS,
+                context_bytes=16384, secrets=("PRIVATE_FIXTURE_KEY",),
+            )
 
         async def prepare(self, acknowledged, instructions, *, report_condition):
             self.prepare_calls += 1
@@ -341,7 +348,7 @@ async def scenario(marker, report):
                     warm.set()
 
             task = asyncio.create_task(lane())
-            await asyncio.wait_for(warm.wait(), 4)
+            await asyncio.wait_for(warm.wait(), 6)
             # silent-defaults: allow-contract -- A failure before hung-Job admission still receives a bounded verdict wait; it cannot satisfy the recovery assertions.
             remaining = max(0, timing.get("started", time.monotonic()) + RECOVERY_SECONDS - time.monotonic())
             await asyncio.wait({task}, timeout=remaining)

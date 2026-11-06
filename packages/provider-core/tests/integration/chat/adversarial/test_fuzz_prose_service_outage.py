@@ -13,7 +13,8 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         evidence = json.dumps(result, sort_keys=True)
         requests, jobs = result["requests"], result["jobs"]
         affected = [job for job in jobs if job["name"].startswith("affected-")]
-        successful = [job for job in affected if not job["failed"] and job["started_at"] >= result["restored_at"]]
+        post_restoration = [job for job in affected if job["started_at"] >= result["restored_at"]]
+        successful = [job for job in post_restoration if not job["failed"]]
         unavailable_requests = [request for request in requests if not request["available"]]
         self.assertGreater(result["backlog"], result["maximum_attempts"], msg=evidence)
         self.assertEqual(result["backlog"], len(affected), msg=evidence)
@@ -21,7 +22,16 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(result["peak_claims"], result["maximum_attempts"], msg=evidence)
         self.assertLessEqual(result["peak_prose_connections"], result["maximum_attempts"], msg=evidence)
         self.assertTrue(unavailable_requests, msg=evidence)
-        self.assertTrue(successful, msg="No previously unstarted Job succeeded after restoration: " + evidence)
+        self.assertTrue(
+            post_restoration,
+            msg="No Job remained for the SDK driver to start after restoration; "
+                "the test cannot establish recovery from an empty backlog: " + evidence,
+        )
+        self.assertTrue(
+            successful,
+            msg="Jobs started after service restoration but none completed successfully "
+                "(check per-Job deadline, peer availability and diagnostic causes): " + evidence,
+        )
         first_success = min(successful, key=lambda job: job["finished_at"])
         self.assertGreaterEqual(first_success["finished_at"], result["restored_at"], msg=evidence)
         self.assertLessEqual(result["publication_times"][first_success["attempt_ref"]] - result["restored_at"],
