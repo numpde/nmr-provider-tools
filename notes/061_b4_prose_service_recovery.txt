@@ -6,21 +6,23 @@ SDK branch: fix/release-settled-cancelled-attempts
 Status
 ------
 The B4 SDK changes are implemented and pushed. All four actual provider
-loops/adapters have been exercised against the same immutable candidate wheel.
-Their selected consumer checks pass, including complete finite-backlog drain
-after restoring only the HTTPS service hosting the language model used for
-prose interpretation.
+loops/adapters were exercised against the same immutable candidate wheel.
+The recorded historical consumer checks passed, including complete
+finite-backlog drain after restoring only the HTTPS service hosting the
+language model used for prose interpretation. The later SECS and NMRNet
+remote reconstructions are different, unqualified source trees.
 
 Native worker and deployment qualification remains open. This is not a
 package release. The candidate still identifies as provider-core 0.6.6;
 identify it by checksum, not by that version string. Provider dependency pins
 and the Magnet transport workaround remain unchanged.
 
-The SDK, NMRPeak and private Magnet branches are published. SECS and NMRNet
-have clean, tested local branches, but the GitHub connector denied creating
-their remote branches with HTTP 403, "Resource not accessible by integration".
-Their three-commit histories have been saved as verified Git bundles and
-ordered patches. Their publication needs connector write access.
+All four consumer branches are now published. The GitHub integration's
+earlier SECS/NMRNet HTTP 403 was resolved, but the original locally tested
+commit objects and bundles were unavailable during publication. Those two
+branches were reconstructed with new commits. Their previous 47-test counts
+apply only to the prior local histories, not to the published reconstructions.
+Rerun their consumer qualification before treating the release as ready.
 
 Exact candidate
 ---------------
@@ -129,13 +131,16 @@ NMRPeak: 65 selected checks passed in 25.691 seconds.
   Maintained witness: tests/integration/test_provider_prose_outage.py
   Supporting peer: tests/fakes/prose_outage.py
 
-SECS: 47 selected checks passed in 11.193 seconds.
-  Local branch: fix/prose-service-recovery
-  Local head: 56829d35bdca0d383cd7503883211725091bf842
+SECS: 47 selected checks passed in 11.193 seconds on the historical local
+  branch, not on the reconstructed public tree.
+  Previous local head: 56829d35bdca0d383cd7503883211725091bf842
   Base: be5c191be7a4beba2210148b807cb847776639a4
+  Published branch: fix/prose-service-recovery
+  Reconstructed remote head: 1ed46ee965dbfd99f28347216dd1d1815ec1ae15
   Repository: numpde/secs-repro
-  Three commits: adjacent retry red/green, then a green-only full-drain guard.
-  Remote publication is blocked by the connector's HTTP 403.
+  Previous local history had three commits (red/green and full-drain guard).
+  Reconstructed remote history has two new test/implementation commits.
+  Its tests have not been rerun; do not count those 47 as current qualification.
 
   Startup captures service bindings. Every real SECS Job requires prose
   interpretation, so its existing serial service waits before discovery
@@ -148,13 +153,17 @@ SECS: 47 selected checks passed in 11.193 seconds.
   original report, preserves each prepared handle, runs science once per
   success and returns claims/controllers to baseline.
 
-NMRNet: 47 selected checks passed in 10.365 seconds.
-  Local branch: fix/prose-service-recovery
-  Local head: cb3939e59cad6a0663ad11f1da14e29a32e98125
+NMRNet: 47 selected checks passed in 10.365 seconds on the historical local
+  branch, not on the reconstructed public tree.
+  Previous local head: cb3939e59cad6a0663ad11f1da14e29a32e98125
   Base: 2f9b161b4819a23bf61c12a3eb7fd36af2b72035
+  Published branch: fix/prose-service-recovery
+  Reconstructed remote head: 872dd27f508b5ba6c1e7100382fd521eb3271326
   Repository: numpde/nmrnet-repro
-  Three commits: adjacent retry red/green, then a green-only full-drain guard.
-  Remote publication is blocked by the connector's HTTP 403.
+  Previous local history had three commits (red/green and full-drain guard).
+  Reconstructed remote history has three new regression, implementation and
+  test-compatibility commits. Its tests have not been rerun; do not count
+  those 47 as current qualification.
 
   The native factory retains captured service bindings and passes them to
   each original session. Its serial service waits before START while every
@@ -268,16 +277,20 @@ command, observed failure and limits for each adjacent pair.
 
 Remaining release gate
 ----------------------
-1. Publish the already tested SECS/NMRNet branches when connector write access
-   is available. Preserve their ordered histories and exact qualified trees.
+1. Rerun the installed SDK consumer tests against the reconstructed, published
+   SECS and NMRNet heads. Extend them with the original finite-backlog and
+   real TLS timing witnesses where those assertions were not reconstructed.
 2. Run positive Unix/proxy and native worker tests in the intended deployment
-   environment. Docker is unavailable here and AF_UNIX creation is denied.
-3. Install this exact wheel in all four real provider deployments. Inject the
-   prose-service outage, restore only that service, and require automatic
+   environment. The earlier container denied AF_UNIX socket creation.
+3. Prepare and qualify the new release-versioned wheel, source distribution and
+   exact dependency locks. The B4 candidate above is versioned 0.6.6 and cannot
+   be published under a new version or reused as qualification for new source.
+4. Install the qualified wheel in all four real provider deployments. Inject
+   the prose-service outage, restore only that service, and require automatic
    backlog drain and capacity recovery. For Magnet, run E02's fault alongside
    E01 science and G01 delivery; record real worker PIDs, model-load counts,
    provider restarts and the central Jobs API's original publication receipt.
-4. Only after that evidence passes, release and pin the qualified artifact
+5. Only after that evidence passes, publish and pin the qualified release
    and retire the Magnet transport workaround.
 
 The later shared-service migration in note 060 remains a separate task.
