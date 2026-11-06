@@ -157,6 +157,7 @@ def select_images(images, protected, current, now):
     return selected
 
 
+# silent-defaults: allow-contract -- Staged images are absent as an immutable tuple unless explicitly retained; the fixed /tmp root holds checker operation receipts for current image borrowers.
 def retire(root, docker, current, *, staged=(), now=None, operations=Path("/tmp")):
     now = time.time() if now is None else now
     selected_inputs = current()
