@@ -135,7 +135,7 @@ class WheelhouseTests(unittest.TestCase):
             thread.start()
             completed_while_shared = finished.wait(2)
         thread.join(5)
-        self.assertTrue(completed_while_shared, "cached tool waited for exclusive pool access")
+        self.assertTrue(completed_while_shared, msg="cached tool waited for exclusive pool access")
         self.assertEqual([], errors)
 
     def test_report_requires_the_actual_candidate_wheel(self):
