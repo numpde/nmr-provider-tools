@@ -59,9 +59,16 @@ nested() {
 }
 fail() { printf '%s\n' "$1" >&2; exit 2; }
 private_directory() {
-    [[ $1 == /* && $1 != / && ! $1 =~ [[:cntrl:],] && $(realpath -e -- "$1") == "$1" \
-        && -d $1 && ! -L $1 && $(stat -c '%u:%a' -- "$1") == "$(id -u):700" ]] \
-        || fail 'Release inputs require a canonical caller-owned mode 0700 directory below root without mount delimiters.'
+    local label=$1 directory=$2
+    # Keep one diagnostic for missing paths instead of leaking realpath -e errors.
+    if [[ $directory != /* || $directory == / || $directory =~ [[:cntrl:],] \
+          || ! -d $directory || -L $directory ]]; then
+        fail "$label must identify an existing canonical absolute directory below /, without symlinks or mount delimiters. Create a fresh destination with: mkdir -m 700 -- release-artifacts/$tag"
+    fi
+    if [[ $(realpath -e -- "$directory") != "$directory" \
+          || $(stat -c '%u:%a' -- "$directory") != "$(id -u):700" ]]; then
+        fail "$label must be owned by the invoking user, canonical (no symlinked parent), and mode 0700. Choose a new empty directory if old release evidence exists."
+    fi
 }
 require_clean_source() {
     local checkout_status
@@ -91,10 +98,16 @@ acquisition=acquisition-owner-$version.tar.gz
 names=("$wheel" "$sdist" "$lock" "$native_lock" "$bundle" "$acquisition" "$record" "$manifest")
 
 if [[ $action == prepare ]]; then
-    [[ -v OUTPUT_INPUT_ORIGIN && $OUTPUT_INPUT_ORIGIN == 'command line' && -v OUTPUT_INPUT && -n $OUTPUT_INPUT ]] \
-        || fail 'Select OUTPUT as an existing empty private directory on the Make command line.'
-    private_directory "$OUTPUT_INPUT"
-    [[ -z $(find "$OUTPUT_INPUT" -mindepth 1 -maxdepth 1 -print -quit) ]] || fail 'Release preparation OUTPUT must be empty; preserve preceding evidence separately.'
+    if [[ ! -v OUTPUT_INPUT_ORIGIN || $OUTPUT_INPUT_ORIGIN != 'command line' || ! -v OUTPUT_INPUT || -z $OUTPUT_INPUT ]]; then
+        printf '%s\n' 'publish/prepare requires OUTPUT=<absolute path to an existing empty caller-owned mode-0700 directory>.' >&2
+        printf 'For TAG=%s, from the repository root:\n' "$tag" >&2
+        printf '  mkdir -m 700 -- release-artifacts/%s\n' "$tag" >&2
+        printf '  make publish/prepare TAG=%s DOCKER_CONTEXT=<context> WHEELHOUSE=<cache-dir> OUTPUT="$PWD/release-artifacts/%s"\n' "$tag" "$tag" >&2
+        printf '%s\n' 'WHEELHOUSE is a separate dependency cache. OUTPUT receives artifacts/, release-build.log, release-test.log, and release-notes.md.' >&2
+        exit 2
+    fi
+    private_directory OUTPUT "$OUTPUT_INPUT"
+    [[ -z $(find "$OUTPUT_INPUT" -mindepth 1 -maxdepth 1 -print -quit) ]] || fail 'OUTPUT must be empty; no files were written. Preserve previous evidence and use another empty directory with mode 0700.'
     scratch=$OUTPUT_INPUT
     source "$root/tools/wheelhouse_path.sh"
     select_wheelhouse
@@ -107,13 +120,14 @@ if [[ $action == prepare ]]; then
     [[ -f $scratch/artifacts/$wheel && -f $scratch/artifacts/$sdist ]] || fail 'TAG must match the built package version.'
     nested 'exact release artifact qualification' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" ARTIFACTS_INPUT_ORIGIN='command line' ARTIFACTS_INPUT="$scratch/artifacts" bash "$root/tools/provider_core.sh" package > "$scratch/release-test.log" 2>&1
     require_unchanged_source
-    printf 'Prepared exact artifacts, logs and authored release notes at %s. Review them, then use publish/release TAG=%s ARTIFACTS=%q.\n' "$scratch" "$tag" "$scratch"
+    printf 'Prepared %s in %s. Review artifacts/, release-build.log, release-test.log and release-notes.md, then run:\n  make publish/release TAG=%s ARTIFACTS=%q\n' "$tag" "$scratch" "$tag" "$scratch"
     exit
 fi
 
-[[ -v ARTIFACTS_INPUT_ORIGIN && $ARTIFACTS_INPUT_ORIGIN == 'command line' && -v ARTIFACTS_INPUT && -n $ARTIFACTS_INPUT ]] \
-    || fail 'Select ARTIFACTS as the reviewed publish/prepare output directory on the Make command line.'
-private_directory "$ARTIFACTS_INPUT"
+if [[ ! -v ARTIFACTS_INPUT_ORIGIN || $ARTIFACTS_INPUT_ORIGIN != 'command line' || ! -v ARTIFACTS_INPUT || -z $ARTIFACTS_INPUT ]]; then
+    fail "publish/release requires ARTIFACTS=<absolute path to the reviewed publish/prepare OUTPUT directory>. Example: make publish/release TAG=$tag ARTIFACTS=\"\$PWD/release-artifacts/$tag\". Supply the whole directory, not its artifacts/ child."
+fi
+private_directory ARTIFACTS "$ARTIFACTS_INPUT"
 publication_inputs=$ARTIFACTS_INPUT
 umask 077
 scratch=$(mktemp -d -t nmr-provider-publication.XXXXXXXX)

@@ -60,6 +60,28 @@ overload can still fail a connection.
 connection whose delay has elapsed) or `fifo` (preserve arrival order, even
 when an earlier connection's delay holds up others). Both settings reload live.
 
+
+## Preparing a provider-core release
+
+`publish/prepare` writes a reviewed, versioned release bundle into an explicit
+`OUTPUT` directory; `WHEELHOUSE` is the separate shared dependency cache.
+Create a new, empty, caller-owned mode-`0700` directory before invoking:
+
+```sh
+mkdir -m 700 -- release-artifacts/v0.6.7
+make publish/prepare TAG=v0.6.7 DOCKER_CONTEXT=science \
+  WHEELHOUSE=/actual/shared/cache \
+  OUTPUT="$PWD/release-artifacts/v0.6.7"
+```
+
+The output contains `artifacts/` (eight exact release inputs),
+`release-build.log`, `release-test.log`, and `release-notes.md`. Inspect
+them before publishing with
+`make publish/release TAG=v0.6.7 ARTIFACTS="$PWD/release-artifacts/v0.6.7"`.
+`ARTIFACTS` must point to the whole prepared directory, not to its
+`artifacts/` child. Preparation never publishes; neither phase overwrites
+previous release evidence. See `make help` for all targets and arguments.
+
 Run `make help` to see the available commands. Builds, tests and deployments use Docker on Linux/amd64.
 
 Run the reproducible failure-sequence corpus against the installed package with
