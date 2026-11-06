@@ -13,7 +13,7 @@ from . import sources
 
 
 _GUIDANCE = "Keep each paragraph or list item on one source line; remove hard wrapping."
-_FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+_FENCE = re.compile(r"^[ \t]*(`{3,}|~{3,})")
 _HEADING = re.compile(r"^ {0,3}#{1,6}(?:[ \t]|$)")
 _SEPARATOR = re.compile(r"^ {0,3}(?:[-*_][ \t]*){3,}$|^ {0,3}=+[ \t]*$")
 _LIST_ITEM = re.compile(r"^[ \t]*(?:[-+*]|[0-9]{1,9}[.)])[ \t]+\S")
@@ -28,7 +28,7 @@ def wrapped_lines(source: str) -> list[int]:
     for number, line in enumerate(source.splitlines(), 1):
         if fence is not None:
             marker = fence[0]
-            if re.fullmatch(rf" {{0,3}}{re.escape(marker)}{{{len(fence)},}}[ \t]*", line):
+            if re.fullmatch(rf"[ \t]*{re.escape(marker)}{{{len(fence)},}}[ \t]*", line):
                 fence = None
             continue
 
@@ -88,6 +88,10 @@ class ReleaseNotesTests(unittest.TestCase):
             "\n~~~text\n"
             "Another multi-line example\n"
             "~~~\n"
+            "\n    ```bash\n"
+            "    Commands can span lines\n"
+            "    without a paragraph violation\n"
+            "    ```\n"
             "\n---\n"
             "After the separator.\n"
         )
