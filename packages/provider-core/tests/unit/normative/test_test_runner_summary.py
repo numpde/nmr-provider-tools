@@ -132,6 +132,26 @@ class RunnerSummaryTests(unittest.TestCase):
         self.assertIn("Task exception was never retrieved", output)
         self.assertIn("test_error_log", output[output.index("=== PROVIDER-CORE FAILURE SUMMARY"):])
 
+    def test_asyncio_error_keeps_detailed_loop_context_outside_the_short_index(self):
+        class Cases(unittest.TestCase):
+            def test_context(self):
+                logging.getLogger("asyncio").error(
+                    "Error on transport creation for incoming connection\\n"
+                    "handle_traceback: deliberate test frame\\n"
+                    "protocol: test peer\\n"
+                    "transport: test SSL transport"
+                )
+
+        result, output = self.render((Cases("test_context"),))
+        self.assertFalse(result.wasSuccessful(), msg=output)
+        self.assertEqual(1, len(result.errors))
+        self.assertIn("handle_traceback: deliberate test frame", output)
+        self.assertIn("protocol: test peer", output)
+        self.assertIn("transport: test SSL transport", output)
+        summary = output[output.index("=== PROVIDER-CORE FAILURE SUMMARY"):]
+        self.assertNotIn("protocol: test peer", summary)
+        self.assertNotIn("transport: test SSL transport", summary)
+
     def test_asyncio_observer_is_uninstalled_after_each_runner(self):
         logger = logging.getLogger("asyncio")
         before = tuple(logger.handlers)
