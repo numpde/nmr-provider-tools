@@ -80,7 +80,15 @@ them before publishing with
 `make publish/release TAG=v0.6.7 ARTIFACTS="$PWD/release-artifacts/v0.6.7"`.
 `ARTIFACTS` must point to the whole prepared directory, not to its
 `artifacts/` child. Preparation never publishes; neither phase overwrites
-previous release evidence. See `make help` for all targets and arguments.
+previous release evidence.
+
+Installed SDK test failures end with a **PROVIDER-CORE FAILURE SUMMARY**:
+test and subtest names, source locations and short causes, with full unittest
+tracebacks preserved above it. A failed `publish/prepare` prints the summary
+immediately and leaves `release-failures.txt` and the complete
+`release-test.log` or `release-build.log` in the selected OUTPUT directory.
+Failed artifacts are not eligible for publication. See `make help` for all
+targets and arguments.
 
 Run `make help` to see the available commands. Builds, tests and deployments use Docker on Linux/amd64.
 

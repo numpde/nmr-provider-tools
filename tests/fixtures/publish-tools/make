@@ -21,7 +21,7 @@ if [[ $action == package/build ]]; then
 elif [[ $action == tests/package ]]; then
     if [[ $PUBLISH_TEST_MODE == failed-qualification ]]; then
         printf '%s\n' 'Ran 225 tests in 139.5s' 'FAILED (failures=1)' \
-          '=== PROVIDER-CORE FAILURE SUMMARY (integration): 1 failing cases ===' \
+          '=== PROVIDER-CORE FAILURE SUMMARY (integration): 1 failing case ===' \
           '  FAIL test_blocked (tests.integration.chat) (mode=blocked)' \
           '    tests/integration/chat/test_blocked.py:41 — AssertionError: Original Job was not published' \
           '=== END PROVIDER-CORE FAILURE SUMMARY ==='

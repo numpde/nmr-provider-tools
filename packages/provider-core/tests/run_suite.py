@@ -65,7 +65,8 @@ def _print_failure_summary(result, selection, stream):
     if result.wasSuccessful():
         return
     count = len(result.problems)
-    print(f"=== PROVIDER-CORE FAILURE SUMMARY ({selection}): {count} failing cases ===", file=stream)
+    noun = "case" if count == 1 else "cases"
+    print(f"=== PROVIDER-CORE FAILURE SUMMARY ({selection}): {count} failing {noun} ===", file=stream)
     for kind, name, location, failure_type, reason in result.problems[:25]:
         print(f"  {kind} {name}", file=stream)
         print(f"    {location} — {failure_type}: {reason}", file=stream)

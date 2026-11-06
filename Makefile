@@ -206,6 +206,7 @@ help:
 	  '  Inspect and review OUTPUT/artifacts/, OUTPUT/release-build.log, OUTPUT/release-test.log, and OUTPUT/release-notes.md.' \
 	  '  make publish/release TAG=v0.6.7 ARTIFACTS="$$PWD/release-artifacts/v0.6.7"' \
 	  '  publish/prepare creates artifacts and tests them; publish/release checks exact bytes before publishing.' \
+	  '  On failure, preparation prints causes and writes OUTPUT/release-failures.txt beside the full log.' \
 	  '  Never reuse a nonempty OUTPUT directory; existing release evidence is preserved.' \
 	  ''
 	@printf '%s\n' \

@@ -39,7 +39,7 @@ def run_suite(suite, patterns):
             if outcome.returncode:
                 raise SystemExit(
                     f"Installed provider-core {selection} tests failed (exit {outcome.returncode}); "
-                    "see the failure index immediately above."
+                    "see the failure summary or diagnostic immediately above."
                 )
         if suite == "unit":
             native_lock = output / wheel.name.replace("-py3-none-any.whl", "-native-install.lock")
@@ -51,7 +51,7 @@ def run_suite(suite, patterns):
             if outcome.returncode:
                 raise SystemExit(
                     f"Installed provider-core native tests failed (exit {outcome.returncode}); "
-                    "see the failure index immediately above."
+                    "see the failure summary or diagnostic immediately above."
                 )
 
 

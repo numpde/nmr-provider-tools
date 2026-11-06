@@ -179,7 +179,7 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
         if outcome.returncode:
             raise SystemExit(
                 f"Installed provider-core {suite} release qualification failed (exit {outcome.returncode}). "
-                "See the failure index above and the retained release-test.log."
+                "See the suite diagnostic above and the retained release-test.log."
             )
 
 
