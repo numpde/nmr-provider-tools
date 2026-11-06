@@ -132,6 +132,18 @@ class RunnerSummaryTests(unittest.TestCase):
         self.assertIn("Task exception was never retrieved", output)
         self.assertIn("test_error_log", output[output.index("=== PROVIDER-CORE FAILURE SUMMARY"):])
 
+    def test_asyncio_observer_is_uninstalled_after_each_runner(self):
+        logger = logging.getLogger("asyncio")
+        before = tuple(logger.handlers)
+
+        class Cases(unittest.IsolatedAsyncioTestCase):
+            async def test_clean(self):
+                await asyncio.sleep(0)
+
+        result, output = self.render((Cases("test_clean"),))
+        self.assertTrue(result.wasSuccessful(), msg=output)
+        self.assertEqual(before, tuple(logger.handlers))
+
     def test_nested_runner_does_not_double_count_one_asyncio_error(self):
         def run_inner():
             class Inner(unittest.IsolatedAsyncioTestCase):

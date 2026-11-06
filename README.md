@@ -84,7 +84,11 @@ previous release evidence.
 
 Installed SDK test failures end with a **PROVIDER-CORE FAILURE SUMMARY**:
 test and subtest names, source locations and short causes, with full unittest
-tracebacks preserved above it. A failed `publish/prepare` prints the summary
+tracebacks preserved above it. An unowned asyncio ERROR (including SSL handshake
+resets and task errors) is a failing test and appears in the same index, even
+when emitted during loop shutdown. Expected injected asyncio errors must be
+explicitly captured and asserted within their test (for example with
+`assertLogs("asyncio", level="ERROR")`); no exception type is globally exempt. A failed `publish/prepare` prints the summary
 immediately and leaves `release-failures.txt` and the complete
 `release-test.log` or `release-build.log` in the selected OUTPUT directory.
 Failed artifacts are not eligible for publication. See `make help` for all
