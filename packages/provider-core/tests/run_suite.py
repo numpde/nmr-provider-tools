@@ -43,7 +43,8 @@ class _AsyncioDiagnosticObserver(logging.Handler):
             return
         cause = record.exc_info[1] if record.exc_info else None
         kind = type(cause).__name__ if cause is not None else "No exception object"
-        message = record.getMessage().splitlines()
+        original_context = record.getMessage()
+        message = original_context.splitlines()
         message = message[0] if message else "(no asyncio message)"
         details = str(cause).splitlines() if cause is not None else []
         detail = (": " + details[0][:160]) if details else ""
@@ -53,6 +54,14 @@ class _AsyncioDiagnosticObserver(logging.Handler):
         )
         if cause is not None:
             diagnostic.__cause__ = cause
+        if "\n" in original_context:
+            # Preserve the original handle_traceback, protocol, and transport
+            # details in unittest's full error report, not the short index.
+            context_limit = 8192
+            context = original_context[:context_limit]
+            if len(original_context) > context_limit:
+                context += "\n... further asyncio context truncated"
+            diagnostic.add_note("Original asyncio event context:\n" + context)
         case = self.result._active_test
         if case is None:
             case = self.result._unattributed_asyncio_test
