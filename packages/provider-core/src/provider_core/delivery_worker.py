@@ -94,7 +94,7 @@ class DeliveryWorker:
     async def _deliver(self, item):
         loop = asyncio.get_running_loop()
         publication_started = loop.time()
-        retried = False
+        retried = alerted = False
 
         def facts(event):
             # This owner's wait excludes earlier queue residence. Neither age
@@ -102,52 +102,70 @@ class DeliveryWorker:
             return {**self._facts(event, item),
                     "publication_wait_seconds": loop.time() - publication_started}
 
-        delay = self.retry_initial_seconds
-        while not self.stopping.is_set():
-            self._api_receipt_received = False
-            try:
-                publish = self.api.complete_attempt if item.operation is TerminalOperation.COMPLETE else self.api.fail_attempt
-                receipt = await publish(item.body, execution_attempt_ref=item.execution_attempt_ref, owner=self)
-            except ApiFailure as failure:
-                if not self.api.retirement_confirmed:
-                    await self.api.retire(owner=self)
-                if self.api.can_replay_terminal(failure):
-                    retried = True
-                    delay = min(max(delay, self.retry_initial_seconds), self.retry_max_seconds)
-                    seconds = random.uniform(delay / 2, delay)
-                    minimum = failure.retry_after_seconds
-                    if minimum is not None:
-                        seconds += minimum
-                    self.on_notice(failure, {**facts("delivery_retry"), "retry_seconds": seconds})
-                    # New arrivals must not bypass backoff. Only shutdown ends
-                    # this wait early; no overall expiry discards a durable item.
-                    # silent-defaults: allow-contract -- No Retry-After header adds no server-directed delay.
-                    await self._backoff(delay, 0 if minimum is None else minimum, seconds)
-                    delay = min(self.retry_max_seconds, delay * 2)
-                    continue
-                # A verified item conflict or receipt-shape mismatch belongs
-                # to this row. Trust, routing, topology and unknown refusals
-                # pause the binding, rather than holding every pending item.
-                item_refusal = (
-                    failure.status == 409 and failure.problem_code is not None
-                    or failure.status == 200 and type(failure.cause) is ResponseRejected
-                )
-                if not item_refusal:
-                    self.paused = True
-                    self.on_notice(failure, facts("delivery_binding_paused"))
+        # One observation budget uses the existing captured API/retry grants.
+        # The timer observes stalled storage too; it never cancels that write,
+        # resends an accepted report, or renews when another retry starts.
+        alert_seconds = self.api.exchange_seconds + self.api.retirement_seconds + self.retry_max_seconds
+
+        def stalled():
+            nonlocal alerted
+            alerted = True
+            self.on_notice(
+                TimeoutError("Publication is still pending; the publisher retains this report's original API and storage operations."),
+                {**facts("delivery_stalled"), "api_receipt_received": self._api_receipt_received,
+                 "alert_after_seconds": alert_seconds},
+            )
+
+        alarm = loop.call_later(alert_seconds, stalled)
+        try:
+            delay = self.retry_initial_seconds
+            while not self.stopping.is_set():
+                self._api_receipt_received = False
+                try:
+                    publish = self.api.complete_attempt if item.operation is TerminalOperation.COMPLETE else self.api.fail_attempt
+                    receipt = await publish(item.body, execution_attempt_ref=item.execution_attempt_ref, owner=self)
+                except ApiFailure as failure:
+                    if not self.api.retirement_confirmed:
+                        await self.api.retire(owner=self)
+                    if self.api.can_replay_terminal(failure):
+                        retried = True
+                        delay = min(max(delay, self.retry_initial_seconds), self.retry_max_seconds)
+                        seconds = random.uniform(delay / 2, delay)
+                        minimum = failure.retry_after_seconds
+                        if minimum is not None:
+                            seconds += minimum
+                        self.on_notice(failure, {**facts("delivery_retry"), "retry_seconds": seconds})
+                        # New arrivals must not bypass backoff. Only shutdown ends
+                        # this wait early; no overall expiry discards a durable item.
+                        # silent-defaults: allow-contract -- No Retry-After header adds no server-directed delay.
+                        await self._backoff(delay, 0 if minimum is None else minimum, seconds)
+                        delay = min(self.retry_max_seconds, delay * 2)
+                        continue
+                    # A verified item conflict or receipt-shape mismatch belongs
+                    # to this row. Trust, routing, topology and unknown refusals
+                    # pause the binding, rather than holding every pending item.
+                    item_refusal = (
+                        failure.status == 409 and failure.problem_code is not None
+                        or failure.status == 200 and type(failure.cause) is ResponseRejected
+                    )
+                    if not item_refusal:
+                        self.paused = True
+                        self.on_notice(failure, facts("delivery_binding_paused"))
+                        return
+                    await self.inbox.storage(
+                        self.inbox.queue.hold, item,
+                        "The API did not return a matching publication receipt and exact replay is not authorized. Reconcile this retained request; never rerun science to replace it.",
+                    )
+                    self.on_notice(failure, facts("delivery_held"))
                     return
-                await self.inbox.storage(
-                    self.inbox.queue.hold, item,
-                    "The API did not return a matching publication receipt and exact replay is not authorized. Reconcile this retained request; never rerun science to replace it.",
-                )
-                self.on_notice(failure, facts("delivery_held"))
-                return
-            else:
-                self._api_receipt_received = True
-                await self.inbox.storage(self.inbox.queue.remove_published, item)
-                self.on_notice(None, {**facts("delivery_published"), "replayed": receipt.replayed,
-                                      "recovered": retried})
-                return
+                else:
+                    self._api_receipt_received = True
+                    await self.inbox.storage(self.inbox.queue.remove_published, item)
+                    self.on_notice(None, {**facts("delivery_published"), "replayed": receipt.replayed,
+                                          "recovered": retried or alerted})
+                    return
+        finally:
+            alarm.cancel()
 
     async def run(self):
         if self._running:

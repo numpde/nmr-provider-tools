@@ -2,6 +2,7 @@
 
 import asyncio
 from dataclasses import replace
+import io
 import json
 from pathlib import Path
 import tempfile
@@ -11,6 +12,7 @@ from unittest.mock import Mock, patch
 
 from provider_core.delivery_client import DeliveryEndpoint
 from provider_core.delivery_ipc import DeliveryInbox
+from provider_core.delivery_logging import DeliveryNotices
 from provider_core.delivery_store import DeliveryQueue, QueueLimits
 from provider_core.delivery_worker import DeliveryWorker
 from provider_core.transport import HttpTransport
@@ -133,5 +135,129 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual([item], removal_calls)
             self.assertEqual([item.body], peer.request_bodies)
             verify_signed_request(peer.requests[0], item.body, origin=peer.origin, key=client.identity.private_key)
+            self.assertEqual([], self.queue.inventory(item.api_origin, item.provider_ref))
+            self.assertTrue(client.retirement_confirmed)
+
+    async def test_stop_and_failed_warning_output_preserve_the_original_storage_operation(self):
+        loop = asyncio.get_running_loop()
+        removal_started, warning_seen = asyncio.Event(), asyncio.Event()
+        release_removal = Event()
+        original_remove = self.queue.remove_published
+        removal_calls, notices = [], []
+
+        class FailFirstWrite(io.StringIO):
+            def __init__(self):
+                super().__init__()
+                self.failed_once = False
+
+            def write(self, text):
+                if not self.failed_once:
+                    self.failed_once = True
+                    raise OSError("The test operator stream refused its first write")
+                return super().write(text)
+
+        output = FailFirstWrite()
+        diagnostic_sink = DeliveryNotices(output, secrets=())
+        self.addCleanup(diagnostic_sink.close)
+
+        def held_remove(item):
+            removal_calls.append(item)
+            loop.call_soon_threadsafe(removal_started.set)
+            if not release_removal.wait(5):
+                raise AssertionError("The test did not release its original storage operation")
+            return original_remove(item)
+
+        def notice(failure, facts):
+            diagnostic_sink(failure, facts)
+            notices.append((failure, dict(facts)))
+            if facts["event"] == "delivery_stalled":
+                warning_seen.set()
+
+        async with api_tls_peer("success", response_body=fail_response(
+            execution_attempt_ref=outcome().execution_attempt_ref,
+            failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE",
+        )) as peer:
+            item = replace(outcome(), api_origin=peer.origin)
+            self.queue.enqueue(item)
+            client = api(HttpTransport(trust=peer.trust, exchange_seconds=0.2, retirement_seconds=0.2), peer.origin)
+            endpoint = DeliveryEndpoint(peer.origin, item.provider_ref, self.root / "unused-relay.sock")
+            worker = DeliveryWorker(self.inbox, endpoint, client, retry_initial_seconds=0.04,
+                                    retry_max_seconds=0.08, on_notice=notice)
+            alert_seconds = client.exchange_seconds + client.retirement_seconds + worker.retry_max_seconds
+            with patch.object(self.queue, "remove_published", side_effect=held_remove):
+                original = asyncio.create_task(worker.run())
+                try:
+                    await asyncio.wait_for(removal_started.wait(), 3)
+                    self.assertEqual(1, len(self.inbox._storage_tasks))
+                    original_storage = next(iter(self.inbox._storage_tasks))
+                    worker.request_stop()
+                    self.assertEqual("stopping", worker.status()["state"])
+                    await asyncio.wait_for(warning_seen.wait(), alert_seconds + 0.25)
+                    # Stop ends admission to the publisher, not its accepted
+                    # storage operation. Even a refused log write cannot decide
+                    # cancellation, replay, or the report's publication status.
+                    self.assertFalse(original.done())
+                    self.assertFalse(original_storage.done())
+                    self.assertEqual({original_storage}, self.inbox._storage_tasks)
+                    self.assertEqual([item], removal_calls)
+                    self.assertEqual([item.body], peer.request_bodies)
+                    self.assertEqual(item, self.queue.next_pending(item.api_origin, item.provider_ref))
+                    self.assertEqual(["delivery_stalled"], [facts["event"] for _, facts in notices])
+                    self.assertIs(notices[0][1]["api_receipt_received"], True)
+                    self.assertEqual(1, diagnostic_sink.status()["output_failures"])
+                    self.assertEqual("delivery_stalled", diagnostic_sink.status()["last_failed_event"])
+                    await asyncio.sleep(alert_seconds + 0.02)
+                    self.assertEqual(1, len(notices))
+                    self.assertEqual({original_storage}, self.inbox._storage_tasks)
+                    self.assertFalse(original_storage.cancelled())
+                    self.assertEqual([item], removal_calls)
+                    self.assertEqual([item.body], peer.request_bodies)
+                    release_removal.set()
+                    await asyncio.wait_for(asyncio.shield(original), 3)
+                finally:
+                    release_removal.set()
+                    worker.request_stop()
+                    await asyncio.wait_for(asyncio.shield(original), 3)
+            self.assertTrue(original_storage.done())
+            self.assertFalse(original_storage.cancelled())
+            self.assertEqual([item], removal_calls)
+            self.assertEqual([item.body], peer.request_bodies)
+            self.assertEqual(["delivery_stalled", "delivery_published"], [facts["event"] for _, facts in notices])
+            self.assertIs(notices[-1][1]["recovered"], True)
+            self.assertEqual(1, diagnostic_sink.status()["output_failures"])
+            published_log = json.loads(output.getvalue())
+            self.assertEqual("delivery_published", published_log["event"])
+            self.assertIs(published_log["recovered"], True)
+            self.assertEqual([], self.queue.inventory(item.api_origin, item.provider_ref))
+            self.assertTrue(client.retirement_confirmed)
+
+    async def test_success_cancels_the_original_warning_before_its_deadline(self):
+        notices = []
+
+        def notice(failure, facts):
+            notices.append((failure, dict(facts)))
+            if facts["event"] == "delivery_published":
+                worker.request_stop()
+
+        async with api_tls_peer("success", response_body=fail_response(
+            execution_attempt_ref=outcome().execution_attempt_ref,
+            failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE",
+        )) as peer:
+            item = replace(outcome(), api_origin=peer.origin)
+            self.queue.enqueue(item)
+            client = api(HttpTransport(trust=peer.trust, exchange_seconds=0.2, retirement_seconds=0.2), peer.origin)
+            endpoint = DeliveryEndpoint(peer.origin, item.provider_ref, self.root / "unused-relay.sock")
+            worker = DeliveryWorker(self.inbox, endpoint, client, retry_initial_seconds=0.04,
+                                    retry_max_seconds=0.08, on_notice=notice)
+            alert_seconds = client.exchange_seconds + client.retirement_seconds + worker.retry_max_seconds
+            await asyncio.wait_for(worker.run(), 3)
+            self.assertEqual(["delivery_published"], [facts["event"] for _, facts in notices])
+            self.assertIsNone(notices[0][0])
+            self.assertIs(notices[0][1]["recovered"], False)
+            # Starting this wait after completion puts it strictly past the
+            # alarm's original deadline, even if initial scheduling was slow.
+            await asyncio.sleep(alert_seconds + 0.02)
+            self.assertEqual(["delivery_published"], [facts["event"] for _, facts in notices])
+            self.assertEqual([item.body], peer.request_bodies)
             self.assertEqual([], self.queue.inventory(item.api_origin, item.provider_ref))
             self.assertTrue(client.retirement_confirmed)

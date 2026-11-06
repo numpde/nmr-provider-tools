@@ -180,9 +180,19 @@ Publisher notices keep the original report's Job, Attempt, binding and digest.
 `publication_wait_seconds` measures this publisher's elapsed work on that
 report, including retries; the existing queue overview separately measures
 time spent waiting in the queue. A `delivery_published` notice has
-`recovered=true` only when that report encountered a retryable publication
-failure before its matching Jobs API receipt and local queue removal.
+`recovered=true` only when that report encountered a retryable failure or
+stalled-publication warning before its matching Jobs API receipt and local queue removal.
 Another report's publication does not clear a held or paused obligation.
+
+A pending publication emits one `delivery_stalled` warning after its captured
+API exchange allowance, retirement allowance and maximum retry delay have
+elapsed in total. The notice identifies the original report, its elapsed wait,
+and whether the Jobs API receipt has already arrived. This observation also
+covers an offloaded queue update that remains blocked after that receipt.
+The timer neither cancels storage nor changes the publication retry rules;
+retries cannot renew it. It stops when the original publication call ends.
+Logging still depends on a responsive event loop and the existing diagnostic
+sink; this is not a storage recovery or process-restart mechanism.
 
 Protected `ExecutionFailed` diagnostics include `failure_age_seconds`, measured
 from the original lifecycle failure and preserved across cleanup observations.
