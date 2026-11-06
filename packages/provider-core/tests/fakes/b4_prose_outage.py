@@ -66,10 +66,11 @@ class ObservedProseService(ProseService):
         self.retry_observations = []
 
     def _postpone(self, failure: ChatFailed, delay: float) -> None:
+        observed_at = asyncio.get_running_loop().time()
         super()._postpone(failure, delay)
         response = failure.response
         self.retry_observations.append({
-            "at": asyncio.get_running_loop().time(),
+            "at": observed_at,
             "reason": failure.reason,
             "status": None if response is None else response.status,
             "retry_after": [] if response is None else [
