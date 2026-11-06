@@ -20,6 +20,7 @@ require_container()
 import asyncio
 import math
 import random
+import time
 from builtins import BaseExceptionGroup
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -253,6 +254,7 @@ class ExecutionFailed(RuntimeError):
         super().__init__(
             "Analysis lifecycle did not settle; retain this owner and inspect delivery and cleanup evidence before reuse"
         )
+        self.observed_at = time.monotonic()
         self.cause = cause
         self.outcome = outcome
         self.api_failure = api_failure

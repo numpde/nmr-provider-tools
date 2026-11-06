@@ -176,6 +176,20 @@ volumes, read-only mounts with `nocopy`, socket paths and the supplementary GID.
 One-off container launchers must verify those host-owned volumes already exist
 before granting them; a Docker volume mount alone can create a missing volume.
 
+Publisher notices keep the original report's Job, Attempt, binding and digest.
+`publication_wait_seconds` measures this publisher's elapsed work on that
+report, including retries; the existing queue overview separately measures
+time spent waiting in the queue. A `delivery_published` notice has
+`recovered=true` only when that report encountered a retryable publication
+failure before its matching Jobs API receipt and local queue removal.
+Another report's publication does not clear a held or paused obligation.
+
+Protected `ExecutionFailed` diagnostics include `failure_age_seconds`, measured
+from the original lifecycle failure and preserved across cleanup observations.
+The retained exception can outlive successful settlement: its age is historical
+evidence, while the original controller remains the authority for claim release
+and scientific readiness.
+
 ## Runner lifecycle
 
 The native supervisor requires one explicit lifetime: `--operation-seconds N`

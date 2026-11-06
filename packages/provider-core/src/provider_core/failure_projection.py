@@ -13,6 +13,8 @@ from provider_core.container_guard import require_container
 
 require_container()
 
+import time
+
 from provider_core.api import ApiFailure
 from provider_core.analysis import AnalysisOutcomeUnresolved, ObservedWorkerCrash
 from provider_core.api_config import ApiConfigurationRejected
@@ -237,6 +239,8 @@ def owned_details(error):
     if kind is ConditionRecoveryExpired:
         details.update(window_seconds=error.window_seconds, phase=error.phase, condition_code=error.condition_code)
     if kind is ExecutionFailed:
+        # Historical failure age is not a live claim or worker-readiness check.
+        details["failure_age_seconds"] = time.monotonic() - error.observed_at
         details["outcome_in_memory"] = error.outcome is not None
         details["condition_receipt_received"] = error.condition_receipt is not None
     if kind in (UploadFailed, UploadInputRejected, UploadRecoveryExhausted):
