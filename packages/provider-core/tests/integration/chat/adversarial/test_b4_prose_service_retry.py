@@ -77,7 +77,21 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                 for job in ("job:b4-first", "job:b4-second"):
                     with self.assertRaises(InterpretationFailed):
                         await interpret(job, 0.55)
-                result = await interpret("job:b4-third", 2)
+                    if job == "job:b4-first":
+                        self.assertEqual(
+                            ["job:b4-first"], [request["job"] for request in requests],
+                            msg="The first Job's deadline elapsed before the local HTTPS "
+                                "service could supply Retry-After; no cross-Job delay "
+                                "was actually established: " + json.dumps(requests),
+                        )
+                try:
+                    result = await interpret("job:b4-third", 2)
+                except InterpretationFailed as failure:
+                    raise AssertionError(
+                        "The restored service did not complete the third Job inside "
+                        "the test's model budget; compare accepted HTTP exchanges "
+                        "and startup/response time: " + json.dumps(requests)
+                    ) from failure
                 await restoration
                 active = {task for task in peer.handlers if not task.done()}
                 if active:
