@@ -158,12 +158,13 @@ async def scenario(marker, report, seed):
                 prepared = await self.interpreter.run([], tools, dispatch)
             except InterpretationFailed as failure:
                 self.failure = failure
-                unavailable = AnalysisFailure(
+                outcome = AnalysisFailure(
                     "interpreter_failed", "The prose-interpretation HTTPS request exceeded its original deadline.",
                     ProtectedEvidence("fixture.interpreter.failure.v1", b"original timeout retained by session"),
                 )
-            return unavailable
-            return prepared.value
+            else:
+                outcome = prepared.value
+            return outcome
 
         async def execute(self, prepared, *, report_condition):
             if prepared is not self.handle or prepared is None:
