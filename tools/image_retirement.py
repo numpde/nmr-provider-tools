@@ -23,9 +23,13 @@ class RetirementRefused(RuntimeError):
     pass
 
 
+# repo-check: allow-module-constant
 _ID = re.compile(r"sha256:[0-9a-f]{64}")
+# repo-check: allow-module-constant
 _HASH = re.compile(r"[0-9a-f]{64}")
+# repo-check: allow-module-constant
 _LABEL = "org.nmr-provider-tools."
+# repo-check: allow-module-constant
 _IMAGE_JSON = ('{"Id":{{json .Id}},"Labels":{{json .Config.Labels}},'
                '"RepoTags":{{json .RepoTags}},"RepoDigests":{{json .RepoDigests}},'
                '"Created":{{json .Created}}}')

@@ -276,6 +276,7 @@ async def run_outage(directory, *, mode, backlog, seed):
         ))
         healthy_peer = await stack.enter_async_context(TlsPeer("success", response_body=successful_reply))
         jobs_peer = await stack.enter_async_context(api_tls_peer("success", response_factory=jobs_api_response))
+        # repo-check: allow-tuple-generator -- The two configured peers must be retained in a fixed ordered pair for later endpoint ownership inspection.
         observed_factories = tuple(ObservedFactory(ChatEndpointFactory(
             spec=ChatEndpointSpec(configuration_id=name, model="local-prose-test-model",
                                   url=peer.origin + "/chat", api_key="B4_TEST_CREDENTIAL", reasoning_effort=None),
