@@ -2,6 +2,9 @@ override SHELL := bash
 override .SHELLFLAGS := -eu -o pipefail -c
 override .DEFAULT_GOAL := help
 
+# Make documents the CLI and forwards explicit arguments; invoked scripts
+# own input validation, avoiding two independent sets of admission rules.
+
 unexport DOCKER_CONTEXT
 unexport DOCKER_CONTEXT_INPUT
 unexport DOCKER_CONTEXT_INPUT_ORIGIN
@@ -182,63 +185,99 @@ endif
 
 help:
 	@printf '%s\n' \
-	  'Docker commands require DOCKER_CONTEXT=<local context>, or an interactive selection.' \
+	  'NMR provider tools — make <target> [NAME=value ...] from the repository root' \
+	  'Make scripts validate inputs; no release destination, Docker engine or deployment is guessed.' \
+	  '' \
+	  'Inputs (pass on the Make command line; DOCKER_CONTEXT and WHEELHOUSE can prompt at a terminal):' \
+	  '  TAG=vX.Y.Z                 Must match the committed provider-core version and release note.' \
+	  '  DOCKER_CONTEXT=<context>   Local Unix-socket Docker engine; no default.' \
+	  '  WHEELHOUSE=<cache-dir>     Shared dependency cache, separate from release OUTPUT.' \
+	  '  OUTPUT=<absolute-dir>      An existing, empty, canonical directory owned by you, mode 0700.' \
+	  '  ARTIFACTS=<dir>            For publish/release: reviewed OUTPUT root (not OUTPUT/artifacts/).' \
+	  '  NETWORK_INTERFACE=<system|name>   Route for acquisition; system means host default routing.' \
+	  '  DEPLOYMENT=<name>          Configured local deployment; PROJECT=<name> is an installed Compose project.' \
+	  '  SHARED_RUNTIME_IMAGE=sha256:<digest>   Explicit immutable previously built image.' \
+	  '  LOCK=<file>                Input lock for wheelhouse operations.' \
+	  '  ENGINE_CONFIG=<file>       Absolute daemon configuration for cache maintenance.' \
+	  '' \
+	  'Example release preparation (replace v0.6.7 and cache path for another version):' \
+	  '  mkdir -m 700 -- release-artifacts/v0.6.7' \
+	  '  make publish/prepare TAG=v0.6.7 DOCKER_CONTEXT=science WHEELHOUSE=/real/cache OUTPUT="$$PWD/release-artifacts/v0.6.7"' \
+	  '  Inspect and review OUTPUT/artifacts/, OUTPUT/release-build.log, OUTPUT/release-test.log, and OUTPUT/release-notes.md.' \
+	  '  make publish/release TAG=v0.6.7 ARTIFACTS="$$PWD/release-artifacts/v0.6.7"' \
+	  '  publish/prepare creates artifacts and tests them; publish/release checks exact bytes before publishing.' \
+	  '  Never reuse a nonempty OUTPUT directory; existing release evidence is preserved.' \
+	  ''
+	@printf '%s\n' \
+	  '== Release and versioned package artifacts ==' \
+	  'make package/build WHEELHOUSE=<cache-dir> OUTPUT=<empty-private-dir>  Build committed source into a fresh destination.' \
+	  'make tests/package WHEELHOUSE=<cache-dir> ARTIFACTS=<artifact-dir>  Qualify the eight files under OUTPUT/artifacts.' \
+	  'make publish/prepare TAG=<version> WHEELHOUSE=<cache-dir> OUTPUT=<empty-private-dir>  Build and qualify; never publish.' \
+	  'make publish/release TAG=<version> ARTIFACTS=<prepared-output-root>  Publish the reviewed bundle; NOT its artifacts/ child.' \
+	  ''
+	@printf '%s\n' \
+	  '== Provider-core package and installed tests ==' \
+	  'make packages/provider-core/download WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire locked wheels.' \
+	  'make packages/provider-core/check WHEELHOUSE=<cache-dir> Verify locked wheels offline.' \
+	  'make tests/unit/provider-core WHEELHOUSE=<cache-dir> Build and test the isolated installed core.' \
+	  'make tests/fuzz/provider-core WHEELHOUSE=<cache-dir> Run reproducible lifecycle fault sequences.' \
+	  'make tests/contract/provider-core WHEELHOUSE=<cache-dir> Qualify installed package contracts.' \
+	  'make tests/integration/provider-core WHEELHOUSE=<cache-dir> Run contained package integrations.' \
+	  'make tests/integration/provider-core/delivery WHEELHOUSE=<cache-dir> Qualify real delivery IPC and recovery.' \
+	  ''
+	@printf '%s\n' \
+	  '== Cache acquisition and reproducible checker ==' \
+	  'make tests/acquisition/network DOCKER_CONTEXT=<name> Qualify the isolated relay on the selected engine.' \
+	  'make tests/acquisition/shared-network ARTIFACTS=<artifact-dir> DOCKER_CONTEXT=<name> Qualify the released shared owner.' \
+	  'make packages/acquisition-bootstrap/check Verify the checked-in qualified acquisition owner.' \
+	  'make packages/acquisition-bootstrap/refresh ARTIFACTS=<artifact-dir> Refresh owner source from reviewed release artifacts.' \
+	  'make tests/acquisition/identity WHEELHOUSE=<cache-dir> Test cold identity mapping and retirement receipts offline.' \
+	  'make tests/acquisition/owner Test common session cancellation, streams and retirement offline.' \
+	  'make wheelhouse/lock/locate LOCK=<file> NETWORK_INTERFACE=<system|interface> [WHEELHOUSE=<cache-dir>] [INDEX_URL=<url>] [SOURCE_URLS=<urls>] [REQUIRE_SOURCE=<source>] Project a pinned lock.' \
+	  'make wheelhouse/lock/acquire LOCK=<file> [SOURCE_LOCK=<file>] WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire locked artifacts.' \
+	  'make checks/base-image/download Bootstrap the pinned base using Docker daemon routing.' \
+	  'make checks/dependencies/download WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire declared artifacts.' \
+	  'make checks/dependencies/check WHEELHOUSE=<cache-dir> Verify cached artifacts offline.' \
+	  'make checks/image/build WHEELHOUSE=<cache-dir> Build the checker offline.' \
+	  'make checks/prepare WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire artifacts and build.' \
+	  'make wheelhouse/image/build WHEELHOUSE=<cache-dir> Build the wheelhouse tool; bootstrap its pinned streamer if missing.' \
+	  'make tests/wheelhouse WHEELHOUSE=<cache-dir> Run shared wheelhouse tests offline.' \
+	  ''
+	@printf '%s\n' \
+	  '== Shared delivery and deployed service ==' \
+	  'make tests/delivery/publisher WHEELHOUSE=<cache-dir> Check the shared delivery publisher offline.' \
+	  'make delivery/prepare WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=system Acquire the pinned release and build shared delivery.' \
+	  'make delivery/image/build WHEELHOUSE=<cache-dir> Build the pinned delivery image from a complete wheelhouse.' \
+	  'make tests/deployment/route SHARED_RUNTIME_IMAGE=sha256:<digest> Qualify private API routes with disposable local services.' \
+	  'make tests/deployment/route/literal SHARED_RUNTIME_IMAGE=sha256:<digest> Qualify mapped IP authority through private API routes.' \
+	  'make tests/deployment SHARED_RUNTIME_IMAGE=sha256:<digest> Qualify installed deployment rendering and proxy boundaries.' \
+	  'make delivery/deployment/up DEPLOYMENT=<name> Start or replace the outbox; retain its queue and the running proxy.' \
+	  'make delivery/deployment/update DEPLOYMENT=<name> WHEELHOUSE=<cache-dir> Prepare and apply the outbox release; retain its queue and running proxy.' \
+	  'make delivery/deployment/proxy/restart DEPLOYMENT=<name> Replace the proxy; active connections can be interrupted and its socket volume is retained.' \
+	  'make delivery/deployment/down PROJECT=<compose-project> Stop shared delivery and preserve all volumes.' \
+	  'make delivery/deployment/status PROJECT=<compose-project> Inspect installed service state.' \
+	  'make delivery/deployment/logs PROJECT=<compose-project> Show bounded recent service logs.' \
+	  'make delivery/deployment/held DEPLOYMENT=<name> API_ORIGIN=<url> PROVIDER_REF=<ref> List pending and held metadata while stopped.' \
+	  'make delivery/deployment/discard DEPLOYMENT=<name> API_ORIGIN=<url> PROVIDER_REF=<ref> EXECUTION_ATTEMPT_REF=<ref> BODY_SHA256=<digest> Discard exactly one stopped held item.' \
+	  'make delivery/deployment/retire-old PROJECT=<compose-project> SHARED_RUNTIME_IMAGE=sha256:<digest> Retire unused old per-provider socket volumes.' \
+	  ''
+	@printf '%s\n' \
+	  '== Repository checks and host maintenance ==' \
 	  'make help                        Show maintained commands.' \
 	  'make tests                       Run all current validation lanes.' \
-	  'make packages/images/retire DOCKER_CONTEXT=... Retire exact obsolete project images, preserving current selections and borrowers.' \
-	  'make engine/cache/gc/install DOCKER_CONTEXT=... ENGINE_CONFIG=/absolute/daemon.json Install per-engine cache GC without restarting Docker.' \
-	  'make engine/cache/gc DOCKER_CONTEXT=... ENGINE_CONFIG=/absolute/daemon.json Apply the native cache thresholds now.' \
-	  'make tests/acquisition/network DOCKER_CONTEXT=<name> Qualify the isolated relay on the selected engine.' \
-	  'make tests/acquisition/shared-network ARTIFACTS=... DOCKER_CONTEXT=<name> Qualify the released shared owner.' \
+	  'make packages/images/retire DOCKER_CONTEXT=<context> Retire exact obsolete project images, preserving current selections and borrowers.' \
+	  'make engine/cache/gc/install DOCKER_CONTEXT=<context> ENGINE_CONFIG=/absolute/daemon.json Install per-engine cache GC without restarting Docker.' \
+	  'make engine/cache/gc DOCKER_CONTEXT=<context> ENGINE_CONFIG=/absolute/daemon.json Apply the native cache thresholds now.' \
 	  'make tests/repository            Run repository conventions and detector fixtures offline.' \
 	  'make tests/repository/quality    Run code and operator convention checks offline.' \
 	  'make tests/repository/bytecode   Check maintained Python launches suppress source bytecode.' \
-	  'make packages/acquisition-bootstrap/check Verify the checked-in qualified acquisition owner.' \
-	  'make packages/acquisition-bootstrap/refresh ARTIFACTS=... Refresh owner source from reviewed release artifacts.' \
 	  'make tests/repository/provisioning Run checker preparation and cleanup fixtures offline.' \
 	  'make tests/repository/release    Run release and wheelhouse bundle fixtures offline.' \
 	  'make tests/repository/network    Run acquisition network-owner fixtures offline.' \
 	  'make tests/repository/network/identity Run the focused acquisition identity fixture.' \
-	  'make tests/acquisition/identity WHEELHOUSE=... Test cold identity mapping and retirement receipts offline.' \
-	  'make tests/acquisition/owner Test common session cancellation, streams and retirement offline.' \
-	  'make tests/delivery/publisher WHEELHOUSE=... Check the shared delivery publisher offline.' \
-	  'make wheelhouse/lock/locate LOCK=... NETWORK_INTERFACE=... [WHEELHOUSE=...] [INDEX_URL=...] [SOURCE_URLS=...] [REQUIRE_SOURCE=...] Project a pinned lock.' \
-	  'make wheelhouse/lock/acquire LOCK=... [SOURCE_LOCK=...] WHEELHOUSE=... NETWORK_INTERFACE=... Acquire locked artifacts.' \
 	  'make tests/repository/runtime    Inspect the checker container grants.' \
 	  'make tests/repository/command    Print the repository checker command without starting it.' \
-	  'make checks/base-image/download Bootstrap the pinned base using Docker daemon routing.' \
-	  'make checks/dependencies/download WHEELHOUSE=... NETWORK_INTERFACE=... Acquire declared artifacts.' \
-	  'make checks/dependencies/check WHEELHOUSE=... Verify cached artifacts offline.' \
-	  'make checks/image/build WHEELHOUSE=... Build the checker offline.' \
-	  'make checks/prepare WHEELHOUSE=... NETWORK_INTERFACE=... Acquire artifacts and build.'
-	@printf '%s\n' \
-	  'make packages/provider-core/download WHEELHOUSE=... NETWORK_INTERFACE=... Acquire locked wheels.' \
-	  'make wheelhouse/image/build WHEELHOUSE=... Build the wheelhouse tool; bootstrap its pinned streamer if missing.' \
-	  'make tests/wheelhouse WHEELHOUSE=... Run shared wheelhouse tests offline.' \
-	  'make packages/provider-core/check WHEELHOUSE=... Verify locked wheels offline.' \
-	  'make tests/unit/provider-core WHEELHOUSE=... Build and test the isolated installed core.' \
-	  'make tests/fuzz/provider-core WHEELHOUSE=... Run reproducible lifecycle fault sequences.' \
-	  'make tests/contract/provider-core WHEELHOUSE=... Qualify installed package contracts.' \
-	  'make tests/integration/provider-core WHEELHOUSE=... Run contained package integrations.' \
-	  'make tests/integration/provider-core/delivery WHEELHOUSE=... Qualify real delivery IPC and recovery.' \
-	  'make package/build WHEELHOUSE=... OUTPUT=... Build clean committed source into an empty owned directory.' \
-	  'make tests/package WHEELHOUSE=... ARTIFACTS=... Qualify exact release files and the source rebuild.' \
-	  'make delivery/prepare WHEELHOUSE=... NETWORK_INTERFACE=system Acquire the pinned release and build shared delivery.' \
-	  'make delivery/image/build WHEELHOUSE=... Build the pinned delivery image from a complete wheelhouse.' \
-	  'make tests/deployment/route SHARED_RUNTIME_IMAGE=sha256:... Qualify private API routes with disposable local services.' \
-	  'make tests/deployment/route/literal SHARED_RUNTIME_IMAGE=sha256:... Qualify mapped IP authority through private API routes.' \
-	  'make tests/deployment SHARED_RUNTIME_IMAGE=sha256:... Qualify installed deployment rendering and proxy boundaries.' \
-	  'make delivery/deployment/up DEPLOYMENT=... Start or replace the outbox; retain its queue and the running proxy.' \
-	  'make delivery/deployment/update DEPLOYMENT=... WHEELHOUSE=... Prepare and apply the outbox release; retain its queue and running proxy.' \
-	  'make delivery/deployment/proxy/restart DEPLOYMENT=... Replace the proxy; active connections can be interrupted and its socket volume is retained.' \
-	  'make delivery/deployment/down PROJECT=... Stop shared delivery and preserve all volumes.' \
-	  'make delivery/deployment/status PROJECT=... Inspect installed service state.' \
-	  'make delivery/deployment/logs PROJECT=... Show bounded recent service logs.' \
-	  'make delivery/deployment/held DEPLOYMENT=... API_ORIGIN=... PROVIDER_REF=... List pending and held metadata while stopped.' \
-	  'make delivery/deployment/discard DEPLOYMENT=... API_ORIGIN=... PROVIDER_REF=... EXECUTION_ATTEMPT_REF=... BODY_SHA256=... Discard exactly one stopped held item.' \
-	  'make delivery/deployment/retire-old PROJECT=... SHARED_RUNTIME_IMAGE=sha256:... Retire unused old per-provider socket volumes.' \
-	  'make publish/prepare TAG=vX.Y.Z WHEELHOUSE=... OUTPUT=... Prepare exact artifacts, logs and authored release notes.' \
-	  'make publish/release TAG=vX.Y.Z ARTIFACTS=... Publish reviewed inputs through a verified GitHub draft.'
+	  ''
 
 packages/provider-core/download:
 	bash tools/provider_core.sh download
