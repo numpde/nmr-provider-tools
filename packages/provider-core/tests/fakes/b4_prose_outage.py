@@ -108,10 +108,14 @@ async def run_outage(directory, *, mode, backlog, seed):
     # All model requests include fresh Python startup, TLS and tool decoding.
     # The unavailable peer must outlast the affected original deadline; the
     # independent healthy route must have enough allowance to finish science.
-    outage_seconds = 5.0 if mode == "blocked" else 4.0
+    # Keep the worst-case permitted request count strictly below the smallest
+    # 12-Job backlog, so a recovered Job must still be unstarted when service
+    # restoration occurs. Retry-After keeps its own stronger one-second floor.
+    outage_seconds = 3.5 if mode == "blocked" else 2.5
     interpretation_seconds = 2.0 if mode == "blocked" else 1.5
     healthy_interpretation_seconds = 4.0
-    retirement_seconds, recovery_seconds = 0.3, 5
+    retirement_seconds = 0.3
+    recovery_seconds = 5 if mode == "blocked" else 3
     minimum_delay = 1 if mode == "retry_after" else 0.25
     request_ceiling = (1 + math.floor(outage_seconds / interpretation_seconds)
                        if mode == "blocked" else 1 + math.floor(outage_seconds / minimum_delay))
