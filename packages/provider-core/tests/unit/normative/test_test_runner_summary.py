@@ -1,6 +1,8 @@
 """Installed test failures end with a searchable, bounded result index."""
 
+import asyncio
 import io
+import logging
 import unittest
 
 from tests.run_suite import _FailureSummaryResult, _print_failure_summary
@@ -64,3 +66,89 @@ class RunnerSummaryTests(unittest.TestCase):
         self.assertIn("32 failing cases", summary)
         self.assertIn("7 additional failing cases", summary)
         self.assertEqual(25, summary.count("FAIL test_failed"))
+
+    def test_unexpected_asyncio_loop_error_is_attributed_and_fails(self):
+        class Cases(unittest.IsolatedAsyncioTestCase):
+            async def test_reset(self):
+                asyncio.get_running_loop().call_exception_handler({
+                    "message": "Error on transport creation for incoming connection",
+                    "exception": ConnectionResetError(),
+                })
+
+        result, output = self.render((Cases("test_reset"),))
+        self.assertFalse(result.wasSuccessful(), msg=output)
+        self.assertEqual(1, len(result.errors))
+        self.assertEqual(1, len(result.problems))
+        summary = output[output.index("=== PROVIDER-CORE FAILURE SUMMARY"):]
+        self.assertIn("test_reset", summary)
+        self.assertIn("ConnectionResetError", summary)
+        self.assertIn("Error on transport creation", summary)
+
+    def test_asyncio_error_during_runner_close_is_still_attributed(self):
+        class Cases(unittest.IsolatedAsyncioTestCase):
+            async def test_late_reset(self):
+                async def pending():
+                    try:
+                        await asyncio.Event().wait()
+                    finally:
+                        asyncio.get_running_loop().call_exception_handler({
+                            "message": "Loop shutdown released a broken transport",
+                            "exception": ConnectionResetError("late reset"),
+                        })
+
+                asyncio.create_task(pending())
+                await asyncio.sleep(0)
+
+        result, output = self.render((Cases("test_late_reset"),))
+        self.assertFalse(result.wasSuccessful(), msg=output)
+        self.assertEqual(1, len(result.errors))
+        self.assertIn("test_late_reset", output[output.index("=== PROVIDER-CORE FAILURE SUMMARY"):])
+        self.assertIn("late reset", output)
+
+    def test_explicitly_asserted_asyncio_diagnostic_is_not_an_error(self):
+        class Cases(unittest.IsolatedAsyncioTestCase):
+            async def test_expected(self):
+                with self.assertLogs("asyncio", level="ERROR") as captured:
+                    asyncio.get_running_loop().call_exception_handler({
+                        "message": "Expected injected reset",
+                        "exception": ConnectionResetError("intentionally unfinished TLS"),
+                    })
+                self.assertEqual(1, len(captured.records))
+                self.assertIs(type(captured.records[0].exc_info[1]), ConnectionResetError)
+
+        result, output = self.render((Cases("test_expected"),))
+        self.assertTrue(result.wasSuccessful(), msg=output)
+        self.assertEqual([], result.problems)
+        self.assertNotIn("FAILURE SUMMARY", output)
+
+    def test_plain_test_asyncio_error_is_also_recorded(self):
+        class Cases(unittest.TestCase):
+            def test_error_log(self):
+                logging.getLogger("asyncio").error("Task exception was never retrieved")
+
+        result, output = self.render((Cases("test_error_log"),))
+        self.assertFalse(result.wasSuccessful(), msg=output)
+        self.assertEqual(1, len(result.errors))
+        self.assertIn("Task exception was never retrieved", output)
+        self.assertIn("test_error_log", output[output.index("=== PROVIDER-CORE FAILURE SUMMARY"):])
+
+    def test_nested_runner_does_not_double_count_one_asyncio_error(self):
+        def run_inner():
+            class Inner(unittest.IsolatedAsyncioTestCase):
+                async def test_error(self):
+                    asyncio.get_running_loop().call_exception_handler({
+                        "message": "One nested loop error",
+                        "exception": RuntimeError("inner"),
+                    })
+
+            return self.render((Inner("test_error"),))
+
+        class Outer(unittest.TestCase):
+            def test_nested(self):
+                inner, _ = run_inner()
+                self.assertEqual(1, len(inner.errors))
+                self.assertFalse(inner.wasSuccessful())
+
+        result, output = self.render((Outer("test_nested"),))
+        self.assertTrue(result.wasSuccessful(), msg=output)
+        self.assertEqual([], result.problems)
