@@ -1,0 +1,360 @@
+One service loop for four NMR providers
+=======================================
+2026-11-06 | Proposed roadmap | Based on provider-core at 667a3a8
+
+Decision
+--------
+An operator should be able to restore an unavailable prose-interpretation
+endpoint and watch the provider resume work without restarting it, reloading
+scientific models or resubmitting a result. A new provider should implement
+its science and declare which Jobs its workers can serve. It should not need
+to write its own Job polling, retry, result delivery and shutdown loops.
+
+Put the common service loop in provider-core, around the existing
+AttemptController, claims registry and delivery client. Leave the durable
+outbox and its publisher running under their existing owners. Start with
+one serial worker in SECS; prove the same code serves NMRNet before calling
+the interface reusable. Then add concurrent lanes for NMRPeak and Magnet.
+Do not make this migration a prerequisite for shipping the current recovery
+fixes. B4 and four-provider qualification come first.
+
+Where we actually are
+---------------------
+* A: the central NMR Jobs API reports that this Job was cancelled or this
+  Attempt expired. For an eligible stop before scientific execution entry,
+  with no selected outcome or independent failure, the original controller
+  can settle its resources and release its claim once. Commit 6338b52
+  records continuation tests in all four provider loops against an earlier
+  A-only wheel. A consumer still has to adopt that path and verify worker
+  readiness; the SDK releasing its slot does not itself start the next Job.
+* B1/B2: one SDK child can send one HTTP request for the provider's prose
+  interpreter. The provider retains the conversation, tool dispatch, Attempt
+  and scientific worker. A verified stop observed from the Jobs API withdraws
+  permission to start new scientific work even before the monitor resumes.
+* B3: shutdown and repeated timeouts already passed on B2. The SDK now has
+  guards for child creation, delayed exit observation, signal escalation,
+  claim retention and an independent result waiting for its API receipt.
+  These are installed-SDK tests with local peers and counted science, not a
+  four-provider deployment run.
+* NMRPeak's revised consumer tests [2] run its real service and adapter. The
+  test Jobs API offers two HF Jobs. A local HTTPS server accepts the admitted
+  Job's prose request and withholds the answer. On a local service-stop request
+  NMRPeak admits no second Job, runs no science, hands off the original Job's
+  failure and waits for the test delivery service to acknowledge custody.
+  This does not assert that the central Jobs API received the report. It also
+  deliberately does not prescribe a helper process, a particular error code,
+  or waiting until the language-model request's deadline before stopping.
+  Both revised tests passed locally on each of the released and candidate
+  wheels. The consumer changes are on a test branch, not NMRPeak main.
+* B4, the migration below and four-provider deployment qualification are open.
+  Released and candidate wheels both identify as provider-core 0.6.6. The
+  released wheel's SHA256 is
+  22b5a391aa3748340b969f47c935d62a4f9b08b9fe8c98f808fec47e6546b0c7;
+  the A/B candidate tested through B3 is
+  182fc3e0a08fb04bd79bddc934bb12d39752c28f04dd4ca87f843b0b4677ed91.
+  Note 058's release results are evidence for the former, not the latter.
+
+The smallest useful interface
+-----------------------------
+At startup the provider declares its offerings and lanes: which analysis
+kind and generation each serves, which Jobs are eligible (including creation
+window), which workers or delivery binding are shared, and its explicit
+capacity and recovery policies. The provider supplies a way to check the
+scientific allocation's readiness and to construct the AnalysisSession for
+a selected Job. The SDK calls the adapter; the adapter does not poll for work.
+
+The shared service announces the declared offerings, discovers Jobs fairly
+within the configured page budget, excludes owned Jobs, checks the adapter's
+readiness and drives the controller. It keeps that controller until the
+original obligations have a disposition. It schedules the next eligible Job
+only when the relevant capacity and scientific allocation are both available.
+The provider's entry point can translate an OS signal into a service-stop
+request. It should not have to implement the drain behind that request.
+These are responsibilities, not a proposal for a mandatory class hierarchy.
+
+Reuse ProviderAPI's Hello, discovery, input and Attempt operations, their
+operation-specific retry decisions, AttemptClaims, AttemptController.live,
+run/join/request_stop/settle/settle_revocation, and AnalysisSession's
+prepare/execute/retire contract [1]. Keep independent API exchanges for
+announcement, discovery, live observation and result delivery where they
+must progress concurrently. Within one running provider, a common claims
+registry excludes the same Job across lanes/generations for that identity;
+it is not a distributed lock across processes. Retain the local supervisor
+lifetime lock where applicable. A page decoder is not a scheduler, and
+inventory is not a lease.
+
+The provider still verifies its worker and generation, interprets its input
+schema, grants source access, implements scientific tools and determines
+what a result or failure means. Its adapter calls the Attempt permission
+check before a scientific effect. It can supply bounded diagnostic details;
+the success of a logging callback must never decide permission or release.
+Keep Docker/image assembly, host identity mapping and scientific worker
+protocols outside the service loop. No deployment framework or new transport
+plugin mechanism is needed to start this extraction.
+
+What lets the service take its next action?
+------------------------------------------
+Keep these decisions separate; a single ready/failed flag cannot express them.
+
+* Local stop: when the operator asks a provider to stop, close admission
+  first. The operator has not thereby cancelled the Job at the NMR Jobs API.
+  Join the original drivers, account for scientific resources, and settle any
+  selected report. Waiting longer for the same owner is not starting it again.
+* START may have succeeded: retain the Job, original START key/body and
+  controller. Only the existing API replay rules can authorize retry of that
+  exact START. A missing inventory entry or an elapsed timer is insufficient
+  evidence to send a fresh START, start science or free the exclusion.
+* Server revocation: the provider reads a response for the matching Job and
+  Attempt from the authenticated Jobs API. Pass the original controller
+  failure to settle_revocation. If eligible, finish the original cleanup and
+  release once; if it is ineligible, keep its existing owner. A held resource
+  must keep its slot. The adapter must separately confirm worker readiness.
+* Uncertain scientific dispatch, source reader or prepared handle: the
+  adapter retains the original task, handle and cleanup evidence. A language
+  model timeout grants no second preparation or scientific submission.
+  A safely quiescent held Job may remain excluded while another eligible Job
+  uses independent capacity. An independent cleanup failure remains visible.
+* A terminal report was selected: the controller owns its exact bytes until
+  the local durable outbox acknowledges accepting that same report. A lost
+  acknowledgement is ambiguous: reobserve or retry the exact handoff as the
+  existing protocol permits. Receipt of bytes by a socket is not acceptance.
+* The outbox has acknowledged handoff: local delivery pressure can clear
+  even if the controller is still retiring a worker. Full claim release has
+  its own requirements. The outbox publisher keeps its row until the central
+  Jobs API returns the matching publication receipt. Neither event proves
+  that a scientific worker is free. Pressure on one binding must not stop an
+  unrelated binding; shared capacity limits must still be respected.
+
+Implementation and commit order
+-------------------------------
+Use an adjacent red/green pair when a behavioral witness fails. Record base,
+artifact, command and observed effect in the red; explain why the fix belongs
+at that owner, what passed and what is still unqualified in the green. A
+missing class or method is not a behavioral red. When existing behavior is
+correct, add a passing contract guard and extract under it in a separate
+commit. Append history; do not squash the evidence.
+
+1. Finish B4 on the current SDK branch: outage across Jobs.
+   Keep the HTTPS service used for prose interpretation unavailable across
+   more Jobs than there are slots. Keep an independent healthy route busy
+   and a completed report waiting for its original Jobs API receipt. Restore
+   only the unavailable endpoint; leave eligible Jobs in the backlog.
+   Count requests at the peer, peak simultaneous requests, healthy Jobs and
+   reports completed, time to the first new success, and time until queue and
+   claim counts return to baseline. Failed, already-terminal Jobs must not be
+   re-executed to make the backlog look drained.
+
+   Declare the request ceiling for a fixed outage window and the maximum
+   resumption delay from the configured budgets before the run; repeat with
+   a larger backlog against the same ceiling. The interpreter already caps
+   and paces retries within a turn. Verify aggregate traffic across Jobs;
+   a per-turn limit does not establish that bound. If admission floods one
+   failed route, give the existing service loops the smallest shared pacing
+   policy that fixes it; do not wait for the later service extraction. Respect
+   existing retry budgets/backoff and leave a bounded opportunity to try
+   again. An unavailable prose endpoint is not evidence that the Job's NMR
+   input is scientifically invalid. A recovered timeout needs a diagnostic;
+   sustained lost capacity or an outbox that stops draining needs an
+   operator alert identifying the affected route/binding, original
+   owner and time since progress. Clear a retryable outage alert when progress
+   resumes without an operator command. A signing/trust conflict, ambiguous
+   receipt or unconfirmed worker exit still needs its own resolution.
+
+2. Qualify the recovery release independently of the service extraction.
+   Freeze one candidate wheel and its checksum. Install that exact artifact
+   in all four providers and run the consumer witnesses below, including
+   positive Unix IPC, native worker lifetime and the three-runner Magnet
+   deployment. Record provider revision, deployment topology, wheel digest,
+   commands, outage bounds and observed receipts. Local TLS fixtures do not
+   stand in for this run. If B4 changes runtime code, rebuild once and
+   requalify that new artifact across all four. An A-only release, if chosen,
+   needs its own four-provider evidence for its exact wheel.
+
+3. Extract one serial service, using SECS as the first consumer.
+   Characterize one announcement, a failed/paced subsequent announcement,
+   bounded discovery, Job eligibility and SECS worker readiness before START,
+   stop during discovery, and the next eligible Job after a safely settled
+   failure. Use the SECS worker through its real session contract. Pull only
+   the common sequence into provider-core: Hello refresh, stop-aware waits,
+   bounded page traversal and exclusions, controller retention, and drain.
+   Keep selection, generation policy and the worker readiness check injectable.
+   Preserve the existing verified-input boundary: SECS can let its controller
+   read and verify Job input after START; other providers can pass an already
+   verified input bound to that Job. Do not add a second read.
+   Page/Job bounds must give older eligible Jobs a turn without ticking
+   through the same newest page forever. Recheck exclusions and admission
+   immediately before START; a stale page conveys no permission.
+
+   Make the cuts reviewable: move announcement and its pacing first, then
+   discovery and admission, then adoption and drain of the original
+   controller. At each cut run the same external consumer scenario and
+   remove the code displaced by that cut. Never run two live schedulers
+   for the same identity to compare their results.
+
+   Exit: a healthy Job and a recoverable failed Job go through one shared
+   driver in SECS. If a worker operation was sent but its reply is unknown,
+   the worker and Job stay held.
+
+4. Reconcile retained obligations with NMRNet as the second serial consumer.
+   On each eligible wake-up, the service asks the original controller what
+   can settle. Use the SDK's checked dispositions for verified revocation,
+   narrowly recognized quiescent failures and accepted delivery. Preserve
+   separate scientific readiness. If a missing shared decision is exposed,
+   put it beside the owner that can prove it; do not make four providers
+   inspect nested exceptions to reconstruct it. Reobservation must neither
+   reset the cleanup budget nor spin. Honor backoff/Retry-After for the
+   particular API operation; a temporary feed failure must not restart an
+   admitted Job. Report why a hold persists, which duty it blocks and what
+   evidence would clear it.
+
+   Witness: one Job stays excluded on uncertain START or held resources;
+   another proceeds when its allocation is independently ready and capacity
+   permits. A late correlated revocation releases only the eligible original
+   claim, once. If startup finds an active Attempt with no surviving local
+   owner, report/exclude it and reconcile with authoritative server state;
+   do not manufacture a result or infer death of science from an inventory
+   page. Exit when SECS and NMRNet use the same serial implementation without
+   provider-name branches and their superseded local loops are gone.
+
+5. Add concurrent lanes using NMRPeak, then Magnet.
+   NMRPeak supplies its two lane definitions, matching generations, runners
+   and sessions. The shared service arbitrates admission and binding-wide
+   pressure, keeps Hello independent and separates stop-admission from
+   withdrawing permission on active work. Withhold acknowledgement of the
+   first lane's selected report: no lost/duplicated report or false clean
+   shutdown. After the local queue acknowledges that exact report, an
+   independently ready lane can resume when capacity allows, even while the
+   first worker's cleanup remains held. Test stop at both handoff boundaries.
+
+   Magnet is the heterogeneous proof: stall only the prose request for an
+   E02 Job, while E01 computes and the publisher delivers G01's earlier
+   result. Check that the Jobs API acknowledges G01's original report, E01
+   completes its original scientific operation, and E02 reports its original
+   failure and takes a fresh Job. Record actual scientific worker PIDs,
+   model loads and provider restart counts. A simulated worker alone cannot
+   prove continuity of the deployed workers. Remove the local transport
+   workaround only after the shared transport passes this witness without it.
+
+6. Cut over on the same evidence that operators will use.
+   For each changed SDK wheel repeat the common contract tests and run the
+   real consumer adapters at their pinned revisions. For the release gate,
+   restore the failed endpoint and watch admission, report publication and
+   capacity recover without a restart, repin, manual retry or discarded Job.
+   Pin only the qualified digest. Migrate one provider at a time; stop new
+   admission in the old service and settle its duties or verify durable
+   transfer to an owner that survives replacement. If the old process alone
+   owns unfinished work, keep it alive and block replacement. A note in
+   memory or a shutdown timeout is not a transfer. Preserve the delivery
+   binding and its queued rows. Roll back to a qualified consumer and SDK
+   only if they can honor those obligations; otherwise block the cutover.
+   Completion means providers declare lanes and implement science. Their
+   service uses one driver for the lanes sharing an identity in that process,
+   with no parallel legacy admission or settlement path.
+
+What stays in each provider, and what it must prove
+---------------------------------------------------
+SECS -- The provider's interpreter checks formula evidence; its source owner
+reconciles which inputs belong to the Job. Its resident worker performs
+scientific inspection, preparation and spectrum search, and SecsSession
+retains the worker's exact prepared handle [3]. Today its service checks the
+newest one-Job page and stops admission if a claim remains. After inspection
+has returned a tool reply, stall the next actual HTTP request.
+Separately hold return/cleanup when the worker has already produced a
+prepared handle: use that exact handle or retire it once. Accepted prepare
+ends interpretation; do not invent a subsequent language-model turn to inject
+the fault. Leave source files owned until their readers have stopped. A
+global rule that any held claim stops all work is too broad for the SDK;
+the one SECS worker must still be demonstrably ready before another START.
+
+NMRNet -- The SDK's JobUploads already owns authenticated listing and
+acquisition. NMRNet retains the selected verified bytes and owns the
+scientific readers, geometry generation, prepared request and chosen
+prediction worker [4]. Its service already calls require_held_failure for
+specific failures and checks factory readiness before continuing: the Job
+stays excluded even if another allocation is usable. Stall the next prose
+request after upload inspection; count source acquisitions. Separately
+stop while creating/retiring geometry; the original operation settles and
+its bytes/handle stay with the original session. Count preparation and
+prediction submissions. Preserve NMRNet's explicitly authorized scientific
+retry and its worker-replacement checks. Losing the prose interpreter alone
+must never trigger that retry or repeat source acquisition.
+
+NMRPeak -- It owns input semantics for both lanes (proton only and combined
+carbon/proton), typed-versus-prose selection, scientific validation and
+generation, and the runner capability bound to each generation.
+Typed input must need no language-model HTTP request. For prose, hold the
+original runner validation after submission and let the interpretation
+deadline pass: no second validation or preparation; consume or retire the
+original result exactly once. Keep the revised stop-and-handoff tests [2].
+They can pass under either transport design. The SDK tests keep the PID,
+partial-frame, signal and reap assertions.
+
+Magnet -- It owns which scientific worker can serve each analysis, its
+prepared resources, generation constraints and the meaning of each result.
+Build on the public joint qualification record [6]. Keep the three-lane
+witness in the deployment repository; use the incident regressions before
+deleting local recovery code. Verify the local outbox accepted the report
+and, separately, that the Jobs API accepted its publication. Magnet should
+not need a custom HTTP cancellation policy or an exception classifier to
+decide whether the SDK released a claim.
+
+Separate series: provider death before durable handoff
+------------------------------------------------------
+A normal stop can keep a live controller; a dead provider cannot. NMRPeak
+parses shutdown_drain_seconds, but its service does not enforce it as a hard
+cutoff [2]. The Jobs API feed for fresh work excludes Jobs already attempted
+by this provider. Dropping the local owner on a timer could therefore strand
+a server-side Attempt. For now: pause admission, continue safe settlement
+and expose unresolved work. An expired local timer can raise an alert. It
+does not prove the Jobs API cancelled a Job or authorize a clean exit.
+
+If bounded process exit must survive loss of the producer, specify durable
+authority first. The current TerminalSelectedCheckpoint records a digest
+and length, not the selected report bytes [5]. Red: kill the provider after
+selection but before the outbox confirms custody; restart it and demonstrate
+whether the exact report can be delivered without START or science replay.
+Green: make selection durable at its owner (prefer the existing outbox if
+selection and custody can be made atomic). Otherwise persist the exact
+selected bytes, operation, Job/Attempt identity, idempotency identity and
+intended publication binding at selection. Reopen and hand off those same
+bytes to the original destination; never silently substitute new authority.
+Test death on both sides of enqueue and acknowledgement, a lost API receipt,
+conflicting bytes and the case with no durable selection. In that last case
+there is no exact result to reconstruct: retain uncertainty until resolved.
+Do not build a second publisher or promise lifetime deduplication after the
+outbox has removed a published row. This is not part of A or B4.
+
+Evidence and maintenance
+------------------------
+Keep generated SDK tests on the owners of deadlines, local processes, claims
+and the outbox. Use event barriers, bounded waits and replayable seeds; count
+real work and take the verdict before emergency teardown. Consumer tests use
+real adapter/SDK composition and observe Jobs, operations, report bytes and
+acknowledgements. Move or delete a test that only fixes the spelling of a
+private SDK call. Keep native/container runs, test HTTPS peers and actual
+deployed scientific execution distinguishable in the release record.
+
+Source anchors (revisions inspected; none identifies what is running on a host):
+
+[1] SDK branch through B3, including controller, execution, ownership,
+    job_feed, paging, api, interpreter, delivery_store and delivery_worker:
+    https://github.com/numpde/nmr-provider-tools/tree/667a3a89dacb63d8a4c8e9a4e75ecccd9e0f3d18/packages/provider-core/src/provider_core
+    Prior decisions: notes/010, 013, 028, 040 and 058 in this repository.
+    https://github.com/numpde/nmr-provider-tools/commit/667a3a89dacb63d8a4c8e9a4e75ecccd9e0f3d18
+[2] NMRPeak service and revised consumer guarantees (compare main 96e2353):
+    https://github.com/numpde/nmrpeak-repro/blob/96e23534722839cfa06fa7d91f6e95d94ff4b7da/nmrpeak_provider/provider_process.py
+    https://github.com/numpde/nmrpeak-repro/blob/4d648d5fc2de23a9bcc068331678a377f3362581/tests/integration/test_provider_prose_shutdown.py
+    https://github.com/numpde/nmrpeak-repro/commit/4d648d5fc2de23a9bcc068331678a377f3362581
+[3] SECS runtime and session:
+    https://github.com/numpde/secs-repro/blob/be5c191be7a4beba2210148b807cb847776639a4/src/secs_inference/provider/runtime.py
+    https://github.com/numpde/secs-repro/blob/be5c191be7a4beba2210148b807cb847776639a4/src/secs_inference/provider/session.py
+[4] NMRNet service, preparation and prediction:
+    https://github.com/numpde/nmrnet-repro/blob/2f9b161b4819a23bf61c12a3eb7fd36af2b72035/nmrnet_provider/service.py
+    https://github.com/numpde/nmrnet-repro/blob/2f9b161b4819a23bf61c12a3eb7fd36af2b72035/nmrnet_provider/input_preparation.py
+    https://github.com/numpde/nmrnet-repro/blob/2f9b161b4819a23bf61c12a3eb7fd36af2b72035/nmrnet_provider/session.py
+[5] Current producer checkpoint and outbox publication contracts:
+    https://github.com/numpde/nmr-provider-tools/blob/667a3a89dacb63d8a4c8e9a4e75ecccd9e0f3d18/packages/provider-core/src/provider_core/producer_checkpoint.py
+    https://github.com/numpde/nmr-provider-tools/blob/667a3a89dacb63d8a4c8e9a4e75ecccd9e0f3d18/packages/provider-core/src/provider_core/delivery_worker.py
+[6] Public four-provider baseline (including Magnet); keep deployment-specific
+    fixture coordinates, build identifiers and operational logs in their owners:
+    https://github.com/numpde/nmr-provider-tools/blob/667a3a89dacb63d8a4c8e9a4e75ecccd9e0f3d18/notes/058_resilience_fault_sequence_tests.txt
