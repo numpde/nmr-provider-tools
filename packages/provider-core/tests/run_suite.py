@@ -5,12 +5,62 @@ from provider_core.container_guard import require_container
 require_container()
 
 import importlib.metadata
+import logging
 import sys
 import traceback
 import unittest
 from pathlib import Path
 
 import provider_core
+
+
+# Observe the asyncio logger for the complete unittest runner lifetime, not
+# merely between startTest and stopTest. IsolatedAsyncioTestCase closes its loop
+# AFTER stopTest, and errors during that shutdown must still fail the test.
+# Nested runners take precedence so the outer suite never double-counts a fault.
+_ACTIVE_ASYNCIO_OBSERVERS = []
+
+
+class _AsyncioDiagnosticError(RuntimeError):
+    """An unowned asyncio ERROR has the same failed-run status as a test error."""
+
+
+class _UnattributedAsyncioTest:
+    def __str__(self):
+        return "asyncio diagnostic outside any TestCase"
+
+    def shortDescription(self):
+        return None
+
+
+class _AsyncioDiagnosticObserver(logging.Handler):
+    def __init__(self, result):
+        super().__init__(level=logging.ERROR)
+        self.result = result
+
+    def emit(self, record):
+        if not _ACTIVE_ASYNCIO_OBSERVERS or _ACTIVE_ASYNCIO_OBSERVERS[-1] is not self:
+            return
+        cause = record.exc_info[1] if record.exc_info else None
+        kind = type(cause).__name__ if cause is not None else "No exception object"
+        message = record.getMessage().splitlines()
+        message = message[0] if message else "(no asyncio message)"
+        details = str(cause).splitlines() if cause is not None else []
+        detail = (": " + details[0][:160]) if details else ""
+        diagnostic = _AsyncioDiagnosticError(
+            f"Unowned asyncio ERROR: {message[:180]} ({kind}{detail}); "
+            f"origin {record.pathname}:{record.lineno}"
+        )
+        if cause is not None:
+            diagnostic.__cause__ = cause
+        case = self.result._active_test
+        if case is None:
+            case = self.result._unattributed_asyncio_test
+        try:
+            raise diagnostic
+        except _AsyncioDiagnosticError:
+            self.result.addError(case, sys.exc_info())
+            self.result._asyncio_errored.add(case)
 
 
 # The complete unittest tracebacks remain above the final, bounded failure
@@ -20,6 +70,36 @@ class _FailureSummaryResult(unittest.TextTestResult):
     def __init__(self, *arguments, **settings):
         super().__init__(*arguments, **settings)
         self.problems = []
+        self._active_test = None
+        self._asyncio_errored = set()
+        self._unattributed_asyncio_test = _UnattributedAsyncioTest()
+
+    def startTestRun(self):
+        super().startTestRun()
+        self._asyncio_logger = logging.getLogger("asyncio")
+        self._asyncio_observer = _AsyncioDiagnosticObserver(self)
+        self._asyncio_logger.addHandler(self._asyncio_observer)
+        _ACTIVE_ASYNCIO_OBSERVERS.append(self._asyncio_observer)
+
+    def stopTestRun(self):
+        try:
+            if _ACTIVE_ASYNCIO_OBSERVERS[-1] is not self._asyncio_observer:
+                raise RuntimeError("Nested asyncio log observer ownership is inconsistent")
+            _ACTIVE_ASYNCIO_OBSERVERS.pop()
+            self._asyncio_logger.removeHandler(self._asyncio_observer)
+        finally:
+            self._active_test = None
+            super().stopTestRun()
+
+    def startTest(self, test):
+        self._active_test = test
+        super().startTest(test)
+
+    def addSuccess(self, test):
+        # An asyncio ERROR during a method is an error even when its body
+        # returns normally. Do not append an erroneous success marker after it.
+        if test not in self._asyncio_errored:
+            super().addSuccess(test)
 
     def _record(self, kind, test, error):
         exception_type, exception, tb = error
