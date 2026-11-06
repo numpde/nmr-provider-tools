@@ -107,7 +107,9 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                 self.assertEqual(0, report["final_open_jobs_api_connections"], msg=evidence)
                 self.assertEqual(report["idle_descriptors"], report["final_descriptors"], msg=evidence)
                 for job in report["jobs"]:
-                    expected_science = 0 if job["name"].startswith("timeout-") else 1
+                    expected_science = 1
+                    if job["name"].startswith("timeout-"):
+                        expected_science = 0
                     self.assertEqual((1, 1, expected_science, expected_science),
                                      (job["starts"], job["session_prepare_calls"], job["scientific_prepare_calls"], job["scientific_execute_calls"]),
                                      msg=evidence)

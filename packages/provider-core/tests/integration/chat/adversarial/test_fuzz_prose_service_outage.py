@@ -74,7 +74,9 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual((executed, executed, len(jobs)),
                          (after["preparations"], after["executions"], after["retirements"]), msg=evidence)
         for job in jobs:
-            science_count = 0 if job["failed"] else 1
+            science_count = 1
+            if job["failed"]:
+                science_count = 0
             self.assertEqual((1, 1, science_count, science_count),
                              (job["starts"], job["prepare_calls"], job["scientific_prepare_calls"], job["execute_calls"]), msg=evidence)
             self.assertTrue(job["shutdown_ready"], msg=evidence)

@@ -25,7 +25,9 @@ class ProviderHttpShutdownTests(unittest.TestCase):
             try:
                 # Each seeded schedule has explicit event barriers and a
                 # bounded 0.6s HTTP cleanup allowance, not an unbounded fuzzer.
-                allowance = 45 if mode == "seeded" else 10
+                allowance = 10
+                if mode == "seeded":
+                    allowance = 45
                 deadline = time.monotonic() + allowance
                 while time.monotonic() < deadline:
                     if report_path.exists():
@@ -39,10 +41,13 @@ class ProviderHttpShutdownTests(unittest.TestCase):
                 # this disposable group afterwards cannot satisfy the assertions.
                 try:
                     os.killpg(process.pid, signal.SIGTERM)
+                # silent-defaults: allow-contract -- An already exited process has no remaining process group to terminate; cleanup continues to reap.
+                # silent-defaults: allow-contract -- A process reaped before escalation cannot receive SIGKILL; the caller still collects shutdown evidence.
                 except ProcessLookupError:
                     pass
                 try:
                     process.wait(timeout=0.5)
+                # silent-defaults: allow-contract -- A child that outlives the grace period is escalated to SIGKILL; no capacity is released early.
                 except subprocess.TimeoutExpired:
                     pass
                 try:
@@ -85,7 +90,9 @@ class ProviderHttpShutdownTests(unittest.TestCase):
         exit_limit = (facts["observations_released_seconds_after_stop"] if stage == "late_startup"
                       else facts["cleanup_seconds"])
         self.assertLessEqual(facts["child_exit_seconds_after_stop"][0], exit_limit + 0.15, msg=evidence)
-        expected_requests = 0 if stage in {"startup", "late_startup"} else 1
+        expected_requests = 1
+        if stage in {"startup", "late_startup"}:
+            expected_requests = 0
         self.assertEqual(expected_requests, facts["http_request_count"], msg=evidence)
         if expected_requests:
             self.assertTrue(facts["socket_closed_by_child"], msg=evidence)

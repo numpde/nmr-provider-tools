@@ -50,8 +50,13 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
         return worker
 
     def evidence(self):
-        return json.dumps([{"error": None if error is None else type(error).__name__, "at": at, **facts}
-                           for error, facts, at in self.notices], sort_keys=True)
+        records = []
+        for error, facts, at in self.notices:
+            reason = None
+            if error is not None:
+                reason = type(error).__name__
+            records.append({"error": reason, "at": at, **facts})
+        return json.dumps(records, sort_keys=True)
 
     @staticmethod
     def unavailable(peer):
@@ -73,7 +78,9 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
             request_owners.append(worker.api.pending_owner is worker)
             # The first genuine HTTPS request exhausts its existing exchange
             # budget. The second receives a retryable API refusal.
-            return "headers-stall" if len(peer.requests) == 1 else "success"
+            if len(peer.requests) == 1:
+                return "headers-stall"
+            return "success"
 
         async def response(_request, _body):
             if not restored.is_set():
