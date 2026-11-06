@@ -66,6 +66,7 @@ def failure_types(error):
 def process_is_alive(pid):
     try:
         os.kill(pid, 0)
+    # silent-defaults: allow-exception-outcome -- ESRCH is a definitive negative liveness observation for the selected child process.
     except ProcessLookupError:
         return False
     return True
@@ -363,7 +364,9 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 await asyncio.wait_for(peer.closed.wait(), 1)
                 await asyncio.wait_for(asyncio.gather(*peer.handlers), 1)
             await asyncio.sleep(0)
-            faults = [json.loads(line) for line in marker.read_text().splitlines()] if marker.exists() else []
+            faults = []
+            if marker.exists():
+                faults = [json.loads(line) for line in marker.read_text().splitlines()]
             facts.update({
                 "controller_failure_types": failure_types(result),
                 "settlement_failure_types": sorted({name for failure in settlement_failures
@@ -413,12 +416,16 @@ async def main(report, mode, seed):
     completed = []
     current = None
     try:
-        case_seeds = range(seed) if mode == "seeded" else (seed,)
+        case_seeds = (seed,)
+        if mode == "seeded":
+            case_seeds = range(seed)
         for case_seed in case_seeds:
             if mode == "seeded":
                 schedule = seeded_schedule(case_seed)
             else:
-                stage = "https_wait" if mode == "uncooperative_https" else mode
+                stage = mode
+                if mode == "uncooperative_https":
+                    stage = "https_wait"
                 schedule = ShutdownSchedule(stage, mode == "uncooperative_https", 1, 0, 0)
             current = {"seed": case_seed, "schedule": asdict(schedule), "trace": []}
             await shutdown_scenario(schedule, case_seed, report.parent, current)

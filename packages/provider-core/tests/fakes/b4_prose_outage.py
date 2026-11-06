@@ -69,14 +69,17 @@ class ObservedProseService(ProseService):
         observed_at = asyncio.get_running_loop().time()
         super()._postpone(failure, delay)
         response = failure.response
+        status = None
+        retry_after = []
+        if response is not None:
+            status = response.status
+            retry_after = [value.decode("ascii", errors="replace")
+                           for name, value in response.headers if name.lower() == b"retry-after"]
         self.retry_observations.append({
             "at": observed_at,
             "reason": failure.reason,
-            "status": None if response is None else response.status,
-            "retry_after": [] if response is None else [
-                value.decode("ascii", errors="replace")
-                for name, value in response.headers if name.lower() == b"retry-after"
-            ],
+            "status": status,
+            "retry_after": retry_after,
         })
 
 
@@ -134,14 +137,22 @@ async def run_outage(directory, *, mode, backlog, seed):
     # Keep the worst-case permitted request count strictly below the smallest
     # 12-Job backlog, so a recovered Job must still be unstarted when service
     # restoration occurs. Retry-After keeps its own stronger one-second floor.
-    outage_seconds = 3.5 if mode == "blocked" else 2.5
-    interpretation_seconds = 2.0 if mode == "blocked" else 1.5
+    outage_seconds = 2.5
+    interpretation_seconds = 1.5
+    recovery_seconds = 3
+    minimum_delay = 0.25
+    if mode == "blocked":
+        outage_seconds = 3.5
+        interpretation_seconds = 2.0
+        recovery_seconds = 5
+    if mode == "retry_after":
+        minimum_delay = 1
     healthy_interpretation_seconds = 4.0
     retirement_seconds = 0.3
-    recovery_seconds = 5 if mode == "blocked" else 3
-    minimum_delay = 1 if mode == "retry_after" else 0.25
-    request_ceiling = (1 + math.floor(outage_seconds / interpretation_seconds)
-                       if mode == "blocked" else 1 + math.floor(outage_seconds / minimum_delay))
+    if mode == "blocked":
+        request_ceiling = 1 + math.floor(outage_seconds / interpretation_seconds)
+    else:
+        request_ceiling = 1 + math.floor(outage_seconds / minimum_delay)
     maximum_attempts = 2
     receipt_release_phase = random_order.choice(("request_received", "failed_job_settled"))
     claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=maximum_attempts))
@@ -172,7 +183,9 @@ async def run_outage(directory, *, mode, backlog, seed):
         peak_prose_connections = max(peak_prose_connections, sum(not task.done() for task in failed_peer.handlers))
         if not available:
             first_failed_request.set()
-        return "headers-stall" if mode == "blocked" and not available else "success"
+        if mode == "blocked" and not available:
+            return "headers-stall"
+        return "success"
 
     async def failed_service_response(_request, _body):
         if restored.is_set():
@@ -185,7 +198,9 @@ async def run_outage(directory, *, mode, backlog, seed):
         elif mode == "invalid_retry_after":
             headers += ((b"Retry-After", b"not-a-date"),)
         failed_peer.response_headers = headers
-        return None if mode == "disconnect" else b'{"error":{"message":"The prose service is unavailable."}}'
+        if mode == "disconnect":
+            return None
+        return b'{"error":{"message":"The prose service is unavailable."}}'
 
     async def jobs_api_response(request, body):
         reference = json.loads(body)["execution_attempt_ref"]
@@ -207,7 +222,10 @@ async def run_outage(directory, *, mode, backlog, seed):
         return receipt
 
     def delivery_notice(error, facts):
-        notices.append({"error": None if error is None else type(error).__name__, **facts})
+        reason = None
+        if error is not None:
+            reason = type(error).__name__
+        notices.append({"error": reason, **facts})
         if facts["event"] == "delivery_published":
             published[facts["execution_attempt_ref"]] = loop.time()
 
@@ -247,10 +265,11 @@ async def run_outage(directory, *, mode, backlog, seed):
                 return (await self.interpreter.run([{"role": "user", "content": self.job_ref}], tools, dispatch)).value
             except InterpretationFailed as failure:
                 self.failure = failure
-                return AnalysisFailure(
+                unavailable = AnalysisFailure(
                     "interpreter_unavailable", "The prose service was unavailable within this Job's interpretation deadline.",
                     ProtectedEvidence("fixture.interpreter.failure.v1", b"original interpreter failure retained"),
                 )
+            return unavailable
 
         async def execute(self, prepared, *, report_condition):
             if prepared is not self.handle or prepared is None:
@@ -313,12 +332,15 @@ async def run_outage(directory, *, mode, backlog, seed):
                 poll_seconds=1, task_settle_seconds=retirement_seconds,
             )
             await controller.run(pending)
+            diagnostic = None
+            if session.failure is not None:
+                diagnostic = failure_evidence(session.failure, secrets=("B4_TEST_CREDENTIAL",))
             job = {"name": name, "attempt_ref": control.attempt_ref,
                    "prepare_calls": session.prepare_calls, "scientific_prepare_calls": session.scientific_prepare_calls,
                    "execute_calls": session.execute_calls, "failed": session.failure is not None,
                    "starts": sum(request.url.path.endswith("/start") for request, _ in control.calls),
                    "shutdown_ready": controller.shutdown_ready, "started_at": control.start_times[0], "finished_at": loop.time(),
-                   "diagnostic": None if session.failure is None else failure_evidence(session.failure, secrets=("B4_TEST_CREDENTIAL",))}
+                   "diagnostic": diagnostic}
             jobs.append(job)
             if name.startswith("affected-") and session.failure is not None:
                 first_failed_job.set()
