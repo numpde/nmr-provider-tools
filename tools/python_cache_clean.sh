@@ -27,7 +27,7 @@ clean_first_party_bytecode() {
         fi
     done
     for directory in "${sources[@]}"; do
-        find -P "$directory" -type f \\( -name '*.pyc' -o -name '*.pyo' \\) -print -delete
+        find -P "$directory" -type f \( -name '*.pyc' -o -name '*.pyo' \) -print -delete
     done
     # Retain any cache directory containing non-bytecode material, so neither
     # unusual source files nor links are discarded under the guise of cleanup.
