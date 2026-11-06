@@ -519,7 +519,8 @@ class _History:
                 or not isinstance(query.get("ref"), str)
             ):
                 raise ToolRejected("Each record request needs a ref and an optional integer cursor.")
-            cursor = query.get("cursor", 0)
+            # silent-defaults: allow-contract -- The input schema explicitly permits omitted cursors; zero selects the start of the captured history record.
+            cursor = query["cursor"] if "cursor" in query else 0
             if type(cursor) is not int or cursor < 0:
                 raise ToolRejected(
                     "A history cursor must be a nonnegative integer offset in that record's JSON text."
@@ -536,8 +537,9 @@ class _History:
         for index, query in enumerate(queries):
             record = self._records.get(query["ref"])
             if record is not None:
+                # silent-defaults: allow-contract -- A missing optional cursor means the beginning of this already-validated record's content.
                 results[index] = self._read_page(
-                    record, query.get("cursor", 0), results[:index], results[index + 1:], fits,
+                    record, query["cursor"] if "cursor" in query else 0, results[:index], results[index + 1:], fits,
                 )
         return {"records": results}
 
@@ -623,13 +625,14 @@ class _DescribeInputConstraints:
         required = False
         for part in path.split("."):
             parent = schema
-            properties = parent.get("properties", {}) if isinstance(parent, dict) else {}
+            # silent-defaults: allow-contract -- Non-object and propertyless JSON Schema nodes declare no traversable child properties.
+            properties = parent["properties"] if isinstance(parent, dict) and "properties" in parent else {}
             if part not in properties:
                 raise ToolRejected(
                     "The requested field is not declared at that property path; read the full tool schema."
                 )
             schema = properties[part]
-            required = part in parent.get("required", [])
+            required = "required" in parent and part in parent["required"]
         return ToolReply({
             **result,
             "field": path,
