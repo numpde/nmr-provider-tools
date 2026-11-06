@@ -32,14 +32,14 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                     "finish_reason": "tool_calls",
                 }]}).encode()
             peer.response_status = 503
-            peer.response_headers = ((b"Content-Type", b"application/json"), (b"Retry-After", b"1"))
+            peer.response_headers = ((b"Content-Type", b"application/json"), (b"Retry-After", b"2"))
             unavailable_reply_sent.set()
             return b'{"error":{"message":"The prose interpreter is temporarily unavailable."}}'
 
         async def restore_only_the_prose_service():
             await unavailable_reply_sent.wait()
-            # Restoration does not revoke the one-second wait already sent.
-            await asyncio.sleep(0.8)
+            # Restoration does not revoke the two-second wait already sent.
+            await asyncio.sleep(1.6)
             restored.set()
 
         async with TlsPeer("success", response_factory=response) as peer:
@@ -72,11 +72,12 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                     await interpreter.retire()
 
             try:
-                # Both short Jobs have less time than the server's requested wait.
-                # The second Job must expire without opening another HTTP exchange.
-                for job in ("job:b4-first", "job:b4-second"):
+                # The first Job has enough time to receive the 503 over real TLS
+                # but not to wait the full Retry-After before its deadline.
+                # The second Job expires without opening another exchange.
+                for job, seconds in (("job:b4-first", 2.0), ("job:b4-second", 0.55)):
                     with self.assertRaises(InterpretationFailed):
-                        await interpret(job, 0.55)
+                        await interpret(job, seconds)
                     if job == "job:b4-first":
                         self.assertEqual(
                             ["job:b4-first"], [request["job"] for request in requests],
@@ -85,7 +86,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                                 "was actually established: " + json.dumps(requests),
                         )
                 try:
-                    result = await interpret("job:b4-third", 2)
+                    result = await interpret("job:b4-third", 5)
                 except InterpretationFailed as failure:
                     raise AssertionError(
                         "The restored service did not complete the third Job inside "
@@ -102,8 +103,8 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(all(owner.retirement_confirmed for owner in interpreters), msg=evidence)
                 self.assertFalse(any(not task.done() for task in peer.handlers), msg=evidence)
                 self.assertGreaterEqual(
-                    requests[1]["at"] - requests[0]["at"], 1,
-                    msg="A later Job bypassed the prose service's one-second Retry-After: " + evidence,
+                    requests[1]["at"] - requests[0]["at"], 2,
+                    msg="A later Job bypassed the prose service's two-second Retry-After: " + evidence,
                 )
                 self.assertEqual(["job:b4-first", "job:b4-third"], [request["job"] for request in requests],
                                  msg=evidence)

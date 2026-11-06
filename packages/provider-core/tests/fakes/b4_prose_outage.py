@@ -105,17 +105,13 @@ async def run_outage(directory, *, mode, backlog, seed):
     """Return measurements before closing peers, publisher or scientific worker."""
     loop = asyncio.get_running_loop()
     random_order = random.Random(seed)
-    # These limits precede observation of the implementation under test. The
-    # long blocked-I/O window spans more Jobs than the two configured slots.
-    # The blocked-response variant deliberately times out a complete HTTP
-    # child while the peer withholds headers. A 0.55-second *total* model
-    # deadline was too close to process startup + TLS + model-tool acceptance
-    # on a resource-constrained release builder, making even a restored peer
-    # unable to complete the tool dispatch. Keep outage > model allowance so
-    # the first blocked request still has to expire and retire its child.
-    outage_seconds = 3.0 if mode == "blocked" else 1.2
-    interpretation_seconds = 1.2 if mode == "blocked" else 0.55
-    retirement_seconds, recovery_seconds = 0.3, 3
+    # All model requests include fresh Python startup, TLS and tool decoding.
+    # The unavailable peer must outlast the affected original deadline; the
+    # independent healthy route must have enough allowance to finish science.
+    outage_seconds = 5.0 if mode == "blocked" else 4.0
+    interpretation_seconds = 2.0 if mode == "blocked" else 1.5
+    healthy_interpretation_seconds = 4.0
+    retirement_seconds, recovery_seconds = 0.3, 5
     minimum_delay = 1 if mode == "retry_after" else 0.25
     request_ceiling = (1 + math.floor(outage_seconds / interpretation_seconds)
                        if mode == "blocked" else 1 + math.floor(outage_seconds / minimum_delay))
@@ -194,7 +190,11 @@ async def run_outage(directory, *, mode, backlog, seed):
             self.prepare_calls = self.scientific_prepare_calls = self.execute_calls = 0
             self.handle = self.failure = None
             self.retired = False
-            self.interpreter = Interpreter((service,), timeout_seconds=interpretation_seconds,
+            # Healthy reporting and deliberately blocked model requests have
+            # separate, explicit fixed allowances in this fixture.
+            model_seconds = (healthy_interpretation_seconds if
+                             job_ref.endswith(("original-result", "healthy-during-outage")) else interpretation_seconds)
+            self.interpreter = Interpreter((service,), timeout_seconds=model_seconds,
                                            context_bytes=16384, secrets=("B4_TEST_CREDENTIAL",))
 
         async def prepare(self, acknowledged, instructions, *, report_condition):
@@ -329,7 +329,7 @@ async def run_outage(directory, *, mode, backlog, seed):
             idle_descriptors = _descriptors()
             original_report_ref = JobsControlTransport("job:b4-original-result").attempt_ref
             await run_job("original-result", healthy_service)
-            await asyncio.wait_for(original_report_received.wait(), 3)
+            await asyncio.wait_for(original_report_received.wait(), 8)
             original_report = local_delivery.items[0]
             tasks = [asyncio.create_task(restore_service()), asyncio.create_task(drive_backlog()),
                      asyncio.create_task(healthy_work_and_original_receipt())]
