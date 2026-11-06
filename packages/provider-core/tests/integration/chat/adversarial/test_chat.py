@@ -98,9 +98,10 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         transport.exchange_decoded.assert_awaited_once()
 
     async def test_peer_retires_an_observed_tls_handshake_that_never_reaches_its_http_handler(self):
-        # A deliberately incomplete handshake must not emit unexpected asyncio
-        # ERROR logs while the test confirms the connection was retired.
-        with self.assertNoLogs("asyncio", level="ERROR"):
+        # A partial TLS handshake has no HTTP handler task. The asyncio
+        # accept task reports the expected transport-creation failure instead.
+        # Capture only this test's diagnostic; any other event still fails.
+        with self.assertLogs("asyncio", level="ERROR") as recorded:
             writer = None
             try:
                 async with TlsPeer("success", handshake_seconds=0.25) as peer:
@@ -121,6 +122,17 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
                 if writer is not None:
                     writer.close()
                     await writer.wait_closed()
+        self.assertEqual(1, len(recorded.records),
+                         msg=[record.getMessage() for record in recorded.records])
+        event = recorded.records[0]
+        self.assertEqual("ERROR", event.levelname)
+        self.assertEqual("Error on transport creation for incoming connection",
+                         event.getMessage().split("\n", 1)[0])
+        self.assertIsNotNone(event.exc_info)
+        error = event.exc_info[1]
+        self.assertIn(type(error), (ConnectionAbortedError, ConnectionResetError))
+        if type(error) is ConnectionAbortedError:
+            self.assertIn("SSL handshake is taking longer than 0.25 seconds", str(error))
 
     def spec(self, url):
         return ChatEndpointSpec(
