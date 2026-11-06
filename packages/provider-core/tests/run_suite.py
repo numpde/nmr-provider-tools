@@ -14,6 +14,13 @@ from pathlib import Path
 import provider_core
 
 
+# The installed runner is executed as a script (__main__), while its own
+# regression tests import tests.run_suite. Both names must identify the same
+# module or two independent observer stacks will count nested test errors twice.
+if __name__ == "__main__":
+    sys.modules["tests.run_suite"] = sys.modules[__name__]
+
+
 # Observe the asyncio logger for the complete unittest runner lifetime, not
 # merely between startTest and stopTest. IsolatedAsyncioTestCase closes its loop
 # AFTER stopTest, and errors during that shutdown must still fail the test.
