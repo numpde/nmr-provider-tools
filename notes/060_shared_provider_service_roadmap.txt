@@ -46,7 +46,9 @@ Where we actually are
   or waiting until the language-model request's deadline before stopping.
   Both revised tests passed locally on each of the released and candidate
   wheels. The consumer changes are on a test branch, not NMRPeak main.
-* B4, the migration below and four-provider deployment qualification are open.
+* B4 implementation and local consumer qualification are recorded in note 061.
+  The migration below and four-provider native deployment qualification remain
+  open; note 061 identifies the final candidate and consumer publication limits.
   Released and candidate wheels both identify as provider-core 0.6.6. The
   released wheel's SHA256 is
   22b5a391aa3748340b969f47c935d62a4f9b08b9fe8c98f808fec47e6546b0c7;

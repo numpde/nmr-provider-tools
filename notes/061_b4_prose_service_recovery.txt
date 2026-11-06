@@ -1,0 +1,286 @@
+B4: Recovery after the prose interpretation service returns
+===========================================================
+2026-11-06 | Implementation and local qualification
+SDK branch: fix/release-settled-cancelled-attempts
+
+Status
+------
+The B4 SDK changes are implemented and pushed. All four actual provider
+loops/adapters have been exercised against the same immutable candidate wheel.
+Their selected consumer checks pass, including complete finite-backlog drain
+after restoring only the HTTPS service hosting the language model used for
+prose interpretation.
+
+Native worker and deployment qualification remains open. This is not a
+package release. The candidate still identifies as provider-core 0.6.6;
+identify it by checksum, not by that version string. Provider dependency pins
+and the Magnet transport workaround remain unchanged.
+
+The SDK, NMRPeak and private Magnet branches are published. SECS and NMRNet
+have clean, tested local branches, but the GitHub connector denied creating
+their remote branches with HTTP 403, "Resource not accessible by integration".
+Their three-commit histories have been saved as verified Git bundles and
+ordered patches. Their publication needs connector write access.
+
+Exact candidate
+---------------
+Runtime source commit:
+17c2fe1512aedb4b20b094032f130314a1fe1d61
+
+Wheel:
+provider_core-0.6.6-py3-none-any.whl
+
+SHA256:
+8d943d644ba09b8621e3eb1867ba7163dfaece11ea0d090ee01495c8385a29b7
+
+Built with the project's pinned setuptools 84.1.0. All 69 packaged Python
+files match both the source and the installed qualification environment.
+Each consumer used that same artifact. Earlier candidate checksums in the
+red/green commit bodies identify the builds used at those earlier steps;
+the final results below supersede those provisional checks.
+
+The pre-B4 base was 43fcad7eae9cf531dde708f5bbafc2889d32f0bb.
+The B3 baseline wheel used to reproduce aggregate retry traffic had SHA256
+182fc3e0a08fb04bd79bddc934bb12d39752c28f04dd4ca87f843b0b4677ed91.
+It also identifies as 0.6.6 and is not interchangeable with this candidate.
+
+Adjacent SDK red/green pairs
+---------------------------
+1. Share the prose service's retry delay across Jobs.
+
+   Red:   33f886ba5b4382c011f2ffb5939f4efc9e852e57
+   Green: bf82fa5f785d7cd9d8b65b9b3de4e495f27aa58c
+
+   Before the fix, a subsequent Job sent its request 0.216297 seconds after
+   the previous Job received Retry-After: 1. The sustained-outage baseline
+   sent seven requests during a fixed 1.2-second outage for either 12 or 120
+   queued Jobs, exceeding the declared ceiling of two.
+
+   ProseService now retains retry timing for one captured endpoint
+   configuration across Jobs. Providers construct it once and reuse it.
+   Each HTTP exchange still has its own owner. The existing two-send budget,
+   retry classification, random backoff and original interpretation deadline
+   remain authoritative. A wait is interruptible by interpreter retirement.
+   Waiting or retrying the HTTP exchange does not restart preparation already
+   accepted for its original Attempt.
+   An older in-flight success cannot clear a newer service refusal.
+
+2. Report elapsed waits with the original retained failure or report.
+
+   Red:   956078e6178d41d6b9f9e812f767302b6a7b192b
+   Green: 3d1ce84496683eeb08963956e43225147ebe076d
+
+   Publication notices now identify the elapsed work on that exact retained
+   report. Recovery is reported only after its matching receipt from the
+   central NMR Jobs API and successful removal of its local queue row.
+   A different report's success cannot clear an unresolved report.
+
+   ExecutionFailed diagnostics retain the original lifecycle failure's age.
+   This is historical evidence, including after eventual settlement; it is
+   not proof that a claim is still held or time since the last progress.
+   The original controller and the existing queue overview remain the
+   authorities for live ownership and queued-report age.
+
+3. Warn if an accepted report's publication remains pending.
+
+   Red:   39559384b6f1bf01fce022dec43d529cf635a6d4
+   Green: 17c2fe1512aedb4b20b094032f130314a1fe1d61
+
+   The red received a matching publication receipt over the configured TLS
+   connection to a local peer representing the central NMR Jobs API, then
+   held the original offloaded queue removal open.
+   The publisher retained the row and storage operation but emitted no
+   notice after the observation budget elapsed.
+
+   One timer now emits delivery_stalled with the original report identity,
+   elapsed publication wait and whether the API receipt has arrived.
+   Its budget is the captured API exchange allowance plus retirement
+   allowance plus maximum retry delay. Retries cannot renew it.
+   The timer observes the original operation; it does not cancel storage,
+   resend a report or transfer ownership. Recovery follows that same row's
+   completed removal. The timer is cancelled when its publication call ends.
+
+   Passing guards also cover stop while queue removal is blocked, a failed
+   first diagnostic write, and absence of a stale warning after early
+   success. Diagnostic output failure does not replace the storage owner.
+
+Consumer adoption and final evidence
+------------------------------------
+NMRPeak: 65 selected checks passed in 25.691 seconds.
+  Published branch: test/prose-service-outage
+  Published head: 0e28c9a30efcfc78c06002267caf36249a6d2373
+  Repository: numpde/nmrpeak-repro
+  Two adjacent commits retain the failing witness and its fix.
+
+  InputInterpreter captures service bindings at configuration construction.
+  The real ProviderProcess leaves known prose-dependent Jobs unstarted
+  while all alternatives are delayed. Typed input remains eligible, including
+  typed work in the same lane behind delayed prose. Locally rejected input
+  retains its existing failure path.
+
+  For 64 and 640 waiting Jobs, the second unavailable-service requests arrived
+  after 2.233899 and 2.234890 seconds respectively for Retry-After: 2.
+  Each 2.25-second outage produced only two requests. A separate finite case
+  drained six HF prose Jobs and one typed CHF Job: two original failure
+  reports, four later HF successes and the typed CHF success during outage.
+  Every Job received one START and one original report acknowledgement;
+  every success validated and generated once through its original session.
+
+  Maintained witness: tests/integration/test_provider_prose_outage.py
+  Supporting peer: tests/fakes/prose_outage.py
+
+SECS: 47 selected checks passed in 11.193 seconds.
+  Local branch: fix/prose-service-recovery
+  Local head: 56829d35bdca0d383cd7503883211725091bf842
+  Base: be5c191be7a4beba2210148b807cb847776639a4
+  Repository: numpde/secs-repro
+  Three commits: adjacent retry red/green, then a green-only full-drain guard.
+  Remote publication is blocked by the connector's HTTP 403.
+
+  Startup captures service bindings. Every real SECS Job requires prose
+  interpretation, so its existing serial service waits before discovery
+  and START while every configured alternative is delayed. The verified
+  Job-input read stays after START.
+
+  Maintained witness: tests/provider/test_prose_service_outage.py
+  The 80- and 800-Job cases retain the same three-request ceiling for a
+  2.2-second outage and Retry-After: 1. A separate eight-Job case drains every
+  original report, preserves each prepared handle, runs science once per
+  success and returns claims/controllers to baseline.
+
+NMRNet: 47 selected checks passed in 10.365 seconds.
+  Local branch: fix/prose-service-recovery
+  Local head: cb3939e59cad6a0663ad11f1da14e29a32e98125
+  Base: 2f9b161b4819a23bf61c12a3eb7fd36af2b72035
+  Repository: numpde/nmrnet-repro
+  Three commits: adjacent retry red/green, then a green-only full-drain guard.
+  Remote publication is blocked by the connector's HTTP 403.
+
+  The native factory retains captured service bindings and passes them to
+  each original session. Its serial service waits before START while every
+  prose service is delayed. Existing source-acquisition and geometry owners
+  remain in place.
+
+  Maintained witness:
+  tests/integration/provider_core/adversarial/test_nmrnet_service_prose_outage.py
+  The 80/800 timing cases and a separate eight-Job full drain pass with the
+  same request ceiling as SECS. Original source acquisition, preparation,
+  calculation and local report acknowledgements are counted.
+
+Magnet: 39 selected checks passed in 10.932 seconds.
+  The private companion branch fix/prose-service-recovery is published.
+  Its five commits comprise the retry red/green, a green-only eight-Job
+  drain guard and an additional adjacent admission red/green.
+
+  A retained OpenAIChatEndpoints configuration now reuses its ProseService
+  bindings. A separate red showed that, after the parent classified HTTP
+  503 with Retry-After: 1, the lane still sent START for a second Job during
+  that known wait. E01, E02 and G01 now use their existing per-lane readiness
+  check to postpone START while all configured prose services are delayed.
+  A healthy alternative permits admission. The E02 lane witness, unchanged
+  80/800 request bounds and eight-Job complete drain all pass.
+
+These are actual consumer loops and adapters with recording scientific
+ports. Their report acknowledgements establish local custody in the test
+delivery port. The SDK fixture below separately verifies signed publication
+requests and matching receipts against a TLS peer representing the central
+NMR Jobs API. These consumer runs do not establish native model execution,
+real worker PID continuity or Magnet's deployed three-runner composition.
+
+Final SDK outage measurements
+----------------------------
+One complete chat-suite run captured six cases. The three-second recovery
+limit was declared before execution. Receipt times below refer to the first
+successful affected Job whose START occurred after service restoration:
+
+  Outage / queued Jobs             Requests / ceiling    New receipt
+  Retry-After: 1 / 12               1 / 2                 0.427 s
+  Retry-After: 1 / 120              1 / 2                 0.515 s
+  HTTP 503 without delay / 12      2 / 5                 0.395 s
+  Invalid Retry-After / 12          2 / 5                 0.643 s
+  Disconnected request / 12        2 / 5                 0.687 s
+  Blocked response headers / 12    4 / 4                 0.289 s
+
+The outage lasts 1.2 seconds except for blocked response headers, which last
+2 seconds. Each case uses a real local TLS peer, the installed SDK, real
+Attempt controllers, the supervised HTTP child, a counting scientific
+subprocess, a SQLite outbox and a publisher sending signed requests to a TLS
+peer representing the central NMR Jobs API. That peer returns the matching
+publication receipt. The fixture's admission loop is an SDK test driver; the consumer
+tests above exercise the actual provider admission loops.
+
+The original pending report receives its matching API receipt during the
+prose-service outage, and the independent healthy route publishes during
+that same outage. All original report bytes are preserved. All 14 reports
+drain in each small case; all 122 drain in the 120-Job case, within 22.877
+seconds of restoration. Failed terminal Jobs retain their failure reports.
+
+All six cases preserve the scientific worker PID and one model load.
+Each successful scientific operation occurs once. Claims and queued rows
+return to zero; every HTTP child exit is observed; all peer connections close;
+socket and pipe descriptor counts return to baseline before fixture teardown.
+The blocked-response case retains its original TimeoutError diagnostic.
+
+Final SDK validation
+--------------------
+  Interpreter, shared service and fuzz units: 54 passed.
+  Lifecycle age, projection and logging:      16 passed.
+  Publisher progress, storage stall and retry: 18 passed.
+  Full chat integration:                     74 passed; 3 blocked.
+
+Total: 162 passing methods and three environment-blocked methods.
+The full chat command exits 1 with four error reports across three unique
+methods, all at tests/fakes/unix_proxy.py while creating an AF_UNIX socket:
+PermissionError: [Errno 1] Operation not permitted.
+It must not be described as a fully green suite.
+
+The blocked SharedInterpreterCarrierTests methods are:
+  test_lost_reply_after_successful_connect_retries_same_model_without_science_replay
+  test_setup_cap_does_not_become_a_response_timeout_direct_or_through_proxy
+  test_setup_deadline_covers_stalled_connect_and_tls_before_long_response_window
+The last method reports two blocked peer-mode subtests.
+
+SECS separately excludes three native Unix IPC checks after recording the
+same environment restriction:
+  test_real_dispatched_timeout_has_no_public_outcome
+  test_real_worker_invalid_json_has_no_public_outcome
+  test_real_worker_malformed_failure_frame_has_no_public_outcome
+
+SDK reproduction
+----------------
+From packages/provider-core, using the isolated interpreter containing the
+exact candidate wheel in the normal qualification container:
+
+  "$B4_PYTHON" -I -B tests/run_suite.py integration/chat 'test_*.py'
+  "$B4_PYTHON" -I -B tests/run_suite.py unit test_interpreter.py test_prose_service.py test_fuzz_interpreter.py
+  "$B4_PYTHON" -I -B tests/run_suite.py unit test_b4_execution_failure_age.py test_failure_projection.py test_delivery_logging.py
+  "$B4_PYTHON" -I -B tests/run_suite.py integration/delivery test_delivery_worker.py test_b4_delivery_progress.py test_b4_publication_stall.py
+
+The final chat run additionally recorded each outage fixture's returned
+measurements while invoking that same maintained runner; production behavior
+was not patched. Tests unset SSL_CERT_FILE, SSL_CERT_DIR and SSLKEYLOGFILE.
+The installed-SDK runner checks both module and distribution origins.
+
+The final records are final-artifact.json, final-sdk-results.json,
+nmrpeak-final.json, final-consumer-results.json and the corresponding logs in
+the task evidence. Commit bodies record the tested base, earlier artifact,
+command, observed failure and limits for each adjacent pair.
+
+Remaining release gate
+----------------------
+1. Publish the already tested SECS/NMRNet branches when connector write access
+   is available. Preserve their ordered histories and exact qualified trees.
+2. Run positive Unix/proxy and native worker tests in the intended deployment
+   environment. Docker is unavailable here and AF_UNIX creation is denied.
+3. Install this exact wheel in all four real provider deployments. Inject the
+   prose-service outage, restore only that service, and require automatic
+   backlog drain and capacity recovery. For Magnet, run E02's fault alongside
+   E01 science and G01 delivery; record real worker PIDs, model-load counts,
+   provider restarts and the central Jobs API's original publication receipt.
+4. Only after that evidence passes, release and pin the qualified artifact
+   and retire the Magnet transport workaround.
+
+The later shared-service migration in note 060 remains a separate task.
+Recovery after the entire provider dies before durable outbox custody also
+remains a separate red/green series. Nothing here reconstructs a lost selected
+report or grants permission to repeat START or science.
