@@ -136,10 +136,12 @@ class RunnerSummaryTests(unittest.TestCase):
         class Cases(unittest.TestCase):
             def test_context(self):
                 logging.getLogger("asyncio").error(
-                    "Error on transport creation for incoming connection\\n"
-                    "handle_traceback: deliberate test frame\\n"
-                    "protocol: test peer\\n"
-                    "transport: test SSL transport"
+                    chr(10).join((
+                        "Error on transport creation for incoming connection",
+                        "handle_traceback: deliberate test frame",
+                        "protocol: test peer",
+                        "transport: test SSL transport",
+                    ))
                 )
 
         result, output = self.render((Cases("test_context"),))
