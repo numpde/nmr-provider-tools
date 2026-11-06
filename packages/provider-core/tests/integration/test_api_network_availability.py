@@ -14,7 +14,7 @@ from provider_core.api import ApiFailure, ProviderAPI
 from provider_core.signing import SigningIdentity
 from provider_core.transport import HttpTransport
 from tests.fakes.api import response_headers
-from tests.fakes.tls_peer import TlsPeer
+from tests.fakes.tls_peer import TlsPeer, expect_optional_certificate_rejection_reset
 from tests.fakes.uploads import encoded, membership
 
 
@@ -94,11 +94,20 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.wait_for(proxy.closed.wait(), 1)
 
     async def test_real_certificate_validation_is_not_availability(self):
-        async with TlsPeer("success", response_body=encoded(membership()), response_headers=response_headers()) as peer:
-            api = self.api(peer.origin, ssl.create_default_context())
-            with self.assertRaises(ApiFailure) as caught:
-                await api.uploads("job:example")
-            self.assertTrue(api.retirement_confirmed)
-            self.assertEqual(caught.exception.cause.network_io.stage, "start_tls")
-            self.assertFalse(api.can_retry_read(caught.exception))
-            self.assertEqual(peer.requests, [])
+        # A rejected certificate can, but need not, also reset the server's
+        # unfinished TLS handshake. Explicitly own only that optional fault,
+        # leaving every other asyncio ERROR visible to the shared test runner.
+        with expect_optional_certificate_rejection_reset():
+            async with TlsPeer("success", response_body=encoded(membership()),
+                               response_headers=response_headers()) as peer:
+                api = self.api(peer.origin, ssl.create_default_context())
+                with self.assertRaises(ApiFailure) as caught:
+                    await api.uploads("job:example")
+                self.assertTrue(api.retirement_confirmed)
+                self.assertEqual(caught.exception.cause.network_io.stage, "start_tls")
+                self.assertFalse(api.can_retry_read(caught.exception))
+                self.assertTrue(peer.handshake_received.is_set())
+                self.assertEqual(peer.requests, [])
+            # Complete pending accept callbacks before leaving this explicitly
+            # scoped expectation; a late unrelated asyncio error still fails.
+            await asyncio.sleep(0)

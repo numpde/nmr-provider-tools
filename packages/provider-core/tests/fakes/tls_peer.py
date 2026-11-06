@@ -1,7 +1,9 @@
 """Finite TLS peer; explicit bind address, disposable keys and certificates."""
 
 import asyncio
+from contextlib import contextmanager
 import ipaddress
+import logging
 import ssl
 import tempfile
 from builtins import BaseExceptionGroup
@@ -15,6 +17,51 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from cryptography.x509.oid import NameOID
 
 from provider_core.api_config import https_trust
+
+
+class _OptionalCertificateRejectionReset(logging.Filter):
+    """Only one server-accept reset attributable to a rejected TLS handshake."""
+
+    def __init__(self):
+        super().__init__()
+        self.records = []
+
+    def filter(self, record):
+        # Explicitly scoped by a test that separately proves client-side
+        # certificate rejection. Unrelated or repeated errors still reach the
+        # installed runner's strict asyncio ERROR observer.
+        if (
+            not self.records
+            and record.name == "asyncio"
+            and record.levelno == logging.ERROR
+            and Path(record.pathname).parent.name == "asyncio"
+            and Path(record.pathname).name == "base_events.py"
+            and record.getMessage().split("\n", 1)[0]
+            == "Error on transport creation for incoming connection"
+            and record.exc_info is not None
+            and type(record.exc_info[1]) is ConnectionResetError
+        ):
+            self.records.append(record)
+            return False
+        return True
+
+
+@contextmanager
+def expect_optional_certificate_rejection_reset():
+    """Claim an optional server reset while a test rejects a TLS certificate.
+
+    The negative test must independently assert the client-side rejection
+    and absence of HTTP requests. asyncio can complete that rejection without
+    logging a server-side error, so zero events is legitimate. This filter
+    never changes the suite-wide policy for unrelated asyncio errors.
+    """
+    logger = logging.getLogger("asyncio")
+    expected = _OptionalCertificateRejectionReset()
+    logger.addFilter(expected)
+    try:
+        yield expected.records
+    finally:
+        logger.removeFilter(expected)
 
 
 class TlsPeer:
