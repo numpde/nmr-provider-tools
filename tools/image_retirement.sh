@@ -6,9 +6,9 @@ automatic=false
 if [[ $# == 1 && $1 == --automatic ]]; then automatic=true; shift; fi
 [[ $# == 0 ]] || exit 2
 if "$automatic"; then
-    [[ -n ${NMR_SELECTED_DOCKER_ENDPOINT:-} ]] || exit 2
+    [[ -v NMR_SELECTED_DOCKER_ENDPOINT && -n $NMR_SELECTED_DOCKER_ENDPOINT ]] || exit 2
 else
-    [[ ${DOCKER_CONTEXT_INPUT_ORIGIN:-} == 'command line' ]] || {
+    [[ -v DOCKER_CONTEXT_INPUT_ORIGIN && $DOCKER_CONTEXT_INPUT_ORIGIN == 'command line' ]] || {
         printf '%s\n' 'Use make packages/images/retire DOCKER_CONTEXT=<local-context>.' >&2; exit 2;
     }
 fi
@@ -44,8 +44,9 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 docker_client_prepare run || { printf '%s' "$docker_client_diagnostic" >&2; exit 2; }
 staged=
-if [[ ${SHARED_RUNTIME_IMAGE_INPUT_ORIGIN:-} == 'command line' ]]; then
-    staged=${SHARED_RUNTIME_IMAGE_INPUT:-}
+if [[ -v SHARED_RUNTIME_IMAGE_INPUT_ORIGIN && $SHARED_RUNTIME_IMAGE_INPUT_ORIGIN == 'command line' ]]; then
+    [[ -v SHARED_RUNTIME_IMAGE_INPUT ]] || { printf '%s\n' 'The staged image input is missing.' >&2; exit 2; }
+    staged=$SHARED_RUNTIME_IMAGE_INPUT
     [[ $staged =~ ^sha256:[0-9a-f]{64}$ ]] || {
         printf '%s\n' 'The staged SHARED_RUNTIME_IMAGE must be an immutable image ID.' >&2; exit 2;
     }

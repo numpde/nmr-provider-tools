@@ -2,7 +2,7 @@
 # Project a flat locked closure using the interface-bound metadata proxy.
 set -euo pipefail
 root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
-[[ ${LOCK_INPUT_ORIGIN-} == 'command line' && -n ${LOCK_INPUT-} ]] || {
+[[ -v LOCK_INPUT_ORIGIN && $LOCK_INPUT_ORIGIN == 'command line' && -v LOCK_INPUT && -n $LOCK_INPUT ]] || {
     printf '%s\n' 'Supply LOCK as a target-specific pinned requirements file.' >&2; exit 2;
 }
 lock=$(realpath -e -- "$LOCK_INPUT")
@@ -11,17 +11,18 @@ lock=$(realpath -e -- "$LOCK_INPUT")
 }
 arguments=(--lock /input/requirements.lock)
 pool_mount=()
-if [[ ${WHEELHOUSE_INPUT_ORIGIN-} == 'command line' ]]; then
+if [[ -v WHEELHOUSE_INPUT_ORIGIN && $WHEELHOUSE_INPUT_ORIGIN == 'command line' ]]; then
     source "$root/tools/wheelhouse_path.sh"
     select_wheelhouse
     require_wheelhouse_pool
     pool_mount=(--mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly")
     arguments+=(--pool /wheelhouse)
 fi
-if [[ -n ${LOCATE_INDEX_INPUT-} ]]; then arguments+=(--index-url "$LOCATE_INDEX_INPUT"); fi
-read -r -a sources <<< "${LOCATE_SOURCES_INPUT-}"
+if [[ -v LOCATE_INDEX_INPUT && -n $LOCATE_INDEX_INPUT ]]; then arguments+=(--index-url "$LOCATE_INDEX_INPUT"); fi
+[[ -v LOCATE_SOURCES_INPUT && -v LOCATE_REQUIRED_INPUT ]] || { printf '%s\n' 'Source-selection inputs were not supplied by the Make owner.' >&2; exit 2; }
+read -r -a sources <<< "$LOCATE_SOURCES_INPUT"
 for source in "${sources[@]}"; do arguments+=(--source "$source"); done
-read -r -a required <<< "${LOCATE_REQUIRED_INPUT-}"
+read -r -a required <<< "$LOCATE_REQUIRED_INPUT"
 for source in "${required[@]}"; do arguments+=(--require-source "$source"); done
 command=(bash "$root/tools/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \
     --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
@@ -30,7 +31,7 @@ command=(bash "$root/tools/docker.sh" run --image nmr-provider-tools/wheelhouse-
     --mount "type=bind,src=$lock,dst=/input/requirements.lock,readonly" \
     "${pool_mount[@]}" \
     --entrypoint python -- -B -m wheelhouse_tool.locate "${arguments[@]}")
-if [[ ${OUTPUT_INPUT_ORIGIN-} != 'command line' ]]; then
+if [[ ! -v OUTPUT_INPUT_ORIGIN ]] || [[ $OUTPUT_INPUT_ORIGIN != 'command line' ]]; then
     exec "${command[@]}"
 fi
 output=$(realpath -m -- "$OUTPUT_INPUT")

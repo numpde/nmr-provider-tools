@@ -11,6 +11,5 @@ RUN --network=none --mount=type=bind,from=dependencies,target=/dependencies,read
     && python -m pip install --no-index --no-deps /dependencies/packaging-26.3-py3-none-any.whl /dependencies/tomli_w-1.2.0-py3-none-any.whl
 WORKDIR /opt
 COPY wheelhouse_tool /opt/wheelhouse_tool
-ENV PYTHONDONTWRITEBYTECODE=1
 USER 65532:65532
-ENTRYPOINT ["python", "-m", "wheelhouse_tool"]
+ENTRYPOINT ["python", "-B", "-m", "wheelhouse_tool"]
