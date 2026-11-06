@@ -279,7 +279,7 @@ class WheelhouseTests(unittest.TestCase):
                 reader = threading.Thread(target=read_cached)
                 reader.start()
                 reader.join(2)
-                self.assertFalse(reader.is_alive(), "warm reader waited for the download")
+                self.assertFalse(reader.is_alive(), msg="warm reader waited for the download")
             finally:
                 resume.set()
                 first.join(5)

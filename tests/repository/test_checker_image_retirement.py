@@ -76,14 +76,14 @@ class ImageRetirementTests(unittest.TestCase):
         for borrowed, staged in ((True, ()), (False, (IDENTIFIER,))):
             with self.subTest(borrowed=borrowed), tempfile.TemporaryDirectory() as directory:
                 engine = Engine(image(), borrower=borrowed)
-                self.assertEqual(retire(Path(directory), engine, lambda: CURRENT, staged=staged, now=NOW, operations=Path(directory)), 0)
-                self.assertEqual(engine.removals, [])
+                self.assertEqual(0, retire(Path(directory), engine, lambda: CURRENT, staged=staged, now=NOW, operations=Path(directory)))
+                self.assertEqual([], engine.removals)
 
     def test_changed_alias_or_new_container_prevents_removal(self):
         with tempfile.TemporaryDirectory() as directory:
             engine = Engine(image(), changed=True)
-            self.assertEqual(retire(Path(directory), engine, lambda: CURRENT, now=NOW, operations=Path(directory)), 0)
-            self.assertEqual(engine.removals, [])
+            self.assertEqual(0, retire(Path(directory), engine, lambda: CURRENT, now=NOW, operations=Path(directory)))
+            self.assertEqual([], engine.removals)
         engine = Engine(image())
         original = engine.__call__
         def borrowed_later(*arguments):
@@ -91,8 +91,8 @@ class ImageRetirementTests(unittest.TestCase):
                 return "2" * 64 + "\n"
             return original(*arguments)
         with tempfile.TemporaryDirectory() as directory:
-            self.assertEqual(retire(Path(directory), borrowed_later, lambda: CURRENT, now=NOW, operations=Path(directory)), 0)
-            self.assertEqual(engine.removals, [])
+            self.assertEqual(0, retire(Path(directory), borrowed_later, lambda: CURRENT, now=NOW, operations=Path(directory)))
+            self.assertEqual([], engine.removals)
 
     def test_current_inputs_and_unknown_aliases_and_recent_outputs_remain(self):
         cases = [
@@ -110,7 +110,7 @@ class ImageRetirementTests(unittest.TestCase):
         ]
         for value in cases:
             with self.subTest(value=value):
-                self.assertEqual(select_images([value], set(), CURRENT, NOW), [])
+                self.assertEqual([], select_images([value], set(), CURRENT, NOW))
         self.assertEqual(select_images([image(Labels={"org.nmr-provider-tools.role": "wheelhouse-tool"},
                                              RepoTags=[])], set(), CURRENT, NOW), [IDENTIFIER])
 
@@ -119,7 +119,7 @@ class ImageRetirementTests(unittest.TestCase):
             engine = Engine(image(), malformed=True)
             with self.assertRaises(ValueError):
                 retire(Path(directory), engine, lambda: CURRENT, now=NOW, operations=Path(directory))
-            self.assertEqual(engine.removals, [])
+            self.assertEqual([], engine.removals)
 
     def test_current_source_change_fails_before_removal(self):
         identities = iter((CURRENT, ("e" * 64, CURRENT[1])))
@@ -127,7 +127,7 @@ class ImageRetirementTests(unittest.TestCase):
             engine = Engine(image())
             with self.assertRaises(RetirementRefused):
                 retire(Path(directory), engine, lambda: next(identities), now=NOW, operations=Path(directory))
-            self.assertEqual(engine.removals, [])
+            self.assertEqual([], engine.removals)
 
     def test_known_retained_build_receipt_protects_exact_image(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -137,8 +137,8 @@ class ImageRetirementTests(unittest.TestCase):
             receipt = operation / "built-image"
             receipt.write_text(IDENTIFIER + "\n")
             engine = Engine(image())
-            self.assertEqual(retire(root, engine, lambda: CURRENT, now=NOW, operations=root), 0)
-            self.assertEqual(engine.removals, [])
+            self.assertEqual(0, retire(root, engine, lambda: CURRENT, now=NOW, operations=root))
+            self.assertEqual([], engine.removals)
             self.assertEqual(retained_image_ids(root), {IDENTIFIER})
             receipt.unlink()
             self.assertEqual(retained_image_ids(root), set())

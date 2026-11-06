@@ -21,9 +21,9 @@ class ResolverCaptureTests(unittest.TestCase):
         with patch.object(dns.socket, "if_nametoindex", return_value=2), \
                 patch.object(dns.subprocess, "run", return_value=response) as run, \
                 patch.object(Path, "read_text") as read:
-            self.assertEqual(dns.capture_dns_servers("wlan0"), ("192.0.2.53", "192.0.2.54"))
-        self.assertEqual(run.call_count, 1)
-        self.assertEqual(run.call_args.args[0], ["nmcli", "--get-values", "IP4.DNS", "device", "show", "wlan0"])
+            self.assertEqual(("192.0.2.53", "192.0.2.54"), dns.capture_dns_servers("wlan0"))
+        self.assertEqual(1, run.call_count)
+        self.assertEqual(["nmcli", "--get-values", "IP4.DNS", "device", "show", "wlan0"], run.call_args.args[0])
         read.assert_not_called()
 
     def test_resolved_link_dns_is_used_when_networkmanager_has_no_usable_set(self):
@@ -32,19 +32,19 @@ class ResolverCaptureTests(unittest.TestCase):
         with patch.object(dns.socket, "if_nametoindex", return_value=2), \
                 patch.object(dns.subprocess, "run", side_effect=responses), \
                 patch.object(Path, "read_text") as read:
-            self.assertEqual(dns.capture_dns_servers("wlan0"), ("192.0.2.53",))
+            self.assertEqual(("192.0.2.53",), dns.capture_dns_servers("wlan0"))
         read.assert_not_called()
 
     def test_unmanaged_link_retains_configured_global_resolvers(self):
         with patch.object(dns.socket, "if_nametoindex", return_value=2), \
                 patch.object(dns.subprocess, "run", side_effect=FileNotFoundError), \
                 patch.object(Path, "read_text", side_effect=[OSError(), "nameserver 127.0.0.53\nnameserver 192.0.2.53\n"]):
-            self.assertEqual(dns.capture_dns_servers("wlan0"), ("192.0.2.53",))
+            self.assertEqual(("192.0.2.53",), dns.capture_dns_servers("wlan0"))
 
     def test_system_route_uses_existing_global_configuration_without_manager_calls(self):
         with patch.object(dns.subprocess, "run") as run, \
                 patch.object(Path, "read_text", return_value="nameserver 192.0.2.53\n"):
-            self.assertEqual(dns.capture_dns_servers("system"), ("192.0.2.53",))
+            self.assertEqual(("192.0.2.53",), dns.capture_dns_servers("system"))
         run.assert_not_called()
 
     def test_manager_timeout_is_explicit_and_does_not_choose_another_source(self):
@@ -61,8 +61,8 @@ class ResolverCaptureTests(unittest.TestCase):
             with patch("sys.argv", ["dns.py", "--interface", "wlan0", "--output", str(output)]), \
                     patch.object(dns, "capture_dns_servers", return_value=("192.0.2.53",)):
                 dns.main()
-                self.assertEqual(output.read_text(), "nameserver 192.0.2.53\n")
-                self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o600)
+                self.assertEqual("nameserver 192.0.2.53\n", output.read_text())
+                self.assertEqual(0o600, stat.S_IMODE(output.stat().st_mode))
                 with self.assertRaises(SystemExit):
                     dns.main()
-            self.assertEqual(output.read_text(), "nameserver 192.0.2.53\n")
+            self.assertEqual("nameserver 192.0.2.53\n", output.read_text())

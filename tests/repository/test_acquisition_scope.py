@@ -142,12 +142,12 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
             if process.poll() is not None:
                 self.fail(f'owner exited before {marker.name}: {process.communicate()}')
             time.sleep(.01)
-        self.assertTrue(marker.exists(), f'owner did not create {marker}')
+        self.assertTrue(marker.exists(), msg=f'owner did not create {marker}')
 
     def assert_exit(self, process, root, status):
         stdout, stderr = process.communicate(timeout=15)
-        self.assertEqual(status, process.returncode, (stdout, stderr))
-        self.assertEqual([f'{status} yes'], (root / 'caller-exit').read_text().splitlines(), (stdout, stderr))
+        self.assertEqual(status, process.returncode, msg=(stdout, stderr))
+        self.assertEqual([f'{status} yes'], (root / 'caller-exit').read_text().splitlines(), msg=(stdout, stderr))
         return stdout
 
     def test_callback_return_and_exit_preserve_status_and_retire_before_caller_exit(self):
@@ -202,10 +202,10 @@ printf '%s %s\n' "$status" "$report_status"
             env={'WORKER_STATUS': '0'})
         self.assert_exit(process, root, 0)
         arguments = (root / 'create-arguments').read_text().splitlines()
-        self.assertEqual(arguments.count('--resolver-file'), 1)
-        self.assertEqual(arguments.count('/gateway-resolv.conf'), 1)
+        self.assertEqual(1, arguments.count('--resolver-file'))
+        self.assertEqual(1, arguments.count('/gateway-resolv.conf'))
         mounts = [value for value in arguments if 'dst=/gateway-resolv.conf' in value]
-        self.assertEqual(len(mounts), 1)
+        self.assertEqual(1, len(mounts))
         self.assertTrue(mounts[0].endswith('/resolv.conf,dst=/gateway-resolv.conf,readonly'))
         self.assertNotIn('/run/systemd/resolve/resolv.conf', '\n'.join(arguments))
 
@@ -215,7 +215,7 @@ printf '%s %s\n' "$status" "$report_status"
             env={'STREAM_WITNESS': '1', 'WORKER_STATUS': '0'})
         self.wait_marker(process, root / 'started-worker')
         ready, _, _ = select.select([process.stdout], [], [], 5)
-        self.assertTrue(ready, 'worker output was buffered until completion')
+        self.assertTrue(ready, msg='worker output was buffered until completion')
         self.assertEqual(b'streamed\n', process.stdout.readline())
         self.assertIsNone(process.poll())
         (root / 'release-worker').touch()
@@ -247,7 +247,7 @@ _acq_fail 'fixture diagnostic'
         process, root = self.launch("_acq_fail 'known framework diagnostic'; exit 2",
                                     env={'CALLER_EXITS': '1'})
         stdout, stderr = process.communicate(timeout=15)
-        self.assertEqual(2, process.returncode, (stdout, stderr))
+        self.assertEqual(2, process.returncode, msg=(stdout, stderr))
         self.assertIn(b'known framework diagnostic', stderr)
         self.assertEqual(['2 yes'], (root / 'caller-exit').read_text().splitlines())
 
@@ -266,8 +266,8 @@ _acq_fail 'fixture diagnostic'
                                   (root / 'engine-client').read_text())
                 if match:
                     self.addCleanup(shutil.rmtree, Path(match.group(1)), ignore_errors=True)
-                self.assertNotEqual(process.returncode, 0, (stdout, stderr))
-                self.assertFalse((root / 'retired').exists(), (stdout, stderr, list(root.iterdir())))
+                self.assertNotEqual(process.returncode, 0, msg=(stdout, stderr))
+                self.assertFalse((root / 'retired').exists(), msg=(stdout, stderr, list(root.iterdir())))
                 self.assertEqual([f'{process.returncode} no'], (root / 'caller-exit').read_text().splitlines())
                 attempts = (root / 'removal-attempts').read_text().splitlines()
                 self.assertIn(failed, attempts)

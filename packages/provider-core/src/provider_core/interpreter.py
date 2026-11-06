@@ -40,14 +40,22 @@ from provider_core.conversation import (
 from provider_core.transport_errors import ExchangeFailed
 
 # SDK policy, not a second provider configuration surface.
+# repo-check: allow-module-constant
 MODEL_TURNS = 12
+# repo-check: allow-module-constant
 MODEL_REJECTIONS = 3
+# repo-check: allow-module-constant
 HTTP_ATTEMPTS = 2
+# repo-check: allow-module-constant
 CONNECT_SECONDS = 10
+# repo-check: allow-module-constant
 HISTORY_BYTES = 1024 * 1024
+# repo-check: allow-module-constant
 HISTORY_RECORDS = 48
 # Two remaining-time floats may change decimal length before the next request.
+# repo-check: allow-module-constant
 _CLOCK_ENCODING_RESERVE_BYTES = 64
+# repo-check: allow-module-constant
 _RETRYABLE_STATUSES = {408, 429, 500, 502, 503, 504}
 
 # Tool documents are provider-defined JSON; this module owns their envelopes,
@@ -223,9 +231,9 @@ class Interpreter:
             raise ValueError(
                 "Cannot configure interpretation: provide an ordered nonempty tuple of endpoint factories."
             )
-        if type(timeout_seconds) not in (int, float) or not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+        if not (type(timeout_seconds) in (int, float) and math.isfinite(timeout_seconds) and 0 < timeout_seconds):
             raise ValueError("Cannot configure interpretation: timeout_seconds must be finite positive seconds.")
-        if type(context_bytes) is not int or context_bytes <= 0:
+        if not (type(context_bytes) is int and 0 < context_bytes):
             raise ValueError("Cannot configure interpretation: context_bytes must be a positive byte limit.")
         if not isinstance(secrets, tuple) or any(not isinstance(secret, str) or not secret for secret in secrets):
             raise TypeError(
@@ -254,6 +262,7 @@ class Interpreter:
     @property
     def correction_failures(self) -> tuple[CorrectionFailure, ...]:
         """Protected model-visit, logical-turn and original-error facts, even after retirement."""
+        # repo-check: allow-tuple-generator -- Return an immutable snapshot of original correction failures, not a live iterator over mutable visit state.
         return tuple(
             (visit.number, turn, error)
             for visit in self._visits
@@ -278,6 +287,7 @@ class Interpreter:
         return InterpretationResult(
             model_visit=self._visits[-1].number,
             value=result.value,
+            # repo-check: allow-tuple-generator -- A completed interpretation must retain an immutable observation sequence in its result.
             observations=tuple(visit.conversation.observation for visit in self._visits),
             failures=self._failures(),
             correction_failures=self.correction_failures,
@@ -509,7 +519,8 @@ class _History:
                 or not isinstance(query.get("ref"), str)
             ):
                 raise ToolRejected("Each record request needs a ref and an optional integer cursor.")
-            cursor = query.get("cursor", 0)
+            # silent-defaults: allow-contract -- The input schema explicitly permits omitted cursors; zero selects the start of the captured history record.
+            cursor = query["cursor"] if "cursor" in query else 0
             if type(cursor) is not int or cursor < 0:
                 raise ToolRejected(
                     "A history cursor must be a nonnegative integer offset in that record's JSON text."
@@ -526,8 +537,9 @@ class _History:
         for index, query in enumerate(queries):
             record = self._records.get(query["ref"])
             if record is not None:
+                # silent-defaults: allow-contract -- A missing optional cursor means the beginning of this already-validated record's content.
                 results[index] = self._read_page(
-                    record, query.get("cursor", 0), results[:index], results[index + 1:], fits,
+                    record, query["cursor"] if "cursor" in query else 0, results[:index], results[index + 1:], fits,
                 )
         return {"records": results}
 
@@ -613,13 +625,14 @@ class _DescribeInputConstraints:
         required = False
         for part in path.split("."):
             parent = schema
-            properties = parent.get("properties", {}) if isinstance(parent, dict) else {}
+            # silent-defaults: allow-contract -- Non-object and propertyless JSON Schema nodes declare no traversable child properties.
+            properties = parent["properties"] if isinstance(parent, dict) and "properties" in parent else {}
             if part not in properties:
                 raise ToolRejected(
                     "The requested field is not declared at that property path; read the full tool schema."
                 )
             schema = properties[part]
-            required = part in parent.get("required", [])
+            required = "required" in parent and part in parent["required"]
         return ToolReply({
             **result,
             "field": path,

@@ -29,6 +29,7 @@ def factory(model):
 
 
 def interpreter(*models, timeout=240, context=1024 * 1024):
+    # repo-check: allow-tuple-generator -- Interpreter accepts only a captured immutable endpoint tuple, not a generator of mutable mock factories.
     return Interpreter(tuple(factory(model) for model in models), timeout_seconds=timeout,
                        context_bytes=context, secrets=("PRIVATE_CREDENTIAL",))
 

@@ -126,7 +126,7 @@ checker_finish() {
                 failed=true
                 identifiers=()
             fi
-            if [[ ${ordered_container_retirement:-false} == true ]]; then
+            if [[ $ordered_container_retirement == true ]]; then
                 # Refuse all removal if an unverified create may add a borrower,
                 # or if the census contains any container outside the order.
                 local expected seen

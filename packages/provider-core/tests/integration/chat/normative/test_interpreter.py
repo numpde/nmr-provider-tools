@@ -30,6 +30,7 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
             return ToolReply({"text": "x" * 16000}) if name == "inspect" else ToolFinished("prepared")
 
         async with TlsPeer("success", response_factory=response) as peer:
+            # repo-check: allow-tuple-generator -- Interpreter requires an immutable tuple preserving configured model preference across two fixture visits.
             factories = tuple(ChatEndpointFactory(
                 spec=ChatEndpointSpec(configuration_id=name, model="fixture-" + name,
                                       url=peer.origin + "/chat", api_key="PRIVATE_KEY", reasoning_effort="high"),

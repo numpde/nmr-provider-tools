@@ -4,13 +4,11 @@ from tools.container_guard import require_container
 
 require_container()
 
-from pathlib import Path
 import re
 import subprocess
 import unittest
 
-
-ROOT = Path(__file__).resolve().parents[2]
+from tests.repository.quality.sources import ROOT
 
 
 class MakeHelpTests(unittest.TestCase):

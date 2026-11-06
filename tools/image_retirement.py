@@ -23,9 +23,13 @@ class RetirementRefused(RuntimeError):
     pass
 
 
+# repo-check: allow-module-constant
 _ID = re.compile(r"sha256:[0-9a-f]{64}")
+# repo-check: allow-module-constant
 _HASH = re.compile(r"[0-9a-f]{64}")
+# repo-check: allow-module-constant
 _LABEL = "org.nmr-provider-tools."
+# repo-check: allow-module-constant
 _IMAGE_JSON = ('{"Id":{{json .Id}},"Labels":{{json .Config.Labels}},'
                '"RepoTags":{{json .RepoTags}},"RepoDigests":{{json .RepoDigests}},'
                '"Created":{{json .Created}}}')
@@ -106,7 +110,12 @@ def select_images(images, protected, current, now):
                 or any(value is not None and (type(value) is not list
                     or any(type(item) is not str for item in value)) for value in (tags, digests))):
             raise RetirementRefused("Docker returned malformed image ownership or aliases.")
-        labels, tags, digests = labels or {}, tags or [], digests or []
+        # silent-defaults: allow-contract -- Docker reports absent optional Labels as null; only that absence means no labels.
+        labels = {} if labels is None else labels
+        # silent-defaults: allow-contract -- Docker reports absent optional RepoTags as null; only that absence means no aliases.
+        tags = [] if tags is None else tags
+        # silent-defaults: allow-contract -- Docker reports absent optional RepoDigests as null; only that absence means no digest aliases.
+        digests = [] if digests is None else digests
         if identifier in protected or digests or len(tags) > 1:
             continue
         if any(tag in {f"nmr-provider-tools/checker:{checker}",
