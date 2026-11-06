@@ -945,9 +945,9 @@ class _ModelVisit:
 
     async def _dispatch_provider(self, name: str, arguments: Document) -> ToolReply | ToolFinished | ToolHandoff:
         # Reports may contain provider-private explanations, even when rejected.
-        captured_arguments = {"arguments": deepcopy(arguments)}
-        if name == "report_interpretation_problem":
-            captured_arguments = {}
+        captured_arguments = {}
+        if name != "report_interpretation_problem":
+            captured_arguments = {"arguments": deepcopy(arguments)}
         try:
             outcome = await self._tools.dispatch(name, arguments, not_after=self._deadline)
         except ModelReportedInterpretationProblem as report:
