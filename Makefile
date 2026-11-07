@@ -204,11 +204,11 @@ help:
 	  '  LOCK=<file>                Input lock for wheelhouse operations.' \
 	  '  ENGINE_CONFIG=<file>       Absolute daemon configuration for cache maintenance.' \
 	  '' \
-	  'Example release preparation (replace v0.6.7 and cache path for another version):' \
-	  '  mkdir -m 700 -- release-artifacts/v0.6.7' \
-	  '  make publish/prepare TAG=v0.6.7 DOCKER_CONTEXT=<context> WHEELHOUSE=/real/cache OUTPUT="$$PWD/release-artifacts/v0.6.7"' \
+	  'Example release preparation (replace v0.6.8 and cache path for another version):' \
+	  '  mkdir -m 700 -- release-artifacts/v0.6.8' \
+	  '  make publish/prepare TAG=v0.6.8 DOCKER_CONTEXT=<context> WHEELHOUSE=/real/cache OUTPUT="$$PWD/release-artifacts/v0.6.8"' \
 	  '  Inspect and review OUTPUT/artifacts/, OUTPUT/release-build.log, OUTPUT/release-test.log, and OUTPUT/release-notes.md.' \
-	  '  make publish/release TAG=v0.6.7 ARTIFACTS="$$PWD/release-artifacts/v0.6.7"' \
+	  '  make publish/release TAG=v0.6.8 ARTIFACTS="$$PWD/release-artifacts/v0.6.8"' \
 	  '  publish/prepare creates artifacts and tests them; publish/release checks exact bytes before publishing.' \
 	  '  On failure, preparation prints causes and writes OUTPUT/release-failures.txt beside the full log.' \
 	  '  Never reuse a nonempty OUTPUT directory; existing release evidence is preserved.' \

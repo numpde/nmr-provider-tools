@@ -68,16 +68,16 @@ when an earlier connection's delay holds up others). Both settings reload live.
 Create a new, empty, caller-owned mode-`0700` directory before invoking:
 
 ```sh
-mkdir -m 700 -- release-artifacts/v0.6.7
-make publish/prepare TAG=v0.6.7 DOCKER_CONTEXT=science \
+mkdir -m 700 -- release-artifacts/v0.6.8
+make publish/prepare TAG=v0.6.8 DOCKER_CONTEXT=science \
   WHEELHOUSE=/actual/shared/cache \
-  OUTPUT="$PWD/release-artifacts/v0.6.7"
+  OUTPUT="$PWD/release-artifacts/v0.6.8"
 ```
 
 The output contains `artifacts/` (eight exact release inputs),
 `release-build.log`, `release-test.log`, and `release-notes.md`. Inspect
 them before publishing with
-`make publish/release TAG=v0.6.7 ARTIFACTS="$PWD/release-artifacts/v0.6.7"`.
+`make publish/release TAG=v0.6.8 ARTIFACTS="$PWD/release-artifacts/v0.6.8"`.
 `ARTIFACTS` must point to the whole prepared directory, not to its
 `artifacts/` child. Preparation never publishes; neither phase overwrites
 previous release evidence.
