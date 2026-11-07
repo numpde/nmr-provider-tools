@@ -442,7 +442,9 @@ class AttemptExecutor:
     @property
     def settled_revocation(self):
         """Return the SDK's verified pre-entry server stop once this Attempt has no remaining work or report."""
-        return self._revocation() if self.shutdown_ready else None
+        if not self.shutdown_ready:
+            return None
+        return self._revocation()
 
     def _revocation(self):
         """Identify the original server stop without granting resource release.

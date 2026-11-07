@@ -56,6 +56,7 @@ def _python(value):
 def _inline_imports(source):
     try:
         tree = ast.parse(source)
+    # silent-defaults: allow-exception-outcome -- Unparseable inline code cannot prove first-party Python imports.
     except SyntaxError:
         return False
     modules = {name.name.split(".")[0] for node in ast.walk(tree) if isinstance(node, ast.Import) for name in node.names}
@@ -64,6 +65,7 @@ def _inline_imports(source):
     return bool(modules - sys.stdlib_module_names - _COMPILERS)
 
 
+# silent-defaults: allow-contract -- Absent explicit environment control leaves the launch checker conservative; only an admitted flag proves suppression.
 def _needs_flag(arguments, env_enabled=False):
     disabled = isolated = False
     index = 0
@@ -133,7 +135,10 @@ def shell_findings(path, source):
             if not _python(token.lstrip("@")):
                 continue
             entrypoint = index > 0 and tokens[index - 1] == "--entrypoint"
-            arguments = tokens[index + (2 if entrypoint else 1):]
+            argument_offset = 1
+            if entrypoint:
+                argument_offset = 2
+            arguments = tokens[index + argument_offset:]
             # An array declaration ending at the entrypoint has no program.
             if not arguments or arguments[0] == ")":
                 continue
@@ -186,7 +191,11 @@ def python_findings(path, source):
         if not isinstance(node, ast.Call) or not node.args:
             continue
         function = node.func
-        name = function.attr if isinstance(function, ast.Attribute) else function.id if isinstance(function, ast.Name) else ""
+        name = ""
+        if isinstance(function, ast.Attribute):
+            name = function.attr
+        elif isinstance(function, ast.Name):
+            name = function.id
         if name not in {"run", "Popen", "call", "check_call", "check_output"}:
             continue
         argv = node.args[0]

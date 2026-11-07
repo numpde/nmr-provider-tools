@@ -48,13 +48,23 @@ class _AsyncioDiagnosticObserver(logging.Handler):
     def emit(self, record):
         if not _ACTIVE_ASYNCIO_OBSERVERS or _ACTIVE_ASYNCIO_OBSERVERS[-1] is not self:
             return
-        cause = record.exc_info[1] if record.exc_info else None
-        kind = type(cause).__name__ if cause is not None else "No exception object"
+        cause = None
+        if record.exc_info:
+            cause = record.exc_info[1]
+        kind = "No exception object"
+        if cause is not None:
+            kind = type(cause).__name__
         original_context = record.getMessage()
-        message = original_context.splitlines()
-        message = message[0] if message else "(no asyncio message)"
-        details = str(cause).splitlines() if cause is not None else []
-        detail = (": " + details[0][:160]) if details else ""
+        message = "(no asyncio message)"
+        message_lines = original_context.splitlines()
+        if message_lines:
+            message = message_lines[0]
+        details = []
+        if cause is not None:
+            details = str(cause).splitlines()
+        detail = ""
+        if details:
+            detail = ": " + details[0][:160]
         diagnostic = _AsyncioDiagnosticError(
             f"Unowned asyncio ERROR: {message[:180]} ({kind}{detail}); "
             f"origin {record.pathname}:{record.lineno}"
@@ -120,7 +130,10 @@ class _FailureSummaryResult(unittest.TextTestResult):
     def _record(self, kind, test, error):
         exception_type, exception, tb = error
         reason = str(exception).splitlines()
-        reason = reason[0].strip() if reason else ""
+        if reason:
+            reason = reason[0].strip()
+        else:
+            reason = ""
         if not reason:
             reason = "(no exception message)"
         if len(reason) > 240:
@@ -148,7 +161,9 @@ class _FailureSummaryResult(unittest.TextTestResult):
     def addSubTest(self, test, subtest, error):
         super().addSubTest(test, subtest, error)
         if error is not None:
-            kind = "FAIL" if issubclass(error[0], test.failureException) else "ERROR"
+            kind = "ERROR"
+            if issubclass(error[0], test.failureException):
+                kind = "FAIL"
             self._record(kind, subtest, error)
 
     def addUnexpectedSuccess(self, test):
@@ -161,7 +176,9 @@ def _print_failure_summary(result, selection, stream):
     if result.wasSuccessful():
         return
     count = len(result.problems)
-    noun = "case" if count == 1 else "cases"
+    noun = "cases"
+    if count == 1:
+        noun = "case"
     print(f"=== PROVIDER-CORE FAILURE SUMMARY ({selection}): {count} failing {noun} ===", file=stream)
     for kind, name, location, failure_type, reason in result.problems[:25]:
         print(f"  {kind} {name}", file=stream)

@@ -24,7 +24,7 @@ from unittest.mock import Mock, patch
 def _process_alive(pid):
     try:
         os.kill(pid, 0)
-    # silent-defaults: allow-contract -- ESRCH means the positively observed child PID is no longer present.
+    # silent-defaults: allow-exception-outcome -- ESRCH establishes that the previously observed child PID no longer exists.
     except ProcessLookupError:
         return False
     return True
@@ -132,7 +132,9 @@ async def scenario(marker, report, seed):
             # /ready needs startup, TLS and scientific tool acceptance.
             # /hang must enter the blocked read and expire within its own
             # original finite model deadline.
-            timeout_seconds = 2.0 if url.endswith("/hang") else 4.0
+            timeout_seconds = 4.0
+            if url.endswith("/hang"):
+                timeout_seconds = 2.0
             self.interpreter = Interpreter((capture_endpoint,), timeout_seconds=timeout_seconds, context_bytes=16384,
                                            secrets=("PRIVATE_B3_FIXTURE_KEY",))
 
@@ -156,11 +158,13 @@ async def scenario(marker, report, seed):
                 prepared = await self.interpreter.run([], tools, dispatch)
             except InterpretationFailed as failure:
                 self.failure = failure
-                return AnalysisFailure(
+                outcome = AnalysisFailure(
                     "interpreter_failed", "The prose-interpretation HTTPS request exceeded its original deadline.",
                     ProtectedEvidence("fixture.interpreter.failure.v1", b"original timeout retained by session"),
                 )
-            return prepared.value
+            else:
+                outcome = prepared.value
+            return outcome
 
         async def execute(self, prepared, *, report_condition):
             if prepared is not self.handle or prepared is None:
@@ -217,10 +221,15 @@ async def scenario(marker, report, seed):
         return fail_response(execution_attempt_ref=reference, failure_code=code, failure_message=message)
 
     def prose_response_mode(request, _body):
-        return "headers-stall" if request.split(b" ")[1] == b"/hang" else "success"
+        if request.split(b" ")[1] == b"/hang":
+            return "headers-stall"
+        return "success"
 
     def notice(error, facts):
-        notices.append((type(error).__name__ if error is not None else None, facts))
+        reason = None
+        if error is not None:
+            reason = type(error).__name__
+        notices.append((reason, facts))
         if facts["event"] == "delivery_published":
             published.add(facts["execution_attempt_ref"])
 
@@ -297,7 +306,9 @@ async def scenario(marker, report, seed):
                         if acknowledgement_phase == "request_received":
                             seen = sum(request.split(b" ")[1] == b"/hang" for request in prose_peer.requests)
                         else:
-                            events = [json.loads(line) for line in marker.read_text().splitlines()] if marker.exists() else []
+                            events = []
+                            if marker.exists():
+                                events = [json.loads(line) for line in marker.read_text().splitlines()]
                             seen = sum(event["kind"] == "cleanup_engaged" for event in events)
                         if seen >= acknowledgement_cycle:
                             result["acknowledgement_released_during_cycle"] = seen

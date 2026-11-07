@@ -246,10 +246,9 @@ class TlsPeer:
             # Pending TLS handshakes are not in self.handlers. Observe the
             # server through its configured handshake and shutdown allowances,
             # instead of an unrelated shorter two-second teardown ceiling.
-            close_seconds = (
-                2 if self.mode == "tls-stall"
-                else max(2, self.handshake_seconds + self.shutdown_seconds + 0.5)
-            )
+            close_seconds = 2
+            if self.mode != "tls-stall":
+                close_seconds = max(2, self.handshake_seconds + self.shutdown_seconds + 0.5)
             await asyncio.wait_for(self.server.wait_closed(), close_seconds)
             # A handshake can finish after the cancellation snapshot. Its late
             # closing handler also belongs to this fixture, including failures.

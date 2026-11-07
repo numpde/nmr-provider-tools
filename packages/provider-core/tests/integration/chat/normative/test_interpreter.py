@@ -87,8 +87,11 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
         async with TlsPeer("success", response_factory=slow_response) as peer:
             for use_proxy in (False, True):
                 async with UnixProxy(peer.origin, "tunnel") as proxy:
+                    proxy_socket = None
+                    if use_proxy:
+                        proxy_socket = proxy.path
                     transport = HttpTransport(trust=peer.trust, exchange_seconds=2, retirement_seconds=0.5,
-                                              connect_seconds=0.15, proxy_socket=proxy.path if use_proxy else None)
+                                              connect_seconds=0.15, proxy_socket=proxy_socket)
                     response = await transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4)
                     self.assertEqual(response.body, b"data")
                     await transport.retire()

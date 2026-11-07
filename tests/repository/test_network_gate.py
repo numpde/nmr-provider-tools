@@ -14,7 +14,9 @@ class NetworkGateTests(unittest.TestCase):
     def invoke(self, interface=None):
         environment = dict(os.environ)
         environment["NMR_SELECTED_DOCKER_ENDPOINT"] = "unix:///fixture/engine.sock"
+        # silent-defaults: allow-pop-default -- Strip a fixed inherited interface input so this test proves explicit selection.
         environment.pop("NETWORK_INTERFACE_INPUT", None)
+        # silent-defaults: allow-pop-default -- Strip the inherited fixed origin marker without consuming its previous value.
         environment.pop("NETWORK_INTERFACE_INPUT_ORIGIN", None)
         if interface is not None:
             environment["NETWORK_INTERFACE_INPUT"] = interface

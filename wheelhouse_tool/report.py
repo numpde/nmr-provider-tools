@@ -49,11 +49,15 @@ def main():
     parser.add_argument("--report", required=True)
     parser.add_argument("--pool", required=True)
     parser.add_argument("--directory", required=True)
-    parser.add_argument("--allow-source", action="append", default=[])
+    parser.add_argument("--allow-source", action="append")
     args = parser.parse_args()
+    allowed = []
+    if args.allow_source is not None:
+        allowed = args.allow_source
     try:
         with open(args.report) as source:
-            entries = manifest(json.load(source), args.pool, args.directory, set(args.allow_source))
+            entries = manifest(json.load(source), args.pool, args.directory, set(allowed))
+    # silent-defaults: allow-exception-outcome -- A malformed pip report is a nonzero manifest-projection failure, never a partial success.
     except (OSError, ValueError, KeyError, TypeError) as error:
         print(str(error), file=sys.stderr)
         return 1

@@ -72,7 +72,9 @@ class IdentityTests(unittest.TestCase):
             with self.subTest(primary=primary):
                 cleanup = Problem("client_cleanup", "fixture client unresolved")
                 problem = cleanup if primary else Problem("engine", "fixture failed")
-                remaining = () if primary else (cleanup,)
+                remaining = (cleanup,)
+                if primary:
+                    remaining = ()
                 probe.side_effect = ProbeFailure(problem, Retirement(ResourceState.RETIRED, problems=remaining))
                 status, output, diagnostic = self.run_entrypoint()
                 self.assertEqual((2, ""), (status, output))

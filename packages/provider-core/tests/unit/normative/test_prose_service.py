@@ -17,11 +17,13 @@ TOOLS = [{"type": "function", "function": {
 }}]
 
 
+# silent-defaults: allow-contract -- The fixture's default Retry-After header requests one second; tests override it to probe alternate server advice.
 def unavailable(wait=b"1"):
     return ChatFailed("http_status", "The prose interpretation service is temporarily unavailable.",
                       response=SimpleNamespace(status=503, headers=((b"Retry-After", wait),)))
 
 
+# silent-defaults: allow-contract -- The unit fixture grants a deliberately short 40-ms interpretation window unless each test requests another one.
 def interpreter(*services, seconds=0.04):
     return Interpreter(services, timeout_seconds=seconds, context_bytes=16384, secrets=())
 

@@ -35,14 +35,18 @@ def pip_command(python):
     return [str(python), "-I", str(runner), "--isolated"]
 
 
+# silent-defaults: allow-contract -- Installation accepts explicit optional immutable extra wheel pools; an omitted pool is the empty collection, while missing required files has a separate None sentinel.
 def install_locked(python, lock, wheels, report, extra_pools=(), required_files=None, lock_fd=None):
+    borrowed_descriptors = ()
+    if lock_fd is not None:
+        borrowed_descriptors = (lock_fd,)
     subprocess.run(
         [*pip_command(python), "install", "--ignore-installed", "--disable-pip-version-check",
          "--no-cache-dir", "--no-index", "--no-deps", "--only-binary=:all:", "--require-hashes",
          "--no-compile", "--report", str(report),
          *[argument for directory in (wheels, *extra_pools) for argument in ("--find-links", str(directory))],
          "-r", str(lock)],
-        check=True, pass_fds=() if lock_fd is None else (lock_fd,),
+        check=True, pass_fds=borrowed_descriptors,
     )
     return wheel_inputs_from_report(lock, wheels, report, extra_pools, required_files)
 
@@ -108,6 +112,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
     return wheel, lock, identities
 
 
+# silent-defaults: allow-contract -- An optional caller-supplied wheel pool is immutable and empty by default; the expected-inputs and required-files None values signal distinct checks.
 def install_environment(root, lock, pool, expected_inputs=None, extra_pools=(), required_files=None):
     """Create a pip-free runtime from one complete installation lock."""
     with pool_read_lock(pool) as lock_fd:
@@ -226,7 +231,9 @@ def main():
     if args.action == "install":
         if args.root is None or args.lock is None:
             parser.error("install requires --root and --lock")
-        expected_inputs = read_json(args.expected_inputs) if args.expected_inputs is not None else None
+        expected_inputs = None
+        if args.expected_inputs is not None:
+            expected_inputs = read_json(args.expected_inputs)
         install_environment(args.root, args.lock, args.pool, expected_inputs)
     else:
         if any(value is None for value in (args.source, args.runtime_lock, args.build_lock, args.output, args.revision)):

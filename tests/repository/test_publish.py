@@ -64,6 +64,9 @@ class PublicationTests(unittest.TestCase):
         self.bin = Path("tests/fixtures/publish-tools").resolve()
 
     def run_publisher(self, scenario, action, *, environment=None):
+        selected_environment = {}
+        if environment is not None:
+            selected_environment.update(environment)
         return subprocess.run(
             ["bash", str(self.root / "tools/publish.sh"), action], cwd=self.root,
             env={"PATH": str(self.bin) + os.pathsep + os.defpath, "TMPDIR": str(self.root),
@@ -72,7 +75,7 @@ class PublicationTests(unittest.TestCase):
                  "OUTPUT_INPUT_ORIGIN": "command line", "OUTPUT_INPUT": str(self.root / "prepared"),
                  "WHEELHOUSE_INPUT_ORIGIN": "command line", "WHEELHOUSE_INPUT": str(self.root / "pool"),
                  "PUBLISH_TEST_MODE": scenario, "PUBLISH_TEST_TRACE": str(self.trace),
-                 **(environment or {})},
+                 **selected_environment},
             capture_output=True, text=True, timeout=15, check=False,
         )
 

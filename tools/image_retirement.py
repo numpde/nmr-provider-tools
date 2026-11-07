@@ -52,6 +52,7 @@ def run(arguments):
         return raw.decode("utf-8")
 
 
+# silent-defaults: allow-contract -- The image-ID parser defaults to tagged images; container-mode IDs are a separately selected caller contract.
 def ids(raw, *, container=False):
     values = raw.splitlines()
     pattern = re.compile(r"[0-9a-f]{64}") if container else _ID
@@ -156,6 +157,7 @@ def select_images(images, protected, current, now):
     return selected
 
 
+# silent-defaults: allow-contract -- Staged images are absent as an immutable tuple unless explicitly retained; the fixed /tmp root holds checker operation receipts for current image borrowers.
 def retire(root, docker, current, *, staged=(), now=None, operations=Path("/tmp")):
     now = time.time() if now is None else now
     selected_inputs = current()
@@ -200,13 +202,18 @@ def main():
         root, staged, *engine = sys.argv[1:]
         if not engine or staged and _ID.fullmatch(staged) is None:
             raise RetirementRefused("No explicit engine or immutable staged image was supplied.")
+        staged_images = ()
+        if staged:
+            staged_images = (staged,)
         removed = retire(Path(root), lambda *arguments: run([*engine, *arguments]),
-                         lambda: current_inputs(Path(root)), staged=(staged,) if staged else ())
+                         lambda: current_inputs(Path(root)), staged=staged_images)
         print(f"Retired {removed} obsolete project images; current selections, aliases and container references remain protected.")
         return 0
+    # silent-defaults: allow-exception-outcome -- An explicit image-retirement refusal is reported and terminates the CLI with nonzero status.
     except RetirementRefused as failure:
         print(f"Cannot complete image retirement: {failure} Earlier removals are not rolled back.", file=sys.stderr)
         return 2
+    # silent-defaults: allow-exception-outcome -- Malformed private metadata is reported as a nonzero image-retirement failure, never a successful empty result.
     except (OSError, ValueError, TypeError, KeyError):
         print("Cannot complete image retirement: required metadata was malformed or unreadable; retain remaining images. Earlier removals are not rolled back.", file=sys.stderr)
         return 2

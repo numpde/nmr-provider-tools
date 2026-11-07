@@ -7,6 +7,7 @@ from tests.fakes import tls_peer
 
 
 class RejectedTlsDiagnosticTests(unittest.TestCase):
+    # silent-defaults: allow-contract -- The diagnostic fixture fixes a representative asyncio TLS-reset message and CPython origin path unless a case supplies explicit alternatives.
     def record(self, *, message="Error on transport creation for incoming connection",
                cause=None, path="/usr/local/lib/python3.12/asyncio/base_events.py"):
         if cause is None:

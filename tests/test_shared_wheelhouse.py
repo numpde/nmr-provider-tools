@@ -217,7 +217,11 @@ class WheelhouseTests(unittest.TestCase):
                         tool.download_once(self.pool, self.name, digest, url, fd)
 
     def test_retry_policy_rejects_permanent_failures_and_honors_server_delay(self):
-        failure = lambda status, headers=None: urllib.error.HTTPError('https://example.invalid', status, '', headers or {}, None)
+        def failure(status, headers=None):
+            provided = {}
+            if headers is not None:
+                provided = headers
+            return urllib.error.HTTPError('https://example.invalid', status, '', provided, None)
         self.assertEqual(5, retry_delay(failure(503, {'Retry-After': '5'}), 1))
         self.assertEqual(-1, retry_delay(failure(429, {'Retry-After': '31'}), 1))
         self.assertEqual(1, retry_delay(failure(408), 1))

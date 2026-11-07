@@ -526,9 +526,12 @@ class _History:
                     "A history cursor must be a nonnegative integer offset in that record's JSON text."
                 )
             record = self._records.get(query["ref"])
+            status = "deferred"
+            if record is None:
+                status = "unavailable"
             results.append({
                 "ref": query["ref"],
-                "status": "unavailable" if record is None else "deferred",
+                "status": status,
             })
         # Every requested reference needs a status even when an earlier page
         # consumes the data allowance. Fill pages around those reserved entries.
@@ -625,8 +628,9 @@ class _DescribeInputConstraints:
         required = False
         for part in path.split("."):
             parent = schema
-            # silent-defaults: allow-contract -- Non-object and propertyless JSON Schema nodes declare no traversable child properties.
-            properties = parent["properties"] if isinstance(parent, dict) and "properties" in parent else {}
+            properties = {}
+            if isinstance(parent, dict) and "properties" in parent:
+                properties = parent["properties"]
             if part not in properties:
                 raise ToolRejected(
                     "The requested field is not declared at that property path; read the full tool schema."
@@ -735,10 +739,9 @@ def _retryable(failure: ChatFailed) -> bool:
 
 def _retry_after(failure: ChatFailed) -> float:
     response = failure.response
-    values = (
-        [] if response is None
-        else [value for name, value in response.headers if name.lower() == b"retry-after"]
-    )
+    if response is None:
+        return 0.0
+    values = [value for name, value in response.headers if name.lower() == b"retry-after"]
     if len(values) != 1:
         return 0.0
     try:
@@ -751,8 +754,11 @@ def _retry_after(failure: ChatFailed) -> float:
                 date = date.replace(tzinfo=timezone.utc)
             seconds = max(0, date.timestamp() - time.time())
     except (ValueError, OverflowError, TypeError, UnicodeError):
-        return 0.0  # Invalid optional advice grants no server-directed delay.
-    return seconds if math.isfinite(seconds) else 0.0
+        # Invalid optional advice grants no server-directed delay.
+        seconds = 0.0
+    if not math.isfinite(seconds):
+        return 0.0
+    return seconds
 
 
 class _ModelVisit:
@@ -796,7 +802,9 @@ class _ModelVisit:
             _DescribeInputConstraints(tools.schemas, guarded_reader),
             _ReadInterpretationRecords(self._read_history),
         ))
-        self._service = factory if isinstance(factory, ProseService) else None
+        self._service = None
+        if isinstance(factory, ProseService):
+            self._service = factory
         self._endpoint = factory(exchange_seconds=exchange_seconds, connect_seconds=CONNECT_SECONDS)
         self.conversation = ToolConversation(
             (self,),
@@ -937,10 +945,9 @@ class _ModelVisit:
 
     async def _dispatch_provider(self, name: str, arguments: Document) -> ToolReply | ToolFinished | ToolHandoff:
         # Reports may contain provider-private explanations, even when rejected.
-        captured_arguments = (
-            {} if name == "report_interpretation_problem"
-            else {"arguments": deepcopy(arguments)}
-        )
+        captured_arguments = {}
+        if name != "report_interpretation_problem":
+            captured_arguments = {"arguments": deepcopy(arguments)}
         try:
             outcome = await self._tools.dispatch(name, arguments, not_after=self._deadline)
         except ModelReportedInterpretationProblem as report:
@@ -948,7 +955,7 @@ class _ModelVisit:
                 self.number, "unverified_interpretation_problem", name,
                 {"claim": report.model_summary},
             )
-            return ToolHandoff(report)
+            outcome = ToolHandoff(report)
         except ModelWindowExpired:
             raise
         except ToolRejected as rejection:

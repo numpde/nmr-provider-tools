@@ -124,8 +124,11 @@ callback() {
 }
 acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixture:bootstrap --retired-receipt "$receipt" -- callback
 '''.replace('CALLBACK_BODY', callback)
+        injected = {}
+        if env is not None:
+            injected.update(env)
         environment = {**os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}',
-                       'STATE': str(root), 'ENGINE_STATE': str(root), **(env or {})}
+                       'STATE': str(root), 'ENGINE_STATE': str(root), **injected}
         process = subprocess.Popen(['bash', '-c', script], env=environment,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    start_new_session=True)

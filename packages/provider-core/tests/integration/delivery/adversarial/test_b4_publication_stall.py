@@ -76,11 +76,18 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.wait_for(removal_started.wait(), 3)
                     try:
                         await asyncio.wait_for(warning_seen.wait(), alert_seconds + 0.25)
+                    # silent-defaults: allow-contract -- The missing warning is asserted below with retained API/storage facts; the timeout is never accepted as success.
                     except TimeoutError:
                         # Assert the missing warning with the pre-teardown
                         # operation/receipt facts, rather than a timeout error.
                         pass
                     waiting = self.queue.next_pending(item.api_origin, item.provider_ref)
+                    notice_evidence = []
+                    for failure, facts, _ in notices:
+                        reason = None
+                        if failure is not None:
+                            reason = type(failure).__name__
+                        notice_evidence.append({"error": reason, **facts})
                     evidence = json.dumps({
                         "alert_seconds": alert_seconds,
                         "observed_wait_seconds": loop.time() - started_at,
@@ -90,8 +97,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                         "storage_released": release_removal.is_set(),
                         "original_report_retained": waiting == item,
                         "request_count": len(peer.requests),
-                        "notices": [{"error": None if failure is None else type(failure).__name__, **facts}
-                                    for failure, facts, _ in notices],
+                        "notices": notice_evidence,
                     }, sort_keys=True)
                     self.assertFalse(original.done(), msg=evidence)
                     self.assertFalse(release_removal.is_set(), msg=evidence)

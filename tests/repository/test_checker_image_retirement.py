@@ -26,6 +26,7 @@ def image(**changes):
 
 
 class Engine:
+    # silent-defaults: allow-contract -- The synthetic Docker engine defaults to unborrowed, unmodified, well-formed metadata; each adversarial test opts in explicitly.
     def __init__(self, value, *, borrower=False, changed=False, malformed=False):
         self.value = value
         self.borrower, self.changed, self.malformed = borrower, changed, malformed
@@ -35,7 +36,9 @@ class Engine:
     def __call__(self, *arguments):
         self.calls.append(arguments)
         if arguments[:2] == ("ps", "--all"):
-            return "1" * 64 + "\n" if self.borrower else ""
+            if self.borrower:
+                return "1" * 64 + "\n"
+            return ""
         if arguments[:3] == ("inspect", "--type", "container"):
             return json.dumps(IDENTIFIER) + "\n"
         if arguments[:2] == ("image", "ls"):
@@ -45,7 +48,9 @@ class Engine:
             value = deepcopy(self.value)
             if self.changed and self.inspections > 1:
                 value["RepoTags"] = ["somebody-else/retained:latest"]
-            return "{broken" if self.malformed else json.dumps(value) + "\n"
+            if self.malformed:
+                return "{broken"
+            return json.dumps(value) + "\n"
         if arguments == ("image", "rm", "--no-prune", IDENTIFIER):
             return ""
         raise AssertionError(arguments)

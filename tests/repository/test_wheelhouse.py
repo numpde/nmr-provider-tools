@@ -36,6 +36,7 @@ class WheelhouseTests(unittest.TestCase):
             for name, path in (("pool-cached", self.cached), ("pool-missing", self.missing))
         ))
 
+    # silent-defaults: allow-contract -- The synthetic wheel builder defaults to version 1.0, while version-identity tests may select another explicit pin.
     def make_wheel(self, name, version="1.0"):
         distribution = name.replace("-", "_")
         path = self.index / f"{distribution}-{version}-py3-none-any.whl"

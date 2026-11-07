@@ -28,6 +28,7 @@ def factory(model):
     return build
 
 
+# silent-defaults: allow-contract -- This unit helper intentionally supplies a fixed 240-second model allowance and one-megabyte context unless a test overrides either.
 def interpreter(*models, timeout=240, context=1024 * 1024):
     # repo-check: allow-tuple-generator -- Interpreter accepts only a captured immutable endpoint tuple, not a generator of mutable mock factories.
     return Interpreter(tuple(factory(model) for model in models), timeout_seconds=timeout,
@@ -707,12 +708,15 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                     call("malformed", "report_interpretation_problem", {"message": private, "extra": True}),
                     call("report", "report_interpretation_problem", {"message": private}),
                 )
+                last_tool = "prepare"
+                if final_report:
+                    last_tool = "report_interpretation_problem"
                 second = endpoint(
                     "second",
                     call("history", "read_interpretation_records", {
                         "records": [{"ref": "record-1"}, {"ref": "record-2"}],
                     }),
-                    call("final", "report_interpretation_problem" if final_report else "prepare", {}),
+                    call("final", last_tool, {}),
                 )
 
                 async def dispatch(name, arguments, *, not_after):
@@ -751,7 +755,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(constraints=through_constraints):
                 entered, settled = asyncio.Event(), asyncio.Event()
                 events = []
-                action = ("describe_input_constraints", {"tool": "prepare"}) if through_constraints else ("inspect", {})
+                action = ("inspect", {})
+                if through_constraints:
+                    action = ("describe_input_constraints", {"tool": "prepare"})
                 first = endpoint("first", call("inspect", *action))
                 second = endpoint("second", call("done", "prepare", {}))
                 expired = ModelWindowExpired()
@@ -771,8 +777,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
                 first.retire.side_effect = lambda: events.append("model retired")
                 owner = interpreter(first, second)
+                constraint_reader = None
+                if through_constraints:
+                    constraint_reader = inspect
                 running = asyncio.create_task(owner.run(
-                    [], TOOLS, dispatch, describe_constraints=inspect if through_constraints else None,
+                    [], TOOLS, dispatch, describe_constraints=constraint_reader,
                 ))
                 await asyncio.wait_for(entered.wait(), 2)
                 try:
