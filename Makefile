@@ -62,6 +62,15 @@ override WHEELHOUSE_INPUT := $(value WHEELHOUSE)
 export WHEELHOUSE_INPUT
 endif
 
+unexport FUZZ_PROFILE
+unexport FUZZ_PROFILE_INPUT
+unexport FUZZ_PROFILE_INPUT_ORIGIN
+override export FUZZ_PROFILE_INPUT_ORIGIN := $(origin FUZZ_PROFILE)
+ifeq ($(origin FUZZ_PROFILE),command line)
+override FUZZ_PROFILE_INPUT := $(value FUZZ_PROFILE)
+export FUZZ_PROFILE_INPUT
+endif
+
 unexport OUTPUT
 unexport OUTPUT_INPUT
 unexport OUTPUT_INPUT_ORIGIN
@@ -202,6 +211,7 @@ help:
 	  '  DEPLOYMENT=<name>          Configured local deployment; PROJECT=<name> is an installed Compose project.' \
 	  '  SHARED_RUNTIME_IMAGE=sha256:<digest>   Explicit immutable previously built image.' \
 	  '  LOCK=<file>                Input lock for wheelhouse operations.' \
+	  '  FUZZ_PROFILE=<default|extended>   Select bounded or extended SDK fuzz campaign.' \
 	  '  ENGINE_CONFIG=<file>       Absolute daemon configuration for cache maintenance.' \
 	  '' \
 	  'Example release preparation (replace v0.6.8 and cache path for another version):' \
@@ -225,7 +235,7 @@ help:
 	  'make packages/provider-core/download WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire locked wheels.' \
 	  'make packages/provider-core/check WHEELHOUSE=<cache-dir> Verify locked wheels offline.' \
 	  'make tests/unit/provider-core WHEELHOUSE=<cache-dir> Build and test the isolated installed core.' \
-	  'make tests/fuzz/provider-core WHEELHOUSE=<cache-dir> Run reproducible lifecycle fault sequences.' \
+	  'make tests/fuzz/provider-core WHEELHOUSE=<cache-dir> [FUZZ_PROFILE=extended] Run shrinking lifecycle sequences.' \
 	  'make tests/contract/provider-core WHEELHOUSE=<cache-dir> Qualify installed package contracts.' \
 	  'make tests/integration/provider-core WHEELHOUSE=<cache-dir> Run contained package integrations.' \
 	  'make tests/integration/provider-core/delivery WHEELHOUSE=<cache-dir> Qualify real delivery IPC and recovery.' \

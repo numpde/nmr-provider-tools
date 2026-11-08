@@ -134,6 +134,26 @@ def _install_environment(root, lock, pool, expected_inputs, extra_pools, require
     return python
 
 
+def behavioral_install_lock(runtime_lock, test_lock, destination):
+    """Combine the exact installed runtime wheel lock with test-only wheels.
+
+    Issued runtime and native locks are never mutated. Consumers receive a
+    temporary complete lock, and duplicate package identities are refused.
+    """
+    base = requirements(runtime_lock)
+    tests = requirements(test_lock)
+    overlap = set(base).intersection(tests)
+    if overlap:
+        raise ValueError(
+            "Cannot install provider-core behavioral tests: test requirements "
+            f"overlap runtime packages: {sorted(overlap)!r}"
+        )
+    destination.write_text(runtime_lock.read_text().rstrip() + "\n" + test_lock.read_text().strip() + "\n")
+    if requirements(destination) != base | tests:
+        raise ValueError("Cannot install provider-core behavioral tests: merged wheel lock differs from its inputs")
+    return destination
+
+
 def source_inventory(source):
     inventory = {}
     for path in sorted(source.rglob("*")):

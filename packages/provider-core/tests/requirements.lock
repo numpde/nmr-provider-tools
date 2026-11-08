@@ -1,0 +1,6 @@
+# Universal test-only wheels; not a provider-core runtime or native dependency.
+# Pre-platform-wheel Hypothesis remains portable across qualified Python versions.
+hypothesis==6.150.0 \
+    --hash=sha256:caf1f752418c49ac805f11d909c5831aaceb96762aa3895e0c702468dedbe3fe
+sortedcontainers==2.4.0 \
+    --hash=sha256:a163dcaede0f1c021485e957a39245190e74249897e2ae4b2aa38595db237ee0

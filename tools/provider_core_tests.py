@@ -15,7 +15,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
-from tools.core_environment import build_candidate, install_environment
+from tools.core_environment import behavioral_install_lock, build_candidate, install_environment
 
 
 def run_suite(suite, patterns):
@@ -26,7 +26,14 @@ def run_suite(suite, patterns):
         wheel, lock, _ = build_candidate(
             Path("/package"), Path("/core-runtime.lock"), Path("/core-build.lock"), Path("/wheelhouse"), output,
         )
-        python = install_environment(Path("/runtime"), lock, Path("/wheelhouse"),
+        # Behavioral suites need their pinned test closure. The contract and
+        # native installation proofs must stay dependency-pure.
+        install_lock = lock
+        if suite in ("unit", "integration", "integration/delivery", "fuzz"):
+            install_lock = behavioral_install_lock(
+                lock, Path("/package/tests/requirements.lock"), root / "behavioral-install.lock",
+            )
+        python = install_environment(Path("/runtime"), install_lock, Path("/wheelhouse"),
                                      extra_pools=(output,), required_files={wheel.name: wheel})
         run = root / "run"
         shutil.copytree(Path("/package/tests"), run / "tests")

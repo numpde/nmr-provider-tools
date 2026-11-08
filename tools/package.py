@@ -25,7 +25,7 @@ from pathlib import Path, PurePosixPath
 from tools.artifacts import regular_file
 from tools.build_wheelhouse_bundle import build as build_wheelhouse_bundle
 from tools.build_acquisition_bundle import build as build_acquisition_bundle
-from tools.core_environment import build_candidate, install_environment, wheelhouse_source_inventory
+from tools.core_environment import behavioral_install_lock, build_candidate, install_environment, wheelhouse_source_inventory
 from tools.wheelhouse import digest, requirements
 
 
@@ -170,12 +170,24 @@ def wheel_payload(wheel, expected, version):
 
 
 def qualify_installed(wheel, lock, source, pool, root, suites):
+    # The wheel and runtime-install lock remain exactly as issued. Behavioral
+    # tests get the source archive's own test lock; contract/native proofs do not.
     python = install_environment(root / "runtime", lock, pool, extra_pools=(wheel.parent,),
                                  required_files={wheel.name: wheel})
+    behavioral_python = None
+    if any(suite in ("unit", "integration") for suite in suites):
+        behavioral_lock = behavioral_install_lock(
+            lock, source / "tests/requirements.lock", root / "behavioral-install.lock",
+        )
+        behavioral_python = install_environment(
+            root / "behavioral", behavioral_lock, pool, extra_pools=(wheel.parent,),
+            required_files={wheel.name: wheel},
+        )
     test_root = root / "run"
     shutil.copytree(source / "tests", test_root / "tests")
     for suite in suites:
-        command = [str(python), "-I", "-B", str(test_root / "tests/run_suite.py"), suite, "test*.py"]
+        selected_python = behavioral_python if suite in ("unit", "integration") else python
+        command = [str(selected_python), "-I", "-B", str(test_root / "tests/run_suite.py"), suite, "test*.py"]
         outcome = subprocess.run(command, cwd=test_root)
         if outcome.returncode:
             raise SystemExit(

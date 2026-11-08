@@ -9,6 +9,18 @@ action=$1
 case "$action" in download|check|unit|contract|integration|integration/delivery|fuzz|build|package) ;;
     *) printf 'Cannot select provider-core operation %q. Use make help.\n' "$action" >&2; exit 2 ;;
 esac
+# Keep campaign selection explicit and confined to the fuzz target.
+fuzz_profile=default
+if [[ ${FUZZ_PROFILE_INPUT_ORIGIN:-} == 'command line' ]]; then
+    if [[ $action != fuzz ]]; then
+        printf '%s\n' 'FUZZ_PROFILE is accepted only by tests/fuzz/provider-core.' >&2
+        exit 2
+    fi
+    fuzz_profile=${FUZZ_PROFILE_INPUT:-}
+    case $fuzz_profile in default|extended) ;;
+        *) printf 'Cannot select provider-core fuzz profile %q: use default or extended.\n' "$fuzz_profile" >&2; exit 2 ;;
+    esac
+fi
 source "$root/tools/base_image.sh"
 source "$root/tools/wheelhouse_path.sh"
 select_wheelhouse
@@ -28,6 +40,7 @@ worker=(--pull never --read-only "${worker_identity[@]}" --cap-drop ALL --securi
     --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly"
     --mount "type=bind,src=$root/requirements/provider-core.lock,dst=/core-runtime.lock,readonly"
     --mount "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly"
+    --mount "type=bind,src=$root/packages/provider-core/tests/requirements.lock,dst=/core-test.lock,readonly"
     --mount "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly"
     --mount "type=bind,src=$root/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly")
 if [[ $action == download ]]; then
@@ -44,6 +57,7 @@ if [[ $action == download ]]; then
         mkdir -- "$operation_directory/locks"
         cp -- "$root/requirements/provider-core.lock" "$operation_directory/locks/core-runtime.lock"
         cp -- "$root/requirements/provider-core-build.lock" "$operation_directory/locks/core-build.lock"
+        cp -- "$root/packages/provider-core/tests/requirements.lock" "$operation_directory/locks/core-test.lock"
         cp -- "$root/requirements/wheelhouse-tool.lock" "$operation_directory/locks/wheelhouse-tool.lock"
         cp -- "$root/requirements/wheelhouse-tool-release.json" "$operation_directory/locks/wheelhouse-tool-release.json"
         cp -- "$root/requirements/acquisition-bootstrap.pylock.toml" "$operation_directory/locks/acquisition-bootstrap.pylock.toml"
@@ -53,6 +67,8 @@ if [[ $action == download ]]; then
                     worker[index]="type=bind,src=$operation_directory/locks/core-runtime.lock,dst=/core-runtime.lock,readonly" ;;
                 "type=bind,src=$root/requirements/provider-core-build.lock,dst=/core-build.lock,readonly")
                     worker[index]="type=bind,src=$operation_directory/locks/core-build.lock,dst=/core-build.lock,readonly" ;;
+                "type=bind,src=$root/packages/provider-core/tests/requirements.lock,dst=/core-test.lock,readonly")
+                    worker[index]="type=bind,src=$operation_directory/locks/core-test.lock,dst=/core-test.lock,readonly" ;;
                 "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly")
                     worker[index]="type=bind,src=$operation_directory/locks/wheelhouse-tool.lock,dst=/wheelhouse-tool.lock,readonly" ;;
                 "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly")
@@ -105,7 +121,10 @@ case "$action" in
         # The installed cryptography extension requires executable mappings.
         # Only /runtime has that grant; build scratch remains noexec under /tmp.
         pattern='test*.py'
-        if [[ $action == fuzz ]]; then pattern='test_fuzz*.py'; fi
+        if [[ $action == fuzz ]]; then
+            pattern='test_fuzz*.py'
+            worker+=(--env "PROVIDER_CORE_FUZZ_PROFILE=$fuzz_profile")
+        fi
         arguments=("${worker[@]}" --network none --init --tmpfs /runtime:rw,nosuid,nodev,exec,size=256m,mode=1777
             --mount "type=bind,src=$root/packages/provider-core,dst=/package,readonly"
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"

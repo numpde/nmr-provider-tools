@@ -100,7 +100,7 @@ def acquire_tool(pool, pin):
 
 def main():
     pool = Path("/wheelhouse")
-    locks = (Path("/core-runtime.lock"), Path("/core-build.lock"), Path("/wheelhouse-tool.lock"))
+    locks = (Path("/core-runtime.lock"), Path("/core-build.lock"), Path("/core-test.lock"), Path("/wheelhouse-tool.lock"))
     bootstrap = Path("/acquisition-bootstrap.pylock.toml")
     if sys.argv[1:] in (["check"], ["verify"]):
         state = cache_state(pool, locks)

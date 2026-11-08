@@ -13,7 +13,7 @@ import zipfile
 from pathlib import Path
 
 from tools.package import artifact_names, check, source_payload, unpack_source, wheel_payload
-from tools.core_environment import normalize_sdist
+from tools.core_environment import behavioral_install_lock, normalize_sdist
 from tools.wheelhouse import digest
 
 
@@ -95,6 +95,21 @@ class PackageArtifactTests(unittest.TestCase):
                         archive.writestr(name, value)
                 with self.assertRaisesRegex(ValueError, "wheel"):
                     wheel_payload(path, expected, "0.2.0")
+
+    def test_behavioral_test_closure_keeps_runtime_lock_pure(self):
+        runtime = self.root / "runtime.lock"
+        test = self.root / "tests.lock"
+        target = self.root / "installed-tests.lock"
+        runtime.write_text("core-runtime==1.0 \\\n    --hash=sha256:" + "a" * 64 + "\n")
+        test.write_text("test-only==2.0 \\\n    --hash=sha256:" + "b" * 64 + "\n")
+        original = runtime.read_bytes()
+        behavioral_install_lock(runtime, test, target)
+        self.assertEqual(original, runtime.read_bytes())
+        self.assertIn("core-runtime==1.0", target.read_text())
+        self.assertIn("test-only==2.0", target.read_text())
+        with self.assertRaisesRegex(ValueError, "overlap runtime packages"):
+            behavioral_install_lock(runtime, runtime, target)
+        self.assertEqual(original, runtime.read_bytes())
 
     def test_corrupt_release_manifest_refuses_before_rebuild_and_emits_no_qualification_receipt(self):
         artifacts = self.root / "artifacts"
