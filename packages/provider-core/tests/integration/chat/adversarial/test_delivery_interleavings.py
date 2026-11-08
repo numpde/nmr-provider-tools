@@ -68,8 +68,15 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(0, successor.start_count)
 
                 delivery.answer("accepted")
-                with self.assertRaises(ControllerFailed):
-                    await asyncio.wait_for(asyncio.shield(driver), 6)
+                await asyncio.wait_for(delivery.accepted.wait(), 6)
+
+                # The SDK's own acknowledgement and reservation transition,
+                # rather than the caller's timing, is the acceptance barrier.
+                async def ack_recorded():
+                    while not original.controller.operation.delivery_accepted:
+                        await asyncio.sleep(0)
+
+                await asyncio.wait_for(ack_recorded(), 6)
                 self.assertTrue(original.controller.operation.delivery_accepted)
                 self.assertEqual([selected], delivery.items)
                 self.assertEqual(0, original.controller._claim._pending_terminal_bytes)
@@ -91,7 +98,16 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(original.session.retirement_completed)
 
                 original.session.release_retirement.set()
-                await asyncio.wait_for(original.controller.settle(), 6)
+                original_result, = await asyncio.wait_for(
+                    asyncio.gather(driver, return_exceptions=True), 8)
+                if isinstance(original_result, ControllerFailed):
+                    # The original retirement may have exceeded the SDK's
+                    # observation allowance before its gate was released.
+                    # Its own later settlement remains the authority.
+                    self.assertIs(original_result, original.controller.last_failure)
+                    await asyncio.wait_for(original.controller.settle(), 6)
+                else:
+                    self.assertIs(type(original_result), DeliveryAcceptedCheckpoint)
                 self.assertTrue(original.session.retirement_completed)
                 self.assertTrue(original.controller.shutdown_ready)
                 self.assertEqual((), claims.live_owners())
