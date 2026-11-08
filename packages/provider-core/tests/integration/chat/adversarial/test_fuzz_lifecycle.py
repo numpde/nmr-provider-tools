@@ -9,27 +9,60 @@ import asyncio
 from contextlib import AsyncExitStack
 import json
 import os
+from unittest.mock import Mock, patch
 
 from hypothesis import note, settings, strategies as st
 from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
 
 from provider_core.analysis import AnalysisOutcomeUnresolved
-from provider_core.controller import ControllerFailed
+from provider_core.controller import ControllerFailed, LiveStartPolicy, StartDeferred
+from provider_core.execution import AttemptExecutor, ExecutionStopped
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
+from tests.fakes.api import reply, signature_window_problem
+from tests.fakes.attempts import start_response
 from tests.fakes.conversation import call
 from tests.fakes.tls_peer import TlsPeer
 from tests.integration.chat.adversarial.test_model_reply_permission import (
-    HeldRetirementSession, ReplyRun,
+    ObservedAPI, PreparedExecutionGateSession, ReplyRun,
 )
 
 
-class _UnknownOutcome(HeldRetirementSession):
+class _UnknownOutcome(PreparedExecutionGateSession):
     """Preserve an original scientific dispatch whose result is uncertain."""
 
     async def execute(self, prepared, *, report_condition):
         await super().execute(prepared, report_condition=report_condition)
         raise AnalysisOutcomeUnresolved("The original scientific result is unconfirmed")
+
+
+class _ControlledStart(ObservedAPI):
+    """The fake API controls the original START reply, not controller policy."""
+
+    def __init__(self, job, reference):
+        super().__init__(job, reference)
+        self.start_received = asyncio.Event()
+        self.release_start = asyncio.Event()
+        self.disposition = None
+        self.sent_disposition = None
+
+    async def exchange(self, request, *, maximum_bytes, owner=None):
+        if request.url.path.endswith("/start"):
+            self.calls.append((request, maximum_bytes))
+            self.start_received.set()
+            await self.release_start.wait()
+            self.sent_disposition = self.disposition
+            if self.disposition == "uncertain":
+                # A 503 does not establish whether START committed; no science
+                # is authorized without the exact matching acknowledgement.
+                return reply(b"maintenance", status=503)
+            if self.disposition == "uncommitted":
+                return reply(signature_window_problem(), status=401)
+            if self.disposition == "accepted":
+                return reply(start_response(
+                    job_ref=self.job, execution_attempt_ref=self.reference))
+            raise AssertionError("START gate released without a selected API disposition")
+        return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
 
 class LifecycleOrders(RuleBasedStateMachine):
@@ -40,7 +73,31 @@ class LifecycleOrders(RuleBasedStateMachine):
         self.runner = asyncio.Runner()
         self.trace = []
         self.started = set()
-        self.runner.run(self._open())
+        self.verified_stops = {}
+        try:
+            self.runner.run(self._open())
+        except BaseException:
+            self.runner.close()
+            raise
+
+        # Observe the precise SDK-owned classification of a correlated read.
+        # The original method still performs all permission decisions.
+        original_check = AttemptExecutor._require_observed_active
+
+        def observed_check(executor, observation):
+            try:
+                return original_check(executor, observation)
+            except ExecutionStopped as stopped:
+                for name, case in self.cases.items():
+                    if case.controller.operation is executor:
+                        self.verified_stops.setdefault(
+                            name, (stopped, case.session.science.executions))
+                        break
+                raise
+
+        self._observer = patch.object(
+            AttemptExecutor, "_require_observed_active", observed_check)
+        self._observer.start()
 
     async def _open(self):
         self.stack = AsyncExitStack()
@@ -60,8 +117,12 @@ class LifecycleOrders(RuleBasedStateMachine):
 
             peer = await self.stack.enter_async_context(
                 TlsPeer("success", response_factory=model_reply))
-            self.cases[name] = ReplyRun(peer, self.claims, "job:" + name,
-                                        _UnknownOutcome if name == "a" else HeldRetirementSession)
+            self.cases[name] = ReplyRun(
+                peer, self.claims, "job:" + name,
+                _UnknownOutcome if name == "a" else PreparedExecutionGateSession,
+                transport_type=_ControlledStart,
+                start_policy=LiveStartPolicy(1, Mock(), Mock(), maximum_replays=0),
+            )
             self.replies[name] = released
         self.tasks = {}
 
@@ -86,16 +147,38 @@ class LifecycleOrders(RuleBasedStateMachine):
 
         self._act("start", name, launch)
 
-    @rule(name=st.sampled_from(("a", "b")))
-    def withdraw_permission(self, name):
+    @rule(name=st.sampled_from(("a", "b")),
+          disposition=st.sampled_from(("accepted", "uncertain", "uncommitted")))
+    def decide_original_start(self, name, disposition):
+        if name not in self.started:
+            return
+        transport = self.cases[name].transport
+        if transport.release_start.is_set():
+            return
+
+        async def release():
+            # This is the actual API request boundary, not an elapsed wait.
+            await asyncio.wait_for(transport.start_received.wait(), 3)
+            transport.disposition = disposition
+            transport.release_start.set()
+            await self._progress()
+
+        self._act("release_original_start_" + disposition, name, release)
+
+    @rule(name=st.sampled_from(("a", "b")),
+          stop=st.sampled_from(("cancelled", "expired")))
+    def withdraw_permission(self, name, stop):
         if name not in self.started or self.cases[name].transport.stop:
             return
 
         async def revoke():
-            self.cases[name].transport.stop = {"job_state": "cancelled"}
+            self.cases[name].transport.stop = (
+                {"job_state": "cancelled"} if stop == "cancelled"
+                else {"state": "expired"}
+            )
             await self._progress()
 
-        self._act("server_cancelled", name, revoke)
+        self._act("server_" + stop, name, revoke)
 
     @rule(name=st.sampled_from(("a", "b")))
     def release_model_reply(self, name):
@@ -119,6 +202,35 @@ class LifecycleOrders(RuleBasedStateMachine):
             await self._progress()
 
         self._act("release_scientific_preparation", name, release)
+
+    @rule(name=st.sampled_from(("a", "b")))
+    def release_accepted_execution(self, name):
+        session = self.cases[name].session
+        if session.release_execution.is_set():
+            return
+
+        async def release():
+            session.release_execution.set()
+            await self._progress()
+
+        self._act("release_accepted_execution", name, release)
+
+    @rule(name=st.sampled_from(("a", "b")))
+    def inject_independent_retirement_failure(self, name):
+        session = self.cases[name].session
+        if (session.release_retirement.is_set()
+                or session.retirement_completed
+                or session.retirement_failure is not None):
+            return
+
+        async def inject():
+            # The original owner reports a separate cleanup failure. It
+            # cannot be interpreted as success or authorize another attempt.
+            session.retirement_failure = RuntimeError(
+                "An original scientific resource did not retire")
+            await self._progress()
+
+        self._act("original_retirement_failed", name, inject)
 
     @rule(name=st.sampled_from(("a", "b")))
     def confirm_session_retirement(self, name):
@@ -146,6 +258,17 @@ class LifecycleOrders(RuleBasedStateMachine):
                 if observed is not None:
                     assert case.controller.shutdown_ready
                     assert not self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
+            elif type(result) is StartDeferred:
+                assert (case.session.science.preparations, case.session.science.executions) == (0, 0)
+                if result.may_have_committed:
+                    # A failed START exchange is not a grant to prepare work,
+                    # and positive cleanup cannot release uncertain custody.
+                    assert case.transport.sent_disposition == "uncertain"
+                    assert self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
+                    await case.controller.settle()
+                    assert self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
+                else:
+                    assert not self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
             elif type(result) is DeliveryAcceptedCheckpoint:
                 assert case.controller.shutdown_ready
                 assert not self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
@@ -165,10 +288,31 @@ class LifecycleOrders(RuleBasedStateMachine):
                 assert science.preparations <= 1
                 assert science.executions <= 1
                 assert len(case.peer.requests) <= 1
+                assert (session.accepted_handle is None
+                        or session.accepted_handle is science.handle)
+                if session.execution_entered.is_set():
+                    # The SDK accepted the one original handle before calling
+                    # the session's execute operation.
+                    assert session.accepted_handle is science.handle
+                    assert science.preparations == 1
+                if science.retired_handle is not None:
+                    assert science.retired_handle is science.handle
+                if case.transport.sent_disposition == "uncertain":
+                    assert session.preparations == 0
+                    assert science.preparations == 0
+                    assert science.executions == 0
+                if name in self.verified_stops:
+                    stopped, effects_at_stop = self.verified_stops[name]
+                    assert stopped.observation.job_ref == case.pending.input.job_ref
+                    assert science.executions == effects_at_stop, (
+                        "New scientific work entered after the SDK verified server revocation")
                 owned = self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
                 assert owned == (case.controller in owners)
                 if session.retiring.is_set() and not session.retirement_completed and case.start_count:
                     assert owned, "Retirement is pending but its original claim was released"
+                if (session.retirement_failure is not None and session.retiring.is_set()
+                        and session.release_retirement.is_set()):
+                    assert owned, "Independent retirement failure released the original claim"
                 if not owned and case.start_count:
                     assert session.retirement_completed, "Claim released before positive session retirement"
             assert len(owners) <= 2
@@ -180,7 +324,13 @@ class LifecycleOrders(RuleBasedStateMachine):
         async def close():
             for name, case in self.cases.items():
                 self.replies[name].set()
+                case.transport.release_start.set()
+                # Teardown must select a real result for a previously dispatched
+                # START; releasing a gate with no response would hide a failure.
+                if case.transport.disposition is None:
+                    case.transport.disposition = "accepted"
                 case.session.science.release.set()
+                case.session.release_execution.set()
                 case.session.release_retirement.set()
             for name, task in self.tasks.items():
                 if not task.done():
@@ -193,6 +343,7 @@ class LifecycleOrders(RuleBasedStateMachine):
         try:
             self.runner.run(close())
         finally:
+            self._observer.stop()
             self.runner.close()
 
 

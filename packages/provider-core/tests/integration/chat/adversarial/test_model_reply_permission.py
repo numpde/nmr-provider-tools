@@ -224,16 +224,18 @@ class ObservationGap:
 
 
 class ReplyRun:
-    def __init__(self, peer, claims, job, session_type):
+    # silent-defaults: allow-contract -- Ordinary reply tests keep the admitted
+    # API and START policy; generated tests supply explicit controlled boundaries.
+    def __init__(self, peer, claims, job, session_type, *, transport_type=ObservedAPI, start_policy=None):
         self.peer = peer
         base = record("permission:" + job)
         self.pending = StartPending(scope(), base.analysis_kind_ref, replace(base.input, job_ref=job),
                                     retained_start(job_ref=job, provider_attempt_key="permission:" + job))
-        self.transport = ObservedAPI(job, "execution_attempt:sha256:" + sha256(job.encode()).hexdigest())
+        self.transport = transport_type(job, "execution_attempt:sha256:" + sha256(job.encode()).hexdigest())
         self.session = session_type(peer)
         self.controller = AttemptController.live(
             api(self.transport, scope().api_origin), claims, self.session, scope=scope(), stopping=asyncio.Event(),
-            start_policy=LiveStartPolicy(1, Mock(), Mock()),
+            start_policy=start_policy if start_policy is not None else LiveStartPolicy(1, Mock(), Mock()),
             preverified_input=verify_job_input(response(job_ref=job), feed=self.pending.input),
             delivery=RecordingDelivery(), on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
             delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
@@ -490,12 +492,42 @@ class HeldRetirementSession(InterpretedSession):
         self.retiring = asyncio.Event()
         self.release_retirement = asyncio.Event()
         self.retirement_completed = False
+        self.retirement_failure = None
 
     async def retire(self):
         await super().retire()
         self.retiring.set()
         await self.release_retirement.wait()
+        if self.retirement_failure is not None:
+            raise self.retirement_failure
         self.retirement_completed = True
+
+
+class PreparedExecutionGateSession(HeldRetirementSession):
+    """Expose acceptance of the exact prepared handle before scientific entry."""
+
+    def __init__(self, peer):
+        super().__init__(peer)
+        self.accepted_handle = None
+        self.execution_entered = asyncio.Event()
+        self.release_execution = asyncio.Event()
+
+    async def prepare(self, acknowledged, instructions, *, report_condition):
+        prepared = await super().prepare(acknowledged, instructions, report_condition=report_condition)
+        if prepared is not self.science.handle:
+            raise AssertionError("The interpreter substituted a prepared scientific handle")
+        self.accepted_handle = prepared
+        return prepared
+
+    async def execute(self, prepared, *, report_condition):
+        if prepared is not self.accepted_handle:
+            raise AssertionError("The accepted preparation changed before execution")
+        self.execution_entered.set()
+        await self.release_execution.wait()
+        # The adapter checks the original reporter again after the gate.
+        # A prior START or successful preparation is not a future permission.
+        report_condition.require_execution()
+        return await super().execute(prepared, report_condition=report_condition)
 
 
 class UnresolvedOutcomeSession(InterpretedSession):
@@ -641,3 +673,54 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 if not task.done():
                     original.controller.request_stop()
                 await asyncio.wait_for(asyncio.gather(task, return_exceptions=True), 8)
+
+class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
+    """Revocation after accepted preparation cannot authorize a new effect."""
+
+    async def test_verified_stop_after_accepted_preparation_blocks_scientific_entry(self):
+        for stop in ({"job_state": "cancelled"}, {"state": "expired"}):
+            with self.subTest(stop=stop):
+                claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
+                async with reply_run(claims, "job:accepted", session_type=PreparedExecutionGateSession) as (running, release_reply):
+                    session = running.session
+                    try:
+                        session.science.release.set()
+                        release_reply.set()
+                        await asyncio.wait_for(session.execution_entered.wait(), 3)
+                        prepared = session.accepted_handle
+                        self.assertIs(prepared, session.science.handle)
+                        self.assertEqual((1, 1, 0), (
+                            session.preparations, session.science.preparations,
+                            session.science.executions,
+                        ))
+
+                        # This event comes from the SDK's correlated read and
+                        # ExecutionStopped classification, not the fake's write.
+                        running.transport.stop = stop
+                        await asyncio.wait_for(running.observation.verified.wait(), 3)
+                        self.assertIs(running.controller.operation._observed_stop,
+                                      running.observation.stop)
+                        self.assertFalse(session.release_execution.is_set())
+                        session.release_execution.set()
+                        running.observation.resume.set()
+                        with self.assertRaises(ControllerFailed) as caught:
+                            await asyncio.wait_for(asyncio.shield(running.task), 3)
+                        self.assertIs(caught.exception.cause.cause, running.observation.stop)
+                        self.assertEqual(0, session.science.executions)
+                        await asyncio.wait_for(session.retiring.wait(), 3)
+                        self.assertIn(running.controller, claims.live_owners())
+                        self.assertFalse(session.retirement_completed)
+                        session.release_retirement.set()
+                        observed = await asyncio.wait_for(
+                            running.controller.settle_revocation(caught.exception), 3)
+                        self.assertIs(observed, running.observation.stop.observation)
+                        self.assertIs(session.science.retired_handle, prepared)
+                        self.assertEqual(1, session.science.retirements)
+                        self.assertTrue(session.interpreter.retirement_confirmed)
+                        self.assertEqual((), claims.live_owners())
+                        self.assertEqual([], running.controller.delivery.items)
+                    finally:
+                        session.release_execution.set()
+                        session.release_retirement.set()
+                        running.observation.resume.set()
+
