@@ -16,7 +16,7 @@ from provider_core.conversation import ToolFinished
 from provider_core.execution import ExecutionStopped, ObservationRecovery
 from provider_core.failure_projection import owned_relationships
 from provider_core.interpreter import Interpreter
-from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
+from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint, EnteredCheckpoint
 from provider_core.job_input import verify_job_input
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull, OwnershipRefused
 from tests.fakes.api import Transport, api, reply
@@ -675,9 +675,9 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.wait_for(asyncio.gather(task, return_exceptions=True), 8)
 
 class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
-    """Revocation after accepted preparation cannot authorize a new effect."""
+    """Revocation after execution entry prevents new effects but cannot release its claim."""
 
-    async def test_verified_stop_after_accepted_preparation_blocks_scientific_entry(self):
+    async def test_verified_stop_after_accepted_preparation_retains_entered_claim(self):
         for stop in ({"job_state": "cancelled"}, {"state": "expired"}):
             with self.subTest(stop=stop):
                 claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
@@ -705,20 +705,39 @@ class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
                         running.observation.resume.set()
                         with self.assertRaises(ControllerFailed) as caught:
                             await asyncio.wait_for(asyncio.shield(running.task), 3)
+                        controller = running.controller
                         self.assertIs(caught.exception.cause.cause, running.observation.stop)
+                        # The accepted preparation has already crossed the SDK's
+                        # EnteredCheckpoint, even though the scientific adapter
+                        # has not performed a new effect. Only pre-entry
+                        # AcknowledgedCheckpoint can use settle_revocation().
+                        self.assertIs(type(controller.operation._checkpoint), EnteredCheckpoint)
                         self.assertEqual(0, session.science.executions)
                         await asyncio.wait_for(session.retiring.wait(), 3)
-                        self.assertIn(running.controller, claims.live_owners())
+                        self.assertEqual((controller,), claims.live_owners())
                         self.assertFalse(session.retirement_completed)
+                        self.assertIsNone(await controller.settle_revocation(caught.exception))
+
+                        # Positive retirement proves resource closure, not a
+                        # valid disposition for an already-entered Attempt.
                         session.release_retirement.set()
-                        observed = await asyncio.wait_for(
-                            running.controller.settle_revocation(caught.exception), 3)
-                        self.assertIs(observed, running.observation.stop.observation)
+                        original_retirement = controller.operation._retirement_task
+                        self.assertIsNotNone(original_retirement)
+                        await asyncio.wait_for(asyncio.shield(original_retirement), 3)
+                        self.assertTrue(session.retirement_completed)
+                        with self.assertRaises(ControllerFailed) as still_held:
+                            await asyncio.wait_for(controller.settle(), 3)
+                        self.assertIs(still_held.exception, controller.last_failure)
+                        self.assertTrue(controller.work_settled)
+                        self.assertTrue(controller.shutdown_ready)
+                        self.assertIsNone(await controller.settle_revocation(caught.exception))
+                        self.assertEqual((controller,), claims.live_owners())
+                        self.assertTrue(claims.owns_job(running.pending.scope, running.pending.input.job_ref))
                         self.assertIs(session.science.retired_handle, prepared)
-                        self.assertEqual(1, session.science.retirements)
+                        self.assertEqual((1, 0), (session.science.retirements, session.science.executions))
                         self.assertTrue(session.interpreter.retirement_confirmed)
-                        self.assertEqual((), claims.live_owners())
-                        self.assertEqual([], running.controller.delivery.items)
+                        self.assertEqual(1, running.start_count)
+                        self.assertEqual([], controller.delivery.items)
                     finally:
                         session.release_execution.set()
                         session.release_retirement.set()
