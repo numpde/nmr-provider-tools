@@ -17,7 +17,7 @@ from hypothesis.stateful import RuleBasedStateMachine, invariant, rule
 from provider_core.analysis import AnalysisOutcomeUnresolved
 from provider_core.controller import ControllerFailed, LiveStartPolicy, StartDeferred
 from provider_core.execution import AttemptExecutor, ExecutionStopped
-from provider_core.ownership import AttemptClaims, LiveAttemptLimits
+from provider_core.ownership import AttemptClaims, LiveAttemptLimits, OwnershipRefused
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from tests.fakes.api import reply, signature_window_problem
 from tests.fakes.checkpoint_execution import CausalDelivery
@@ -304,6 +304,48 @@ class LifecycleOrders(RuleBasedStateMachine):
                 assert not self.claims.owns_job(case.pending.scope, case.pending.input.job_ref)
 
         self._act("join_original_owner", name, join)
+
+    @rule(name=st.sampled_from(("a", "b")))
+    def reobserve_released_predecessor(self, name):
+        # Only compare against a successor whose actual science is still
+        # suspended by its own gate; otherwise it may finish independently.
+        original = self.cases[name]
+        claim = original.controller._claim
+        if (claim is None or claim.active or name not in self.tasks
+                or not self.tasks[name].done()):
+            return
+        peers = [case for other, case in self.cases.items() if other != name
+                 and case.controller in self.claims.live_owners()
+                 and case.session.science.pending is not None
+                 and not case.session.science.pending.done()
+                 and not case.session.science.release.is_set()]
+        if not peers:
+            return
+
+        async def repeat():
+            successor, = peers
+            exact_science = successor.session.science.pending
+            exact_claim = successor.controller._claim
+            # The original driver is already complete; its late observers
+            # must neither dispatch again nor retire another claim.
+            old_dispatches = (original.start_count, original.session.preparations)
+            await asyncio.gather(original.controller.join(), return_exceptions=True)
+            await original.controller.settle()
+            try:
+                claim.release(owner=original.controller)
+            except OwnershipRefused:
+                pass
+            else:
+                raise AssertionError("Stale controller released a successor claim")
+            assert (original.start_count, original.session.preparations) == old_dispatches
+            assert exact_claim.active
+            assert exact_claim.lifecycle_owner is successor.controller
+            assert successor.session.science.pending is exact_science
+            assert not exact_science.done()
+            assert self.claims.owns_job(
+                successor.pending.scope, successor.pending.input.job_ref)
+
+        self._act("late_released_owner_observation", name, repeat)
 
     @invariant()
     def preserve_exclusive_ownership_and_once_only_science(self):

@@ -746,3 +746,86 @@ class PreparedPermissionInterleavingTests(unittest.IsolatedAsyncioTestCase):
                         session.release_retirement.set()
                         running.observation.resume.set()
 
+class LateOriginalOwnerIsolationTests(unittest.IsolatedAsyncioTestCase):
+    """Released owners cannot mutate the successor occupying their former slot."""
+
+    async def test_late_original_observers_and_stale_claim_reject_successor_mutation(self):
+        claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
+        async with reply_run(claims, "job:old") as (old, release_old_reply):
+            await asyncio.wait_for(old.peer.received.wait(), 3)
+            old.transport.stop = {"job_state": "cancelled"}
+            await asyncio.wait_for(old.observation.verified.wait(), 3)
+            release_old_reply.set()
+            await asyncio.wait_for(old.session.dispatch_finished.wait(), 3)
+            old.observation.resume.set()
+            with self.assertRaises(ControllerFailed) as stopped:
+                await asyncio.wait_for(asyncio.shield(old.task), 3)
+            failure = stopped.exception
+            original_claim = old.controller._claim
+            original_executor = old.controller.operation
+            observed = old.observation.stop.observation
+            self.assertIs(await old.controller.settle_revocation(failure), observed)
+            self.assertFalse(original_claim.active)
+            self.assertTrue(old.controller.shutdown_ready)
+            self.assertTrue(old.session.interpreter.retirement_confirmed)
+            self.assertEqual((1, 0, 0), (
+                old.start_count, old.session.science.preparations,
+                old.session.science.executions,
+            ))
+            self.assertEqual((), claims.live_owners())
+            original_model_requests = len(old.peer.requests)
+
+        # A genuinely eligible, unrelated Job now occupies the single capacity
+        # slot. Its actual scientific preparation remains in its original task.
+        async with reply_run(claims, "job:new") as (new, release_new_reply):
+            release_new_reply.set()
+            await asyncio.wait_for(new.session.science.entered.wait(), 3)
+            current_claim = new.controller._claim
+            current_science = new.session.science.pending
+            self.assertIsNot(current_claim, original_claim)
+            self.assertIs(current_claim.lifecycle_owner, new.controller)
+            self.assertEqual((new.controller,), claims.live_owners())
+            self.assertTrue(claims.owns_job(scope(), new.pending.input.job_ref))
+            self.assertFalse(current_science.done())
+            self.assertFalse(new.controller.shutdown_ready)
+
+            # Duplicate callbacks for A may observe its already-final outcome,
+            # but the stale claim cannot finish, release or rebind B's owners.
+            self.assertIs(await old.controller.settle_revocation(failure), observed)
+            with self.assertRaises(ControllerFailed) as late:
+                await old.controller.join()
+            self.assertIs(late.exception, failure)
+            self.assertIsNone(await old.controller.settle())
+            old.controller.request_stop()
+            stale_actions = (
+                lambda: original_claim.release(owner=old.controller),
+                lambda: original_claim.release_terminal(owner=original_executor),
+                lambda: original_claim.finish(original_executor),
+                lambda: original_claim.bind_attempt(
+                    scope(), old.transport.reference, owner=original_executor),
+            )
+            for action in stale_actions:
+                with self.assertRaises(OwnershipRefused):
+                    action()
+                self.assertTrue(current_claim.active)
+                self.assertEqual((new.controller,), claims.live_owners())
+                self.assertTrue(claims.owns_job(scope(), new.pending.input.job_ref))
+            self.assertEqual(original_model_requests, len(old.peer.requests))
+            self.assertEqual((1, 1, 0), (
+                new.start_count, new.session.science.preparations,
+                new.session.science.executions,
+            ))
+            self.assertIs(new.session.science.pending, current_science)
+            self.assertFalse(current_science.done())
+
+            new.session.science.release.set()
+            accepted = await asyncio.wait_for(asyncio.shield(new.task), 3)
+            self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
+            self.assertEqual((1, 1, 1), (
+                new.start_count, new.session.science.preparations,
+                new.session.science.executions,
+            ))
+            self.assertIs(new.session.science.retired_handle, new.session.science.handle)
+            self.assertEqual(1, len(new.controller.delivery.items))
+            self.assertTrue(new.controller.shutdown_ready)
+            self.assertEqual((), claims.live_owners())
