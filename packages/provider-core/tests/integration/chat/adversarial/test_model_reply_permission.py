@@ -1,4 +1,4 @@
-"""A complete HTTP reply cannot restore an Attempt's verified withdrawn permission."""
+"""Live model permission and cross-Attempt retirement retain their original owners."""
 
 import asyncio
 from contextlib import asynccontextmanager
@@ -8,7 +8,7 @@ import json
 import unittest
 from unittest.mock import Mock, patch
 
-from provider_core.analysis import AnalysisSuccess, PreparedAnalysis
+from provider_core.analysis import AnalysisOutcomeUnresolved, AnalysisSuccess, PreparedAnalysis
 from provider_core.attempt_record import ProtectedEvidence, StartPending
 from provider_core.chat import ChatEndpointFactory, ChatEndpointSpec
 from provider_core.controller import AttemptController, ControllerFailed, LiveStartPolicy
@@ -16,8 +16,9 @@ from provider_core.conversation import ToolFinished
 from provider_core.execution import ExecutionStopped, ObservationRecovery
 from provider_core.failure_projection import owned_relationships
 from provider_core.interpreter import Interpreter
+from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from provider_core.job_input import verify_job_input
-from provider_core.ownership import AttemptClaims, LiveAttemptLimits
+from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull, OwnershipRefused
 from tests.fakes.api import Transport, api, reply
 from tests.fakes.attempt_store import record, scope
 from tests.fakes.attempts import observation, progress_response, retained_start, start_response
@@ -479,3 +480,162 @@ class ModelReplyPermissionTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(running.session.interpreter.retirement_confirmed)
             self.assertEqual(0, len(claims.live_owners()))
         await self._next_job(claims)
+
+
+class HeldRetirementSession(InterpretedSession):
+    """Keep the original session's retirement pending after its model child exits."""
+
+    def __init__(self, peer):
+        super().__init__(peer)
+        self.retiring = asyncio.Event()
+        self.release_retirement = asyncio.Event()
+        self.retirement_completed = False
+
+    async def retire(self):
+        await super().retire()
+        self.retiring.set()
+        await self.release_retirement.wait()
+        self.retirement_completed = True
+
+
+class UnresolvedOutcomeSession(InterpretedSession):
+    """Science entered exactly once, but its result was never established."""
+
+    async def execute(self, prepared, *, report_condition):
+        await super().execute(prepared, report_condition=report_condition)
+        raise AnalysisOutcomeUnresolved("The original scientific outcome is unconfirmed")
+
+
+class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
+    """Two real controllers share claims, not interpreter children or science."""
+
+    async def test_held_original_retirement_does_not_block_independent_attempt(self):
+        claims = AttemptClaims.live(limits=LiveAttemptLimits(
+            maximum_attempts=2, maximum_control_bytes=2 * 131072,
+            maximum_pending_terminal_bytes=2 * 2097152,
+        ))
+        release_reply = asyncio.Event()
+
+        async def held_reply(_request, _body):
+            await release_reply.wait()
+            return json.dumps({"choices": [{"message": call("held", "prepare", {}),
+                                            "finish_reason": "tool_calls"}]}).encode()
+
+        successful_reply = json.dumps({"choices": [{"message": call("ready", "prepare", {}),
+                                                     "finish_reason": "tool_calls"}]}).encode()
+        async with (TlsPeer("success", response_factory=held_reply) as stalled_peer,
+                    TlsPeer("success", response_body=successful_reply) as healthy_peer):
+            held = ReplyRun(stalled_peer, claims, "job:held", HeldRetirementSession)
+            healthy = ReplyRun(healthy_peer, claims, "job:healthy", InterpretedSession)
+            original = independent = None
+            try:
+                # The scoped observer exposes the original server stop after the
+                # controller has processed it, before the model reply is released.
+                # No other controller is running while asyncio.wait is patched.
+                with patch("provider_core.execution.asyncio.wait", new=held.observation):
+                    original = asyncio.create_task(held.controller.run(held.pending))
+                    await asyncio.wait_for(stalled_peer.received.wait(), 5)
+                    held.transport.stop = {"job_state": "cancelled"}
+                    await asyncio.wait_for(held.observation.verified.wait(), 5)
+                    release_reply.set()
+                    await asyncio.wait_for(held.session.dispatch_finished.wait(), 5)
+                    held.observation.resume.set()
+                    with self.assertRaises(ControllerFailed) as caught:
+                        await asyncio.wait_for(asyncio.shield(original), 5)
+
+                failure = caught.exception
+                self.assertIs(failure.cause.cause, held.observation.stop)
+                await asyncio.wait_for(held.session.retiring.wait(), 5)
+                self.assertTrue(held.session.interpreter.retirement_confirmed)
+                self.assertFalse(held.session.retirement_completed)
+                self.assertFalse(held.controller.work_settled)
+                self.assertEqual((held.controller,), claims.live_owners())
+                self.assertEqual((1, 1, 0, 0), (
+                    held.start_count, held.session.dispatches,
+                    held.session.science.preparations, held.session.science.executions,
+                ))
+                with self.assertRaises(OwnershipRefused):
+                    claims.claim_live(held.pending, lifecycle_owner=object())
+
+                # B performs real model HTTP, preparation, execution, handoff,
+                # session retirement and claim release while A remains held.
+                healthy.session.science.release.set()
+                independent = asyncio.create_task(healthy.controller.run(healthy.pending))
+                result = await asyncio.wait_for(asyncio.shield(independent), 6)
+                self.assertIs(type(result), DeliveryAcceptedCheckpoint)
+                self.assertTrue(healthy.controller.shutdown_ready)
+                self.assertEqual((1, 1, 1, 1), (
+                    healthy.start_count, healthy.session.dispatches,
+                    healthy.session.science.preparations, healthy.session.science.executions,
+                ))
+                self.assertEqual(1, len(healthy.controller.delivery.items))
+                self.assertEqual(1, len(healthy_peer.requests))
+                self.assertEqual(1, len(stalled_peer.requests))
+                self.assertEqual((held.controller,), claims.live_owners(),
+                                 "The independent terminal handoff released A's claim")
+                self.assertFalse(held.session.retirement_completed)
+
+                # Only positive retirement of A's original session and the
+                # original verified revocation can now release its identity.
+                held.session.release_retirement.set()
+                observed = await asyncio.wait_for(
+                    held.controller.settle_revocation(failure), 6)
+                self.assertIs(observed, held.observation.stop.observation)
+                self.assertTrue(held.session.retirement_completed)
+                self.assertTrue(held.controller.shutdown_ready)
+                self.assertEqual((), claims.live_owners())
+                self.assertEqual([], held.controller.delivery.items)
+                self.assertEqual(0, held.session.science.executions)
+            finally:
+                release_reply.set()
+                held.observation.resume.set()
+                held.session.release_retirement.set()
+                held.session.science.release.set()
+                for controller, task in ((held.controller, original),
+                                         (healthy.controller, independent)):
+                    if task is not None and not task.done():
+                        controller.request_stop()
+                tasks = tuple(task for task in (original, independent) if task is not None)
+                if tasks:
+                    await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), 8)
+
+    async def test_retired_science_with_unknown_outcome_remains_claimed(self):
+        claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
+        reply_body = json.dumps({"choices": [{"message": call("unknown", "prepare", {}),
+                                               "finish_reason": "tool_calls"}]}).encode()
+        async with TlsPeer("success", response_body=reply_body) as peer:
+            original = ReplyRun(peer, claims, "job:unknown", UnresolvedOutcomeSession)
+            original.session.science.release.set()
+            task = asyncio.create_task(original.controller.run(original.pending))
+            try:
+                with self.assertRaises(ControllerFailed) as caught:
+                    await asyncio.wait_for(asyncio.shield(task), 6)
+                self.assertIsInstance(caught.exception.cause.cause, AnalysisOutcomeUnresolved)
+                self.assertTrue(original.controller.work_settled)
+                self.assertTrue(original.controller.shutdown_ready)
+                self.assertTrue(original.session.interpreter.retirement_confirmed)
+                self.assertIs(original.session.science.retired_handle,
+                              original.session.science.handle)
+                self.assertEqual((1, 1, 1), (
+                    original.start_count, original.session.science.preparations,
+                    original.session.science.executions,
+                ))
+                self.assertEqual([], original.controller.delivery.items)
+                self.assertEqual((original.controller,), claims.live_owners())
+                self.assertIsNone(await original.controller.settle_revocation(caught.exception))
+                await original.controller.settle()
+                self.assertEqual((original.controller,), claims.live_owners())
+                successor = ReplyRun(peer, claims, "job:successor", InterpretedSession)
+                with self.assertRaises(ControllerFailed) as refused:
+                    await asyncio.wait_for(
+                        successor.controller.run(successor.pending), 3)
+                self.assertIs(type(refused.exception.cause), LiveCapacityFull)
+                self.assertTrue(successor.controller.shutdown_ready)
+                self.assertEqual((0, 0), (successor.start_count, successor.session.preparations))
+                self.assertEqual((original.controller,), claims.live_owners())
+                self.assertEqual(1, len(peer.requests),
+                                 "Capacity refusal dispatched another model request")
+            finally:
+                if not task.done():
+                    original.controller.request_stop()
+                await asyncio.wait_for(asyncio.gather(task, return_exceptions=True), 8)
