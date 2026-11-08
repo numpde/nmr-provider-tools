@@ -623,7 +623,9 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual([], original.controller.delivery.items)
                 self.assertEqual((original.controller,), claims.live_owners())
                 self.assertIsNone(await original.controller.settle_revocation(caught.exception))
-                await original.controller.settle()
+                with self.assertRaises(ControllerFailed) as still_held:
+                    await original.controller.settle()
+                self.assertIs(still_held.exception, original.controller.last_failure)
                 self.assertEqual((original.controller,), claims.live_owners())
                 successor = ReplyRun(peer, claims, "job:successor", InterpretedSession)
                 with self.assertRaises(ControllerFailed) as refused:
