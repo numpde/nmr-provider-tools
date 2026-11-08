@@ -1,0 +1,441 @@
+Roadmap: causal lifecycle qualification
+======================================
+2026-11-08 | Proposed implementation checklist | SDK source 743a652
+
+Purpose and status
+------------------
+Implement the contracts in 064_causal_lifecycle_qualification.txt using the
+existing SDK and consumer test infrastructure. Notes 058, 060 and 061 retain
+their historical evidence and service-extraction decisions. This note orders
+future work; it does not relabel historical results as current qualification.
+
+All implementation boxes below are unchecked. Writing these notes runs no
+tests and authorizes no dependency update, release, deployment or cutover.
+Campaign sizes and repetition counts are starting proposals, not measurements.
+Keep immediate recovery qualification independent of the later service move.
+Use note 064's identifiers in witnesses and receipts: safety S1-S8, isolation
+I1-I2 and conditional liveness L1-L3. A milestone need not prove every property;
+name which properties and external assumptions its evidence actually covers.
+
+0. Freeze the evidence before changing a witness
+-----------------------------------------------
+[ ] Record the current source revisions, provider pins and test-support hashes
+    from the source matrix in note 064. Refresh a moved main before applying
+    this checklist. SDK baseline: 743a65231676aad6caf655fcdbc48df376a1cdd3,
+    version 0.6.8. A version string alone does not identify qualified bytes.
+[ ] Keep three near-term artifact columns: each consumer's currently pinned
+    release; the exact current-SDK artifact; and any changed candidate. Run
+    the same external behavioral witness against applicable columns. Record
+    source compatibility changes separately from changes in SDK behavior.
+    Coalesce identical artifact hashes; do not create redundant matrix runs.
+[ ] For each column capture the wheel hash, matching sdist/support hash,
+    runtime and test locks, interpreter/platform, consumer revision, actual
+    command, scenario/profile, verdict and retained-obligation observations.
+    Record whether bytes are published or locally built; do not assume either.
+[ ] Confirm installed imports come from that wheel, not an SDK checkout.
+    Import only selected test assets from its matching pinned source archive.
+    Never silently combine a candidate wheel with old or current-main fakes.
+[ ] Refresh/reuse Magnet main c5cf3ab8b0b0d4a60bbd4a4c7f7bfaa8baa6f2df.
+    Its immediate outage corrections already restore synchronously after two
+    distinct controllers have settled and released claims. Fixed 2.8-second
+    restoration, 0.2-second cooldown waiting, a duration-derived request cap
+    and a restoration-speed assertion have been removed. Its per-terminal
+    watchdog and START-time cooldown checks are the starting witness.
+    Attach the exact current-revision/artifact execution receipt; neither
+    this source review nor missing receipts here contradict reported passes.
+
+Exit: every compared result identifies immutable code and artifacts; changed
+Magnet witnesses are reused, and no historical note is treated as a fresh run.
+
+1. Inventory and assign the first distinct consumers
+---------------------------------------------------
+[ ] Confirm the maintained SDK inventory under packages/provider-core/tests.
+    Reuse unit/normative/test_fuzz_transport_cleanup.py,
+    test_fuzz_interpreter.py and test_fuzz_delivery.py. These provide seeded
+    histories and, for delivery, an independent outstanding-record model.
+    They do not provide shrinking composed concurrent lifecycle histories.
+[ ] Reuse integration/transport/normative/test_fuzz_retirement.py for real TLS,
+    and integration/chat/adversarial/test_fuzz_provider_http_shutdown.py,
+    test_fuzz_interpreter_http_recovery.py and test_fuzz_prose_service_outage.py
+    with fakes/b3_provider_shutdown.py, b3_repetition_fault.py and
+    b4_prose_outage.py. Preserve their actual process/IPC ownership witnesses.
+    Reuse b4_prose_outage.py's event() helper where its semantics fit the gate.
+[ ] Reuse unit/normative/test_chat_process_contract.py,
+    test_controller_held_failure.py and test_controller_revocation_continuation.py;
+    integration/chat/adversarial/test_chat_reply_boundary.py and
+    test_model_reply_permission.py; and integration/test_child_retirement.py.
+    Directory names alone do not tell whether a test launches real processes.
+[ ] Write a short coverage map in the change description: contract, current
+    witness, missing ordering, owning runtime component and proposed consumer.
+    Keep tests/resilience_proposals outside maintained qualification unless a
+    particular policy is explicitly accepted and its test migrated.
+[ ] Identify the first new-file consumer as two real composed Attempt owners
+    sharing capacity, with independently controlled external completions.
+    A proposed unit/normative/test_fuzz_lifecycle.py is justified by that gap.
+    Start its one-use helpers locally; extract only after another actual test
+    needs the same behavior. No new general fuzz framework or runtime owner.
+
+Exit: each new helper/file/dependency has an immediate named consumer; the
+existing process and delivery fixtures remain authoritative at their boundary.
+
+2. Make the consumer witnesses causal before broadening them
+-----------------------------------------------------------
+[ ] Extend existing provider scenario fixtures with the smallest necessary
+    typed observations: Job/Attempt, lane, original operation/generation,
+    event kind, terminal operation/body identity, and observed acknowledgement.
+    Order events using explicit gates and correlated observations. A timestamp
+    describes elapsed time; it does not prove which operation caused an event.
+[ ] For outage recovery, observe two distinct original terminal failures and
+    their required settlement before restoring the endpoint. Verify the later
+    success belongs to another eligible Job. A retry of one failed request,
+    one controller observed twice, or a successful in-flight old request is
+    not the recovery witness. Reuse Magnet's current implementation of this.
+[ ] Replace rendered-message classification only where the scenario needs it:
+    capture parent-observed HTTP refusal and operation identity at the real
+    boundary, rather than searching exception/log strings for an HTTP code.
+    A peer returning bytes does not establish that the parent consumed them.
+[ ] In Magnet's existing lane-isolation test, add a direct held-lane event and
+    explicit successful shutdown assertions in the test body. Replace status
+    file polling where that event provides the same evidence. Preserve the
+    independent lane's progress and later affected-lane continuation checks.
+[ ] Take the behavioral verdict before emergency teardown. Teardown releases
+    fixture gates and joins owned tasks/processes, but cannot turn a held claim,
+    missing handoff or shutdown failure into success. Preserve both failures.
+
+Exit: no fixed delay establishes a required ordering; original failure,
+independent progress, later recovery and shutdown have distinct observations.
+Do not expand a common event journal beyond the consumers that require it.
+
+3. Add one composed state machine in the SDK
+-------------------------------------------
+Depends on: inventory and the acceptance distinctions in note 064.
+
+[ ] Build the first test against real AttemptClaims, AttemptController,
+    Interpreter and SupervisedChatTransport ownership. Substitute controllable
+    launch/IPC/exit observation, API responses, scientific effects and delivery
+    acknowledgements. Do not substitute a fake controller or copy its state.
+[ ] Give independently active interpreters their own transport owners. One
+    SupervisedChatTransport owns one active exchange; sharing claims/capacity
+    does not authorize invented concurrent use of that object. Share captured
+    ProseService bindings only where the real composition shares them.
+[ ] Use Hypothesis RuleBasedStateMachine, within the existing unittest runner.
+    Keep one persistent asyncio.Runner/event loop per example. Synchronous
+    rules drive that loop and retained tasks; do not use asyncio.run per rule.
+[ ] Generate eligible commands and completion order: admit/refuse/lose START,
+    finish or fail launch, release partial/full replies, expire permission,
+    revoke, return preparation/scientific outcomes, acknowledge or reject
+    handoff, observe original exit, cancel an observer and request stop.
+    Preconditions enforce causality while permitting late/stale completions.
+    Supply outcomes through the controlled external ports; the real SDK accepts
+    preparation and selects terminal decisions. Never set controller state to
+    manufacture a transition or make an unresolved outcome settle.
+[ ] Establish note 064's deterministic trace before extending the generator:
+    hold A's original retirement while independent B completes; then expose
+    A's original cleanup and verified pre-entry revocation, and let the real
+    settle_revocation path release its claim. Keep the negative control where
+    disposition remains unresolved after cleanup and ownership stays held.
+[ ] Begin with two owners, capacity one or two, and short operation identities.
+    Proposed default: at most 32 examples with 40 rule steps each. Record the
+    actual generated/executed counts; the product is not a coverage claim.
+    Proposed extended profile: 1,000 examples with 150 steps and two to four
+    owners. These bounds are unrun and must be revised from measured cost.
+    Capacity one proves release-before-resumption; capacity two or more proves
+    independent sibling progress while another claim remains held. The shared
+    registry is not lane-keyed; lane/resource readiness is a separate condition.
+[ ] Maintain an independent ledger of grants, original operation identities,
+    accepted handles, scientific dispatches, terminal decisions and exact
+    report bytes. Check safety after every command, not just a final trace.
+    State fields from the implementation cannot be the whole expected model.
+[ ] Enforce owner isolation; retirement evidence before required replacement;
+    no new scientific effect after permission expires or is revoked; retained
+    accepted preparation/outcome after later cleanup failure; no science
+    replay as a cleanup strategy; one logical terminal decision; and no late
+    retired owner mutating its successor. Identical transport retries remain
+    permitted. Explicit input correction and provider-authorized scientific
+    retries are separate protocol transitions, not automatically violations.
+    Map these checks to S1-S8 and I2; an independent enabled operation's progress
+    is I1. Keep L1-L3 checks conditional on the stated evidence and scheduling.
+[ ] Add conditional progress rules: when required external gates complete,
+    permission/disposition resolves and scheduling is allowed, the original
+    owner can settle, eligible work can use released capacity, and stop can
+    finish its required retirement/handoff duties. A forever-unknown child
+    exit has a safety assertion, not an unconditional liveness obligation.
+[ ] Use gates for ordering. If generating deadline advancement, use an isolated
+    test clock/loop that actually services the timers used by the composition;
+    validate the clock seam against existing real-timer witnesses. Do not
+    globally replace sleep/time or turn watchdog expiry into retirement proof.
+    Until that seam is established, label generated ordering coverage and real
+    deadline coverage separately. No broad runtime clock refactor is required.
+[ ] Keep an independent wall-clock watchdog for stuck harnesses. A real
+    deadline crossed under starvation must still revoke new-work permission;
+    the harness cannot require that work succeed regardless of scheduling.
+[ ] Emit the minimized command history, immutable identities, failure boundary,
+    Hypothesis version, profile and reproduction information. Replay the
+    recorded commands against fresh owners, and retain a minimal deterministic
+    regression for each fixed defect. Seed alone is insufficient across
+    changed library versions. Drain retained fixture work after the verdict.
+
+Exit after milestone 4 supplies the test environment: a test-only ownership
+perturbation yields a useful shrunk witness; replaying it fails at the same
+behavioral boundary. The composed owners in the qualified candidate satisfy
+the selected corpus without unexplained tasks or asyncio errors. A real defect
+gets an owning fix; never weaken runtime semantics to accommodate the harness.
+
+4. Install the generator only in the test closure
+------------------------------------------------
+Develop with milestone 3 once its first composed consumer is concrete.
+
+[ ] Add a pinned, hashed test-only dependency closure at the proposed
+    packages/provider-core/tests/requirements.lock, including Hypothesis and
+    its required dependencies. Verify the existing sdist test graft includes
+    it. Keep runtime locks, SDK dependencies/extras and production images free
+    of the test generator; preserve the existing installation contract.
+    A build-lock change alone does not install the generator in test runtimes.
+[ ] Extend tools/provider_core_acquire.py's checked acquisition inputs and
+    tools/provider_core.sh's snapshot/mount wiring to include that test lock.
+    Reuse the wheelhouse, hash verification and contained acquisition path.
+[ ] In tools/provider_core_tests.py, use the existing install_environment path
+    with a temporary merged behavioral-test lock. Reuse that small helper from
+    tools/package.py for source-distribution behavioral qualification. Keep
+    pure runtime, contract and native installation proofs separately clean.
+    The current issued-artifact unit/contract/integration invocation shares an
+    environment; split the contract installation proof from behavioral runs
+    when adding the test closure. Native proof still installs only core.
+[ ] Add named default/extended profiles and explicit replay selection in
+    packages/provider-core/tests/run_suite.py before discovery. Keep ordinary
+    test discovery, empty-selection rejection and strict asyncio diagnostics.
+    Make missing test dependencies a qualification failure, not a silent skip.
+    Import/register Hypothesis only for behavioral selections. Contract/native
+    execution must neither import it nor require it to be installed.
+[ ] Proposed new Make inputs FUZZ_PROFILE and FUZZ_SEED are not implemented
+    interfaces today. If adopted, wire and validate them through Makefile and
+    tools/provider_core.sh to the runner; add narrow launcher/profile checks.
+    Choose a reproducible default and no implicit writable example database
+    in the read-only container. A persisted corpus needs an explicit owner.
+[ ] Integrate the small campaign into normal tests. The existing focused target
+    selects test_fuzz*.py across integration and unit; it is not currently a
+    larger campaign. Add an explicit extended selection without changing what
+    a normal test invocation means or importing provider checkouts into SDK.
+
+Existing verified command interface (use configured context and wheelhouse):
+    make tests/fuzz/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/path/to/wheelhouse
+    make tests/unit/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/path/to/wheelhouse
+    make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/path/to/wheelhouse
+    make tests/contract/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/path/to/wheelhouse
+
+Exit: candidate and issued-artifact behavioral suites use the same selected
+profile and matching test assets. Preserve the source-rebuilt wheel's contract
+proof; do not duplicate the full campaign there without a concrete remaining
+risk. Production and pure installation proofs have no Hypothesis dependency.
+The actual invocation needed to replay one failure is present in its receipt.
+
+5. Extend the small actual-process layer, then apply bounded contention
+----------------------------------------------------------------------
+[ ] Extend the existing B3/child/reply-boundary tests rather than creating a
+    second process harness. Gate creation after the original launch succeeds,
+    communication, original wait/exit observation and cleanup observers.
+    Preserve the actual child/PID and the original waiter throughout.
+[ ] Cover cancellation during launch; communication timeout/partial reply;
+    interrupted cleanup; signal escalation; exit observation after its first
+    allowance; repeated retirement; and a cancelled observer joining the same
+    cleanup. State which edges existing witnesses already cover before adding.
+[ ] Add only the missing simultaneous-owner/process ordering that the composed
+    model exposes. One owner remains held while another completes its original
+    operation and handoff. Releasing the late original exit cannot mutate the
+    successor or renew an expired permission or cleanup allowance.
+[ ] Distinguish simulated delayed evidence from physical survival. Withholding
+    child.wait() after the process has died tests uncertain retirement; it
+    does not exercise an unkillable operating-system process. EOF and a sent
+    signal are not positive exit evidence. Retain original failures separately.
+[ ] Proposed initial repeat cap: ten normal runs and three runs with bounded,
+    owned external CPU contenders for the focused causal witnesses. These
+    counts and loads are unrun, optional stress qualification, not new default
+    suite requirements. Fix the contender budget and stop/join it on all exits.
+    Declare the CPU quota/load and never block the event loop to manufacture
+    starvation. Keep normal semantic deadlines observable under that load.
+    Record actual load, timing budgets and missed watchdogs; do not widen time
+    allowances until a race passes or assert unconditional success under load.
+[ ] Assert causal order and forbidden effects under contention. Use real
+    deadlines for behavior that depends on real scheduling. Progress claims
+    require the declared scheduling/resource assumptions; a delayed process
+    observation must never be silently converted into confirmed retirement.
+
+Exit: process evidence names original PID/operation and observed retirement,
+with no leaked child or unexplained asynchronous error. The scope is local
+fault injection; deployment, power-loss durability and live science are separate.
+
+6. Qualify current services and explicit SDK uptake
+--------------------------------------------------
+Depends on: applicable causal witnesses and SDK artifact/support closure.
+
+[ ] Keep each provider's deterministic scenario factory local. Expose external
+    peer gates and observed Jobs, operations, handles, report bytes and receipts;
+    build the real adapter and installed SDK behind it. Change that construction
+    seam during extraction; keep behavioral scenarios stable across the move.
+[ ] Reuse NMRNet's tools/provider_consumer_tests.py: it verifies the pinned
+    sdist hash, selects named support files and checks installed SDK origin.
+    Reuse the other providers' existing installed-artifact launchers. Share
+    deterministic helpers through this test-asset path only when at least two
+    real external consumers need them; copy no generic SDK suites into providers.
+    Deterministic consumer support must import without Hypothesis; keep generation
+    in the SDK behavioral-test closure.
+[ ] Distinguish baseline service qualification from adoption of shared
+    ProseService/cooldown behavior. Note 061 names consumer branches with both
+    runtime and test changes, not just new fixtures. Inspect and qualify those
+    exact trees before reusing their changes. A wheel repin alone does not add
+    cross-Job service bindings to a provider that constructs bare factories.
+    For SDK-only comparisons keep the consumer source fixed; record a separate
+    consumer change when adopting service bindings or new admission policy.
+[ ] SECS: extend tests/provider/test_sdk_runtime_drain.py,
+    test_sdk_session.py and tests/e2e/test_provider_e2e.py. Use the production
+    ChatEndpointFactory path for supervised-child wiring: the reviewed e2e
+    fixture manually builds ChatEndpoint with HttpTransport. Preserve existing
+    native/source tests. Gate the next model exchange after inspection;
+    separately hold return/cleanup of an already-produced prepared handle.
+    Use that exact handle or retire it; retain source files through reader
+    retirement. Preserve explicit input_rejected correction and resident-worker
+    readiness. Accepted prepare ends interpretation: invent no subsequent turn.
+    The prose-outage test is absent from main be5c191; note 061 records it on
+    fix/prose-service-recovery at reconstructed head
+    1ed46ee965dbfd99f28347216dd1d1815ec1ae15. Reinspect and qualify that source;
+    its historical predecessor's 47-test count does not qualify the reconstruction.
+[ ] NMRNet: extend tests/integration/provider_core/service_ports.py,
+    runtime_ports.py and existing input/native/session witnesses. Gate model
+    I/O after verified upload inspection; preserve one selected byte snapshot.
+    Gate geometry setup/retirement; retain original grants and permission.
+    Preserve the narrow ModelCallFailed retry policy, frozen request batch,
+    positively retired predecessor and identical admitted replacement runtime.
+    A cleanup-only proof allocation is not another scientific execution.
+    Reinspect note 061's separate fix/prose-service-recovery reconstruction
+    872dd27f508b5ba6c1e7100382fd521eb3271326 before reusing its prose-outage
+    tests/adoption changes. Do not carry historical counts to that new tree.
+[ ] NMRPeak: reuse tests/integration/test_shared_provider_process.py and
+    test_native_runner_session.py on main 96e2353 for typed-input bypass,
+    original validation, warm reuse, exact handoff and two-lane stop. Queue
+    acceptance can clear delivery pressure while cleanup still owns its claim.
+    The current held-cleanup regression proves selection, not full completion
+    by the other lane under the running service; preserve that evidence limit.
+    test_provider_prose_outage.py and tests/fakes/prose_outage.py belong to
+    note 061's test/prose-service-outage at
+    0e28c9a30efcfc78c06002267caf36249a6d2373, not main. That branch also adopts
+    service bindings/readiness; qualify its runtime changes before demanding
+    its cross-Job cooldown/typed-progress assertions of the main baseline.
+[ ] Magnet: retain the corrected outage witness and existing interpreter-lane
+    isolation scenario as the minimal consumer composition proof. Check only
+    the affected implementation lane holds, independent capacity progresses,
+    the original obligation clears before that lane resumes, and stop completes.
+    Do not transfer its scientific policy or scheduler into the fuzz harness.
+[ ] Record failed-first-Job and later independent success without claiming
+    every preparation invocation must occur once. Count accepted/uncertain
+    operations by identity; preserve documented correction and retry authority.
+
+Exit: identical external contracts pass against the recorded baseline/current/
+candidate artifacts where applicable; differences have an owning explanation.
+Each result distinguishes recording science, real native workers, local queue
+ACK and central API publication. No service extraction is required for this gate.
+
+7. Later: extract the serial service with SECS
+---------------------------------------------
+Depends on: a qualified near-term candidate and note 060's ownership boundaries.
+
+[ ] Freeze an extraction-ready candidate containing the shared service. Compare
+    the old loop and new adapter in separate runs against that SAME wheel and
+    matching support archive. Comparing old-loop/old-wheel to new-loop/new-wheel
+    cannot isolate an extraction regression. Never run two live schedulers for
+    the same provider identity; fixture comparison is sequential and isolated.
+[ ] Characterize SECS announcement/pacing, existing discovery, exclusions,
+    readiness immediately before START, stop during discovery, original-owner
+    retention and the next eligible Job after safe failure. Its current newest
+    one-Job page is not a fair scheduler contract. Introduce bounded fair
+    discovery with its own behavioral witness; do not call it code relocation.
+[ ] Move announcement/pacing first, discovery/admission next, then original
+    controller driving and drain. Remove displaced local code at each cut.
+    Keep selection/generation policy and scientific readiness in the adapter.
+    Preserve SECS's verified-input read after START; do not add another read.
+[ ] Move generic service assertions with their new SDK owner. Keep SECS source
+    ownership, correction semantics, prepared handles and native protocol tests
+    in SECS, plus the thin installed-composition scenario. Tests depending only
+    on a private helper spelling should be rewritten or deleted, not transplanted.
+
+Exit: one shared serial driver serves a healthy and a recoverably failed Job;
+unknown worker dispatch retains its owner. SECS has no parallel legacy polling,
+admission or settlement path. This gate does not yet prove a reusable interface.
+
+8. Later: prove the same serial engine with NMRNet
+------------------------------------------------
+[ ] Adapt nmrnet_provider/service.py, admission.py and runtime.py at the scenario
+    construction seam; retain input_preparation.py, session.py and native owners.
+    Run old/new composition against the same extraction candidate as above.
+[ ] Add shared maintenance for original retained controllers, independent of
+    discovery, offering readiness and spare new-work capacity. Keep independent
+    API access and operation-specific backoff. Never reconstruct an Attempt,
+    renew an original exchange budget or replay science merely to revisit its
+    obligations. Preserve callers' legitimate bounded reobservation contracts.
+[ ] Exercise uncertain START exclusion; safely quiescent held work plus another
+    independently usable allocation; late correlated revocation releasing only
+    its eligible original claim once; and capacity recovery after actual release.
+    Scientific readiness remains separate from controller/claim disposition.
+[ ] Keep the NMRNet upload/native scenario and terminal-bytes-under-shutdown
+    witness. Preserve the distinction between selected input and an accepted
+    PreparedAnalysis, and between passive exclusion and unacknowledged handoff.
+    Keep its complete scientific retry and native binding suites provider-owned.
+[ ] Remove the superseded serial loop and migrate generic maintenance matrices
+    to the SDK. Retain the existing installed-wheel/pinned-sdist consumer proof.
+
+Exit: SECS and NMRNet use one serial implementation without provider-name
+branches; their adapters explain their scientific differences. Maintenance can
+progress even when fresh admission cannot, under the declared external assumptions.
+
+9. Later: concurrent lanes in NMRPeak, then heterogeneous Magnet
+---------------------------------------------------------------
+[ ] NMRPeak declares lanes, generations, readiness and delivery bindings. Extend
+    the shared engine's tests for shared claims, fair admission, independent
+    Hello and binding-wide delivery pressure. Keep typed/prose input semantics,
+    validation and workers in NMRPeak. Remove its displaced lane loop only after
+    the same-candidate old/new comparison passes the existing consumer witness.
+[ ] Hold one lane's selected report before local queue acceptance, then accept
+    its exact bytes while worker cleanup remains held. Prove which independent
+    lane can proceed, which claim remains, and stop behavior at both boundaries.
+    NMRPeak currently propagates many controller failures to binding shutdown.
+    Author the new continuation policy explicitly and extend the old selection
+    proof to full other-lane START, science, handoff and settlement. This is a
+    behavioral addition; it is not established by the current private _select
+    assertion or by changing the SDK pin.
+[ ] Adapt Magnet last using its existing E01/E02/G01 session and readiness
+    boundaries. Keep the causal lane-isolation scenario, then separately qualify
+    the actual three-runner topology: E02 model I/O held, E01 original science
+    progressing and G01 original report publication acknowledged by the API.
+    Record real worker PIDs, model loads and restarts only in native/deployment
+    runs. Recording ports cannot prove warm-worker continuity.
+[ ] Move generic lane matrices into SDK tests as ownership moves. Leave provider
+    scientific policy, input rules and native lifetime tests in their repositories.
+    Remove any local workaround only after its actual replacement passes the
+    relevant unchanged witness; inspect the current source before planning removal.
+
+Exit: each process has one service driver for its declared lanes; failures hold
+only obligations/resources they actually own, and independent work progresses
+when its claims, bindings and scientific resources permit it.
+
+10. Evidence, release and cutover gates
+--------------------------------------
+[ ] For a discovered defect, preserve a minimal behavioral red and an adjacent
+    owning fix with exact artifacts. Correct behavior needs a passing guard,
+    not an invented red. A missing proposed API is not a lifecycle failure.
+[ ] Requalify changed artifact bytes against applicable SDK and consumer gates.
+    Update dependency pins only to the artifact those receipts identify. Preserve
+    longer-campaign seeds/traces and measured costs without claiming exhaustiveness.
+[ ] Before an authorized cutover, stop old admission and settle required duties
+    or verify durable transfer to a surviving owner. Preserve delivery bindings
+    and queued rows. Keep an old process alive if it alone owns unfinished work;
+    a drain timeout or an in-memory note is not custody transfer. Apply the same
+    obligation check to rollback. Never compare with simultaneous live schedulers.
+[ ] Publish only what the evidence establishes: bounded generated schedules,
+    local process faults, installed consumer composition, native topology and
+    live scientific execution are separate qualification levels. Historical
+    note 061 reconstructions and note 058 counts do not qualify new source trees.
+
+Completion: the default SDK suite owns a small shrinking composed campaign;
+the process layer proves real ownership at its OS/IPC boundary; consumers keep
+thin installed-composition proofs and their scientific/native contracts. The
+later extraction has one shared service owner without a second runtime registry,
+replacement protocol, publisher or general-purpose fuzz framework.
