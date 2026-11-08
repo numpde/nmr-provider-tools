@@ -156,12 +156,12 @@ class LifecycleOrders(RuleBasedStateMachine):
         if name not in self.started:
             return
         transport = self.cases[name].transport
-        if transport.release_start.is_set():
+        # Admission can be refused or locally stopped before a START exists.
+        # A generated reply may only follow the actual observed original send.
+        if transport.release_start.is_set() or not transport.start_received.is_set():
             return
 
         async def release():
-            # This is the actual API request boundary, not an elapsed wait.
-            await asyncio.wait_for(transport.start_received.wait(), 3)
             transport.disposition = disposition
             transport.release_start.set()
             await self._progress()
