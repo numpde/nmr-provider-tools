@@ -150,3 +150,42 @@ class ProviderHttpShutdownTests(unittest.TestCase):
                 if "held" in facts:
                     self.assert_unconfirmed_child_remains_owned(facts)
                 self.assert_original_http_child_retired(facts)
+
+    def test_independent_real_child_completes_while_original_exit_observation_is_held(self):
+        facts, = self.run_schedules("concurrent_late_exit_observation", 0)
+        held = facts["held"]
+        for field in (
+            "original_owner_retained", "original_exchange_retained",
+            "original_job_refused", "replacement_http_request_refused",
+            "trust_directory_exists", "actual_child_exit_observed",
+        ):
+            self.assertTrue(held[field], msg=facts["trace"])
+        for field in ("shutdown_ready", "session_retired", "http_retirement_confirmed", "child_alive"):
+            self.assertFalse(held[field], msg=facts["trace"])
+        self.assertEqual(1, held["claim_count"])
+
+        independent = facts["independent"]
+        self.assertEqual("DeliveryAcceptedCheckpoint", independent["result_type"])
+        self.assertEqual((1, 1, 1, 1, 1), (
+            independent["start_count"], independent["preparations"],
+            independent["executions"], independent["retirements"],
+            independent["local_terminal_acks"],
+        ))
+        self.assertEqual(1, independent["http_requests"])
+        self.assertTrue(independent["interpreter_retired"])
+        self.assertEqual(1, len(independent["child_pids"]))
+        self.assertEqual(1, len(set(independent["child_pids"])))
+        self.assertNotIn(independent["child_pids"][0], facts["child_pids"])
+        self.assertEqual([0], independent["child_returncodes"])
+        self.assertEqual([True], independent["child_stdin_closed"])
+        for field in (
+            "original_child_exited", "original_waiter_unfinished",
+            "original_observation_gate_closed", "original_transport_held",
+            "original_job_owned", "independent_job_released",
+        ):
+            self.assertTrue(independent[field], msg=facts["trace"])
+        self.assertEqual(1, independent["live_claim_count"])
+
+        # The same original wait/exit owner, not B's independent child, must
+        # subsequently retire. Its passive local-stop claim stays excluded.
+        self.assert_original_http_child_retired(facts)

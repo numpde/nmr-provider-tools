@@ -108,7 +108,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
     from provider_core.controller import AttemptController, ControllerFailed, LiveStartPolicy
     from provider_core.interpreter import Interpreter
     from provider_core.job_input import verify_job_input
-    from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull
+    from provider_core.ownership import AttemptClaims, LiveAttemptLimits, LiveCapacityFull, OwnershipRefused
     from provider_core.transport_errors import ExchangeFailed
     from tests.fakes.api import Transport, api, reply
     from tests.fakes.attempt_store import scope
@@ -116,6 +116,8 @@ async def shutdown_scenario(schedule, seed, directory, facts):
     from tests.fakes.checkpoint_execution import RecordingDelivery
     from tests.fakes.job_input import response
     from tests.fakes.tls_peer import TlsPeer
+    from tests.fakes.conversation import call
+    from tests.integration.chat.adversarial.test_model_reply_permission import InterpretedSession, ReplyRun
 
     loop = asyncio.get_running_loop()
     cleanup_seconds = 0.6
@@ -194,6 +196,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             note("session_retirement_confirmed")
 
     children = []
+    independent_children = []
     exit_observer_tasks = []
     child_exit_times = []
     signals = []
@@ -203,7 +206,8 @@ async def shutdown_scenario(schedule, seed, directory, facts):
     allow_exit_observation = asyncio.Event()
     original_launch = asyncio.create_subprocess_exec
     startup_held = schedule.stage in {"startup", "late_startup"}
-    exit_observation_held = schedule.stage == "late_exit_observation"
+    concurrent = schedule.stage == "concurrent_late_exit_observation"
+    exit_observation_held = schedule.stage in {"late_exit_observation", "concurrent_late_exit_observation"}
     if not startup_held:
         allow_creation_return.set()
     if not exit_observation_held:
@@ -211,6 +215,12 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
     async def observed_launch(*args, **kwargs):
         child = await original_launch(*args, **kwargs)
+        if concurrent and children:
+            # This second real supervised child is not the original's delayed
+            # exit observer. Observe and reap it normally.
+            independent_children.append(child)
+            note("independent_operating_system_child_created", pid=child.pid)
+            return child
         children.append(child)
         original_wait = child.wait
         original_signal = child.send_signal
@@ -240,7 +250,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
     marker = directory / f"http-cleanup-{seed}.jsonl"
     pending = selected_start(f"{schedule.stage}-{seed}")
-    claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=1))
+    claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=2 if concurrent else 1))
     async with TlsPeer("headers-stall") as peer, AsyncExitStack() as patches:
         session = ProseInterpretationSession(peer)
         jobs_api_replies = JobsApiReplies(pending)
@@ -296,11 +306,56 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             note("sdk_stopped_original_http_exchange")
             if exit_observation_held:
                 await asyncio.wait_for(actual_child_exit.wait(), 2)
-            if schedule.stage in {"late_startup", "late_exit_observation"}:
+            if schedule.stage in {"late_startup", "late_exit_observation", "concurrent_late_exit_observation"}:
                 allowance_elapsed = asyncio.Event()
                 loop.call_at(original_stop_time + cleanup_seconds + 0.05, allowance_elapsed.set)
                 await asyncio.wait_for(allowance_elapsed.wait(), 2)
                 note("original_http_cleanup_allowance_elapsed")
+
+            if concurrent:
+                # A's actual child has already exited, but its exact original
+                # wait() task is deliberately withholding that exit observation.
+                # With two capacity slots, unrelated B must still make progress
+                # through its own actual subprocess and delivery handoff.
+                if not actual_child_exit.is_set() or allow_exit_observation.is_set():
+                    raise AssertionError("No held original child-exit observation")
+                completion = json.dumps({
+                    "choices": [{"message": call("completed", "prepare", {}),
+                                 "finish_reason": "tool_calls"}]
+                }).encode()
+                async with TlsPeer("success", response_body=completion) as independent_peer:
+                    independent = ReplyRun(
+                        independent_peer, claims, f"job:independent-{seed}",
+                        InterpretedSession,
+                    )
+                    independent.session.science.release.set()
+                    independent_result = await asyncio.wait_for(
+                        independent.controller.run(independent.pending), 6)
+                    original_waiter = exit_observer_tasks[0]
+                    facts["independent"] = {
+                        "result_type": type(independent_result).__name__,
+                        "start_count": independent.start_count,
+                        "preparations": independent.session.science.preparations,
+                        "executions": independent.session.science.executions,
+                        "retirements": independent.session.science.retirements,
+                        "interpreter_retired": independent.session.interpreter.retirement_confirmed,
+                        "local_terminal_acks": len(independent.delivery.items),
+                        "child_pids": [child.pid for child in independent_children],
+                        "child_returncodes": [child.returncode for child in independent_children],
+                        "child_stdin_closed": [child.stdin.is_closing() for child in independent_children],
+                        "http_requests": len(independent_peer.requests),
+                        "original_child_exited": not process_is_alive(children[0].pid),
+                        "original_waiter_unfinished": not original_waiter.done(),
+                        "original_observation_gate_closed": not allow_exit_observation.is_set(),
+                        "original_transport_held": not http_transport.retirement_confirmed,
+                        "original_job_owned": claims.owns_job(pending.scope, pending.input.job_ref),
+                        "independent_job_released": not claims.owns_job(
+                            independent.pending.scope, independent.pending.input.job_ref),
+                        "live_claim_count": len(claims.live_owners()),
+                    }
+                    note("independent_real_child_and_science_settled",
+                         pid=independent_children[0].pid,
+                         original_waiter_unfinished=not original_waiter.done())
 
             if startup_held or exit_observation_held:
                 facts["held"] = {
@@ -314,13 +369,23 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                     "actual_child_exit_observed": actual_child_exit.is_set(),
                     "trust_directory_exists": trust_directory.is_dir(),
                 }
-                replacement = selected_start(f"replacement-{schedule.stage}-{seed}")
-                try:
-                    claims.claim_live(replacement, lifecycle_owner=object(), maximum_terminal_bytes=16384)
-                except LiveCapacityFull:
-                    facts["held"]["replacement_job_refused"] = True
+                if concurrent:
+                    # There is room for B, but never another owner of A's
+                    # still-held original START key and Job.
+                    try:
+                        claims.claim_live(pending, lifecycle_owner=object(), maximum_terminal_bytes=16384)
+                    except OwnershipRefused:
+                        facts["held"]["original_job_refused"] = True
+                    else:
+                        facts["held"]["original_job_refused"] = False
                 else:
-                    facts["held"]["replacement_job_refused"] = False
+                    replacement = selected_start(f"replacement-{schedule.stage}-{seed}")
+                    try:
+                        claims.claim_live(replacement, lifecycle_owner=object(), maximum_terminal_bytes=16384)
+                    except LiveCapacityFull:
+                        facts["held"]["replacement_job_refused"] = True
+                    else:
+                        facts["held"]["replacement_job_refused"] = False
                 try:
                     await asyncio.wait_for(http_transport.exchange_decoded(
                         httpx.Request("POST", peer.origin + "/replacement", content=b"{}"),
@@ -332,7 +397,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 else:
                     facts["held"]["replacement_http_request_refused"] = False
 
-            if schedule.stage in {"late_startup", "late_exit_observation"}:
+            if schedule.stage in {"late_startup", "late_exit_observation", "concurrent_late_exit_observation"}:
                 probe_started = loop.time()
                 probe = asyncio.create_task(session.endpoint.retire())
                 await asyncio.wait({probe}, timeout=cleanup_seconds / 2)
