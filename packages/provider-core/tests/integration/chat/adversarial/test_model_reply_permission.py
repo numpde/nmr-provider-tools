@@ -226,18 +226,21 @@ class ObservationGap:
 class ReplyRun:
     # silent-defaults: allow-contract -- Ordinary reply tests keep the admitted
     # API and START policy; generated tests supply explicit controlled boundaries.
-    def __init__(self, peer, claims, job, session_type, *, transport_type=ObservedAPI, start_policy=None):
+    def __init__(self, peer, claims, job, session_type, *, transport_type=ObservedAPI,
+                 start_policy=None, delivery=None, maximum_terminal_bytes=2097152):
         self.peer = peer
         base = record("permission:" + job)
         self.pending = StartPending(scope(), base.analysis_kind_ref, replace(base.input, job_ref=job),
                                     retained_start(job_ref=job, provider_attempt_key="permission:" + job))
         self.transport = transport_type(job, "execution_attempt:sha256:" + sha256(job.encode()).hexdigest())
         self.session = session_type(peer)
+        self.delivery = delivery if delivery is not None else RecordingDelivery()
         self.controller = AttemptController.live(
             api(self.transport, scope().api_origin), claims, self.session, scope=scope(), stopping=asyncio.Event(),
             start_policy=start_policy if start_policy is not None else LiveStartPolicy(1, Mock(), Mock()),
             preverified_input=verify_job_input(response(job_ref=job), feed=self.pending.input),
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
+            delivery=self.delivery, maximum_terminal_bytes=maximum_terminal_bytes,
+            on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
             delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
             poll_seconds=0.01, task_settle_seconds=0.1,
             observation_recovery=ObservationRecovery(10, 0.1, Mock(), Mock()),

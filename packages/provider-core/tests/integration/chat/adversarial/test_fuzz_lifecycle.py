@@ -20,6 +20,7 @@ from provider_core.execution import AttemptExecutor, ExecutionStopped
 from provider_core.ownership import AttemptClaims, LiveAttemptLimits
 from provider_core.producer_checkpoint import DeliveryAcceptedCheckpoint
 from tests.fakes.api import reply, signature_window_problem
+from tests.fakes.checkpoint_execution import CausalDelivery
 from tests.fakes.attempts import start_response
 from tests.fakes.conversation import call
 from tests.fakes.tls_peer import TlsPeer
@@ -73,6 +74,7 @@ class LifecycleOrders(RuleBasedStateMachine):
         self.runner = asyncio.Runner()
         self.trace = []
         self.started = set()
+        self.local_stops = set()
         self.verified_stops = {}
         try:
             self.runner.run(self._open())
@@ -122,6 +124,7 @@ class LifecycleOrders(RuleBasedStateMachine):
                 _UnknownOutcome if name == "a" else PreparedExecutionGateSession,
                 transport_type=_ControlledStart,
                 start_policy=LiveStartPolicy(1, Mock(), Mock(), maximum_replays=0),
+                delivery=CausalDelivery(),
             )
             self.replies[name] = released
         self.tasks = {}
@@ -244,6 +247,33 @@ class LifecycleOrders(RuleBasedStateMachine):
 
         self._act("confirm_session_retirement", name, release)
 
+    @rule(name=st.sampled_from(("a", "b")),
+          decision=st.sampled_from(("accepted", "full", "retryable", "lost", "rejected")))
+    def resolve_local_delivery(self, name, decision):
+        delivery = self.cases[name].delivery
+        if not delivery.awaiting_answer:
+            return
+
+        async def respond():
+            delivery.answer(decision)
+            await self._progress()
+
+        self._act("local_delivery_" + decision, name, respond)
+
+    @rule(name=st.sampled_from(("a", "b")))
+    def request_local_stop(self, name):
+        if name not in self.started or name in self.local_stops:
+            return
+        self.local_stops.add(name)
+
+        async def withdraw():
+            # Local stopping is not a verified remote cancellation or a
+            # terminal-delivery acknowledgement.
+            self.cases[name].controller.request_stop()
+            await self._progress()
+
+        self._act("local_stop", name, withdraw)
+
     @rule(name=st.sampled_from(("a", "b")))
     def join_completed_owner(self, name):
         task = self.tasks.get(name)
@@ -288,6 +318,24 @@ class LifecycleOrders(RuleBasedStateMachine):
                 assert science.preparations <= 1
                 assert science.executions <= 1
                 assert len(case.peer.requests) <= 1
+                delivery = case.delivery
+                if delivery.offers:
+                    original_terminal = delivery.offers[0]
+                    assert all(item is original_terminal for item in delivery.offers), (
+                        "A delivery retry replaced the original logical terminal")
+                    assert all(item.key == original_terminal.key
+                               and item.body == original_terminal.body
+                               and item.body_sha256 == original_terminal.body_sha256
+                               for item in delivery.offers)
+                    assert len(delivery.offers) <= delivery._answered + 1
+                    if not delivery.accepted.is_set():
+                        # Selection, a rejected reply or possible local storage
+                        # is not the SDK's verified acceptance checkpoint.
+                        assert not case.controller.shutdown_ready
+                        assert not case.controller.operation.delivery_accepted
+                    elif case.controller.operation.delivery_accepted:
+                        assert case.controller._claim._pending_terminal_bytes == 0, (
+                            "The exact relay acknowledgement did not free terminal capacity")
                 assert (session.accepted_handle is None
                         or session.accepted_handle is science.handle)
                 if session.execution_entered.is_set():
@@ -324,6 +372,7 @@ class LifecycleOrders(RuleBasedStateMachine):
         async def close():
             for name, case in self.cases.items():
                 self.replies[name].set()
+                case.delivery.release_for_teardown()
                 case.transport.release_start.set()
                 # Teardown must select a real result for a previously dispatched
                 # START; releasing a gate with no response would hide a failure.
