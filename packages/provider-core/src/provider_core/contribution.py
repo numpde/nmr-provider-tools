@@ -16,7 +16,7 @@ import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
-from typing import Any, Protocol, get_args, get_origin, get_type_hints
+from typing import Any, Protocol, cast, get_args, get_origin, get_type_hints
 
 from provider_core.payload import (
     CallRejected,
@@ -66,8 +66,10 @@ def _callback(value: object, label: str) -> None:
         raise TypeError(f"{label} must be callable")
 
 
-def _require_scientific_signature(call, input_type, state_type, output_type) -> None:
-    signature = inspect.signature(call)
+def _scientific_types(
+    scientific_call: Callable[..., object],
+) -> tuple[type[object], type[object], type[object]]:
+    signature = inspect.signature(scientific_call)
     parameters = tuple(signature.parameters.values())
     if len(parameters) != 5 or any(
         parameter.kind
@@ -80,25 +82,55 @@ def _require_scientific_signature(call, input_type, state_type, output_type) -> 
         raise TypeError(
             "A scientific call must accept instance, analysis, input, state and control"
         )
-    hints = get_type_hints(call, include_extras=True)
-    for parameter, expected, label in (
-        (parameters[2], input_type, "input"),
-        (parameters[3], state_type, "state"),
+
+    hints = get_type_hints(scientific_call, include_extras=True)
+    for parameter in parameters[2:]:
+        if parameter.name not in hints:
+            raise TypeError(
+                f"Scientific call parameter {parameter.name!r} requires an annotation"
+            )
+    if "return" not in hints:
+        raise TypeError("A scientific call requires a return annotation")
+
+    input_type = hints[parameters[2].name]
+    state_type = hints[parameters[3].name]
+    control_type = hints[parameters[4].name]
+    returned = hints["return"]
+
+    if not isinstance(input_type, type):
+        raise TypeError("Scientific call input annotation must be a concrete type")
+    if not isinstance(state_type, type):
+        raise TypeError("Scientific call state annotation must be a concrete type")
+    if control_type is not ScientificControl:
+        raise TypeError("Scientific call control annotation must be ScientificControl")
+    if get_origin(returned) is not ScientificReturn or len(get_args(returned)) != 1:
+        raise TypeError("Scientific call return annotation must be ScientificReturn[OutputT]")
+
+    (output_type,) = get_args(returned)
+    if not isinstance(output_type, type):
+        raise TypeError("Scientific call output annotation must be a concrete type")
+    return input_type, state_type, output_type
+
+
+def _require_scientific_signature(
+    scientific_call: Callable[..., object],
+    input_type: type[object],
+    state_type: type[object],
+    output_type: type[object],
+) -> None:
+    actual_input_type, actual_state_type, actual_output_type = _scientific_types(
+        scientific_call
+    )
+    for actual, expected, label in (
+        (actual_input_type, input_type, "input"),
+        (actual_state_type, state_type, "state"),
+        (actual_output_type, output_type, "output"),
     ):
-        if hints.get(parameter.name) is not expected:
+        if actual is not expected:
             raise TypeError(
                 f"Scientific call {label} annotation must be exactly "
                 f"{expected.__qualname__}"
             )
-    returned = hints.get("return")
-    if (
-        get_origin(returned) is not ScientificReturn
-        or get_args(returned) != (output_type,)
-    ):
-        raise TypeError(
-            "Scientific call return annotation must be "
-            f"ScientificReturn[{output_type.__qualname__}]"
-        )
 
 
 class StateUse(StrEnum):
@@ -391,15 +423,73 @@ class CallBinding[InstanceT, AnalysisT, InputT, StateT, OutputT]:
             raise ValueError("Result codec format differs from the call description")
         if not isinstance(self.state_binding, StateBinding):
             raise TypeError("State binding must implement StateBinding")
-        declared_states = tuple(parameter.name for parameter in self.description.state_inputs)
+
+        declared_states = tuple(
+            parameter.name
+            for parameter in self.description.state_inputs
+        )
         if self.state_binding.names != declared_states:
             raise ValueError("State binding fields differ from the call's declared state inputs")
+
         _callback(self.scientific_call, "Scientific call")
         _require_scientific_signature(
-            self.scientific_call,
-            self.input_codec.value_type,
-            self.state_binding.value_type,
-            self.result_codec.value_type,
+            scientific_call=self.scientific_call,
+            input_type=self.input_codec.value_type,
+            state_type=self.state_binding.value_type,
+            output_type=self.result_codec.value_type,
+        )
+
+    @classmethod
+    def from_json_dataclasses(
+        cls,
+        *,
+        name: str,
+        input_format: str,
+        result_format: str,
+        state_inputs: tuple[StateParameter, ...],
+        state_outputs: tuple[StateOutput, ...],
+        resources: tuple[ResourceRequirement, ...],
+        concurrency: ConcurrencyRequirement,
+        interruption: InterruptionSupport,
+        progress: bool,
+        scientific_call: Callable[
+            [InstanceT, AnalysisT, InputT, StateT, ScientificControl],
+            ScientificReturn[OutputT],
+        ],
+    ) -> CallBinding[InstanceT, AnalysisT, InputT, StateT, OutputT]:
+        """Build one typed JSON call from its scientific function and metadata."""
+        raw_input_type, raw_state_type, raw_output_type = _scientific_types(
+            scientific_call
+        )
+        input_type = cast(type[InputT], raw_input_type)
+        state_type = cast(type[StateT], raw_state_type)
+        output_type = cast(type[OutputT], raw_output_type)
+
+        input_codec = JsonDataclassCodec(
+            format=input_format,
+            value_type=input_type,
+        )
+        result_codec = JsonDataclassCodec(
+            format=result_format,
+            value_type=output_type,
+        )
+
+        return cls(
+            description=CallDescription(
+                name=name,
+                input_format=input_codec.format,
+                result_format=result_codec.format,
+                state_inputs=state_inputs,
+                state_outputs=state_outputs,
+                resources=resources,
+                concurrency=concurrency,
+                interruption=interruption,
+                progress=progress,
+            ),
+            input_codec=input_codec,
+            state_binding=DataclassStateBinding(value_type=state_type),
+            scientific_call=scientific_call,
+            result_codec=result_codec,
         )
 
     def decode_input(self, payload: bytes) -> InputT:
@@ -445,10 +535,43 @@ class ImplementationBinding[InstanceT, AnalysisT]:
         if self.analysis is not None and type(self.analysis) is not AnalysisHooks:
             raise TypeError("Analysis hooks must be AnalysisHooks or None")
         _records(self.calls, CallBinding, "Call bindings")
+
         bound = {call.description.name: call.description for call in self.calls}
         declared = {call.name: call for call in self.description.calls}
         if len(bound) != len(self.calls) or bound != declared:
             raise ValueError("Call bindings must agree exactly with the declared calls")
+
+    @classmethod
+    def from_calls(
+        cls,
+        *,
+        binding_id: str,
+        binding_revision: str,
+        contract_version: int,
+        configuration: ConfigurationDescription,
+        assets: tuple[AssetDescription, ...],
+        calls: tuple[CallBinding[InstanceT, AnalysisT, Any, Any, Any], ...],
+        resident_resources: tuple[ResourceRequirement, ...],
+        isolation: IsolationRequirement,
+        instance: InstanceHooks[InstanceT] | None,
+        analysis: AnalysisHooks[InstanceT, AnalysisT] | None,
+    ) -> ImplementationBinding[InstanceT, AnalysisT]:
+        """Derive the scheduler call descriptions from the bound calls."""
+        return cls(
+            description=ImplementationDescription(
+                binding_id=binding_id,
+                binding_revision=binding_revision,
+                contract_version=contract_version,
+                configuration=configuration,
+                assets=assets,
+                calls=tuple(call.description for call in calls),
+                resident_resources=resident_resources,
+                isolation=isolation,
+            ),
+            instance=instance,
+            analysis=analysis,
+            calls=calls,
+        )
 
 
 class ScientificRejection(CallRejected):

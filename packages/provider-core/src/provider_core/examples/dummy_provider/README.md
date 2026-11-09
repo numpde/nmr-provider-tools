@@ -15,6 +15,14 @@ they mean different things; for example, `PreparationInput` is not `SumInput`.
 Retained worker-local state is bound into `CalculationState`, rather than exposed
 as an untyped mapping.
 
+Each scientific call is declared once with
+`CallBinding.from_json_dataclasses(...)`. The shared constructor derives its input
+codec, retained-state binding and result codec from the scientific function's
+annotations, then creates the scheduler-facing `CallDescription` from the same
+statement. `ImplementationBinding.from_calls(...)` likewise derives the
+implementation's call descriptions from the bound calls. There is no parallel
+inventory of codec constants and call descriptions to keep synchronized.
+
 The contribution supplies configuration and asset identities, named scientific
 calls, resource requirements, lifecycle hooks, result encoding and scientific
 cleanup. It supplies none of the operational platform: no CLI, Jobs client,

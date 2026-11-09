@@ -10,12 +10,9 @@ from provider_core.contribution import (
     AnalysisHooks,
     AssetDescription,
     CallBinding,
-    CallDescription,
     ConcurrencyRequirement,
     ConfigurationDescription,
-    DataclassStateBinding,
     ImplementationBinding,
-    ImplementationDescription,
     InstanceHooks,
     InterruptionSupport,
     IsolationRequirement,
@@ -34,53 +31,8 @@ from provider_core.contribution import (
 from . import science
 
 
-_PREPARED_VALUES_KIND: Final = "dummy.prepared-values.v1"
-
-_SETTINGS_CODEC = JsonDataclassCodec(
-    format="dummy.settings.v1",
-    value_type=science.WeightedSumSettings,
-)
-_SUM_CONFIGURATION_CODEC = JsonDataclassCodec(
-    format="dummy.sum-configuration.v1",
-    value_type=science.PlainSumConfiguration,
-)
-_COEFFICIENTS_CODEC = JsonDataclassCodec(
-    format="dummy.coefficients.v1",
-    value_type=science.CoefficientSet,
-)
-_PREPARATION_INPUT_CODEC = JsonDataclassCodec(
-    format="dummy.preparation-input.v1",
-    value_type=science.PreparationInput,
-)
-_CALCULATION_INPUT_CODEC = JsonDataclassCodec(
-    format="dummy.calculation-input.v1",
-    value_type=science.CalculationInput,
-)
-_SUM_INPUT_CODEC = JsonDataclassCodec(
-    format="dummy.sum-input.v1",
-    value_type=science.SumInput,
-)
-_PREPARATION_RESULT_CODEC = JsonDataclassCodec(
-    format="dummy.preparation-result.v1",
-    value_type=science.PreparationResult,
-)
-_PREDICTION_RESULT_CODEC = JsonDataclassCodec(
-    format="dummy.prediction-result.v1",
-    value_type=science.PredictionResult,
-)
-_SUM_RESULT_CODEC = JsonDataclassCodec(
-    format="dummy.sum-result.v1",
-    value_type=science.SumResult,
-)
-
-_NO_LIVE_STATE_BINDING = DataclassStateBinding(
-    value_type=science.NoLiveState,
-)
-_CALCULATION_STATE_BINDING = DataclassStateBinding(
-    value_type=science.CalculationState,
-)
-
-_CPU_THREAD_REQUIREMENT = ResourceRequirement(
+_PREPARED_VALUES_KIND: Final[str] = "dummy.prepared-values.v1"
+_CPU_THREAD: Final[ResourceRequirement] = ResourceRequirement(
     kind="cpu",
     amount=1,
     unit="thread",
@@ -88,56 +40,11 @@ _CPU_THREAD_REQUIREMENT = ResourceRequirement(
     exclusive=False,
 )
 
-_PREPARE_CALL = CallDescription(
-    name="prepare",
-    input_format=_PREPARATION_INPUT_CODEC.format,
-    result_format=_PREPARATION_RESULT_CODEC.format,
-    state_inputs=(),
-    state_outputs=(
-        StateOutput(
-            name="prepared",
-            kind=_PREPARED_VALUES_KIND,
-        ),
-    ),
-    resources=(_CPU_THREAD_REQUIREMENT,),
-    concurrency=ConcurrencyRequirement.INSTANCE_SERIAL,
-    interruption=InterruptionSupport.NONE,
-    progress=False,
-)
-_CALCULATE_CALL = CallDescription(
-    name="calculate",
-    input_format=_CALCULATION_INPUT_CODEC.format,
-    result_format=_PREDICTION_RESULT_CODEC.format,
-    state_inputs=(
-        StateParameter(
-            name="prepared",
-            kind=_PREPARED_VALUES_KIND,
-            use=StateUse.CONSUME,
-        ),
-    ),
-    state_outputs=(),
-    resources=(_CPU_THREAD_REQUIREMENT,),
-    concurrency=ConcurrencyRequirement.INSTANCE_SERIAL,
-    interruption=InterruptionSupport.NONE,
-    progress=True,
-)
-_SUM_CALL = CallDescription(
-    name="run",
-    input_format=_SUM_INPUT_CODEC.format,
-    result_format=_SUM_RESULT_CODEC.format,
-    state_inputs=(),
-    state_outputs=(),
-    resources=(_CPU_THREAD_REQUIREMENT,),
-    concurrency=ConcurrencyRequirement.PARALLEL,
-    interruption=InterruptionSupport.NONE,
-    progress=False,
-)
 
-
-def _sha256_digest(value: bytes) -> str:
-    if type(value) is not bytes:
-        raise TypeError("value must be bytes")
-    return "sha256:" + hashlib.sha256(value).hexdigest()
+def _sha256_digest(content: bytes) -> str:
+    if type(content) is not bytes:
+        raise TypeError("content must be bytes")
+    return "sha256:" + hashlib.sha256(content).hexdigest()
 
 
 def _binding_revision(*parts: str) -> str:
@@ -149,6 +56,42 @@ def _binding_revision(*parts: str) -> str:
         digest.update(len(encoded_part).to_bytes(8, "big"))
         digest.update(encoded_part)
     return "sha256:" + digest.hexdigest()
+
+
+def _configuration_description[T](
+    value: T,
+    *,
+    format_id: str,
+) -> ConfigurationDescription:
+    codec = JsonDataclassCodec(
+        format=format_id,
+        value_type=type(value),
+    )
+    encoded_value = codec.encode(value)
+    return ConfigurationDescription(
+        format=codec.format,
+        digest=_sha256_digest(encoded_value),
+    )
+
+
+def _asset_description[T](
+    value: T,
+    *,
+    name: str,
+    format_id: str,
+    media_type: str,
+) -> AssetDescription:
+    codec = JsonDataclassCodec(
+        format=format_id,
+        value_type=type(value),
+    )
+    encoded_value = codec.encode(value)
+    return AssetDescription(
+        name=name,
+        media_type=media_type,
+        digest=_sha256_digest(encoded_value),
+        size_bytes=len(encoded_value),
+    )
 
 
 def _raise_scientific_rejection(
@@ -196,25 +139,13 @@ def _calculate(
     state: science.CalculationState,
     control: ScientificControl,
 ) -> ScientificReturn[science.PredictionResult]:
-    control.report_progress(
-        ProgressEvent(
-            stage="calculation",
-            completed=0,
-            total=1,
-        )
-    )
+    control.report_progress(ProgressEvent(stage="calculation", completed=0, total=1))
     prediction = science.calculate(
         analysis=analysis,
         calculation=calculation,
         state=state,
     )
-    control.report_progress(
-        ProgressEvent(
-            stage="calculation",
-            completed=1,
-            total=1,
-        )
-    )
+    control.report_progress(ProgressEvent(stage="calculation", completed=1, total=1))
 
     return ScientificReturn(
         value=prediction,
@@ -242,52 +173,71 @@ def _sum(
     )
 
 
-def _describe_weighted_configuration(
-    settings: science.WeightedSumSettings,
-) -> ConfigurationDescription:
-    encoded_settings = _SETTINGS_CODEC.encode(settings)
-    return ConfigurationDescription(
-        format=_SETTINGS_CODEC.format,
-        digest=_sha256_digest(encoded_settings),
-    )
-
-
-def _describe_coefficients(
-    coefficients: science.CoefficientSet,
-) -> AssetDescription:
-    encoded_coefficients = _COEFFICIENTS_CODEC.encode(coefficients)
-    return AssetDescription(
-        name="coefficients",
-        media_type="application/vnd.nmr-provider-tools.dummy-coefficients+json",
-        digest=_sha256_digest(encoded_coefficients),
-        size_bytes=len(encoded_coefficients),
-    )
-
-
 def weighted_sum_binding(
     *,
     settings: science.WeightedSumSettings,
     coefficients: science.CoefficientSet,
 ) -> ImplementationBinding[science.WeightedSumModel, science.WeightedSumAnalysis]:
     """Bind immutable settings and coefficients to one weighted model revision."""
-    configuration = _describe_weighted_configuration(settings)
-    coefficient_asset = _describe_coefficients(coefficients)
-    binding_revision = _binding_revision(
-        "dummy.weighted-sum.v1",
-        configuration.digest,
-        coefficient_asset.digest,
+    configuration = _configuration_description(
+        settings,
+        format_id="dummy.settings.v1",
+    )
+    coefficient_asset = _asset_description(
+        coefficients,
+        name="coefficients",
+        format_id="dummy.coefficients.v1",
+        media_type="application/vnd.nmr-provider-tools.dummy-coefficients+json",
     )
 
-    implementation_description = ImplementationDescription(
+    prepare_call = CallBinding.from_json_dataclasses(
+        name="prepare",
+        input_format="dummy.preparation-input.v1",
+        result_format="dummy.preparation-result.v1",
+        state_inputs=(),
+        state_outputs=(
+            StateOutput(
+                name="prepared",
+                kind=_PREPARED_VALUES_KIND,
+            ),
+        ),
+        resources=(_CPU_THREAD,),
+        concurrency=ConcurrencyRequirement.INSTANCE_SERIAL,
+        interruption=InterruptionSupport.NONE,
+        progress=False,
+        scientific_call=_prepare,
+    )
+    calculate_call = CallBinding.from_json_dataclasses(
+        name="calculate",
+        input_format="dummy.calculation-input.v1",
+        result_format="dummy.prediction-result.v1",
+        state_inputs=(
+            StateParameter(
+                name="prepared",
+                kind=_PREPARED_VALUES_KIND,
+                use=StateUse.CONSUME,
+            ),
+        ),
+        state_outputs=(),
+        resources=(_CPU_THREAD,),
+        concurrency=ConcurrencyRequirement.INSTANCE_SERIAL,
+        interruption=InterruptionSupport.NONE,
+        progress=True,
+        scientific_call=_calculate,
+    )
+    calls = (prepare_call, calculate_call)
+
+    return ImplementationBinding.from_calls(
         binding_id="dummy.weighted-sum",
-        binding_revision=binding_revision,
+        binding_revision=_binding_revision(
+            "dummy.weighted-sum.v1",
+            configuration.digest,
+            coefficient_asset.digest,
+        ),
         contract_version=1,
         configuration=configuration,
         assets=(coefficient_asset,),
-        calls=(
-            _PREPARE_CALL,
-            _CALCULATE_CALL,
-        ),
+        calls=calls,
         resident_resources=(
             ResourceRequirement(
                 kind="dummy-resident-data",
@@ -298,10 +248,6 @@ def weighted_sum_binding(
             ),
         ),
         isolation=IsolationRequirement.SHARED_PROCESS,
-    )
-
-    return ImplementationBinding(
-        description=implementation_description,
         instance=InstanceHooks(
             construct=partial(
                 science.create_model,
@@ -316,35 +262,29 @@ def weighted_sum_binding(
             initialize=science.initialize_analysis,
             dispose=science.dispose_analysis,
         ),
-        calls=(
-            CallBinding(
-                description=_PREPARE_CALL,
-                input_codec=_PREPARATION_INPUT_CODEC,
-                state_binding=_NO_LIVE_STATE_BINDING,
-                scientific_call=_prepare,
-                result_codec=_PREPARATION_RESULT_CODEC,
-            ),
-            CallBinding(
-                description=_CALCULATE_CALL,
-                input_codec=_CALCULATION_INPUT_CODEC,
-                state_binding=_CALCULATION_STATE_BINDING,
-                scientific_call=_calculate,
-                result_codec=_PREDICTION_RESULT_CODEC,
-            ),
-        ),
     )
 
 
 def sum_binding() -> ImplementationBinding[None, None]:
     """Bind the stateless sum without inventing model or analysis lifetimes."""
-    sum_configuration = science.PlainSumConfiguration()
-    encoded_configuration = _SUM_CONFIGURATION_CODEC.encode(sum_configuration)
-    configuration = ConfigurationDescription(
-        format=_SUM_CONFIGURATION_CODEC.format,
-        digest=_sha256_digest(encoded_configuration),
+    configuration = _configuration_description(
+        science.PlainSumConfiguration(),
+        format_id="dummy.sum-configuration.v1",
+    )
+    run_call = CallBinding.from_json_dataclasses(
+        name="run",
+        input_format="dummy.sum-input.v1",
+        result_format="dummy.sum-result.v1",
+        state_inputs=(),
+        state_outputs=(),
+        resources=(_CPU_THREAD,),
+        concurrency=ConcurrencyRequirement.PARALLEL,
+        interruption=InterruptionSupport.NONE,
+        progress=False,
+        scientific_call=_sum,
     )
 
-    implementation_description = ImplementationDescription(
+    return ImplementationBinding.from_calls(
         binding_id="dummy.sum",
         binding_revision=_binding_revision(
             "dummy.sum.v3",
@@ -353,22 +293,9 @@ def sum_binding() -> ImplementationBinding[None, None]:
         contract_version=1,
         configuration=configuration,
         assets=(),
-        calls=(_SUM_CALL,),
+        calls=(run_call,),
         resident_resources=(),
         isolation=IsolationRequirement.SHARED_PROCESS,
-    )
-
-    return ImplementationBinding(
-        description=implementation_description,
         instance=None,
         analysis=None,
-        calls=(
-            CallBinding(
-                description=_SUM_CALL,
-                input_codec=_SUM_INPUT_CODEC,
-                state_binding=_NO_LIVE_STATE_BINDING,
-                scientific_call=_sum,
-                result_codec=_SUM_RESULT_CODEC,
-            ),
-        ),
     )

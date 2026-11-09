@@ -56,9 +56,16 @@ through the host-local call:
       -> PayloadCodec[OutputT]
       -> bytes
 
+CallBinding.from_json_dataclasses(...) is the normal constructor for this path. It
+reads the provider input, live-state and output types from the scientific
+callable's annotations; constructs the codecs and state binding; and creates the
+CallDescription from the same statement. A provider does not maintain separate
+codec constants, state-binding constants and call descriptions for one call.
+
 The binding checks that codec formats agree with CallDescription and that each
-scientific callable declares the exact InputT, StateT and ScientificReturn[OutputT]
-annotations. Type erasure exists only inside shared heterogeneous dispatch.
+scientific callable declares the exact InputT, StateT, ScientificControl and
+ScientificReturn[OutputT] annotations. Type erasure exists only inside shared
+heterogeneous dispatch.
 
 Scientific and structural refusal remain distinct. The dummy raises
 ScientificInputRejected with a stable code after structural admission; the adapter
@@ -80,7 +87,9 @@ The scheduler-readable ImplementationDescription contains only immutable data:
 It contains no factories, provider objects, paths, credentials, framework devices
 or cleanup owners. The host-local ImplementationBinding contains the configured
 factories, lifecycle hooks, codecs and scientific callables inside the authorized
-scientific environment.
+scientific environment. ImplementationBinding.from_calls(...) derives the
+scheduler call inventory from the bound calls, so the same calls are not listed a
+second time.
 
 ScientificControl is the only optional operational capability visible to an
 adapter. It exposes a stop flag and bounded progress reporting, not Jobs authority,

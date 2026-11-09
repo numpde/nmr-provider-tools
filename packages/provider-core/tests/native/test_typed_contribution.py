@@ -89,6 +89,43 @@ class TypedContributionTests(unittest.TestCase):
             json.loads(calculate_call.encode_result(calculation.value)),
         )
 
+    def test_call_and_implementation_descriptions_have_one_source(self):
+        bindings = (
+            _weighted_binding(),
+            sum_binding(),
+        )
+
+        for binding in bindings:
+            with self.subTest(binding_id=binding.description.binding_id):
+                self.assertEqual(
+                    tuple(call.description for call in binding.calls),
+                    binding.description.calls,
+                )
+
+                for call in binding.calls:
+                    self.assertEqual(
+                        call.description.input_format,
+                        call.input_codec.format,
+                    )
+                    self.assertEqual(
+                        call.description.result_format,
+                        call.result_codec.format,
+                    )
+                    self.assertEqual(
+                        tuple(state.name for state in call.description.state_inputs),
+                        call.state_binding.names,
+                    )
+
+    def test_call_constructor_derives_provider_types_from_the_scientific_call(self):
+        (prepare_call, calculate_call) = _weighted_binding().calls
+
+        self.assertIs(science.PreparationInput, prepare_call.input_codec.value_type)
+        self.assertIs(science.NoLiveState, prepare_call.state_binding.value_type)
+        self.assertIs(science.PreparationResult, prepare_call.result_codec.value_type)
+        self.assertIs(science.CalculationInput, calculate_call.input_codec.value_type)
+        self.assertIs(science.CalculationState, calculate_call.state_binding.value_type)
+        self.assertIs(science.PredictionResult, calculate_call.result_codec.value_type)
+
     def test_equal_wire_shapes_keep_distinct_provider_types_and_formats(self):
         prepare_call = _weighted_binding().calls[0]
         sum_call = sum_binding().calls[0]
