@@ -1,1 +1,5 @@
-"""A small scientific provider that can run without a Jobs service."""
+"""Fake scientific code and adapter only.
+
+Scheduling, execution hosting, interpreter turns, resource ownership,
+supervision, delivery and deployment belong to shared provider-core code.
+"""

@@ -1,0 +1,36 @@
+Dummy contribution boundary
+===========================
+2026-11-09 | Corrects the runnable-template status added in 37c51da
+
+The dummy provider is a scientific contribution, not a miniature implementation
+of the target platform.
+
+Its package contains only:
+
+- science.py: fake provider-owned scientific functions;
+- binding.py: configuration, codecs and hooks using provider_core.contribution;
+- __init__.py: the package boundary.
+
+It contains no command-line service, fake Job loop, interpreter, scheduler,
+execution host, worker pool, allocation policy, permission owner, supervision,
+recovery, delivery, drain or deployment implementation. Those responsibilities
+belong to shared code. Fake work is submitted by the shared tests in
+packages/provider-core/tests/native/test_embedded_host.py.
+
+The runnable dummy CLI, DUMMY_INSTANCES Make input and provider-local demo loop
+from 37c51da have been removed. Notes 065 and 066 have been restored to their
+pre-37c51da plan text; this note records the narrower implementation status:
+provider_core now contains the proposed contribution records, execution records
+and a bounded embedded test backend, while the dummy provider supplies only the
+science-facing side of that boundary.
+
+The 13 embedded-host tests reported for 37c51da remain historical evidence for
+the unchanged shared host and contribution code; they were not rerun by this
+boundary-only correction. A focused local check compiled the three provider
+modules and the new boundary test, ran that test successfully, and ran the direct
+fake weighted calculation with the expected total 29. Canonical contained package
+qualification remains to be run.
+
+No real provider has adopted the interface. The common service, interpreter
+composition, native process backend, durable operation custody, remote execution,
+release, dependency repin and deployment remain outstanding.
