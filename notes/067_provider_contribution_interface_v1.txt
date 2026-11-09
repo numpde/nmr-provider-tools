@@ -1,0 +1,124 @@
+Provider contribution and execution interface v1
+================================================
+2026-11-09 | Implemented shared contract; real-provider adoption remains open
+
+Purpose
+-------
+This note records the first concrete interface shared by scientific contributions
+and execution backends. It refines the sketches in note 066. Notes 064-066 retain
+the architecture, safety rules and rollout plan; this note owns the exact v1 names
+and distinctions implemented in provider-core.
+
+The dummy contribution is intentionally science-only. It implements this
+contribution interface but none of the shared service, scheduling, hosting,
+permission, recovery, delivery or deployment machinery.
+
+What a scientific contribution supplies
+---------------------------------------
+`provider_core.contribution` separates a data description from host-local Python
+callbacks.
+
+The data description contains:
+
+- an immutable binding identity and sha256 revision;
+- the format and sha256 digest of scientific configuration;
+- named assets with media type, byte size and sha256 digest;
+- resident resource requirements;
+- the minimum process-isolation boundary;
+- named scientific calls;
+- each call's input and result formats;
+- named state inputs and outputs, including borrow or consume semantics;
+- per-call resource requirements;
+- instance-, process- or no scientific serialization requirements;
+- whether the call supports cooperative interruption.
+
+`description_document()` produces the JSON-compatible scheduler view. It contains
+no factories, model objects, paths, credentials, framework devices or cleanup
+owners.
+
+The host-local `ImplementationBinding` contains the callbacks that interpret the
+configuration and assets in the authorized scientific environment. Optional
+`InstanceHooks` own a loaded model/index/runtime. Optional `AnalysisHooks` own
+mutable state for one analysis before preparation has necessarily succeeded.
+`CallBinding` owns decoding, scientific invocation and result encoding.
+
+Decoding and invocation receive an optional narrow `ScientificControl`: a stop
+flag and bounded `ProgressEvent` reporting. It does not expose Jobs authority,
+resource allocation, process control or service credentials. Numerical functions
+need not receive it; a provider adapter may translate it into its own narrow
+cooperative interface.
+
+What shared execution supplies
+------------------------------
+`provider_core.hosting` defines:
+
+- resource grants assigned by deployment;
+- backend capability declarations;
+- exact allocation, reservation, operation, state and result references;
+- identified invocations with original limits;
+- typed definite non-admission;
+- operation observations separating acceptance, dispatch, scientific outcome,
+  result state, progress, stop request, allowance expiry and resource occupancy;
+- analysis-scoped submit/observe/stop/close;
+- exact result read/release;
+- pool administration and exact allocation retirement.
+
+An operation returned by `submit` is already owned. `NotAdmitted` means that this
+invocation caused no dispatch or orphaned acquisition. Re-observation never
+resubmits or renews the original budget. A result can remain available after its
+scientific resources are released. Analysis code cannot retire a shared instance;
+that authority belongs to pool administration.
+
+First backend
+-------------
+`provider_core.embedded_host` is a bounded fixed-local backend used by shared
+tests. It is not provider code and is not the final service.
+
+It currently supports:
+
+- contribution contract version 1;
+- shared-process implementations;
+- per-instance serial or parallel calls;
+- no interruption or cooperative interruption;
+- bounded progress records;
+- explicit resident-plus-call resource grants;
+- one dedicated Python thread per fixed allocation;
+- analysis-scoped operations and separate pool administration;
+- exact state affinity and consumption;
+- raw scientific-return custody before encoding;
+- result retention through analysis cleanup;
+- retirement of an exact allocation and observation of its actual thread exit.
+
+It refuses unsupported contract versions, dedicated-process requirements,
+process-global serialization and missing resource grants before scientific
+construction. It cannot forcibly interrupt Python, persist operations across a
+process crash, enforce operating-system memory/device limits or execute remotely.
+Those are backend capabilities, not restrictions imposed on scientific code.
+
+Dummy contribution
+------------------
+`provider_core.examples.dummy_provider` contains only `science.py`, `binding.py`
+and its package marker. A boundary test permits only
+`provider_core.contribution` imports from that package.
+
+The stateful binding demonstrates immutable settings/assets, loaded-instance and
+per-analysis lifetimes, rejected and corrected preparation, worker-local prepared
+state, consuming calculation, result encoding and progress. A separate stateless
+binding uses the same interface without fake lifecycle hooks.
+
+Current evidence and limits
+---------------------------
+Focused local checks for this implementation compile the changed modules and run
+the contribution/host suite. They cover direct versus hosted results, data-only
+descriptions, resource/capability refusal before construction, permission at
+actual dispatch, cancelled observers, independent allocations, operation identity,
+state affinity/consumption, correction, narrow cooperative stop, progress, partial
+initialization ownership, encoding failure, exact result release and exact
+allocation retirement.
+
+This is not yet all-repository adoption. SECS, NMRNet, NMRPeak and Magnet still
+need their real scientific and guarded execution paths connected to the same
+installed contract. Existing AnalysisSession permission checks remain until the
+host-managed path is equivalent and qualified. Jobs service integration, durable
+operation/result records, remote execution and phase-specific scheduling remain
+later shared work under notes 065-066.

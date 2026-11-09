@@ -1,24 +1,35 @@
 # Dummy scientific contribution
 
-This directory is deliberately **not** a provider service or miniature copy of
-the planned shared platform.
+This directory is deliberately not a provider service or a miniature copy of the
+shared platform.
 
-A provider contributes only:
+The provider contributes only:
 
-- `science.py`: ordinary provider-owned scientific code. It imports no
-  `provider_core` module.
-- `binding.py`: the adapter that binds configuration and scientific functions to
-  the declarations in `provider_core.contribution`.
+- `science.py`: ordinary scientific code. It imports no `provider_core` module.
+- `binding.py`: the adapter from that code to `provider_core.contribution`.
 
-It does not contain a CLI, Jobs client, interpreter, scheduler, execution host,
-worker pool, allocator, permission owner, supervision loop, recovery mechanism,
-result delivery, drain logic or deployment code.
+The binding supplies two things.
 
-The shared package owns those concerns. Its focused tests in
-`tests/native/test_embedded_host.py` submit fake work to this contribution and
-exercise one or several allocations, state affinity, permission, result custody
-and cleanup. `test_dummy_provider_boundary.py` keeps the source boundary explicit.
+First, it supplies a data-only description that orchestration can inspect without
+loading the science. It fixes the implementation revision, configuration digest,
+asset digests, named calls, state inputs and outputs, resident and per-call resource
+requirements, process-isolation requirement, concurrency requirement and
+cooperative-interruption support.
 
-A real provider should replace the fake science and adapter while reusing the
-shared operational machinery. It should not copy the test host or service logic
-into its own package.
+Second, it supplies host-local callables for model construction, initialization,
+scientific input decoding, invocation, result encoding and cleanup. Those callables
+receive scientific objects. They do not receive Jobs controllers, credentials,
+claim registries, worker pools, allocators or Docker access.
+
+A call adapter may receive `ScientificControl`, which exposes only a stop flag and
+bounded progress reporting. The dummy uses it to report calculation progress. The
+plain numerical functions in `science.py` still know nothing about execution.
+
+The shared package owns admission, permission, reservations, operation identity,
+state references, result custody, worker supervision, retirement and delivery.
+Shared tests submit fake work to this contribution. Nothing in this directory
+implements those responsibilities.
+
+A real contribution should replace the fake science and binding while retaining
+this boundary. It should not copy `embedded_host.py`, service loops or test
+orchestration into its own package.
