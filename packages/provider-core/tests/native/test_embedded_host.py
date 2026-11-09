@@ -24,7 +24,10 @@ from provider_core.contribution import (
 )
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.examples.dummy_provider import science
-from provider_core.examples.dummy_provider.binding import sum_binding, weighted_binding
+from provider_core.examples.dummy_provider.binding import (
+    sum_binding,
+    weighted_sum_binding,
+)
 from provider_core.hosting import (
     DispatchState,
     ExecutionLimits,
@@ -42,7 +45,7 @@ def _allow() -> None:
     return None
 
 
-def _limits(**changes) -> HostLimits:
+def _host_limits(**changes) -> HostLimits:
     values = {
         "analysis_records": 16,
         "operation_records": 32,
@@ -58,60 +61,81 @@ def _limits(**changes) -> HostLimits:
 
 
 def _execution_limits() -> ExecutionLimits:
-    return ExecutionLimits(5, 10, 5, 1024, 1024)
+    return ExecutionLimits(
+        queue_seconds=5,
+        execution_seconds=10,
+        cleanup_seconds=5,
+        input_bytes=1024,
+        result_bytes=1024,
+    )
 
 
 def _grants(binding) -> tuple[ResourceGrant, ...]:
-    resident = {
+    resident_requirements = {
         requirement.identity: requirement
         for requirement in binding.description.resident_resources
     }
-    calls = {}
+    call_requirements = {}
     for call in binding.description.calls:
         for requirement in call.resources:
-            known = calls.get(requirement.identity)
-            if known is None or known.amount < requirement.amount:
-                calls[requirement.identity] = requirement
-    result = []
-    for identity in set(resident) | set(calls):
-        instance = resident.get(identity)
-        invocation = calls.get(identity)
-        sample = instance or invocation
-        result.append(ResourceGrant(
-            sample.kind,
-            (instance.amount if instance else 0)
-            + (invocation.amount if invocation else 0),
-            sample.unit,
-            sample.selector,
-            bool(
-                (instance and instance.exclusive)
-                or (invocation and invocation.exclusive)
-            ),
-        ))
-    return tuple(result)
+            known_requirement = call_requirements.get(requirement.identity)
+            if (
+                known_requirement is None
+                or known_requirement.amount < requirement.amount
+            ):
+                call_requirements[requirement.identity] = requirement
+
+    grants = []
+    for identity in set(resident_requirements) | set(call_requirements):
+        resident_requirement = resident_requirements.get(identity)
+        call_requirement = call_requirements.get(identity)
+        representative = resident_requirement or call_requirement
+
+        grants.append(
+            ResourceGrant(
+                kind=representative.kind,
+                amount=(
+                    (resident_requirement.amount if resident_requirement else 0)
+                    + (call_requirement.amount if call_requirement else 0)
+                ),
+                unit=representative.unit,
+                selector=representative.selector,
+                exclusive=bool(
+                    (resident_requirement and resident_requirement.exclusive)
+                    or (call_requirement and call_requirement.exclusive)
+                ),
+            )
+        )
+    return tuple(grants)
 
 
-def _request(
+def _invocation(
     analysis,
     binding,
+    *,
     operation_id: str,
-    name: str,
+    call_name: str,
     payload: bytes,
     states=(),
 ) -> Invocation:
     description = binding.description
     reservation = next(
-        item
-        for item in analysis.reservations
-        if item.binding_id == description.binding_id
+        reservation
+        for reservation in analysis.reservations
+        if reservation.binding_id == description.binding_id
     )
+
     return Invocation(
-        operation_id,
-        CallRef(description.binding_id, description.binding_revision, name),
-        payload,
-        states,
-        reservation,
-        _execution_limits(),
+        operation_id=operation_id,
+        target=CallRef(
+            binding_id=description.binding_id,
+            binding_revision=description.binding_revision,
+            name=call_name,
+        ),
+        payload=payload,
+        states=states,
+        reservation=reservation,
+        limits=_execution_limits(),
     )
 
 
@@ -158,12 +182,17 @@ class _FailingResultCodec[T]:
 
 class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
     def host(self, bindings, *, limits=None):
+        allocations = tuple(
+            Allocation(
+                name=name,
+                binding=binding,
+                grants=_grants(binding),
+            )
+            for (name, binding) in bindings.items()
+        )
         host = EmbeddedHost(
-            tuple(
-                Allocation(name, binding, _grants(binding))
-                for name, binding in bindings.items()
-            ),
-            limits=limits or _limits(),
+            allocations,
+            limits=limits or _host_limits(),
         )
         self.addAsyncCleanup(self.retire_host, host)
         return host
@@ -173,7 +202,10 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
     async def settled(self, control):
         async with asyncio.timeout(10):
-            observation = await control.observe(after=None, wait_seconds=0)
+            observation = await control.observe(
+                after=None,
+                wait_seconds=0,
+            )
             while not observation.settled and not observation.failures:
                 observation = await control.observe(
                     after=observation.revision,
@@ -186,7 +218,10 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
     async def finished(self, operation):
         self.assertNotIsInstance(operation, NotAdmitted)
         async with asyncio.timeout(10):
-            observation = await operation.observe(after=None, wait_seconds=0)
+            observation = await operation.observe(
+                after=None,
+                wait_seconds=0,
+            )
             while not observation.finished:
                 observation = await operation.observe(
                     after=observation.revision,
@@ -199,36 +234,47 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(Outcome.SUCCEEDED, observation.outcome)
         self.assertEqual((), observation.failures)
         self.assertIs(ResultState.AVAILABLE, observation.result_state)
+
         payload = await operation.read_result(observation.result)
         return observation, codec.decode(payload)
 
     async def test_description_and_direct_science_match_hosted_calls(self):
-        settings = science.Settings(scale=2, offset=1)
-        coefficients = (1, 2, 3)
-        model = science.create_model(settings, coefficients)
-        science.load_model(model)
-        direct = science.create_analysis(model)
-        science.initialize_analysis(direct)
-        prepared = science.prepare(
-            direct,
-            science.ValuesInput(values=(2.0, 4.0, 6.0)),
+        settings = science.WeightedSumSettings(
+            scale=2,
+            offset=1,
         )
-        expected = science.calculate(
-            direct,
-            science.EmptyInput(),
-            science.CalculationState(prepared=prepared),
+        coefficients = science.CoefficientSet(values=(1, 2, 3))
+        model = science.create_model(
+            settings=settings,
+            coefficients=coefficients,
+        )
+        science.load_model(model)
+        direct_analysis = science.create_analysis(model)
+        science.initialize_analysis(direct_analysis)
+        prepared = science.prepare(
+            analysis=direct_analysis,
+            candidate=science.PreparationInput(values=(2, 4, 6)),
+        )
+        expected_result = science.calculate(
+            analysis=direct_analysis,
+            calculation=science.CalculationInput(),
+            state=science.CalculationState(prepared=prepared),
         )
         science.dispose_prepared(prepared)
-        science.dispose_analysis(direct)
+        science.dispose_analysis(direct_analysis)
         science.dispose_model(model)
 
-        weighted = weighted_binding(settings, coefficients)
+        weighted = weighted_sum_binding(
+            settings=settings,
+            coefficients=coefficients,
+        )
         ordinary = sum_binding()
-        document = description_document(weighted.description)
-        self.assertEqual("shared_process", document["isolation"])
+        description = description_document(weighted.description)
+
+        self.assertEqual("shared_process", description["isolation"])
         self.assertEqual(
             ["prepare", "calculate"],
-            [call["name"] for call in document["calls"]],
+            [call["name"] for call in description["calls"]],
         )
 
         host = self.host({"weighted": weighted, "sum": ordinary})
@@ -236,184 +282,235 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             "combined",
             allocation_names=("weighted", "sum"),
         )
-        prepare_call, calculate_call = weighted.calls
+        (prepare_call, calculate_call) = weighted.calls
         preparation, _ = await self.success(
             analysis.submit(
-                _request(
+                _invocation(
                     analysis,
                     weighted,
-                    "prepare",
-                    "prepare",
-                    b'{"values":[2,4,6]}',
+                    operation_id="prepare",
+                    call_name="prepare",
+                    payload=b'{"values":[2,4,6]}',
                 ),
                 dispatch_guard=_allow,
             ),
             prepare_call.result_codec,
         )
-        completed, actual = await self.success(
+        calculation, actual_result = await self.success(
             analysis.submit(
-                _request(
+                _invocation(
                     analysis,
                     weighted,
-                    "calculate",
-                    "calculate",
-                    b"{}",
-                    preparation.states,
+                    operation_id="calculate",
+                    call_name="calculate",
+                    payload=b"{}",
+                    states=preparation.states,
                 ),
                 dispatch_guard=_allow,
             ),
             calculate_call.result_codec,
         )
-        self.assertEqual(expected, actual)
+
+        self.assertEqual(expected_result, actual_result)
         self.assertEqual(
             (
-                ProgressEvent("calculation", 0, 1),
-                ProgressEvent("calculation", 1, 1),
+                ProgressEvent(
+                    stage="calculation",
+                    completed=0,
+                    total=1,
+                ),
+                ProgressEvent(
+                    stage="calculation",
+                    completed=1,
+                    total=1,
+                ),
             ),
-            completed.progress,
+            calculation.progress,
         )
-        run_call = ordinary.calls[0]
+
+        sum_call = ordinary.calls[0]
         _, ordinary_result = await self.success(
             analysis.submit(
-                _request(
+                _invocation(
                     analysis,
                     ordinary,
-                    "sum",
-                    "run",
-                    b'{"values":[2,4,6]}',
+                    operation_id="sum",
+                    call_name="run",
+                    payload=b'{"values":[2,4,6]}',
                 ),
                 dispatch_guard=_allow,
             ),
-            run_call.result_codec,
+            sum_call.result_codec,
         )
         self.assertEqual(
-            science.SumResult(total=12.0, count=3),
+            science.SumResult(total=12, count=3),
             ordinary_result,
         )
 
     async def test_permission_and_operation_identity_prevent_unowned_replay(self):
         original = sum_binding()
-        call = original.calls[0]
+        original_call = original.calls[0]
         entered = {"decode": 0, "invoke": 0}
 
-        @wraps(call.scientific_call)
-        def scientific_call(instance, analysis, candidate, state, control):
+        @wraps(original_call.scientific_call)
+        def scientific_call(instance, analysis, summation, state, control):
             entered["invoke"] += 1
-            return call.scientific_call(
+            return original_call.scientific_call(
                 instance,
                 analysis,
-                candidate,
+                summation,
                 state,
                 control,
             )
 
-        wrapped = replace(
-            call,
-            input_codec=_CountingCodec(call.input_codec, entered),
+        wrapped_call = replace(
+            original_call,
+            input_codec=_CountingCodec(
+                delegate=original_call.input_codec,
+                counter=entered,
+            ),
             scientific_call=scientific_call,
         )
-        binding = replace(original, calls=(wrapped,))
+        binding = replace(
+            original,
+            calls=(wrapped_call,),
+        )
         host = self.host({"one": binding, "two": binding})
-        analysis = host.open_analysis("permission", allocation_names=("one",))
+        analysis = host.open_analysis(
+            "permission",
+            allocation_names=("one",),
+        )
         permitted = True
 
         def guard() -> None:
             if not permitted:
                 raise PermissionError("revoked")
 
-        request = _request(
+        invocation = _invocation(
             analysis,
             binding,
-            "same",
-            "run",
-            b'{"values":[1]}',
+            operation_id="same",
+            call_name="run",
+            payload=b'{"values":[1]}',
         )
-        operation = analysis.submit(request, dispatch_guard=guard)
+        operation = analysis.submit(
+            invocation,
+            dispatch_guard=guard,
+        )
         permitted = False
         stopped = await self.finished(operation)
+
         self.assertIs(DispatchState.NOT_STARTED, stopped.dispatch)
         self.assertEqual({"decode": 0, "invoke": 0}, entered)
-        self.assertIs(operation, analysis.submit(request, dispatch_guard=guard))
+        self.assertIs(
+            operation,
+            analysis.submit(
+                invocation,
+                dispatch_guard=guard,
+            ),
+        )
         with self.assertRaises(RequestConflict):
             analysis.submit(
-                replace(request, payload=b'{"values":[2]}'),
+                replace(
+                    invocation,
+                    payload=b'{"values":[2]}',
+                ),
                 dispatch_guard=guard,
             )
 
-        peer = host.open_analysis("peer-identity", allocation_names=("two",))
+        peer_analysis = host.open_analysis(
+            "peer-identity",
+            allocation_names=("two",),
+        )
         _, peer_result = await self.success(
-            peer.submit(
-                _request(
-                    peer,
+            peer_analysis.submit(
+                _invocation(
+                    peer_analysis,
                     binding,
-                    "same",
-                    "run",
-                    b'{"values":[2]}',
+                    operation_id="same",
+                    call_name="run",
+                    payload=b'{"values":[2]}',
                 ),
                 dispatch_guard=_allow,
             ),
-            wrapped.result_codec,
+            wrapped_call.result_codec,
         )
-        self.assertEqual(science.SumResult(total=2.0, count=1), peer_result)
+        self.assertEqual(
+            science.SumResult(total=2, count=1),
+            peer_result,
+        )
 
     async def test_state_is_worker_bound_consumed_once_and_correction_is_new_work(self):
-        binding = weighted_binding(
-            science.Settings(scale=1, offset=0),
-            (2, 3),
+        binding = weighted_sum_binding(
+            settings=science.WeightedSumSettings(
+                scale=1,
+                offset=0,
+            ),
+            coefficients=science.CoefficientSet(values=(2, 3)),
         )
         host = self.host(
             {"one": binding, "two": binding},
-            limits=_limits(state_values=2),
+            limits=_host_limits(state_values=2),
         )
-        first = host.open_analysis("first", allocation_names=("one",))
-        second = host.open_analysis("second", allocation_names=("two",))
-        prepare_call, calculate_call = binding.calls
+        first_analysis = host.open_analysis(
+            "first",
+            allocation_names=("one",),
+        )
+        second_analysis = host.open_analysis(
+            "second",
+            allocation_names=("two",),
+        )
+        (prepare_call, calculate_call) = binding.calls
+
         rejected = await self.finished(
-            first.submit(
-                _request(
-                    first,
+            first_analysis.submit(
+                _invocation(
+                    first_analysis,
                     binding,
-                    "bad",
-                    "prepare",
-                    b'{"values":[1]}',
+                    operation_id="bad",
+                    call_name="prepare",
+                    payload=b'{"values":[1]}',
                 ),
                 dispatch_guard=_allow,
             )
         )
         self.assertIs(Outcome.REJECTED, rejected.outcome)
+
         accepted, _ = await self.success(
-            first.submit(
-                _request(
-                    first,
+            first_analysis.submit(
+                _invocation(
+                    first_analysis,
                     binding,
-                    "corrected",
-                    "prepare",
-                    b'{"values":[1,2]}',
+                    operation_id="corrected",
+                    call_name="prepare",
+                    payload=b'{"values":[1,2]}',
                 ),
                 dispatch_guard=_allow,
             ),
             prepare_call.result_codec,
         )
-        foreign = second.submit(
-            _request(
-                second,
+
+        foreign = second_analysis.submit(
+            _invocation(
+                second_analysis,
                 binding,
-                "foreign",
-                "calculate",
-                b"{}",
-                accepted.states,
+                operation_id="foreign",
+                call_name="calculate",
+                payload=b"{}",
+                states=accepted.states,
             ),
             dispatch_guard=_allow,
         )
         self.assertIsInstance(foreign, NotAdmitted)
-        calculation = first.submit(
-            _request(
-                first,
+
+        calculation = first_analysis.submit(
+            _invocation(
+                first_analysis,
                 binding,
-                "calculate",
-                "calculate",
-                b"{}",
-                accepted.states,
+                operation_id="calculate",
+                call_name="calculate",
+                payload=b"{}",
+                states=accepted.states,
             ),
             dispatch_guard=_allow,
         )
@@ -422,45 +519,58 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             calculate_call.result_codec,
         )
         self.assertEqual(
-            science.PredictionResult(total=8.0, count=2),
+            science.PredictionResult(total=8, count=2),
             result,
         )
-        self.assertIsInstance(
-            first.submit(
-                _request(
-                    first,
-                    binding,
-                    "reuse",
-                    "calculate",
-                    b"{}",
-                    accepted.states,
-                ),
-                dispatch_guard=_allow,
-            ),
-            NotAdmitted,
-        )
 
-    async def test_result_custody_survives_analysis_cleanup_and_encoding_failure(self):
-        binding = sum_binding()
-        call = binding.calls[0]
-        host = self.host({"one": binding})
-        analysis = host.open_analysis("result", allocation_names=("one",))
-        operation = analysis.submit(
-            _request(
-                analysis,
+        reused = first_analysis.submit(
+            _invocation(
+                first_analysis,
                 binding,
-                "result",
-                "run",
-                b'{"values":[4,5]}',
+                operation_id="reuse",
+                call_name="calculate",
+                payload=b"{}",
+                states=accepted.states,
             ),
             dispatch_guard=_allow,
         )
-        completed, expected = await self.success(operation, call.result_codec)
+        self.assertIsInstance(reused, NotAdmitted)
+
+    async def test_result_custody_survives_cleanup_and_encoding_failure(self):
+        binding = sum_binding()
+        call = binding.calls[0]
+        host = self.host({"one": binding})
+        analysis = host.open_analysis(
+            "result",
+            allocation_names=("one",),
+        )
+        operation = analysis.submit(
+            _invocation(
+                analysis,
+                binding,
+                operation_id="result",
+                call_name="run",
+                payload=b'{"values":[4,5]}',
+            ),
+            dispatch_guard=_allow,
+        )
+        completed, expected_result = await self.success(
+            operation,
+            call.result_codec,
+        )
         await self.settled(analysis.close())
-        payload = await operation.read_result(completed.result)
-        self.assertEqual(expected, call.result_codec.decode(payload))
+
+        retained_payload = await operation.read_result(completed.result)
+
+        self.assertEqual(
+            expected_result,
+            call.result_codec.decode(retained_payload),
+        )
         release = operation.release_result(completed.result)
-        self.assertIs(release, operation.release_result(completed.result))
+        self.assertIs(
+            release,
+            operation.release_result(completed.result),
+        )
         await self.settled(release)
         self.assertIs(
             ResultState.RELEASED,
@@ -473,16 +583,19 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         disposed = []
 
         @wraps(original_call.scientific_call)
-        def scientific_call(instance, analysis, candidate, state, control):
-            raw = original_call.scientific_call(
+        def scientific_call(instance, analysis, summation, state, control):
+            scientific_return = original_call.scientific_call(
                 instance,
                 analysis,
-                candidate,
+                summation,
                 state,
                 control,
             )
-            retained.append(raw.value)
-            return replace(raw, dispose_value=disposed.append)
+            retained.append(scientific_return.value)
+            return replace(
+                scientific_return,
+                dispose_value=disposed.append,
+            )
 
         failure = ValueError("encoding failed")
         failing_call = replace(
@@ -493,35 +606,34 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 failure=failure,
             ),
         )
-        binding = replace(original, calls=(failing_call,))
-        host = self.host({"encoding": binding})
+        failing_binding = replace(
+            original,
+            calls=(failing_call,),
+        )
+        host = self.host({"encoding": failing_binding})
         analysis = host.open_analysis(
             "encoding",
             allocation_names=("encoding",),
         )
+        invocation = _invocation(
+            analysis,
+            failing_binding,
+            operation_id="encoded-once",
+            call_name="run",
+            payload=b'{"values":[7]}',
+        )
         operation = analysis.submit(
-            _request(
-                analysis,
-                binding,
-                "encoded-once",
-                "run",
-                b'{"values":[7]}',
-            ),
+            invocation,
             dispatch_guard=_allow,
         )
         failed = await self.finished(operation)
+
         self.assertIs(Outcome.SUCCEEDED, failed.outcome)
         self.assertIs(ResultState.ENCODING_FAILED, failed.result_state)
         self.assertIs(
             operation,
             analysis.submit(
-                _request(
-                    analysis,
-                    binding,
-                    "encoded-once",
-                    "run",
-                    b'{"values":[7]}',
-                ),
+                invocation,
                 dispatch_guard=_allow,
             ),
         )
@@ -530,78 +642,107 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_independent_allocations_progress_and_retire_exact_threads(self):
         original = sum_binding()
-        call = original.calls[0]
+        original_call = original.calls[0]
         entered = asyncio.Event()
         release = threading.Event()
         loop = asyncio.get_running_loop()
         workers = {}
 
-        @wraps(call.scientific_call)
-        def scientific_call(instance, analysis, candidate, state, control):
-            key = candidate.values[0]
-            workers[key] = threading.current_thread()
-            if key == 1.0:
+        @wraps(original_call.scientific_call)
+        def scientific_call(instance, analysis, summation, state, control):
+            first_value = summation.values[0]
+            workers[first_value] = threading.current_thread()
+            if first_value == 1.0:
                 loop.call_soon_threadsafe(entered.set)
                 release.wait(10)
-            return call.scientific_call(
+            return original_call.scientific_call(
                 instance,
                 analysis,
-                candidate,
+                summation,
                 state,
                 control,
             )
 
-        wrapped = replace(call, scientific_call=scientific_call)
-        binding = replace(original, calls=(wrapped,))
+        wrapped_call = replace(
+            original_call,
+            scientific_call=scientific_call,
+        )
+        binding = replace(
+            original,
+            calls=(wrapped_call,),
+        )
         host = self.host({"held": binding, "peer": binding})
-        held_analysis = host.open_analysis("held", allocation_names=("held",))
-        peer_analysis = host.open_analysis("peer", allocation_names=("peer",))
+        held_analysis = host.open_analysis(
+            "held",
+            allocation_names=("held",),
+        )
+        peer_analysis = host.open_analysis(
+            "peer",
+            allocation_names=("peer",),
+        )
         held = held_analysis.submit(
-            _request(
+            _invocation(
                 held_analysis,
                 binding,
-                "held",
-                "run",
-                b'{"values":[1]}',
+                operation_id="held",
+                call_name="run",
+                payload=b'{"values":[1]}',
             ),
             dispatch_guard=_allow,
         )
         await asyncio.wait_for(entered.wait(), timeout=5)
-        current = await held.observe(after=None, wait_seconds=0)
+        current = await held.observe(
+            after=None,
+            wait_seconds=0,
+        )
         waiter = asyncio.create_task(
-            held.observe(after=current.revision, wait_seconds=5)
+            held.observe(
+                after=current.revision,
+                wait_seconds=5,
+            )
         )
         waiter.cancel()
         with self.assertRaises(asyncio.CancelledError):
             await waiter
-        _, peer = await self.success(
+
+        _, peer_result = await self.success(
             peer_analysis.submit(
-                _request(
+                _invocation(
                     peer_analysis,
                     binding,
-                    "peer",
-                    "run",
-                    b'{"values":[2]}',
+                    operation_id="peer",
+                    call_name="run",
+                    payload=b'{"values":[2]}',
                 ),
                 dispatch_guard=_allow,
             ),
-            wrapped.result_codec,
+            wrapped_call.result_codec,
         )
-        self.assertEqual(science.SumResult(total=2.0, count=1), peer)
+        self.assertEqual(
+            science.SumResult(total=2, count=1),
+            peer_result,
+        )
+
         release.set()
-        await self.success(held, wrapped.result_codec)
-        reference = next(
-            item
-            for item in host.allocations
-            if item.allocation == "held"
+        await self.success(
+            held,
+            wrapped_call.result_codec,
         )
-        await self.settled(host.retire_allocation(reference))
+        held_allocation = next(
+            allocation
+            for allocation in host.allocations
+            if allocation.allocation == "held"
+        )
+        await self.settled(host.retire_allocation(held_allocation))
         self.assertFalse(workers[1.0].is_alive())
 
     async def test_backend_refuses_unenforceable_contracts_and_missing_grants(self):
         original = sum_binding()
-        cases = (
-            replace(original.description, contract_version=2),
+        unsupported_descriptions = (
+            replace(
+                original.description,
+                contract_version=2,
+            ),
             replace(
                 original.description,
                 isolation=IsolationRequirement.DEDICATED_PROCESS,
@@ -616,7 +757,8 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         )
-        for index, description in enumerate(cases):
+
+        for (index, description) in enumerate(unsupported_descriptions):
             calls = original.calls
             if description.calls != original.description.calls:
                 calls = (
@@ -625,115 +767,133 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                         description=description.calls[0],
                     ),
                 )
+            unsupported_binding = replace(
+                original,
+                description=description,
+                calls=calls,
+            )
+
             with self.subTest(index=index), self.assertRaises(ValueError):
                 Allocation(
-                    f"unsupported-{index}",
-                    replace(
-                        original,
-                        description=description,
-                        calls=calls,
-                    ),
-                    _grants(original),
+                    name=f"unsupported-{index}",
+                    binding=unsupported_binding,
+                    grants=_grants(original),
                 )
 
-        weighted = weighted_binding(
-            science.Settings(scale=1, offset=0),
-            (2,),
+        weighted = weighted_sum_binding(
+            settings=science.WeightedSumSettings(
+                scale=1,
+                offset=0,
+            ),
+            coefficients=science.CoefficientSet(values=(2,)),
         )
         with self.assertRaises(ValueError):
             Allocation(
-                "missing-memory",
-                weighted,
-                (ResourceGrant("cpu", 1, "thread", "generic", False),),
+                name="missing-resident-data",
+                binding=weighted,
+                grants=(
+                    ResourceGrant(
+                        kind="cpu",
+                        amount=1,
+                        unit="thread",
+                        selector="generic",
+                        exclusive=False,
+                    ),
+                ),
             )
 
-    async def test_partial_initialization_remains_with_original_cleanup_owner(self):
+    async def test_partial_initialization_keeps_the_original_cleanup_owner(self):
         original = sum_binding()
-        created = []
-        disposed = []
+        created_instances = []
+        disposed_instances = []
 
-        def construct():
-            value = {"resource": object()}
-            created.append(value)
-            return value
+        def construct_instance():
+            instance = {"resource": object()}
+            created_instances.append(instance)
+            return instance
 
-        def fail_load(value) -> None:
+        def fail_instance_initialization(instance) -> None:
             raise RuntimeError("load failed")
 
-        binding = replace(
+        instance_binding = replace(
             original,
             instance=InstanceHooks(
-                construct,
-                fail_load,
-                disposed.append,
+                construct=construct_instance,
+                initialize=fail_instance_initialization,
+                dispose=disposed_instances.append,
             ),
         )
-        host = self.host({"one": binding})
-        analysis = host.open_analysis("partial", allocation_names=("one",))
+        host = self.host({"one": instance_binding})
+        analysis = host.open_analysis(
+            "partial-instance",
+            allocation_names=("one",),
+        )
         failed = await self.finished(
             analysis.submit(
-                _request(
+                _invocation(
                     analysis,
-                    binding,
-                    "partial",
-                    "run",
-                    b'{"values":[1]}',
+                    instance_binding,
+                    operation_id="partial-instance",
+                    call_name="run",
+                    payload=b'{"values":[1]}',
                 ),
                 dispatch_guard=_allow,
             )
         )
+
         self.assertEqual("instance_initialization", failed.failures[0].phase)
         await self.settled(analysis.close())
-        self.assertEqual([], disposed)
+        self.assertEqual([], disposed_instances)
         await self.settled(host.retire())
-        self.assertEqual(created, disposed)
+        self.assertEqual(created_instances, disposed_instances)
 
         original = sum_binding()
-        created = []
-        disposed = []
+        created_analyses = []
+        disposed_analyses = []
 
         def construct_analysis(instance):
-            value = {"resource": object()}
-            created.append(value)
-            return value
+            analysis_state = {"resource": object()}
+            created_analyses.append(analysis_state)
+            return analysis_state
 
-        def fail_analysis(value) -> None:
+        def fail_analysis_initialization(analysis_state) -> None:
             raise RuntimeError("analysis failed")
 
-        binding = replace(
+        analysis_binding = replace(
             original,
             analysis=AnalysisHooks(
-                construct_analysis,
-                fail_analysis,
-                disposed.append,
+                construct=construct_analysis,
+                initialize=fail_analysis_initialization,
+                dispose=disposed_analyses.append,
             ),
         )
-        host = self.host({"two": binding})
+        host = self.host({"two": analysis_binding})
         analysis = host.open_analysis(
             "partial-analysis",
             allocation_names=("two",),
         )
         failed = await self.finished(
             analysis.submit(
-                _request(
+                _invocation(
                     analysis,
-                    binding,
-                    "partial-analysis",
-                    "run",
-                    b'{"values":[1]}',
+                    analysis_binding,
+                    operation_id="partial-analysis",
+                    call_name="run",
+                    payload=b'{"values":[1]}',
                 ),
                 dispatch_guard=_allow,
             )
         )
+
         self.assertEqual("analysis_initialization", failed.failures[0].phase)
         await self.settled(analysis.close())
-        self.assertEqual(created, disposed)
+        self.assertEqual(created_analyses, disposed_analyses)
 
     async def test_cooperative_stop_is_narrow_and_observable(self):
         original = sum_binding()
-        call = original.calls[0]
+        original_call = original.calls[0]
         description = replace(
-            call.description,
+            original_call.description,
             interruption=InterruptionSupport.COOPERATIVE,
             progress=True,
         )
@@ -743,29 +903,37 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         def scientific_call(
             instance: None,
             analysis: None,
-            candidate: science.ValuesInput,
-            state: science.NoState,
+            summation: science.SumInput,
+            state: science.NoLiveState,
             control: ScientificControl,
         ) -> ScientificReturn[science.SumResult]:
             loop.call_soon_threadsafe(entered.set)
             while not control.stop_requested:
                 pass
-            control.report_progress(ProgressEvent("stopping"))
+            control.report_progress(
+                ProgressEvent(stage="stopping")
+            )
             return ScientificReturn(
-                value=science.SumResult(total=0.0, count=0),
+                value=science.SumResult(
+                    total=0,
+                    count=len(summation.values),
+                ),
                 states=(),
                 dispose_value=None,
             )
 
         cooperative_call = CallBinding(
             description=description,
-            input_codec=call.input_codec,
-            state_binding=call.state_binding,
+            input_codec=original_call.input_codec,
+            state_binding=original_call.state_binding,
             scientific_call=scientific_call,
-            result_codec=call.result_codec,
+            result_codec=original_call.result_codec,
         )
         binding = ImplementationBinding(
-            description=replace(original.description, calls=(description,)),
+            description=replace(
+                original.description,
+                calls=(description,),
+            ),
             instance=None,
             analysis=None,
             calls=(cooperative_call,),
@@ -776,12 +944,12 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             allocation_names=("one",),
         )
         operation = analysis.submit(
-            _request(
+            _invocation(
                 analysis,
                 binding,
-                "cooperative",
-                "run",
-                b'{"values":[1]}',
+                operation_id="cooperative",
+                call_name="run",
+                payload=b'{"values":[1]}',
             ),
             dispatch_guard=_allow,
         )
@@ -791,8 +959,15 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             operation,
             cooperative_call.result_codec,
         )
-        self.assertEqual(science.SumResult(total=0.0, count=0), result)
-        self.assertEqual((ProgressEvent("stopping"),), completed.progress)
+
+        self.assertEqual(
+            science.SumResult(total=0, count=1),
+            result,
+        )
+        self.assertEqual(
+            (ProgressEvent(stage="stopping"),),
+            completed.progress,
+        )
         self.assertTrue(completed.stop_requested)
 
 

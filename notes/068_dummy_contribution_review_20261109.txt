@@ -1,0 +1,90 @@
+Dummy contribution review against hello-world
+=============================================
+9 November 2026
+
+Scope and authority
+-------------------
+This review applies the relevant guidance from
+numpde/hello-world/notes/000_portable_engineering_practices.txt at
+main@8e7eb12f491976ba373db71d5d9a5d12550d49ea to the dummy scientific
+contribution in provider-core.
+
+The relevant rules were:
+
+- A2: validate external structure at the boundary; do not rely on annotations or
+  silently repair malformed values;
+- A8: use stable codes and useful explanations while preserving original causes
+  and actual effect state;
+- B1: distinguish raw decoding, versioned wire shape, scientific interpretation
+  and canonical encoding;
+- C1-C2: give responsibilities clear owners, preserve meaningful distinctions and
+  remove obsolete shims;
+- C3-C4: keep the change coherent, run focused behavior checks and state
+  unverified work honestly;
+- C5: use semantic names, meaningful grouping, consistent multiline calls and
+  comments that explain ownership or failure consequences.
+
+Review passes
+-------------
+The revision was performed in eighteen explicit passes. Each pass re-read the
+complete affected provider files before the next change.
+
+1. Separated scientific coefficient data from deployment asset terminology.
+2. Made scientific rejection codes and explanations explicit and validated.
+3. Made model, analysis and prepared-state lifetimes explicit.
+4. Documented the live-state disposal sentinel and consume-before-compute rule.
+5. Replaced generic settings and empty-byte conventions with provider-owned
+   configuration records.
+6. Prevented invalid live-state construction where constructors own the fact.
+7. Moved prepared-state consumption and disposal into PreparedValues.
+8. Re-read the failure path, restored validation before consumption and added a
+   regression check for an unloaded model.
+9. Derived the preparation result from accepted scientific state rather than the
+   original request.
+10. Re-read naming, grouping, multiline calls and normal-path readability.
+11. Exercised the real call shape with a local adapter harness and corrected a
+    helper-renaming defect.
+12. Moved lifecycle-only fields out of constructors and removed redundant checks
+    that did not own an input boundary.
+13. Reused one truthful NoLiveState marker and changed numerical accumulation to
+    math.fsum.
+14. A focused test showed that structurally identical inputs could cross direct
+    scientific calls; exact call-specific type checks were restored at that
+    boundary.
+15. Replaced generic and verb-shaped record names with domain nouns such as
+    WeightedSumModel, PreparationInput and CalculationState.
+16. Recompiled the complete adapter, caught an over-broad AnalysisHooks rename
+    and corrected it without adding an alias.
+17. Removed false byte-level precision from the dummy resident-resource claim and
+    aligned binding and format identities with the final provider types.
+18. Re-read the final files and aligned codec, state and call constants with their
+    domain nouns; annotated the stable scientific rejection fields.
+
+Resulting boundary
+------------------
+science.py contains provider-owned types and scientific functions only. binding.py
+contains the contribution adapter. Equal JSON shapes use separate types and format
+identities when their meanings differ. Shared codecs own structural admission;
+science owns scientific rejection. Live prepared state is represented by a typed
+CalculationState, not an untyped mapping.
+
+No compatibility aliases were added for the previous dummy names. The example is
+not a public compatibility baseline and no real provider has adopted those names.
+
+Focused evidence
+----------------
+The final local files were compiled with Python 3.13. The direct science checks ran
+seven tests covering the weighted lifecycle, correction after rejection,
+call-specific input types, numeric normalization, non-finite values, state
+retention after an unloaded-model refusal and empty-input rejection. All seven
+passed.
+
+A small local contract harness ran two adapter checks covering typed weighted
+execution/progress and translation of an empty sum into ScientificRejection. Both
+passed.
+
+The revised installed-native typed-boundary and embedded-host test modules were
+compiled. They were not executed against the complete installed provider-core
+package in this environment. Canonical contained qualification, the wider native
+lane, real-provider adoption, release, dependency updates and deployment remain
+unverified by this review.

@@ -1,96 +1,208 @@
+"""Exercise provider-owned types at the shared contribution boundary."""
+
+from __future__ import annotations
+
 import json
+import math
 import unittest
 from dataclasses import dataclass, replace
 
 from provider_core.contribution import ScientificRejection
 from provider_core.examples.dummy_provider import science
-from provider_core.examples.dummy_provider.binding import sum_binding, weighted_binding
-from provider_core.payload import DataclassStateBinding, JsonDataclassCodec, PayloadRejected
+from provider_core.examples.dummy_provider.binding import (
+    sum_binding,
+    weighted_sum_binding,
+)
+from provider_core.payload import (
+    DataclassStateBinding,
+    JsonDataclassCodec,
+    PayloadRejected,
+)
 
 
-class Control:
+class _Control:
     stop_requested = False
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.progress = []
 
-    def report_progress(self, event):
+    def report_progress(self, event) -> None:
         self.progress.append(event)
 
 
-class TypedBoundaryTests(unittest.TestCase):
-    def test_provider_types_survive_shared_json_and_call_boundary(self):
-        binding = weighted_binding(science.Settings(scale=2, offset=1), (1, 2, 3))
-        prepare, calculate = binding.calls
+def _weighted_binding():
+    return weighted_sum_binding(
+        settings=science.WeightedSumSettings(
+            scale=2,
+            offset=1,
+        ),
+        coefficients=science.CoefficientSet(
+            values=(1, 2, 3),
+        ),
+    )
+
+
+class TypedContributionTests(unittest.TestCase):
+    def test_provider_types_survive_payload_state_and_result_boundaries(self):
+        binding = _weighted_binding()
+        (prepare_call, calculate_call) = binding.calls
         model = binding.instance.construct()
         binding.instance.initialize(model)
         analysis = binding.analysis.construct(model)
         binding.analysis.initialize(analysis)
-        control = Control()
+        control = _Control()
 
-        candidate = prepare.decode_input(b'{"values":[2,4,6]}')
-        self.assertIs(type(candidate), science.ValuesInput)
-        self.assertEqual((2.0, 4.0, 6.0), candidate.values)
-        prepared_return = prepare.invoke(model, analysis, candidate, {}, control)
-        self.assertIs(type(prepared_return.value), science.PreparationResult)
-        prepared = prepared_return.states[0].value
+        preparation_input = prepare_call.decode_input(b'{"values":[2,4,6]}')
 
-        request = calculate.decode_input(b'{}')
-        self.assertIs(type(request), science.EmptyInput)
-        result = calculate.invoke(model, analysis, request, {"prepared": prepared}, control)
-        self.assertIs(type(result.value), science.PredictionResult)
-        self.assertEqual(science.PredictionResult(total=57.0, count=3), result.value)
-        self.assertEqual(
-            {"count": 3, "total": 57.0},
-            json.loads(calculate.encode_result(result.value)),
+        self.assertIs(science.PreparationInput, type(preparation_input))
+        self.assertEqual((2.0, 4.0, 6.0), preparation_input.values)
+
+        preparation = prepare_call.invoke(
+            model,
+            analysis,
+            preparation_input,
+            {},
+            control,
+        )
+        prepared_values = preparation.states[0].value
+
+        self.assertIs(science.PreparationResult, type(preparation.value))
+        self.assertIs(science.PreparedValues, type(prepared_values))
+
+        calculation = calculate_call.invoke(
+            model,
+            analysis,
+            calculate_call.decode_input(b"{}"),
+            {"prepared": prepared_values},
+            control,
         )
 
-    def test_payload_codec_is_strict_and_structural(self):
+        self.assertEqual(
+            science.PredictionResult(
+                total=57,
+                count=3,
+            ),
+            calculation.value,
+        )
+        self.assertEqual(
+            {"count": 3, "total": 57.0},
+            json.loads(calculate_call.encode_result(calculation.value)),
+        )
+
+    def test_equal_wire_shapes_keep_distinct_provider_types_and_formats(self):
+        prepare_call = _weighted_binding().calls[0]
+        sum_call = sum_binding().calls[0]
+
+        preparation_input = prepare_call.decode_input(b'{"values":[1]}')
+        sum_input = sum_call.decode_input(b'{"values":[1]}')
+
+        self.assertIs(science.PreparationInput, type(preparation_input))
+        self.assertIs(science.SumInput, type(sum_input))
+        self.assertIsNot(type(preparation_input), type(sum_input))
+        self.assertNotEqual(
+            prepare_call.description.input_format,
+            sum_call.description.input_format,
+        )
+
+    def test_wrong_call_specific_type_is_rejected_by_direct_science(self):
+        preparation_input = science.PreparationInput(values=(1,))
+
+        with self.assertRaises(TypeError):
+            science.sum_values(summation=preparation_input)
+
+    def test_payload_codec_rejects_invalid_wire_shapes(self):
         codec = sum_binding().calls[0].input_codec
-        for payload in (
+        invalid_payloads = (
             b'{"values":[1],"values":[2]}',
             b'{"values":[true]}',
             b'{"values":[NaN]}',
             b'{"values":[1],"extra":2}',
-            b'{}',
-        ):
+            b"{}",
+        )
+
+        for payload in invalid_payloads:
             with self.subTest(payload=payload), self.assertRaises(PayloadRejected):
                 codec.decode(payload)
 
-    def test_scientific_rejection_is_after_typed_admission(self):
-        binding = weighted_binding(science.Settings(scale=1, offset=0), (2,))
-        prepare = binding.calls[0]
+    def test_scientific_rejections_follow_structural_admission(self):
+        binding = weighted_sum_binding(
+            settings=science.WeightedSumSettings(
+                scale=1,
+                offset=0,
+            ),
+            coefficients=science.CoefficientSet(values=(2,)),
+        )
+        prepare_call = binding.calls[0]
         model = binding.instance.construct()
         binding.instance.initialize(model)
         analysis = binding.analysis.construct(model)
         binding.analysis.initialize(analysis)
-        candidate = prepare.input_codec.decode(b'{"values":[]}')
-        self.assertIs(type(candidate), science.ValuesInput)
-        with self.assertRaises(ScientificRejection) as caught:
-            prepare.invoke(model, analysis, candidate, {}, Control())
-        self.assertEqual("empty_input", caught.exception.code)
+        preparation_input = prepare_call.decode_input(b'{"values":[]}')
 
-    def test_state_binding_constructs_provider_struct(self):
-        prepared = science.PreparedInput(
-            analysis=science.AnalysisState(
-                model=science.create_model(
-                    science.Settings(scale=1, offset=0),
-                    (1,),
-                )
+        self.assertIs(science.PreparationInput, type(preparation_input))
+
+        with self.assertRaises(ScientificRejection) as preparation_rejection:
+            prepare_call.invoke(
+                model,
+                analysis,
+                preparation_input,
+                {},
+                _Control(),
+            )
+        self.assertEqual("empty_input", preparation_rejection.exception.code)
+
+        sum_call = sum_binding().calls[0]
+        sum_input = sum_call.decode_input(b'{"values":[]}')
+
+        with self.assertRaises(ScientificRejection) as sum_rejection:
+            sum_call.invoke(
+                None,
+                None,
+                sum_input,
+                {},
+                _Control(),
+            )
+        self.assertEqual("empty_input", sum_rejection.exception.code)
+
+    def test_nonfinite_values_are_rejected_during_portable_construction(self):
+        for value in (math.nan, math.inf, -math.inf, True):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                science.PreparationInput(values=(value,))
+
+    def test_state_binding_constructs_provider_state(self):
+        model = science.create_model(
+            settings=science.WeightedSumSettings(
+                scale=1,
+                offset=0,
             ),
-            values=(1.0,),
+            coefficients=science.CoefficientSet(values=(1,)),
         )
-        binding = DataclassStateBinding(value_type=science.CalculationState)
-        state = binding.bind({"prepared": prepared})
-        self.assertIs(type(state), science.CalculationState)
+        analysis = science.create_analysis(model)
+        prepared = science.PreparedValues(
+            analysis=analysis,
+            values=(1,),
+        )
+        state_binding = DataclassStateBinding(
+            value_type=science.CalculationState,
+        )
+
+        state = state_binding.bind({"prepared": prepared})
+
+        self.assertIs(science.CalculationState, type(state))
         self.assertIs(prepared, state.prepared)
 
-    def test_result_codec_rejects_wrong_provider_type(self):
+    def test_result_codec_rejects_another_provider_result_type(self):
         codec = sum_binding().calls[0].result_codec
-        with self.assertRaises(TypeError):
-            codec.encode(science.PredictionResult(total=1.0, count=1))
 
-    def test_portable_structs_must_be_frozen_and_slotted(self):
+        with self.assertRaises(TypeError):
+            codec.encode(
+                science.PredictionResult(
+                    total=1,
+                    count=1,
+                )
+            )
+
+    def test_portable_records_must_be_frozen_and_slotted(self):
         @dataclass
         class MutableRecord:
             value: int
@@ -101,7 +213,7 @@ class TypedBoundaryTests(unittest.TestCase):
                 value_type=MutableRecord,
             )
 
-    def test_portable_structs_reject_mutable_container_annotations(self):
+    def test_portable_records_reject_mutable_container_annotations(self):
         @dataclass(frozen=True, slots=True)
         class MutableInput:
             values: list[float]
@@ -112,26 +224,36 @@ class TypedBoundaryTests(unittest.TestCase):
                 value_type=MutableInput,
             )
 
-    def test_binding_requires_exact_provider_type_annotations(self):
+    def test_binding_requires_exact_provider_annotations(self):
         call = sum_binding().calls[0]
 
-        def untyped(instance, analysis, candidate, state, control):
+        def untyped(instance, analysis, scientific_input, state, control):
             return call.scientific_call(
                 instance,
                 analysis,
-                candidate,
+                scientific_input,
                 state,
                 control,
             )
 
         with self.assertRaises(TypeError):
-            replace(call, scientific_call=untyped)
+            replace(
+                call,
+                scientific_call=untyped,
+            )
 
     def test_binding_rejects_codec_format_mismatch(self):
         call = sum_binding().calls[0]
-        wrong = JsonDataclassCodec(format="wrong.v1", value_type=science.ValuesInput)
+        wrong_codec = JsonDataclassCodec(
+            format="wrong.v1",
+            value_type=science.SumInput,
+        )
+
         with self.assertRaises(ValueError):
-            replace(call, input_codec=wrong)
+            replace(
+                call,
+                input_codec=wrong_codec,
+            )
 
 
 if __name__ == "__main__":

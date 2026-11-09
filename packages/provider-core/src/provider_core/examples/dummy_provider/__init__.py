@@ -1,5 +1,5 @@
-"""Fake scientific code and adapter only.
+"""Dummy science and its contribution adapter.
 
-Scheduling, execution hosting, interpreter turns, resource ownership,
-supervision, delivery and deployment belong to shared provider-core code.
+Scheduling, hosting, permissions, supervision, delivery and deployment belong to
+shared provider-core code.
 """

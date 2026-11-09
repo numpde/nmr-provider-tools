@@ -1,146 +1,132 @@
 Provider contribution and execution interface v1
 ================================================
-2026-11-09 | Implemented shared contract; real-provider adoption remains open
+9 November 2026 | Implemented shared contract; real-provider adoption remains open
 
 Purpose
 -------
-This note records the first concrete interface shared by scientific contributions
-and execution backends. It refines the sketches in note 066. Notes 064-066 retain
-the architecture, safety rules and rollout plan; this note owns the exact v1 names
-and distinctions implemented in provider-core.
+This note records the concrete provider-facing interface implemented in
+provider-core. Notes 064-066 retain the architecture, safety rules and rollout
+plan. This note owns the implemented v1 names and distinctions.
 
 The dummy contribution is intentionally science-only. It implements the
 contribution interface but none of the shared service, scheduling, hosting,
 permission, recovery, delivery or deployment machinery.
 
-Provider-owned types, shared payload admission
-----------------------------------------------
-A contribution defines ordinary provider-owned dataclasses for every portable
-input and result. For example, the dummy defines ValuesInput, EmptyInput,
-PreparationResult, PredictionResult and SumResult. Scientific functions accept and
-return those types directly. Anonymous dictionaries, transport lists and tuples
-are not the provider interface.
+Provider-owned scientific types
+-------------------------------
+A contribution defines ordinary provider-owned types for its scientific facts.
+The dummy uses separate immutable dataclasses for:
 
-`provider_core.payload.JsonDataclassCodec[T]` owns UTF-8 JSON parsing, duplicate
-field detection, exact field admission, finite-number checks and construction of
-T. It supports immutable portable shapes: scalars, tuples, enums, optional values
-and nested frozen dataclasses. Mutable list/dict annotations are refused; use a
-tuple or a named nested dataclass. Structural failures are PayloadRejected before
-science runs.
+- WeightedSumSettings and CoefficientSet;
+- PreparationInput, CalculationInput and SumInput;
+- PreparationResult, PredictionResult and SumResult;
+- PlainSumConfiguration.
 
-Live scientific state is separate from portable payloads. A contribution defines
-a provider-owned state dataclass, such as CalculationState(prepared=...).
-`DataclassStateBinding[T]` checks exact names and live value types and constructs T
-immediately before the scientific call. The provider does not receive a
+Equal wire shapes do not collapse distinct meanings. PreparationInput and
+SumInput both contain values, but they are different types with different format
+identities and different scientific functions. The science module receives no
+JSON dictionaries, transport lists, anonymous tuples or execution controllers.
+
+Live scientific state is separate from portable payloads. The dummy has a loaded
+WeightedSumModel, one WeightedSumAnalysis and worker-local PreparedValues.
+CalculationState is the typed view of retained state required by calculate.
+NoLiveState truthfully represents a call with no retained scientific state.
+
+Shared structural admission
+---------------------------
+JsonDataclassCodec[T] owns UTF-8 JSON parsing, duplicate-field rejection, exact
+field admission, finite-number checks and construction of T. Portable records
+must be frozen and slotted. Mutable list and dict annotations are refused; use a
+tuple or a named nested dataclass. PayloadRejected identifies structural refusal
+before science runs.
+
+DataclassStateBinding[T] checks the declared state names and live value types, then
+constructs T immediately before the scientific call. The provider does not receive
 Mapping[str, object].
 
-`CallBinding[InstanceT, AnalysisT, InputT, StateT, OutputT]` keeps these types
-through the complete host-local call:
+CallBinding[InstanceT, AnalysisT, InputT, StateT, OutputT] preserves provider types
+through the host-local call:
 
     bytes
       -> PayloadCodec[InputT]
       -> InputT
       -> StateBinding[StateT]
-      -> provider scientific call(InputT, StateT)
+      -> scientific call(InputT, StateT)
       -> ScientificReturn[OutputT]
       -> PayloadCodec[OutputT]
       -> bytes
 
-The binding validates that codec formats agree with CallDescription and that the
-scientific callable is annotated with the exact InputT, StateT and
-ScientificReturn[OutputT]. The heterogeneous implementation registry erases types
-only inside shared dynamic dispatch; provider adapter functions remain typed.
+The binding checks that codec formats agree with CallDescription and that each
+scientific callable declares the exact InputT, StateT and ScientificReturn[OutputT]
+annotations. Type erasure exists only inside shared heterogeneous dispatch.
 
-What the scheduler can see
---------------------------
-`provider_core.contribution` separates an immutable data description from the
-host-local Python binding. The data description contains:
+Scientific and structural refusal remain distinct. The dummy raises
+ScientificInputRejected with a stable code after structural admission; the adapter
+translates it to ScientificRejection while preserving the original cause.
+Unexpected defects remain failures rather than becoming invalid input.
 
-- immutable binding identity and sha256 revision;
-- configuration format and sha256 digest;
-- named assets with media type, byte size and sha256 digest;
-- resident resource requirements;
-- minimum process-isolation boundary;
-- named scientific calls;
-- input and result format identities;
-- named state inputs and outputs, including borrow or consume semantics;
-- per-call resource requirements;
-- instance-, process- or no scientific serialization requirements;
+Scheduler description and host-local binding
+--------------------------------------------
+The scheduler-readable ImplementationDescription contains only immutable data:
+
+- binding identity and sha256 revision;
+- configuration format and digest;
+- named assets with media type, size and digest;
+- resident and per-call resource requirements;
+- minimum process isolation and call concurrency;
+- named calls, formats and state borrow/consume rules;
 - cooperative interruption and progress capabilities.
 
-`description_document()` produces the JSON-compatible scheduler view. It contains
-no factories, provider dataclasses, model objects, paths, credentials, framework
-devices or cleanup owners.
+It contains no factories, provider objects, paths, credentials, framework devices
+or cleanup owners. The host-local ImplementationBinding contains the configured
+factories, lifecycle hooks, codecs and scientific callables inside the authorized
+scientific environment.
 
-What the scientific host can load
----------------------------------
-The host-local `ImplementationBinding` contains the provider callbacks that
-interpret configuration and assets inside the authorized scientific environment.
-Optional `InstanceHooks` own a loaded model/index/runtime. Optional
-`AnalysisHooks` own mutable state for one analysis before preparation has
-necessarily succeeded.
+ScientificControl is the only optional operational capability visible to an
+adapter. It exposes a stop flag and bounded progress reporting, not Jobs authority,
+resource allocation, process control, credentials or a service client. Numerical
+functions need not receive it; the dummy keeps it in the binding adapter.
 
-A scientific call receives its typed instance, typed analysis, typed portable
-input, typed retained-state struct and an optional narrow `ScientificControl`.
-`ScientificControl` exposes only a stop flag and bounded ProgressEvent reporting.
-It exposes no Jobs authority, resource allocator, process control, credentials or
-service client. Numerical functions need not receive it; an adapter may translate
-it into a narrower provider-specific interface.
+Shared execution
+----------------
+provider_core.hosting defines resource grants, backend capabilities, exact
+allocation/reservation/operation/state/result references, identified invocations,
+typed definite non-admission, observations, result custody, analysis-scoped
+control and pool-owned allocation retirement.
 
-What shared execution supplies
-------------------------------
-`provider_core.hosting` defines:
-
-- resource grants assigned by deployment;
-- backend capability declarations;
-- exact allocation, reservation, operation, state and result references;
-- identified invocations with original limits;
-- typed definite non-admission;
-- observations separating acceptance, dispatch, scientific outcome, result state,
-  progress, stop request, allowance expiry and resource occupancy;
-- analysis-scoped submit, observe, stop and close;
-- exact result read/release;
-- pool administration and exact allocation retirement.
-
-An operation returned by submit is already owned. NotAdmitted means that this
+An Operation returned by submit is already owned. NotAdmitted means this
 invocation caused no dispatch or orphaned acquisition. Re-observation never
-resubmits or renews the original budget. Analysis code cannot retire a shared
-instance; that authority belongs to pool administration.
+resubmits work or renews its budget. Analysis code cannot retire a shared
+instance; pool administration owns that capability.
 
-First backend
--------------
-`provider_core.embedded_host` is a bounded fixed-local backend used by shared
-tests. It is not provider code and is not the final service. It supports contract
-version 1, shared-process implementations, fixed local allocations, bounded
-progress, explicit grants, state affinity and consumption, result retention and
-exact allocation retirement.
-
+The bounded embedded backend exercises the contract with fixed local allocations.
 It refuses unsupported isolation, process-global serialization and missing grants
-before scientific construction. It cannot forcibly interrupt Python, persist
-operations across a process crash, enforce OS memory/device limits or execute
+before scientific construction. It cannot forcibly interrupt Python, persist work
+across a process crash, enforce operating-system resource limits or execute
 remotely. Those are backend capabilities, not restrictions on contributions.
 
-Dummy contribution
-------------------
-`provider_core.examples.dummy_provider` contains only science.py, binding.py and
-its package marker. science.py imports no provider-core module. binding.py imports
-only provider_core.contribution, which is the provider-facing API. The package has
-no CLI, Jobs client, interpreter, scheduler, host, pool, allocator, permission
-owner, recovery, delivery, drain or deployment code.
+Dummy contribution boundary
+---------------------------
+provider_core.examples.dummy_provider contains science.py, binding.py and its
+package marker. science.py imports no provider-core module. binding.py imports only
+provider_core.contribution. The package contains no provider-local operational
+machinery.
+
+The stateful implementation demonstrates immutable configuration/assets, loaded
+instance and per-analysis lifetimes, rejected and corrected preparation,
+worker-local prepared state, consuming calculation, progress and cleanup. The
+stateless sum uses the same typed contribution interface without inventing model
+or analysis lifetimes.
 
 Current evidence and limits
 ---------------------------
-The typed payload and adapter checks cover strict JSON admission, duplicate and
-unexpected fields, boolean-versus-number distinction, non-finite values,
-provider-owned input/result types, typed state construction, scientific rejection
-after structural admission, codec/description agreement and exact callable
-annotations. Changed Python files compile under Python 3.13, compatible with the
-package's Python 3.12+ requirement.
+The revision following cfa39f7 was reviewed against numpde/hello-world
+notes/000_portable_engineering_practices.txt at main@8e7eb12. The detailed review
+passes and focused evidence are recorded in note 068.
 
-The previous c994fcd local-backend evidence does not by itself qualify this typed
-revision. Canonical installed-wheel/Docker qualification remains required. SECS,
-NMRNet, NMRPeak and Magnet still need their real scientific and guarded execution
-paths connected to this installed contract. Existing AnalysisSession permission
-checks remain until the host-managed path is equivalent and qualified. Jobs
-service integration, durable operation/result records, remote execution and
-phase-specific scheduling remain later shared work under notes 065-066.
+Canonical installed-wheel/Docker qualification remains required. SECS, NMRNet,
+NMRPeak and Magnet still need their real scientific and guarded execution paths
+connected to this installed contract. Existing AnalysisSession permission checks
+remain until the host-managed path is equivalent and qualified. Jobs integration,
+durable operation/result records, remote execution and phase-specific scheduling
+remain later shared work under notes 065-066.
