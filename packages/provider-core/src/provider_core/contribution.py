@@ -18,8 +18,8 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any, Protocol, cast, get_args, get_origin, get_type_hints
 
+from provider_core.contribution_errors import ScientificRejection
 from provider_core.payload import (
-    CallRejected,
     DataclassStateBinding,
     JsonDataclassCodec,
     PayloadCodec,
@@ -572,10 +572,6 @@ class ImplementationBinding[InstanceT, AnalysisT]:
             analysis=analysis,
             calls=calls,
         )
-
-
-class ScientificRejection(CallRejected):
-    """Reviewed scientific rejection after portable input admission."""
 
 
 def description_document(description: ImplementationDescription) -> dict[str, object]:

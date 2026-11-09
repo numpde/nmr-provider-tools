@@ -148,15 +148,7 @@ def weighted_sum_binding(
         configuration=configuration,
         assets=assets,
         calls=calls,
-        resident_resources=(
-            contribution.ResourceRequirement(
-                kind="dummy-resident-data",
-                amount=len(coefficients.values),
-                unit="coefficient",
-                selector="weighted-sum",
-                exclusive=False,
-            ),
-        ),
+        resident_resources=(),
         isolation=contribution.IsolationRequirement.SHARED_PROCESS,
         instance=contribution.InstanceHooks(
             construct=partial(

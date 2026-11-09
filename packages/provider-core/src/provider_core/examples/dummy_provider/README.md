@@ -6,9 +6,10 @@ provider service or a miniature copy of the shared platform.
 `science.py` defines provider-owned scientific types and functions. Portable
 configuration, inputs and results are immutable dataclasses. Live model,
 analysis and prepared state are separate mutable objects with explicit
-lifetimes. Its only provider-core dependency is `ScientificRejection`, the
-provider-facing exception contract used for reviewed scientific refusals; it
-imports no hosting or execution machinery.
+lifetimes. Its only provider-core dependency is the lightweight
+`ScientificRejection` contract in `provider_core.contribution_errors`; importing
+the science does not import the host interface or require the contained runtime
+launcher.
 
 `binding.py` connects that science to `provider_core.contribution`. Shared codecs
 admit bytes into the exact provider type before science runs. Calls that happen
@@ -34,6 +35,11 @@ binding revisions are built by `provider_core.contribution_declaration`.
 `binding.py` supplies the provider-owned values and semantic identities; it does
 not implement generic JSON encoding or hashing. Callers use `sum_binding` and
 `weighted_sum_binding` to construct the two example implementations.
+
+The weighted example declares active CPU work but does not invent a resident
+resource quantity for its tiny coefficient tuple. Shared backend tests add a
+synthetic resident requirement when exercising grant refusal; the example itself
+describes only requirements it can state meaningfully.
 
 The contribution supplies configuration and asset identities, named scientific
 calls, resource requirements, lifecycle hooks, result encoding and scientific

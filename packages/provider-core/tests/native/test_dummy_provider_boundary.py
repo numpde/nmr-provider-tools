@@ -1,10 +1,13 @@
 """Keep the dummy provider limited to science and its contribution adapter."""
 
-import ast
 from importlib import resources
+import os
+import subprocess
+import sys
 import unittest
 
-from provider_core.contribution import ScientificRejection
+from provider_core.contribution import ScientificRejection as ExportedScientificRejection
+from provider_core.contribution_errors import ScientificRejection
 import provider_core.examples.dummy_provider as dummy_provider
 from provider_core.examples.dummy_provider import science
 
@@ -16,38 +19,29 @@ class DummyProviderBoundaryTests(unittest.TestCase):
 
         self.assertEqual({"__init__.py", "binding.py", "science.py"}, sources)
 
-        expected_imports = {
-            "__init__.py": set(),
-            "science.py": {"provider_core.contribution"},
-            "binding.py": {
-                "provider_core.contribution",
-                "provider_core.contribution_declaration",
-            },
-        }
-        for name in sources:
-            tree = ast.parse(
-                root.joinpath(name).read_text(encoding="utf-8"),
-                filename=name,
-            )
-            provider_core_imports = set()
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
-                    provider_core_imports.update(
-                        alias.name
-                        for alias in node.names
-                        if alias.name.startswith("provider_core")
-                    )
-                elif (
-                    isinstance(node, ast.ImportFrom)
-                    and node.module
-                    and node.module.startswith("provider_core")
-                ):
-                    provider_core_imports.add(node.module)
+    def test_science_import_does_not_require_the_runtime_launcher(self):
+        environment = os.environ.copy()
+        environment.pop("PROVIDER_CORE_IN_CONTAINER", None)
 
-            with self.subTest(name=name):
-                self.assertEqual(expected_imports[name], provider_core_imports)
+        import_check = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "from provider_core.examples.dummy_provider import science; "
+                    "science.WeightedSumSettings(scale=1, offset=0)"
+                ),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            env=environment,
+        )
 
-    def test_scientific_rejection_uses_the_shared_contract(self):
+        self.assertEqual(0, import_check.returncode, import_check.stderr)
+
+    def test_scientific_rejection_uses_the_lightweight_shared_contract(self):
+        self.assertIs(ScientificRejection, ExportedScientificRejection)
         self.assertTrue(
             issubclass(
                 science.ScientificInputRejected,

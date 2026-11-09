@@ -18,6 +18,7 @@ from provider_core.contribution import (
     InterruptionSupport,
     IsolationRequirement,
     ProgressEvent,
+    ResourceRequirement,
     ScientificControl,
     ScientificReturn,
     description_document,
@@ -780,26 +781,25 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     grants=_grants(original),
                 )
 
-        weighted = weighted_sum_binding(
-            settings=science.WeightedSumSettings(
-                scale=1,
-                offset=0,
+        resident_requirement = ResourceRequirement(
+            kind="host-memory",
+            amount=1,
+            unit="byte",
+            selector="test",
+            exclusive=False,
+        )
+        resident_binding = replace(
+            original,
+            description=replace(
+                original.description,
+                resident_resources=(resident_requirement,),
             ),
-            coefficients=science.CoefficientSet(values=(2,)),
         )
         with self.assertRaises(ValueError):
             Allocation(
-                name="missing-resident-data",
-                binding=weighted,
-                grants=(
-                    ResourceGrant(
-                        kind="cpu",
-                        amount=1,
-                        unit="thread",
-                        selector="generic",
-                        exclusive=False,
-                    ),
-                ),
+                name="missing-resident-grant",
+                binding=resident_binding,
+                grants=_grants(original),
             )
 
     async def test_partial_initialization_keeps_the_original_cleanup_owner(self):

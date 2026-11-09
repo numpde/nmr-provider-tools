@@ -12,7 +12,6 @@ require_container()
 
 import json
 import math
-import re
 from collections.abc import Mapping
 from dataclasses import MISSING, dataclass, fields, is_dataclass
 from enum import Enum
@@ -29,21 +28,7 @@ from typing import (
     runtime_checkable,
 )
 
-
-_REJECTION_CODE = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
-
-
-class CallRejected(Exception):
-    """A reviewed refusal before a scientific result is established."""
-
-    def __init__(self, code: str, message: str):
-        if type(code) is not str or _REJECTION_CODE.fullmatch(code) is None:
-            raise ValueError("A rejection code must match [a-z][a-z0-9_]{0,63}")
-        if not (type(message) is str and message):
-            raise ValueError("A rejection needs a nonempty explanatory message")
-        self.code = code
-        self.message = message
-        super().__init__(message)
+from provider_core.contribution_errors import CallRejected
 
 
 class PayloadRejected(CallRejected):

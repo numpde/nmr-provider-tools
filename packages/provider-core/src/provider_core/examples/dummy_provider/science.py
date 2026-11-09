@@ -1,6 +1,6 @@
 """Dummy provider-owned science for the shared contribution example.
 
-The module depends only on the provider-facing scientific rejection contract.
+The module depends only on the lightweight scientific rejection contract.
 Portable records are immutable; live model, analysis, and prepared state remain
 explicit and provider-owned.
 """
@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from provider_core.contribution import ScientificRejection
+from provider_core.contribution_errors import ScientificRejection
 
 
 def _finite_float(value: object, *, label: str) -> float:
@@ -152,7 +152,6 @@ class WeightedSumModel:
 class WeightedSumAnalysis:
     model: WeightedSumModel
     is_open: bool = field(default=False, init=False)
-    preparation_attempts: int = field(default=0, init=False)
     accepted_preparation: PreparedValues | None = field(
         default=None,
         init=False,
@@ -255,9 +254,6 @@ def prepare(
     """Reject one candidate without discarding the analysis itself."""
     if not analysis.is_open:
         raise RuntimeError("Cannot prepare input for a closed analysis")
-
-    analysis.preparation_attempts += 1
-
     if not candidate.values:
         raise ScientificInputRejected(
             "empty_input",
