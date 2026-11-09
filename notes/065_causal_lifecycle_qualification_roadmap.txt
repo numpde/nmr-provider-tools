@@ -1,6 +1,7 @@
 Roadmap: causal qualification and the target shared execution platform
 ======================================================================
 Revised 2026-11-09 | Target: note 066 | Source baseline 1178115
+Boundary clarification: opaque orchestration, configured science, shared hosting
 
 Authority and delivery practice
 -------------------------------
@@ -15,6 +16,15 @@ its interface is declared complete. A one-worker deployment is a configuration,
 not a first service architecture that later needs replacing. Characterize current
 providers only to protect scientific semantics and identify bridges. Obsolete
 polling, fail-stop, lifetime or lane assumptions may intentionally change.
+
+The orchestrator routes opaque work and operational authority to an execution
+interface. Deployment/registration binds the scientific implementation, its
+configuration and assets. The host invokes scientific initialization and analysis;
+it does not make the scheduler choose weights, scientific parameters or device
+library objects. Section 7 of 066 defines input provenance, invocation surfaces,
+loaded-instance/per-analysis lifetimes and the authority that must not leak into
+numerical functions. Build these boundaries into the first runnable capability,
+not a separate speculative framework or catch-all execution-context object.
 
 Work on main in small, complete, runnable capability increments. Include tests,
 installation support and required integration in the same coherent increment;
@@ -89,16 +99,25 @@ until useful replay and non-vacuous ownership coverage are demonstrated.
 
 1. First new capability: one implementation, multiple owned allocations
 ----------------------------------------------------------------------
-Closes the initial part of G02/G04/G10; provides the boundary for G01/G03/G12.
+Closes the initial part of G02/G04/G10 and establishes G01's invocation boundary;
+provides the foundation for G03/G12. Implement M1 as runnable increments.
 
+[ ] M1.0 In the first hosted example, distinguish configuration/asset binding,
+    the operational dispatch envelope and the scientific callable's arguments.
+    Use note 066 section 7's provenance map. No numerical hook receives a
+    controller, registry, ProviderAPI, ReportCondition, Jobs credential, global
+    allocator or Docker manager, directly or through a catch-all context.
 [ ] M1.1 Separate offering and implementation identity from allocation identity
     and incarnation. Specify actual resource reservation and retirement evidence.
-    Start beside existing analysis.py and runner lifecycle helpers; proposed
-    service/allocation modules are implementation choices, not mandatory files.
+    Keep operation/Attempt authority in the host/backend envelope, not mandatory
+    numerical arguments. Start beside existing analysis.py and runner helpers;
+    proposed service/allocation modules are choices, not mandatory files.
 [ ] M1.2 Build a small fixed local pool around existing runner supervision.
     Configuration selects one or two replicas of the SAME implementation; the
     scientific adapter source is identical. Pool startup, partial allocation,
-    readiness, reservation, drain and reuse have owned outcomes.
+    readiness, reservation, drain and reuse have owned outcomes. Bind versioned
+    configuration/assets at initialization, without rebuilding them per Job or
+    making the scheduler understand their schema. Keep per-Job parameters opaque.
 [ ] M1.3 Use an explicit non-reentrant test adapter in two independent real worker
     allocations. Prove concurrent distinct Jobs, held cleanup in A while B
     completes, no reuse of A, and correct recovery when A's original evidence
@@ -110,11 +129,18 @@ Closes the initial part of G02/G04/G10; provides the boundary for G01/G03/G12.
     consumer. Any serialized worker protocol is a temporary per-allocation
     constraint, not a global SECS lock. Inventory mutable globals, scratch names,
     source grants and model-load identity; remove cross-replica collisions.
+[ ] M1.6 Run the same scientific operations directly without a live Jobs service,
+    then through the host with one/two allocations. Verify initialization once
+    per actual instance, isolated per-analysis state and scientific disposal
+    distinct from full allocation retirement. Model configuration validation
+    belongs to the contribution; asset digest verification alone cannot admit
+    an incompatible model. Host dispatch of revoked work must fail before the
+    scientific effect without asking science to interpret an Attempt.
 
-Exit: the shared execution capability works with one/two allocations, including
-failure isolation, before the service is designed around a singleton. A genuine
-scientific/backend limit is stated narrowly and has an evidence-backed bridge;
-there is no promise that the legacy worker itself suddenly becomes reentrant.
+Exit: the shared execution capability works with one/two allocations and the
+same directly callable scientific implementation. The scheduler routes work;
+configuration/asset semantics remain in the contribution. A real scientific or
+backend limit has an evidence-backed bridge, not a singleton architecture.
 
 2. Build the common service around the allocation contract
 ----------------------------------------------------------
@@ -125,8 +151,10 @@ G01/G07 and the service part of G05. M1 supplies a real first consumer.
     and terminal handoff. A failed page does not restart an admitted operation.
 [ ] M2.2 Integrate reservations with AttemptClaims/AttemptController admission.
     Reserve before effects, adopt partially created sessions/controllers before
-    awaiting further work, and recheck permission at actual dispatch. Refused
-    admission must leave no partial Job/START/resource ownership.
+    awaiting further work, and check authority in shared hosting at each managed
+    dispatch, including after awaits. Refused admission must leave no partial
+    Job/START/resource ownership. Keep existing binding permission checks until
+    equivalent host guards are qualified; this plan does not authorize deletion.
 [ ] M2.3 Drive original controllers and maintain them independently of discovery,
     offered capability, spare capacity and open admission. Use owner-produced
     facts/dispositions, not provider-specific nested-exception inspection.
@@ -136,9 +164,16 @@ G01/G07 and the service part of G05. M1 supplies a real first consumer.
 [ ] M2.5 Implement common stop-admission, active-work stop, report drain and
     shutdown observations. Retain unconfirmed allocations and selected reports.
     Keep queue acceptance, API publication and physical retirement distinct.
+    Qualify cooperative cancellation separately from noncooperative backend
+    interruption; a cancellation signal is neither quiescence nor exit evidence.
 [ ] M2.6 Remove displaced generic code from the first consumer in the same
     usable increments. Reuse the existing durable outbox/publisher; do not create
     a second terminal queue or another authoritative Attempt registry.
+[ ] M2.7 Exercise two contributions with different input/configuration schemas
+    behind the same scheduler. Only their registered loaders/decoders interpret
+    scientific bytes. Verify scheduler imports and invocation data flow have no
+    science-library dependency or provider-name branches. A protocol binding can
+    translate outcomes, but cannot become another poller or permission engine.
 
 Exit: the first consumer uses the target service with both pool configurations.
 A serial setting does not select a different scheduler implementation. Default
@@ -155,6 +190,8 @@ No exhaustive old-service qualification project precedes the first migration.
     target contract, owning shared component, temporary restriction, removal
     milestone and external closing witness. Classify old assertions as scientific
     invariant, protocol obligation, obsolete quirk or desired new capability.
+    Separate numerical code and configuration from SDK compatibility binding;
+    current AnalysisSession argument types are not the final numerical interface.
 [ ] M3.2 Compare current service/current SDK, current service/candidate SDK and
     migrated service/same candidate when useful to isolate causes. New target
     behavior may intentionally fail on the old service. Never run two live
@@ -187,6 +224,9 @@ No exhaustive old-service qualification project precedes the first migration.
 [ ] M3.7 Delete displaced local discovery, allocation management, retry, retention,
     pressure and drain code. Move broad generic matrices with their shared owner.
     Retain numerical/native compatibility tests and a thin installed consumer proof.
+    Move common native readers, permission plumbing and process retirement out of
+    scientific cleanup hooks; keep only domain disposal and a narrow translation
+    bridge where necessary. Preserve original ownership during the transition.
 
 Evidence sources: pinned provider paths/revisions in 064. Historical prose-service
 branches in 061 contain both runtime and test changes; reinspect before reuse.
@@ -208,10 +248,11 @@ G03/G04. Can develop with M3 once the shared reservation boundary is exercised.
     residency, active CPU/GPU work, uncertain allocations and terminal custody.
     Reject overcommit across implementations sharing one physical device.
     Across processes require a shared allocator or enforced disjoint grants.
-[ ] M4.2 Acquire compute by actual phase requirements. Demonstrate that a blocked
-    prose HTTP request does not reserve an otherwise usable GPU execution slot;
-    demonstrate that scientific preparation which DOES use the device retains
-    the correct allocation and any affinity-bound prepared state.
+[ ] M4.2 Acquire compute in shared hosting from declared phase requirements.
+    Demonstrate that a blocked prose request does not reserve an otherwise usable
+    GPU slot, while scientific preparation that DOES use the device retains the
+    correct allocation/affinity. Domain tool selection and prompts remain in the
+    contribution; scheduling must not construct scientific inputs to achieve this.
 [ ] M4.3 Bound prepared count/bytes and queue wait. Implement ordered/atomic
     composite acquisition; test cancellation halfway through a resource request
     and competing phases that would otherwise deadlock. Cold starts remain
@@ -233,6 +274,7 @@ G05/G07. Extend current controller/executor contracts with owning evidence.
     handoff, held uncertain work, eligible release and terminal reconciliation.
     Keep permission, physical closure and disposition separate. No provider needs
     to inspect a private checkpoint or reconstruct nested failures to schedule.
+    These are operational interfaces, not new required numerical-function inputs.
 [ ] M5.2 Qualify stronger post-entry reconciliation where authoritative API state
     and backend dispatch/termination evidence justify it. Preserve f26ef5f's
     conservative current guard until the replacement is proved. A test science
@@ -303,14 +345,17 @@ and the same scientific/ownership contract.
 
 8. Qualification, acceptance and removal of bridges
 --------------------------------------------------
-[ ] M8.1 Maintain gap receipts: G01 service removal (M2/M3); G02 pools (M1);
-    G03 physical/stage budgets (M4); G04 handles/protocols (M1/M4); G05 recovery
-    (M5); G06 durable custody (M6); G07 scheduling/maintenance (M2/M5); G08 adaptive
-    policy/batching (M7); G09 remote authority (M7); G10 deployment (M1/M7);
-    G11 faithful qualification (M0 and every capability); G12 real consumers (M3).
+[ ] M8.1 Maintain gap receipts: G01 invocation/service boundary (M1/M2/M3);
+    G02 pools (M1); G03 physical/stage budgets (M4); G04 handles/protocols and
+    disposal boundary (M1/M3/M4); G05 recovery (M5); G06 durable custody (M6);
+    G07 scheduling/maintenance (M2/M5); G08 adaptive policy/batching (M7);
+    G09 remote authority (M7); G10 deployment (M1/M7); G11 faithful qualification
+    (M0 and every capability); G12 real consumers (M3).
 [ ] M8.2 Require a removal gate for each singleton/legacy bridge: identical adapter
     bytes with changed replica count, no global mutable cross-Job state, correct
     operation identity and resource bounds, then deletion of the old special path.
+    Keep a direct-science invocation and actual hosted-boundary test; the absence
+    of forbidden class names in one signature is not proof against nested leaks.
 [ ] M8.3 Use deterministic scenarios for mandatory behaviors, stateful generation
     for boundary orderings, actual subprocess/IPC tests for physical evidence,
     installed consumer tests for assembly and native/deployment runs for real
@@ -331,9 +376,12 @@ and the same scientific/ownership contract.
 
 Final acceptance
 ----------------
-A provider supplies its science, capability/resource requirements and a small
-installed qualification fixture. Shared code supplies service, execution pools,
-recovery and deployment mechanisms. Replica count, placement and residency are
-operational choices. The platform preserves scientific meaning and real ownership
-obligations while retiring incidental constraints of current implementations.
-All remaining end-state gaps have a named owner, bridge and closing witness.
+A provider supplies its science, configured implementation, capability/resource
+requirements and a small installed qualification fixture. Shared code supplies
+service, execution hosting/pools, recovery and deployment mechanisms. Scheduling
+routes opaque work; scientific setup and meaning remain in the contribution.
+Numerical code can run without Jobs/Attempt authority. Replica count, compatible
+placement and residency are operational choices, not scientific rewrites.
+The platform preserves scientific meaning and real ownership obligations while
+retiring incidental constraints of current implementations. All remaining
+end-state gaps have a named owner, bridge and closing witness.

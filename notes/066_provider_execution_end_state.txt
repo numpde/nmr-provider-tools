@@ -1,6 +1,7 @@
 Target architecture: scientific adapters on a shared execution platform
 =======================================================================
 2026-11-09 | Design decision and gap register | Baseline SDK 1178115
+Boundary clarification: orchestrator -> execution host -> configured science
 
 Decision and authority
 ----------------------
@@ -23,11 +24,18 @@ recovery with minimal operator intervention. It is not maximum concurrency at
 any cost. Residency and batching choices require measurements for each workload;
 this note makes them replaceable without rewriting scientific adapters.
 
+The orchestrator does not assemble scientific inputs, model configuration,
+weights or framework device objects. It routes a work item to a registered,
+configured implementation through an execution interface. Shared hosting invokes
+that implementation; scientific code owns interpretation, setup and computation.
+Transporting opaque bytes is not authority to choose their scientific meaning.
+Sections 2 and 7 define the separate boundaries and the provenance of each input.
+
 This is a target and migration design, not an assertion that the platform below
-exists. Source baseline: numpde/nmr-provider-tools at
-1178115c8b1ea89556f4c04f73d69471be8e1b5f. Consumer facts are the pinned review in
-064, not a fresh audit of deployed hosts. No release or deployment is authorized
-by this document.
+exists. Runtime source baseline: numpde/nmr-provider-tools at
+1178115c8b1ea89556f4c04f73d69471be8e1b5f; preceding documentation revision 2c1d23d.
+Consumer facts are the pinned review in 064, not a fresh audit of deployed hosts.
+No release or deployment is authorized by this document.
 
 1. Separate scientific identity from execution topology
 -------------------------------------------------------
@@ -73,43 +81,58 @@ It must not become an immutable one-lane/one-worker/one-Job relationship.
 
 2. The end-state ownership split
 --------------------------------
-Scientific adapter
-  Implements scientific input checks, tools, preparation, execution and result
-  meaning. Declares compatibility, phase resource requirements, state/affinity,
-  cancellation or resumability evidence, batch semantics and any authorized
-  scientific retry. Supplies numerical code and model-specific initialization
-  hooks. It does not implement discovery, placement, process supervision,
-  admission, generic retry, delivery, retained-work maintenance or drain.
+Scientific contribution
+  Owns domain input decoding/checks, scientific tools, preparation, computation,
+  result meaning, model-specific initialization and disposal. It supplies its
+  versioned configuration/assets and declares compatibility, resource needs,
+  affinity, batch semantics and scientifically authorized retry. Its registration
+  binding describes the offering without making the scheduler understand NMR.
+  Scientific functions do not receive an AttemptController, AttemptClaims,
+  ProviderAPI, report_condition, Jobs credentials or the global allocator.
 
-Shared runtime in provider-core
-  Owns announcement, bounded discovery, fairness, admission and Attempt driving;
-  allocation reservations and operation supervision; maintenance and failure
-  isolation; exact terminal handoff; common status and drain. Compose existing
-  API, controller, claims, interpreter and runner mechanisms rather than duplicate
-  them. Coordinate the lifetimes of original sources, prepared handles and
-  backend operations, while scientific code supplies domain-specific disposal.
+Shared service orchestrator in provider-core
+  Owns announcement, bounded discovery, fairness, admission, Attempt authority,
+  maintenance, failure scope and drain. It selects a registered implementation
+  and requests work through the execution interface. Its request carries an
+  opaque input payload/reference and an operational envelope: identity,
+  reservation/authority, deadlines and limits. It observes an operation handle
+  and outcome. It does not import models, construct scientific parameters,
+  select checkpoint filenames or interpret the payload's scientific contents.
 
-Shared execution backends
-  Own common worker startup, model loading orchestration, identity probes,
-  process/IPC/remote operation control, quiescence evidence, pool management and
-  replacement. Keep reusable lifecycle machinery shared even when a legacy model
-  needs a small protocol bridge. Non-reentrant model code may require one active
-  operation per allocation; that does not require one allocation per provider.
-  Future protocol improvements are allowed to remove that per-allocation limit.
+Shared execution hosting and backends
+  Own allocation pools, process/IPC/remote operation control, identity probes,
+  dispatch, cancellation supervision, custody and retirement evidence. The host
+  binds the configured implementation and invokes its initialization/scientific
+  hooks. Configuration interpreters and model loaders belong to that contribution,
+  not a scheduler switch on provider name. Backend-specific grants are translated
+  into the implementation's supported environment; framework-specific objects
+  are constructed by scientific initialization, not passed through the scheduler.
+  Common hosting enforces operational authority without exporting controller
+  internals to science. A small legacy protocol bridge may remain temporarily;
+  it must not conceal another pool, retry, polling or shutdown implementation.
 
-Deployment tooling
-  Owns images, verified artifacts, provisioning, identities, socket/network
-  grants, device limits, resource inventory, rollout and rollback. Operator
-  configuration chooses pool bounds, placement, budgets and approved backend
-  implementations. Keep privileged Docker/host operations out of scientific
-  code and the ordinary service loop. Reuse the existing deployment/acquisition
-  ownership; do not introduce a mandatory cluster manager or broker.
+Deployment tooling and operator configuration
+  Own images, verified artifacts, provisioning, identities, socket/network
+  grants, device limits, resource inventory, rollout and rollback. Deployment
+  binds approved implementation configuration and assets; shared tools can fetch,
+  verify and materialize them without understanding checkpoint or input semantics.
+  Operator policy selects pool bounds, placement, budgets and approved backends.
+  The orchestrator can enforce generic declarations and compare opaque identities;
+  it does not reinterpret or silently modify the selected scientific configuration.
+  Keep privileged Docker/host operations out of science and the service loop.
 
 Result delivery
-  Keep the existing durable outbox and publisher as separate owners. Runtime
-  transfer of exact terminal bytes and publication to the central API remain
+  Keep the existing durable outbox and publisher as separate owners. Scientific
+  code produces a result or classified scientific failure, not a Jobs API terminal
+  request. Shared protocol/lifecycle code binds that outcome to the Attempt and
+  selects the exact report. Local durable acceptance and central publication are
   distinct acknowledgements. Shared code does not mean one process, one failure
   domain, or one giant package importing every optional backend dependency.
+
+The execution interface is a semantic/authority boundary, not necessarily a
+network hop. An in-process host, isolated local worker and qualified remote backend
+may implement it. Registration and deployment are separate inputs from per-Job
+scheduling; not everything needed by science flows through the orchestrator.
 
 3. Poolable execution from the first service interface
 ------------------------------------------------------
@@ -154,8 +177,10 @@ not a proposal for a general workflow/DAG language.
 Reserve expensive resources for the phases that require them. A prose request
 waiting on HTTP should not occupy a GPU execution slot merely because the current
 session constructor attaches a GPU worker. A scientific preparation tool that
-actually uses the GPU must acquire the appropriate reservation before dispatch;
-its produced native handle may require retaining that reservation through execute.
+actually uses the GPU declares that requirement; the shared host acquires and
+checks its reservation before dispatch. Its produced native handle may require
+retaining that reservation through execute. Scientific tool selection remains in
+the contribution; the scheduler sees generic declared operations and requirements.
 
 Start with a conservative aggregate phase reservation when necessary, documented
 as a bridge. Introduce stage-specific acquisition with explicit ordering or atomic
@@ -168,8 +193,11 @@ Before START, reserve enough admitted preparation/control/report capacity and
 establish a bounded route to the declared execution resources. Do not START an
 unbounded backlog merely to wait for capacity. Cold-start readiness and bounded
 queued admission are explicit policies tied to the actual API allowances. A stale
-readiness snapshot never authorizes an operation. The backend enforces reservation
-identity at dispatch as the adapter checks current Attempt permission.
+readiness snapshot never authorizes an operation. Shared lifecycle/hosting code
+checks current authority and reservation identity at actual managed dispatch,
+including after intervening awaits. Numerical code need not understand an Attempt.
+This does not retract effects already submitted or imply immediate interruption
+of a running kernel; those remain owned until their actual status is established.
 
 Use a common fair scheduler with bounded discovery pages and eligible queues.
 Begin with a comprehensible, starvation-resistant policy; add cost estimates or
@@ -243,27 +271,136 @@ implementation/pool; drain or reattach old operations with verified ownership.
 No prepared handle migrates to an incompatible worker, and no stale supervisor
 can mutate a successor. Rollback must honor the same duties and queued reports.
 
-7. Stable adapter boundary without premature framework design
--------------------------------------------------------------
-Retain AnalysisSession.prepare/execute/retire as the current scientific boundary.
-Evolve its context and allocation bindings with complete consumers, rather than
-replacing it with a speculative universal task graph. Candidate shared concepts
-are an implementation declaration, backend capability description, reservation,
-operation handle and completion/retirement evidence. Their exact Python names and
-wire schemas are NOT prescribed by this note.
+7. Boundary contract: provenance, invocation and authority
+---------------------------------------------------------
+There are three distinct interactions, not one large scientific-context argument:
 
-The runtime calls adapter science through an owned session. Backends load the
-adapter through small explicit hooks. Do not leave arbitrary scheduling/recovery
-callbacks in adapters, nor require every adapter to implement local/remote/pool
-variants. A legacy bridge may wrap a particular native protocol temporarily; it
-has a named removal condition. Move reusable protocol/lifetime mechanics once,
-not separately into every bridge.
+  Registration/deployment -> host: a configured implementation and its grants.
+  Orchestrator -> execution interface: identified work and operational limits.
+  Host -> scientific hooks: implementation-owned setup and scientific input.
+
+These are responsibilities, not prescribed Python classes or a new wire schema.
+The ordinary scheduling request means: run work X with configured implementation
+Y within reservation Z and its limits. The execution interface returns an owned
+operation handle/status/result, rather than transferring the supervisor to science.
+The host tracks operational identity without adding it to the numerical signature.
+
+7.1 What is supplied, by whom, and when
+
+Scientific input
+  Originates in the Job and its permitted sources. Common transport/protocol code
+  authenticates, acquires and bounds bytes or artifact references. The configured
+  contribution decodes their scientific meaning, validates them and constructs
+  numerical inputs. The scheduler can route the opaque payload/reference without
+  inspecting peaks, molecules or tensors. A digest proves byte identity, not
+  scientific validity. Acquisition and decoding may be lazy; ownership must still
+  remain explicit. Shared acquisition need not be implemented inside the scheduler.
+
+Scientific configuration
+  Is supplied by the implementation's versioned configuration or explicitly
+  permitted per-Job scientific parameters. Deployment binds the configured
+  implementation; its loader/decoder validates scientific settings. The scheduler
+  selects a registered identity and may transport configuration opaquely, but
+  does not choose preprocessing, numerical precision or model defaults. Changed
+  scientific settings must be reflected in the appropriate identity/evidence.
+  The host must not silently reuse an incompatible already-loaded configuration.
+
+Model assets
+  Are declared by the implementation and materialized by packaging/deployment or
+  shared acquisition under authorized references. Common code verifies integrity
+  and provenance; scientific initialization understands checkpoint formats and
+  model compatibility. Assets may be preinstalled, mounted or acquired lazily.
+  They are not mandatory fields in each Job dispatch, nor choices made by the
+  scheduler. A model-load failure is not a licence to select a different model.
+
+Device/runtime environment
+  Comes from the granted execution allocation. The host exposes only the supported
+  environment needed for initialization/execution; scientific initialization
+  constructs library-specific device/model objects. No tensor-library object
+  crosses the scheduler interface. Science may declare generic resource needs,
+  but does not discover hosts, select a global device or create replacement pools.
+
+Operation identity
+  Is created/retained by operational ownership and carried in the host/backend
+  envelope. It supports correlation, custody, stale-owner protection and duplicate
+  detection. The host attaches result evidence to it. A diagnostic token can be
+  exposed when useful; numerical functions do not require Job/Attempt objects or
+  authority over their lifecycle. Batch-member association stays explicit.
+
+Progress and cancellation
+  Are optional narrow scientific capabilities, not a generic platform context.
+  A host may pass a progress sink or cooperative cancellation signal where the
+  implementation supports them. Common code maps progress to approved service
+  events and prevents stale phases from reporting. Science does not call the
+  Jobs API, decide whether an Attempt is active, or authorize its own replacement.
+  Lack of cooperative cancellation is an explicit backend/implementation limit;
+  cancellation requests, task completion and process exit are separate evidence.
+
+7.2 Loaded implementation versus one analysis
+
+Model-specific initialization/disposal runs for a loaded implementation instance.
+Preparation/computation/per-analysis disposal runs for one analysis. The host
+owns these lifetimes, invokes hooks and retains partial initialization/cleanup;
+the scientific contribution supplies their model-specific bodies. Multiple Jobs
+can use a qualified loaded instance without receiving its configuration/assets
+anew. They must not share mutable per-Job state accidentally.
+
+A scientific prepared value is not an operational authority. When native state
+is allocation-bound, shared hosting wraps/records that association and scientific
+code consumes the appropriate state. Neither a portable candidate nor a disposed
+handle grants scientific replay. A numerical function's return proves no more
+than its declared completion contract; native and remote work may require further
+backend observation before resource reuse or result custody is established.
+
+7.3 Effect permission and scientific iteration
+
+The shared host/binding checks current execution authority immediately before
+managed submission, including a tool or phase dispatch after an await. It retains
+already-submitted work when permission is withdrawn. Scientific code can observe
+cooperative cancellation but does not receive a ReportCondition or controller to
+implement permission policy. Algorithms can iterate, refine candidates or sample
+within an authorized operation and budget; that is not an orchestrator retry.
+Another externally submitted scientific operation requires managed authorization.
+
+For existing integrations, AnalysisSession.prepare/execute/retire currently
+receives SDK objects and report_condition. Keep those required checks in the
+existing binding until equivalent managed-dispatch guards are implemented and
+qualified. Treat this as a compatibility integration layer, not the permanent
+numerical API. The binding translates verified Jobs input into the contribution's
+input and its outcome into the SDK contract; it must not grow a separate scheduler.
+Model-specific disposal remains scientific. Joining native readers, supervising
+processes and deciding full retirement belong to shared hosting/backend owners.
+
+Prose interpretation follows the same split: scientific prompts, tools and
+candidate validity belong to the contribution; reusable conversation execution,
+model transport, pacing and supervision belong to shared facilities. The service
+scheduler does not construct chemical prompts merely because it schedules a
+preparation phase. Generic utilities can be reused by science without importing
+Jobs/Attempt authority or depending on a live provider service.
+
+7.4 Closing witnesses for this boundary
+
+Run a small scientific implementation directly in its numerical test environment,
+without a Jobs API client, AttemptController, claim registry or Docker manager.
+Run the same implementation via the shared host with one/two allocations, using
+opaque input/configuration and host-owned identities. Initialize from a bound
+configuration once per actual instance; verify per-Job state separation and
+per-analysis cleanup independently from allocation retirement.
+
+The scheduler must accept two contributions with different input/configuration
+schemas without a provider-name branch or a science-library import. Check argument
+surfaces and data flow, not only test doubles: scientific hooks cannot recover
+controller/credentials/allocator through a nested catch-all context. Validate
+malformed scientific input in its contribution and revoked managed dispatch in
+the shared host. Replica count or compatible placement changes need no scientific
+code change; a model/preprocessing change is versioned science, not hidden fallback.
 
 A resource requirement is not a privilege grant. Deployment validates which
 images, devices, files, endpoints and credentials an implementation may access.
 Use isolated per-operation mutable state, protected diagnostics and least-privilege
 worker grants. Common pooling must not leak data, handles or credentials across
-Jobs, providers or isolation domains.
+Jobs, providers or isolation domains. Interface separation alone is not a sandbox;
+execution/deployment must enforce the declared isolation and external capabilities.
 
 8. Gap register: current evidence -> target -> closing witness
 --------------------------------------------------------------
@@ -271,10 +408,12 @@ All gaps below are OPEN against the reviewed source baseline. Their identifiers
 are referenced by milestones in 065. An implemented component test closes only
 its stated sub-contract, not an entire gap. Consumer baselines are from 064.
 
-G01  Service ownership. Four service assemblies still own generic admission,
-     maintenance and drain. Move these into one common runtime with no provider-
-     name branches. Close with two different real adapters using the same service
-     and removal of their old loops; all four consumers are the completion gate.
+G01  Service ownership and invocation boundary. Four service assemblies still
+     own generic admission, maintenance and drain. Move these into one common
+     runtime with no provider-name branches. Keep science configuration/input
+     semantics in the registered contribution and operational authority in its
+     shared host. Close with section 7.4's boundary witnesses and two real adapters
+     using the same service; all four consumers are the completion gate.
 
 G02  Topology and pooling. Current session/runner wiring does not constitute a
      common implementation-to-many-allocations pool. Separate identities and
@@ -288,9 +427,10 @@ G03  Physical/stage capacity. Attempt bookkeeping limits are not CPU/GPU, model
 
 G04  Preparation portability and native protocols. Existing handles may be tied
      to one live session/worker. Declare portable versus affinity-bound state;
-     preserve exact accepted work and refactor unnecessary coupling. Close with
-     portable pre-dispatch placement and explicit rejection of incompatible or
-     stale native handles. Do not claim that an old protocol supports multiplexing.
+     preserve exact accepted work and refactor unnecessary coupling. Separate
+     model disposal from host-owned retirement and SDK session compatibility.
+     Close with portable pre-dispatch placement and rejection of incompatible
+     or stale native handles. Do not assume old protocols support multiplexing.
 
 G05  Evidence-driven recovery. Private checkpoint/exception knowledge and coarse
      holds are not a uniform service decision API. Add typed owner-produced
@@ -342,11 +482,11 @@ G12  Provider-specific topology debt. SECS: global worker/session coupling and
 
 9. What is required early, and what can be built later
 ----------------------------------------------------
-Required in the first shared service design: topology-independent identities,
-reservable allocations, bounded queues, more than one allocation of the SAME
-implementation, scoped failures, independent maintenance, exact ownership and
-terminal handoff. SECS/NMRNet/NMRPeak/Magnet are consumers and qualification cases,
-not successive architectures named serial, dual-lane and heterogeneous.
+Required in the first shared service design: the section 7 invocation boundary,
+topology-independent identities, reservable allocations, bounded queues, more than
+one allocation of the SAME implementation, scoped failures, independent maintenance,
+exact ownership and terminal handoff. SECS/NMRNet/NMRPeak/Magnet are consumers and
+qualification cases, not successive serial/dual-lane/heterogeneous architectures.
 
 Build incrementally: fixed local pools -> phase-aware allocation and full consumer
 migration -> measured adaptive policies and durable recovery -> concrete remote
@@ -359,6 +499,8 @@ The first useful demonstration is intentionally not four old loops relocated:
 run one scientific implementation with two independent allocations, hold one
 original operation, complete another, reconcile the first without replay, and
 change the pool size without editing the adapter. Apply that floor to all four.
+The same scientific implementation must also remain callable without the Jobs
+service; shared hosting supplies the operational integration around it.
 
 Sources and evidence limits
 ---------------------------
@@ -366,7 +508,8 @@ Sources and evidence limits
     packages/provider-core/README.md;
     src files under packages/provider-core/src/provider_core/:
     analysis.py, controller.py, execution.py, ownership.py.
-    These establish the current session/permission, claim and live-only limits.
+    These establish the current session/permission, claim and live-only limits,
+    not the target numerical function signatures described in section 7.
 [2] notes/064_causal_lifecycle_qualification.txt: pinned four-provider source
     matrix, current scientific distinctions, S1-S8/I1-I2/L1-L3 and test inventory.
 [3] notes/060_shared_provider_service_roadmap.txt: original extraction proposal
