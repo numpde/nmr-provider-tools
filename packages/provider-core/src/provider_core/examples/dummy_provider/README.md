@@ -1,7 +1,8 @@
-# Dummy scientific contribution
+# Dummy provider example
 
-This package shows the code a scientific provider contributes. It is not a
-provider service or a miniature copy of the shared platform.
+This package is the complete example of a scientific contribution and its
+provider-owned conformance scenarios. It is not a provider service or a miniature
+copy of the shared platform.
 
 `science.py` defines provider-owned scientific types and functions. Portable
 configuration, inputs and results are immutable dataclasses. Live model,
@@ -20,6 +21,11 @@ as an untyped mapping. Calls with no portable fields use the shared `NoInput`
 marker and shared `provider-core.no-input.v1` wire format; calls with no retained
 state use the shared `NoState` marker. The provider defines neither empty records
 nor provider-specific empty formats.
+
+`conformance.py` completes the example with provider-owned binding factories,
+exact wire inputs, expected wire results, reviewed rejection codes, progress
+facts, allocation choices and retained-state handoffs. It declares scenarios; it
+does not allocate resources, dispatch operations or implement hosting.
 
 `ScientificInputRejected` derives directly from `ScientificRejection`. The
 adapter therefore lets a reviewed scientific refusal cross the contribution
@@ -65,16 +71,19 @@ supervision, recovery, delivery, drain or deployment code.
 
 ## Provider-modular conformance
 
-`tests/providers/dummy.py` owns the dummy provider's binding factories, exact wire
-inputs, expected wire results, reviewed rejection codes and state handoffs.
 `provider_core.provider_conformance.ProviderConformanceTests` owns the generic
-execution checks: it creates fixed allocations, submits identified calls, observes
-results and progress, releases retained results, closes analyses and retires the
-host. `tests/integration/test_dummy_provider_conformance.py` only joins those two
-pieces.
+execution checks. The example's `conformance.py` supplies only the scientific
+facts those checks cannot know: configured binding factories, exact inputs and
+outputs, reviewed rejection codes, progress and state handoffs.
+`tests/integration/test_dummy_provider_conformance.py` only applies the shared
+test case to this packaged example.
 
-The dummy fixture runs the weighted implementation first with one allocation and
+The shared runner creates fixed allocations, submits identified calls, observes
+results and progress, releases retained results, closes analyses and retires the
+host. The example runs the weighted implementation first with one allocation and
 then with two allocations of the same binding, without changing scientific code.
 It also exercises rejected and corrected preparation, retained prepared state,
-progress and the stateless sum. A real provider repository supplies an equivalent
-fixture while reusing the shared tests.
+progress and the stateless sum.
+
+A real provider can supply the equivalent scenario declaration alongside its own
+contribution while reusing the same shared execution assertions.

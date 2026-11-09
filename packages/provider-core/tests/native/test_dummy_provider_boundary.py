@@ -1,4 +1,4 @@
-"""Keep the dummy provider limited to science and its contribution adapter."""
+"""Keep the dummy example limited to science, binding, and scenarios."""
 
 from importlib import resources
 import os
@@ -13,11 +13,19 @@ from provider_core.examples.dummy_provider import science
 
 
 class DummyProviderBoundaryTests(unittest.TestCase):
-    def test_provider_contains_only_science_and_adapter(self):
+    def test_example_contains_science_adapter_and_conformance_scenarios(self):
         root = resources.files(dummy_provider)
         sources = {item.name for item in root.iterdir() if item.name.endswith(".py")}
 
-        self.assertEqual({"__init__.py", "binding.py", "science.py"}, sources)
+        self.assertEqual(
+            {
+                "__init__.py",
+                "binding.py",
+                "conformance.py",
+                "science.py",
+            },
+            sources,
+        )
 
     def test_science_import_does_not_require_the_runtime_launcher(self):
         environment = os.environ.copy()

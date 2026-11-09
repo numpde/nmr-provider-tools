@@ -8,9 +8,10 @@ This note records the concrete provider-facing interface implemented in
 provider-core. Notes 064-066 retain the architecture, safety rules and rollout
 plan. This note owns the implemented v1 names and distinctions.
 
-The dummy contribution is intentionally science-only. It implements the
-contribution interface but none of the shared service, scheduling, hosting,
-permission, recovery, delivery or deployment machinery.
+The dummy provider is an example. Its scientific implementation remains limited
+to science and contribution binding; the example also carries declarative
+conformance scenarios. It implements none of the shared service, scheduling,
+hosting, permission, recovery, delivery or deployment machinery.
 
 Provider-owned scientific types
 -------------------------------
@@ -138,12 +139,14 @@ small coefficient tuple. The backend cannot forcibly interrupt Python, persist
 work across a process crash, enforce operating-system resource limits or execute
 remotely. Those are backend capabilities, not restrictions on contributions.
 
-Dummy contribution boundary
----------------------------
-provider_core.examples.dummy_provider contains science.py, binding.py and its
-package marker. science.py imports only the lightweight scientific rejection
-contract. binding.py imports the contribution and contribution-declaration
-modules. The package contains no provider-local operational machinery.
+Dummy example boundary
+----------------------
+provider_core.examples.dummy_provider contains science.py, binding.py,
+conformance.py and its package marker. science.py imports only the lightweight
+scientific rejection contract. binding.py imports the contribution and
+contribution-declaration modules. conformance.py declares provider-owned example
+scenarios using the shared conformance record types. None of these files
+implements provider-local operational machinery.
 
 The stateful implementation demonstrates immutable configuration/assets, loaded
 instance and per-analysis lifetimes, rejected and corrected preparation,
@@ -154,19 +157,21 @@ configuration, model or analysis lifetimes.
 Provider-modular conformance
 ----------------------------
 provider_core.provider_conformance contains provider-agnostic installed tests for
-the contribution-to-host boundary. A provider-owned fixture supplies configured
-binding factories, allocation names, exact wire inputs, expected wire results,
-reviewed scientific rejection codes and retained-state handoffs. Shared test code
-owns grants, fixed local allocations, invocation identity, observation, result
-release, analysis cleanup and host retirement.
+the contribution-to-host boundary. An example or provider-owned scenario
+declaration supplies configured binding factories, allocation names, exact wire
+inputs, expected wire results, reviewed scientific rejection codes and
+retained-state handoffs. Shared test code owns grants, fixed local allocations,
+invocation identity, observation, result release, analysis cleanup and host
+retirement.
 
-The dummy fixture lives under tests/providers rather than in the scientific
-package. It runs the weighted implementation with one allocation and then with two
-allocations of the same binding, exercises rejection and correction, consumes
-retained prepared state, checks progress, and calls the stateless sum. The
-installed integration test merely combines that fixture with the shared tests.
-Real provider repositories can supply their own fixture without copying host or
-lifecycle assertions.
+The dummy scenarios live with the example in
+provider_core.examples.dummy_provider.conformance. They run the weighted
+implementation with one allocation and then with two allocations of the same
+binding, exercise rejection and correction, consume retained prepared state,
+check progress, and call the stateless sum. The installed integration test merely
+applies the shared test case to that packaged example. Real provider repositories
+can carry equivalent scenarios beside their contributions without copying host
+or lifecycle assertions.
 
 This is end-to-end evidence for the local contribution-to-host boundary. It does
 not include Jobs discovery, interpretation, delivery, a production registration
@@ -179,15 +184,16 @@ notes/000_portable_engineering_practices.txt at main@8e7eb12. The detailed revie
 passes and focused evidence are recorded in note 068. Subsequent simplification
 removed detached call declarations, generic hashing from the provider adapter,
 catch-and-rethrow rejection translation, global adapter callables, repeated exact
-class checks, provider-specific empty marker records, unchecked lifecycle-hook annotations,
-forced five-argument adapters and an unmeasurable dummy resident-resource
-declaration.
+class checks, provider-specific empty marker records, unchecked lifecycle-hook
+annotations, forced five-argument adapters and an unmeasurable dummy
+resident-resource declaration.
 
 The previous focused harness compiled the revised modules and ran 26 typed,
 declaration and boundary tests. The provider-conformance addition was compiled
-under Python 3.13 and its provider fixture was imported with a dependency-light
-smoke harness. The installed integration lane and embedded-host runtime scenarios
-were not available in this environment and remain unverified for this change.
+under Python 3.13 and its scenario declaration was imported with a
+dependency-light smoke harness. The installed integration lane and embedded-host
+runtime scenarios were not available in this environment and remain unverified
+for this change.
 
 SECS, NMRNet, NMRPeak and Magnet still need their real scientific and guarded
 execution paths connected to this installed contract. Existing AnalysisSession

@@ -1,12 +1,12 @@
-"""Run shared conformance tests with dummy-provider scientific fixtures."""
+"""Run shared conformance tests against the packaged dummy example."""
 
 import unittest
 
+from provider_core.examples.dummy_provider.conformance import provider_fixture
 from provider_core.provider_conformance import (
     ProviderConformanceTests,
     ProviderFixture,
 )
-from tests.providers.dummy import provider_fixture
 
 
 class DummyProviderConformanceTests(

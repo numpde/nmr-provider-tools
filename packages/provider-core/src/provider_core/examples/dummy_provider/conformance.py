@@ -1,6 +1,10 @@
-"""Provider-owned conformance inputs for the dummy scientific contribution."""
+"""End-to-end conformance scenarios for the dummy provider example."""
 
 from __future__ import annotations
+
+from provider_core.container_guard import require_container
+
+require_container()
 
 import provider_core.contribution as contribution
 from provider_core.examples.dummy_provider import science
@@ -35,7 +39,7 @@ def _create_weighted_sum_binding() -> contribution.ImplementationBinding[
 
 
 def provider_fixture() -> ProviderFixture:
-    """Describe scientific inputs and expected outputs; shared code runs them."""
+    """Describe scientific inputs and outcomes; shared code runs the scenarios."""
     calculation_progress = (
         contribution.ProgressEvent(
             stage="calculation",
