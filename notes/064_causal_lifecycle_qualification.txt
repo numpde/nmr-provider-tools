@@ -10,9 +10,13 @@ Permission checks, correct ownership and resource limits belong in the first
 implementation. Broader generated tests and test infrastructure follow need.
 
 Note 065 sets priorities and replaces the old test-every-service-first sequence.
-Tier 0 uses the intended architecture; later work extends the same code. This
-note preserves safety rules and source review, not new run or release claims.
-Results in 058/060/061 apply only to their named revisions and artifacts.
+Design the shared package for SECS, NMRNet, NMRPeak and Magnet together, with
+interfaces future scientific implementations can use. No provider sets the design
+or has a prescribed first place. Tier 0 includes a minimal working integration
+for all four, delivered in separate runnable increments. Later recovery and
+optimization extend the same code. This note preserves historical source review
+and safety rules, not new run or release claims. Results in 058/060/061 apply
+only to their named revisions and artifacts; 065 records the current source map.
 
 Control faults through observed events, such as the original operation stopping,
 rather than guessed delays. Test deadlines and Retry-After separately. Reuse
@@ -227,6 +231,12 @@ B. Real-process tests for exit and resource release.
    monotonic time. Withholding observation of an exited child tests missing exit
    evidence; it does not simulate an unkillable child.
 
+   The first implementation uses small real-process examples drawn from all four
+   providers' different needs: reuse a loaded worker, create separate per-analysis
+   state, retain a prepared handle on its worker, finish a result produced in
+   stages, and run different implementations together. Note 065 gives the concrete
+   first-commit plan. These examples test shared machinery, not real-model adoption.
+
 C. Actual provider integration when migrating or releasing that provider.
    Use the real adapter and production assembly path. A recording fake does not
    test a native protocol; scripted processes do not test a deployed model.
@@ -305,9 +315,13 @@ a deadline to expire; do not hide that by raising every timeout.
 Migration and completion
 ------------------------
 Follow 065: run science directly, host the same code with one/two workers, then
-build the shared service. SECS, NMRNet, NMRPeak, Magnet is a migration order, not
-four designs. Compare old/new code on the same candidate only for a concrete risk.
-Never run two live schedulers under one provider identity.
+build the shared service. All four current providers inform that interface from
+the start. Complete their minimal integrations within Tier 0, in separate runnable
+increments chosen for useful progress; there is no fixed provider order or need
+to migrate all four in one commit. Actual consumer or model claims require its
+real adapter and relevant tests when integrated, not an upfront test project for
+every old service. Compare old/new code on the same candidate only for a concrete
+risk. Never run two live schedulers under one provider identity.
 
 Deliver working increments. Keep observing original work when capacity is full,
 no new Jobs are accepted or no offerings are announced. The first shared design

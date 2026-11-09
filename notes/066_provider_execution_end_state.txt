@@ -9,6 +9,11 @@ when it can start, running it, reporting results and stopping safely. The number
 and location of workers should be configuration choices. The same scientific
 code must run with one worker or several.
 
+Design the boundary for SECS, NMRNet, NMRPeak, Magnet and future contributions
+together. No provider defines the default architecture. Small adapters connect
+their numerical functions to the common host; the scheduler has no provider-name
+branches. Note 065 maps the existing implementations to this boundary.
+
 This is the target, not a description of a finished platform. The runtime review
 was at 1178115c8b1ea89556f4c04f73d69471be8e1b5f. Note 064 records the provider
 versions reviewed; it does not identify what is currently deployed. Earlier test
@@ -32,7 +37,8 @@ Offering: an analysis available through the Jobs API, including its input schema
 and the conditions under which it may be used.
 
 Implementation: a particular scientific program, its settings, preprocessing and
-model files. Record the version and exact files/settings that affect its results.
+any model files it needs. Record the exact version, files and settings that affect
+its results.
 Switching to a different model or numerical policy requires an explicit scientific
 choice; infrastructure must not silently make that choice after a failure.
 
@@ -49,10 +55,10 @@ Reservation: capacity held for a particular owner and phase. Available capacity
 is not a reservation, and a reservation is not permission from the Jobs API to
 start science. Track who must release it, including after partial acquisition.
 
-Operation: one submitted preparation or computation. Track its Job Attempt,
-input, implementation, exact worker instance and permission. Checking its status
-again does not create another operation. An Attempt may contain several separately
-identified operations.
+Operation: one submitted preparation or computation. Track its identity, input,
+implementation, exact worker instance and permission. Provider work also records
+its Job Attempt; direct hosting does not require a Jobs service. Checking status
+again does not create another operation. An Attempt may contain several operations.
 
 Prepared analysis: the accepted scientific input or state needed for computation.
 Immutable input may be portable. A handle into a live worker must stay with that
@@ -66,10 +72,10 @@ one offering to one worker or one job.
 ----------------
 Scientific contribution
   Decodes and checks scientific input, supplies tools, prepares and computes
-  results, and defines what those results mean. It supplies model initialization
-  and cleanup, scientific settings and model files. It declares resource needs,
-  compatible environments, worker-bound state, supported batching and permitted
-  scientific retries.
+  results, and defines what those results mean. It supplies any needed model
+  initialization and cleanup, scientific settings and model files. It declares
+  resource needs, compatible environments, worker-bound state, supported batching
+  and permitted scientific retries.
 
 Shared service in provider-core
   Announces offerings, finds a bounded amount of work, schedules it fairly,
@@ -86,6 +92,8 @@ Shared host and execution backends
   operational records. It enforces permission without handing controller internals
   to science. A temporary protocol adapter may translate an old worker interface;
   it must not hide another scheduler, pool, retry loop or shutdown mechanism.
+  Reuse existing native-runner supervision when needed. Contributions that can
+  run directly need no artificial native protocol, checkpoint or validation phase.
 
 Deployment tools and operator configuration
   Provide images, files, identities, device limits and permitted files, sockets
@@ -118,7 +126,7 @@ workers still starting, draining or of uncertain status. An operation may retain
 input files, scratch space or a device after its caller stops waiting. Those
 resources remain occupied until the responsible owner establishes otherwise.
 
-A worker must match the implementation, model, runtime, device and isolation
+A worker must match the implementation, any model, runtime, device and isolation
 requirements. Its model name alone is insufficient. Do not create an unlimited
 stream of replacements for an unconfirmed worker. New work may use a separately
 budgeted replacement, but the old operation remains owned and is not repeated.
@@ -138,9 +146,9 @@ when adding batching; an implementation need not support it.
 
 4. Reserve resources when they are needed
 -----------------------------------------
-The service finds work, accepts it, prepares it, computes a result, retains the
-result, hands it to delivery and completes remaining duties. Keep these steps
-within the same Attempt; no general workflow language is needed.
+The service finds work, accepts it, prepares it when needed, computes a result,
+retains the result, hands it to delivery and completes remaining duties. Keep
+these steps within the same Attempt; no general workflow language is needed.
 
 Tier 0 may conservatively reserve the resources needed for the whole analysis.
 Tier 1 separates those reservations by phase. Waiting for a prose-model HTTP
@@ -246,7 +254,8 @@ to numerical functions. No large scientific-context object is required.
 7.1 Where the inputs come from
 
 Scientific input
-  Comes from the Job and its permitted sources. Shared transport authenticates,
+  For provider work, comes from the Job and its permitted sources; direct hosting
+  can receive scientific input without a Job. Shared transport authenticates,
   fetches and limits the bytes or references. The contribution decodes and checks
   their scientific meaning and constructs numerical input. The service can route
   these bytes without inspecting peaks or tensors. A hash identifies bytes; it
@@ -287,19 +296,34 @@ Progress and cancellation
   worker are different facts; lack of cooperative stopping remains an explicit
   implementation/backend limitation.
 
-7.2 A loaded model can serve several analyses
+7.2 Instance setup and one analysis
 
-The contribution supplies model initialization and disposal, plus preparation,
-computation and cleanup for one analysis. Hosting calls these functions at the
-right time and retains responsibility for unfinished initialization or cleanup.
-Several analyses may reuse a suitable loaded model, with separate mutable state
-for each analysis. They need not receive the same settings and model files anew.
+Keep the scientific adapter small. Initialization binds settings, assets and the
+permitted environment to an instance. The required run operation accepts input
+directly, or a prepared value if the contribution explicitly supplies a separate
+prepare operation. Provide cleanup where analysis or instance state needs it;
+stateless contributions need no dummy cleanup hooks.
+Adapters leave numerical functions unchanged; no universal workflow or call
+registry is needed. Optional preparation does not remove input checks that
+the scientific implementation requires.
+
+Initialization may load a reusable model or retain settings for loading during
+execution. A contribution may need no model at all. Separate mutable analysis
+state from instance state, and keep unfinished initialization or cleanup owned.
+This covers worker-bound accepted state in SECS/NMRPeak, lazy iteration, tensor
+preparation and per-analysis models in NMRNet, and Magnet's one-call G01 and
+optional native execution. These are supported shapes, not provider-name cases
+inside hosting. Future contributions use the same boundary.
 
 Hosting records which exact worker instance owns a prepared native handle.
 Science uses that state; the handle itself carries no execution permission.
 Portable input and discarded handles do not authorize repeating an operation.
-A scientific function's return may still leave native readers or remote work
-active. Hosting must establish their completion before releasing the resources.
+An iterator or queued device operation is not yet a completed result. The adapter
+finishes the required lazy work and device synchronization before reporting final
+completion. Work still in progress remains an owned operation, not a final result.
+Input sources stay owned until their readers finish. Scientific cleanup and
+confirmed process or resource retirement remain separate; a returned function
+alone proves neither.
 
 7.3 Check permission where work is submitted
 
@@ -334,10 +358,13 @@ initialize from bound settings; keep analysis state separate; hold one worker
 while another completes; check permission and handle rules changed by the work.
 Reuse existing checks for unchanged behavior.
 
-Connect a real first consumer, with SECS proposed, and a small second contribution
-with different input/settings to exercise the generic interface. Migrating a
-second real provider belongs to Tier 1. Inspect what actually reaches scientific
-functions, including nested arguments. Scientific input errors are handled by
+The first runtime increment uses small runnable contributions covering resident
+prepared state and lazy/per-analysis or one-call work, with different inputs and
+settings. It exercises actual workers through the common pool without Jobs or
+scientific framework dependencies in the host. It is not evidence that the four
+providers have migrated. Connect all four through the same interface in separate
+runnable increments; their minimal integrations complete Tier 0. Inspect what
+actually reaches science, including nested arguments. Input errors belong to
 the contribution; revoked execution is refused by hosting. Changing worker count
 leaves scientific code unchanged. Check new placement/backend modes when added.
 
@@ -356,8 +383,8 @@ claimed; the provider baselines remain those recorded in 064.
 
 G01  Common service. Replace provider-local job acceptance, maintenance and drain with
      one shared service. Keep scientific input/settings in contributions and
-     permission in hosting. Tier 0 needs the first real consumer and section 7.4;
-     migrating all four providers completes this gap.
+     permission in hosting. Use section 7.4 throughout. Minimal integrations of
+     all four providers complete Tier 0; earlier working subsets remain partial.
 
 G02  Worker pools. Run the same implementation with one or two independently owned
      workers. Show two jobs progressing and one held worker not blocking the other.
@@ -416,17 +443,18 @@ G12  Provider migration. SECS needs independent workers instead of global worker
 
 9. Priorities and completion
 ----------------------------
-Tier 0: a useful local package. Direct and hosted science, fixed one/two-worker
-pools, the real SECS bridge, and a common service from discovery through execution,
-existing durable delivery and orderly drain. Keep permission checks, exact
-ownership, handles tied to their workers, resource limits and independent
-maintenance. Safe holds and explicit operator recovery are acceptable within
-the stated limits.
-A test-only pool is an intermediate step; the service and first real consumer
-complete this tier.
+Tier 0: a useful local package for all four providers. Deliver direct and hosted
+science, fixed one/two-worker pools, and the common service from discovery through
+execution, existing durable delivery and orderly drain. Integrate SECS, NMRNet,
+NMRPeak and Magnet with small adapters, preserving permission checks, exact
+ownership, worker-bound handles, resource limits and independent maintenance.
+Safe holds and explicit operator recovery are acceptable within the stated limits.
+Build this in separate runnable increments: generic hosting/pools first, then
+service integration and the four consumers. Useful early subsets are explicitly
+partial Tier 0; all four are not required in the first commit.
 
-Tier 1: extend that path to the remaining providers, phase-specific resource use,
-bounded staging, stronger recovery decisions, durable operation/result records
+Tier 1: extend that path with phase-specific resource use, bounded staging,
+stronger recovery decisions, durable operation/result records
 and a concrete remote backend. Choose increments for useful capability or a real
 operational failure. Check the new behavior, including crash and failover cases
 when claiming that support.
@@ -441,9 +469,10 @@ matrices and new evidence tooling come later when a concrete risk justifies them
 Existing test records suffice for routine development; identify exact files and
 versions when publishing or checking a consumer against a release.
 
-SECS, NMRNet, NMRPeak and Magnet share this architecture. A useful local release
-can precede all four migrations. Full extraction is complete when the displaced
-generic service and worker-management loops are removed from all four providers.
+SECS, NMRNet, NMRPeak, Magnet and future providers share this architecture. An
+early usable subset may be released under its stated scope without being called
+Tier-0 completion. Full extraction removes the displaced generic service and
+worker-management loops from all four existing providers.
 
 Sources
 -------
