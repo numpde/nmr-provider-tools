@@ -32,6 +32,12 @@ scientific function's annotations, then creates the scheduler-facing
 `contribution.ImplementationBinding.from_calls(...)` likewise derives the
 implementation's call descriptions from the bound calls.
 
+The implementation also checks the instance and analysis annotations on every
+call. All calls in one implementation must agree, and model/analysis lifecycle
+hooks must declare matching argument and return types. Unannotated or mismatched
+hooks are rejected when the binding is constructed, before scientific resources
+are acquired.
+
 Canonical configuration and asset descriptions, byte digests and configured
 binding revisions are built by `provider_core.contribution_declaration`.
 `binding.py` supplies the provider-owned values and semantic identities; it does

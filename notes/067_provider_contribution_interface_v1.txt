@@ -64,9 +64,12 @@ CallDescription from the same statement. A provider does not maintain separate
 codec constants, state-binding constants and call descriptions for one call.
 
 The binding checks that codec formats agree with CallDescription and that each
-scientific callable declares the exact InputT, StateT, ScientificControl and
-ScientificReturn[OutputT] annotations. Type erasure exists only inside shared
-heterogeneous dispatch.
+scientific callable declares exact instance, analysis, InputT, StateT,
+ScientificControl and ScientificReturn[OutputT] annotations. Every call in one
+implementation must use the same instance and analysis types. Instance and
+analysis construction, initialization and disposal hooks must declare matching
+argument and return types. Mismatches are rejected before scientific resources are
+acquired. Type erasure exists only inside shared heterogeneous dispatch.
 
 Scientific and structural refusal remain distinct. ScientificInputRejected derives
 directly from ScientificRejection and supplies the stable code and explanation
@@ -148,10 +151,10 @@ notes/000_portable_engineering_practices.txt at main@8e7eb12. The detailed revie
 passes and focused evidence are recorded in note 068. Subsequent simplification
 removed detached call declarations, generic hashing from the provider adapter,
 catch-and-rethrow rejection translation, global adapter callables, repeated exact
-class checks, provider-specific empty marker records and an unmeasurable dummy
-resident-resource declaration.
+class checks, provider-specific empty marker records, unchecked lifecycle-hook
+annotations and an unmeasurable dummy resident-resource declaration.
 
-The latest focused harness compiled all revised Python files and ran 21 typed,
+The latest focused harness compiled all revised Python files and ran 23 typed,
 declaration and boundary tests successfully. The revised embedded-host suite also
 compiled but was not executed against the complete package. Canonical
 installed-wheel and Docker qualification remain required.

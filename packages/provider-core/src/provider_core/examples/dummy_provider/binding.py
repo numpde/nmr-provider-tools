@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from functools import partial
-
 import provider_core.contribution as contribution
 import provider_core.contribution_declaration as declaration
 
@@ -29,6 +27,12 @@ def weighted_sum_binding(
 ]:
     """Bind immutable settings and coefficients to one weighted model revision."""
     prepared_values_kind = "dummy.prepared-values.v1"
+
+    def construct_model() -> science.WeightedSumModel:
+        return science.create_model(
+            settings=settings,
+            coefficients=coefficients,
+        )
 
     def prepare(
         _model: science.WeightedSumModel,
@@ -150,11 +154,7 @@ def weighted_sum_binding(
         resident_resources=(),
         isolation=contribution.IsolationRequirement.SHARED_PROCESS,
         instance=contribution.InstanceHooks(
-            construct=partial(
-                science.create_model,
-                settings=settings,
-                coefficients=coefficients,
-            ),
+            construct=construct_model,
             initialize=science.load_model,
             dispose=science.dispose_model,
         ),

@@ -304,6 +304,45 @@ class TypedContributionTests(unittest.TestCase):
                 scientific_call=untyped,
             )
 
+    def test_implementation_rejects_inconsistent_instance_types(self):
+        binding = _weighted_binding()
+        (prepare_call, calculate_call) = binding.calls
+
+        def wrong_instance(
+            instance: None,
+            analysis: science.WeightedSumAnalysis,
+            candidate: science.PreparationInput,
+            state: contribution.NoState,
+            control: contribution.ScientificControl,
+        ) -> contribution.ScientificReturn[science.PreparationResult]:
+            raise AssertionError("This mismatched adapter must not run")
+
+        mismatched_call = replace(
+            prepare_call,
+            scientific_call=wrong_instance,
+        )
+        with self.assertRaises(TypeError):
+            replace(
+                binding,
+                calls=(mismatched_call, calculate_call),
+            )
+
+    def test_implementation_rejects_mismatched_lifecycle_hook_annotations(self):
+        binding = _weighted_binding()
+
+        def wrong_constructor() -> science.SumResult:
+            return science.SumResult(total=0, count=1)
+
+        hooks = replace(
+            binding.instance,
+            construct=wrong_constructor,
+        )
+        with self.assertRaises(TypeError):
+            replace(
+                binding,
+                instance=hooks,
+            )
+
     def test_binding_rejects_codec_format_mismatch(self):
         call = sum_binding().calls[0]
         wrong_codec = JsonDataclassCodec(

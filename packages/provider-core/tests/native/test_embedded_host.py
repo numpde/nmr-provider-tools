@@ -44,7 +44,7 @@ from provider_core.payload import PayloadCodec
 
 
 def _allow() -> None:
-    pass
+    return None
 
 
 def _host_limits(**changes) -> HostLimits:
@@ -682,24 +682,37 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             )
 
     async def test_partial_initialization_keeps_the_original_cleanup_owner(self):
-        original = sum_binding()
+        settings = science.WeightedSumSettings(scale=1, offset=0)
+        coefficients = science.CoefficientSet(values=(1,))
+        original = weighted_sum_binding(
+            settings=settings,
+            coefficients=coefficients,
+        )
         created_instances = []
         disposed_instances = []
 
-        def construct_instance():
-            instance = {"resource": object()}
+        def construct_instance() -> science.WeightedSumModel:
+            instance = science.create_model(
+                settings=settings,
+                coefficients=coefficients,
+            )
             created_instances.append(instance)
             return instance
 
-        def fail_instance_initialization(instance) -> None:
+        def fail_instance_initialization(
+            instance: science.WeightedSumModel,
+        ) -> None:
             raise RuntimeError("load failed")
+
+        def dispose_instance(instance: science.WeightedSumModel) -> None:
+            disposed_instances.append(instance)
 
         instance_binding = replace(
             original,
             instance=InstanceHooks(
                 construct=construct_instance,
                 initialize=fail_instance_initialization,
-                dispose=disposed_instances.append,
+                dispose=dispose_instance,
             ),
         )
         host = self.host({"one": instance_binding})
@@ -710,7 +723,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     analysis,
                     instance_binding,
                     operation_id="partial-instance",
-                    call_name="run",
+                    call_name="prepare",
                     payload=b'{"values":[1]}',
                 ),
                 dispatch_guard=_allow,
@@ -722,24 +735,36 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         await self.settled(host.retire())
         self.assertEqual(created_instances, disposed_instances)
 
-        original = sum_binding()
+        original = weighted_sum_binding(
+            settings=settings,
+            coefficients=coefficients,
+        )
         created_analyses = []
         disposed_analyses = []
 
-        def construct_analysis(instance):
-            analysis_state = {"resource": object()}
+        def construct_analysis(
+            instance: science.WeightedSumModel,
+        ) -> science.WeightedSumAnalysis:
+            analysis_state = science.create_analysis(instance)
             created_analyses.append(analysis_state)
             return analysis_state
 
-        def fail_analysis_initialization(analysis_state) -> None:
+        def fail_analysis_initialization(
+            analysis_state: science.WeightedSumAnalysis,
+        ) -> None:
             raise RuntimeError("analysis failed")
+
+        def dispose_analysis(
+            analysis_state: science.WeightedSumAnalysis,
+        ) -> None:
+            disposed_analyses.append(analysis_state)
 
         analysis_binding = replace(
             original,
             analysis=AnalysisHooks(
                 construct=construct_analysis,
                 initialize=fail_analysis_initialization,
-                dispose=disposed_analyses.append,
+                dispose=dispose_analysis,
             ),
         )
         host = self.host({"two": analysis_binding})
@@ -750,7 +775,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     analysis,
                     analysis_binding,
                     operation_id="partial-analysis",
-                    call_name="run",
+                    call_name="prepare",
                     payload=b'{"values":[1]}',
                 ),
                 dispatch_guard=_allow,

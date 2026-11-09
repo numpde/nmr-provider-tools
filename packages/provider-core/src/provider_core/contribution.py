@@ -16,6 +16,7 @@ import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
+from types import NoneType
 from typing import Any, Protocol, cast, get_args, get_origin, get_type_hints
 
 from provider_core.contribution_errors import ScientificRejection
@@ -66,12 +67,39 @@ def _callback(value: object, label: str) -> None:
         raise TypeError(f"{label} must be callable")
 
 
-def _scientific_types(
-    scientific_call: Callable[..., object],
-) -> tuple[type[object], type[object], type[object]]:
-    signature = inspect.signature(scientific_call)
+@dataclass(frozen=True, slots=True)
+class _ScientificTypes:
+    instance: type[object]
+    analysis: type[object]
+    input: type[object]
+    state: type[object]
+    output: type[object]
+
+
+def _resolved_callable_hints(
+    callable_: Callable[..., object],
+    *,
+    label: str,
+) -> dict[str, object]:
+    try:
+        return get_type_hints(callable_, include_extras=True)
+    except (NameError, TypeError) as error:
+        raise TypeError(f"{label} annotations could not be resolved") from error
+
+
+def _positional_parameters(
+    callable_: Callable[..., object],
+    *,
+    count: int,
+    label: str,
+) -> tuple[inspect.Parameter, ...]:
+    try:
+        signature = inspect.signature(callable_)
+    except (TypeError, ValueError) as error:
+        raise TypeError(f"{label} must expose an inspectable signature") from error
+
     parameters = tuple(signature.parameters.values())
-    if len(parameters) != 5 or any(
+    if len(parameters) != count or any(
         parameter.kind
         not in (
             inspect.Parameter.POSITIONAL_ONLY,
@@ -79,37 +107,78 @@ def _scientific_types(
         )
         for parameter in parameters
     ):
+        raise TypeError(f"{label} must accept exactly {count} positional parameters")
+    return parameters
+
+
+def _require_callable_signature(
+    callable_: Callable[..., object],
+    *,
+    parameter_types: tuple[type[object], ...],
+    return_type: type[object],
+    label: str,
+) -> None:
+    parameters = _positional_parameters(
+        callable_,
+        count=len(parameter_types),
+        label=label,
+    )
+    hints = _resolved_callable_hints(callable_, label=label)
+
+    for parameter, expected_type in zip(parameters, parameter_types, strict=True):
+        actual_type = hints.get(parameter.name)
+        if actual_type is not expected_type:
+            raise TypeError(
+                f"{label} parameter {parameter.name!r} annotation must be exactly "
+                f"{expected_type.__qualname__}"
+            )
+
+    if hints.get("return") is not return_type:
         raise TypeError(
-            "A scientific call must accept instance, analysis, input, state and control"
+            f"{label} return annotation must be exactly {return_type.__qualname__}"
         )
 
-    hints = get_type_hints(scientific_call, include_extras=True)
-    for parameter in parameters[2:]:
-        if parameter.name not in hints:
+
+def _scientific_types(
+    scientific_call: Callable[..., object],
+) -> _ScientificTypes:
+    parameters = _positional_parameters(
+        scientific_call,
+        count=5,
+        label="Scientific call",
+    )
+    hints = _resolved_callable_hints(scientific_call, label="Scientific call")
+
+    annotated_types = []
+    for parameter in parameters[:4]:
+        annotation = hints.get(parameter.name)
+        if not isinstance(annotation, type):
             raise TypeError(
-                f"Scientific call parameter {parameter.name!r} requires an annotation"
+                f"Scientific call parameter {parameter.name!r} annotation must be "
+                "a concrete type"
             )
-    if "return" not in hints:
-        raise TypeError("A scientific call requires a return annotation")
+        annotated_types.append(annotation)
 
-    input_type = hints[parameters[2].name]
-    state_type = hints[parameters[3].name]
-    control_type = hints[parameters[4].name]
-    returned = hints["return"]
-
-    if not isinstance(input_type, type):
-        raise TypeError("Scientific call input annotation must be a concrete type")
-    if not isinstance(state_type, type):
-        raise TypeError("Scientific call state annotation must be a concrete type")
+    control_type = hints.get(parameters[4].name)
     if control_type is not ScientificControl:
         raise TypeError("Scientific call control annotation must be ScientificControl")
+
+    returned = hints.get("return")
     if get_origin(returned) is not ScientificReturn or len(get_args(returned)) != 1:
         raise TypeError("Scientific call return annotation must be ScientificReturn[OutputT]")
 
     (output_type,) = get_args(returned)
     if not isinstance(output_type, type):
         raise TypeError("Scientific call output annotation must be a concrete type")
-    return input_type, state_type, output_type
+
+    instance_type, analysis_type, input_type, state_type = annotated_types
+    return _ScientificTypes(
+        instance=instance_type,
+        analysis=analysis_type,
+        input=input_type,
+        state=state_type,
+        output=output_type,
+    )
 
 
 def _require_scientific_signature(
@@ -118,13 +187,11 @@ def _require_scientific_signature(
     state_type: type[object],
     output_type: type[object],
 ) -> None:
-    actual_input_type, actual_state_type, actual_output_type = _scientific_types(
-        scientific_call
-    )
+    scientific_types = _scientific_types(scientific_call)
     for actual, expected, label in (
-        (actual_input_type, input_type, "input"),
-        (actual_state_type, state_type, "state"),
-        (actual_output_type, output_type, "output"),
+        (scientific_types.input, input_type, "input"),
+        (scientific_types.state, state_type, "state"),
+        (scientific_types.output, output_type, "output"),
     ):
         if actual is not expected:
             raise TypeError(
@@ -474,12 +541,10 @@ class CallBinding[InstanceT, AnalysisT, InputT, StateT, OutputT]:
         ],
     ) -> CallBinding[InstanceT, AnalysisT, InputT, StateT, OutputT]:
         """Build one typed JSON call from its scientific function and metadata."""
-        raw_input_type, raw_state_type, raw_output_type = _scientific_types(
-            scientific_call
-        )
-        input_type = cast(type[InputT], raw_input_type)
-        state_type = cast(type[StateT], raw_state_type)
-        output_type = cast(type[OutputT], raw_output_type)
+        scientific_types = _scientific_types(scientific_call)
+        input_type = cast(type[InputT], scientific_types.input)
+        state_type = cast(type[StateT], scientific_types.state)
+        output_type = cast(type[OutputT], scientific_types.output)
 
         input_codec = JsonDataclassCodec(
             format=input_format,
@@ -556,6 +621,71 @@ class ImplementationBinding[InstanceT, AnalysisT]:
         declared = {call.name: call for call in self.description.calls}
         if len(bound) != len(self.calls) or bound != declared:
             raise ValueError("Call bindings must agree exactly with the declared calls")
+
+        scientific_types = tuple(
+            _scientific_types(call.scientific_call)
+            for call in self.calls
+        )
+        instance_type = scientific_types[0].instance
+        analysis_type = scientific_types[0].analysis
+        if any(types.instance is not instance_type for types in scientific_types):
+            raise TypeError("All calls in one implementation must use one instance type")
+        if any(types.analysis is not analysis_type for types in scientific_types):
+            raise TypeError("All calls in one implementation must use one analysis type")
+
+        if self.instance is None:
+            if instance_type is not NoneType:
+                raise TypeError(
+                    "Calls without instance hooks must annotate the instance as None"
+                )
+        else:
+            if instance_type is NoneType:
+                raise TypeError("Instance hooks require a non-None scientific instance type")
+            _require_callable_signature(
+                self.instance.construct,
+                parameter_types=(),
+                return_type=instance_type,
+                label="Instance constructor",
+            )
+            _require_callable_signature(
+                self.instance.initialize,
+                parameter_types=(instance_type,),
+                return_type=NoneType,
+                label="Instance initializer",
+            )
+            _require_callable_signature(
+                self.instance.dispose,
+                parameter_types=(instance_type,),
+                return_type=NoneType,
+                label="Instance disposer",
+            )
+
+        if self.analysis is None:
+            if analysis_type is not NoneType:
+                raise TypeError(
+                    "Calls without analysis hooks must annotate the analysis as None"
+                )
+        else:
+            if analysis_type is NoneType:
+                raise TypeError("Analysis hooks require a non-None scientific analysis type")
+            _require_callable_signature(
+                self.analysis.construct,
+                parameter_types=(instance_type,),
+                return_type=analysis_type,
+                label="Analysis constructor",
+            )
+            _require_callable_signature(
+                self.analysis.initialize,
+                parameter_types=(analysis_type,),
+                return_type=NoneType,
+                label="Analysis initializer",
+            )
+            _require_callable_signature(
+                self.analysis.dispose,
+                parameter_types=(analysis_type,),
+                return_type=NoneType,
+                label="Analysis disposer",
+            )
 
     @classmethod
     def from_calls(
