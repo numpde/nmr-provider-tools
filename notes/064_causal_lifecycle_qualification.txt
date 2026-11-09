@@ -1,33 +1,25 @@
-Causal lifecycle qualification across provider extraction
-=========================================================
-2026-11-08 | Supporting design and historical source review
-Priority and implementation order: revised note 065; target architecture: 066
+Testing shared execution and provider migration
+===============================================
+2026-11-08 | Historical source review and supporting test guidance
+Revised 2026-11-09 | Order and priorities: 065; target design: 066
 
-Decision and scope
-------------------
-Build the useful shared execution capability with a small deterministic witness
-of its actual boundary. Preserve authorization, exact ownership and bounded
-resources in that implementation. Use controlled external services where a
-scenario needs them, and move existing generic tests with their owning code.
-Add broader exploration when it addresses a concrete remaining risk; qualification
-infrastructure is not a prerequisite for the first working capability.
+Purpose
+-------
+Build the useful shared package, with focused tests alongside each feature.
+Permission checks, correct ownership and resource limits belong in the first
+implementation. Broader generated tests and test infrastructure follow need.
 
-This note refines the testing approach in 058 and the extraction roadmap in 060.
-Their historical qualification records, and the candidate/publication limits in
-061, remain evidence for their named artifacts only. In particular, replace
-elapsed-outage scenario control with lifecycle prerequisites; qualify traffic,
-Retry-After and deadlines separately. The new work does not require another
-runtime abstraction, another publisher, or an extraction of scientific policy.
+Note 065 sets priorities and replaces the old test-every-service-first sequence.
+Tier 0 uses the intended architecture; later work extends the same code. This
+note preserves safety rules and source review, not new run or release claims.
+Results in 058/060/061 apply only to their named revisions and artifacts.
 
-The companion 065 owns the priority gradient and supersedes this note's former
-qualify-every-old-service-first sequence. Tier 0 uses the intended architecture;
-higher assurance strengthens that same working path instead of replacing it.
-This note preserves source review, test mechanisms and S1-S8/I1-I2/L1-L3, not a
-mandatory campaign checklist or a new test run, release or deployment claim.
-Existing causal fixes in Magnet are baseline work, not tasks to implement again.
+Control faults through observed events, such as the original operation stopping,
+rather than guessed delays. Test deadlines and Retry-After separately. Reuse
+existing runtime code, publisher and fixtures, including Magnet's fixes below.
 
-Reviewed baselines
-------------------
+Reviewed versions
+-----------------
 Repository          main revision                              SDK source/pin
 nmr-provider-tools  743a65231676aad6caf655fcdbc48df376a1cdd3      source 0.6.8
 magnet-deploy       c5cf3ab8b0b0d4a60bbd4a4c7f7bfaa8baa6f2df    pin 0.6.8
@@ -37,350 +29,302 @@ nmrpeak-repro       96e23534722839cfa06fa7d91f6e95d94ff4b7da      pin 0.6.6
 
 The three 0.6.6 consumers pin the published wheel with SHA256
 22b5a391aa3748340b969f47c935d62a4f9b08b9fe8c98f808fec47e6546b0c7.
-Magnet's release manifest names SDK source 743a652. Record exact wheel and
-support-archive hashes for new qualification; a version string alone is not
-artifact identity. These source baselines do not identify a running host.
+Magnet's release manifest names SDK source 743a652. For candidate comparisons,
+release checks and consumer adoption, identify the actual wheel and test-support
+archive by hash. Matching version strings do not identify their bytes. None of
+these source revisions establishes what is running on a deployed host.
 
-Magnet has advanced since the initial review at 1bdd01e. Its current outage test
-restores synchronously after two distinct original controllers have settled and
-released their claims, checks request/refusal evidence for both failed Jobs, and
-requires subsequent success. The fixed 2.8-second outage and 0.2-second cooldown
-probe are removed. Cooldown evidence is captured in the parent event sink and at
-each actual START. Finite-backlog progress uses a per-settlement watchdog. Reuse
-these changes and attach revision-specific verification before claiming uptake.
+At the reviewed revision, Magnet's outage test restores service after two
+original controllers have settled and released their claims. It checks requests
+and refusals for both failed Jobs, then requires a later Job to succeed. It no
+longer uses the fixed 2.8-second outage or 0.2-second cooldown probe present at
+the earlier review, 1bdd01e. Cooldown observations come from the parent event
+sink and each actual START. A watchdog bounds each wait for settlement while
+checking that a finite backlog finishes. Reuse these changes; test the revision
+being adopted before claiming that another consumer has them.
 
-Ownership now and after extraction
-----------------------------------
-1. provider-core owns transport/process lifetime, Interpreter, AttemptController,
-   AttemptClaims, execution permission, delivery custody and publication. Their
-   component contracts and composed ownership exploration remain in this repo.
-2. The providers currently own announcement, discovery, admission, service-level
-   controller retention, pacing, maintenance and drain. Under notes 066/065 those
-   common mechanics move into provider-core, with their relevant existing tests.
-3. Scientific contributions retain input/configuration interpretation, scientific
-   tools, preparation effects, model initialization/disposal and result meaning.
-   They declare capabilities and requirements. Current AnalysisSession bindings
-   remain a compatibility boundary; 066 separates that boundary from numerical
-   functions and assigns scheduling, allocation and supervision to shared owners.
-4. Existing native binding tests retain physical ownership evidence. Generic
-   RunnerSession/AsyncRunnerSession mechanisms stay with their SDK owner;
-   provider-specific stream, source-reader and warm-reuse obligations stay with
-   the adapter until a concrete common mechanism is separately extracted.
-5. Deployment/identity/image tooling has its own shared extraction boundary.
-   It does not become a dependency of the lifecycle state-machine harness.
+Who owns what
+-------------
+1. provider-core owns transport/process lifetimes, Interpreter, AttemptController,
+   AttemptClaims, permission, retained reports and publication. Tests follow code.
+2. Announcing offerings, finding and accepting Jobs, pacing requests, observing
+   active work and shutting down move into the shared service under 065/066.
+3. Scientific code interprets inputs/configuration, initializes/disposes of models,
+   prepares data, computes and defines results. It declares capabilities and
+   resource needs. AnalysisSession is the current integration API, not a required
+   numerical signature. The shared host/service manages workers and scheduling.
+4. RunnerSession/AsyncRunnerSession stay in the SDK. Retain actual worker-exit and
+   resource-release tests. Provider-specific streams, readers and loaded-worker
+   reuse stay with the adapter until a concrete shared replacement exists.
+5. Deployment, identity and image tooling remain separate from service tests.
 
-The common service calls the adapter. An adapter does not implement another Job
-poller or drain loop. No mandatory class hierarchy or provider-name branches are
-needed. One process-local registry excludes the same Job across its lanes and
-generations; it is not a distributed lock or permission inferred from inventory.
+Adapters do not add a poller or shutdown loop. No provider-name branches or
+mandatory class hierarchy are needed. The current process-local registry prevents
+duplicate ownership of a Job within the scope it manages. It is not a distributed
+lock. An available worker does not grant execution permission.
 
-Model obligations, not a single ready flag
-------------------------------------------
-Keep the following facts distinct in the model and journal:
+Keep different events separate
+------------------------------
+A single ready flag cannot describe all of these:
 
-- Server acceptance of START; parent receipt of matching execution permission.
-- Receipt of HTTP bytes; parent classification of that exchange's result.
-- Selected input candidate; retained interpreter result; accepted session-owned
-  PreparedAnalysis or native validation capability; scientific effect entry.
-- Model exchange retirement; scientific operation quiescence; worker retirement;
-  source/grant/scratch release; terminal disposition; full claim release.
-- Local durable handoff acceptance; final Jobs API publication receipt; queue
-  removal. An accepted relay report does not establish either physical cleanup
-  or final publication.
-- shutdown_ready and claim release. A safely passive unresolved identity can
-  remain excluded without preventing supported shutdown; an unaccepted selected
-  report or active physical obligation cannot be silently treated that way.
+- The server accepts START; the client receives the matching permission.
+- HTTP bytes arrive; the parent interprets that exchange's result.
+- Input is selected; the interpreter retains its result; the session accepts a
+  PreparedAnalysis or worker validation handle; scientific work actually starts.
+- A model HTTP exchange stops; computation stops; the worker exits; input files,
+  access grants and scratch space can be released.
+- A final result is selected; reporting is resolved; the Job claim is released.
+- The local durable queue accepts a report; the Jobs API publishes it; the queue
+  removes it. A local acknowledgement proves neither worker exit nor publication.
+- shutdown_ready becomes true; all claims disappear. These are not equivalent.
+  A retained record may still exclude a Job while shutdown is safe. An active
+  worker or a selected report awaiting acceptance cannot be treated as such an
+  inactive record.
 
-SupervisedChatTransport owns one active exchange. Concurrent operations use
-independent transport/interpreter/controller owners and the appropriate shared
-claims registry. ProseService can deliberately share backoff for one binding;
-that intended pressure is not an isolation failure. Keep announcement, discovery,
-live observation, source and delivery exchanges independent when they must make
-progress concurrently.
+A claim is the registry record that prevents another owner from taking the Job.
+SupervisedChatTransport owns one active exchange. Concurrent operations need
+separate transports, interpreters and controllers, using the appropriate shared
+claim registry. ProseService may share backoff for work using the same configured
+model service. Keep announcement, discovery, observation, input acquisition and
+report delivery independent where they must progress at the same time.
 
-Track capacity as the resources actually reserved: live entries, control bytes
-and pending terminal bytes. Delivery acceptance can release terminal pressure
-while original lifecycle ownership remains. Binding an acknowledged Attempt
-identity does not create another live entry. Registry capacity is not scientific
-allocation readiness.
+The current registry limits live entries, control bytes and pending report bytes.
+Local delivery acceptance can free report capacity while the original operation
+still owns resources. Recording its acknowledged Attempt identity does not create
+a second live entry. These limits do not replace accounting for actual workers
+and their memory or compute use.
 
-Safety, isolation and conditional progress
------------------------------------------
-S1. A successor uses an allocation only after the original owner establishes the
-    required operation/handle quiescence or physical retirement. The evidence
-    must match that exact resource and generation.
-S2. An operation cannot release another operation's claim, transport, source,
-    prepared handle, report or allocation.
-S3. Cancellation, a closed socket, a sent signal, or observation-timeout expiry
-    cannot turn unconfirmed retirement into confirmation.
-S4. Expired or locally verified revoked permission cannot authorize a new
-    scientific effect. The adapter checks permission at the actual effect,
-    including after intervening awaits; a prior check reserves no authority.
-S5. Accepted preparation and its original evidence remain owned if later cleanup
-    fails. Retention does not authorize execution after permission is withdrawn.
-S6. Recovery cannot repeat accepted or uncertain scientific work. Explicitly
-    rejected candidates may be corrected; a provider's separately authorized
-    scientific retry must satisfy its own retirement, identity and budget rules.
-S7. An Attempt receives at most one logical selected terminal decision. Permitted
-    transport retries retain the same operation, bytes and idempotency identity.
-S8. Late events from an old owner cannot change successor state or evidence.
-I1. An independent operation progresses when its required resources, permission,
-    shared capacity and configured continuation policy permit it.
-I2. Failure in one operation cannot corrupt another's deadline, status, claim,
+Safety and progress rules
+-------------------------
+A worker generation identifies one particular worker instance. A prepared handle
+that refers to its state stays tied to that instance; restarting a worker under
+the same name does not make the old handle usable there.
+
+S1. Another operation may reuse a resource only after the original owner confirms
+    that its operation and prepared handle are safely inactive, or that the
+    worker has fully stopped, as that resource requires. The confirmation must
+    identify the exact resource and worker generation.
+S2. An operation cannot release another operation's claim, transport, input,
+    prepared handle, report or worker allocation.
+S3. A cancellation request, closed socket, sent signal or expired observation
+    timeout does not prove that work has stopped or resources are safe to release.
+S4. Expired or confirmed revoked permission cannot allow new scientific work.
+    Check permission immediately before the effect, including after intervening
+    awaits. An earlier check does not reserve permission for later use.
+S5. Keep accepted preparation and its original evidence owned when cleanup fails.
+    Keeping them does not permit execution after permission is withdrawn.
+S6. Recovery must not repeat accepted scientific work or work whose outcome is
+    unknown. Explicitly rejected input may be corrected. A separately authorized
+    scientific retry must satisfy its original-worker cleanup, identity and
+    resource/time-budget rules.
+S7. Select at most one logical final decision for an Attempt. Permitted delivery
+    retries keep the same operation, exact bytes and idempotency key.
+S8. A late event from an old owner cannot change its successor's state or evidence.
+I1. Independent work progresses when its resources, permission, shared capacity
+    and configured continuation policy allow it.
+I2. One operation's failure cannot corrupt another's deadline, status, claim,
     accepted preparation, report or delivery state.
-L1. Original obligations can settle once their required cleanup evidence and an
-    admissible execution/disposition decision are available.
-L2. Released capacity permits eligible work when its scientific allocation and
-    remaining admission conditions are ready.
-L3. Shutdown completes once all required retirement and handoff duties settle,
-    under the documented treatment of passive retained identities.
+L1. The original owner can finish its duties when the required cleanup is
+    confirmed and a valid execution/reporting decision is available.
+L2. Freed capacity allows eligible work when its worker is ready and the other
+    conditions for accepting it are met.
+L3. Shutdown completes when all required cleanup and report handoff duties finish,
+    following the documented rules for safely retained inactive Job records.
 
-Liveness assumes the required external replies/exit observations eventually
-arrive and the relevant tasks receive scheduling time. There is no unconditional
-claim for an exit that can never be established or arbitrary CPU starvation.
-Physical cleanup alone does not invent a public FAIL or settle uncertain START.
-S4 describes the current binding guard. Preserve it until equivalent host-managed
-dispatch checks are implemented and qualified, as required by 066; numerical
-functions need not acquire Attempt authority to satisfy the target contract.
+Progress assumes external replies and exit observations eventually arrive and
+tasks receive CPU time. Tests cannot promise progress under permanent missing
+replies or arbitrary starvation. Physical cleanup alone neither justifies a FAIL
+report nor resolves uncertainty about whether START was accepted.
 
-Historical provider facts and scientific distinctions
------------------------------------------------------
-These are facts of the reviewed sources, not requirements to reproduce their
-topology or qualify every old service before building the shared capability.
+Today, AnalysisSession bindings perform required S4 checks. Keep them until
+equivalent checks in the shared host are implemented and tested. Numerical
+functions need not receive Attempt authority or controller objects.
 
-SECS has one resident worker and stops admission on retained ownership. A healthy
-operation can leave that worker quiescent for reuse; an abandoned prepared handle
-or uncertain original request can require physical retirement before source
-release. An explicit input_rejected response permits corrected preparation.
-Count the exact accepted handle and its consumption, not all prepare calls.
-Its production controller reads verified Job input after START; do not introduce
-a second read to imitate another provider's preverified-input path.
+Provider facts at the reviewed revisions
+---------------------------------------
+These describe old code, not limits on the new architecture. They do not require
+an exhaustive review or test run of all old services before useful new work.
 
-NMRNet retains verified upload bytes, scientific readers, geometry generation,
-native setup and prediction owners. Selected input is not yet an accepted SDK
-handle. Its configured zero-or-one prediction retry is specific: a validated
-ModelCallFailed reply, retired original worker, continuing permission, the same
-frozen request batch, a matching replacement runtime, and the original aggregate
-budget. A lost sent reply is unresolved and grants no retry. A cleanup-only proof
-allocation is not a scientific submission. Preserve those distinctions.
+SECS has one resident worker and stops accepting Jobs while an old owner still
+holds it. After a normal operation the worker may be safely reused without exiting.
+An abandoned prepared handle or an uncertain request may require worker exit
+before releasing input files. An explicit input_rejected response allows corrected
+preparation. Track the accepted handle and its use, not just prepare-call counts.
+The production controller reads verified Job input after START; do not add a
+second read merely to imitate another provider.
 
-NMRPeak has separate warm HF/CHF runners but shared discovery, live capacity and
-delivery-binding pressure. A recognized completed and observed operation can
-restore runner quiescence without killing that boot. Validation corrections after
-an explicit rejection are legitimate; an unfinished original validation or an
-accepted capability cannot be replayed. Typed input requires no model HTTP.
-Current failure propagation can stop the binding. The shared service may improve
-that scope; give the new independent-progress behavior a direct witness.
+NMRNet retains verified upload bytes and owners for input readers, geometry
+preparation, worker setup and prediction. Selected input is not yet an accepted
+SDK handle. Its configured zero-or-one prediction retry requires all of:
+a validated ModelCallFailed reply, confirmed exit of the original worker,
+continuing permission, the same frozen request batch, a matching replacement
+runtime and the original total budget. Losing a reply leaves the outcome unknown
+and permits no retry. An allocation used only to test cleanup does not show that
+scientific work was submitted.
 
-Magnet supplies heterogeneous scientific implementations and their readiness,
-generation and failure policies. Its existing lane isolation is a consumer proof,
-not a reason to put E01/E02/G01 or its current status-board API into the generic
-state model. Shared admission/drain tests move with the extracted service.
+NMRPeak has separate loaded HF/CHF workers, with shared discovery, capacity limits
+and delivery pressure. Confirmed completion can make a worker reusable without
+exiting. Explicit validation rejection permits correction; unfinished validation
+or an accepted handle cannot simply be submitted again. Typed input requires no
+model HTTP request. A failure can currently stop all work using that API connection.
+The shared service may narrow that effect; test that unaffected work completes.
 
-Small causal testing support
----------------------------
-Use existing fixtures for the first deterministic boundary witnesses. A generated
-campaign benefits from the responsibilities below, but an independent oracle,
-general observation journal and shrink/replay machinery are later assurance work,
-not gates before the working host/pool. Add support only for a concrete scenario.
+Magnet supplies different scientific implementations with their own readiness,
+version and failure policies. Its existing independent-lane tests do not justify
+putting E01/E02/G01 names or its status-board API into generic shared code. Move
+tests for accepting Jobs and shutting down with the service implementation.
 
-When expanding a campaign, keep three responsibilities separate:
-
-- Driver: chosen external actions, reply/ACK releases, stop/revocation events and
-  controlled-time advances in the simulated layer.
-- Journal: facts actually observed from the real subject and controlled peers.
-- Oracle: an independent ledger of original obligations, accepted identities,
-  permitted decisions and outstanding capacity. Do not copy the runtime's
-  branching algorithm or derive expected state from its mutable status alone.
-
-An observation needs a kind, source, collector sequence, known operation/resource
-identity and optionally a monotonic timestamp. Add an original-owner/generation
-identity where late events can collide. Record only identities known at that
-boundary; do not infer that the nth HTTP request belongs to the nth START.
-
-A sequence counter orders collection, not independent processes. Causal edges
-come from actual interactions: the original request precedes its response; the
-parent classifies that response; a restoration gate depends on verified prior
-settlement. Delayed log arrival is not evidence of when a child physically exited.
-
-Use only the mechanisms a scenario needs: record, await a predicate,
-withhold/release an external response, and report its outstanding obligation.
-For generated exploration, keep the action trace separate from observed events;
-report enough context to reproduce a failure. Do not build a common journal API
-or require a mutation/shrinking demonstration to admit unrelated functionality.
-
-Record facts at their owners: API acceptance, interpreter classification,
-session/native effect entry, SDK handoff acceptance, original controller join or
-post-terminal settlement, and the actual registry. Prefer typed event observation
-that delegates to the real emitter over parsing rendered log text. Logging is not
-an authority for permission or release. Observers must not repair runtime state,
-release claims, clear backoff or restart science to satisfy the test.
-
-Watchdogs cancel only disposable waiters, not the operation being observed.
-Preserve strong references to owners and check owner failure even when an event
-arrives at the same wake-up. Capture the verdict and diagnostics before releasing
-emergency fixture gates or terminating children. Cleanup contains failed tests;
-its effects are not evidence that the tested lifecycle completed successfully.
-
-Complementary evidence, selected by the claim
+How to test without building another framework
 ---------------------------------------------
-The useful capability and its focused deterministic witnesses come first.
-The following layers describe different evidence, not a mandatory sequence or
-a requirement to complete every matrix before the next implementation increment.
+Start with existing fixtures and deterministic tests for the feature being added.
+For generated tests later, distinguish chosen actions, observed events and expected
+state. Calculate expected ownership independently; do not copy runtime branches
+or read mutable runtime state to decide what the answer should be.
 
-A. Later composed state-machine exploration in the SDK.
-   Extend the existing campaign with two operation slots and small entry/byte
-   capacities, using the real Interpreter, supervised transport ownership,
-   controller/executor and claims.
-   Replace controllable external process/pipe, API, science and delivery ports.
-   Generate legal event orderings, not just random parameter values. Candidate
-   risks include launch interruption, malformed/partial/lost replies, uncertain
-   START, late cleanup, permission changes, accepted preparation, ACK loss and
-   shutdown.
+Record the necessary source, event kind, known operation/resource identity and
+collection order. Add owner/generation where late events could be confused, and
+monotonic timestamps when timing matters. Never assume the nth HTTP request
+belongs to the nth START.
 
-   Use Hypothesis with one managed event loop per example. Do not create a new
-   loop per action and cancel the very owners being explored. Keep deterministic
-   named traces as regression cases; shrink failing action sequences. Controlled
-   time is appropriate only where all relevant simulated clock sources agree.
-   This explores exposed boundaries, not every internal asyncio instruction.
+Collection order is not execution order across processes. Use actual interactions:
+a request precedes its reply, and the parent must observe and accept the reply
+before the test relies on it. Delayed logs cannot establish child-exit time.
+Keep chosen actions separate from observations so failures can be reproduced.
 
-   Reuse existing tests/fakes and unit/integration scenarios before adding
-   helpers. Coverage, independent-oracle and shrink/replay work should address
-   the risks this campaign actually investigates; incomplete campaign assurance
-   does not block a capability established by its focused witnesses. The existing
-   outbox history test needs no replacement merely to adopt a different generator.
+Observe facts at their owners: API acceptance, interpreter decisions, scientific
+entry, local report acceptance and original-controller completion. Prefer existing
+structured events to log parsing. Test observers must not grant permission,
+release claims, clear backoff or restart science to manufacture success. General
+event APIs, reference models and shrinking demonstrations are not entry gates.
 
-B. Focused actual-process evidence for physical ownership claims.
-   Reuse tests/fakes/b3_provider_shutdown.py and its existing tests with an
-   original held operation plus an independently progressing operation. Reuse
-   its creation, cancellation, signal, repeated-retirement and exact-exit gates.
-   Keep real monotonic time, subprocesses and IPC. A dead child whose wait result
-   is withheld tests unconfirmed observation, not a genuinely unkillable child.
+A watchdog may cancel its disposable waiter, not the operation being watched.
+Retain original owners and check their failures even if an event arrives at the
+same wake-up. Decide pass/fail and capture diagnostics before emergency cleanup
+releases gates or kills children. Cleanup cannot supply the successful outcome.
 
-C. Real provider/SDK composition when migrating or releasing that consumer.
-   Retain small provider-owned scenarios using actual adapters and production
-   assembly paths. Qualify real native protocols separately from recording
-   scientific backends, and deployed model continuity separately from scripted
-   subprocesses. SDK process tests do not replace a consumer's worker binding.
+Different tests establish different things
+------------------------------------------
+Choose evidence for the changed behavior, rather than a ladder every feature
+must climb:
 
-The first composed witness holds A's original retirement, lets B complete and
-settle using independent resources, then supplies A's original evidence. For a
-positive release use an admissible path such as verified pre-entry revocation
-and settle_revocation; also keep an unresolved-disposition control that stays
-held after cleanup. Admit a successor only when its own prerequisites hold.
-Retain a separate accepted-preparation witness; do not create a fictional next
-model turn after ToolFinished has ended interpretation.
+A. Generated SDK tests, added when useful.
+   Reuse real interpreters, supervised transports, controllers/executors and
+   claims, with two operation slots and small limits. Control external replies,
+   science completion and delivery. Explore relevant orders: lost replies,
+   uncertain START, late cleanup, permission changes, accepted preparation,
+   lost acknowledgements and shutdown.
 
-Component budgets remain distinct. A supervised chat exchange has its fixed
-original retirement allowance. API/upload/delivery callers can own bounded
-reobservation budgets. Do not turn either rule into a universal timeout policy.
+   Use one managed event loop per Hypothesis example; a new loop per action can
+   cancel the work being tested. Preserve useful failures as named regressions.
+   Simulated time requires consistent simulated clocks. Generated commands do not
+   control internal asyncio or child scheduling. Check reached events and improve
+   shrinking/replay for concrete failures or claims. Keep the existing stateful
+   outbox test; a new generator alone does not justify replacing it.
 
-Consumer scenarios that survive extraction
--------------------------------------------
-Use existing fixture classes and test files. A provider scenario assembles the
-real service/session, external peers, stop request and scientific observations.
-During migration change its service assembly, retaining scientific semantics and
-ownership assertions. Replace incidental topology assertions when the new shared
-capability intentionally improves them. Select the scenarios affected by the cut;
-the following inventory is not an upfront qualification project for all providers.
+B. Real-process tests for exit and resource release.
+   Reuse tests/fakes/b3_provider_shutdown.py and its creation, cancellation,
+   signal, repeated-observation and exact-exit gates. Use real processes, IPC and
+   monotonic time. Withholding observation of an exited child tests missing exit
+   evidence; it does not simulate an unkillable child.
 
-SECS: extend test_sdk_runtime_drain.py, test_sdk_session.py, native_worker tests
-and the existing end-to-end fixture. Prove safe failure then next-Job readiness;
-accepted-handle/source lifetime through interruption; exact handoff through stop.
-The reviewed e2e fixture manually builds ChatEndpoint with HttpTransport. Use the
-production ChatEndpointFactory path for a supervised-child wiring claim. Its
-pending durable queue row proves local custody, not final API publication.
+C. Actual provider integration when migrating or releasing that provider.
+   Use the real adapter and production assembly path. A recording fake does not
+   test a native protocol; scripted processes do not test a deployed model.
+   Shared SDK tests do not replace a check of the consumer's worker connection.
+
+For independent progress, hold A's original cleanup observation, let B finish
+on separate resources, then supply A's evidence. Use a valid release case such
+as confirmed pre-entry revocation followed by settle_revocation. Also test that
+unresolved Job state can require retaining a claim after cleanup. A successor
+starts only when allowed. Test accepted preparation separately; do not invent
+another model turn after ToolFinished has ended interpretation.
+
+A supervised chat exchange keeps its original fixed cleanup allowance. API,
+upload and delivery callers may have bounded budgets for observing the same
+operation again. Neither rule becomes a universal timeout policy.
+
+Useful consumer tests
+---------------------
+Use existing files. Keep scientific meaning and ownership checks when changing
+assembly; replace assertions about old topology when the new behavior improves
+it. Select affected scenarios rather than running this whole inventory upfront.
+
+SECS: reuse test_sdk_runtime_drain.py, test_sdk_session.py, native_worker tests
+and the end-to-end fixture. Check safe failure followed by next-Job readiness,
+accepted-handle/input lifetime during interruption, and exact report handoff
+through stop. The reviewed e2e fixture manually builds ChatEndpoint with
+HttpTransport. Use production ChatEndpointFactory to test supervised-child wiring.
+A pending durable queue row proves local storage, not final API publication.
 
 NMRNet: reuse service_ports.py, runtime_ports.py, retirement_ports.py and native
-session fixtures. Preserve verified bytes through interpreter interruption;
-retain late native setup/cleanup under the original owner; preserve exact terminal
-bytes under delivery pressure and stop. Keep scientific retry and result-format
-tests local. Replace private task/call-sequence assertions when their owner moves.
+session fixtures. Keep verified bytes through interpreter interruption and retain
+late worker setup/cleanup under the original owner. Preserve exact report bytes
+through delivery pressure and stop. Keep scientific-retry and result-format tests
+local; replace private task/call-order assertions when their code moves.
 
 NMRPeak: reuse test_shared_provider_process.py and test_native_runner_session.py.
-Keep typed-input bypass and original validation/capability ownership, the durable
-handoff-versus-cleanup distinction, and two-lane stop/ACK-loss scenarios. Today's
-held-cleanup regression calls _select on the other lane; it does not prove that
-lane completes under the running service. Add full independent completion at the
-concurrent-service milestone under its explicit continuation policy. Preserve
-warm-PID reuse and final native retirement proofs. The extra prose-stop tests
-referenced by note 060 are on a test revision, not this main baseline.
+Keep typed-input bypass, ownership of validation and accepted handles, and the
+separation of report acceptance from cleanup. Keep stop/lost-acknowledgement tests.
+The reviewed held-cleanup test calls _select on another lane; it does not show
+that lane finishing under the running service. Test actual independent completion
+when adding that behavior. Keep tests for reuse of a loaded process and its final
+exit. Note 060's extra prose-stop tests belong to a separate test revision.
 
-Magnet: retain the current causal outage/finite-backlog cases and complete lane
-isolation. Add shared observation/peer capabilities only where current consumers
-need them. Replace remaining status-file polling with the actual hold boundary
-and assert normal shutdown in the test body. The later heterogeneous deployment
-witness has E02 held while independent E01 work and publication of G01's earlier
-report progress; actual PIDs/model loads and API publication require that layer.
+Magnet: retain event-controlled outage, finite-backlog and independent-lane tests.
+Add shared observation helpers only where consumers use them. Replace remaining
+status-file polling with observation of the actual held operation, and check
+normal shutdown before test cleanup. In a later deployment test, hold E02 while
+E01 completes and G01's earlier report is published. Actual process IDs, model
+loads and API publication need evidence from that deployment test.
 
-Do not claim that historical SECS already had independent spare allocations,
-that fresh-child NMRNet preserved warm PIDs, or that NMRPeak already implemented
-broader continuation. Build the target one/two-allocation capability and verify
-its new behavior directly; these historical limitations do not constrain it.
+Do not claim that old SECS already had spare independent workers, old NMRNet
+preserved a warm process, or old NMRPeak kept unaffected work running. Show the
+new one/two-worker behavior directly. Old limitations are not design requirements.
 
-Distribution and default execution
-----------------------------------
-The SDK source distribution already includes generic test helpers. NMRNet's
-tools/provider_consumer_tests.py verifies that archive's checksum, copies an
-explicit support allowlist, checks installed SDK provenance and excludes generic
-SDK tests/source from consumer discovery. Extend this existing distribution path
-once two actual external consumers use a shared deterministic helper.
+Test packaging and longer runs
+------------------------------
+The SDK source archive already contains helpers. NMRNet's
+tools/provider_consumer_tests.py verifies its checksum, copies allowed support
+files, verifies the installed SDK location and excludes shared SDK tests/source
+from consumer discovery. Extend this route when two real consumers need a helper.
 
-Keep Hypothesis and shrinking private to SDK qualification, with a pinned
-test-only dependency closure. Do not put it into production/native installs or
-make providers import a sibling checkout. Runtime wheel, support archive and
-provider revision are an exact qualified tuple, not just matching version text.
-No additional test wheel, public runtime observer bus or test-specific orchestrator
-is needed. New support files/interfaces need a concrete test consumer.
+Keep Hypothesis and pinned test dependencies outside runtime/native installs.
+Do not import a sibling checkout. For release or candidate comparison, identify
+the actual runtime wheel, support archive and provider revision. Reuse packaging;
+new support files/interfaces need a concrete consumer.
 
-Keep the existing small generated profile; run longer campaigns only for a
-specific assurance goal. Note 065 owns priorities. Extended run sizes, fixed
-repeat quotas and contention campaigns are optional later work, not capability
-acceptance gates. Their configured bounds are not executed evidence.
-Real-process tests retain real clocks.
-Scenario gates determine fault start/end; dedicated timing tests verify deadlines
-and Retry-After. Server request-arrival gaps alone cannot prove dispatch was not
-early; observe the actual admission/dispatch boundary for that stronger claim.
+Keep the small generated profile. Longer runs, repeat quotas and CPU-contention
+tests follow specific risks; they do not gate features. Configured run sizes are
+not executed evidence. Faults follow observed events. Dedicated timing tests check
+deadlines and Retry-After: server arrival times alone cannot prove dispatch waited.
 
-Repetition is bounded and retains every failure. Diagnostic waits identify the
-missing lifecycle transition; they do not retry until green or reset forever on
-log chatter. Under declared load a real semantic deadline can legitimately fire.
-Test outcomes must retain that distinction rather than increasing every timeout.
+Bound repetitions and retain failures; never retry until green. Report the missing
+event instead of resetting watchdogs on log chatter. Load can legitimately cause
+a deadline to expire; do not hide that by raising every timeout.
 
 Migration and completion
 ------------------------
-Follow 065: exercise directly callable science and the shared host with one/two
-allocations, then build the common service around that boundary. SECS, NMRNet,
-NMRPeak, Magnet is a consumer order, not four successive architectures. There is
-no prerequisite to qualify every current service. Compare old/new assembly on
-the same candidate only when needed to isolate a concrete migration risk.
-Preserve scientific semantics, replacing incidental readiness or continuation
-policy where the target requires it. Do not run two live schedulers under one
-provider identity.
+Follow 065: run science directly, host the same code with one/two workers, then
+build the shared service. SECS, NMRNet, NMRPeak, Magnet is a migration order, not
+four designs. Compare old/new code on the same candidate only for a concrete risk.
+Never run two live schedulers under one provider identity.
 
-Deliver complete runnable increments with the service and pool working together.
-Retain original-controller maintenance even with full capacity, closed admission
-or no offerings. Resource- and binding-scoped pressure and independent progress
-belong to the shared design from the first consumer; use small direct witnesses
-as each behavior becomes available, not a preliminary general test framework.
+Deliver working increments. Keep observing original work when capacity is full,
+no new Jobs are accepted or no offerings are announced. The first shared design
+allows independent progress and applies retry delays to affected work. Move tests
+with their code, remove duplicates and replaced local paths, and keep scientific
+and native tests with small consumer scenarios. Add focused tests for changed
+behavior; broader test infrastructure follows need.
 
-At each cut move relevant existing generic tests with their production owner,
-remove duplicated assertions and delete the displaced local path. Keep the
-scientific/native tests and small external scenarios. A demonstrated defect gets
-a focused witness and owning fix;
-new functionality gets a complete usable increment with its essential acceptance
-checks. Broad campaigns and proof-method improvements follow identified risk.
+Before deployment, stop the old service accepting Jobs, then finish its duties or
+confirm their durable transfer. A timeout does not transfer an in-memory Attempt.
+Keep the outbox and publisher. Death before durable handoff remains separate
+recovery work in 065/066. A hash cannot reconstruct report bytes or authorize
+repeated science.
 
-Before actual cutover close old admission and settle duties or verify durable
-transfer to a continuing owner. A timeout is not a transfer of an in-memory
-Attempt. Keep the current outbox and publisher authorities. Process death before
-durable handoff remains note 060's separate series; a digest-only checkpoint does
-not reconstruct selected report bytes and grants no scientific replay.
-
-Completion means a generic lifecycle change normally changes the shared code
-and its tests while the four consumer scenarios continue to validate their real
-adapters. New providers supply science, declarations and a small qualification
-fixture; they do not supply another polling, settlement or shutdown engine.
+Generic service changes should live in shared code and its tests; consumer tests
+still exercise real adapters. New providers supply science, requirements and a
+small integration test, without another poller or shutdown loop.
 
 Source anchors
 --------------

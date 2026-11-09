@@ -1,452 +1,387 @@
-Roadmap: useful shared execution, then broader capability and assurance
-=====================================================================
-Revised 2026-11-09 | Target: note 066 | Source baseline 1178115
-Priority revision: executable capability first; assurance proportional to risk
+Plan: build the shared package, then extend it
+==============================================
+2026-11-09 | Design: note 066 | Reviewed runtime: 1178115, SDK 0.6.8
 
-Authority and delivery practice
+What to build next
+------------------
+Start M1 now. Make the same scientific code work directly, then through shared
+code that runs it on one or two workers. Connect the first real provider and make
+the whole service work: find a job, run the science, keep the result, deliver it
+and shut down properly.
+
+Scientific code supplies the model, settings, input interpretation and numerical
+work. The shared service chooses jobs and assigns resources. The execution host
+is the shared code that loads the scientific implementation and calls it. The
+service passes input through without interpreting peaks, choosing weights or
+creating framework-specific device objects. Note 066, section 7, explains these
+three interactions and who supplies each input.
+
+Existing worker counts and process layouts can change. One and several workers
+must use the same scientific code. Keep scientific behavior and the protections
+in note 064; replace incidental restrictions of the old service loops.
+
+This note sets the work order. Note 066 describes the intended system and lists
+unfinished work as G01-G12. Note 064 records earlier source reviews and useful
+tests. Older instructions to qualify all existing services first are superseded.
+
+Build in this order
+--------------------
+Tier 0 -- Make a useful local package. Complete M1, M2 and the first SECS
+integration (M3.3). Include fixed one/two-worker settings, result delivery and
+orderly shutdown. Keep permission checks, separate job state, resource limits
+and exact ownership of work. Where automatic recovery is missing, retain
+uncertain work and explain the supported operator action. A restart never
+authorizes repeating work whose outcome is unknown.
+
+Use a few deterministic tests through the installed service and actual workers:
+finish a job and hand its result to the existing delivery queue, which preserves
+accepted reports across restarts; hold worker A while B finishes, then settle A
+when its original evidence arrives;
+reject revoked permission and handles from the wrong worker; retain unfinished
+work and selected results during shutdown. Local queue acceptance and central
+API publication are separate events. These tests accompany implementation.
+
+Tier 1 -- Connect the other providers, allocate resources separately for each
+stage, improve recovery, preserve work across supervisor crashes, and add a
+real remote execution backend. M3-M6 and M7.3 describe this work. Tier 0 may
+reserve resources for a whole operation until the finer controls exist.
+
+Tier 2 -- Improve speed or resource use where measurements justify it. Examples
+are adjusting worker counts automatically and processing compatible jobs in
+batches. M7.1/M7.2 cover these changes. All tiers extend the same working system.
+
+Keep testing proportional to the change. Fix a demonstrated defect with a
+focused regression test. Large generated-test campaigns, elaborate models of
+expected state, stress runs and broad compatibility testing come later when
+they answer a concrete question. M0.3/M0.4 do not block M1. Stop expanding tests
+once the changed behavior is adequately checked. Known permission, ownership
+or scientific-correctness failures still block the affected feature.
+
+Work on main in small commits that each leave something runnable. Include the
+code, necessary tests and installation changes together. Explain what changed,
+what ran and what remains unfinished. Append history. Releases, dependency
+repins and deployment changes need their own authorization and checks.
+
+0. What has already been tested
 -------------------------------
-066_provider_execution_end_state.txt defines the target architecture and gaps
-G01-G12. This roadmap replaces the earlier preserve/extract-serial/add-lanes
-sequence. Notes 058, 060, 061 and 064 retain their historical source/evidence
-records; 064's S1-S8, I1-I2 and L1-L3 remain behavioral contracts. They do not
-require completing a general validation harness before implementing the service.
+Reviewed SDK source: 1178115c8b1ea89556f4c04f73d69471be8e1b5f, version 0.6.8.
+These are implementation records and user-reported runs:
 
-Do not promote current provider topology into requirements. The shared platform
-must support multiple allocations of the SAME scientific implementation before
-its interface is declared complete. A one-worker deployment is a configuration,
-not a first service architecture that later needs replacing. Characterize current
-providers only to protect scientific semantics and identify bridges. Obsolete
-polling, fail-stop, lifetime or lane assumptions may intentionally change.
-
-The orchestrator routes opaque work and operational authority to an execution
-interface. Deployment/registration binds the scientific implementation, its
-configuration and assets. The host invokes scientific initialization and analysis;
-it does not make the scheduler choose weights, scientific parameters or device
-library objects. Section 7 of 066 defines input provenance, invocation surfaces,
-loaded-instance/per-analysis lifetimes and the authority that must not leak into
-numerical functions. Build these boundaries into the first runnable capability,
-not a separate speculative framework or catch-all execution-context object.
-
-Work on main in small, complete, runnable capability increments. Include tests,
-installation support and required integration in the same coherent increment;
-do not land unused abstractions merely to match the outline. Use a focused red
-witness and owning fix for a genuine defect, not as the cadence for all build-out.
-Append history. Each commit body records purpose, changed capability, executed
-checks and limits. Report planned/implemented/omitted/added/verified in chat.
-No automatic dependency publication, deployment cutover or runtime-policy change
-is authorized by a planning note.
-
-Priority gradient and acceptance
---------------------------------
-Tier 0 -- A useful local package. Implement M1, M2 and the first SECS migration
-as complete runnable increments: directly callable science, configured hosting,
-fixed one/two-allocation pools and the service path through durable result handoff
-and drain. Keep permission, exact ownership, isolation, bounded resources and
-safe handling of uncertain work in this tier. A documented hold/manual resolution
-is acceptable where automatic recovery is not yet implemented; restarting or
-forgetting an owner must never manufacture permission to repeat uncertain work.
-
-Tier 0 acceptance uses a small set of deterministic scenarios through the actual
-installed host/service/worker boundary: input to result and durable local handoff;
-one/two allocations with A held while B completes and A later settles; revoked
-dispatch and stale handles refused; original resources/results retained through
-stop and drain. Reuse fixtures and combine related observations in these scenarios.
-API publication remains distinct from local handoff. Checks accompany the
-capability that needs them. Direct science and the first real adapter must work;
-a mock-only universal interface is insufficient.
-
-Tier 1 -- Useful extensions. Migrate the remaining providers (M3), separate phase
-allocation and bounded staging (M4), improve reconciliation (M5), add durable
-supervisor recovery (M6), then a concrete remote backend (M7.3). These stay explicit
-functional gaps; each becomes an acceptance requirement when that capability is
-claimed. Existing conservative aggregate reservations and recovery limits can
-bridge Tier 0 safely. All four migrations are the adoption goal, not its entry gate.
-
-Tier 2 -- Measured optimization. Adaptive residency/replica policy and batching
-(M7.1/M7.2) follow a demonstrated workload benefit. They extend the same Tier-0
-execution path. Higher tiers must not replace it with an alternative architecture.
-
-Validation supports these tiers. Preserve required guards and focused checks for
-changed behavior; add a deterministic regression for a demonstrated defect. Broader
-state-machine oracles, shrink/replay machinery, stress, compatibility matrices and
-provenance automation are later assurance work justified by a concrete risk or
-recurring need. M0.3/M0.4 and all-gap closure are NOT prerequisites to M1 or Tier 0.
-Stop expanding checks once the changed contract is sufficiently exercised. A
-known permission, ownership or scientific-correctness defect still blocks the
-affected capability; a missing optional harness does not block unrelated work.
-
-0. Existing evidence and supporting qualification work
-------------------------------------------------------
-SDK source reviewed: 1178115c8b1ea89556f4c04f73d69471be8e1b5f, version 0.6.8.
-The following are implementation/customer-run reports from this workstream, not
-new local test executions or release artifact receipts:
-
-  95c8617  Deterministic two-owner and unresolved-outcome guards. User reported
+  95c8617  Added two-owner and unresolved-outcome tests. User reported
            231 installed integration tests passing.
-  9e5d7a8  Initial Hypothesis campaign and test-only dependency closure. User
-           reported the requested acquisition/fuzz/integration/unit lanes pass;
-           no additional count or artifact hash was supplied here.
-  fb8c7f1  Permission/preparation extension. Integration reported 233 cases with
-           two failing subcases: the test incorrectly expected post-entry
-           revocation to release a claim.
-  f26ef5f  Corrected that current-contract expectation; user reported integration
-           passing. This does not make the current disposition boundary a
-           permanent end-state requirement.
-  7bca1ba  Delivery/capacity interleavings and review corrections; user reported
-           requested integration and fuzz lanes passing.
-  b4569e9  Late-original-owner/successor isolation. Implemented, runtime result
-           not yet reported in the earlier ledger.
-  1178115  Independent actual-child progress while original exit observation is
-           withheld. Implemented, runtime result not yet reported in that ledger.
-  2026-11-09  User subsequently reported both installed integration and fuzz lanes
-           passing after switching to main and pulling. Main was independently
-           inspected at 81b62b4 (documentation changes after 1178115). This closes
-           the pending run request at user-reported level; no new count, artifact
-           digest or local execution is inferred from that report.
+  9e5d7a8  Added the first Hypothesis campaign and its test-only dependencies.
+           User reported the requested acquisition, fuzz, integration and unit
+           suites passing. No further count or package hash was supplied.
+  fb8c7f1  Added permission/preparation tests. The reported integration run had
+           233 cases and two failing subcases: the test wrongly expected the
+           job's ownership record (claim) to be released after execution had
+           crossed EnteredCheckpoint.
+  f26ef5f  Corrected that test; user reported integration passing. Production
+           behavior was correct: settle_revocation returned None and kept the
+           claim. Stronger future evidence may permit a less conservative rule.
+  7bca1ba  Added delivery/capacity orderings and review fixes. User reported
+           the requested integration and fuzz suites passing.
+  b4569e9  Added tests that late observations from an old owner cannot change
+           its successor. No runtime result was reported in the earlier record.
+  1178115  Added actual-child progress while another child's original exit
+           observation is withheld. No runtime result was reported then.
+  2026-11-09  User subsequently reported both installed integration and fuzz
+           suites passing after switching to main and pulling. Main was
+           independently inspected at 81b62b4; changes after 1178115 were
+           documentation only. This satisfies the pending run request. No new
+           count, package hash or locally executed run is inferred.
 
-These reports qualify only their stated scope. They do not close the shared-
-service, execution-pool, durability or remote-backend gaps. A passing bounded
-campaign is not proof of internal scheduling coverage or a deployed model run.
+These results concern the named tests. They do not establish that the shared
+service, pool, crash recovery or remote backend has been built.
 
-[x] M0.1 Pending installed integration/fuzz runs: user-reported pass above.
-    Proceed to M1. Do not rerun unchanged code to satisfy a stale planning ledger.
-[ ] M0.2 Record the source, command and outcome with each relevant check. Capture
-    immutable artifact/environment identity when comparing candidates, publishing
-    or qualifying consumer adoption. Reuse existing build/install outputs; add
-    automatic receipts only when needed, and do not ask users to reconstruct
-    transient hashes. Refresh consumer main/pins before edits. Historical source
-    tables do not identify deployed hosts.
-[ ] M0.3 Later generated-test improvement, scoped to a concrete defect/risk:
-    use acknowledged lifecycle boundaries for the ordering under investigation,
-    check that the relevant milestones were reached, and add independent expected
-    obligations where they catch errors the current assertions miss. A small
-    deterministic witness can establish the next capability without a general
-    oracle. Test-only perturbation/shrink/replay demonstration is optional harness
-    qualification, not a prerequisite. Keep current bounded coverage claims honest:
-    no-op rules and OS scheduling mean commands alone do not determine completion.
-[ ] M0.4 Keep Hypothesis test-only and preserve existing runtime/native installation
-    checks when changing packaging. Reuse tools/provider_core_acquire.py,
-    provider_core_tests.py, core_environment.py, provider_core.sh and package.py.
-    Add replay support when diagnosing a generated failure or making a replay
-    claim; printing a blob alone does not establish a supported reproduction.
+[x] M0.1 Record the reported integration/fuzz pass above. Proceed to M1.
+[ ] M0.2 Record the source revision, command and result of relevant checks.
+    For a release, package comparison or provider migration, identify the exact
+    packages and environment used. Reuse build outputs; automate extra records
+    when needed. Refresh a provider's main branch and dependency pins before
+    editing it. Historical source reviews do not identify deployed software.
+[ ] M0.3 Improve generated tests when a concrete risk calls for it. Wait for the
+    event whose ordering matters and check that the test actually reached it.
+    Add a separate model of expected ownership where it would catch missed
+    errors. Demonstrating that an injected test failure shrinks and replays is
+    optional test-tool work. A list of generated commands does not determine
+    when real processes finish, and some current rules can do nothing.
+[ ] M0.4 Keep Hypothesis out of runtime dependencies. Preserve existing clean
+    runtime/native installation checks when changing packaging. Reuse
+    tools/provider_core_acquire.py, provider_core_tests.py, core_environment.py,
+    provider_core.sh and package.py. Add a supported replay command when needed
+    to reproduce a generated failure; printing a replay blob is insufficient.
 
-Existing installed qualification entry points, after branch/pull:
+Existing test commands, after switching branch and pulling:
   make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/path/to/wheelhouse
   make tests/fuzz/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/path/to/wheelhouse
   make tests/unit/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/path/to/wheelhouse
   make tests/contract/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/path/to/wheelhouse
 
-The explicit extended selection is FUZZ_PROFILE=extended on the fuzz target.
-Default 32 examples/40 steps and extended 1000/150 are configured bounds, not
-executed-transition counts or a claim that extended/concurrency stress has run.
-No new Make target or stress command is asserted to exist in this document.
+The fuzz target accepts FUZZ_PROFILE=extended. Configured limits are 32 examples
+and 40 steps by default, or 1000 examples and 150 steps for extended. These are
+limits, not counts of completed transitions or evidence that extended runs took
+place. M0 supports development; it is not a phase that must finish before M1.
 
-M0 is supporting work, not a serial phase that must finish before M1. The reported
-passes are the baseline. G11 tracks deferred assurance; its open status does not
-prevent a focused capability from being accepted on the evidence it actually has.
+1. Run the same science on one or two workers
+---------------------------------------------
+Tier 0. Starts G01/G02/G04/G10 and supports later resource and provider work.
 
-1. First new capability: one implementation, multiple owned allocations
-----------------------------------------------------------------------
-Closes the initial part of G02/G04/G10 and establishes G01's invocation boundary;
-provides the foundation for G03/G12. Tier 0; begin now with runnable increments.
+[ ] M1.0 Keep three inputs separate: deployment supplies configured science and
+    model files; the service supplies work, permission and limits; the host calls
+    scientific functions with their own inputs. Those functions must not receive
+    controllers, claim registries, ProviderAPI, ReportCondition, Jobs credentials,
+    the global resource allocator or Docker access, including through nested objects.
+[ ] M1.1 Give the offered analysis, scientific implementation and particular worker
+    separate identities. A replacement worker is a new instance even in the same
+    slot. The host tracks operations, permission and reserved resources. Reuse
+    analysis.py and existing runner helpers; add modules only as real code needs them.
+[ ] M1.2 Build a fixed group of local workers using existing process supervision.
+    Configuration chooses one or two copies of the same scientific code. Track
+    workers from startup through readiness, use and shutdown, including partial
+    startup. Load the bound settings/model files once per instance; the service
+    does not interpret them. Pass per-job scientific settings through unchanged.
+[ ] M1.3 Use test science that permits only one call at a time per worker. Hold A's
+    original cleanup while B finishes; keep A unavailable until its evidence arrives.
+    Also check the one-worker limit. Use a small deterministic actual-worker test.
+[ ] M1.4 A prepared handle refers to scientific state prepared for an analysis.
+    It must match its implementation and, when worker-bound, the exact worker
+    instance. Reject wrong or old handles. Portable prepared data can move before
+    dispatch, but portability never permits replaying an operation that may
+    already have run.
+[ ] M1.5 Connect SECS through a small adapter. A serial worker protocol can limit
+    each worker without limiting SECS to one worker overall. Remove collisions
+    between copies in mutable globals, scratch names and source-file access.
+    Keep the loaded model's identity explicit.
+[ ] M1.6 Run the same scientific operations directly without Jobs and through the
+    host with one/two workers. Check one-time initialization, separate state per
+    analysis and model-specific cleanup. Scientific code checks whether settings
+    and model files make sense; a matching file hash alone cannot do that. The
+    host rejects revoked work before calling science. Returning from scientific
+    cleanup does not by itself prove the worker and all its readers have stopped.
 
-[ ] M1.0 In the first hosted example, distinguish configuration/asset binding,
-    the operational dispatch envelope and the scientific callable's arguments.
-    Use note 066 section 7's provenance map. No numerical hook receives a
-    controller, registry, ProviderAPI, ReportCondition, Jobs credential, global
-    allocator or Docker manager, directly or through a catch-all context.
-[ ] M1.1 Separate offering and implementation identity from allocation identity
-    and incarnation. Specify actual resource reservation and retirement evidence.
-    Keep operation/Attempt authority in the host/backend envelope, not mandatory
-    numerical arguments. Start beside existing analysis.py and runner helpers;
-    proposed service/allocation modules are choices, not mandatory files.
-[ ] M1.2 Build a small fixed local pool around existing runner supervision.
-    Configuration selects one or two replicas of the SAME implementation; the
-    scientific adapter source is identical. Pool startup, partial allocation,
-    readiness, reservation, drain and reuse have owned outcomes. Bind versioned
-    configuration/assets at initialization, without rebuilding them per Job or
-    making the scheduler understand their schema. Keep per-Job parameters opaque.
-[ ] M1.3 Use an explicit non-reentrant test adapter in two independent real worker
-    allocations. Exercise distinct operations, held cleanup in A while B
-    completes, no reuse of A, and correct recovery when A's original evidence
-    arrives. Check that a configured pool of one admits only one allocation.
-    Use one causal fixture for this contract; no generated oracle is required.
-[ ] M1.4 Bind prepared handles to the correct implementation and, when necessary,
-    allocation incarnation. Reject stale/mismatched handles. Support a portable
-    candidate through explicit immutable identity without claiming replay rights.
-[ ] M1.5 Introduce the first thin real-model bridge, with SECS a suitable initial
-    consumer. Any serialized worker protocol is a temporary per-allocation
-    constraint, not a global SECS lock. Inventory mutable globals, scratch names,
-    source grants and model-load identity; remove cross-replica collisions.
-[ ] M1.6 Run the same scientific operations directly without a live Jobs service,
-    then through the host with one/two allocations. Verify initialization once
-    per actual instance, isolated per-analysis state and scientific disposal
-    distinct from full allocation retirement. Model configuration validation
-    belongs to the contribution; asset digest verification alone cannot admit
-    an incompatible model. Host dispatch of revoked work must fail before the
-    scientific effect without asking science to interpret an Attempt.
+Done when: the same real science works directly and through one/two workers.
+Changing worker count needs no scientific code change. Any temporary adapter
+restriction has a reason and a stated way to remove it.
 
-Exit: the shared execution capability works with one/two allocations and the
-same directly callable scientific implementation. The scheduler routes work;
-configuration/asset semantics remain in the contribution. A real scientific or
-backend limit has an evidence-backed bridge, not a singleton architecture.
-
-2. Build the common service around the allocation contract
-----------------------------------------------------------
-G01/G07 and the service part of G05. Tier 0, around M1's exercised boundary.
-
-[ ] M2.1 Compose initial/periodic Hello and bounded fair discovery using existing
-    ProviderAPI operations. Keep their API owners independent of scientific work
-    and terminal handoff. A failed page does not restart an admitted operation.
-[ ] M2.2 Integrate reservations with AttemptClaims/AttemptController admission.
-    Reserve before effects, adopt partially created sessions/controllers before
-    awaiting further work, and check authority in shared hosting at each managed
-    dispatch, including after awaits. Refused admission must leave no partial
-    Job/START/resource ownership. Keep existing binding permission checks until
-    equivalent host guards are qualified; this plan does not authorize deletion.
-[ ] M2.3 Drive original controllers and maintain them independently of discovery,
-    offered capability, spare capacity and open admission. Use owner-produced
-    facts/dispositions, not provider-specific nested-exception inspection.
-[ ] M2.4 Implement scoped cooldown and delivery pressure with bounded retry.
-    Handle the failure scopes the local backend can actually establish; retain
-    conservative handling for unknown scope. A held allocation must not stall
-    independent usable capacity. Extend classification for later backends when
-    needed, without first building a universal failure taxonomy.
-[ ] M2.5 Implement common stop-admission, active-work stop, report drain and
-    shutdown observations. Retain unconfirmed allocations and selected reports.
-    Keep queue acceptance, API publication and physical retirement distinct.
-    Qualify cooperative cancellation separately from noncooperative backend
-    interruption; a cancellation signal is neither quiescence nor exit evidence.
-[ ] M2.6 Remove displaced generic code from the first consumer in the same
-    usable increments. Reuse the existing durable outbox/publisher; do not create
-    a second terminal queue or another authoritative Attempt registry.
-[ ] M2.7 Exercise two contributions with different input/configuration schemas
-    behind the same scheduler; a small second contribution is sufficient here.
-    Do not wait for a second real-provider migration. Review the actual data flow
-    for science-library dependencies, provider-name branches and leaked authority.
-    Scientific loaders/decoders own meaning; a protocol binding translates outcomes
-    without becoming another poller or permission engine.
-
-Tier 0 exit (with M1 and M3.3): the first consumer uses the shared service with
-both pool configurations and focused evidence for the acceptance scenarios above.
-A serial setting does not select a different scheduler implementation. Default
-service behavior meets the new floor; no compatibility switch restores old
-whole-provider stalls or maintenance dependent on new Job arrivals.
-
-3. Migrate all four providers by capability, not by successive architectures
----------------------------------------------------------------------------
-G01/G12, backed by G02/G04/G07. SECS -> NMRNet -> NMRPeak -> Magnet remains a useful
-consumer ordering, not a requirement to defer common concurrency until NMRPeak.
-The first SECS integration belongs to Tier 0; remaining migrations are Tier 1.
-Inspect each consumer's relevant scientific/binding contracts at its migration.
-No exhaustive old-service qualification project precedes the first migration.
-
-[ ] M3.1 For an actual temporary bridge, record its owner, limitation and removal
-    condition in the existing note. Avoid a separate receipt for every checklist
-    item. Classify old assertions as scientific invariant, protocol obligation,
-    obsolete quirk or desired new capability.
-    Separate numerical code and configuration from SDK compatibility binding;
-    current AnalysisSession argument types are not the final numerical interface.
-[ ] M3.2 Run the affected installed consumer path against the candidate. Add an
-    old/new combination only to resolve a concrete compatibility uncertainty;
-    there is no mandatory three-way matrix per change. New target behavior may
-    intentionally differ. Never compare two live schedulers under one identity.
-[ ] M3.3 SECS: change src/secs_inference/provider/{runtime,main,session,worker}.py
-    at their actual ownership boundaries. Keep numerical inspection/search and
-    accepted-input semantics; replace singleton orchestration with the pool.
-    Use tests/provider/{test_sdk_runtime_drain,test_sdk_session}.py and
-    tests/e2e/test_provider_e2e.py. Route the real adapter through production
-    ChatEndpointFactory, not its older manually assembled HttpTransport fixture.
-    Verify two actual independent allocations without repeated source acquisition
-    for one operation; retain sources until their exact readers retire.
-[ ] M3.4 NMRNet: replace common orchestration in nmrnet_provider/{service,runtime}.py
-    and common native-owner plumbing via existing factory/session boundaries.
-    Keep numerical preparation, frozen input identity and the evidence authorizing
-    any scientific retry. Use tests/integration/provider_core/{service_ports,
-    runtime_ports,retirement_ports}.py plus native/input/retry tests. Exercise
-    several allocations, not just the existing serial foreground pattern.
-[ ] M3.5 NMRPeak: replace provider_process.py's fixed lane orchestration with
-    offering-to-pool declarations. Retain HF/CHF scientific compatibility, typed-
-    input model bypass, validation and result semantics. Use test_shared_provider_process.py
-    and test_native_runner_session.py. Prove two allocations of one capability
-    as well as mixed capabilities, actual sibling completion and local ACK/cleanup
-    independence; the old private selection assertion is insufficient.
-[ ] M3.6 Magnet: assemble heterogeneous implementation declarations and compatible
-    pools, not permanent E01/E02/G01 worker identities. Reuse corrected prose-outage,
-    lane-isolation and live-controller scenarios. Prove a held prose operation,
-    unrelated computation and previous result publication progress independently;
-    vary implementation replica count without changing its scientific adapter.
-[ ] M3.7 Delete displaced local discovery, allocation management, retry, retention,
-    pressure and drain code. Move existing relevant shared tests with their owner,
-    removing duplicated assertions. Retain numerical/native compatibility tests
-    and a small installed consumer scenario.
-    Move common native readers, permission plumbing and process retirement out of
-    scientific cleanup hooks; keep only domain disposal and a narrow translation
-    bridge where necessary. Preserve original ownership during the transition.
-
-Evidence sources: pinned provider paths/revisions in 064. Historical prose-service
-branches in 061 contain both runtime and test changes; reinspect before reuse.
-Neither historical counts nor repinning a wheel establishes current adoption.
-Reuse NMRNet's checksum-verified selective sdist test support and the other
-installed-artifact launchers. Deterministic consumer helpers must not require
-Hypothesis or import a sibling checkout. Share only with real second consumers.
-
-Adoption completion: all four providers use one common service/allocation
-implementation. Their remaining differences describe science and capabilities;
-shared machinery owns polling and worker supervision. Numerical behavior is
-qualified independently of the intentional orchestration improvements.
-
-4. Resource-efficient pipeline and placement
---------------------------------------------
-G03/G04. Tier 1, after the shared reservation boundary is exercised. Tier 0 uses
-bounded aggregate reservations; limits/isolation are already required there.
-
-[ ] M4.1 Add separate budgets for control, staged inputs/preparations, model
-    residency, active CPU/GPU work, uncertain allocations and terminal custody.
-    Reject overcommit across implementations sharing one physical device.
-    Across processes require a shared allocator or enforced disjoint grants.
-[ ] M4.2 Acquire compute in shared hosting from declared phase requirements.
-    Demonstrate that a blocked prose request does not reserve an otherwise usable
-    GPU slot, while scientific preparation that DOES use the device retains the
-    correct allocation/affinity. Domain tool selection and prompts remain in the
-    contribution; scheduling must not construct scientific inputs to achieve this.
-[ ] M4.3 Bound prepared count/bytes and queue wait. Implement ordered/atomic
-    composite acquisition; test cancellation halfway through a resource request
-    and competing phases that would otherwise deadlock. Cold starts remain
-    owned and count against physical limits until their actual outcome is known.
-[ ] M4.4 Exercise portable pre-dispatch placement and affinity-bound execution.
-    Do not reload or recompute an accepted preparation to hide migration failure.
-    Protect credential, source and scratch isolation when allocations are reused.
-
-Exit: expensive execution capacity is not held solely because a conversation or
-report is pending. Legitimate native affinity remains explicit, and all retained
-resources and queues stay bounded. Stage separation is measured, not inferred
-from a scheduler diagram.
-
-5. Typed reconciliation and bounded automatic recovery
-------------------------------------------------------
-G05/G07. Tier 1. Extend current controller/executor contracts with owning evidence.
-
-[ ] M5.1 Define a small typed decision surface for continued observation, accepted
-    handoff, held uncertain work, eligible release and terminal reconciliation.
-    Keep permission, physical closure and disposition separate. No provider needs
-    to inspect a private checkpoint or reconstruct nested failures to schedule.
-    These are operational interfaces, not new required numerical-function inputs.
-[ ] M5.2 Qualify stronger post-entry reconciliation where authoritative API state
-    and backend dispatch/termination evidence justify it. Preserve f26ef5f's
-    conservative current guard until the replacement is proved. A test science
-    counter of zero is not itself runtime proof that no effect occurred.
-[ ] M5.3 Separate active execution reservations from bounded unresolved records.
-    Proven-quiescent excluded Jobs may remain reconciliable without occupying
-    free GPU slots. Unconfirmed work remains charged. Reconciliation storage
-    needs explicit bounds, retention/compaction rules and alerts; overflow must
-    not silently forget identities or stop unrelated bindings unnecessarily.
-[ ] M5.4 Prove automatic resumption on new evidence while admission is closed,
-    repeated observations without renewed deadlines, and no second scientific
-    submission. Diagnose exactly which authority/resource blocks remaining work.
-
-Exit: recoverable failures do not require routine operator restarts. Irreducible
-uncertainty remains explicit and safe, scoped as narrowly as the evidence allows.
-
-6. Durable operations and supervisor replacement
+2. Build the shared service around those workers
 ------------------------------------------------
-G06; Tier 1, required for unattended crash recovery. It does not gate the first
-local pooled release. This is a tracked end-state requirement, not an indefinite
-exclusion from scope.
+Tier 0. G01/G07 and the service part of G05.
 
-[ ] M6.1 Specify durable operation intent/identity before dispatch and backend
-    status/result custody. Define which backend acknowledges a committed command,
-    what survives supervisor death, and how the successor reattaches or refuses.
-[ ] M6.2 Persist the exact selected terminal until verified transfer to durable
-    delivery. Reconcile lost acknowledgements against authoritative custody;
-    preserve the existing publisher and exact terminal idempotency identity.
-[ ] M6.3 Fence obsolete supervisors at the execution receiver. Prove duplicate
-    dispatch refusal, late-response rejection and ownership transfer across a
-    crash; no lease-expiry-only inference that the old computation ended.
-[ ] M6.4 Kill the supervisor at intent, send, acceptance, execution completion,
-    result retention and outbox handoff boundaries. Restart and prove reattachment,
-    safe disposition or explicit held uncertainty with no duplicate science.
-    Unsupported backend ambiguity is visible, not a claim of exactly-once compute.
-[ ] M6.5 Qualify rollout/rollback with new work routed to the new pool and original
-    work drained or transferred under evidence. A digest-only checkpoint is not
-    a recoverable result and a timeout is not permission to replace an owner.
+[ ] M2.1 Announce availability at startup and periodically using ProviderAPI's
+    Hello. Discover jobs fairly with bounded pages. Discovery, science and delivery
+    keep independent request owners. A failed discovery request must not restart
+    an accepted operation.
+[ ] M2.2 Combine resource reservation with AttemptClaims/AttemptController.
+    Reserve before effects, record ownership of partially created sessions and
+    controllers before awaiting more work, and check permission immediately before
+    each managed dispatch, including after awaits. Refusing new work leaves no
+    abandoned job claim or reservation. Keep existing AnalysisSession permission
+    checks until equivalent host checks are implemented and tested.
+[ ] M2.3 Keep observing original controllers, completing cleanup and delivering
+    results even when there are no new jobs, no spare capacity or new work is
+    paused. Use explicit results from the code that owns the work; providers
+    should not inspect private checkpoints or nested exceptions to decide what next.
+[ ] M2.4 Pause calls to the affected endpoint or resource and limit retries. A held
+    worker must not stall independent usable capacity. Keep conservative handling
+    where the failure's scope is unknown; add further classifications when needed.
+[ ] M2.5 Support refusing new jobs, stopping/finishing active work, handing off
+    results and shutting down. Keep uncertain workers and selected reports owned.
+    Queue acceptance, API publication and confirmation that resources are safe
+    to release are separate facts.
+    Test cooperative stopping separately from forced interruption; a stop request
+    does not prove effects have ended.
+[ ] M2.6 Remove the first provider's replaced service code as each part works.
+    Reuse the existing durable outbox/publisher and claim registry.
+[ ] M2.7 Run a small second contribution with different input/settings through the
+    same scheduler. Check actual data flow for leaked authority, science-library
+    dependencies and provider-name branches. The contribution interprets science;
+    its SDK adapter translates calls/results without becoming another service loop.
 
-Exit: crash recovery and rolling replacement satisfy the stated durability level
-for each supported backend. Record the remaining unsupported failure windows.
+Tier 0 is done when M1, M2 and the first SECS integration work together with the
+focused tests above. One and two workers use the same service. Existing work
+continues to receive attention even when no new jobs can be accepted.
 
-7. Measured pool policy, batching and a concrete remote backend
---------------------------------------------------------------
-G08/G09/G10. M7.1/M7.2 are Tier 2; the concrete remote capability M7.3 is Tier 1
-after its prerequisites. M7.4 applies to the deployment being added. These labels
-set priorities, not a demand to finish every earlier numbered item first.
+3. Move the other providers onto the same shared code
+----------------------------------------------------
+G01/G12, using G02/G04/G07. SECS is first and completes Tier 0; NMRNet, NMRPeak
+and Magnet follow in Tier 1. Inspect each provider when migrating it. All four
+use the same architecture.
 
-[ ] M7.1 Measure model-load cost, resident/peak memory, queue wait, useful execution
-    concurrency, isolation and numerical equivalence. Add bounded warm/idle and
-    demand-driven replica policy using those measurements, with stable configured
-    limits and no replacement storm around uncertain instances.
-[ ] M7.2 For an actual scientifically compatible consumer, add batch admission
-    and per-member mapping, permission, failure and cancellation handling. Preserve
-    other members after one cancellation. Unsupported batching remains explicit;
-    no adapter must pretend different Jobs are one scientific operation.
-[ ] M7.3 Add one real remote/managed-service backend using the established
-    operation/reservation contract. Require authenticated grants, authoritative
-    capacity, receiver-enforced owner generations, partition/rejoin handling and
-    durable receipt semantics. M6 evidence is required for failover claims.
-[ ] M7.4 Reuse existing deployment/image/acquisition/identity owners to configure
-    pool count and placement. Science containers receive minimum grants, never
-    host Docker access merely to scale themselves. Test missing devices, stale
-    artifacts, denied mounts/credentials and incompatible generations explicitly.
+[ ] M3.1 For each necessary temporary adapter, record who owns it, its restriction
+    and when it can be removed. Preserve scientific rules and protocol obligations;
+    replace old layout assumptions. Current AnalysisSession signatures are SDK
+    integration details, not the required numerical-function API.
+[ ] M3.2 Test the affected installed provider against the new package. Compare
+    old/new combinations only to answer a specific compatibility question.
+    Never run two live schedulers under one provider identity for comparison.
+[ ] M3.3 SECS: change src/secs_inference/provider/{runtime,main,session,worker}.py.
+    Keep its numerical inspection/search and accepted-input meaning. Use
+    tests/provider/{test_sdk_runtime_drain,test_sdk_session}.py and
+    tests/e2e/test_provider_e2e.py. Use production ChatEndpointFactory, replacing
+    the old manually assembled HttpTransport test path. Run two actual workers;
+    acquire each operation's sources once and keep them until its readers stop.
+[ ] M3.4 NMRNet: replace shared mechanics in nmrnet_provider/{service,runtime}.py
+    and the native factory/session code. Keep numerical preparation, exact frozen
+    input and the scientific conditions for retry. Reuse
+    tests/integration/provider_core/{service_ports,runtime_ports,retirement_ports}.py
+    and native/input/retry tests. Exercise multiple workers.
+[ ] M3.5 NMRPeak: replace provider_process.py's fixed HF/CHF lanes with configured
+    worker groups. Preserve HF/CHF compatibility, typed-input model bypass and
+    result meaning. Reuse test_shared_provider_process.py and
+    test_native_runner_session.py. Run two workers for one capability and mixed
+    capabilities. Observe actual independent completion and separate delivery
+    acceptance from cleanup; merely selecting another lane does not show it runs.
+[ ] M3.6 Magnet: configure E01/E02/G01 implementations and compatible workers.
+    Reuse the corrected prose-outage, lane-isolation and live-controller tests.
+    While prose work is held, another computation and publication of an earlier
+    result must progress. Vary worker count without editing scientific code.
+[ ] M3.7 Delete replaced discovery, scheduling, retry, retention and shutdown code.
+    Move relevant shared tests with it and remove duplicate assertions. Keep
+    numerical/native tests and one small installed integration test per provider.
+    Shared code handles native readers, permission and process shutdown;
+    scientific cleanup retains model-specific disposal. Preserve ownership
+    of existing work throughout the change.
 
-Exit: operational changes use declarations/configuration instead of adapter forks.
-A minimal local installation still requires no remote coordinator, cluster or
-batching feature. Expensive optimization is accepted only with measured benefit
-and the same scientific/ownership contract.
+Note 064 lists reviewed revisions and paths; refresh them before editing.
+Recheck historical branches in 061 before reuse. Use existing installed-package
+launchers, including NMRNet's checksum-checked source-archive helpers. Consumer
+helpers must not require Hypothesis or import another repository's checkout.
+Share a helper when a second real consumer needs it.
 
-8. Evidence alongside delivery, and removal of bridges
------------------------------------------------------
-This section supports the owning increment or release; it is not a final global
-validation phase. Use existing fixtures and the narrowest relevant installed lane.
+Done when: all four use the common service and worker management. Check scientific
+results separately from intentional changes in scheduling or failure handling.
 
-[ ] M8.1 Update the existing gap register when a capability lands. The mapping is:
-    G01 invocation/service boundary (M1/M2/M3);
-    G02 pools (M1); G03 physical/stage budgets (M4); G04 handles/protocols and
-    disposal boundary (M1/M3/M4); G05 recovery (M5); G06 durable custody (M6);
-    G07 scheduling/maintenance (M2/M5); G08 adaptive policy/batching (M7);
-    G09 remote authority (M7); G10 deployment (M1/M7); G11 scoped test fidelity
-    and optional wider assurance (M0); G12 real consumers (M3). No separate receipt
-    system or requirement to close every gap before Tier 0 is accepted.
-[ ] M8.2 Remove each legacy bridge with its working replacement and the focused
-    test for the behavior it protected. Reuse M1/M2's one/two-allocation, affinity,
-    authority and state-isolation scenarios rather than rebuilding that matrix
-    in every provider. Retain a small actual adapter/host integration scenario.
-[ ] M8.3 Select evidence for the changed boundary: deterministic lifecycle tests,
-    actual subprocess/IPC for physical retirement, installed consumers for
-    assembly, native/deployment runs for real-model/deployment claims. These are
-    different scopes, not a ladder every change must climb. Stateful generation
-    supplements them when useful; no universal fuzzer runtime is required.
-[ ] M8.4 Repeat or add CPU contention only for a concrete scheduling/flakiness
-    risk. Remove the earlier suggested ten/three repetition quota. Keep runs
-    bounded and every failure visible; no retry-until-green. Fault gates follow
-    observed events, and emergency teardown cannot supply a passing verdict.
-[ ] M8.5 At an authorized release, identify and check the actual artifacts and
-    affected consumer installations. A named local-pool release can leave broader
-    recovery/remote/assurance gaps open. Do not require every consumer or a broad
-    compatibility matrix for an unaffected subset. Installed claims use a wheel,
-    and production/native claims need their own applicable evidence.
-[ ] M8.6 Before an authorized deployment, stop old admission and settle or verify
-    durable transfer of obligations. Preserve outbox rows and old owners that
-    still hold work. Apply the same guard to rollback; never erase an unresolved
-    operation to make a cutover or test pass.
+4. Reserve resources for the stage that needs them
+-------------------------------------------------
+Tier 1. G03/G04. Tier 0 already limits resources, but may reserve them for the
+whole operation.
 
-End-state acceptance
+[ ] M4.1 Track separate limits for control work, waiting/prepared inputs, loaded
+    models, active CPU/GPU work, uncertain workers and retained results. Prevent
+    competing implementations from overcommitting a device. Across processes,
+    use one shared allocator or enforce non-overlapping resource grants.
+[ ] M4.2 Let the host acquire resources from declared stage requirements. Waiting
+    for a prose-model reply should not occupy an otherwise usable GPU. Preparation
+    that really uses a GPU must retain the required worker/handle relationship.
+    Scientific code still chooses prompts, tools and input interpretation.
+[ ] M4.3 Limit prepared-item counts, bytes and waiting time. Acquire combined
+    resources together or in a consistent order to avoid deadlocks. Check
+    cancellation during partial acquisition. Starting workers count against
+    limits until their actual outcome is known.
+[ ] M4.4 Support portable data before dispatch and worker-bound handles where
+    necessary. Never repeat accepted preparation to conceal a failed move.
+    Keep credentials, input files and scratch state isolated when workers are reused.
+
+Done when: waiting on conversation or delivery does not unnecessarily occupy
+compute, and every queue and retained resource remains bounded.
+
+5. Recover automatically when enough information arrives
+---------------------------------------------------------
+Tier 1. G05/G07.
+
+[ ] M5.1 Return clear typed results for continued observation, accepted delivery,
+    uncertain work, safe resource release and final resolution. Keep permission,
+    stopped effects and final job outcome separate. These are shared service
+    decisions; scientific functions do not receive new controller arguments.
+[ ] M5.2 Improve release after cancellation only where authoritative API state
+    and backend dispatch/termination evidence support it. Keep f26ef5f's present
+    conservative rule until the replacement is tested. A zero execution counter
+    in a test is not runtime proof that no effect occurred.
+[ ] M5.3 Separate unresolved job records from occupied resources. Once work is
+    proven stopped, its job can remain excluded from retry without holding a GPU
+    forever. Unknown work still counts against possible occupancy. Bound retained
+    records and define retention/compaction and alerts; never discard identities
+    silently when storage fills.
+[ ] M5.4 Resume cleanup/recovery when new evidence arrives, even while new jobs
+    are refused. Repeated observation must not restart deadlines or submit science
+    again. Report exactly what information or resource is still missing.
+
+Done when: supported recoverable failures no longer need routine restarts.
+Unresolved cases stay explicit and affect only the scope justified by the evidence.
+
+6. Preserve work across a supervisor crash
+------------------------------------------
+Tier 1. G06. Required for unattended crash recovery; not a Tier-0 prerequisite.
+
+[ ] M6.1 Save operation identity and intent before dispatch. Define what the
+    backend records when it accepts work, which status/results survive a crash,
+    and how a new supervisor reattaches or refuses unsafe recovery.
+[ ] M6.2 Save the exact final report until durable delivery accepts it. Resolve
+    lost acknowledgements by checking the receiving component's stored state.
+    Keep the existing publisher and the same report identity and bytes on retries.
+[ ] M6.3 Make the execution backend reject obsolete supervisors. Check duplicate
+    dispatch, late replies and ownership transfer. An expired lease alone does
+    not prove the old process can no longer run.
+[ ] M6.4 Interrupt the supervisor around intent, send, acceptance, completion,
+    result storage and outbox handoff. Restart and check reattachment, safe
+    resolution or an explicit unresolved hold. Do not repeat uncertain science
+    or claim exactly-once execution where the backend cannot establish it.
+[ ] M6.5 Check upgrade and rollback: new work goes to the new workers while old
+    work finishes or transfers with verified ownership. A result hash cannot
+    reconstruct the result, and a timeout cannot transfer ownership.
+
+Done when: each supported backend meets its stated crash/upgrade guarantees.
+List the remaining failure windows.
+
+7. Add useful remote execution and measured optimizations
+---------------------------------------------------------
+G08/G09/G10. M7.3 is Tier 1; M7.1/M7.2 are Tier 2. M7.4 applies when adding the
+relevant deployment. Numbering does not require remote work to wait for batching.
+
+[ ] M7.1 Measure load time, memory, waiting time and useful concurrency. Change
+    warm/idle worker policy and automatic worker counts only for measured benefit.
+    Keep fixed upper bounds and count uncertain predecessors before replacing them.
+[ ] M7.2 Batch only scientifically compatible work. Preserve each member's input,
+    output, permission, cancellation and failure mapping. Cancelling one member
+    must not cause another to be resubmitted. Check numerical equivalence.
+[ ] M7.3 Implement one real remote/managed-service backend. Use authenticated
+    permissions, enforceable capacity limits and receiver-enforced owner versions.
+    Handle disconnection/reconnection and define what accepted work survives.
+    Claims of failover require M6's recovery checks.
+[ ] M7.4 Reuse deployment, image, acquisition and identity tools for worker count
+    and placement. Grant science only the needed files/devices/endpoints; no
+    Docker access for self-scaling. Check missing devices, stale files, denied
+    access and incompatible worker versions for the deployment being added.
+
+Done when: these operational choices use configuration and the same scientific
+code. A simple local installation still needs no cluster or batching system.
+
+8. Check what changed and remove replaced code
+----------------------------------------------
+Apply these tasks with the relevant implementation or release.
+
+[ ] M8.1 Update the existing G01-G12 list as features land. Mapping:
+    G01 service/science (M1/M2/M3); G02 workers (M1); G03 resource stages (M4);
+    G04 prepared handles/cleanup (M1/M3/M4); G05 recovery (M5);
+    G06 crash persistence (M6); G07 scheduling/maintenance (M2/M5);
+    G08 scaling/batching (M7); G09 remote execution (M7);
+    G10 deployment (M1/M7); G11 test quality (M0); G12 provider adoption (M3).
+    Open later work does not block a useful Tier-0 package.
+[ ] M8.2 Remove temporary code when its replacement works and the relevant test
+    passes. Reuse shared worker/permission/isolation tests. Keep a small real
+    adapter integration test instead of duplicating the full shared test set.
+[ ] M8.3 Match the test to the claim: deterministic scenarios for lifecycle rules,
+    real processes for physical shutdown, installed packages for assembly,
+    native/deployment runs for actual-model or deployed behavior. A change needs
+    the relevant evidence, not every kind of test.
+[ ] M8.4 Repeat tests or add CPU contention only to investigate a specific risk.
+    Keep runs bounded and retain every failure; do not retry until green.
+    Release faults after observed events. Emergency cleanup may contain a failed
+    test, but cannot supply the event that makes its behavior appear to pass.
+[ ] M8.5 Before an authorized release, check the actual packages and affected
+    providers. A local-worker release can leave later features and broader tests
+    unfinished. Use wheels for installed-package claims and run native/deployment
+    checks when making those claims.
+[ ] M8.6 Before deployment or rollback, stop the old service taking new jobs.
+    Finish its duties or verify their durable transfer. Preserve queued reports
+    and owners still holding work. Never erase unresolved work to make replacement
+    succeed.
+
+The finished system
 --------------------
-A provider supplies its science, configured implementation, capability/resource
-requirements and a small installed qualification fixture. Shared code supplies
-service, execution hosting/pools, recovery and deployment mechanisms. Scheduling
-routes opaque work; scientific setup and meaning remain in the contribution.
-Numerical code can run without Jobs/Attempt authority. Replica count, compatible
-placement and residency are operational choices, not scientific rewrites.
-The platform preserves scientific meaning and real ownership obligations while
-retiring incidental constraints of current implementations. Tier 0 is useful
-before this end state is complete; later capability gaps stay visible. Required
-guards are never deferred merely because broader assurance work is deferred.
+Providers supply scientific code, settings, capability/resource requirements
+and a small integration test. Shared code supplies the service, worker management,
+recovery, delivery and deployment mechanisms. Science remains callable without
+Jobs authority. Worker count and compatible placement change through configuration.
+Tier 0 is useful while later work is still being built.

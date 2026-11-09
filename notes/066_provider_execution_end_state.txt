@@ -1,560 +1,458 @@
-Target architecture: scientific adapters on a shared execution platform
-=======================================================================
-2026-11-09 | Design decision and gap register | Baseline SDK 1178115
-Boundary clarification: orchestrator -> execution host -> configured science
-Priority revision: useful local execution first; assurance proportional to risk
+How the shared provider platform should work
+=============================================
+2026-11-09 | Target design | Runtime reviewed: SDK 1178115
 
-Decision and authority
-----------------------
-Design the common platform for the desired end state, not as an intersection of
-four existing service loops. A provider contributes scientific capabilities;
-the platform operates them. Worker count, placement, residency, concurrency and
-replacement are deployment/execution decisions, not properties of the provider's
-name. SECS is not architecturally a singleton, NMRPeak is not architecturally two
-lanes, and Magnet is not architecturally three permanently assigned runners.
+Purpose and status
+------------------
+Providers supply the science. Shared code runs the service: finding work, deciding
+when it can start, running it, reporting results and stopping safely. The number
+and location of workers should be configuration choices. The same scientific
+code must run with one worker or several.
 
-This note supersedes the topology-preserving interpretation of notes 060 and 064
-and the previous serial-first extraction sequence in 065. The revised 065 owns
-implementation order. The safety obligations S1-S8 in 064 remain requirements;
-current topology, private protocol details, failure propagation and checkpoint
-limitations are implementation facts to replace where necessary. Historical
-source and qualification records remain evidence for their named revisions.
+This is the target, not a description of a finished platform. The runtime review
+was at 1178115c8b1ea89556f4c04f73d69471be8e1b5f. Note 064 records the provider
+versions reviewed; it does not identify what is currently deployed. Earlier test
+results apply only to their named versions and files.
 
-The objective is correct science, bounded resource use, useful parallelism and
-recovery with minimal operator intervention. It is not maximum concurrency at
-any cost. Residency and batching choices require measurements for each workload;
-this note makes them replaceable without rewriting scientific adapters.
+This note replaces the older assumption that extraction should preserve each
+provider's worker layout. Note 065 gives the implementation order. The safety
+rules S1-S8 in 064 still apply. Keep scientific meaning and real ownership of
+work; replace unnecessary polling, worker and failure-handling restrictions.
 
-Apply a strong prioritization gradient. First deliver a complete local execution
-path with its essential authority, ownership and resource guards. Extend that
-same path with broader capabilities and recovery, then measured optimizations.
-Focused checks accompany each capability. A general oracle, shrinking campaign,
-stress matrix or evidence framework is not a prerequisite for useful execution.
-Section 9 sets the tier boundaries; 065 owns the runnable increments.
+Build a useful local service first, then broader capabilities and recovery, then
+measured performance improvements. Add focused checks with each change. Broad
+fuzzing, test frameworks and stress campaigns must not delay that useful service.
+Section 9 defines the tiers. A plan alone does not authorize release or deployment.
 
-The orchestrator does not assemble scientific inputs, model configuration,
-weights or framework device objects. It routes a work item to a registered,
-configured implementation through an execution interface. Shared hosting invokes
-that implementation; scientific code owns interpretation, setup and computation.
-Transporting opaque bytes is not authority to choose their scientific meaning.
-Sections 2 and 7 define the separate boundaries and the provenance of each input.
+1. The things we need to distinguish
+-----------------------------------
+These terms describe responsibilities; each does not need its own Python class.
 
-This is a target and migration design, not an assertion that the platform below
-exists. Runtime source baseline: numpde/nmr-provider-tools at
-1178115c8b1ea89556f4c04f73d69471be8e1b5f; preceding documentation revision 2c1d23d.
-Consumer facts are the pinned review in 064, not a fresh audit of deployed hosts.
-No release or deployment is authorized by this document.
+Offering: an analysis available through the Jobs API, including its input schema
+and the conditions under which it may be used.
 
-1. Separate scientific identity from execution topology
--------------------------------------------------------
-Use these concepts, without requiring a class for every noun:
+Implementation: a particular scientific program, its settings, preprocessing and
+model files. Record the version and exact files/settings that affect its results.
+Switching to a different model or numerical policy requires an explicit scientific
+choice; infrastructure must not silently make that choice after a failure.
 
-Offering: the analysis capability exposed to the Jobs API, its schema and
-eligibility constraints. An offering is not a worker or an execution queue.
+Execution backend: how shared hosting starts and watches work. Start with local
+isolated workers. A remote service can be added later under the same rules.
 
-Implementation: a versioned scientific adapter, model/data assets, preprocessing
-and numerical/result policy. Its identity records the relevant immutable bytes
-and configuration. Choosing a numerically different implementation must be an
-explicit scientifically valid selection, not invisible infrastructure fallback.
+Allocation: a particular worker or other assigned resource, such as a device
+partition or remote slot. Identify the actual instance, not just its name: a
+restarted worker is a different instance. Several allocations may run the same
+implementation. Compatible work may share physical capacity, but per-job mutable
+state remains separate.
 
-Execution backend: the common mechanism that hosts an implementation and
-performs identifiable operations. Local isolated workers are the first backend.
-Managed long-lived services and remote workers use the same ownership semantics
-when their protocols can establish them. Backend selection must not force the
-scientific adapter to acquire Jobs API credentials or run an admission loop.
+Reservation: capacity held for a particular owner and phase. Available capacity
+is not a reservation, and a reservation is not permission from the Jobs API to
+start science. Track who must release it, including after partial acquisition.
 
-Allocation: one concrete, identified execution resource, including its incarnation
-and compatibility. Examples include a worker process with a loaded model, a
-reserved device partition, or a remote service slot. Multiple allocations can
-serve one implementation; compatible implementations can share physical capacity
-without sharing mutable per-Job state.
+Operation: one submitted preparation or computation. Track its Job Attempt,
+input, implementation, exact worker instance and permission. Checking its status
+again does not create another operation. An Attempt may contain several separately
+identified operations.
 
-Reservation: authority to consume specified capacity for an owner and phase.
-It is not START permission, not a heartbeat, and not evidence of completed work.
-Readiness observations alone do not reserve anything. Acquisition, partial
-acquisition and release must have explicit owners.
+Prepared analysis: the accepted scientific input or state needed for computation.
+Immutable input may be portable. A handle into a live worker must stay with that
+exact worker instance until used or safely discarded. Having input bytes does
+not permit repeating work that may already have been submitted.
 
-Operation: one actual preparation or execution submission, bound to its Attempt,
-input identity, implementation, allocation incarnation and permission. Transport
-re-observation does not create another operation. An Attempt can have several
-explicit scientific phases without losing their individual ownership.
+A lane can be a useful scheduling or status view. It must not permanently bind
+one offering to one worker or one job.
 
-Prepared analysis: owned scientific input and, where needed, an allocation-bound
-capability. A portable immutable candidate can be placed later. A native handle
-must retain its allocation affinity until consumed or positively disposed.
-Portable bytes alone never authorize replay of a possibly dispatched operation.
-
-A lane may remain a scheduling/status view over offerings and resource policy.
-It must not become an immutable one-lane/one-worker/one-Job relationship.
-
-2. The end-state ownership split
---------------------------------
+2. Who does what
+----------------
 Scientific contribution
-  Owns domain input decoding/checks, scientific tools, preparation, computation,
-  result meaning, model-specific initialization and disposal. It supplies its
-  versioned configuration/assets and declares compatibility, resource needs,
-  affinity, batch semantics and scientifically authorized retry. Its registration
-  binding describes the offering without making the scheduler understand NMR.
-  Scientific functions do not receive an AttemptController, AttemptClaims,
-  ProviderAPI, report_condition, Jobs credentials or the global allocator.
+  Decodes and checks scientific input, supplies tools, prepares and computes
+  results, and defines what those results mean. It supplies model initialization
+  and cleanup, scientific settings and model files. It declares resource needs,
+  compatible environments, worker-bound state, supported batching and permitted
+  scientific retries.
 
-Shared service orchestrator in provider-core
-  Owns announcement, bounded discovery, fairness, admission, Attempt authority,
-  maintenance, failure scope and drain. It selects a registered implementation
-  and requests work through the execution interface. Its request carries an
-  opaque input payload/reference and an operational envelope: identity,
-  reservation/authority, deadlines and limits. It observes an operation handle
-  and outcome. It does not import models, construct scientific parameters,
-  select checkpoint filenames or interpret the payload's scientific contents.
+Shared service in provider-core
+  Announces offerings, finds a bounded amount of work, schedules it fairly,
+  manages Job Attempt permission, maintains existing work and drains on shutdown.
+  It selects a registered implementation and passes input bytes or a reference
+  without interpreting them. It supplies operation identity, reserved capacity,
+  deadlines and limits. It does not select checkpoint files, construct tensors
+  or understand peaks and molecules.
 
-Shared execution hosting and backends
-  Own allocation pools, process/IPC/remote operation control, identity probes,
-  dispatch, cancellation supervision, custody and retirement evidence. The host
-  binds the configured implementation and invokes its initialization/scientific
-  hooks. Configuration interpreters and model loaders belong to that contribution,
-  not a scheduler switch on provider name. Backend-specific grants are translated
-  into the implementation's supported environment; framework-specific objects
-  are constructed by scientific initialization, not passed through the scheduler.
-  Common hosting enforces operational authority without exporting controller
-  internals to science. A small legacy protocol bridge may remain temporarily;
-  it must not conceal another pool, retry, polling or shutdown implementation.
+Shared host and execution backends
+  Manage worker pools, start operations, communicate with workers, supervise
+  cancellation and establish when work and workers have actually stopped. The
+  host calls scientific initialization and analysis functions and keeps their
+  operational records. It enforces permission without handing controller internals
+  to science. A temporary protocol adapter may translate an old worker interface;
+  it must not hide another scheduler, pool, retry loop or shutdown mechanism.
 
-Deployment tooling and operator configuration
-  Own images, verified artifacts, provisioning, identities, socket/network
-  grants, device limits, resource inventory, rollout and rollback. Deployment
-  binds approved implementation configuration and assets; shared tools can fetch,
-  verify and materialize them without understanding checkpoint or input semantics.
-  Operator policy selects pool bounds, placement, budgets and approved backends.
-  The orchestrator can enforce generic declarations and compare opaque identities;
-  it does not reinterpret or silently modify the selected scientific configuration.
-  Keep privileged Docker/host operations out of science and the service loop.
+Deployment tools and operator configuration
+  Provide images, files, identities, device limits and permitted files, sockets
+  and network access. They bind approved scientific settings and model files to
+  the implementation. Shared tools may fetch and verify files; scientific code
+  understands their formats and compatibility. Operators choose pool limits,
+  placement and approved backends. Privileged Docker and host access stay out of
+  scientific code and the service loop.
 
 Result delivery
-  Keep the existing durable outbox and publisher as separate owners. Scientific
-  code produces a result or classified scientific failure, not a Jobs API terminal
-  request. Shared protocol/lifecycle code binds that outcome to the Attempt and
-  selects the exact report. Local durable acceptance and central publication are
-  distinct acknowledgements. Shared code does not mean one process, one failure
-  domain, or one giant package importing every optional backend dependency.
+  Keep the existing outbox (the saved report queue) and publisher. Science returns
+  a result or scientific failure. Shared code associates it with the Attempt and
+  constructs the exact final report. Acceptance into the local durable queue and
+  publication to the central API are separate events. Queue acceptance means
+  the report is saved so it survives a restart.
 
-The execution interface is a semantic/authority boundary, not necessarily a
-network hop. An in-process host, isolated local worker and qualified remote backend
-may implement it. Registration and deployment are separate inputs from per-Job
-scheduling; not everything needed by science flows through the orchestrator.
+These owners can run in separate processes and packages. The common runtime
+must not import every scientific framework. The execution interface may be a
+Python call, IPC or a network call; it is a responsibility boundary, not a
+requirement to add another network service.
 
-3. Poolable execution from the first service interface
-------------------------------------------------------
-The service must support one or many allocations of the same implementation
-without changing adapter source. One is a legitimate configured resource limit,
-not the design around which later concurrency has to be retrofitted.
+3. One implementation, one or several workers
+--------------------------------------------
+Support a fixed local pool first. Changing its size must not change scientific
+source code. The pool owns worker startup, readiness, assignment, health, drain
+and shutdown.
 
-An execution pool owns creation, warming, allocation, health, draining and
-retirement of its instances. Separate model residency from operation capacity:
-a loaded model can consume memory while having no active operation; a running
-operation can retain a source, scratch grant or device after its caller stops.
-Account for both. Compatibility keys include implementation/model/runtime
-identity, device requirements and isolation domain, not merely a model name.
+Count memory used by loaded models separately from active computation. Also count
+workers still starting, draining or of uncertain status. An operation may retain
+input files, scratch space or a device after its caller stops waiting. Those
+resources remain occupied until the responsible owner establishes otherwise.
 
-Provide bounded warm minimum/maximum and idle-retirement policies, with a
-static-size pool first and demand-driven sizing later. Count warming, busy,
-draining and uncertain instances against the relevant physical budgets. Do not
-spawn replacements indefinitely around an unconfirmed predecessor. An uncertain
-instance may coexist with a separately budgeted replacement for NEW work, but
-its outstanding operation is not retried and its resources are not declared free.
+A worker must match the implementation, model, runtime, device and isolation
+requirements. Its model name alone is insufficient. Do not create an unlimited
+stream of replacements for an unconfirmed worker. New work may use a separately
+budgeted replacement, but the old operation remains owned and is not repeated.
 
-Concurrency is qualified per execution mode. Multiple replicas, multiplexed
-workers and batching are different capabilities. Do not make a legacy serial
-protocol pretend to be reentrant. First enable replicas under the common pool;
-then change protocols or kernels where that improves measured cost or throughput.
+Several independent workers, several simultaneous operations inside one worker,
+and batching are different capabilities. Begin with independent workers. A
+serial worker protocol stays serial within each worker until it is changed and
+checked. Later, use measurements to decide whether keeping idle models loaded,
+resizing pools or batching is worthwhile.
 
-Batching is opt-in scientific compatibility, not a default optimization. Preserve
-per-member input/Attempt identity, output mapping, permission, cancellation and
-failure attribution. A cancelled member cannot cause a duplicate submission of
-another member. A backend unable to cancel one member must retain that member's
-physical obligation until the batch has actually finished. Cross-tenant batching
-requires an explicit isolation policy. Equivalent numerical behavior must be
-qualified; unsupported batching is not a reason to reject an adapter.
+Batching is optional and needs scientific support. Preserve each member's input,
+Attempt, result, permission, cancellation and failure. Cancelling one member
+must not resubmit another. If a running batch cannot stop one member separately,
+that member's resources remain occupied until the batch finishes. Sharing batches
+across tenants requires an explicit isolation policy. Check numerical equivalence
+when adding batching; an implementation need not support it.
 
-4. Stage-aware scheduling, not worker reservation for an entire conversation
----------------------------------------------------------------------------
-Keep a bounded pipeline: discover -> admit -> interpret/prepare -> execute ->
-retain result -> hand off -> reconcile. Stages remain within one authoritative
-Attempt lifecycle, with individually owned operations and resources. This is
-not a proposal for a general workflow/DAG language.
+4. Reserve resources when they are needed
+-----------------------------------------
+The service finds work, accepts it, prepares it, computes a result, retains the
+result, hands it to delivery and completes remaining duties. Keep these steps
+within the same Attempt; no general workflow language is needed.
 
-Reserve expensive resources for the phases that require them. A prose request
-waiting on HTTP should not occupy a GPU execution slot merely because the current
-session constructor attaches a GPU worker. A scientific preparation tool that
-actually uses the GPU declares that requirement; the shared host acquires and
-checks its reservation before dispatch. Its produced native handle may require
-retaining that reservation through execute. Scientific tool selection remains in
-the contribution; the scheduler sees generic declared operations and requirements.
+Tier 0 may conservatively reserve the resources needed for the whole analysis.
+Tier 1 separates those reservations by phase. Waiting for a prose-model HTTP
+reply should then leave unrelated GPU capacity available. Preparation that
+actually uses a GPU declares that need, and a worker-bound prepared handle may
+require keeping its worker reserved until computation finishes.
 
-Tier 0 can use a conservative bounded aggregate reservation, documented as a
-bridge. Tier 1 introduces stage-specific acquisition with ordered or atomic
-composite reservations so two phases cannot each hold one scarce resource while
-waiting forever for the other. Cancellation must settle partially acquired work.
-Bound prepared-item counts, bytes, source retention and queue wait; moving a queue
-from GPU memory to RAM is not elimination of backpressure.
+Bound waiting work by count, bytes and time, including retained source files and
+prepared inputs. Acquire multiple scarce resources together or in a defined
+order so two tasks cannot each hold a resource the other needs. Cancellation
+must release any partially acquired resources once they are safe to release.
 
-Before START, reserve enough admitted preparation/control/report capacity and
-establish a bounded route to the declared execution resources. Do not START an
-unbounded backlog merely to wait for capacity. Cold-start readiness and bounded
-queued admission are explicit policies tied to the actual API allowances. A stale
-readiness snapshot never authorizes an operation. Shared lifecycle/hosting code
-checks current authority and reservation identity at actual managed dispatch,
-including after intervening awaits. Numerical code need not understand an Attempt.
-This does not retract effects already submitted or imply immediate interruption
-of a running kernel; those remain owned until their actual status is established.
+Before START, reserve enough control, preparation and report capacity and a
+bounded route to execution. Do not accept an unlimited backlog. Readiness is only
+an observation: shared hosting checks current permission and the reservation
+immediately before each managed submission, including after an await. Already
+submitted work remains owned if permission later changes.
 
-Use a common fair scheduler with bounded discovery pages and eligible queues.
-Begin with a comprehensible, starvation-resistant policy; add cost estimates or
-priorities only with evidence. Shared device budgets must apply across replicas
-and implementations, not just within a named provider lane. Across processes,
-those budgets require a common allocator or enforced disjoint deployment grants;
-four independent Python counters cannot reserve the same GPU safely.
+Begin with simple fair scheduling and bounded discovery pages. Add cost estimates
+or priorities only when needed. Capacity limits must cover all implementations
+sharing a device. Across processes, use a common allocator or enforced resource
+assignments that cannot overlap. Separate counters cannot safely reserve the
+same GPU.
 
-5. Keep active work, resource occupancy and unresolved records separate
----------------------------------------------------------------------
-The current claim registry provides valuable exclusions and three bookkeeping
-budgets. It is not the future physical resource scheduler. Keep distinct ledgers
-for Job/START/Attempt authority, active control tasks, actual allocations, staged
-input/preparation bytes, and terminal delivery custody. Give each obligation one
-owner; compose owners instead of introducing a second conflicting Attempt registry.
+5. Track what is running, what occupies resources and what remains unresolved
+----------------------------------------------------------------------------
+Keep Job/Attempt permission, active control tasks, occupied resources, staged
+input bytes and retained final reports distinct. Use the existing Attempt
+registry; do not create a second authority for the same Job. Each outstanding
+duty has one owner.
 
-A quiescent unresolved Attempt can remain excluded without consuming an otherwise
-free GPU or an execution slot forever. It still consumes bounded reconciliation
-storage and must not be forgotten. Conversely, an unconfirmed native operation
-continues to consume its possible physical allocation even when a Python task,
-API allowance or observer deadline has ended. Merely relabelling it quarantined
-must not release capacity.
+In the target design, a stopped but unresolved Attempt can remain excluded from
+being accepted again without occupying a proven-free GPU forever. Its record still
+needs bounded storage. Conversely, an unconfirmed native operation still counts
+against capacity even after its Python task or observation deadline ends.
+Calling it quarantined does not establish that its resources are free.
 
-For ineligible post-entry revocation today, settle_revocation correctly refuses
-claim release. This is a current proof boundary, not a permanent product goal.
-The target is a typed reconciliation disposition backed by authoritative API state
-and positive backend evidence about dispatch, termination and retained outcomes.
-A new eligible disposition can then release the appropriate budgets without
-fabricating FAIL or pretending the earlier execution never existed. Tests of the
-current conservative boundary remain until its stronger replacement is qualified.
+Today, settle_revocation correctly keeps the original claim for some revoked
+Attempts that have passed the SDK's entry checkpoint. Passing that checkpoint
+alone does not say whether a scientific effect occurred.
+Keep that conservative rule until a stronger replacement is implemented and
+checked. The replacement should combine authoritative API state with the backend's
+records of submission, completion and cleanup, and return a clear decision about
+what to retain or release. It must not invent FAIL or erase an earlier operation.
 
-Separate failure scope from repository or lane names: operation, allocation,
-implementation/service route, credential/delivery binding, physical device, host
-or supervisor integrity. A failed allocation is quarantined individually when
-its evidence is trustworthy; sibling replicas may continue within real budgets.
-A shared-device failure or loss of ownership integrity has a broader scope.
-Never catch arbitrary exceptions and silently label them lane-local.
+Limit a failure to the part actually affected: one operation, one worker, an
+implementation or service connection, a delivery credential, a device, or the
+host itself. A failed worker need not stop healthy siblings when they have
+independent resources and trustworthy ownership records. A shared-device fault
+or corrupted supervision may require a wider stop. Do not label an arbitrary
+exception local merely to keep running.
 
-Maintenance is independent of fresh discovery and admission. Observe original
-operations, reconcile authoritative state, deliver reports and retire resources
-while offerings are withdrawn or new-work capacity is zero. Recovery is automatic
-when sufficient evidence arrives; otherwise report the specific missing evidence
-and an explicit supported operator action, not an endless retry or generic restart.
+Maintain original operations, result delivery and cleanup even when new jobs
+are refused, offerings are withdrawn or there is no spare capacity. Settle work
+when the required evidence arrives. If it cannot settle, explain what is missing
+and the supported operator action. Tier 1 improves automatic recovery; Tier 0
+may safely retain unresolved work and require explicit intervention.
 
-6. Recoverability is part of the end state, not a hidden limitation
-------------------------------------------------------------------
-Use live composition as an incremental release, not the final durability model.
-The existing SDK documents that supervisor death loses live Attempt bookkeeping
-and unhanded results may be lost. The target needs durable operation intent,
-identity and result custody across that boundary. This requires a separately
-qualified capability, not simply serializing the present Python objects.
+6. Recover after the supervisor dies
+------------------------------------
+The current SDK keeps live Attempt state in memory; a supervisor crash can lose
+that state and results not yet handed to durable delivery. Tier 0 keeps this
+limit explicit, supports orderly drain and never treats restart as permission
+to repeat possibly submitted work.
 
-Durable supervisor replacement is Tier 1 functionality. Tier 0 retains the
-existing durable delivery owner and supports orderly drain, conservative holds
-and explicit operator recovery. Unsupported crash windows stay explicit; a
-restart never authorizes replay of a possibly dispatched operation. The crash
-cases below qualify recovery when implemented, rather than blocking a first
-local service that makes no such recovery claim.
+Tier 1 adds durable operation and result records. Before submission, save the
+operation's stable identity and owner. A supporting backend must recognize a
+repeated command for that identity, retain status and result information, and
+let a replacement supervisor reconnect. Keep the exact selected final report
+until durable delivery confirms that it has accepted responsibility for it.
 
-Before dispatch, retain the stable operation identity and its authoritative
-owner. A capable backend accepts that identity idempotently, records its status,
-retains completion evidence/result references and allows reattachment. Retain exact
-selected terminal bytes durably before dropping the last live owner; acknowledge
-transfer only after the receiving owner meets its durability contract. Reconcile
-crashes before/after submission, completion, receipt and publication separately.
+Check crashes separately around submission, acceptance, completion, result
+storage and delivery handoff when implementing this recovery. If the backend
+cannot establish whether work was submitted, retain that uncertainty and refuse
+automatic duplicate science. Deduplicating messages alone does not establish
+that computation ran exactly once.
 
-Where an external backend cannot prove whether submission occurred, preserve the
-uncertainty and forbid automatic duplicate science. Idempotent messaging does not
-prove exactly-once computation. Recovery of a stopped supervisor must fence obsolete
-senders at the receiving backend; a local epoch label or elapsed lease alone does
-not revoke an old process's ability to execute. Remote deployment additionally
-requires authenticated grants, owner incarnations, bounded transport, partition
-handling and enforceable placement ownership. These are explicit gaps before
-multi-supervisor failover, not promises supplied by today's process-local claims.
+The receiving backend must reject commands from an obsolete supervisor. A local
+generation label or expired lease does not stop the old process from running.
+A remote backend also needs authenticated permissions, bounded communication,
+resource ownership and a defined response to network partitions and reconnection.
+These are requirements for the corresponding recovery/failover feature, not
+prerequisites for the first local service.
 
-Rolling upgrades follow the same rule: route NEW work to the new compatible
-implementation/pool; drain or reattach old operations with verified ownership.
-No prepared handle migrates to an incompatible worker, and no stale supervisor
-can mutate a successor. Rollback must honor the same duties and queued reports.
+For upgrades and rollback, send new work to the selected pool while old owners
+finish or transfer their existing work safely. Preserve queued reports. Do not
+move a prepared handle to an incompatible worker or let an old supervisor alter
+its replacement's state.
 
-7. Boundary contract: provenance, invocation and authority
----------------------------------------------------------
-There are three distinct interactions, not one large scientific-context argument:
+7. The boundary between orchestration and science
+-------------------------------------------------
+There are three separate interactions:
 
-  Registration/deployment -> host: a configured implementation and its grants.
-  Orchestrator -> execution interface: identified work and operational limits.
-  Host -> scientific hooks: implementation-owned setup and scientific input.
+  Registration/deployment -> host: configured science and its permitted resources.
+  Service -> execution interface: identified work, reservations and limits.
+  Host -> scientific functions: implementation-specific setup and scientific input.
 
-These are responsibilities, not prescribed Python classes or a new wire schema.
-The ordinary scheduling request means: run work X with configured implementation
-Y within reservation Z and its limits. The execution interface returns an owned
-operation handle/status/result, rather than transferring the supervisor to science.
-The host tracks operational identity without adding it to the numerical signature.
+The service asks to run work X with implementation Y within reservation Z. It
+receives a way to observe that operation and obtain its result. The host retains
+the operational identity and permission; these do not need to become arguments
+to numerical functions. No large scientific-context object is required.
 
-7.1 What is supplied, by whom, and when
+7.1 Where the inputs come from
 
 Scientific input
-  Originates in the Job and its permitted sources. Common transport/protocol code
-  authenticates, acquires and bounds bytes or artifact references. The configured
-  contribution decodes their scientific meaning, validates them and constructs
-  numerical inputs. The scheduler can route the opaque payload/reference without
-  inspecting peaks, molecules or tensors. A digest proves byte identity, not
-  scientific validity. Acquisition and decoding may be lazy; ownership must still
-  remain explicit. Shared acquisition need not be implemented inside the scheduler.
+  Comes from the Job and its permitted sources. Shared transport authenticates,
+  fetches and limits the bytes or references. The contribution decodes and checks
+  their scientific meaning and constructs numerical input. The service can route
+  these bytes without inspecting peaks or tensors. A hash identifies bytes; it
+  does not establish that the data are scientifically valid. Fetching and decoding
+  may be deferred, but their resources still need an owner.
 
-Scientific configuration
-  Is supplied by the implementation's versioned configuration or explicitly
-  permitted per-Job scientific parameters. Deployment binds the configured
-  implementation; its loader/decoder validates scientific settings. The scheduler
-  selects a registered identity and may transport configuration opaquely, but
-  does not choose preprocessing, numerical precision or model defaults. Changed
-  scientific settings must be reflected in the appropriate identity/evidence.
-  The host must not silently reuse an incompatible already-loaded configuration.
+Scientific settings
+  Come from the versioned implementation or explicitly permitted per-job settings.
+  Deployment binds them; the contribution validates them. The service selects the
+  registered implementation and may carry settings without interpreting them.
+  It does not choose precision, preprocessing or defaults. Record changes that
+  affect scientific results; do not silently reuse an incompatibly configured model.
 
-Model assets
-  Are declared by the implementation and materialized by packaging/deployment or
-  shared acquisition under authorized references. Common code verifies integrity
-  and provenance; scientific initialization understands checkpoint formats and
-  model compatibility. Assets may be preinstalled, mounted or acquired lazily.
-  They are not mandatory fields in each Job dispatch, nor choices made by the
-  scheduler. A model-load failure is not a licence to select a different model.
+Model files
+  Are declared by the contribution and installed, mounted or fetched by authorized
+  packaging/deployment tools. Shared code checks file identity and source.
+  Scientific initialization understands the checkpoint format and model
+  compatibility. Model files need not travel with every Job. The scheduler does
+  not choose them, and a load failure does not permit substitution of another model.
 
-Device/runtime environment
-  Comes from the granted execution allocation. The host exposes only the supported
-  environment needed for initialization/execution; scientific initialization
-  constructs library-specific device/model objects. No tensor-library object
-  crosses the scheduler interface. Science may declare generic resource needs,
-  but does not discover hosts, select a global device or create replacement pools.
+Device and runtime environment
+  Come from the assigned resources. Hosting exposes only what the implementation
+  needs. Scientific initialization creates framework-specific device and model
+  objects. The service never passes such objects. Science declares its needs;
+  it does not choose among global devices, discover hosts or create worker pools.
 
 Operation identity
-  Is created/retained by operational ownership and carried in the host/backend
-  envelope. It supports correlation, custody, stale-owner protection and duplicate
-  detection. The host attaches result evidence to it. A diagnostic token can be
-  exposed when useful; numerical functions do not require Job/Attempt objects or
-  authority over their lifecycle. Batch-member association stays explicit.
+  Is managed by the host/backend to match replies and results, reject stale owners
+  and detect duplicate submissions. Science may receive a diagnostic token when
+  useful, but it does not need Job/Attempt objects or permission to manage them.
+  Batch results must still be associated with the correct members.
 
 Progress and cancellation
-  Are optional narrow scientific capabilities, not a generic platform context.
-  A host may pass a progress sink or cooperative cancellation signal where the
-  implementation supports them. Common code maps progress to approved service
-  events and prevents stale phases from reporting. Science does not call the
-  Jobs API, decide whether an Attempt is active, or authorize its own replacement.
-  Lack of cooperative cancellation is an explicit backend/implementation limit;
-  cancellation requests, task completion and process exit are separate evidence.
+  May be small optional interfaces: a progress sink or a cooperative stop signal.
+  Shared code translates progress into approved events and rejects stale reports.
+  Science does not call the Jobs API, decide whether an Attempt is active or
+  authorize a replacement. A stop request, a returned function and an exited
+  worker are different facts; lack of cooperative stopping remains an explicit
+  implementation/backend limitation.
 
-7.2 Loaded implementation versus one analysis
+7.2 A loaded model can serve several analyses
 
-Model-specific initialization/disposal runs for a loaded implementation instance.
-Preparation/computation/per-analysis disposal runs for one analysis. The host
-owns these lifetimes, invokes hooks and retains partial initialization/cleanup;
-the scientific contribution supplies their model-specific bodies. Multiple Jobs
-can use a qualified loaded instance without receiving its configuration/assets
-anew. They must not share mutable per-Job state accidentally.
+The contribution supplies model initialization and disposal, plus preparation,
+computation and cleanup for one analysis. Hosting calls these functions at the
+right time and retains responsibility for unfinished initialization or cleanup.
+Several analyses may reuse a suitable loaded model, with separate mutable state
+for each analysis. They need not receive the same settings and model files anew.
 
-A scientific prepared value is not an operational authority. When native state
-is allocation-bound, shared hosting wraps/records that association and scientific
-code consumes the appropriate state. Neither a portable candidate nor a disposed
-handle grants scientific replay. A numerical function's return proves no more
-than its declared completion contract; native and remote work may require further
-backend observation before resource reuse or result custody is established.
+Hosting records which exact worker instance owns a prepared native handle.
+Science uses that state; the handle itself carries no execution permission.
+Portable input and discarded handles do not authorize repeating an operation.
+A scientific function's return may still leave native readers or remote work
+active. Hosting must establish their completion before releasing the resources.
 
-7.3 Effect permission and scientific iteration
+7.3 Check permission where work is submitted
 
-The shared host/binding checks current execution authority immediately before
-managed submission, including a tool or phase dispatch after an await. It retains
-already-submitted work when permission is withdrawn. Scientific code can observe
-cooperative cancellation but does not receive a ReportCondition or controller to
-implement permission policy. Algorithms can iterate, refine candidates or sample
-within an authorized operation and budget; that is not an orchestrator retry.
-Another externally submitted scientific operation requires managed authorization.
+The host or compatibility binding checks current permission immediately before
+each managed scientific submission, including a tool call after an await. It
+continues to own work already submitted when permission is withdrawn. Algorithms
+may iterate or sample within their authorized operation and budget. Submitting
+another operation requires a new managed permission check.
 
-For existing integrations, AnalysisSession.prepare/execute/retire currently
-receives SDK objects and report_condition. Keep those required checks in the
-existing binding until equivalent managed-dispatch guards are implemented and
-qualified. Treat this as a compatibility integration layer, not the permanent
-numerical API. The binding translates verified Jobs input into the contribution's
-input and its outcome into the SDK contract; it must not grow a separate scheduler.
-Model-specific disposal remains scientific. Joining native readers, supervising
-processes and deciding full retirement belong to shared hosting/backend owners.
+Numerical functions must not receive AttemptController, AttemptClaims,
+ProviderAPI, ReportCondition/report_condition, Jobs credentials, the global
+allocator or Docker access, including through nested catch-all arguments.
+Cooperative cancellation is not a way to pass them that authority.
 
-Prose interpretation follows the same split: scientific prompts, tools and
-candidate validity belong to the contribution; reusable conversation execution,
-model transport, pacing and supervision belong to shared facilities. The service
-scheduler does not construct chemical prompts merely because it schedules a
-preparation phase. Generic utilities can be reused by science without importing
-Jobs/Attempt authority or depending on a live provider service.
+Existing AnalysisSession.prepare/execute/retire bindings currently receive SDK
+objects and perform required permission checks. Preserve those checks until
+equivalent host-managed checks are implemented and shown to work. These bindings
+translate verified Job input and scientific results into the SDK contract; they
+are temporary integration code, not the final numerical API or another scheduler.
 
-7.4 Focused acceptance of the working boundary
+Model-specific disposal stays in science. Shared hosting owns waiting for native
+readers, supervising processes and establishing full shutdown. For prose input,
+scientific prompts, tools and candidate validity stay in the contribution;
+conversation execution, transport, pacing and supervision can be shared. The
+scheduler does not construct chemical prompts.
 
-Accompany the first working implementation with a small deterministic acceptance
-set through the actual host/worker path. Run the same science directly without
-Jobs authority and hosted with one/two allocations. Exercise bound initialization,
-isolated per-analysis state, one held allocation while its sibling completes,
-and the permission/handle guards changed by the increment. Reuse existing tests
-for unchanged guards; no new matrix or validation framework is required.
+7.4 Check the first working boundary
 
-Use a real first consumer, with SECS the proposed bridge, plus a small second
-contribution with different input/configuration to exercise the generic dispatch
-boundary. Full migration of a second real provider follows in Tier 1. Review the
-actual invocation data flow for authority leakage, including nested arguments.
-Scientific input validation belongs to its contribution; revoked managed dispatch
-is rejected by the host. Replica count changes leave scientific code unchanged;
-a model/preprocessing change is versioned science, not hidden fallback. Validate
-new placement or backend modes when those capabilities are implemented.
+Use a small deterministic set of checks through the actual host/worker path:
+run the same science directly without Jobs and through one/two hosted workers;
+initialize from bound settings; keep analysis state separate; hold one worker
+while another completes; check permission and handle rules changed by the work.
+Reuse existing checks for unchanged behavior.
 
-A resource requirement is not a privilege grant. Deployment validates which
-images, devices, files, endpoints and credentials an implementation may access.
-Use isolated per-operation mutable state, protected diagnostics and least-privilege
-worker grants. Common pooling must not leak data, handles or credentials across
-Jobs, providers or isolation domains. Interface separation alone is not a sandbox;
-execution/deployment must enforce the declared isolation and external capabilities.
+Connect a real first consumer, with SECS proposed, and a small second contribution
+with different input/settings to exercise the generic interface. Migrating a
+second real provider belongs to Tier 1. Inspect what actually reaches scientific
+functions, including nested arguments. Scientific input errors are handled by
+the contribution; revoked execution is refused by hosting. Changing worker count
+leaves scientific code unchanged. Check new placement/backend modes when added.
 
-8. Gap register: current evidence -> target -> closing witness
---------------------------------------------------------------
-All gaps below are OPEN against the reviewed source baseline. Their identifiers
-are referenced by milestones in 065. An implemented component test closes only
-its stated sub-contract, not an entire gap. Consumer baselines are from 064.
-This is an end-state register, not a prerequisite checklist for Tier 0. Accept
-each useful increment at its stated scope; broader gap closure follows the tiers.
+Resource needs do not grant access. Deployment enforces permitted images,
+devices, files, endpoints and credentials. Workers receive the minimum access
+they need. Keep mutable state and diagnostics isolated so pooling cannot leak
+data, handles or credentials between jobs or providers. An API boundary alone
+does not provide that isolation.
 
-G01  Service ownership and invocation boundary. Four service assemblies still
-     own generic admission, maintenance and drain. Move these into one common
-     runtime with no provider-name branches. Keep science configuration/input
-     semantics in the registered contribution and operational authority in its
-     shared host. Tier 0 uses section 7.4's focused acceptance and first real
-     consumer. Further real adapters establish adoption; all four close the
-     migration gap rather than gating the first usable service.
-
-G02  Topology and pooling. Current session/runner wiring does not constitute a
-     common implementation-to-many-allocations pool. Separate identities and
-     reservations; close with the SAME adapter under one and two allocations,
-     two Jobs progressing, and one held allocation not blocking the other.
-
-G03  Physical/stage capacity. Attempt bookkeeping limits are not CPU/GPU, model
-     residency or staged-input accounting. Add the shared allocator and bounded
-     phase queues. Close with shared-device competition, no oversubscription,
-     partial-acquisition cancellation and model-HTTP wait not pinning execution.
-     Tier 0 enforces fixed pool bounds and disjoint grants where needed; richer
-     stage allocation and shared-device scheduling belong to Tier 1.
-
-G04  Preparation portability and native protocols. Existing handles may be tied
-     to one live session/worker. Declare portable versus affinity-bound state;
-     preserve exact accepted work and refactor unnecessary coupling. Separate
-     model disposal from host-owned retirement and SDK session compatibility.
-     Close with portable pre-dispatch placement and rejection of incompatible
-     or stale native handles. Do not assume old protocols support multiplexing.
-
-G05  Evidence-driven recovery. Private checkpoint/exception knowledge and coarse
-     holds are not a uniform service decision API. Add typed owner-produced
-     dispositions and scoped health/recovery. Close with post-entry cancellation,
-     uncertain dispatch and late cleanup classified independently, plus eligible
-     capacity recovery without scientific replay or fabricated terminal decisions.
-
-G06  Restart/durable custody. Live-only supervision leaves a pre-handoff crash
-     gap. Add durable intent/result ownership and backend reattachment/fencing.
-     Close by killing the supervisor at each dispatch/handoff boundary, restarting,
-     and proving exact reconciliation or explicit unresolved custody, never a
-     duplicate effect. Must precede unattended multi-supervisor failover claims.
-
-G07  Scheduling and maintenance. Current provider differences are not shared
-     fairness guarantees. Close with bounded fair page/queue traversal, independent
-     maintenance while admission is closed, and backpressure scoped to actual
-     bindings/resources rather than a whole provider by default.
-
-G08  Adaptive capacity and batching. No shared measured policy is established.
-     After fixed pools, add bounded warming/idle retirement; add batching only for
-     scientifically compatible implementations. Close with memory/startup/latency
-     measurements, stable resource bounds, output equivalence and per-member stop.
-
-G09  Backend portability and distributed authority. Local lifecycle helpers do
-     not provide authenticated remote reservation or failover. Implement a concrete
-     second backend against the same contract; close with receiver-enforced stale-
-     owner fencing, partitions, disconnection/rejoin and unconfirmed remote work.
-
-G10  Deployment and operational model. Reuse shared build/acquisition/identity
-     mechanisms, replace provider-local provisioning loops with validated profiles
-     and pool grants. Close with identical adapter bytes, changed placement/count
-     via configuration, least-privilege checks, and safe rollout/rollback.
-
-G11  Qualification fidelity. The current shrinking integration campaign uses
-     real children and event-loop yields, so generated command order alone does
-     not establish every internal completion order. Use observed causal boundaries
-     in the focused scenarios that support each capability's acceptance. Keep
-     current passing tests and report their scope honestly. Independent generated
-     obligation models, campaign coverage accounting, mutation/shrink/replay proofs
-     and broad conformance matrices are later assurance work, selected for a
-     concrete residual risk. They do not gate M1 or the first local service.
-     A useful new backend still needs its own focused behavior checks. Do not
-     infer exhaustive coverage from a passing bounded run.
-
-G12  Provider-specific topology debt. SECS: global worker/session coupling and
-     serial orchestration -> repeatable isolated allocations under the pool.
-     NMRNet: bespoke preparation/prediction owners -> common phase allocation
-     while retaining scientifically authorized retry evidence. NMRPeak: fixed
-     HF/CHF runner pairing -> capabilities mapped to independently sized compatible
-     pools. Magnet: named implementation-lane wiring -> heterogeneous capabilities
-     sharing declared resources. Close each with its actual adapter, not an empty
-     universal fixture; retain scientific correctness, not the old layout.
-
-9. Prioritization gradient and useful acceptance
-------------------------------------------------
-Tier 0: a complete useful local package. Deliver direct and hosted science,
-configured one/two-allocation pools, the thin real SECS bridge and a common service
-driving that consumer through discovery, admission, execution, existing durable
-delivery and orderly drain. Preserve authority at dispatch, exact ownership,
-handle affinity, bounded resources and independent maintenance. Explicit manual
-recovery and conservative holds are acceptable within the stated local scope.
-The focused acceptance in 7.4 accompanies implementation. A fixture-only pool is
-an increment toward Tier 0; the service and first real consumer complete it.
-
-Tier 1: extend the same path with the remaining consumer migrations, phase-aware
-allocation/bounded staging, stronger reconciliation, durable operation/result
-custody and a concrete remote backend. Select each increment for useful capability
-or a concrete operational failure. Its focused checks cover the added behavior;
-crash/failover claims require the corresponding ownership and recovery evidence.
-
-Tier 2: measured improvements to load cost, memory use, latency or throughput,
-including adaptive warm pools and scientifically compatible batching. Add them
-only for a demonstrated benefit. Higher tiers reuse and extend Tier 0's execution
-path; they do not introduce a replacement scheduler or scientific API.
-
-Assurance supports these tiers. A deterministic witness for a changed permission,
-ownership or isolation boundary can be essential to its implementation. General
-fuzz/replay machinery, stress campaigns, exhaustive compatibility matrices and
-new provenance tooling are secondary/tertiary work. Add them when a concrete
-failure or imminent use makes them valuable; do not keep enlarging a validation
-prefix before the first useful service. Existing receipts suffice for routine
-development; exact artifacts matter when publishing or qualifying a consumer.
-
-SECS/NMRNet/NMRPeak/Magnet share this architecture. Their migration order does not
-change the tier boundaries or require all four migrations before a useful local
-release. Full extraction is complete only when their displaced generic loops are
-removed; local acceptance may precede that end-state completion.
-
-Sources and evidence limits
+8. What remains to be built
 ---------------------------
-[1] SDK at 1178115c8b1ea89556f4c04f73d69471be8e1b5f:
-    packages/provider-core/README.md;
-    src files under packages/provider-core/src/provider_core/:
-    analysis.py, controller.py, execution.py, ownership.py.
-    These establish the current session/permission, claim and live-only limits,
-    not the target numerical function signatures described in section 7.
-[2] notes/064_causal_lifecycle_qualification.txt: pinned four-provider source
-    matrix, current scientific distinctions, S1-S8/I1-I2/L1-L3 and test inventory.
-[3] notes/060_shared_provider_service_roadmap.txt: original extraction proposal
-    and custody/cutover distinctions; superseded here on target topology/order.
-[4] notes/065_causal_lifecycle_qualification_roadmap.txt: revised actionable plan,
-    reported qualification versus pending work, bridge gates and gap ownership.
+G01-G12 identify end-state gaps against the reviewed source. Note 065 uses these
+IDs. Completing one useful part does not close an entire gap, and the first local
+service does not have to close all twelve. Checks support the capability being
+claimed; the provider baselines remain those recorded in 064.
 
-Statements about the target above are design choices. They do not assert current
-support for pools, batching, remote operation recovery, durable producer state or
-new release dispositions. Each requires its named implementation and evidence.
+G01  Common service. Replace provider-local job acceptance, maintenance and drain with
+     one shared service. Keep scientific input/settings in contributions and
+     permission in hosting. Tier 0 needs the first real consumer and section 7.4;
+     migrating all four providers completes this gap.
+
+G02  Worker pools. Run the same implementation with one or two independently owned
+     workers. Show two jobs progressing and one held worker not blocking the other.
+
+G03  Resource scheduling. Job counts do not measure GPU use, loaded-model memory
+     or staged input. Tier 0 uses fixed bounds and nonoverlapping assignments
+     where needed.
+     Tier 1 adds phase-specific reservations and shared-device scheduling. Check
+     competition, partial cancellation and HTTP waits without device overcommit.
+
+G04  Prepared state. Separate portable input from handles tied to an exact worker
+     instance. Preserve accepted work, reject wrong/stale handles, and separate
+     scientific disposal from complete worker shutdown. Remove unnecessary coupling
+     without assuming an old protocol can run simultaneous operations.
+
+G05  Recovery decisions. Replace provider knowledge of private checkpoints and
+     nested exceptions with clear decisions from the owner of each operation.
+     Distinguish revoked permission, uncertain submission and late cleanup. Free
+     resources only when justified, without repeating science or inventing reports.
+
+G06  Surviving supervisor crashes. Save operation and result records, reconnect
+     to existing work and reject obsolete supervisors. Check the relevant crash
+     points as this feature is added. Unresolved work stays explicit. This must
+     work before claiming unattended supervisor failover.
+
+G07  Scheduling and maintenance. Use bounded, fair discovery and queues. Continue
+     maintaining work while new jobs are refused. Restrict delivery pressure and
+     failures to the connections and resources actually affected.
+
+G08  Adaptive pools and batching. After fixed pools, measure model-load cost,
+     memory, latency and useful concurrency. Add these optimizations where they
+     help; retain bounds, equivalent scientific results and per-member cancellation.
+
+G09  Remote execution. Add a real second backend with authenticated resource
+     permissions, receiver-enforced rejection of old owners, partition/rejoin
+     handling and safe treatment of unconfirmed remote work.
+
+G10  Deployment. Reuse shared build, file acquisition and identity tools. Configure
+     pool count and placement without editing scientific code. Check minimum access
+     and safe upgrade/rollback for the deployment capability actually offered.
+
+G11  Test reliability. The current generated campaign uses real children and
+     scheduling yields; its command order does not establish every internal event
+     order. Focused tests should wait for the events their conclusions depend on.
+     Keep passing tests and state their scope. Independent generated reference
+     models, coverage accounting, shrink/replay demonstrations and broad matrices
+     are later work for a concrete remaining risk; they do not gate M1 or the
+     first local service. Check a new backend's actual behavior when adding it.
+
+G12  Provider migration. SECS needs independent workers instead of global worker
+     coupling; NMRNet needs shared preparation/prediction management while retaining
+     its permitted scientific retry rules; NMRPeak needs independently sized pools
+     instead of a fixed HF/CHF pair; Magnet needs configurable pools instead of
+     permanently named workers. Complete each change with its real adapter and
+     preserve scientific behavior rather than the old process layout.
+
+9. Priorities and completion
+----------------------------
+Tier 0: a useful local package. Direct and hosted science, fixed one/two-worker
+pools, the real SECS bridge, and a common service from discovery through execution,
+existing durable delivery and orderly drain. Keep permission checks, exact
+ownership, handles tied to their workers, resource limits and independent
+maintenance. Safe holds and explicit operator recovery are acceptable within
+the stated limits.
+A test-only pool is an intermediate step; the service and first real consumer
+complete this tier.
+
+Tier 1: extend that path to the remaining providers, phase-specific resource use,
+bounded staging, stronger recovery decisions, durable operation/result records
+and a concrete remote backend. Choose increments for useful capability or a real
+operational failure. Check the new behavior, including crash and failover cases
+when claiming that support.
+
+Tier 2: improve load time, memory use, latency or throughput where measurements
+show a benefit. This includes adaptive warm pools and supported batching. Higher
+tiers extend the Tier-0 path; they do not replace its scheduler or scientific API.
+
+Testing supports the work. A focused check can be essential when changing
+permission, ownership or isolation. Broad fuzzing, stress campaigns, compatibility
+matrices and new evidence tooling come later when a concrete risk justifies them.
+Existing test records suffice for routine development; identify exact files and
+versions when publishing or checking a consumer against a release.
+
+SECS, NMRNet, NMRPeak and Magnet share this architecture. A useful local release
+can precede all four migrations. Full extraction is complete when the displaced
+generic service and worker-management loops are removed from all four providers.
+
+Sources
+-------
+[1] SDK 1178115c8b1ea89556f4c04f73d69471be8e1b5f:
+    packages/provider-core/README.md and src/provider_core/{analysis,controller,
+    execution,ownership}.py. These describe current contracts and limits.
+[2] notes/064_causal_lifecycle_qualification.txt: provider versions, scientific
+    differences, S1-S8/I1-I2/L1-L3 and existing tests.
+[3] notes/060_shared_provider_service_roadmap.txt: earlier extraction plan and
+    result-transfer/cutover distinctions; its topology and order are superseded.
+[4] notes/065_causal_lifecycle_qualification_roadmap.txt: implementation order,
+    reported checks, remaining work and temporary limitations.
