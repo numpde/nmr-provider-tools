@@ -7,14 +7,14 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-from concurrent.futures import Future
 import threading
+from concurrent.futures import Future
 from uuid import uuid4
 
+from provider_core._embedded_support import _Changes, _Cleanup, _State
 from provider_core.async_runner_session import await_original
 from provider_core.contribution import (
     ProgressEvent,
-    ScientificRejection,
     ScientificReturn,
     StateUse,
 )
@@ -31,7 +31,7 @@ from provider_core.hosting import (
     StateArgument,
     StateRef,
 )
-from provider_core._embedded_support import _Changes, _Cleanup, _State
+from provider_core.payload import CallRejected
 
 
 class _OperationControl:
@@ -107,7 +107,10 @@ class _Operation(_Changes):
             self.original.set_result(None)
             self.failures = (Failure("dispatch", cause),)
         self.original.add_done_callback(
-            lambda original: self.loop.call_soon_threadsafe(self._finished, original)
+            lambda original: self.loop.call_soon_threadsafe(
+                self._finished,
+                original,
+            )
         )
 
     def _expire(self):
@@ -129,7 +132,9 @@ class _Operation(_Changes):
     def _admit_dispatch(self, permit):
         try:
             if self.analysis.closed or self.stop_requested:
-                raise PermissionError("This operation was stopped before its next scientific entry.")
+                raise PermissionError(
+                    "This operation was stopped before its next scientific entry."
+                )
             self.guard()
             if self.dispatch is DispatchState.QUEUED:
                 self.dispatch = DispatchState.STARTED
@@ -159,12 +164,7 @@ class _Operation(_Changes):
             phase = "permission"
             self._guard_at_handoff()
             phase = "decoding"
-            decoded = self.call.decode_input(
-                self.science.resident.value,
-                self.science.value,
-                self.invocation.payload,
-                self.control,
-            )
+            decoded = self.call.decode_input(self.invocation.payload)
             phase = "calculation"
             raw = self.call.invoke(
                 self.science.resident.value,
@@ -180,9 +180,15 @@ class _Operation(_Changes):
             self.outcome = Outcome.SUCCEEDED
             phase = "state_adoption"
             if type(raw) is not ScientificReturn:
-                raise TypeError("A scientific call binding must return ScientificReturn.")
+                raise TypeError(
+                    "A scientific call binding must return ScientificReturn."
+                )
             adopted = Future()
-            self.loop.call_soon_threadsafe(self._adopt_states, raw, adopted)
+            self.loop.call_soon_threadsafe(
+                self._adopt_states,
+                raw,
+                adopted,
+            )
             adopted.result()
             phase = "encoding"
             encoded = self.call.encode_result(raw.value)
@@ -190,11 +196,14 @@ class _Operation(_Changes):
                 type(encoded) is bytes
                 and len(encoded) <= self.invocation.limits.result_bytes
             ):
-                raise ValueError("Encoded scientific result exceeds its declared byte allowance or is not bytes.")
+                raise ValueError(
+                    "Encoded scientific result exceeds its declared byte allowance "
+                    "or is not bytes."
+                )
             self.payload = encoded
             self.result = ResultRef(self.reference, uuid4().hex)
             self.result_state = ResultState.AVAILABLE
-        except ScientificRejection as cause:
+        except CallRejected as cause:
             if self.outcome is None and phase in ("decoding", "calculation"):
                 self.outcome = Outcome.REJECTED
             self.failures = (Failure(phase, cause),)
@@ -209,7 +218,10 @@ class _Operation(_Changes):
         if self.science.resident.ready:
             return
         timer_ready = Future()
-        self.loop.call_soon_threadsafe(self._start_initialization_clock, timer_ready)
+        self.loop.call_soon_threadsafe(
+            self._start_initialization_clock,
+            timer_ready,
+        )
         timer = timer_ready.result()
         try:
             self.science.resident.initialize(
@@ -284,10 +296,14 @@ class _Operation(_Changes):
                 None,
             )
             if existing is not None:
-                if not any(self.state_owners[name] is existing for name in consumed):
+                if not any(
+                    self.state_owners[name] is existing
+                    for name in consumed
+                ):
                     failures.append(
                         ValueError(
-                            "Returning an existing state requires consuming its original reference."
+                            "Returning an existing state requires consuming its "
+                            "original reference."
                         )
                     )
                     continue
@@ -312,10 +328,15 @@ class _Operation(_Changes):
             item.name: item.kind
             for item in self.call.description.state_outputs
         }
-        actual = {item.name: item.kind for item in raw.states}
+        actual = {
+            item.name: item.kind
+            for item in raw.states
+        }
         if actual != expected:
             failures.append(
-                ValueError("Returned state differs from the call's declared outputs.")
+                ValueError(
+                    "Returned state differs from the call's declared outputs."
+                )
             )
         if failures:
             cause = ExceptionGroup(
@@ -356,12 +377,16 @@ class _Operation(_Changes):
             and self.finished
             and self.result_state is ResultState.AVAILABLE
         ):
-            raise ValueError("Result reference does not name this operation's available result.")
+            raise ValueError(
+                "Result reference does not name this operation's available result."
+            )
 
     async def read_result(self, result):
         self._require_result(result)
         if self.release is not None:
-            raise ValueError("Release of this exact result has already been authorized.")
+            raise ValueError(
+                "Release of this exact result has already been authorized."
+            )
         return self.payload
 
     def release_result(self, result):
@@ -392,9 +417,13 @@ class _Operation(_Changes):
         try:
             if self.raw is not None and type(self.raw) is not ScientificReturn:
                 raise TypeError(
-                    "Malformed scientific return has no disposal contract; its allocation remains owned."
+                    "Malformed scientific return has no disposal contract; "
+                    "its allocation remains owned."
                 )
-            if type(self.raw) is ScientificReturn and self.raw.dispose_value is not None:
+            if (
+                type(self.raw) is ScientificReturn
+                and self.raw.dispose_value is not None
+            ):
                 self.raw.dispose_value(self.raw.value)
         except BaseException as cause:
             self.disposal_failure = cause

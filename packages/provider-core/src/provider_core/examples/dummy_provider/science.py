@@ -1,13 +1,23 @@
-"""Fake science: a configured weighted sum and a stateless ordinary sum.
+"""Fake provider-owned science with explicit portable input and output types.
 
-This file deliberately uses no provider-core types. The same functions can be
-called directly or through binding.py.
+This module imports no provider-core code. The same types and functions are used
+directly and through the contribution adapter.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import math
+from dataclasses import dataclass
+
+
+def _finite_number(value: object) -> bool:
+    return type(value) in (int, float) and math.isfinite(value)
+
+
+def _as_finite_float(value: object, *, label: str) -> float:
+    if not _finite_number(value):
+        raise ValueError(f"{label} must be a finite number")
+    return float(value)
 
 
 class InputRejected(ValueError):
@@ -16,72 +26,111 @@ class InputRejected(ValueError):
         super().__init__(message)
 
 
-def _finite(value):
-    if type(value) not in (int, float):
-        return False
-    try:
-        return math.isfinite(value)
-    except OverflowError:
-        return False
-
-
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class Settings:
     scale: float
     offset: float
 
-    def __post_init__(self):
-        if not (_finite(self.scale) and _finite(self.offset)):
-            raise ValueError("Scale and offset must be finite numbers")
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "scale", _as_finite_float(self.scale, label="Scale"))
+        object.__setattr__(self, "offset", _as_finite_float(self.offset, label="Offset"))
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ValuesInput:
+    """Portable provider input admitted from the declared payload format."""
+
+    values: tuple[float, ...]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class EmptyInput:
+    """Portable input for a call whose scientific arguments are retained state."""
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PreparationResult:
+    count: int
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PredictionResult:
+    total: float
+    count: int
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SumResult:
+    total: float
+    count: int
+
+
+@dataclass(slots=True, kw_only=True)
+class Model:
+    settings: Settings
+    coefficients: tuple[float, ...]
+    loaded: tuple[float, ...] | None = None
+
+
+@dataclass(slots=True, kw_only=True)
+class AnalysisState:
+    model: Model
+    open: bool = False
+    preparations: int = 0
+    accepted: PreparedInput | None = None
+
+
+@dataclass(slots=True, kw_only=True)
+class PreparedInput:
+    analysis: AnalysisState
+    values: tuple[float, ...]
+    usable: bool = True
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class CalculationState:
+    """Provider-owned typed view of the retained state required by calculate."""
+
+    prepared: PreparedInput
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class NoState:
+    """Provider-owned state struct for calls that retain no live values."""
 
 
 def require_configuration(settings: Settings, coefficients: tuple[float, ...]) -> None:
     if type(settings) is not Settings:
         raise TypeError("The model requires explicit Settings")
-    if not (type(coefficients) is tuple and coefficients and all(_finite(value) for value in coefficients)):
+    if not (
+        type(coefficients) is tuple
+        and coefficients
+        and all(_finite_number(value) for value in coefficients)
+    ):
         raise ValueError("Coefficient assets must be a nonempty tuple of finite numbers")
 
 
-class Model:
-    def __init__(self, settings: Settings, coefficients: tuple[float, ...]):
-        require_configuration(settings, coefficients)
-        self.settings, self.coefficients = settings, coefficients
-        self.loaded = None
-
-
 def create_model(settings: Settings, coefficients: tuple[float, ...]) -> Model:
-    """Record immutable configuration; load_model does the actual loading."""
-    return Model(settings, coefficients)
+    """Record immutable configuration; load_model performs resource acquisition."""
+    require_configuration(settings, coefficients)
+    return Model(
+        settings=settings,
+        coefficients=tuple(float(value) for value in coefficients),
+    )
 
 
 def load_model(model: Model) -> None:
     if model.loaded is not None:
         raise RuntimeError("The model is already loaded")
-    # This list stands in for a model allocation. It remains reachable on failure.
-    model.loaded = list(model.coefficients)
+    model.loaded = model.coefficients
 
 
 def dispose_model(model: Model) -> None:
     model.loaded = None
 
 
-@dataclass(slots=True)
-class PreparedInput:
-    analysis: AnalysisState
-    values: tuple[float, ...]
-    usable: bool
-
-
-class AnalysisState:
-    def __init__(self, model: Model):
-        self.model = model
-        self.open = False
-        self.preparations = 0
-        self.accepted = None
-
-
 def create_analysis(model: Model) -> AnalysisState:
-    return AnalysisState(model)
+    return AnalysisState(model=model)
 
 
 def initialize_analysis(analysis: AnalysisState) -> None:
@@ -90,36 +139,82 @@ def initialize_analysis(analysis: AnalysisState) -> None:
     analysis.open = True
 
 
-def prepare(analysis: AnalysisState, values: tuple[float, ...]) -> PreparedInput:
-    """Reject a candidate without losing the scientific analysis state."""
+def require_values(candidate: ValuesInput) -> None:
+    if type(candidate) is not ValuesInput:
+        raise TypeError("Scientific values must be supplied as ValuesInput")
+    if not candidate.values:
+        raise InputRejected("empty_input", "Supply at least one value")
+    if not all(_finite_number(value) for value in candidate.values):
+        raise InputRejected("invalid_value", "Every input value must be a finite number")
+
+
+def prepare(analysis: AnalysisState, candidate: ValuesInput) -> PreparedInput:
+    """Reject a candidate without losing the analysis state."""
     if not analysis.open:
         raise RuntimeError("The analysis is closed")
     analysis.preparations += 1
-    require_values(values)
+    require_values(candidate)
     if analysis.accepted is not None:
-        raise InputRejected("already_prepared", "Calculate or discard the accepted input before preparing another")
-    if len(values) != len(analysis.model.loaded):
+        raise InputRejected(
+            "already_prepared",
+            "Calculate or discard the accepted input before preparing another",
+        )
+    coefficients = analysis.model.loaded
+    if coefficients is None:
+        raise RuntimeError("The model is not loaded")
+    if len(candidate.values) != len(coefficients):
         raise InputRejected("wrong_count", "Input and coefficient counts must agree")
-    prepared = PreparedInput(analysis, values, True)
+    prepared = PreparedInput(
+        analysis=analysis,
+        values=candidate.values,
+    )
     analysis.accepted = prepared
     return prepared
 
 
-def calculate(analysis: AnalysisState, prepared: PreparedInput) -> dict:
+def calculate(
+    analysis: AnalysisState,
+    request: EmptyInput,
+    state: CalculationState,
+) -> PredictionResult:
+    if type(request) is not EmptyInput:
+        raise TypeError("Calculation requires EmptyInput")
+    if type(state) is not CalculationState:
+        raise TypeError("Calculation requires CalculationState")
+    prepared = state.prepared
     if not analysis.open or analysis.accepted is not prepared or not prepared.usable:
         raise RuntimeError("Calculation requires this analysis's accepted input")
     prepared.usable = False
     analysis.accepted = None
-    model = analysis.model
-    weighted = sum(coefficient * value for coefficient, value in zip(model.loaded, prepared.values, strict=True))
-    total = model.settings.offset + model.settings.scale * weighted
+    coefficients = analysis.model.loaded
+    if coefficients is None:
+        raise RuntimeError("The model is not loaded")
+    weighted = sum(
+        coefficient * value
+        for coefficient, value in zip(coefficients, prepared.values, strict=True)
+    )
+    total = analysis.model.settings.offset + analysis.model.settings.scale * weighted
     if not math.isfinite(total):
         raise ArithmeticError("The weighted sum is not finite")
-    return {"total": total, "count": len(prepared.values)}
+    return PredictionResult(
+        total=float(total),
+        count=len(prepared.values),
+    )
+
+
+def sum_values(candidate: ValuesInput) -> SumResult:
+    require_values(candidate)
+    total = sum(candidate.values)
+    if not math.isfinite(total):
+        raise ArithmeticError("The sum is not finite")
+    return SumResult(
+        total=float(total),
+        count=len(candidate.values),
+    )
 
 
 def dispose_prepared(prepared: PreparedInput) -> None:
-    """Consumption and release of the retained values are separate events."""
+    """Consumption and physical disposal remain separate events."""
     if prepared.analysis.accepted is prepared:
         prepared.analysis.accepted = None
     prepared.usable = False
@@ -127,22 +222,6 @@ def dispose_prepared(prepared: PreparedInput) -> None:
 
 
 def dispose_analysis(analysis: AnalysisState) -> None:
-    # Also reach partial preparation that failed before returning to the host.
     if analysis.accepted is not None:
         dispose_prepared(analysis.accepted)
     analysis.open = False
-
-
-def require_values(values: tuple[float, ...]) -> None:
-    if not (type(values) is tuple and values):
-        raise InputRejected("empty_input", "Supply at least one value")
-    if not all(_finite(value) for value in values):
-        raise InputRejected("invalid_value", "Every input value must be a finite number")
-
-
-def sum_values(values: tuple[float, ...]) -> dict:
-    require_values(values)
-    total = sum(values)
-    if not math.isfinite(total):
-        raise ArithmeticError("The sum is not finite")
-    return {"total": total, "count": len(values)}
