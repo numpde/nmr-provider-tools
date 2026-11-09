@@ -1,14 +1,15 @@
-Roadmap: causal qualification and the target shared execution platform
-======================================================================
+Roadmap: useful shared execution, then broader capability and assurance
+=====================================================================
 Revised 2026-11-09 | Target: note 066 | Source baseline 1178115
-Boundary clarification: opaque orchestration, configured science, shared hosting
+Priority revision: executable capability first; assurance proportional to risk
 
 Authority and delivery practice
 -------------------------------
 066_provider_execution_end_state.txt defines the target architecture and gaps
 G01-G12. This roadmap replaces the earlier preserve/extract-serial/add-lanes
 sequence. Notes 058, 060, 061 and 064 retain their historical source/evidence
-records; 064's S1-S8, I1-I2 and L1-L3 remain the qualification obligations.
+records; 064's S1-S8, I1-I2 and L1-L3 remain behavioral contracts. They do not
+require completing a general validation harness before implementing the service.
 
 Do not promote current provider topology into requirements. The shared platform
 must support multiple allocations of the SAME scientific implementation before
@@ -35,8 +36,47 @@ checks and limits. Report planned/implemented/omitted/added/verified in chat.
 No automatic dependency publication, deployment cutover or runtime-policy change
 is authorized by a planning note.
 
-0. Evidence ledger and immediate qualification
-----------------------------------------------
+Priority gradient and acceptance
+--------------------------------
+Tier 0 -- A useful local package. Implement M1, M2 and the first SECS migration
+as complete runnable increments: directly callable science, configured hosting,
+fixed one/two-allocation pools and the service path through durable result handoff
+and drain. Keep permission, exact ownership, isolation, bounded resources and
+safe handling of uncertain work in this tier. A documented hold/manual resolution
+is acceptable where automatic recovery is not yet implemented; restarting or
+forgetting an owner must never manufacture permission to repeat uncertain work.
+
+Tier 0 acceptance uses a small set of deterministic scenarios through the actual
+installed host/service/worker boundary: input to result and durable local handoff;
+one/two allocations with A held while B completes and A later settles; revoked
+dispatch and stale handles refused; original resources/results retained through
+stop and drain. Reuse fixtures and combine related observations in these scenarios.
+API publication remains distinct from local handoff. Checks accompany the
+capability that needs them. Direct science and the first real adapter must work;
+a mock-only universal interface is insufficient.
+
+Tier 1 -- Useful extensions. Migrate the remaining providers (M3), separate phase
+allocation and bounded staging (M4), improve reconciliation (M5), add durable
+supervisor recovery (M6), then a concrete remote backend (M7.3). These stay explicit
+functional gaps; each becomes an acceptance requirement when that capability is
+claimed. Existing conservative aggregate reservations and recovery limits can
+bridge Tier 0 safely. All four migrations are the adoption goal, not its entry gate.
+
+Tier 2 -- Measured optimization. Adaptive residency/replica policy and batching
+(M7.1/M7.2) follow a demonstrated workload benefit. They extend the same Tier-0
+execution path. Higher tiers must not replace it with an alternative architecture.
+
+Validation supports these tiers. Preserve required guards and focused checks for
+changed behavior; add a deterministic regression for a demonstrated defect. Broader
+state-machine oracles, shrink/replay machinery, stress, compatibility matrices and
+provenance automation are later assurance work justified by a concrete risk or
+recurring need. M0.3/M0.4 and all-gap closure are NOT prerequisites to M1 or Tier 0.
+Stop expanding checks once the changed contract is sufficiently exercised. A
+known permission, ownership or scientific-correctness defect still blocks the
+affected capability; a missing optional harness does not block unrelated work.
+
+0. Existing evidence and supporting qualification work
+------------------------------------------------------
 SDK source reviewed: 1178115c8b1ea89556f4c04f73d69471be8e1b5f, version 0.6.8.
 The following are implementation/customer-run reports from this workstream, not
 new local test executions or release artifact receipts:
@@ -55,32 +95,40 @@ new local test executions or release artifact receipts:
   7bca1ba  Delivery/capacity interleavings and review corrections; user reported
            requested integration and fuzz lanes passing.
   b4569e9  Late-original-owner/successor isolation. Implemented, runtime result
-           not yet reported at this revision of the roadmap.
+           not yet reported in the earlier ledger.
   1178115  Independent actual-child progress while original exit observation is
-           withheld. Implemented, runtime result not yet reported here.
+           withheld. Implemented, runtime result not yet reported in that ledger.
+  2026-11-09  User subsequently reported both installed integration and fuzz lanes
+           passing after switching to main and pulling. Main was independently
+           inspected at 81b62b4 (documentation changes after 1178115). This closes
+           the pending run request at user-reported level; no new count, artifact
+           digest or local execution is inferred from that report.
 
 These reports qualify only their stated scope. They do not close the shared-
 service, execution-pool, durability or remote-backend gaps. A passing bounded
 campaign is not proof of internal scheduling coverage or a deployed model run.
 
-[ ] M0.1 Run the pending installed integration/fuzz gates on the actual head.
-    Keep failures attributed to original lifecycle milestones; do not repair a
-    runtime contract merely to satisfy an incorrect test expectation.
-[ ] M0.2 Record source revision, wheel/sdist hashes, runtime/test locks, Python,
-    platform, command/profile and scope for the candidate used by consumers.
-    Refresh each provider main and its pin before editing it. The source matrix
-    in 064 is a historical baseline, not evidence of a host's running version.
-[ ] M0.3 Close qualification-method gaps before expanding generated claims:
-    explicit causal checkpoints, independent obligations, required milestone
-    coverage and a deliberately perturbed test-only invariant that shrinks and
-    replays. Identify which current rules can be no-ops or rely on OS scheduling.
-    Do not call a list of generated commands a deterministic process schedule.
-[ ] M0.4 Preserve pure runtime/native installation proofs. Hypothesis stays in
-    packages/provider-core/tests/requirements.lock, not runtime metadata.
-    Reuse tools/provider_core_acquire.py, provider_core_tests.py, core_environment.py,
-    provider_core.sh and package.py. Add profile/replay launcher checks where
-    missing. A reproduction blob needs an actual supported invocation and pinned
-    version; custom seed selection is not assumed implemented.
+[x] M0.1 Pending installed integration/fuzz runs: user-reported pass above.
+    Proceed to M1. Do not rerun unchanged code to satisfy a stale planning ledger.
+[ ] M0.2 Record the source, command and outcome with each relevant check. Capture
+    immutable artifact/environment identity when comparing candidates, publishing
+    or qualifying consumer adoption. Reuse existing build/install outputs; add
+    automatic receipts only when needed, and do not ask users to reconstruct
+    transient hashes. Refresh consumer main/pins before edits. Historical source
+    tables do not identify deployed hosts.
+[ ] M0.3 Later generated-test improvement, scoped to a concrete defect/risk:
+    use acknowledged lifecycle boundaries for the ordering under investigation,
+    check that the relevant milestones were reached, and add independent expected
+    obligations where they catch errors the current assertions miss. A small
+    deterministic witness can establish the next capability without a general
+    oracle. Test-only perturbation/shrink/replay demonstration is optional harness
+    qualification, not a prerequisite. Keep current bounded coverage claims honest:
+    no-op rules and OS scheduling mean commands alone do not determine completion.
+[ ] M0.4 Keep Hypothesis test-only and preserve existing runtime/native installation
+    checks when changing packaging. Reuse tools/provider_core_acquire.py,
+    provider_core_tests.py, core_environment.py, provider_core.sh and package.py.
+    Add replay support when diagnosing a generated failure or making a replay
+    claim; printing a blob alone does not establish a supported reproduction.
 
 Existing installed qualification entry points, after branch/pull:
   make tests/integration/provider-core DOCKER_CONTEXT=science WHEELHOUSE=/path/to/wheelhouse
@@ -93,14 +141,14 @@ Default 32 examples/40 steps and extended 1000/150 are configured bounds, not
 executed-transition counts or a claim that extended/concurrency stress has run.
 No new Make target or stress command is asserted to exist in this document.
 
-M0 exit: pending source is qualified at its actual layer; remaining gaps are
-listed rather than hidden behind the count of passing tests. G11 remains open
-until useful replay and non-vacuous ownership coverage are demonstrated.
+M0 is supporting work, not a serial phase that must finish before M1. The reported
+passes are the baseline. G11 tracks deferred assurance; its open status does not
+prevent a focused capability from being accepted on the evidence it actually has.
 
 1. First new capability: one implementation, multiple owned allocations
 ----------------------------------------------------------------------
 Closes the initial part of G02/G04/G10 and establishes G01's invocation boundary;
-provides the foundation for G03/G12. Implement M1 as runnable increments.
+provides the foundation for G03/G12. Tier 0; begin now with runnable increments.
 
 [ ] M1.0 In the first hosted example, distinguish configuration/asset binding,
     the operational dispatch envelope and the scientific callable's arguments.
@@ -119,9 +167,10 @@ provides the foundation for G03/G12. Implement M1 as runnable increments.
     configuration/assets at initialization, without rebuilding them per Job or
     making the scheduler understand their schema. Keep per-Job parameters opaque.
 [ ] M1.3 Use an explicit non-reentrant test adapter in two independent real worker
-    allocations. Prove concurrent distinct Jobs, held cleanup in A while B
+    allocations. Exercise distinct operations, held cleanup in A while B
     completes, no reuse of A, and correct recovery when A's original evidence
-    arrives. Also prove a configured pool of one admits only one allocation.
+    arrives. Check that a configured pool of one admits only one allocation.
+    Use one causal fixture for this contract; no generated oracle is required.
 [ ] M1.4 Bind prepared handles to the correct implementation and, when necessary,
     allocation incarnation. Reject stale/mismatched handles. Support a portable
     candidate through explicit immutable identity without claiming replay rights.
@@ -144,7 +193,7 @@ backend limit has an evidence-backed bridge, not a singleton architecture.
 
 2. Build the common service around the allocation contract
 ----------------------------------------------------------
-G01/G07 and the service part of G05. M1 supplies a real first consumer.
+G01/G07 and the service part of G05. Tier 0, around M1's exercised boundary.
 
 [ ] M2.1 Compose initial/periodic Hello and bounded fair discovery using existing
     ProviderAPI operations. Keep their API owners independent of scientific work
@@ -159,8 +208,10 @@ G01/G07 and the service part of G05. M1 supplies a real first consumer.
     offered capability, spare capacity and open admission. Use owner-produced
     facts/dispositions, not provider-specific nested-exception inspection.
 [ ] M2.4 Implement scoped cooldown and delivery pressure with bounded retry.
-    Distinguish operation/allocation/implementation/binding/device/host failures.
-    Quarantine only the affected scope when its evidence permits isolation.
+    Handle the failure scopes the local backend can actually establish; retain
+    conservative handling for unknown scope. A held allocation must not stall
+    independent usable capacity. Extend classification for later backends when
+    needed, without first building a universal failure taxonomy.
 [ ] M2.5 Implement common stop-admission, active-work stop, report drain and
     shutdown observations. Retain unconfirmed allocations and selected reports.
     Keep queue acceptance, API publication and physical retirement distinct.
@@ -170,12 +221,14 @@ G01/G07 and the service part of G05. M1 supplies a real first consumer.
     usable increments. Reuse the existing durable outbox/publisher; do not create
     a second terminal queue or another authoritative Attempt registry.
 [ ] M2.7 Exercise two contributions with different input/configuration schemas
-    behind the same scheduler. Only their registered loaders/decoders interpret
-    scientific bytes. Verify scheduler imports and invocation data flow have no
-    science-library dependency or provider-name branches. A protocol binding can
-    translate outcomes, but cannot become another poller or permission engine.
+    behind the same scheduler; a small second contribution is sufficient here.
+    Do not wait for a second real-provider migration. Review the actual data flow
+    for science-library dependencies, provider-name branches and leaked authority.
+    Scientific loaders/decoders own meaning; a protocol binding translates outcomes
+    without becoming another poller or permission engine.
 
-Exit: the first consumer uses the target service with both pool configurations.
+Tier 0 exit (with M1 and M3.3): the first consumer uses the shared service with
+both pool configurations and focused evidence for the acceptance scenarios above.
 A serial setting does not select a different scheduler implementation. Default
 service behavior meets the new floor; no compatibility switch restores old
 whole-provider stalls or maintenance dependent on new Job arrivals.
@@ -184,18 +237,20 @@ whole-provider stalls or maintenance dependent on new Job arrivals.
 ---------------------------------------------------------------------------
 G01/G12, backed by G02/G04/G07. SECS -> NMRNet -> NMRPeak -> Magnet remains a useful
 consumer ordering, not a requirement to defer common concurrency until NMRPeak.
+The first SECS integration belongs to Tier 0; remaining migrations are Tier 1.
+Inspect each consumer's relevant scientific/binding contracts at its migration.
 No exhaustive old-service qualification project precedes the first migration.
 
-[ ] M3.1 For each provider, record a short gap/bridge entry with current source,
-    target contract, owning shared component, temporary restriction, removal
-    milestone and external closing witness. Classify old assertions as scientific
-    invariant, protocol obligation, obsolete quirk or desired new capability.
+[ ] M3.1 For an actual temporary bridge, record its owner, limitation and removal
+    condition in the existing note. Avoid a separate receipt for every checklist
+    item. Classify old assertions as scientific invariant, protocol obligation,
+    obsolete quirk or desired new capability.
     Separate numerical code and configuration from SDK compatibility binding;
     current AnalysisSession argument types are not the final numerical interface.
-[ ] M3.2 Compare current service/current SDK, current service/candidate SDK and
-    migrated service/same candidate when useful to isolate causes. New target
-    behavior may intentionally fail on the old service. Never run two live
-    schedulers under one provider identity merely to compare results.
+[ ] M3.2 Run the affected installed consumer path against the candidate. Add an
+    old/new combination only to resolve a concrete compatibility uncertainty;
+    there is no mandatory three-way matrix per change. New target behavior may
+    intentionally differ. Never compare two live schedulers under one identity.
 [ ] M3.3 SECS: change src/secs_inference/provider/{runtime,main,session,worker}.py
     at their actual ownership boundaries. Keep numerical inspection/search and
     accepted-input semantics; replace singleton orchestration with the pool.
@@ -222,8 +277,9 @@ No exhaustive old-service qualification project precedes the first migration.
     unrelated computation and previous result publication progress independently;
     vary implementation replica count without changing its scientific adapter.
 [ ] M3.7 Delete displaced local discovery, allocation management, retry, retention,
-    pressure and drain code. Move broad generic matrices with their shared owner.
-    Retain numerical/native compatibility tests and a thin installed consumer proof.
+    pressure and drain code. Move existing relevant shared tests with their owner,
+    removing duplicated assertions. Retain numerical/native compatibility tests
+    and a small installed consumer scenario.
     Move common native readers, permission plumbing and process retirement out of
     scientific cleanup hooks; keep only domain disposal and a narrow translation
     bridge where necessary. Preserve original ownership during the transition.
@@ -235,14 +291,15 @@ Reuse NMRNet's checksum-verified selective sdist test support and the other
 installed-artifact launchers. Deterministic consumer helpers must not require
 Hypothesis or import a sibling checkout. Share only with real second consumers.
 
-Exit: all four providers use one common service/allocation implementation. Their
-remaining differences describe science/capabilities, not four flavors of polling
-and worker supervision. Numerical behavior is qualified independently of the
-intentional orchestration improvements.
+Adoption completion: all four providers use one common service/allocation
+implementation. Their remaining differences describe science and capabilities;
+shared machinery owns polling and worker supervision. Numerical behavior is
+qualified independently of the intentional orchestration improvements.
 
 4. Resource-efficient pipeline and placement
 --------------------------------------------
-G03/G04. Can develop with M3 once the shared reservation boundary is exercised.
+G03/G04. Tier 1, after the shared reservation boundary is exercised. Tier 0 uses
+bounded aggregate reservations; limits/isolation are already required there.
 
 [ ] M4.1 Add separate budgets for control, staged inputs/preparations, model
     residency, active CPU/GPU work, uncertain allocations and terminal custody.
@@ -268,7 +325,7 @@ from a scheduler diagram.
 
 5. Typed reconciliation and bounded automatic recovery
 ------------------------------------------------------
-G05/G07. Extend current controller/executor contracts with owning evidence.
+G05/G07. Tier 1. Extend current controller/executor contracts with owning evidence.
 
 [ ] M5.1 Define a small typed decision surface for continued observation, accepted
     handoff, held uncertain work, eligible release and terminal reconciliation.
@@ -293,7 +350,7 @@ uncertainty remains explicit and safe, scoped as narrowly as the evidence allows
 
 6. Durable operations and supervisor replacement
 ------------------------------------------------
-G06; required for unattended crash recovery, not a prerequisite for the first
+G06; Tier 1, required for unattended crash recovery. It does not gate the first
 local pooled release. This is a tracked end-state requirement, not an indefinite
 exclusion from scope.
 
@@ -319,7 +376,9 @@ for each supported backend. Record the remaining unsupported failure windows.
 
 7. Measured pool policy, batching and a concrete remote backend
 --------------------------------------------------------------
-G08/G09/G10. These are bounded additions, not a general orchestration framework.
+G08/G09/G10. M7.1/M7.2 are Tier 2; the concrete remote capability M7.3 is Tier 1
+after its prerequisites. M7.4 applies to the deployment being added. These labels
+set priorities, not a demand to finish every earlier numbered item first.
 
 [ ] M7.1 Measure model-load cost, resident/peak memory, queue wait, useful execution
     concurrency, isolation and numerical equivalence. Add bounded warm/idle and
@@ -343,39 +402,44 @@ A minimal local installation still requires no remote coordinator, cluster or
 batching feature. Expensive optimization is accepted only with measured benefit
 and the same scientific/ownership contract.
 
-8. Qualification, acceptance and removal of bridges
---------------------------------------------------
-[ ] M8.1 Maintain gap receipts: G01 invocation/service boundary (M1/M2/M3);
+8. Evidence alongside delivery, and removal of bridges
+-----------------------------------------------------
+This section supports the owning increment or release; it is not a final global
+validation phase. Use existing fixtures and the narrowest relevant installed lane.
+
+[ ] M8.1 Update the existing gap register when a capability lands. The mapping is:
+    G01 invocation/service boundary (M1/M2/M3);
     G02 pools (M1); G03 physical/stage budgets (M4); G04 handles/protocols and
     disposal boundary (M1/M3/M4); G05 recovery (M5); G06 durable custody (M6);
     G07 scheduling/maintenance (M2/M5); G08 adaptive policy/batching (M7);
-    G09 remote authority (M7); G10 deployment (M1/M7); G11 faithful qualification
-    (M0 and every capability); G12 real consumers (M3).
-[ ] M8.2 Require a removal gate for each singleton/legacy bridge: identical adapter
-    bytes with changed replica count, no global mutable cross-Job state, correct
-    operation identity and resource bounds, then deletion of the old special path.
-    Keep a direct-science invocation and actual hosted-boundary test; the absence
-    of forbidden class names in one signature is not proof against nested leaks.
-[ ] M8.3 Use deterministic scenarios for mandatory behaviors, stateful generation
-    for boundary orderings, actual subprocess/IPC tests for physical evidence,
-    installed consumer tests for assembly and native/deployment runs for real
-    models. Keep these evidence levels distinct. Share test mechanisms, not a
-    fabricated universal runtime abstraction solely for the fuzzer.
-[ ] M8.4 Run bounded repetitions and optional owned CPU contenders for affected
-    causal tests; record quotas, scheduling assumptions, watchdog diagnostics and
-    every failure. Initial bounds of ten normal/three contended runs are proposals,
-    not executed evidence. No retry-until-green or unconditional progress claim.
-[ ] M8.5 Publish exact qualified artifacts only. A release may deliver a named
-    local-pool subset before durability/remote completion, but must list those
-    open gaps. Qualify applicable consumers against the same artifact/support
-    pair; install from a wheel, never a checkout masquerading as qualification.
+    G09 remote authority (M7); G10 deployment (M1/M7); G11 scoped test fidelity
+    and optional wider assurance (M0); G12 real consumers (M3). No separate receipt
+    system or requirement to close every gap before Tier 0 is accepted.
+[ ] M8.2 Remove each legacy bridge with its working replacement and the focused
+    test for the behavior it protected. Reuse M1/M2's one/two-allocation, affinity,
+    authority and state-isolation scenarios rather than rebuilding that matrix
+    in every provider. Retain a small actual adapter/host integration scenario.
+[ ] M8.3 Select evidence for the changed boundary: deterministic lifecycle tests,
+    actual subprocess/IPC for physical retirement, installed consumers for
+    assembly, native/deployment runs for real-model/deployment claims. These are
+    different scopes, not a ladder every change must climb. Stateful generation
+    supplements them when useful; no universal fuzzer runtime is required.
+[ ] M8.4 Repeat or add CPU contention only for a concrete scheduling/flakiness
+    risk. Remove the earlier suggested ten/three repetition quota. Keep runs
+    bounded and every failure visible; no retry-until-green. Fault gates follow
+    observed events, and emergency teardown cannot supply a passing verdict.
+[ ] M8.5 At an authorized release, identify and check the actual artifacts and
+    affected consumer installations. A named local-pool release can leave broader
+    recovery/remote/assurance gaps open. Do not require every consumer or a broad
+    compatibility matrix for an unaffected subset. Installed claims use a wheel,
+    and production/native claims need their own applicable evidence.
 [ ] M8.6 Before an authorized deployment, stop old admission and settle or verify
     durable transfer of obligations. Preserve outbox rows and old owners that
     still hold work. Apply the same guard to rollback; never erase an unresolved
     operation to make a cutover or test pass.
 
-Final acceptance
-----------------
+End-state acceptance
+--------------------
 A provider supplies its science, configured implementation, capability/resource
 requirements and a small installed qualification fixture. Shared code supplies
 service, execution hosting/pools, recovery and deployment mechanisms. Scheduling
@@ -383,5 +447,6 @@ routes opaque work; scientific setup and meaning remain in the contribution.
 Numerical code can run without Jobs/Attempt authority. Replica count, compatible
 placement and residency are operational choices, not scientific rewrites.
 The platform preserves scientific meaning and real ownership obligations while
-retiring incidental constraints of current implementations. All remaining
-end-state gaps have a named owner, bridge and closing witness.
+retiring incidental constraints of current implementations. Tier 0 is useful
+before this end state is complete; later capability gaps stay visible. Required
+guards are never deferred merely because broader assurance work is deferred.

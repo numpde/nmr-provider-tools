@@ -2,6 +2,7 @@ Target architecture: scientific adapters on a shared execution platform
 =======================================================================
 2026-11-09 | Design decision and gap register | Baseline SDK 1178115
 Boundary clarification: orchestrator -> execution host -> configured science
+Priority revision: useful local execution first; assurance proportional to risk
 
 Decision and authority
 ----------------------
@@ -23,6 +24,13 @@ The objective is correct science, bounded resource use, useful parallelism and
 recovery with minimal operator intervention. It is not maximum concurrency at
 any cost. Residency and batching choices require measurements for each workload;
 this note makes them replaceable without rewriting scientific adapters.
+
+Apply a strong prioritization gradient. First deliver a complete local execution
+path with its essential authority, ownership and resource guards. Extend that
+same path with broader capabilities and recovery, then measured optimizations.
+Focused checks accompany each capability. A general oracle, shrinking campaign,
+stress matrix or evidence framework is not a prerequisite for useful execution.
+Section 9 sets the tier boundaries; 065 owns the runnable increments.
 
 The orchestrator does not assemble scientific inputs, model configuration,
 weights or framework device objects. It routes a work item to a registered,
@@ -182,8 +190,8 @@ checks its reservation before dispatch. Its produced native handle may require
 retaining that reservation through execute. Scientific tool selection remains in
 the contribution; the scheduler sees generic declared operations and requirements.
 
-Start with a conservative aggregate phase reservation when necessary, documented
-as a bridge. Introduce stage-specific acquisition with explicit ordering or atomic
+Tier 0 can use a conservative bounded aggregate reservation, documented as a
+bridge. Tier 1 introduces stage-specific acquisition with ordered or atomic
 composite reservations so two phases cannot each hold one scarce resource while
 waiting forever for the other. Cancellation must settle partially acquired work.
 Bound prepared-item counts, bytes, source retention and queue wait; moving a queue
@@ -249,6 +257,13 @@ The existing SDK documents that supervisor death loses live Attempt bookkeeping
 and unhanded results may be lost. The target needs durable operation intent,
 identity and result custody across that boundary. This requires a separately
 qualified capability, not simply serializing the present Python objects.
+
+Durable supervisor replacement is Tier 1 functionality. Tier 0 retains the
+existing durable delivery owner and supports orderly drain, conservative holds
+and explicit operator recovery. Unsupported crash windows stay explicit; a
+restart never authorizes replay of a possibly dispatched operation. The crash
+cases below qualify recovery when implemented, rather than blocking a first
+local service that makes no such recovery claim.
 
 Before dispatch, retain the stable operation identity and its authoritative
 owner. A capable backend accepts that identity idempotently, records its status,
@@ -378,22 +393,23 @@ scheduler does not construct chemical prompts merely because it schedules a
 preparation phase. Generic utilities can be reused by science without importing
 Jobs/Attempt authority or depending on a live provider service.
 
-7.4 Closing witnesses for this boundary
+7.4 Focused acceptance of the working boundary
 
-Run a small scientific implementation directly in its numerical test environment,
-without a Jobs API client, AttemptController, claim registry or Docker manager.
-Run the same implementation via the shared host with one/two allocations, using
-opaque input/configuration and host-owned identities. Initialize from a bound
-configuration once per actual instance; verify per-Job state separation and
-per-analysis cleanup independently from allocation retirement.
+Accompany the first working implementation with a small deterministic acceptance
+set through the actual host/worker path. Run the same science directly without
+Jobs authority and hosted with one/two allocations. Exercise bound initialization,
+isolated per-analysis state, one held allocation while its sibling completes,
+and the permission/handle guards changed by the increment. Reuse existing tests
+for unchanged guards; no new matrix or validation framework is required.
 
-The scheduler must accept two contributions with different input/configuration
-schemas without a provider-name branch or a science-library import. Check argument
-surfaces and data flow, not only test doubles: scientific hooks cannot recover
-controller/credentials/allocator through a nested catch-all context. Validate
-malformed scientific input in its contribution and revoked managed dispatch in
-the shared host. Replica count or compatible placement changes need no scientific
-code change; a model/preprocessing change is versioned science, not hidden fallback.
+Use a real first consumer, with SECS the proposed bridge, plus a small second
+contribution with different input/configuration to exercise the generic dispatch
+boundary. Full migration of a second real provider follows in Tier 1. Review the
+actual invocation data flow for authority leakage, including nested arguments.
+Scientific input validation belongs to its contribution; revoked managed dispatch
+is rejected by the host. Replica count changes leave scientific code unchanged;
+a model/preprocessing change is versioned science, not hidden fallback. Validate
+new placement or backend modes when those capabilities are implemented.
 
 A resource requirement is not a privilege grant. Deployment validates which
 images, devices, files, endpoints and credentials an implementation may access.
@@ -407,13 +423,16 @@ execution/deployment must enforce the declared isolation and external capabiliti
 All gaps below are OPEN against the reviewed source baseline. Their identifiers
 are referenced by milestones in 065. An implemented component test closes only
 its stated sub-contract, not an entire gap. Consumer baselines are from 064.
+This is an end-state register, not a prerequisite checklist for Tier 0. Accept
+each useful increment at its stated scope; broader gap closure follows the tiers.
 
 G01  Service ownership and invocation boundary. Four service assemblies still
      own generic admission, maintenance and drain. Move these into one common
      runtime with no provider-name branches. Keep science configuration/input
      semantics in the registered contribution and operational authority in its
-     shared host. Close with section 7.4's boundary witnesses and two real adapters
-     using the same service; all four consumers are the completion gate.
+     shared host. Tier 0 uses section 7.4's focused acceptance and first real
+     consumer. Further real adapters establish adoption; all four close the
+     migration gap rather than gating the first usable service.
 
 G02  Topology and pooling. Current session/runner wiring does not constitute a
      common implementation-to-many-allocations pool. Separate identities and
@@ -424,6 +443,8 @@ G03  Physical/stage capacity. Attempt bookkeeping limits are not CPU/GPU, model
      residency or staged-input accounting. Add the shared allocator and bounded
      phase queues. Close with shared-device competition, no oversubscription,
      partial-acquisition cancellation and model-HTTP wait not pinning execution.
+     Tier 0 enforces fixed pool bounds and disjoint grants where needed; richer
+     stage allocation and shared-device scheduling belong to Tier 1.
 
 G04  Preparation portability and native protocols. Existing handles may be tied
      to one live session/worker. Declare portable versus affinity-bound state;
@@ -466,10 +487,14 @@ G10  Deployment and operational model. Reuse shared build/acquisition/identity
 
 G11  Qualification fidelity. The current shrinking integration campaign uses
      real children and event-loop yields, so generated command order alone does
-     not establish every internal completion order. Add causally acknowledged
-     boundaries, an independent obligation model, non-vacuous milestone coverage,
-     failing-witness shrink/replay and backend conformance. Keep a small actual-
-     process layer. Do not infer exhaustive coverage from a passing bounded run.
+     not establish every internal completion order. Use observed causal boundaries
+     in the focused scenarios that support each capability's acceptance. Keep
+     current passing tests and report their scope honestly. Independent generated
+     obligation models, campaign coverage accounting, mutation/shrink/replay proofs
+     and broad conformance matrices are later assurance work, selected for a
+     concrete residual risk. They do not gate M1 or the first local service.
+     A useful new backend still needs its own focused behavior checks. Do not
+     infer exhaustive coverage from a passing bounded run.
 
 G12  Provider-specific topology debt. SECS: global worker/session coupling and
      serial orchestration -> repeatable isolated allocations under the pool.
@@ -480,27 +505,40 @@ G12  Provider-specific topology debt. SECS: global worker/session coupling and
      sharing declared resources. Close each with its actual adapter, not an empty
      universal fixture; retain scientific correctness, not the old layout.
 
-9. What is required early, and what can be built later
-----------------------------------------------------
-Required in the first shared service design: the section 7 invocation boundary,
-topology-independent identities, reservable allocations, bounded queues, more than
-one allocation of the SAME implementation, scoped failures, independent maintenance,
-exact ownership and terminal handoff. SECS/NMRNet/NMRPeak/Magnet are consumers and
-qualification cases, not successive serial/dual-lane/heterogeneous architectures.
+9. Prioritization gradient and useful acceptance
+------------------------------------------------
+Tier 0: a complete useful local package. Deliver direct and hosted science,
+configured one/two-allocation pools, the thin real SECS bridge and a common service
+driving that consumer through discovery, admission, execution, existing durable
+delivery and orderly drain. Preserve authority at dispatch, exact ownership,
+handle affinity, bounded resources and independent maintenance. Explicit manual
+recovery and conservative holds are acceptable within the stated local scope.
+The focused acceptance in 7.4 accompanies implementation. A fixture-only pool is
+an increment toward Tier 0; the service and first real consumer complete it.
 
-Build incrementally: fixed local pools -> phase-aware allocation and full consumer
-migration -> measured adaptive policies and durable recovery -> concrete remote
-backend/failover. The recovery work can run in parallel once its contracts exist.
-Do not require a cluster, automatic scaling or batch inference to run one local
-worker. Do not call extraction complete while the provider still owns duplicated
-non-scientific worker management or while only the old topology can be expressed.
+Tier 1: extend the same path with the remaining consumer migrations, phase-aware
+allocation/bounded staging, stronger reconciliation, durable operation/result
+custody and a concrete remote backend. Select each increment for useful capability
+or a concrete operational failure. Its focused checks cover the added behavior;
+crash/failover claims require the corresponding ownership and recovery evidence.
 
-The first useful demonstration is intentionally not four old loops relocated:
-run one scientific implementation with two independent allocations, hold one
-original operation, complete another, reconcile the first without replay, and
-change the pool size without editing the adapter. Apply that floor to all four.
-The same scientific implementation must also remain callable without the Jobs
-service; shared hosting supplies the operational integration around it.
+Tier 2: measured improvements to load cost, memory use, latency or throughput,
+including adaptive warm pools and scientifically compatible batching. Add them
+only for a demonstrated benefit. Higher tiers reuse and extend Tier 0's execution
+path; they do not introduce a replacement scheduler or scientific API.
+
+Assurance supports these tiers. A deterministic witness for a changed permission,
+ownership or isolation boundary can be essential to its implementation. General
+fuzz/replay machinery, stress campaigns, exhaustive compatibility matrices and
+new provenance tooling are secondary/tertiary work. Add them when a concrete
+failure or imminent use makes them valuable; do not keep enlarging a validation
+prefix before the first useful service. Existing receipts suffice for routine
+development; exact artifacts matter when publishing or qualifying a consumer.
+
+SECS/NMRNet/NMRPeak/Magnet share this architecture. Their migration order does not
+change the tier boundaries or require all four migrations before a useful local
+release. Full extraction is complete only when their displaced generic loops are
+removed; local acceptance may precede that end-state completion.
 
 Sources and evidence limits
 ---------------------------
