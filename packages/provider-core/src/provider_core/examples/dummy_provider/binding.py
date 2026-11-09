@@ -2,37 +2,23 @@
 
 from __future__ import annotations
 
-import hashlib
 from functools import partial
 from typing import Final, NoReturn
 
-from provider_core.contribution import (
-    AnalysisHooks,
-    AssetDescription,
-    CallBinding,
-    ConcurrencyRequirement,
-    ConfigurationDescription,
-    ImplementationBinding,
-    InstanceHooks,
-    InterruptionSupport,
-    IsolationRequirement,
-    JsonDataclassCodec,
-    ProgressEvent,
-    ResourceRequirement,
-    ReturnedState,
-    ScientificControl,
-    ScientificRejection,
-    ScientificReturn,
-    StateOutput,
-    StateParameter,
-    StateUse,
-)
+import provider_core.contribution as contribution
+import provider_core.contribution_declaration as declaration
 
 from . import science
 
 
+__all__ = (
+    "sum_binding",
+    "weighted_sum_binding",
+)
+
+
 _PREPARED_VALUES_KIND: Final[str] = "dummy.prepared-values.v1"
-_CPU_THREAD: Final[ResourceRequirement] = ResourceRequirement(
+_CPU_THREAD: Final[contribution.ResourceRequirement] = contribution.ResourceRequirement(
     kind="cpu",
     amount=1,
     unit="thread",
@@ -41,63 +27,10 @@ _CPU_THREAD: Final[ResourceRequirement] = ResourceRequirement(
 )
 
 
-def _sha256_digest(content: bytes) -> str:
-    if type(content) is not bytes:
-        raise TypeError("content must be bytes")
-    return "sha256:" + hashlib.sha256(content).hexdigest()
-
-
-def _binding_revision(*parts: str) -> str:
-    digest = hashlib.sha256()
-    for part in parts:
-        if type(part) is not str:
-            raise TypeError("revision parts must be strings")
-        encoded_part = part.encode("ascii")
-        digest.update(len(encoded_part).to_bytes(8, "big"))
-        digest.update(encoded_part)
-    return "sha256:" + digest.hexdigest()
-
-
-def _configuration_description[T](
-    value: T,
-    *,
-    format_id: str,
-) -> ConfigurationDescription:
-    codec = JsonDataclassCodec(
-        format=format_id,
-        value_type=type(value),
-    )
-    encoded_value = codec.encode(value)
-    return ConfigurationDescription(
-        format=codec.format,
-        digest=_sha256_digest(encoded_value),
-    )
-
-
-def _asset_description[T](
-    value: T,
-    *,
-    name: str,
-    format_id: str,
-    media_type: str,
-) -> AssetDescription:
-    codec = JsonDataclassCodec(
-        format=format_id,
-        value_type=type(value),
-    )
-    encoded_value = codec.encode(value)
-    return AssetDescription(
-        name=name,
-        media_type=media_type,
-        digest=_sha256_digest(encoded_value),
-        size_bytes=len(encoded_value),
-    )
-
-
 def _raise_scientific_rejection(
     error: science.ScientificInputRejected,
 ) -> NoReturn:
-    raise ScientificRejection(
+    raise contribution.ScientificRejection(
         code=error.code,
         message=error.message,
     ) from error
@@ -108,8 +41,8 @@ def _prepare(
     analysis: science.WeightedSumAnalysis,
     candidate: science.PreparationInput,
     _state: science.NoLiveState,
-    _control: ScientificControl,
-) -> ScientificReturn[science.PreparationResult]:
+    _control: contribution.ScientificControl,
+) -> contribution.ScientificReturn[science.PreparationResult]:
     try:
         prepared = science.prepare(
             analysis=analysis,
@@ -118,10 +51,10 @@ def _prepare(
     except science.ScientificInputRejected as error:
         _raise_scientific_rejection(error)
 
-    return ScientificReturn(
+    return contribution.ScientificReturn(
         value=science.PreparationResult(count=prepared.value_count),
         states=(
-            ReturnedState(
+            contribution.ReturnedState(
                 name="prepared",
                 kind=_PREPARED_VALUES_KIND,
                 value=prepared,
@@ -137,17 +70,29 @@ def _calculate(
     analysis: science.WeightedSumAnalysis,
     calculation: science.CalculationInput,
     state: science.CalculationState,
-    control: ScientificControl,
-) -> ScientificReturn[science.PredictionResult]:
-    control.report_progress(ProgressEvent(stage="calculation", completed=0, total=1))
+    control: contribution.ScientificControl,
+) -> contribution.ScientificReturn[science.PredictionResult]:
+    control.report_progress(
+        contribution.ProgressEvent(
+            stage="calculation",
+            completed=0,
+            total=1,
+        )
+    )
     prediction = science.calculate(
         analysis=analysis,
         calculation=calculation,
         state=state,
     )
-    control.report_progress(ProgressEvent(stage="calculation", completed=1, total=1))
+    control.report_progress(
+        contribution.ProgressEvent(
+            stage="calculation",
+            completed=1,
+            total=1,
+        )
+    )
 
-    return ScientificReturn(
+    return contribution.ScientificReturn(
         value=prediction,
         states=(),
         dispose_value=None,
@@ -159,14 +104,14 @@ def _sum(
     _analysis: None,
     summation: science.SumInput,
     _state: science.NoLiveState,
-    _control: ScientificControl,
-) -> ScientificReturn[science.SumResult]:
+    _control: contribution.ScientificControl,
+) -> contribution.ScientificReturn[science.SumResult]:
     try:
         result = science.sum_values(summation=summation)
     except science.ScientificInputRejected as error:
         _raise_scientific_rejection(error)
 
-    return ScientificReturn(
+    return contribution.ScientificReturn(
         value=result,
         states=(),
         dispose_value=None,
@@ -177,69 +122,73 @@ def weighted_sum_binding(
     *,
     settings: science.WeightedSumSettings,
     coefficients: science.CoefficientSet,
-) -> ImplementationBinding[science.WeightedSumModel, science.WeightedSumAnalysis]:
+) -> contribution.ImplementationBinding[
+    science.WeightedSumModel,
+    science.WeightedSumAnalysis,
+]:
     """Bind immutable settings and coefficients to one weighted model revision."""
-    configuration = _configuration_description(
+    configuration = declaration.json_configuration(
         settings,
         format_id="dummy.settings.v1",
     )
-    coefficient_asset = _asset_description(
+    coefficient_asset = declaration.json_asset(
         coefficients,
         name="coefficients",
         format_id="dummy.coefficients.v1",
         media_type="application/vnd.nmr-provider-tools.dummy-coefficients+json",
     )
+    assets = (coefficient_asset,)
 
-    prepare_call = CallBinding.from_json_dataclasses(
+    prepare_call = contribution.CallBinding.from_json_dataclasses(
         name="prepare",
         input_format="dummy.preparation-input.v1",
         result_format="dummy.preparation-result.v1",
         state_inputs=(),
         state_outputs=(
-            StateOutput(
+            contribution.StateOutput(
                 name="prepared",
                 kind=_PREPARED_VALUES_KIND,
             ),
         ),
         resources=(_CPU_THREAD,),
-        concurrency=ConcurrencyRequirement.INSTANCE_SERIAL,
-        interruption=InterruptionSupport.NONE,
+        concurrency=contribution.ConcurrencyRequirement.INSTANCE_SERIAL,
+        interruption=contribution.InterruptionSupport.NONE,
         progress=False,
         scientific_call=_prepare,
     )
-    calculate_call = CallBinding.from_json_dataclasses(
+    calculate_call = contribution.CallBinding.from_json_dataclasses(
         name="calculate",
         input_format="dummy.calculation-input.v1",
         result_format="dummy.prediction-result.v1",
         state_inputs=(
-            StateParameter(
+            contribution.StateParameter(
                 name="prepared",
                 kind=_PREPARED_VALUES_KIND,
-                use=StateUse.CONSUME,
+                use=contribution.StateUse.CONSUME,
             ),
         ),
         state_outputs=(),
         resources=(_CPU_THREAD,),
-        concurrency=ConcurrencyRequirement.INSTANCE_SERIAL,
-        interruption=InterruptionSupport.NONE,
+        concurrency=contribution.ConcurrencyRequirement.INSTANCE_SERIAL,
+        interruption=contribution.InterruptionSupport.NONE,
         progress=True,
         scientific_call=_calculate,
     )
     calls = (prepare_call, calculate_call)
 
-    return ImplementationBinding.from_calls(
+    return contribution.ImplementationBinding.from_calls(
         binding_id="dummy.weighted-sum",
-        binding_revision=_binding_revision(
-            "dummy.weighted-sum.v1",
-            configuration.digest,
-            coefficient_asset.digest,
+        binding_revision=declaration.binding_revision(
+            implementation="dummy.weighted-sum.v1",
+            configuration=configuration,
+            assets=assets,
         ),
         contract_version=1,
         configuration=configuration,
-        assets=(coefficient_asset,),
+        assets=assets,
         calls=calls,
         resident_resources=(
-            ResourceRequirement(
+            contribution.ResourceRequirement(
                 kind="dummy-resident-data",
                 amount=len(coefficients.values),
                 unit="coefficient",
@@ -247,8 +196,8 @@ def weighted_sum_binding(
                 exclusive=False,
             ),
         ),
-        isolation=IsolationRequirement.SHARED_PROCESS,
-        instance=InstanceHooks(
+        isolation=contribution.IsolationRequirement.SHARED_PROCESS,
+        instance=contribution.InstanceHooks(
             construct=partial(
                 science.create_model,
                 settings=settings,
@@ -257,7 +206,7 @@ def weighted_sum_binding(
             initialize=science.load_model,
             dispose=science.dispose_model,
         ),
-        analysis=AnalysisHooks(
+        analysis=contribution.AnalysisHooks(
             construct=science.create_analysis,
             initialize=science.initialize_analysis,
             dispose=science.dispose_analysis,
@@ -265,37 +214,38 @@ def weighted_sum_binding(
     )
 
 
-def sum_binding() -> ImplementationBinding[None, None]:
+def sum_binding() -> contribution.ImplementationBinding[None, None]:
     """Bind the stateless sum without inventing model or analysis lifetimes."""
-    configuration = _configuration_description(
+    configuration = declaration.json_configuration(
         science.PlainSumConfiguration(),
         format_id="dummy.sum-configuration.v1",
     )
-    run_call = CallBinding.from_json_dataclasses(
+    run_call = contribution.CallBinding.from_json_dataclasses(
         name="run",
         input_format="dummy.sum-input.v1",
         result_format="dummy.sum-result.v1",
         state_inputs=(),
         state_outputs=(),
         resources=(_CPU_THREAD,),
-        concurrency=ConcurrencyRequirement.PARALLEL,
-        interruption=InterruptionSupport.NONE,
+        concurrency=contribution.ConcurrencyRequirement.PARALLEL,
+        interruption=contribution.InterruptionSupport.NONE,
         progress=False,
         scientific_call=_sum,
     )
 
-    return ImplementationBinding.from_calls(
+    return contribution.ImplementationBinding.from_calls(
         binding_id="dummy.sum",
-        binding_revision=_binding_revision(
-            "dummy.sum.v3",
-            configuration.digest,
+        binding_revision=declaration.binding_revision(
+            implementation="dummy.sum.v3",
+            configuration=configuration,
+            assets=(),
         ),
         contract_version=1,
         configuration=configuration,
         assets=(),
         calls=(run_call,),
         resident_resources=(),
-        isolation=IsolationRequirement.SHARED_PROCESS,
+        isolation=contribution.IsolationRequirement.SHARED_PROCESS,
         instance=None,
         analysis=None,
     )

@@ -5,6 +5,7 @@ from importlib import resources
 import unittest
 
 import provider_core.examples.dummy_provider as dummy_provider
+import provider_core.examples.dummy_provider.binding as dummy_binding
 
 
 class DummyProviderBoundaryTests(unittest.TestCase):
@@ -34,7 +35,22 @@ class DummyProviderBoundaryTests(unittest.TestCase):
                 ):
                     provider_core_imports.add(node.module)
 
-        self.assertEqual({"provider_core.contribution"}, provider_core_imports)
+        self.assertEqual(
+            {
+                "provider_core.contribution",
+                "provider_core.contribution_declaration",
+            },
+            provider_core_imports,
+        )
+
+    def test_adapter_exports_only_binding_factories(self):
+        self.assertEqual(
+            (
+                "sum_binding",
+                "weighted_sum_binding",
+            ),
+            dummy_binding.__all__,
+        )
 
 
 if __name__ == "__main__":

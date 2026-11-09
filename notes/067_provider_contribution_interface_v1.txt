@@ -91,6 +91,12 @@ scientific environment. ImplementationBinding.from_calls(...) derives the
 scheduler call inventory from the bound calls, so the same calls are not listed a
 second time.
 
+provider_core.contribution_declaration owns canonical JSON encoding for
+configuration and asset descriptions, their sha256 digests and configured binding
+revision construction. A contribution supplies provider-owned values, format and
+media identities, and one implementation revision identity. It does not duplicate
+generic encoding, byte counting, hashing or length-prefixing helpers.
+
 ScientificControl is the only optional operational capability visible to an
 adapter. It exposes a stop flag and bounded progress reporting, not Jobs authority,
 resource allocation, process control, credentials or a service client. Numerical
@@ -117,9 +123,9 @@ remotely. Those are backend capabilities, not restrictions on contributions.
 Dummy contribution boundary
 ---------------------------
 provider_core.examples.dummy_provider contains science.py, binding.py and its
-package marker. science.py imports no provider-core module. binding.py imports only
-provider_core.contribution. The package contains no provider-local operational
-machinery.
+package marker. science.py imports no provider-core module. binding.py imports
+the provider-facing contribution and contribution-declaration modules. The package
+contains no provider-local operational machinery.
 
 The stateful implementation demonstrates immutable configuration/assets, loaded
 instance and per-analysis lifetimes, rejected and corrected preparation,
