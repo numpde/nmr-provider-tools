@@ -68,6 +68,17 @@ Who owns what
    do not acquire process-management responsibilities.
 5. Deployment, identity and image tooling remain separate from service tests.
 
+The execution client is scoped to one analysis. It may submit, observe and stop
+that analysis's operations and close its scientific state. Retiring a shared
+instance belongs to the pool's administration interface. A loaded scientific
+instance, scientific state for one analysis and a prepared value have different
+lifetimes; per-analysis state may exist before preparation succeeds.
+
+Deployment records configuration and assets in an immutable configured binding.
+The host loads its factories and scientific hooks; the scheduler sees
+plain descriptions of calls and requirements, not callables or scientific objects.
+Accepted work keeps its binding revision when a deployment alias changes.
+
 Adapters do not add a poller or shutdown loop. No provider-name branches or
 mandatory class hierarchy are needed. The current process-local registry prevents
 duplicate ownership of a Job within the scope it manages. It is not a distributed
@@ -81,11 +92,15 @@ A single ready flag cannot describe all of these:
 - HTTP bytes arrive; the parent interprets that exchange's result.
 - Input is selected; the interpreter retains its result; the session accepts a
   PreparedAnalysis or worker validation handle; scientific work actually starts.
+- A scientific call returns; the host retains that return and any new state;
+  encoding succeeds; a result becomes available through its exact ResultRef.
 - A model HTTP exchange stops; computation stops; the worker exits; input files,
   access grants and scratch space can be released.
 - A final result is selected; reporting is resolved; the Job claim is released.
 - The local durable queue accepts a report; the Jobs API publishes it; the queue
   removes it. A local acknowledgement proves neither worker exit nor publication.
+- Execution releases a retained ResultRef; analysis cleanup finishes. Output
+  files must survive cleanup until their result's independent custody ends.
 - shutdown_ready becomes true; all claims disappear. These are not equivalent.
   A retained record may still exclude a Job while shutdown is safe. An active
   worker or a selected report awaiting acceptance cannot be treated as such an
@@ -109,6 +124,12 @@ Safety and progress rules
 A worker generation identifies one particular worker instance. A prepared handle
 that refers to its state stays tied to that instance; restarting a worker under
 the same name does not make the old handle usable there.
+
+Registered calls declare named state arguments and whether they borrow or consume
+each one. Requests supply the references, not new access rules. Borrowing alone
+does not make state immutable or concurrent use safe. An accepted or uncertain
+operation retains its claims; consuming a reference does not prove that the
+underlying resources have been destroyed. Note 066 specifies these contracts.
 
 S1. Another operation may reuse a resource only after the original owner confirms
     that its operation and prepared handle are safely inactive, or that the
@@ -253,8 +274,15 @@ C. Actual provider integration when migrating or releasing that provider.
    repository's existing lanes. Its actual scientific adapter and existing
    guarded backend route must use the new contracts. An unused Protocol, alias
    or separate demonstration is insufficient. Preserve preparation correction,
-   portable input or worker-bound state as the implementation requires. No new
-   validation phase or exhaustive old-service campaign is needed.
+   portable input or worker-bound state as the implementation requires. Select
+   checks for the changed behavior: separate per-analysis state from prepared
+   values, enforce declared state use and prevent one analysis from retiring a
+   shared instance. Where encoding or output files are involved, retain the
+   scientific return on encoding failure and keep output usable after analysis
+   cleanup until its exact ResultRef is released. Releasing that result is an
+   owned, idempotent operation, separate from local report acceptance or central
+   publication. No new validation phase or exhaustive old-service campaign is
+   needed.
 
 For independent progress, hold A's original cleanup observation, let B finish
 on separate resources, then supply A's evidence. Use a valid release case such

@@ -22,6 +22,12 @@ service passes input through without interpreting peaks, choosing weights or
 creating framework-specific device objects. Note 066, section 7, explains these
 three interactions and who supplies each input.
 
+The service sees immutable descriptions of registered implementations and calls.
+Factories, scientific classes and codecs stay in the host. One analysis may use
+several registrations, such as NMRNet's geometry reader, conformer generator and
+prediction implementation. A registration does not mean a whole provider, one
+process or one allocation.
+
 Existing worker counts and process layouts can change. One and several workers
 must use the same scientific code. Keep scientific behavior and the protections
 in note 064; replace incidental restrictions of the old service loops.
@@ -145,26 +151,35 @@ Tier 0. Starts G01/G02/G04/G10. Section 1.1 is the first coordinated checkpoint.
     the host invokes scientific calls with their own inputs. Those calls must
     not receive controllers, claim registries, ProviderAPI, ReportCondition,
     Jobs credentials, the global allocator or Docker access, including through
-    nested objects. Note 066, section 7, owns the lasting contract.
+    nested objects. The service uses data-only descriptions; scientific factories
+    and codecs remain host-side. Note 066, section 7, owns the lasting contract.
 [ ] M1.1 Implement the contribution and execution contracts in provider-core and
     use them in all four provider repositories. Keep offering, implementation,
-    instance, analysis and individual call identities distinct. Backends implement
-    the execution contract; do not add another competing backend facade. Local
-    framing, runner sessions and process topology stay behind that interface.
+    loaded instance, per-analysis scientific state, prepared value and individual
+    operation distinct. One analysis may use several flat registrations.
+    AnalysisExecution owns its submissions, observations, stop and close requests;
+    pool administration owns instance retirement. An analysis cannot silently
+    stop an instance serving other analyses. Backends implement this execution
+    contract; local framing and process topology stay behind it.
 [ ] M1.2 After all repositories adopt the interface, build a fixed local pool
     using existing supervision. Configuration chooses one or two copies of the
     same implementation. Track startup, readiness, use and shutdown, including
-    partial startup. A contribution may load reusable models, load per analysis
-    or need no model. The service does not interpret those choices.
+    partial startup. Retain a resource-free scientific adapter before initialization
+    starts so failed initialization still has an owner. A contribution may load
+    reusable models, load per analysis or need no model. The service does not
+    interpret those choices. Keep result retention bounded separately from compute.
 [ ] M1.3 When the pool lands, hold A's original cleanup observation while B
     finishes; keep A unavailable until its own observation arrives. Also exercise
     the one-worker limit. Use small deterministic actual-worker checks with the
     adopted interface; no new general test framework is needed.
 [ ] M1.4 Separate portable scientific data from references to live scientific
     state. A state reference belongs to its implementation, analysis and exact
-    instance. Calls declare whether they use no state, borrow it or consume it.
-    Reject wrong/stale state; a lost response does not restore consumed state.
-    Portability and repeated observation never authorize replay of unknown work.
+    instance. Calls declare named state arguments and whether each is borrowed or
+    consumed; requests supply references, not permission to change those modes.
+    Borrowing does not promise safe concurrent use, and consumption does not prove
+    disposal. Replacement creates a new reference. Reject wrong/stale references;
+    a lost response does not restore consumed state or authorize scientific replay.
+    An initial backend may explicitly refuse a call it cannot support.
 [ ] M1.5 Route every provider's existing guarded execution path and actual
     worker/direct scientific path through the common contracts. Preserve existing
     AnalysisSession guards and ownership during the transition. Bind config and
@@ -172,9 +187,12 @@ Tier 0. Starts G01/G02/G04/G10. Section 1.1 is the first coordinated checkpoint.
     and registration, without a provider-name branch in the shared scheduler.
 [ ] M1.6 First exercise each real contribution directly without Jobs and through
     its adopted backend interface. Keep scientific functions' signatures and
-    input meaning, finish lazy/device work before returning a final result, and
-    distinguish analysis cleanup from instance retirement. Later, use that same
-    contribution with one/two pool allocations without scientific source changes.
+    input meaning. Guard scientific decoding and invocation, and retain the raw
+    return and new state before encoding. An encoding failure must not repeat the
+    computation. Finish lazy/device work before reporting a final scientific result.
+    Keep accepted results available through analysis cleanup, with explicit result
+    reads and owned release requests. Later, use the same contribution with one/two
+    pool allocations without scientific source changes.
 
 The first checkpoint is complete only when all five repositories use the same
 contracts on their real paths. M1 completes when those contributions also work
@@ -192,23 +210,67 @@ First provider-core commit
   Proposed title: Add common contribution and execution interfaces with guarded
   operation ownership
 
-  Add packages/provider-core/src/provider_core/contribution.py. Define configured
-  factories and a small registered map of named scientific calls. Calls may be
-  inspect, validate, prepare, predict or generate; no universal phase sequence is
-  imposed. A contribution declares the requirements and state use for each call,
-  and supplies scientific cleanup. Input/result codecs and model interpretation
-  remain contribution-owned. Factories and functions receive no operational
-  controller or catch-all context. Include working invocation code used by the
-  adapters, rather than stopping at Protocol declarations.
+  Add packages/provider-core/src/provider_core/contribution.py. Define immutable,
+  data-only descriptions of bindings and named scientific calls. Keep their host
+  factories, scientific classes, codecs and cleanup functions separate from those
+  descriptions. The binding revision identifies scientific code, configuration
+  and assets; replica count and placement are separate deployment choices. A host
+  must not load changed model files under an unchanged binding revision.
 
-  Add packages/provider-core/src/provider_core/hosting.py. Define identified
-  requests, opaque state references, original operations and their observations.
-  Implement the shared operation/guard helpers that the first backends actually
-  use. An operation owner exists before awaiting or dispatching. Observation has
-  its own waiting allowance and cannot restart the original execution budget.
-  A stop request, scientific outcome, analysis cleanup, instance retirement and
-  result handoff remain separate. Preserve original errors and protected context;
-  transport errors are not automatically scientific rejections or public failures.
+  Calls may inspect, validate, prepare, predict or generate; there is no universal
+  phase sequence. Each registration describes one scientific implementation.
+  Several registrations may serve one analysis without nesting factories inside
+  individual calls. A contribution declares the formats, resource requirements,
+  named state arguments and permitted concurrency for each call. The request
+  cannot override those declarations. No operational controller or catch-all
+  context reaches a scientific factory or function.
+
+  Distinguish the loaded instance, scientific per-analysis state and prepared
+  values. Retain an adapter whose constructor acquires no external resources
+  before calling initialization. Retain per-analysis state before preparation can
+  fail or be cancelled. Scientific cleanup can then deal with partial work. It
+  does not certify that a process, reader or device allocation has retired.
+
+  Add packages/provider-core/src/provider_core/hosting.py. Implement the operation
+  and guard helpers used by the first backend bridges, not only Protocol classes.
+  Follow note 066's signatures and ownership rules for these operations:
+
+  - AnalysisExecution submits and observes its own operations and requests their
+    stop or analysis close. Return an operation owner before asynchronous effects.
+    Closing seals admission and starts owned cleanup; it does not prove cleanup
+    finished. Keep whole-instance retirement under the pool/backend owner.
+  - Give each operation a stable ID and an immutable request identity. Repeating
+    that identity locates the original operation or refuses another dispatch;
+    using its ID with changed input is rejected. Distinguish definite non-admission
+    of this invocation from uncertain acceptance of the original. Refusing a resend
+    does not turn that uncertainty into NotAdmitted. Neither a failed lookup nor a
+    disconnected waiter proves that dispatch did not happen. A refusal says nothing
+    about earlier analysis work. Reject obsolete controllers for stop, state
+    consumption, cleanup, instance retirement and result release as well as dispatch.
+  - Keep admission, execution, cleanup and observation allowances separate, with
+    explicit start points. Observing again does not renew another allowance.
+    Expiration requests a stop; it is not proof that scientific effects ended.
+  - Bind opaque state references to their exact analysis, implementation and
+    instance. Claim every named argument before dispatch. A borrowed value may
+    still be mutable or unsafe for parallel calls. Consumption invalidates the
+    reference; the original owner retains disposal duties. Explicit replacement
+    returns a fresh reference, including when an operation revises accepted input.
+  - Run scientific input decoding and invocation within permission, reservation
+    and execution limits. Retain the raw return and any newly created state before
+    result encoding. Keep scientific completion and encoding failure separately
+    observable so serialization cannot trigger another scientific execution.
+  - Retain the exact ResultRef and output/artifact ownership. Implement read_result
+    and release_result; release is itself an owned, repeatable control operation.
+    Accepted output survives analysis cleanup until ownership transfers or release
+    finishes. Bound output and operation-record retention separately from compute,
+    refusing new work when storage is full instead of losing retained results.
+
+  Preserve original error phase, cause and cleanup failures in protected details.
+  Public observations expose safe facts, not arbitrary exceptions or a generic
+  retry flag. A stop request, scientific outcome, encoding, analysis cleanup,
+  instance retirement and result handoff remain distinct observations. This first
+  backend need not support remote recovery or every future capability; unsupported
+  calls must fail explicitly before admission.
 
   Preserve execution.py and analysis.py as the existing API-side integration.
   Their bridge binds the current ReportCondition check to the operational host
@@ -236,25 +298,30 @@ Provider changes in the same coordinated set
   worker.py and session.py translate existing guarded inspection, preparation and
   execution through the execution contract. Route the native handler through the
   same contribution declaration. Preserve rejected-and-corrected preparation,
-  accepted worker-local state and original source readers. Keep the current
-  runtime/main assembly as a bridge; changing its worker layout comes later.
+  accepted worker-local state and original source readers. Own scientific analysis
+  state before preparation succeeds; use explicit replacement and fresh references
+  when accepted input changes. Keep the current runtime/main assembly as a bridge;
+  changing its worker layout comes later.
 
   NMRNet: nmrnet_provider/session.py and input_preparation.py preserve the scientific
   input policy. native_factory.py, native_session.py and worker_client.py implement
   the execution contract over their existing owners; worker_main.py and the
-  scientific entrypoints use the contribution contract. Include geometry/source
-  preparation through geometry_client/geometry_worker and smiles_client/smiles_worker.
-  Keep frozen portable coordinate bytes distinct from tensors prepared inside
-  the prediction worker.
-  Preserve the contribution's permitted retry conditions and complete lazy
-  prediction iteration before reporting its result.
+  scientific entrypoints use the contribution contract. Register geometry/source
+  reading, conformer generation and prediction as separate flat implementations
+  that one analysis may use. Include geometry_client/geometry_worker and
+  smiles_client/smiles_worker; do not put their factories inside prediction calls.
+  Keep frozen portable coordinate bytes distinct from scientific analysis state
+  and tensors prepared inside the prediction worker. Preserve the contribution's
+  permitted retry conditions. Complete lazy prediction iteration before reporting
+  scientific completion, and retain that return before encoding the result.
 
   NMRPeak: nmrpeak_provider/analysis_session.py and runner_session.py use the
   execution contract. The family bindings and families/nmrpeak/runner_worker.py
   invoke registered scientific calls around runner_runtime.py. Preserve validation
   and generation, allow correction of rejected input, and keep accepted state tied
-  to its exact worker. Typed-input paths continue to bypass prose processing.
-  Existing HF/CHF service lanes may remain behind the bridge during this step.
+  to its exact worker. Replacing accepted input must produce a fresh reference;
+  consuming it must not lose its cleanup owner. Typed-input paths continue to bypass
+  prose processing. Existing HF/CHF service lanes may remain behind the bridge.
 
   Magnet: magnet_provider/analysis_implementation.py registers E01, E02 and G01
   through the contribution contract. Their model-specific provider bindings and
@@ -263,8 +330,10 @@ Provider changes in the same coordinated set
   adapters, leaving numerical functions unchanged. E01/E02 correction after
   validation and G01's one-call path remain distinct scientific choices. A native
   runner is optional, not a required field of every contribution. Preserve guards
-  in the Unix backend and existing
-  result/cleanup ownership; changing lane/process layout follows adoption.
+  in the Unix backend and existing result/cleanup ownership. Describe actual
+  concurrency restrictions, including process-wide effects such as G01 logging;
+  a borrowed input alone does not establish that simultaneous calls are safe.
+  Changing lane/process layout follows adoption.
 
   These are peer changes. Choose their preparation order for efficient work, but
   complete all four before starting independent pool/service redesign. A class
@@ -299,9 +368,12 @@ Candidate package, release and dependency order
 Checks for this coordinated change
   In provider-core, run the existing installed unit/native lane and the affected
   integration checks. Check that the new owner/guard code runs, refusing a revoked
-  dispatch and preserving an original operation when its waiter stops. Retain
-  result and cleanup facts independently. Existing supervisor tests cover unchanged
-  process retirement behavior.
+  dispatch and preserving an original operation when its waiter stops. Cover the
+  new ownership branches with focused checks: partial initialization/preparation,
+  state replacement, repeated operation IDs, an encoding failure after science
+  finishes, and result read/release through analysis cleanup. A scoped stop must
+  not retire another analysis's instance. Reuse existing supervisor tests for
+  unchanged process retirement; do not duplicate their full coverage.
 
   In each provider, exercise its real contribution adapter directly without Jobs
   and its existing guarded backend path against the candidate wheel. Use the
@@ -309,8 +381,9 @@ Checks for this coordinated change
   arguments for leaked authority; check the affected state-reference behavior and
   scientific correction/retry rule. An injected numerical stand-in can check data
   flow, but report it as such; use the existing numerical/model checks for claims
-  about actual scientific results. No broad native campaign or repeated fuzz/stress
-  run is a prerequisite to changing this interface.
+  about actual scientific results. Match each focused check to changed behavior;
+  this is not a new conformance framework or an exhaustive failure campaign. No
+  broad native campaign or repeated fuzz/stress run is a prerequisite.
 
   Keep test commands, artifact identity and actual outcomes with the change. The
   current installed-core command is make tests/unit/provider-core with the selected
@@ -347,8 +420,10 @@ NMRNet -- nmrnet-repro 2f9b161b4819a23bf61c12a3eb7fd36af2b72035
   returns a lazy iterator.
   release.py supplies SelectedReleaseModels and ReleasedPredictionSession, which
   finish iteration and load/release selected models per geometry/head. Keep these
-  distinct scientific calls, exact input and permitted retries in the contribution.
-  Permanently resident models and a single universal prepare stage are not required.
+  scientific rules, exact input and permitted retries in the contribution. Register
+  geometry/source reading, conformer generation and prediction separately under
+  the same analysis; they can use distinct hosts and environments. Permanently
+  resident models and a single universal prepare stage are not required.
 
 NMRPeak -- nmrpeak-repro 96e23534722839cfa06fa7d91f6e95d94ff4b7da
   families/nmrpeak/runner_runtime.py supplies load_nmrpeak_runtime and
@@ -369,8 +444,9 @@ Magnet -- magnet-deploy fcb9459ca1facd8a6fc18a5acda271549f3a5e6e
   after validation. Use these as peer call registrations; neither their names nor
   their present worker counts belong in shared scheduling.
 
-Future contributions -- register a configured factory, scientific calls and
-declared requirements. They may use different input formats, loading strategies
+Future contributions -- supply immutable descriptions and host bindings for
+scientific implementations, calls and declared requirements. One analysis may use
+several registrations. They may use different input formats, loading strategies
 or no model at all. A new provider should not need a shared scheduler edit. Add
 backend capabilities when a concrete execution requirement needs them, rather
 than claiming this first local backend can already run every future workload.
@@ -388,9 +464,11 @@ the execution boundary, shared service extraction can proceed incrementally.
 [ ] M2.2 Combine resource reservation with AttemptClaims/AttemptController.
     Reserve before effects, record ownership of partially created sessions and
     controllers before awaiting more work, and check permission immediately before
-    each managed dispatch, including after awaits. Refusing new work leaves no
-    abandoned job claim or reservation. Keep existing AnalysisSession permission
-    checks until equivalent host checks are implemented and tested.
+    each managed dispatch, including after awaits. A definite refusal releases only
+    unused resources belonging to that invocation; earlier analysis work remains
+    owned. Unknown acceptance keeps the original operation. Keep existing
+    AnalysisSession permission checks until equivalent host checks are implemented
+    and tested.
 [ ] M2.3 Keep observing original controllers, completing cleanup and delivering
     results even when there are no new jobs, no spare capacity or new work is
     paused. Use explicit results from the code that owns the work; providers
@@ -400,8 +478,10 @@ the execution boundary, shared service extraction can proceed incrementally.
     where the failure's scope is unknown; add further classifications when needed.
 [ ] M2.5 Support refusing new jobs, stopping/finishing active work, handing off
     results and shutting down. Keep uncertain workers and selected reports owned.
-    Queue acceptance, API publication and confirmation that resources are safe
-    to release are separate facts.
+    Read the exact retained result and transfer its artifacts before releasing it.
+    Analysis cleanup must not invalidate it. Local acceptance, durable queue custody,
+    API publication and confirmation that resources are safe to release are
+    separate facts.
     Test cooperative stopping separately from forced interruption; a stop request
     does not prove effects have ended.
 [ ] M2.6 Remove each provider's replaced service code as its integration works.
@@ -470,8 +550,9 @@ results separately from intentional changes in scheduling or failure handling.
 
 4. Reserve resources for the stage that needs them
 -------------------------------------------------
-Tier 1. G03/G04. Tier 0 already limits resources, but may reserve them for the
-whole operation.
+Tier 1. G03/G04. Tier 0 already bounds compute, retained results and operation
+records separately, but may reserve compute for the whole operation. This stage
+adds finer allocation as scientific work changes phase.
 
 [ ] M4.1 Track separate limits for control work, waiting/prepared inputs, loaded
     models, active CPU/GPU work, uncertain workers and retained results. Prevent
@@ -526,9 +607,11 @@ Tier 1. G06. Required for unattended crash recovery; not a Tier-0 prerequisite.
 [ ] M6.2 Save the exact final report until durable delivery accepts it. Resolve
     lost acknowledgements by checking the receiving component's stored state.
     Keep the existing publisher and the same report identity and bytes on retries.
-[ ] M6.3 Make the execution backend reject obsolete supervisors. Check duplicate
-    dispatch, late replies and ownership transfer. An expired lease alone does
-    not prove the old process can no longer run.
+[ ] M6.3 Extend the backend's existing owner checks across restart/reattachment.
+    Reject obsolete supervisors for submission, stop, state consumption, cleanup,
+    instance retirement and result release. Check duplicate dispatch, late replies
+    and ownership transfer. An expired lease alone does not prove the old process
+    can no longer run.
 [ ] M6.4 Interrupt the supervisor around intent, send, acceptance, completion,
     result storage and outbox handoff. Restart and check reattachment, safe
     resolution or an explicit unresolved hold. Do not repeat uncertain science

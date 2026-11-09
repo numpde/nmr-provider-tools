@@ -49,6 +49,17 @@ its results.
 Switching to a different model or numerical policy requires an explicit scientific
 choice; infrastructure must not silently make that choice after a failure.
 
+Registered implementation: an approved configured binding of that code, its
+settings and assets. Its revision is immutable. One analysis may use several
+registrations, and several initialized instances may use the same registration.
+
+Instance: an initialized copy of a registered implementation. It may retain a
+model, index or runtime across analyses. Its lifetime is not an analysis lifetime.
+
+Analysis: one scientific task and its owned calls, readers and temporary state.
+It may use several implementations. An analysis execution handle grants control
+over that analysis, not over every user of a shared instance.
+
 Execution backend: an implementation of the common execution interface. Existing
 local execution paths can implement it first; shared pools and remote services
 can follow. Backend transport and process layout are private implementation details.
@@ -68,10 +79,14 @@ implementation, exact worker instance and permission. Provider work also records
 its Job Attempt; direct hosting does not require a Jobs service. Checking status
 again does not create another operation. An Attempt may contain several operations.
 
-Prepared analysis: the accepted scientific input or state needed for computation.
+Per-analysis scientific state: source selection, candidate history, a prediction
+session or other mutable state belonging to one analysis. This can exist before
+any preparation succeeds and can survive a rejected candidate.
+
+Prepared value: accepted scientific input or state needed for a later call.
 Immutable input may be portable. A handle into a live worker must stay with that
-exact worker instance until used or safely discarded. Having input bytes does
-not permit repeating work that may already have been submitted.
+exact worker instance until consumed or safely discarded. Having input bytes
+does not permit repeating work that may already have been submitted.
 
 A lane can be a useful scheduling or status view. It must not permanently bind
 one offering to one worker or one job.
@@ -113,10 +128,12 @@ Deployment tools and operator configuration
 
 Result delivery
   Keep the existing outbox (the saved report queue) and publisher. Science returns
-  a result or scientific failure. Shared code associates it with the Attempt and
-  constructs the exact final report. Acceptance into the local durable queue and
-  publication to the central API are separate events. Queue acceptance means
-  the report is saved so it survives a restart.
+  a result or scientific failure. The contribution supplies its scientific report
+  content; shared code associates it with the Attempt and constructs the exact
+  final report. Releasing a retained execution result, accepting a report into
+  the local durable queue and publishing to the central API are separate events.
+  Queue acceptance means the report is saved so it survives a restart; releasing
+  the execution result alone makes no such promise.
 
 These owners can run in separate processes and packages. The common runtime
 must not import every scientific framework. The execution interface may be a
@@ -234,8 +251,10 @@ cannot establish whether work was submitted, retain that uncertainty and refuse
 automatic duplicate science. Deduplicating messages alone does not establish
 that computation ran exactly once.
 
-The receiving backend must reject commands from an obsolete supervisor. A local
-generation label or expired lease does not stop the old process from running.
+The receiving backend must reject commands from an obsolete supervisor, including
+stop requests, state consumption, cleanup, instance retirement and result release
+as well as dispatch. A local generation label or expired lease does not stop the
+old process from running.
 A remote backend also needs authenticated permissions, bounded communication,
 resource ownership and a defined response to network partitions and reconnection.
 These are requirements for the corresponding recovery/failover feature, not
@@ -304,48 +323,153 @@ Progress and cancellation
   worker are different facts; lack of cooperative stopping remains an explicit
   implementation/backend limitation.
 
-7.2 Scientific contribution: configured instances and declared calls
+7.2 Scientific contribution: registrations, calls and three lifetimes
 
-The contribution supplies a configured factory and a small explicit table of
-scientific calls. Names such as inspect, validate, prepare, predict or generate
-are local to that implementation. Shared code dispatches declared names; it does
-not assign them chemical meaning or require every contribution to expose the
-same stages. A one-call implementation can simply register run.
+One offering may need several registered implementations. For example, NMRNet
+can register its geometry reader, conformer generator and predictor separately;
+one analysis owns the calls to all three. SECS may initially register one
+model/index implementation with inspect, prepare and elucidate calls. These are
+ordinary registrations, not provider-specific extensions to the scheduler. Do
+not require one factory, environment or worker for an entire analysis.
 
-This corrects the earlier required-run/optional-prepare proposal. SECS inspection
-and candidate correction, NMRPeak/Magnet validation, and NMRNet's geometry and
-prediction operations do not all fit one preparation step. In particular,
-NMRNet's provider preparation can retain portable coordinate bytes while native
-prediction preparation later creates tensors in a worker. AnalysisSession.prepare
-is an API-side phase, not the universal scientific preparation function.
+Calls have explicit names and bindings. Names such as inspect, validate, prepare,
+predict or generate are local to the implementation. Shared code does not give
+them chemical meaning or require every implementation to expose the same stages.
+A one-call implementation can register run. AnalysisSession.prepare is an
+API-side phase, not the universal scientific preparation function: NMRNet can
+retain portable coordinates before later prediction preparation creates tensors.
 
-Each declared call identifies its input/result format, required resources and
-whether it uses no retained analysis state, borrows state or consumes it. Its
-adapter supplies scientific decoding/encoding and the actual function. The
-factory binds settings/assets; deployment supplies the permitted environment.
-Scientific functions keep their own typed arguments and may remain synchronous.
-They receive decoded scientific input and native state, not the execution
-request, permission callback or host object. State created by science stays
-behind a host-managed reference when it must remain in that instance.
+Keep scientific sequencing in ordinary contribution code. Interpretation
+adapters may select tools and correct rejected inputs through registered calls.
+Shared code runs conversation/transport mechanics and guards each managed effect.
+Numerical handlers do not receive the catalog or that adapter's execution client.
+There is no DAG language, arbitrary getattr dispatch or job-selected Python import.
+Deployment fixes the callable table; a Job cannot add another executable.
 
-Keep scientific sequencing in ordinary contribution code. Existing interpretation
-adapters may choose tools and correct rejected inputs through these declared
-calls. Shared code runs conversation/transport mechanics and guards each managed
-effect. Numerical handlers do not receive that adapter's execution client.
-No workflow language, arbitrary method lookup or job-selected Python import is
-needed. Deployment fixes which calls exist; a job cannot add another executable.
+Two views of the same registration
+  The scheduler sees an immutable data description: binding identity/revision,
+  declared calls, input/result formats, state requirements, resource requirements
+  and supported capabilities. It does not import factories, scientific classes,
+  codecs or models. The host loads the corresponding configured factory, callable
+  table and codecs inside the permitted scientific environment.
 
-Instance initialization may load reusable resources or retain settings for lazy
-or per-analysis loading. A contribution may need no model or native runner.
-Create the operational owner before initialization acquires resources. Separate
-analysis state from instance state. Provide their cleanup functions where needed;
-stateless contributions need no dummy preparation or cleanup hooks. If failed
-initialization leaves partial resources, its owner still has cleanup duties.
+  The binding revision identifies the code, settings and assets that affect
+  scientific behavior. An operator may move an alias to a new revision for future
+  calls; existing operations, instances and state keep the old revision. Lazy
+  initialization must use immutable assets or verify the expected content when
+  loading it. A mutable pathname alone cannot identify a scientific revision.
+  Deployment chooses replica count and physical placement separately.
 
-An iterator or queued device operation is not a completed result. The scientific
-adapter finishes the required lazy work and device synchronization before it
-reports completion. Input sources remain owned until their original readers
-finish. Scientific cleanup and confirmed physical retirement remain separate.
+  Resource profile names refer to contribution-owned declarations. They are not
+  permission to acquire resources. Distinguish resources held by an initialized
+  instance from resources used by a call, such as resident memory and active
+  compute. Hosting matches these requirements to deployment grants. The initial
+  bridge may reserve a conservative whole-analysis grant; later scheduling uses
+  the same declarations. Missing knowledge never means unlimited resources.
+
+The following Python sketches describe the target, not an implemented API. They
+show the important public shapes; reference, observation and resource records
+are explained below rather than exhaustively defined here.
+
+```python
+from dataclasses import dataclass
+from enum import Enum
+
+class StateUse(Enum):
+    BORROW = "borrow"
+    CONSUME = "consume"
+
+@dataclass(frozen=True)
+class StateParameter:
+    name: str
+    kind: str
+    use: StateUse
+
+@dataclass(frozen=True)
+class CallDescription:
+    name: str
+    input_format: str
+    result_format: str
+    state_inputs: tuple[StateParameter, ...]
+    resource_profile: str
+
+@dataclass(frozen=True)
+class ImplementationDescription:
+    binding_id: str
+    binding_revision: str
+    contract_version: int
+    calls: tuple[CallDescription, ...]
+    instance_resource_profile: str
+
+@dataclass(frozen=True)
+class CallRef:
+    binding_id: str
+    binding_revision: str
+    name: str
+```
+
+Keep three scientific lifetimes separate
+  Instance: reusable model, index, runtime or loader state. This ends at instance
+    disposal, which belongs to hosting/pool administration.
+  Per-analysis scientific state: source selection, candidate history, a prediction
+    session or partially initialized analysis state. This can exist before a
+    prepared value and can survive a rejected candidate when science permits.
+  Prepared value: accepted input, tensors or a native token for a later call.
+    Its reference can be consumed or discarded without ending the entire session.
+
+The host owns each lifetime and invokes the contribution's cleanup functions.
+Numerical functions keep their own typed arguments and may remain synchronous.
+They receive decoded scientific input and native state, not the invocation,
+permission guard or host object. An adapter can register a stateless function
+without adding dummy session, preparation or model methods to that function.
+
+SECS source-selection/InputAdapter state and NMRNet's prediction session must
+therefore not be hidden inside a handle that exists only after successful
+preparation. The initial interface must accommodate both. NMRPeak HF/CHF and
+Magnet E01/E02/G01 use these same lifetimes where needed, without requiring all
+three to contain resources in every implementation.
+
+Retain the owner before initialization can acquire anything
+  Constructing the adapter's bookkeeping object must not start native work or
+  acquire resources requiring disposal. Hosting retains it and its disposal
+  function before invoking initialization. Apply the same ordering to per-analysis
+  scientific state. These are adapter duties, not mandatory methods or base
+  classes on scientific models.
+
+```python
+instance = binding.construct_instance()  # Python bookkeeping only
+owner.retain_instance(instance, dispose=binding.dispose_instance)
+binding.initialize_instance(instance)
+```
+
+If initialization fails partway through, the retained object must expose what
+still needs cleanup. Failed initialization or disposal keeps its owner and any
+unreleased reservations. A process-isolated backend may establish retirement by
+supervising the process to exit; an embedded backend needs reachable partial
+cleanup or must report that it cannot establish release. A context manager is
+convenient syntax, not proof that failed __enter__ or __exit__ released resources.
+
+Scientific code remains usable directly. For example, the current NMRNet release
+path has this shape; settings and model paths come from the scientific caller:
+
+```python
+models = SelectedReleaseModels(
+    declaration_path=settings.declaration,
+    weight_root=settings.weights,
+    checkpoint_root=settings.checkpoints,
+)
+science = ReleasedPredictionSession(models)
+prepared = science.prepare(exact_coordinate_requests)
+result = science.execute(prepared)
+```
+
+Here construction captures settings/Python state; preparation performs the
+artifact and tensor work. The hosted adapter preserves the scientific behavior
+while providing the owners and guards around it. An iterator or queued device
+operation is not a completed result. Finish the required lazy work and device
+synchronization before declaring completion. Streaming would need an explicit
+future contract. Input sources remain owned until their original readers finish.
+Scientific cleanup and confirmed physical retirement remain separate.
 
 7.3 Check permission where work is submitted
 
@@ -379,130 +503,316 @@ an additional public backend-control facade with different ownership rules.
 Scientific contribution types and execution types are distinct; neither includes
 Unix framing, RunnerSession, a thread future, a PID or a framework device object.
 
-Registration
-  A registration binds an implementation identity/version, declared calls and
-  configured factory to permitted execution environments. Keep scientific settings
-  and asset references opaque to the scheduler. Deployment chooses allocation
-  count, placement and backend separately. Register E01/E02/G01 and HF/CHF through
-  the same mechanism as other implementations, without special scheduler branches.
+Keep analysis authority separate from instance administration
+  An AnalysisExecution belongs to one analysis. It can submit calls, observe and
+  request stopping of its operations, and close its own scientific state. It
+  cannot retire a shared instance. The pool owner drains instances, invokes their
+  scientific disposal and establishes physical retirement. These are different
+  capabilities over the same backend and original owners, not new services or
+  competing registries.
 
-  Requirements distinguish resources held by an instance from those used by a
-  call: for example resident memory versus active compute. Use neutral requirements
-  and deployment grants, not framework objects. A backend must declare what it
-  supports and refuse incompatible work before effects. The initial bridge may
-  reserve a conservative whole-analysis grant; later stage scheduling uses the
-  same declarations. Missing knowledge never means unlimited resources.
+  A stop request for one operation must not silently kill a shared instance and
+  its other analyses. Backends declare the scope of interruption they can support.
+  Admission chooses suitable isolation or refuses an incompatible requirement.
+  A serial worker is a supported backend limitation, not a restriction imposed on
+  every future implementation.
 
-Execution request
-  Identify the analysis owner, a new operation for this invocation, the registered
-  implementation and call, opaque input, an optional retained-state reference,
-  reservation and execution limits. Input may be bounded bytes or an authorized
-  source/artifact reference; portable scientific values use their declared format.
-  Transport/codec adapters resolve data mechanically while the contribution
-  interprets it. A model setting, executable or import path cannot be selected by
-  an unregistered field in a Job.
+Invocation and operation handle
+  An invocation names one operation, an exact registered call/revision, opaque
+  input, named state references, a reservation and limits. The AnalysisExecution
+  supplies the analysis owner. Input is bounded bytes or an authorized immutable
+  source/artifact reference in the declared format. Reuse existing verified-source
+  handling and retain the original readers. A Job field cannot select an
+  unregistered executable, import path, model setting or checkpoint.
 
-  Keep identity/reference values separate from live local objects. They name the
-  exact registration, operation, analysis owner or instance and carry no automatic
-  replay, process-control or Jobs authority. A backend can map them to its existing
-  original owners. Do not create a parallel registry of Attempts or process owners.
-  Reuse existing verified-source handling and retain its reader ownership.
+  Reference values name exact registrations, analyses, operations, state, results
+  and backend instances. They are separate from the live objects they identify.
+  Possessing an ID is not Jobs permission or unrestricted control authority. Map
+  them to existing original owners; do not create a parallel Attempt registry.
 
-Operations exposed by the interface
-  submit(request, dispatch_guard) returns an owned Operation before any await or
-    effect can escape its owner. The guard is a host-side capability, separate
-    from serializable request data and never sent to numerical functions. A
-    request is one invocation, not a command to keep retrying until successful.
-  operation.observe(wait_budget) observes that same invocation and returns its
-    current outcome and remaining obligations. It may be called again. Cancelling
-    or timing out a waiter does not cancel the underlying owner or renew its work.
-  operation.request_stop() records a stopping request under the same owner. Its
-    acknowledgement proves only acceptance of that request. Actual stopping and
-    cleanup remain separately observable; unsupported cooperative stopping is
-    explicit. A blocking numerical function need not poll a new control protocol.
-  cleanup(analysis_owner) closes that analysis to new submissions, then settles
-    its accepted calls, retained state and readers. It can run after execution
-    permission is revoked. Correction/replacement calls precede this terminal
-    cleanup; later work needs a new analysis owner. Cleanup does not implicitly
-    dispose of a reusable scientific instance.
-  retire(allocation) closes admission to that instance, then starts or re-observes
-    disposal and physical resource retirement. It retains the original supervision
-    owner until those facts are established. Pending cleanup is not successful
-    retirement.
-  operation.acknowledge_result() records that the caller accepted responsibility
-    for the returned value. Until then the operation retains it, within a stated
-    bound. This is only a local ownership transfer; it proves neither crash-durable
-    storage nor central API publication. It does not release occupied resources.
+```python
+from __future__ import annotations
 
-  These names describe the intended small API, not a requirement for an RPC per
-  method. Implementation uses ordinary Python protocols/data values and existing
-  owners. Reserve before effects and retain an owner before partial acquisition.
-  Repeated cleanup/retirement requests retain the original owners and fixed
-  budgets. They do not repeat completed disposal or erase prior failures. Cleanup
-  may continue when new evidence or a supported action permits it.
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Protocol
 
-Prepared state
-  Portable accepted input is data. A reference to live state identifies its
-  implementation, analysis owner and exact backend instance. It is opaque outside
-  hosting; the numerical function receives the underlying scientific object.
-  Refuse incompatible, foreign, obsolete or already consumed references before
-  dispatch. A host restart or a new process in the same slot is a new instance.
+@dataclass(frozen=True)
+class StateArgument:
+    name: str
+    reference: StateRef
 
-  Borrowing state retains its eligibility for a later declared call. Consuming
-  state invalidates further use at managed dispatch, after the permission check
-  and before the effect; a lost reply cannot restore it. The original owner still
-  owns disposal. Preparing a replacement must explicitly settle/invalidate prior
-  state according to that implementation's rules, including rejected replacements.
-  Dropping a reference is not disposal. Retiring an instance invalidates its live
-  references, but does not by itself resolve the associated Job or permit replay.
+@dataclass(frozen=True)
+class Invocation:
+    operation_id: OperationId
+    target: CallRef
+    payload: Payload
+    states: tuple[StateArgument, ...]
+    reservation: ReservationRef
+    limits: ExecutionLimits
 
-  Initially a call can use one optional state reference whose scientific value
-  groups its internal objects. This covers the present providers without a
-  general object store. Reusable instance state remains separate. Backend limits
-  on parallel calls or multiple analyses are explicit capabilities, not universal
-  scientific restrictions. Check both declared concurrency and available grants.
+@dataclass(frozen=True)
+class NotAdmitted:
+    reason: str
+    # No scientific dispatch or orphaned acquisition from this invocation.
+
+class Operation(Protocol):
+    @property
+    def reference(self) -> OperationRef: ...
+
+    async def observe(
+        self, *, after: int | None, wait_seconds: float
+    ) -> Observation:
+        """Observe this operation without resubmitting or renewing it."""
+        ...
+
+    def request_stop(self) -> None:
+        """Record a scoped stop request; its effects remain observable."""
+        ...
+
+    async def read_result(self, result: ResultRef) -> Payload:
+        """Read an already established result."""
+        ...
+
+    def release_result(self, result: ResultRef) -> ResultRelease:
+        """Authorize release of this exact retained result."""
+        ...
+
+class AnalysisExecution(Protocol):
+    def submit(
+        self,
+        invocation: Invocation,
+        *,
+        dispatch_guard: Callable[[], None],
+    ) -> Operation | NotAdmitted:
+        """Return an owned operation before asynchronous work begins."""
+        ...
+
+    def close(self) -> AnalysisCleanup:
+        """Refuse new calls and begin settling this analysis's work."""
+        ...
+```
+
+submit is a quick local ownership transition. It does not block the service
+control loop on model loading, I/O or numerical work. The operation owner exists
+before asynchronous startup, partial acquisition or dispatch. NotAdmitted means
+a definite refusal before scientific dispatch with no orphaned acquisition from
+this invocation. Partial setup that still needs cleanup, or a send whose outcome
+is uncertain, returns an owned Operation. Refusing one call does not settle older
+work in the analysis or release the Job claim.
+
+The guard is a local operational capability separate from serializable invocation
+data. Hosting invokes it at the actual managed dispatch, including after waits or
+task handoffs. It never reaches numerical functions. Existing AnalysisSession
+checks stay until equivalent host-managed checks work on those paths. Blocking
+science runs outside the service control event loop. Per-analysis initialization
+that acquires resources or starts scientific work belongs inside this guarded,
+budgeted execution too; it is not unowned work before decoding.
+
+observe returns the current facts and a revision/cursor; after can wait for a
+newer observation within the caller's wait limit. It is not a new submission,
+lease renewal or permission to run again. Cancelling a waiter leaves the original
+operation owned. request_stop records a request for that operation; acceptance
+does not establish stopped effects, cleanup or physical retirement. Stop status
+remains observable through the operation.
+
+close first seals the analysis against new calls, then begins settling accepted
+calls, per-analysis scientific state and readers. It is allowed after execution
+permission is revoked and returns an observable cleanup owner. It is not proof
+that cleanup finished. Correction/replacement calls precede this terminal close;
+later work needs a new analysis. Closing the analysis does not implicitly dispose
+of a reusable instance or discard an unreleased result.
+
+Repeated cleanup, retirement and result-release requests keep their original
+owners and budgets. They do not repeat completed disposal or erase prior failures.
+Cleanup can continue when new evidence or a supported action permits it. These
+methods do not require an RPC per method or a second control framework.
+
+Named state arguments and declared use
+  A call description declares each state argument's name, kind and borrow/consume
+  mode. The caller supplies only the reference. It cannot turn a consuming call
+  into a borrow by changing a flag. For example:
+
+```python
+generate = CallDescription(
+    name="generate",
+    input_format="nmrpeak.generate.v1",
+    result_format="nmrpeak.candidates.v1",
+    state_inputs=(
+        StateParameter(
+            name="accepted",
+            kind="nmrpeak.accepted-input.v1",
+            use=StateUse.CONSUME,
+        ),
+    ),
+    resource_profile="nmrpeak.generation",
+)
+
+# This is the states field of an Invocation; the call declares consumption.
+state_arguments = (StateArgument("accepted", accepted_ref),)
+```
+
+  Use plural named references in the public shape now. A first backend may support
+  only zero or one and refuse larger or incompatible combinations before effects.
+  This is not a general object store. Portable accepted input is data; live state
+  retains its implementation revision, analysis owner and exact backend instance.
+  Refuse foreign, obsolete, wrong-kind or already consumed references before new
+  dispatch. No automatic copying, reconstruction or serialization of live state
+  makes it valid in another instance. A restarted worker is a new instance.
+
+  Claim consuming state for its original operation before dispatch. A definite
+  no-dispatch refusal may release that claim; accepted or uncertain work prevents
+  reuse until its original owner resolves it. Consumption means the old reference
+  cannot be used again, not that its memory has been freed. The disposal owner
+  remains. A completed call may return a fresh reference when it establishes that
+  the resulting state is usable. Never silently make the old reference name a
+  replacement preparation.
+
+  Replacement follows the contribution's declared scientific rules. NMRNet can
+  invalidate the prior preparation even when a replacement is rejected; its
+  per-analysis session remains available for another candidate when permitted.
+  SECS requires an empty accepted-preparation state before inspection/preparation.
+  Do not erase either rule to make the call names look alike. Dropping a reference
+  is not disposal, and instance retirement does not by itself settle its Job.
+
+  Borrowing preserves eligibility for later use; it does not promise concurrent
+  safety or usability after an error. Declare concurrency and isolation separately
+  and check available grants. Include process-wide effects: Magnet G01 currently
+  scopes global RDKit logging and requires serial callers. Two instances in one
+  process are therefore not automatically independent.
+
+Own decoding and the scientific return
+  Scientific decoding can read sources, build tensors and allocate resources.
+  It belongs inside the owned, guarded invocation. The scheduler must not perform
+  it as unowned preprocessing. After owners, reservations and dispatch permission
+  are established, the host follows this ordering:
+
+```python
+decoded = binding.decode_input(payload)
+raw = binding.invoke(
+    scientific_analysis,
+    decoded,
+    resolved_scientific_state,
+)
+operation.retain_scientific_return(raw)
+analysis_owner.adopt_returned_state(raw)
+encoded = binding.encode_result(raw)
+operation.record_result(encoded)
+```
+
+  These are internal host steps, not numerical function arguments or another
+  public registry. The contribution defines how a return identifies new scientific
+  state; hosting retains it before encoding can fail. Partial decoding also keeps
+  its original cleanup owner. If encoding fails, preserve the known scientific
+  return and any new state, report an encoding failure and retain required
+  resources. Never rerun science to repair serialization. An established scientific
+  outcome and an unavailable encoded result are different observations.
+
+Result ownership and bounded retention
+  A completed result has a stable ResultRef. Re-observation returns that same
+  reference. read_result reads it without repeating science. release_result names
+  the exact result whose retained copy the caller authorizes the backend to
+  discard. It returns an owned, observable ResultRelease request and is idempotent
+  for that result. Validate the result's operation and owner for reading/release;
+  knowing its ID does not grant control. A lost release acknowledgement never
+  resubmits science.
+
+  Releasing a result does not prove that another owner saved it durably or that
+  the central API published a report. The receiving owner defines its guarantee.
+  For the existing durable delivery path, the intended handoff is:
+
+```python
+result_ref = completed.result
+value = await operation.read_result(result_ref)
+report = contribution.make_report(value)
+delivery_receipt = await outbox.accept(report)
+release = operation.release_result(result_ref)
+```
+
+  This is an ownership example, not a new outbox API. Use existing delivery code.
+  Do not release the only required copy when report construction or durable queue
+  acceptance fails. A final result must be self-contained, have an independent
+  artifact owner, or explicitly retain its required resources. A path into an
+  analysis scratch directory is not a completed transfer if cleanup deletes it.
+  Retaining result bytes does not extend the lifetime of per-analysis StateRefs
+  returned by intermediate calls. Final reports must not depend on state that
+  analysis close invalidates.
+
+  Bound retained operations and results before dispatch, independently of active
+  compute. When result storage is full, refuse new work instead of evicting
+  unreleased results. An ordinary retained result should not inherently occupy a
+  GPU; a raw device-backed result may still require that reservation until safely
+  materialized. Release resources only after their actual readers/dependencies
+  have settled. Initial fixed bounds need no general storage framework.
 
 Observations and failures
   Report independent facts rather than one overloaded done/failed flag:
-    - submission refused before effects, submitted, or still uncertain;
-    - scientific value/rejection/failure available, or outcome still unknown;
-    - analysis cleanup/readers pending or settled;
-    - which reservations remain occupied and which can actually be released;
-    - instance available, held or physically retired.
+    - acceptance definite, refused before effects, or still uncertain;
+    - scientific value/rejection/failure established, or outcome still unknown;
+    - encoded result available/retained/released, or encoding failed;
+    - stopping requested, and analysis cleanup/readers pending or settled;
+    - reservations occupied or proven releasable, and instance availability.
   An unresolved Job can keep its identity excluded from retry after its physical
   resources are confirmed free. Unknown possible occupancy still counts against
-  bounds. A result can be available while cleanup or retirement remains pending.
+  bounds. A usable result can exist while cleanup or retirement remains pending.
 
-  Scientific rejection is a completed call with contribution-defined correction
-  information. A corrected candidate is a new authorized invocation, not replay
-  of accepted or uncertain work. Backend/transport faults must not become ordinary
-  input rejection or an automatic FAIL report. Unexpected scientific exceptions
-  likewise do not establish the contribution's reviewed public failure policy.
-  Preserve original causes, operation context and simultaneous cleanup errors in
-  protected diagnostics. Redact secrets at outward boundaries without replacing
-  useful causes with an exception type alone. Do not add a generic retryable flag:
-  scientific retries must satisfy their specific input, retirement and budget rules.
+  Keep scientific rejection, established scientific failure, backend/transport
+  failure, unknown scientific outcome and cleanup failure after a usable result
+  distinct. Rejection carries contribution-defined correction information; a
+  corrected candidate is a new authorized call, not replay of accepted/uncertain
+  work. Transport faults must not become ordinary rejection or an automatic FAIL.
+  Unexpected scientific exceptions alone do not establish a reviewed public
+  failure policy.
 
-Budgets, authority and later backends
-  Separate the original execution allowance from a caller's observation wait.
-  Re-observation never restarts initialization, execution or cleanup allowances.
-  Local monotonic timestamps remain local; a remote backend must establish and
-  enforce its allowance without interpreting another process's clock value.
-  Each managed call checks permission after waits and task handoffs immediately
-  before its actual dispatch. Earlier admission is not a reservation of future
-  permission. Checking at the sender does not promise atomic remote revocation;
-  a remote backend must state its acceptance and obsolete-owner rejection rules.
+  Protected diagnostics retain the operation/call, failure phase (initialization,
+  decoding, calculation, encoding or cleanup), original cause and additional
+  cleanup errors. Redact outward details and use reviewed public failure codes
+  without reducing all diagnostics to the exception type. Do not add a universal
+  retryable flag; preserve contribution-specific input, retirement and budget rules.
 
-  A stable operation ID alone provides no deduplication or recovery guarantee.
-  Repeated submission never silently executes the operation again: re-observe a
-  known owner or refuse. Lost owners remain unresolved unless the backend supports
-  verified reattachment. Crash persistence, remote ownership, batching and shared
-  devices are explicit later capabilities, not silently assumed interface features.
-  Adding them must preserve these ownership and result meanings.
+Repeated requests, authority and later backends
+  Record a stable operation ID and immutable request identity: analysis, exact
+  binding revision/call, input identity, state references, reservation identity
+  and original limits. Same ID with the same request locates the original
+  operation or explicitly refuses to dispatch again; it never silently reruns.
+  Refusing to resend does not turn unknown original acceptance into NotAdmitted:
+  keep an owned unresolved Operation for that uncertainty. Same ID with different
+  work is a conflict. Resolve an existing operation before treating its consumed
+  state as a new submission. A missing local record is not proof that a remote
+  or pre-crash backend never accepted the operation.
+
+  Keep control authority/owner generation separate from immutable work identity.
+  A replacement controller may observe the same work without changing it. A
+  backend supporting recovery must reject obsolete owners for dispatch, stop
+  requests, state consumption, cleanup, instance retirement and result release.
+  Sender-side permission checks alone cannot promise atomic remote revocation.
+  Each backend states its acceptance, authentication and stale-owner rejection
+  guarantees.
+
+  Stable IDs alone do not establish deduplication, durable recovery or enforcement
+  against old owners. Use existing local lifetime protections in the first bridge.
+  Reattach after restart only when the backend supports it; otherwise retain the
+  uncertainty. Crash persistence and a concrete remote backend remain later work.
+
+Budgets
+  Name both an allowance and the event that starts its clock:
+    - admission/queue: when the owned submission enters admission;
+    - execution: when managed dispatch begins, including per-analysis scientific
+      initialization and decoding;
+    - cleanup: when the original cleanup is requested or becomes required;
+    - observation: when this particular wait begins.
+  Instance initialization has its own bounded owner; a call waiting for it remains
+  subject to its admission allowance. Re-observation, reattachment or repeated
+  cleanup observation never restarts original queue, execution or cleanup budgets.
+  An allowance expiring triggers stopping; it does not prove effects have stopped.
+  Local monotonic timestamps remain local. A remote backend establishes its own
+  enforcement without treating another process's clock value as a global deadline.
 
 Code ownership and compatibility
   Add dependency-light provider_core.contribution for configured factories,
-  declared scientific calls and their state/resource requirements. Add
+  immutable descriptions, host bindings, declared scientific calls and their
+  state/resource requirements. Scheduler-facing imports must not load those host
+  bindings or their scientific dependencies. Add
   provider_core.hosting for this execution contract and the small common
   implementation actually used by the backends. Neither imports API/delivery
   modules, scientific frameworks or local wire codecs.
@@ -542,7 +852,11 @@ Use small additions to existing direct, native and installed integration checks
 to show those real connections and the changed ownership/permission behavior.
 Use actual native execution when making a native-model claim. Reuse unchanged
 tests and identify any limitation honestly; no new general test framework or
-complete deployment campaign is needed before interface adoption.
+complete deployment campaign is needed before interface adoption. Focus new
+checks on the changed behavior: ownership through partial initialization,
+permission at decoding/dispatch, state consumption or replacement, and retaining
+the result when encoding or cleanup fails. Exact result release and a refusal
+that leaves earlier analysis work owned belong on those exercised paths too.
 
 One identified SDK candidate is used across the consumer checks. Where an
 existing launcher lacks candidate selection, add a small explicit test input
@@ -583,10 +897,11 @@ G03  Resource scheduling. Job counts do not measure GPU use, loaded-model memory
      Tier 1 adds phase-specific reservations and shared-device scheduling. Check
      competition, partial cancellation and HTTP waits without device overcommit.
 
-G04  Prepared state. Separate portable input from handles tied to an exact worker
-     instance. Preserve accepted work, reject wrong/stale handles, and separate
-     scientific disposal from complete worker shutdown. Remove unnecessary coupling
-     without assuming an old protocol can run simultaneous operations.
+G04  Scientific state. Separate instance, per-analysis and prepared-value lifetimes;
+     distinguish portable input from handles tied to an exact worker instance.
+     Preserve accepted work, reject wrong/stale handles and preserve results
+     through analysis cleanup. Separate scientific disposal from complete worker
+     shutdown without assuming an old protocol supports simultaneous calls.
 
 G05  Recovery decisions. Replace provider knowledge of private checkpoints and
      nested exceptions with clear decisions from the owner of each operation.
