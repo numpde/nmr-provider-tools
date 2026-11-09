@@ -14,6 +14,12 @@ together. No provider defines the default architecture. Small adapters connect
 their numerical functions to the common host; the scheduler has no provider-name
 branches. Note 065 maps the existing implementations to this boundary.
 
+First implement the lasting contribution and execution interfaces across the
+shared package and all four provider repositories. Their actual scientific calls
+and guarded backend paths must use them. Then improve pools, service loops and
+individual implementations behind that common boundary. This ordering replaces
+the earlier proposal to build a new generic pool before connecting real providers.
+
 This is the target, not a description of a finished platform. The runtime review
 was at 1178115c8b1ea89556f4c04f73d69471be8e1b5f. Note 064 records the provider
 versions reviewed; it does not identify what is currently deployed. Earlier test
@@ -24,10 +30,11 @@ provider's worker layout. Note 065 gives the implementation order. The safety
 rules S1-S8 in 064 still apply. Keep scientific meaning and real ownership of
 work; replace unnecessary polling, worker and failure-handling restrictions.
 
-Build a useful local service first, then broader capabilities and recovery, then
-measured performance improvements. Add focused checks with each change. Broad
-fuzzing, test frameworks and stress campaigns must not delay that useful service.
-Section 9 defines the tiers. A plan alone does not authorize release or deployment.
+After that coordinated interface change, build the useful local service, then
+broader capabilities and recovery, then measured performance improvements. Add
+focused checks with each change. Broad fuzzing, test frameworks and stress
+campaigns must not delay useful implementation. Section 9 defines the tiers.
+A plan alone does not authorize release or deployment.
 
 1. The things we need to distinguish
 -----------------------------------
@@ -42,8 +49,9 @@ its results.
 Switching to a different model or numerical policy requires an explicit scientific
 choice; infrastructure must not silently make that choice after a failure.
 
-Execution backend: how shared hosting starts and watches work. Start with local
-isolated workers. A remote service can be added later under the same rules.
+Execution backend: an implementation of the common execution interface. Existing
+local execution paths can implement it first; shared pools and remote services
+can follow. Backend transport and process layout are private implementation details.
 
 Allocation: a particular worker or other assigned resource, such as a device
 partition or remote slot. Identify the actual instance, not just its name: a
@@ -55,7 +63,7 @@ Reservation: capacity held for a particular owner and phase. Available capacity
 is not a reservation, and a reservation is not permission from the Jobs API to
 start science. Track who must release it, including after partial acquisition.
 
-Operation: one submitted preparation or computation. Track its identity, input,
+Operation: one submitted scientific call. Track its identity, input,
 implementation, exact worker instance and permission. Provider work also records
 its Job Attempt; direct hosting does not require a Jobs service. Checking status
 again does not create another operation. An Attempt may contain several operations.
@@ -117,9 +125,9 @@ requirement to add another network service.
 
 3. One implementation, one or several workers
 --------------------------------------------
-Support a fixed local pool first. Changing its size must not change scientific
-source code. The pool owns worker startup, readiness, assignment, health, drain
-and shutdown.
+After interface adoption, build a fixed local pool before adaptive or remote
+execution. Changing its size must not change scientific source code. The pool
+owns worker startup, readiness, assignment, health, drain and shutdown.
 
 Count memory used by loaded models separately from active computation. Also count
 workers still starting, draining or of uncertain status. An operation may retain
@@ -296,34 +304,48 @@ Progress and cancellation
   worker are different facts; lack of cooperative stopping remains an explicit
   implementation/backend limitation.
 
-7.2 Instance setup and one analysis
+7.2 Scientific contribution: configured instances and declared calls
 
-Keep the scientific adapter small. Initialization binds settings, assets and the
-permitted environment to an instance. The required run operation accepts input
-directly, or a prepared value if the contribution explicitly supplies a separate
-prepare operation. Provide cleanup where analysis or instance state needs it;
-stateless contributions need no dummy cleanup hooks.
-Adapters leave numerical functions unchanged; no universal workflow or call
-registry is needed. Optional preparation does not remove input checks that
-the scientific implementation requires.
+The contribution supplies a configured factory and a small explicit table of
+scientific calls. Names such as inspect, validate, prepare, predict or generate
+are local to that implementation. Shared code dispatches declared names; it does
+not assign them chemical meaning or require every contribution to expose the
+same stages. A one-call implementation can simply register run.
 
-Initialization may load a reusable model or retain settings for loading during
-execution. A contribution may need no model at all. Separate mutable analysis
-state from instance state, and keep unfinished initialization or cleanup owned.
-This covers worker-bound accepted state in SECS/NMRPeak, lazy iteration, tensor
-preparation and per-analysis models in NMRNet, and Magnet's one-call G01 and
-optional native execution. These are supported shapes, not provider-name cases
-inside hosting. Future contributions use the same boundary.
+This corrects the earlier required-run/optional-prepare proposal. SECS inspection
+and candidate correction, NMRPeak/Magnet validation, and NMRNet's geometry and
+prediction operations do not all fit one preparation step. In particular,
+NMRNet's provider preparation can retain portable coordinate bytes while native
+prediction preparation later creates tensors in a worker. AnalysisSession.prepare
+is an API-side phase, not the universal scientific preparation function.
 
-Hosting records which exact worker instance owns a prepared native handle.
-Science uses that state; the handle itself carries no execution permission.
-Portable input and discarded handles do not authorize repeating an operation.
-An iterator or queued device operation is not yet a completed result. The adapter
-finishes the required lazy work and device synchronization before reporting final
-completion. Work still in progress remains an owned operation, not a final result.
-Input sources stay owned until their readers finish. Scientific cleanup and
-confirmed process or resource retirement remain separate; a returned function
-alone proves neither.
+Each declared call identifies its input/result format, required resources and
+whether it uses no retained analysis state, borrows state or consumes it. Its
+adapter supplies scientific decoding/encoding and the actual function. The
+factory binds settings/assets; deployment supplies the permitted environment.
+Scientific functions keep their own typed arguments and may remain synchronous.
+They receive decoded scientific input and native state, not the execution
+request, permission callback or host object. State created by science stays
+behind a host-managed reference when it must remain in that instance.
+
+Keep scientific sequencing in ordinary contribution code. Existing interpretation
+adapters may choose tools and correct rejected inputs through these declared
+calls. Shared code runs conversation/transport mechanics and guards each managed
+effect. Numerical handlers do not receive that adapter's execution client.
+No workflow language, arbitrary method lookup or job-selected Python import is
+needed. Deployment fixes which calls exist; a job cannot add another executable.
+
+Instance initialization may load reusable resources or retain settings for lazy
+or per-analysis loading. A contribution may need no model or native runner.
+Create the operational owner before initialization acquires resources. Separate
+analysis state from instance state. Provide their cleanup functions where needed;
+stateless contributions need no dummy preparation or cleanup hooks. If failed
+initialization leaves partial resources, its owner still has cleanup duties.
+
+An iterator or queued device operation is not a completed result. The scientific
+adapter finishes the required lazy work and device synchronization before it
+reports completion. Input sources remain owned until their original readers
+finish. Scientific cleanup and confirmed physical retirement remain separate.
 
 7.3 Check permission where work is submitted
 
@@ -350,29 +372,195 @@ scientific prompts, tools and candidate validity stay in the contribution;
 conversation execution, transport, pacing and supervision can be shared. The
 scheduler does not construct chemical prompts.
 
-7.4 Check the first working boundary
+7.4 The lasting execution interface
 
-Use a small deterministic set of checks through the actual host/worker path:
-run the same science directly without Jobs and through one/two hosted workers;
-initialize from bound settings; keep analysis state separate; hold one worker
-while another completes; check permission and handle rules changed by the work.
-Reuse existing checks for unchanged behavior.
+Define one execution interface and let backends implement it. Do not introduce
+an additional public backend-control facade with different ownership rules.
+Scientific contribution types and execution types are distinct; neither includes
+Unix framing, RunnerSession, a thread future, a PID or a framework device object.
 
-The first runtime increment uses small runnable contributions covering resident
-prepared state and lazy/per-analysis or one-call work, with different inputs and
-settings. It exercises actual workers through the common pool without Jobs or
-scientific framework dependencies in the host. It is not evidence that the four
-providers have migrated. Connect all four through the same interface in separate
-runnable increments; their minimal integrations complete Tier 0. Inspect what
-actually reaches science, including nested arguments. Input errors belong to
-the contribution; revoked execution is refused by hosting. Changing worker count
-leaves scientific code unchanged. Check new placement/backend modes when added.
+Registration
+  A registration binds an implementation identity/version, declared calls and
+  configured factory to permitted execution environments. Keep scientific settings
+  and asset references opaque to the scheduler. Deployment chooses allocation
+  count, placement and backend separately. Register E01/E02/G01 and HF/CHF through
+  the same mechanism as other implementations, without special scheduler branches.
 
-Resource needs do not grant access. Deployment enforces permitted images,
-devices, files, endpoints and credentials. Workers receive the minimum access
-they need. Keep mutable state and diagnostics isolated so pooling cannot leak
-data, handles or credentials between jobs or providers. An API boundary alone
-does not provide that isolation.
+  Requirements distinguish resources held by an instance from those used by a
+  call: for example resident memory versus active compute. Use neutral requirements
+  and deployment grants, not framework objects. A backend must declare what it
+  supports and refuse incompatible work before effects. The initial bridge may
+  reserve a conservative whole-analysis grant; later stage scheduling uses the
+  same declarations. Missing knowledge never means unlimited resources.
+
+Execution request
+  Identify the analysis owner, a new operation for this invocation, the registered
+  implementation and call, opaque input, an optional retained-state reference,
+  reservation and execution limits. Input may be bounded bytes or an authorized
+  source/artifact reference; portable scientific values use their declared format.
+  Transport/codec adapters resolve data mechanically while the contribution
+  interprets it. A model setting, executable or import path cannot be selected by
+  an unregistered field in a Job.
+
+  Keep identity/reference values separate from live local objects. They name the
+  exact registration, operation, analysis owner or instance and carry no automatic
+  replay, process-control or Jobs authority. A backend can map them to its existing
+  original owners. Do not create a parallel registry of Attempts or process owners.
+  Reuse existing verified-source handling and retain its reader ownership.
+
+Operations exposed by the interface
+  submit(request, dispatch_guard) returns an owned Operation before any await or
+    effect can escape its owner. The guard is a host-side capability, separate
+    from serializable request data and never sent to numerical functions. A
+    request is one invocation, not a command to keep retrying until successful.
+  operation.observe(wait_budget) observes that same invocation and returns its
+    current outcome and remaining obligations. It may be called again. Cancelling
+    or timing out a waiter does not cancel the underlying owner or renew its work.
+  operation.request_stop() records a stopping request under the same owner. Its
+    acknowledgement proves only acceptance of that request. Actual stopping and
+    cleanup remain separately observable; unsupported cooperative stopping is
+    explicit. A blocking numerical function need not poll a new control protocol.
+  cleanup(analysis_owner) closes that analysis to new submissions, then settles
+    its accepted calls, retained state and readers. It can run after execution
+    permission is revoked. Correction/replacement calls precede this terminal
+    cleanup; later work needs a new analysis owner. Cleanup does not implicitly
+    dispose of a reusable scientific instance.
+  retire(allocation) closes admission to that instance, then starts or re-observes
+    disposal and physical resource retirement. It retains the original supervision
+    owner until those facts are established. Pending cleanup is not successful
+    retirement.
+  operation.acknowledge_result() records that the caller accepted responsibility
+    for the returned value. Until then the operation retains it, within a stated
+    bound. This is only a local ownership transfer; it proves neither crash-durable
+    storage nor central API publication. It does not release occupied resources.
+
+  These names describe the intended small API, not a requirement for an RPC per
+  method. Implementation uses ordinary Python protocols/data values and existing
+  owners. Reserve before effects and retain an owner before partial acquisition.
+  Repeated cleanup/retirement requests retain the original owners and fixed
+  budgets. They do not repeat completed disposal or erase prior failures. Cleanup
+  may continue when new evidence or a supported action permits it.
+
+Prepared state
+  Portable accepted input is data. A reference to live state identifies its
+  implementation, analysis owner and exact backend instance. It is opaque outside
+  hosting; the numerical function receives the underlying scientific object.
+  Refuse incompatible, foreign, obsolete or already consumed references before
+  dispatch. A host restart or a new process in the same slot is a new instance.
+
+  Borrowing state retains its eligibility for a later declared call. Consuming
+  state invalidates further use at managed dispatch, after the permission check
+  and before the effect; a lost reply cannot restore it. The original owner still
+  owns disposal. Preparing a replacement must explicitly settle/invalidate prior
+  state according to that implementation's rules, including rejected replacements.
+  Dropping a reference is not disposal. Retiring an instance invalidates its live
+  references, but does not by itself resolve the associated Job or permit replay.
+
+  Initially a call can use one optional state reference whose scientific value
+  groups its internal objects. This covers the present providers without a
+  general object store. Reusable instance state remains separate. Backend limits
+  on parallel calls or multiple analyses are explicit capabilities, not universal
+  scientific restrictions. Check both declared concurrency and available grants.
+
+Observations and failures
+  Report independent facts rather than one overloaded done/failed flag:
+    - submission refused before effects, submitted, or still uncertain;
+    - scientific value/rejection/failure available, or outcome still unknown;
+    - analysis cleanup/readers pending or settled;
+    - which reservations remain occupied and which can actually be released;
+    - instance available, held or physically retired.
+  An unresolved Job can keep its identity excluded from retry after its physical
+  resources are confirmed free. Unknown possible occupancy still counts against
+  bounds. A result can be available while cleanup or retirement remains pending.
+
+  Scientific rejection is a completed call with contribution-defined correction
+  information. A corrected candidate is a new authorized invocation, not replay
+  of accepted or uncertain work. Backend/transport faults must not become ordinary
+  input rejection or an automatic FAIL report. Unexpected scientific exceptions
+  likewise do not establish the contribution's reviewed public failure policy.
+  Preserve original causes, operation context and simultaneous cleanup errors in
+  protected diagnostics. Redact secrets at outward boundaries without replacing
+  useful causes with an exception type alone. Do not add a generic retryable flag:
+  scientific retries must satisfy their specific input, retirement and budget rules.
+
+Budgets, authority and later backends
+  Separate the original execution allowance from a caller's observation wait.
+  Re-observation never restarts initialization, execution or cleanup allowances.
+  Local monotonic timestamps remain local; a remote backend must establish and
+  enforce its allowance without interpreting another process's clock value.
+  Each managed call checks permission after waits and task handoffs immediately
+  before its actual dispatch. Earlier admission is not a reservation of future
+  permission. Checking at the sender does not promise atomic remote revocation;
+  a remote backend must state its acceptance and obsolete-owner rejection rules.
+
+  A stable operation ID alone provides no deduplication or recovery guarantee.
+  Repeated submission never silently executes the operation again: re-observe a
+  known owner or refuse. Lost owners remain unresolved unless the backend supports
+  verified reattachment. Crash persistence, remote ownership, batching and shared
+  devices are explicit later capabilities, not silently assumed interface features.
+  Adding them must preserve these ownership and result meanings.
+
+Code ownership and compatibility
+  Add dependency-light provider_core.contribution for configured factories,
+  declared scientific calls and their state/resource requirements. Add
+  provider_core.hosting for this execution contract and the small common
+  implementation actually used by the backends. Neither imports API/delivery
+  modules, scientific frameworks or local wire codecs.
+
+  Existing provider_core.execution and analysis are the API-side orchestration
+  and compatibility modules; preserve their current consumer imports and guards.
+  Existing runner modules and provider-native codecs remain backend implementation
+  details. A future local/remote transport is independently versioned and need not
+  become the public scientific API. Keep everything in the existing provider-core
+  package; do not create another package, copied types or fallback interface definitions.
+
+  Establish an explicit first contract version with declared supported operations
+  and capabilities. Scientific implementation/model versions and private wire
+  versions are separate. Unsupported contract versions or required capabilities
+  fail before effects. Additive optional capabilities may be introduced without
+  changing existing call meaning; incompatible changes require an explicit version
+  and migration. No long-term promise attaches to a backend's private process layout.
+  All four real adapters shape this first version before it is declared adopted.
+
+7.5 First adoption across repositories
+
+The first coordinated implementation changes provider-core plus SECS, NMRNet,
+NMRPeak and Magnet. Each consumer must have two real connections: its current
+scientific worker/direct path invokes the scientific adapters, and its current
+guarded provider path submits and observes through the execution interface.
+An unused Protocol, alias or independent demo is not adoption. Include all
+currently offered variants, including Magnet E01/E02/G01 and NMRPeak HF/CHF.
+
+Existing scientific policy, service loops and native protocols may remain behind
+explicit bridges during this first change. Preserve their source isolation,
+correction/retry rules and permission checks. The bridge must not become another
+service loop or pass its operational objects into science. Ordinary native
+functions remain callable directly without Jobs. Contract code needs no scientific
+dependencies; the real adapters keep theirs in their own repositories/images.
+
+Use small additions to existing direct, native and installed integration checks
+to show those real connections and the changed ownership/permission behavior.
+Use actual native execution when making a native-model claim. Reuse unchanged
+tests and identify any limitation honestly; no new general test framework or
+complete deployment campaign is needed before interface adoption.
+
+One identified SDK candidate is used across the consumer checks. Where an
+existing launcher lacks candidate selection, add a small explicit test input
+using its existing offline installation machinery. Land activated imports and
+the corresponding available package pin together. Package publication, repins
+and deployment retain their own authorization and evidence; do not make a main
+branch depend on an unpublished import or copy SDK types to avoid that step.
+Note 065 gives the commit and per-repository plan.
+
+After all four use the common contracts, shared pools, service extraction and
+scientific improvements can proceed independently behind them. One/two-worker
+demonstrations and held-worker progress accompany pool implementation. They
+are not prerequisites for adopting the interface over an existing backend.
+Interface adoption alone does not finish Tier 0 or claim crash-durable execution.
+
+Deployment still enforces permitted images, devices, files, endpoints and
+credentials. Resource declarations do not grant access. Keep mutable state and
+diagnostics isolated between analyses. Interface types alone provide no sandbox.
 
 8. What remains to be built
 ---------------------------
@@ -449,9 +637,12 @@ execution, existing durable delivery and orderly drain. Integrate SECS, NMRNet,
 NMRPeak and Magnet with small adapters, preserving permission checks, exact
 ownership, worker-bound handles, resource limits and independent maintenance.
 Safe holds and explicit operator recovery are acceptable within the stated limits.
-Build this in separate runnable increments: generic hosting/pools first, then
-service integration and the four consumers. Useful early subsets are explicitly
-partial Tier 0; all four are not required in the first commit.
+Build this in separate runnable increments. First adopt section 7's contracts in
+the shared package and all four repositories. Then improve pools, common service
+and consumer internals independently behind those interfaces. This first adoption
+requires a coordinated set of commits, not one cross-repository Git commit. It
+does not require completing the new pool/service in the same change. Useful early
+subsets are partial Tier 0 until the common local service serves all four.
 
 Tier 1: extend that path with phase-specific resource use, bounded staging,
 stronger recovery decisions, durable operation/result records

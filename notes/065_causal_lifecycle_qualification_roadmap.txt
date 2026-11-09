@@ -1,15 +1,19 @@
-Plan: build the shared package, then extend it
-==============================================
+Plan: adopt the common interface, then improve implementations
+===============================================================
 2026-11-09 | Design: note 066 | Reviewed runtime: 1178115, SDK 0.6.8
 
 What to build next
 ------------------
-Start M1 now. Build the execution boundary for SECS, NMRNet, NMRPeak, Magnet and
-future contributions together. Make scientific code work directly, then through
-shared code on one or two workers. Build the common service and connect all four
-providers in separate runnable increments: find a job, run the science, keep the
-result, deliver it and shut down properly. No provider has a prescribed first
-place or defines the architecture for the others.
+Start M1 with one coordinated implementation across provider-core, SECS, NMRNet,
+NMRPeak and Magnet. Put the lasting contribution and execution interfaces into
+use in every repository first. Both the scientific worker/direct path and the
+guarded provider path must use them. Existing service loops and native protocols
+may remain behind temporary bridges while this boundary is adopted.
+
+After all five repositories use that boundary, improve their implementations
+independently: shared pools, common service mechanics, recovery and deployment.
+No provider defines the interface for the others. New providers register their
+contributions through the same contract.
 
 Scientific code supplies the model, settings, input interpretation and numerical
 work. The shared service chooses jobs and assigns resources. The execution host
@@ -28,14 +32,19 @@ tests. Older instructions to qualify all existing services first are superseded.
 
 Build in this order
 --------------------
-Tier 0 -- Make a useful local package for all four providers. Complete M1, M2
-and their minimal integrations in M3, through separate runnable commits. The
-first commit builds generic hosting and a fixed local pool; it does not migrate
-four repositories at once. Useful earlier subsets are partial Tier 0. Include
-fixed one/two-worker settings, result delivery and orderly shutdown. Keep
-permission checks, separate job state, resource limits and exact ownership of
-work. Where automatic recovery is missing, retain uncertain work and explain the
-supported operator action. A restart never authorizes repeating unknown work.
+Tier 0 -- First adopt the common interface across all five repositories as the
+coordinated set of runnable commits in section 1.1. A shared definition used only
+by examples, or adapters that leave the real call path unchanged, do not complete
+that step. Existing backend/service implementations can remain behind it.
+
+Then complete M1's fixed one/two-worker pool, M2's common service and M3's service
+replacement across the four providers. Those changes can proceed independently
+behind the adopted contracts. Include result delivery and orderly shutdown.
+Keep permission checks, separate job state, resource limits and exact ownership
+of work. Where automatic recovery is missing, retain uncertain work and explain
+the supported operator action. A restart never authorizes repeating unknown work.
+Full Tier 0 includes the shared service and worker management in all four providers;
+interface adoption is the first useful checkpoint, not the whole tier.
 
 Use a few deterministic tests through the installed service and actual workers:
 finish a job and hand its result to the existing delivery queue, which preserves
@@ -127,200 +136,193 @@ and 40 steps by default, or 1000 examples and 150 steps for extended. These are
 limits, not counts of completed transitions or evidence that extended runs took
 place. M0 supports development; it is not a phase that must finish before M1.
 
-1. Run the same science on one or two workers
----------------------------------------------
-Tier 0. Starts G01/G02/G04/G10 and supports later resource and provider work.
+1. Adopt the common interface, then build the local pool
+--------------------------------------------------------
+Tier 0. Starts G01/G02/G04/G10. Section 1.1 is the first coordinated checkpoint.
 
 [ ] M1.0 Keep three inputs separate: deployment supplies configured science and
-    model files; the service supplies work, permission and limits; the host calls
-    scientific functions with their own inputs. Those functions must not receive
-    controllers, claim registries, ProviderAPI, ReportCondition, Jobs credentials,
-    the global resource allocator or Docker access, including through nested objects.
-[ ] M1.1 Give the offered analysis, scientific implementation and particular worker
-    separate identities. A replacement worker is a new instance even in the same
-    slot. The host tracks operations, permission and reserved resources. Reuse
-    analysis.py and existing runner helpers; add modules only as real code needs them.
-[ ] M1.2 Build a fixed group of local workers using existing process supervision.
-    Configuration chooses one or two copies of the same scientific code. Track
-    workers from startup through readiness, use and shutdown, including partial
-    startup. Bind settings and any model files to the contribution. It may load
-    a model once, load during an analysis or need no model. The service does not
-    interpret those choices. Pass per-job scientific settings through unchanged.
-[ ] M1.3 Use test science that permits only one call at a time per worker. Hold A's
-    original cleanup while B finishes; keep A unavailable until its evidence arrives.
-    Also check the one-worker limit. Use a small deterministic actual-worker test.
-[ ] M1.4 A prepared handle refers to scientific state prepared for an analysis.
-    It must match its implementation and, when worker-bound, the exact worker
-    instance. Reject wrong or old handles. Portable prepared data can move before
-    dispatch, but portability never permits replaying an operation that may
-    already have run.
-[ ] M1.5 Connect all four providers through small scientific adapters, using the
-    current-source map below. Each adapter uses the same host and pool. A serial
-    implementation can have multiple independent instances. Remove collisions
-    between copies in mutable globals, scratch names and source-file access.
-    Keep model identity explicit where a model exists. Future contributions
-    register through the same boundary; no provider-name branches in shared code.
-[ ] M1.6 Run the same scientific operations directly without Jobs and through the
-    host with one/two workers. Check the contribution's chosen initialization,
-    separate state per analysis and model-specific cleanup. Finish lazy iteration
-    and relevant device work before reporting a final result. Scientific code
-    checks settings and files; a matching hash alone cannot do that. The host
-    rejects revoked work before dispatch. Scientific cleanup does not by itself
-    prove the worker and all its readers have stopped.
+    model files; the service supplies identified work, permission and limits;
+    the host invokes scientific calls with their own inputs. Those calls must
+    not receive controllers, claim registries, ProviderAPI, ReportCondition,
+    Jobs credentials, the global allocator or Docker access, including through
+    nested objects. Note 066, section 7, owns the lasting contract.
+[ ] M1.1 Implement the contribution and execution contracts in provider-core and
+    use them in all four provider repositories. Keep offering, implementation,
+    instance, analysis and individual call identities distinct. Backends implement
+    the execution contract; do not add another competing backend facade. Local
+    framing, runner sessions and process topology stay behind that interface.
+[ ] M1.2 After all repositories adopt the interface, build a fixed local pool
+    using existing supervision. Configuration chooses one or two copies of the
+    same implementation. Track startup, readiness, use and shutdown, including
+    partial startup. A contribution may load reusable models, load per analysis
+    or need no model. The service does not interpret those choices.
+[ ] M1.3 When the pool lands, hold A's original cleanup observation while B
+    finishes; keep A unavailable until its own observation arrives. Also exercise
+    the one-worker limit. Use small deterministic actual-worker checks with the
+    adopted interface; no new general test framework is needed.
+[ ] M1.4 Separate portable scientific data from references to live scientific
+    state. A state reference belongs to its implementation, analysis and exact
+    instance. Calls declare whether they use no state, borrow it or consume it.
+    Reject wrong/stale state; a lost response does not restore consumed state.
+    Portability and repeated observation never authorize replay of unknown work.
+[ ] M1.5 Route every provider's existing guarded execution path and actual
+    worker/direct scientific path through the common contracts. Preserve existing
+    AnalysisSession guards and ownership during the transition. Bind config and
+    assets in the contribution/deployment. A future provider adds a contribution
+    and registration, without a provider-name branch in the shared scheduler.
+[ ] M1.6 First exercise each real contribution directly without Jobs and through
+    its adopted backend interface. Keep scientific functions' signatures and
+    input meaning, finish lazy/device work before returning a final result, and
+    distinguish analysis cleanup from instance retirement. Later, use that same
+    contribution with one/two pool allocations without scientific source changes.
 
-Done when: the same real science works directly and through one/two workers.
-Changing worker count needs no scientific code change. Any temporary adapter
-restriction has a reason and a stated way to remove it. Complete the real-provider
-parts alongside M3; the generic first commit is a useful part of M1, not all of it.
+The first checkpoint is complete only when all five repositories use the same
+contracts on their real paths. M1 completes when those contributions also work
+through the shared fixed pool. Record temporary backend limitations honestly;
+they do not become restrictions of the scientific interface.
 
-1.1 First implementation commit: common local hosting and a fixed pool
+1.1 First coordinated implementation: adopt the interface in all repositories
 
-Proposed title: Add shared scientific hosting and fixed local execution pools
+This is a small set of commits across five repositories, not an atomic Git
+commit and not a new pool built before any real consumer. Keep each main branch
+runnable. The core implementation, provider adaptations and required dependency
+updates belong to one coordinated change; independent feature work follows it.
 
-Deliver working runtime code, with two small contributions that can be called
-directly and hosted in actual child processes. Run the same contribution with
-one or two allocations by changing configuration. This first commit needs no
-Jobs service, model download or scientific library. Its examples exercise the
-different execution shapes below; they do not establish real-model compatibility
-or complete provider adoption.
+First provider-core commit
+  Proposed title: Add common contribution and execution interfaces with guarded
+  operation ownership
 
-Scientific calls
-  A registered, configured factory creates a scientific instance. Deployment
-  selects the factory, binds its own settings/assets and grants its environment.
-  The factory interprets those inputs. Its instance may load reusable resources
-  at startup or load them lazily/per analysis during scientific calls.
-  Registration declares capabilities and resource/environment requirements;
-  allocation count and placement are separate configuration. Shared code must
-  not invent a common model-settings object.
+  Add packages/provider-core/src/provider_core/contribution.py. Define configured
+  factories and a small registered map of named scientific calls. Calls may be
+  inspect, validate, prepare, predict or generate; no universal phase sequence is
+  imposed. A contribution declares the requirements and state use for each call,
+  and supplies scientific cleanup. Input/result codecs and model interpretation
+  remain contribution-owned. Factories and functions receive no operational
+  controller or catch-all context. Include working invocation code used by the
+  adapters, rather than stopping at Protocol declarations.
 
-  The instance supplies run(input), or run(prepared) when it explicitly supplies
-  optional prepare(input). It also supplies analysis and instance cleanup where
-  needed. A one-call contribution needs no dummy preparation or cleanup method.
-  Keep numerical functions unchanged behind these small adapters. Adapters
-  decode scientific bytes/references and encode final results; prepared Python
-  or framework objects stay in their worker. No pickling arbitrary objects across
-  the boundary. Consume lazy results and finish relevant device work before the
-  adapter reports completion.
+  Add packages/provider-core/src/provider_core/hosting.py. Define identified
+  requests, opaque state references, original operations and their observations.
+  Implement the shared operation/guard helpers that the first backends actually
+  use. An operation owner exists before awaiting or dispatching. Observation has
+  its own waiting allowance and cannot restart the original execution budget.
+  A stop request, scientific outcome, analysis cleanup, instance retirement and
+  result handoff remain separate. Preserve original errors and protected context;
+  transport errors are not automatically scientific rejections or public failures.
 
-  Neither these functions nor their nested inputs receive operation controllers,
-  permission callbacks, claim registries, Jobs credentials or process-management
-  objects. The host keeps identity and authority outside scientific arguments.
-  Initialization has no job-specific authority. Cleanup remains possible after
-  execution permission is revoked. Cooperative progress/cancellation hooks can
-  be added when a real contribution needs them; do not build that protocol now.
+  Preserve execution.py and analysis.py as the existing API-side integration.
+  Their bridge binds the current ReportCondition check to the operational host
+  path, translates verified Job input and scientific results, and retains existing
+  guards. Check permission immediately before each actual managed dispatch,
+  including after readiness waits or scientific tool turns; never pass that guard
+  into science. Neither new native module imports API clients or scientific
+  frameworks. Keep local wire codecs out of both new public modules. Reuse owners;
+  do not introduce another claim registry or duplicate process ownership.
 
-Local hosting and pool
-  Use existing runner.py, RunnerSession and AsyncRunnerSession for child lifetime,
-  control ownership and retirement. Deployment supplies a fixed worker command
-  and permitted environment; Jobs cannot supply commands or import paths. The
-  runner currently inherits its environment, so provision its supervisor without
-  Jobs credentials. This commit adds no sandbox or container-management system.
+  Local science framing and RunnerSession/AsyncRunnerSession stay in the existing
+  native backend. Their control-lifetime identity is distinct from an individual
+  scientific call. No new socket protocol, general worker launcher, fixed pool,
+  remote backend or shared service is required for this commit.
 
-  Configure a fixed list of local allocations and their resource grants against
-  registered implementations. One registration can supply several allocations;
-  mixed registrations use the same pool code. Each allocation initially accepts
-  one active analysis, including its prepared state. This is an explicit first
-  backend limit, not a permanent scientific API or topology requirement.
+  Exercise a working bridge and actual runner path using existing fixtures and
+  installed-wheel lanes. The native dependency check covers the new modules.
+  Update the package README with the three boundaries and direct/hosted examples.
+  Small examples support the implementation, but do not close the all-repository
+  adoption checkpoint.
 
-  Reuse the separate science socket for a small bounded command/reply format.
-  Keep lifecycle framing separate. The host reads only the operational envelope;
-  scientific bytes remain opaque. Bound message sizes and retained operations,
-  and refuse admission when capacity is exhausted rather than creating an
-  unbounded command queue. Fixed grants must fit deployment limits; no new global
-  allocator or phase scheduler in this commit.
+Provider changes in the same coordinated set
+  SECS: src/secs_inference/provider/worker_model.py declares its configured
+  scientific calls and keeps numerical work in the existing scientific modules.
+  worker.py and session.py translate existing guarded inspection, preparation and
+  execution through the execution contract. Route the native handler through the
+  same contribution declaration. Preserve rejected-and-corrected preparation,
+  accepted worker-local state and original source readers. Keep the current
+  runtime/main assembly as a bridge; changing its worker layout comes later.
 
-  Keep registration identity, worker incarnation and analysis/dispatch identity
-  separate. The existing RunnerSession operation identifies the child/control
-  lifetime, which can span several analyses. Do not rename it into a per-analysis
-  identity or create a second registry of process owners. Match worker readiness
-  to its configured registration and incarnation before accepting science. A
-  prepared handle binds its analysis and exact worker incarnation, stays
-  single-use and is invalid after retirement. No moving or reconstructing live
-  prepared state.
+  NMRNet: nmrnet_provider/session.py and input_preparation.py preserve the scientific
+  input policy. native_factory.py, native_session.py and worker_client.py implement
+  the execution contract over their existing owners; worker_main.py and the
+  scientific entrypoints use the contribution contract. Include geometry/source
+  preparation through geometry_client/geometry_worker and smiles_client/smiles_worker.
+  Keep frozen portable coordinate bytes distinct from tensors prepared inside
+  the prediction worker.
+  Preserve the contribution's permitted retry conditions and complete lazy
+  prediction iteration before reporting its result.
 
-  Record the original operation before awaiting startup or sending a command.
-  The operational caller supplies a host-only permission check. Run it immediately
-  before each managed scientific dispatch, including prepare and after any wait
-  for readiness/capacity. Have no unchecked queue of future scientific commands.
-  This checks permission at dispatch; it does not promise an atomic remote check
-  at the later numerical instruction. Existing AnalysisSession guards stay.
+  NMRPeak: nmrpeak_provider/analysis_session.py and runner_session.py use the
+  execution contract. The family bindings and families/nmrpeak/runner_worker.py
+  invoke registered scientific calls around runner_runtime.py. Preserve validation
+  and generation, allow correction of rejected input, and keep accepted state tied
+  to its exact worker. Typed-input paths continue to bypass prose processing.
+  Existing HF/CHF service lanes may remain behind the bridge during this step.
 
-  Waiting again observes the same operation. Cancelling or timing out a waiter
-  never resubmits science, frees its slot or renews the operation's deadline.
-  Keep original science readers and control observations owned. A result, finished
-  analysis cleanup and confirmed worker retirement are separate events. Reuse a
-  warm worker only after analysis state/readers are settled; release its physical
-  allocation only after the existing supervisor confirms retirement. Keep a
-  received result if cleanup fails. If partial initialization/preparation leaves
-  uncertain state, retain and retire that worker rather than pretending no work
-  was acquired. Starting, held and uncertain workers count against the fixed cap.
+  Magnet: magnet_provider/analysis_implementation.py registers E01, E02 and G01
+  through the contribution contract. Their model-specific provider bindings and
+  native/embedded backends implement the same execution contract. Route actual
+  serving workers and direct-use examples through the registered scientific call
+  adapters, leaving numerical functions unchanged. E01/E02 correction after
+  validation and G01's one-call path remain distinct scientific choices. A native
+  runner is optional, not a required field of every contribution. Preserve guards
+  in the Unix backend and existing
+  result/cleanup ownership; changing lane/process layout follows adoption.
 
-  Stop admission during drain, observe accepted work and run its cleanup, then
-  close instances and confirm worker retirement. A bounded drain may report work
-  still held; it cannot call that work finished. No automatic scientific retry,
-  unbudgeted replacement, durable crash recovery or central publication claim.
+  These are peer changes. Choose their preparation order for efficient work, but
+  complete all four before starting independent pool/service redesign. A class
+  that merely imports the new types while bypassing them in production is not
+  adoption. API-side bridges are temporary; the scientific and execution contracts
+  are the intended lasting boundary.
 
-Files and existing machinery
-  packages/provider-core/src/provider_core/hosting.py
-    Small scientific adapter declarations, operational handles and the bounded
-    science message format shared by host and child. Add only types the working
-    implementation uses; no public plugin framework or general workflow language.
-  packages/provider-core/src/provider_core/hosted_worker.py
-    Child entry point that loads the deployment-selected factory and invokes its
-    hooks. It owns worker-local prepared objects and cleanup. It uses the existing
-    runner's inherited science channel, lease and scratch, not a second launcher.
-  packages/provider-core/src/provider_core/local_pool.py
-    Async host/pool, bounded admission, permission checks, original operations,
-    handle checks, result retention and drain over the existing runner sessions.
-    This module does not import ProviderAPI or scientific frameworks.
-  packages/provider-core/tests/fakes/hosted_science.py
-    Two small contributions with different settings and input formats. One reuses
-    initialized state and has worker-bound preparation. The other runs directly,
-    allocates per analysis and finishes a lazy calculation before returning.
-    Both can be invoked directly without host/controller objects.
-  packages/provider-core/tests/native/test_hosted_execution.py
-    Exercise those contributions against the installed wheel using actual
-    RunningSupervisor children. Reuse its injectable worker_argv and owner-session
-    lifetime support; do not introduce another process fixture framework.
-  packages/provider-core/tests/native/test_installation.py and README.md
-    Extend native import checks and document direct/hosted use, one/two-worker
-    configuration, operational limits and the existing command that runs examples.
-    Package discovery already includes provider_core.*. No version bump or new
-    runtime/test dependency is planned. Change test wiring only if actually needed.
+Candidate package, release and dependency order
+  Build one candidate wheel from the core commit and test the provider adaptations
+  against that same installed artifact. Keep scientific dependencies in their
+  respective provider environments. Use existing acquisition, package and test
+  launchers, with explicit candidate artifact selection where it is missing.
+  Do not import another repository's checkout, copy the contract types, add fallback
+  versions or merge default imports of modules absent from the committed dependency.
 
-Focused checks that accompany this commit
-  1. Direct and hosted calls produce the same example results with the same bound
-     settings. Exercise both contribution shapes and repeat analyses on a warm
-     instance. No Jobs service or scientific dependencies are available.
-  2. With one allocation, another analysis is refused while it is occupied. With
-     two, hold A's original cleanup/retirement observation and let B finish; A
-     stays unavailable until its own observation arrives. Release the hold after
-     an observed event. Change worker count without changing contribution code.
-  3. Refuse a revoked dispatch and wrong, stale or consumed prepared handles
-     before their scientific effect. Check revocation after readiness and between
-     preparation and run. Inspect what reaches the scientific hooks.
-  4. Cancel a waiter or fail initialization/cleanup and keep the original owner,
-     result where available and resource charge. Drain reports a remaining hold
-     honestly. Existing supervisor tests already cover its TERM/KILL/reap logic.
+  Current SECS and NMRNet pins select provider-core 0.6.6/dc7c001. NMRNet has helpers
+  for an explicit install lock/wheel pool and a checked source archive, but its
+  stock Make/container path uses committed requirements. SECS test/provider builds
+  from requirements/provider.lock and checks the expected installed version. Add
+  only the small explicit candidate-artifact path needed to exercise the changed
+  provider before repinning; do not claim those commands already select arbitrary
+  SDK wheels. Inspect the corresponding current paths/pins in NMRPeak and Magnet.
 
-Use make tests/unit/provider-core with the existing Docker context/wheelhouse;
-it builds an installed wheel and also runs the dependency-pure native suite.
-Use the relevant integration tests if existing session behavior is changed.
-No fuzz expansion, separate expected-state engine, stress matrix or all-provider
-native campaign is required for this generic increment. A few actual-process
-scenarios check its new behavior; they are not a new testing project.
+  Once the candidate and the changed real paths pass their relevant checks, use
+  the shared package's authorized release process and verify its published wheel
+  and install records. Then commit each provider's implementation and exact
+  dependency/lock updates together. Prepare the consumer changes before that
+  release; keep them unmerged until their dependency is available. Publication,
+  repins and deployment retain their own evidence and authorization. A source
+  commit alone does not publish a usable dependency or authorize a deployment.
 
-Not included: Jobs discovery/admission/delivery (M2), real adapters/service
-replacement (M3), phase-specific allocation (M4), stronger reconciliation (M5),
-crash-durable operations/results (M6), remote execution or batching (M7), release,
-dependency repins and deployment. Do not turn these omissions into restrictions
-on the scientific interface.
+Checks for this coordinated change
+  In provider-core, run the existing installed unit/native lane and the affected
+  integration checks. Check that the new owner/guard code runs, refusing a revoked
+  dispatch and preserving an original operation when its waiter stops. Retain
+  result and cleanup facts independently. Existing supervisor tests cover unchanged
+  process retirement behavior.
 
-Done when both contributions work directly and through the installed common
-host, with one/two actual workers, independent progress, bounded use and the
-authority and ownership checks above. Report which examples and commands passed.
-Then build real adapters and the common service together; do not open another
-general validation phase before proceeding.
+  In each provider, exercise its real contribution adapter directly without Jobs
+  and its existing guarded backend path against the candidate wheel. Use the
+  existing installed/provider/native lanes for the changed files. Inspect actual
+  arguments for leaked authority; check the affected state-reference behavior and
+  scientific correction/retry rule. An injected numerical stand-in can check data
+  flow, but report it as such; use the existing numerical/model checks for claims
+  about actual scientific results. No broad native campaign or repeated fuzz/stress
+  run is a prerequisite to changing this interface.
+
+  Keep test commands, artifact identity and actual outcomes with the change. The
+  current installed-core command is make tests/unit/provider-core with the selected
+  Docker context and wheelhouse. Consumer commands must identify their candidate
+  artifact explicitly; document the exact supported command when that wiring lands.
+
+Done when all five repositories use one installed set of contracts on the real
+scientific and guarded provider paths, their required dependency updates are
+available, and the focused checks above pass. List any backend limitation; do not
+claim new concurrency, crash persistence or deployment behavior from interface
+adoption alone. Then iterate pools, common service and each provider independently
+behind the same boundary. Do not open another general validation phase first.
 
 1.2 Current provider map for this boundary
 
@@ -332,23 +334,29 @@ SECS -- secs-repro be5c191be7a4beba2210148b807cb847776639a4
   src/secs_inference/provider/worker_model.py binds checkpoint/search settings,
   loads reusable state and keeps accepted spectrum/formula state in its worker.
   src/secs_inference/elucidation.py supplies SecsElucidator.elucidate without Jobs.
-  Adapt those scientific operations; preserve worker-bound prepared state and
-  source-reader lifetimes. Remove singleton assumptions from shared mechanics.
+  The worker also supports inspection and rejected preparation followed by a
+  corrected candidate. Register those calls rather than forcing all input policy
+  through run plus one prepare. Preserve worker-bound accepted state and source
+  readers. Singleton layout remains a backend fact while the interface is adopted.
 
 NMRNet -- nmrnet-repro 2f9b161b4819a23bf61c12a3eb7fd36af2b72035
-  nmrnet_inference/predict.py supplies PredictionSession.prepare/execute;
-  execution returns an iterator and consumes prepared state. release.py supplies
-  SelectedReleaseModels and ReleasedPredictionSession, which finish iteration
-  and load/release selected models per geometry/head. Keep model selection and
-  tensor construction in the contribution, preserve exact input and scientific
-  retry rules, and do not require permanently resident models.
+  Provider preparation freezes accepted portable coordinate bytes; its session
+  handle refers to those bytes. This is different from tensor/state preparation
+  inside the native worker during execution. nmrnet_inference/predict.py supplies
+  PredictionSession.prepare/execute; execute consumes its worker-local state and
+  returns a lazy iterator.
+  release.py supplies SelectedReleaseModels and ReleasedPredictionSession, which
+  finish iteration and load/release selected models per geometry/head. Keep these
+  distinct scientific calls, exact input and permitted retries in the contribution.
+  Permanently resident models and a single universal prepare stage are not required.
 
 NMRPeak -- nmrpeak-repro 96e23534722839cfa06fa7d91f6e95d94ff4b7da
   families/nmrpeak/runner_runtime.py supplies load_nmrpeak_runtime and
   NmrpeakRuntime.validate/generate. runner_worker.py retains accepted input until
   generation; the provider's runner_session.py binds it to a particular worker.
-  Keep that relationship and scientific validation. HF/CHF counts and placement
-  become configuration, with no special lane architecture in shared code.
+  Keep that relationship and scientific validation/correction. HF/CHF counts and
+  placement become configuration later; their current lanes stay private to the
+  initial backend bridge, with no lane-specific public execution contract.
 
 Magnet -- magnet-deploy fcb9459ca1facd8a6fc18a5acda271549f3a5e6e
   E01 MoleculeInference.generate_from_nmr, E02 NmrInference.generate and G01
@@ -357,18 +365,21 @@ Magnet -- magnet-deploy fcb9459ca1facd8a6fc18a5acda271549f3a5e6e
   magnet_provider/analysis_implementation.py also permits contributions without
   a native runner. A direct G01 adapter needs no artificial prepare stage.
   models/e_01_jvae_nmrexp/runner/demo_inference_from_clean_input.py is an existing
-  Jobs-free numerical demonstration. Use these as peer registrations; neither
-  E01/E02/G01 names nor their present worker counts belong in shared scheduling.
+  Jobs-free numerical demonstration. E01/E02 also permit scientific correction
+  after validation. Use these as peer call registrations; neither their names nor
+  their present worker counts belong in shared scheduling.
 
-Future contributions -- register a configured factory, scientific adapter and
+Future contributions -- register a configured factory, scientific calls and
 declared requirements. They may use different input formats, loading strategies
 or no model at all. A new provider should not need a shared scheduler edit. Add
 backend capabilities when a concrete execution requirement needs them, rather
 than claiming this first local backend can already run every future workload.
 
-2. Build the shared service around those workers
-------------------------------------------------
-Tier 0. G01/G07 and the service part of G05.
+2. Build the shared service behind the adopted interface
+---------------------------------------------------------
+Tier 0. G01/G07 and the service part of G05. Start this implementation work after
+the coordinated interface adoption in section 1.1. Once all four providers use
+the execution boundary, shared service extraction can proceed incrementally.
 
 [ ] M2.1 Announce availability at startup and periodically using ProviderAPI's
     Hello. Discover jobs fairly with bounded pages. Discovery, science and delivery
@@ -405,12 +416,13 @@ drain. One and two workers use the same service. Existing work continues to
 receive attention even when no new jobs can be accepted. Tier 0 completes when
 that service and the execution boundary also serve all four providers in M3.
 
-3. Move all current providers onto the same shared code
--------------------------------------------------------
-Tier 0. G01/G12, using G02/G04/G07. Build the four integrations as separate runnable
-increments alongside M1/M2. Choose their order from readiness and useful coverage;
-the numbered provider entries below prescribe no order. All four inform the
-initial boundary and use the same architecture. Inspect each when migrating it.
+3. Replace remaining provider-local service and worker mechanics
+-----------------------------------------------------------------
+Tier 0. G01/G12, using G02/G04/G07. Start this after all four providers have adopted
+the interface in section 1.1. Replace their internals in separate runnable increments
+alongside the pool and M2, without changing the scientific contracts. Choose work
+by readiness and useful coverage; the numbered entries prescribe no provider order.
+Refresh each repository before changing it.
 
 [ ] M3.1 For each necessary temporary adapter, record who owns it, its restriction
     and when it can be removed. Preserve scientific rules and protocol obligations;

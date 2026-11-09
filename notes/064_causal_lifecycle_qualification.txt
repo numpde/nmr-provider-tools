@@ -12,11 +12,15 @@ implementation. Broader generated tests and test infrastructure follow need.
 Note 065 sets priorities and replaces the old test-every-service-first sequence.
 Design the shared package for SECS, NMRNet, NMRPeak and Magnet together, with
 interfaces future scientific implementations can use. No provider sets the design
-or has a prescribed first place. Tier 0 includes a minimal working integration
-for all four, delivered in separate runnable increments. Later recovery and
-optimization extend the same code. This note preserves historical source review
-and safety rules, not new run or release claims. Results in 058/060/061 apply
-only to their named revisions and artifacts; 065 records the current source map.
+or has a prescribed first place. First implement the shared contribution and
+execution interfaces in provider-core and all four provider repositories. Their
+actual scientific and guarded execution paths must use them. After that common
+boundary is in place, pools, services and provider internals can improve in
+separate runnable increments. Tier 0 still includes useful local pools and the
+common service for all four; adopting the interface alone does not complete it.
+This note preserves historical source review and safety rules, not new run or
+release claims. Results in 058/060/061 apply only to their named revisions and
+artifacts; 065 records the current source map.
 
 Control faults through observed events, such as the original operation stopping,
 rather than guessed delays. Test deadlines and Retry-After separately. Reuse
@@ -59,7 +63,9 @@ Who owns what
    numerical signature. The shared host/service manages workers and scheduling.
 4. RunnerSession/AsyncRunnerSession stay in the SDK. Retain actual worker-exit and
    resource-release tests. Provider-specific streams, readers and loaded-worker
-   reuse stay with the adapter until a concrete shared replacement exists.
+   reuse can stay behind backend bridges until a concrete shared replacement
+   exists. They implement the common execution contract; scientific functions
+   do not acquire process-management responsibilities.
 5. Deployment, identity and image tooling remain separate from service tests.
 
 Adapters do not add a poller or shutdown loop. No provider-name branches or
@@ -231,16 +237,24 @@ B. Real-process tests for exit and resource release.
    monotonic time. Withholding observation of an exited child tests missing exit
    evidence; it does not simulate an unkillable child.
 
-   The first implementation uses small real-process examples drawn from all four
+   When adding shared pools, use small real-process examples drawn from all four
    providers' different needs: reuse a loaded worker, create separate per-analysis
    state, retain a prepared handle on its worker, finish a result produced in
-   stages, and run different implementations together. Note 065 gives the concrete
-   first-commit plan. These examples test shared machinery, not real-model adoption.
+   stages, and run different implementations together. This follows the initial
+   interface adoption across the actual providers. Examples check new shared
+   machinery; they do not replace that adoption or establish real-model behavior.
 
 C. Actual provider integration when migrating or releasing that provider.
    Use the real adapter and production assembly path. A recording fake does not
    test a native protocol; scripted processes do not test a deployed model.
    Shared SDK tests do not replace a check of the consumer's worker connection.
+
+   For the first coordinated interface change, use focused checks in each
+   repository's existing lanes. Its actual scientific adapter and existing
+   guarded backend route must use the new contracts. An unused Protocol, alias
+   or separate demonstration is insufficient. Preserve preparation correction,
+   portable input or worker-bound state as the implementation requires. No new
+   validation phase or exhaustive old-service campaign is needed.
 
 For independent progress, hold A's original cleanup observation, let B finish
 on separate resources, then supply A's evidence. Use a valid release case such
@@ -314,14 +328,19 @@ a deadline to expire; do not hide that by raising every timeout.
 
 Migration and completion
 ------------------------
-Follow 065: run science directly, host the same code with one/two workers, then
-build the shared service. All four current providers inform that interface from
-the start. Complete their minimal integrations within Tier 0, in separate runnable
-increments chosen for useful progress; there is no fixed provider order or need
-to migrate all four in one commit. Actual consumer or model claims require its
-real adapter and relevant tests when integrated, not an upfront test project for
-every old service. Compare old/new code on the same candidate only for a concrete
-risk. Never run two live schedulers under one provider identity.
+Follow 065: implement the lasting contribution and execution interfaces in the
+shared package and adopt them in all four repositories first. Both the real
+scientific calls and their existing guarded backend routes use the boundary.
+Keep existing permission checks until equivalent host checks work and are tested.
+This is a coordinated set of runnable commits, with no privileged provider and
+no requirement for one giant commit.
+
+Then improve providers, shared pools and the common service independently behind
+those contracts. Complete direct/hosted one/two-worker operation and the useful
+service for all four within Tier 0. Actual model or deployment claims still need
+the relevant run; interface adoption does not establish them. Compare old/new
+code on the same candidate only for a concrete risk. Never run two live schedulers
+under one provider identity.
 
 Deliver working increments. Keep observing original work when capacity is full,
 no new Jobs are accepted or no offerings are announced. The first shared design
