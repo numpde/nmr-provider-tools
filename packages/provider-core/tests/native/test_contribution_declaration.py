@@ -42,7 +42,7 @@ class ContributionDeclarationTests(unittest.TestCase):
         self.assertEqual((coefficient_asset,), binding.description.assets)
         self.assertEqual(
             declaration.binding_revision(
-                implementation="dummy.weighted-sum.v1",
+                implementation="dummy.weighted-sum.v2",
                 configuration=configuration,
                 assets=(coefficient_asset,),
             ),
@@ -55,7 +55,7 @@ class ContributionDeclarationTests(unittest.TestCase):
         self.assertIsNone(binding.description.configuration)
         self.assertEqual(
             declaration.binding_revision(
-                implementation="dummy.sum.v4",
+                implementation="dummy.sum.v5",
                 configuration=None,
                 assets=(),
             ),
@@ -80,12 +80,12 @@ class ContributionDeclarationTests(unittest.TestCase):
 
         self.assertNotEqual(
             declaration.binding_revision(
-                implementation="dummy.weighted-sum.v1",
+                implementation="dummy.weighted-sum.v2",
                 configuration=first,
                 assets=(),
             ),
             declaration.binding_revision(
-                implementation="dummy.weighted-sum.v1",
+                implementation="dummy.weighted-sum.v2",
                 configuration=second,
                 assets=(),
             ),

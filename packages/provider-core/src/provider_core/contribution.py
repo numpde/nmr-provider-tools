@@ -68,12 +68,26 @@ def _callback(value: object, label: str) -> None:
 
 
 @dataclass(frozen=True, slots=True)
-class _ScientificTypes:
-    instance: type[object]
-    analysis: type[object]
+class _ScientificCallShape:
+    parameters: tuple[str, ...]
+    instance: type[object] | None
+    analysis: type[object] | None
     input: type[object]
     state: type[object]
     output: type[object]
+    control: bool
+
+
+_NO_INPUT_FORMAT = "provider-core.no-input.v1"
+
+
+_CALL_PARAMETERS = (
+    "instance",
+    "analysis",
+    "scientific_input",
+    "state",
+    "control",
+)
 
 
 def _resolved_callable_hints(
@@ -139,65 +153,107 @@ def _require_callable_signature(
         )
 
 
-def _scientific_types(
-    scientific_call: Callable[..., object],
-) -> _ScientificTypes:
+def _constructed_type(
+    callable_: Callable[..., object],
+    *,
+    parameter_types: tuple[type[object], ...],
+    label: str,
+) -> type[object]:
     parameters = _positional_parameters(
-        scientific_call,
-        count=5,
-        label="Scientific call",
+        callable_,
+        count=len(parameter_types),
+        label=label,
     )
-    hints = _resolved_callable_hints(scientific_call, label="Scientific call")
+    hints = _resolved_callable_hints(callable_, label=label)
 
-    annotated_types = []
-    for parameter in parameters[:4]:
+    for parameter, expected_type in zip(parameters, parameter_types, strict=True):
+        if hints.get(parameter.name) is not expected_type:
+            raise TypeError(
+                f"{label} parameter {parameter.name!r} annotation must be exactly "
+                f"{expected_type.__qualname__}"
+            )
+
+    constructed_type = hints.get("return")
+    if not isinstance(constructed_type, type) or constructed_type is NoneType:
+        raise TypeError(f"{label} must declare one concrete return type")
+    return constructed_type
+
+
+def _scientific_call_shape(
+    scientific_call: Callable[..., object],
+) -> _ScientificCallShape:
+    try:
+        signature = inspect.signature(scientific_call)
+    except (TypeError, ValueError) as error:
+        raise TypeError("Scientific call must expose an inspectable signature") from error
+
+    parameters = tuple(signature.parameters.values())
+    if any(
+        parameter.kind is not inspect.Parameter.KEYWORD_ONLY
+        or parameter.default is not inspect.Parameter.empty
+        for parameter in parameters
+    ):
+        raise TypeError(
+            "Scientific call parameters must be required keyword-only parameters"
+        )
+
+    names = tuple(parameter.name for parameter in parameters)
+    unknown = tuple(name for name in names if name not in _CALL_PARAMETERS)
+    if unknown:
+        raise TypeError(f"Scientific call has unknown parameters: {unknown!r}")
+    canonical_names = tuple(name for name in _CALL_PARAMETERS if name in names)
+    if names != canonical_names:
+        raise TypeError(
+            "Scientific call parameters must follow instance, analysis, "
+            "scientific_input, state, control order"
+        )
+
+    hints = _resolved_callable_hints(scientific_call, label="Scientific call")
+    annotations = {}
+    for parameter in parameters:
         annotation = hints.get(parameter.name)
+        if parameter.name == "control":
+            if annotation is not ScientificControl:
+                raise TypeError(
+                    "Scientific call control annotation must be ScientificControl"
+                )
+            continue
         if not isinstance(annotation, type):
             raise TypeError(
                 f"Scientific call parameter {parameter.name!r} annotation must be "
                 "a concrete type"
             )
-        annotated_types.append(annotation)
+        annotations[parameter.name] = annotation
 
-    control_type = hints.get(parameters[4].name)
-    if control_type is not ScientificControl:
-        raise TypeError("Scientific call control annotation must be ScientificControl")
+    instance_type = annotations.get("instance")
+    analysis_type = annotations.get("analysis")
+    input_type = annotations.get("scientific_input", NoInput)
+    state_type = annotations.get("state", NoState)
+    if instance_type is NoneType:
+        raise TypeError("Omit the instance parameter when a call has no instance")
+    if analysis_type is NoneType:
+        raise TypeError("Omit the analysis parameter when a call has no analysis")
+    if "scientific_input" in names and input_type is NoInput:
+        raise TypeError("Omit scientific_input when a call has no input fields")
+    if "state" in names and state_type is NoState:
+        raise TypeError("Omit state when a call has no retained scientific state")
 
     returned = hints.get("return")
     if get_origin(returned) is not ScientificReturn or len(get_args(returned)) != 1:
         raise TypeError("Scientific call return annotation must be ScientificReturn[OutputT]")
-
     (output_type,) = get_args(returned)
     if not isinstance(output_type, type):
         raise TypeError("Scientific call output annotation must be a concrete type")
 
-    instance_type, analysis_type, input_type, state_type = annotated_types
-    return _ScientificTypes(
+    return _ScientificCallShape(
+        parameters=names,
         instance=instance_type,
         analysis=analysis_type,
         input=input_type,
         state=state_type,
         output=output_type,
+        control="control" in names,
     )
-
-
-def _require_scientific_signature(
-    scientific_call: Callable[..., object],
-    input_type: type[object],
-    state_type: type[object],
-    output_type: type[object],
-) -> None:
-    scientific_types = _scientific_types(scientific_call)
-    for actual, expected, label in (
-        (scientific_types.input, input_type, "input"),
-        (scientific_types.state, state_type, "state"),
-        (scientific_types.output, output_type, "output"),
-    ):
-        if actual is not expected:
-            raise TypeError(
-                f"Scientific call {label} annotation must be exactly "
-                f"{expected.__qualname__}"
-            )
 
 
 class StateUse(StrEnum):
@@ -468,8 +524,11 @@ class ScientificReturn[OutputT]:
     """Retain this typed scientific result and its states before encoding."""
 
     value: OutputT = field(repr=False)
-    states: tuple[ReturnedState[Any], ...]
-    dispose_value: Callable[[OutputT], None] | None = field(repr=False)
+    states: tuple[ReturnedState[Any], ...] = ()
+    dispose_value: Callable[[OutputT], None] | None = field(
+        default=None,
+        repr=False,
+    )
 
     def __post_init__(self) -> None:
         _records(self.states, ReturnedState, "Returned scientific states")
@@ -479,17 +538,15 @@ class ScientificReturn[OutputT]:
 
 
 @dataclass(frozen=True, slots=True)
-class CallBinding[InstanceT, AnalysisT, InputT, StateT, OutputT]:
+class CallBinding[InputT, StateT, OutputT]:
     """Preserve provider types across payload, state, science and result boundaries."""
 
     description: CallDescription
     input_codec: PayloadCodec[InputT] = field(repr=False)
     state_binding: StateBinding[StateT] = field(repr=False)
-    scientific_call: Callable[
-        [InstanceT, AnalysisT, InputT, StateT, ScientificControl],
-        ScientificReturn[OutputT],
-    ] = field(repr=False)
+    scientific_call: Callable[..., ScientificReturn[OutputT]] = field(repr=False)
     result_codec: PayloadCodec[OutputT] = field(repr=False)
+    _shape: _ScientificCallShape = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
         if type(self.description) is not CallDescription:
@@ -515,19 +572,34 @@ class CallBinding[InstanceT, AnalysisT, InputT, StateT, OutputT]:
             raise ValueError("State binding fields differ from the call's declared state inputs")
 
         _callback(self.scientific_call, "Scientific call")
-        _require_scientific_signature(
-            scientific_call=self.scientific_call,
-            input_type=self.input_codec.value_type,
-            state_type=self.state_binding.value_type,
-            output_type=self.result_codec.value_type,
+        shape = _scientific_call_shape(self.scientific_call)
+        for actual, expected, label in (
+            (shape.input, self.input_codec.value_type, "input"),
+            (shape.state, self.state_binding.value_type, "state"),
+            (shape.output, self.result_codec.value_type, "output"),
+        ):
+            if actual is not expected:
+                raise TypeError(
+                    f"Scientific call {label} annotation must be exactly "
+                    f"{expected.__qualname__}"
+                )
+        needs_control = (
+            self.description.interruption is InterruptionSupport.COOPERATIVE
+            or self.description.progress
         )
+        if shape.control != needs_control:
+            raise TypeError(
+                "Scientific call control parameter must match its interruption "
+                "and progress declarations"
+            )
+        object.__setattr__(self, "_shape", shape)
 
     @classmethod
     def from_json_dataclasses(
         cls,
         *,
         name: str,
-        input_format: str,
+        input_format: str | None = None,
         result_format: str,
         state_inputs: tuple[StateParameter, ...],
         state_outputs: tuple[StateOutput, ...],
@@ -535,19 +607,29 @@ class CallBinding[InstanceT, AnalysisT, InputT, StateT, OutputT]:
         concurrency: ConcurrencyRequirement,
         interruption: InterruptionSupport,
         progress: bool,
-        scientific_call: Callable[
-            [InstanceT, AnalysisT, InputT, StateT, ScientificControl],
-            ScientificReturn[OutputT],
-        ],
-    ) -> CallBinding[InstanceT, AnalysisT, InputT, StateT, OutputT]:
+        scientific_call: Callable[..., ScientificReturn[OutputT]],
+    ) -> CallBinding[InputT, StateT, OutputT]:
         """Build one typed JSON call from its scientific function and metadata."""
-        scientific_types = _scientific_types(scientific_call)
-        input_type = cast(type[InputT], scientific_types.input)
-        state_type = cast(type[StateT], scientific_types.state)
-        output_type = cast(type[OutputT], scientific_types.output)
+        shape = _scientific_call_shape(scientific_call)
+        input_type = cast(type[InputT], shape.input)
+        state_type = cast(type[StateT], shape.state)
+        output_type = cast(type[OutputT], shape.output)
+
+        if input_type is NoInput:
+            if input_format is not None:
+                raise ValueError(
+                    "Omit input_format when the scientific call has no input"
+                )
+            admitted_input_format = _NO_INPUT_FORMAT
+        else:
+            if input_format is None:
+                raise ValueError(
+                    "A scientific call with input requires input_format"
+                )
+            admitted_input_format = input_format
 
         input_codec = JsonDataclassCodec(
-            format=input_format,
+            format=admitted_input_format,
             value_type=input_type,
         )
         result_codec = JsonDataclassCodec(
@@ -579,20 +661,22 @@ class CallBinding[InstanceT, AnalysisT, InputT, StateT, OutputT]:
 
     def invoke(
         self,
-        instance: InstanceT,
-        analysis: AnalysisT,
+        instance: object,
+        analysis: object,
         scientific_input: InputT,
         live_states: Mapping[str, object],
         control: ScientificControl,
     ) -> ScientificReturn[OutputT]:
-        """Bind live state to StateT immediately before the scientific call."""
-        state = self.state_binding.bind(live_states)
+        """Bind and pass only the scientific values this call declares."""
+        available = {
+            "instance": instance,
+            "analysis": analysis,
+            "scientific_input": scientific_input,
+            "state": self.state_binding.bind(live_states),
+            "control": control,
+        }
         return self.scientific_call(
-            instance,
-            analysis,
-            scientific_input,
-            state,
-            control,
+            **{name: available[name] for name in self._shape.parameters}
         )
 
     def encode_result(self, value: OutputT) -> bytes:
@@ -606,7 +690,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
     description: ImplementationDescription
     instance: InstanceHooks[InstanceT] | None
     analysis: AnalysisHooks[InstanceT, AnalysisT] | None
-    calls: tuple[CallBinding[InstanceT, AnalysisT, Any, Any, Any], ...]
+    calls: tuple[CallBinding[Any, Any, Any], ...]
 
     def __post_init__(self) -> None:
         if type(self.description) is not ImplementationDescription:
@@ -622,29 +706,12 @@ class ImplementationBinding[InstanceT, AnalysisT]:
         if len(bound) != len(self.calls) or bound != declared:
             raise ValueError("Call bindings must agree exactly with the declared calls")
 
-        scientific_types = tuple(
-            _scientific_types(call.scientific_call)
-            for call in self.calls
-        )
-        instance_type = scientific_types[0].instance
-        analysis_type = scientific_types[0].analysis
-        if any(types.instance is not instance_type for types in scientific_types):
-            raise TypeError("All calls in one implementation must use one instance type")
-        if any(types.analysis is not analysis_type for types in scientific_types):
-            raise TypeError("All calls in one implementation must use one analysis type")
-
         if self.instance is None:
-            if instance_type is not NoneType:
-                raise TypeError(
-                    "Calls without instance hooks must annotate the instance as None"
-                )
+            instance_type = NoneType
         else:
-            if instance_type is NoneType:
-                raise TypeError("Instance hooks require a non-None scientific instance type")
-            _require_callable_signature(
+            instance_type = _constructed_type(
                 self.instance.construct,
                 parameter_types=(),
-                return_type=instance_type,
                 label="Instance constructor",
             )
             _require_callable_signature(
@@ -661,17 +728,11 @@ class ImplementationBinding[InstanceT, AnalysisT]:
             )
 
         if self.analysis is None:
-            if analysis_type is not NoneType:
-                raise TypeError(
-                    "Calls without analysis hooks must annotate the analysis as None"
-                )
+            analysis_type = NoneType
         else:
-            if analysis_type is NoneType:
-                raise TypeError("Analysis hooks require a non-None scientific analysis type")
-            _require_callable_signature(
+            analysis_type = _constructed_type(
                 self.analysis.construct,
                 parameter_types=(instance_type,),
-                return_type=analysis_type,
                 label="Analysis constructor",
             )
             _require_callable_signature(
@@ -687,6 +748,19 @@ class ImplementationBinding[InstanceT, AnalysisT]:
                 label="Analysis disposer",
             )
 
+        for call in self.calls:
+            shape = call._shape
+            if shape.instance is not None and shape.instance is not instance_type:
+                raise TypeError(
+                    f"Call {call.description.name!r} instance annotation must be "
+                    f"{instance_type.__qualname__}"
+                )
+            if shape.analysis is not None and shape.analysis is not analysis_type:
+                raise TypeError(
+                    f"Call {call.description.name!r} analysis annotation must be "
+                    f"{analysis_type.__qualname__}"
+                )
+
     @classmethod
     def from_calls(
         cls,
@@ -696,7 +770,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
         contract_version: int,
         configuration: ConfigurationDescription | None,
         assets: tuple[AssetDescription, ...],
-        calls: tuple[CallBinding[InstanceT, AnalysisT, Any, Any, Any], ...],
+        calls: tuple[CallBinding[Any, Any, Any], ...],
         resident_resources: tuple[ResourceRequirement, ...],
         isolation: IsolationRequirement,
         instance: InstanceHooks[InstanceT] | None,

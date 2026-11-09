@@ -35,15 +35,13 @@ def weighted_sum_binding(
         )
 
     def prepare(
-        _model: science.WeightedSumModel,
+        *,
         analysis: science.WeightedSumAnalysis,
-        candidate: science.PreparationInput,
-        _state: contribution.NoState,
-        _control: contribution.ScientificControl,
+        scientific_input: science.PreparationInput,
     ) -> contribution.ScientificReturn[science.PreparationResult]:
         prepared = science.prepare(
             analysis=analysis,
-            candidate=candidate,
+            candidate=scientific_input,
         )
 
         return contribution.ScientificReturn(
@@ -56,13 +54,11 @@ def weighted_sum_binding(
                     dispose=science.dispose_prepared,
                 ),
             ),
-            dispose_value=None,
         )
 
     def calculate(
-        _model: science.WeightedSumModel,
+        *,
         analysis: science.WeightedSumAnalysis,
-        _input: contribution.NoInput,
         state: science.CalculationState,
         control: contribution.ScientificControl,
     ) -> contribution.ScientificReturn[science.PredictionResult]:
@@ -85,11 +81,7 @@ def weighted_sum_binding(
             )
         )
 
-        return contribution.ScientificReturn(
-            value=prediction,
-            states=(),
-            dispose_value=None,
-        )
+        return contribution.ScientificReturn(value=prediction)
 
     configuration = declaration.json_configuration(
         settings,
@@ -122,7 +114,6 @@ def weighted_sum_binding(
     )
     calculate_call = contribution.CallBinding.from_json_dataclasses(
         name="calculate",
-        input_format="dummy.calculation-input.v1",
         result_format="dummy.prediction-result.v1",
         state_inputs=(
             contribution.StateParameter(
@@ -143,7 +134,7 @@ def weighted_sum_binding(
     return contribution.ImplementationBinding.from_calls(
         binding_id="dummy.weighted-sum",
         binding_revision=declaration.binding_revision(
-            implementation="dummy.weighted-sum.v1",
+            implementation="dummy.weighted-sum.v2",
             configuration=configuration,
             assets=assets,
         ),
@@ -170,16 +161,11 @@ def sum_binding() -> contribution.ImplementationBinding[None, None]:
     """Bind the stateless sum without inventing model or analysis lifetimes."""
 
     def run(
-        _instance: None,
-        _analysis: None,
-        summation: science.SumInput,
-        _state: contribution.NoState,
-        _control: contribution.ScientificControl,
+        *,
+        scientific_input: science.SumInput,
     ) -> contribution.ScientificReturn[science.SumResult]:
         return contribution.ScientificReturn(
-            value=science.sum_values(summation=summation),
-            states=(),
-            dispose_value=None,
+            value=science.sum_values(summation=scientific_input),
         )
 
     configuration = None
@@ -199,7 +185,7 @@ def sum_binding() -> contribution.ImplementationBinding[None, None]:
     return contribution.ImplementationBinding.from_calls(
         binding_id="dummy.sum",
         binding_revision=declaration.binding_revision(
-            implementation="dummy.sum.v4",
+            implementation="dummy.sum.v5",
             configuration=configuration,
             assets=(),
         ),

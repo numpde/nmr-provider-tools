@@ -256,10 +256,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         description = description_document(weighted.description)
 
         self.assertEqual("shared_process", description["isolation"])
-        self.assertEqual(
-            ["prepare", "calculate"],
-            [call["name"] for call in description["calls"]],
-        )
+        self.assertEqual(["prepare", "calculate"], [c["name"] for c in description["calls"]])
         self.assertIsNone(ordinary.description.configuration)
 
         host = self.host({"weighted": weighted, "sum": ordinary})
@@ -327,14 +324,10 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         entered = {"decode": 0, "invoke": 0}
 
         @wraps(original_call.scientific_call)
-        def scientific_call(instance, analysis, summation, state, control):
+        def scientific_call(*, scientific_input):
             entered["invoke"] += 1
             return original_call.scientific_call(
-                instance,
-                analysis,
-                summation,
-                state,
-                control,
+                scientific_input=scientific_input,
             )
 
         wrapped_call = replace(
@@ -510,13 +503,9 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         disposed = []
 
         @wraps(original_call.scientific_call)
-        def scientific_call(instance, analysis, summation, state, control):
+        def scientific_call(*, scientific_input):
             returned = original_call.scientific_call(
-                instance,
-                analysis,
-                summation,
-                state,
-                control,
+                scientific_input=scientific_input,
             )
             retained.append(returned.value)
             return replace(returned, dispose_value=disposed.append)
@@ -557,18 +546,14 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         workers = {}
 
         @wraps(original_call.scientific_call)
-        def scientific_call(instance, analysis, summation, state, control):
-            first_value = summation.values[0]
+        def scientific_call(*, scientific_input):
+            first_value = scientific_input.values[0]
             workers[first_value] = threading.current_thread()
             if first_value == 1.0:
                 loop.call_soon_threadsafe(entered.set)
                 release.wait(10)
             return original_call.scientific_call(
-                instance,
-                analysis,
-                summation,
-                state,
-                control,
+                scientific_input=scientific_input,
             )
 
         wrapped_call = replace(original_call, scientific_call=scientific_call)
@@ -797,10 +782,8 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         loop = asyncio.get_running_loop()
 
         def scientific_call(
-            instance: None,
-            analysis: None,
-            summation: science.SumInput,
-            state: NoState,
+            *,
+            scientific_input: science.SumInput,
             control: ScientificControl,
         ) -> ScientificReturn[science.SumResult]:
             loop.call_soon_threadsafe(entered.set)
@@ -808,9 +791,10 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 pass
             control.report_progress(ProgressEvent(stage="stopping"))
             return ScientificReturn(
-                value=science.SumResult(total=0, count=len(summation.values)),
-                states=(),
-                dispose_value=None,
+                value=science.SumResult(
+                    total=0,
+                    count=len(scientific_input.values),
+                ),
             )
 
         cooperative_call = CallBinding(

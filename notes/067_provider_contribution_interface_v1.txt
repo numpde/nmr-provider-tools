@@ -29,9 +29,10 @@ JSON dictionaries, transport lists, anonymous tuples or execution controllers.
 Live scientific state is separate from portable payloads. The dummy has a loaded
 WeightedSumModel, one WeightedSumAnalysis and worker-local PreparedValues.
 CalculationState is the typed view of retained state required by calculate. Calls
-with no portable fields use the shared NoInput marker; calls with no retained
-scientific state use shared NoState. Contributions do not define empty records
-merely to satisfy the host interface.
+with no portable fields use shared NoInput and the shared
+provider-core.no-input.v1 wire format; calls with no retained scientific state use
+shared NoState. Contributions do not define empty records or provider-specific
+empty formats merely to satisfy the host interface.
 
 Shared structural admission
 ---------------------------
@@ -45,8 +46,8 @@ DataclassStateBinding[T] checks the declared state names and live value types, t
 constructs T immediately before the scientific call. The provider does not receive
 Mapping[str, object].
 
-CallBinding[InstanceT, AnalysisT, InputT, StateT, OutputT] preserves provider types
-through the host-local call:
+CallBinding[InputT, StateT, OutputT] preserves provider types through the
+host-local call:
 
     bytes
       -> PayloadCodec[InputT]
@@ -63,13 +64,19 @@ callable's annotations; constructs the codecs and state binding; and creates the
 CallDescription from the same statement. A provider does not maintain separate
 codec constants, state-binding constants and call descriptions for one call.
 
+A scientific adapter declares required keyword-only parameters selected from
+`instance`, `analysis`, `scientific_input`, `state` and `control`, in that order.
+It omits values it does not use. Omitting `scientific_input` selects shared
+NoInput; omitting `state` selects shared NoState. `control` is permitted exactly
+when the call declares progress or cooperative interruption.
+
 The binding checks that codec formats agree with CallDescription and that each
-scientific callable declares exact instance, analysis, InputT, StateT,
-ScientificControl and ScientificReturn[OutputT] annotations. Every call in one
-implementation must use the same instance and analysis types. Instance and
-analysis construction, initialization and disposal hooks must declare matching
-argument and return types. Mismatches are rejected before scientific resources are
-acquired. Type erasure exists only inside shared heterogeneous dispatch.
+present parameter and ScientificReturn[OutputT] has an exact concrete annotation.
+Any requested instance or analysis type must match the implementation's lifecycle
+hooks. Positional, optional, misordered, unknown and operationally unjustified
+parameters are rejected before scientific resources are acquired. Simple returns
+need only `ScientificReturn(value=...)`; empty state and absent value disposal are
+shared defaults. Type erasure exists only inside shared heterogeneous dispatch.
 
 Scientific and structural refusal remain distinct. ScientificInputRejected derives
 directly from ScientificRejection and supplies the stable code and explanation
@@ -151,13 +158,15 @@ notes/000_portable_engineering_practices.txt at main@8e7eb12. The detailed revie
 passes and focused evidence are recorded in note 068. Subsequent simplification
 removed detached call declarations, generic hashing from the provider adapter,
 catch-and-rethrow rejection translation, global adapter callables, repeated exact
-class checks, provider-specific empty marker records, unchecked lifecycle-hook
-annotations and an unmeasurable dummy resident-resource declaration.
+class checks, provider-specific empty marker records, unchecked lifecycle-hook annotations,
+forced five-argument adapters and an unmeasurable dummy resident-resource
+declaration.
 
-The latest focused harness compiled all revised Python files and ran 23 typed,
-declaration and boundary tests successfully. The revised embedded-host suite also
-compiled but was not executed against the complete package. Canonical
-installed-wheel and Docker qualification remain required.
+The latest focused harness compiled the revised modules and ran 26 typed,
+declaration and boundary tests. These cover the minimal keyword-only call shapes,
+control-capability agreement and implementation lifetime mismatches. The revised
+embedded-host module compiled but was not run against the complete installed
+package. Canonical installed-wheel and Docker qualification remain required.
 
 SECS, NMRNet, NMRPeak and Magnet still need their real scientific and guarded
 execution paths connected to this installed contract. Existing AnalysisSession

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import math
 import unittest
@@ -149,6 +150,10 @@ class TypedContributionTests(unittest.TestCase):
         self.assertIs(contribution.NoState, prepare_call.state_binding.value_type)
         self.assertIs(science.PreparationResult, prepare_call.result_codec.value_type)
         self.assertIs(contribution.NoInput, calculate_call.input_codec.value_type)
+        self.assertEqual(
+            "provider-core.no-input.v1",
+            calculate_call.description.input_format,
+        )
         self.assertIs(science.CalculationState, calculate_call.state_binding.value_type)
         self.assertIs(science.PredictionResult, calculate_call.result_codec.value_type)
         self.assertIs(science.SumInput, sum_call.input_codec.value_type)
@@ -286,16 +291,29 @@ class TypedContributionTests(unittest.TestCase):
                 value_type=MutableInput,
             )
 
-    def test_binding_requires_exact_provider_annotations(self):
+    def test_adapters_declare_only_the_values_they_use(self):
+        (prepare_call, calculate_call) = _weighted_binding().calls
+        sum_call = sum_binding().calls[0]
+
+        self.assertEqual(
+            ("analysis", "scientific_input"),
+            tuple(inspect.signature(prepare_call.scientific_call).parameters),
+        )
+        self.assertEqual(
+            ("analysis", "state", "control"),
+            tuple(inspect.signature(calculate_call.scientific_call).parameters),
+        )
+        self.assertEqual(
+            ("scientific_input",),
+            tuple(inspect.signature(sum_call.scientific_call).parameters),
+        )
+
+    def test_binding_requires_typed_keyword_only_provider_parameters(self):
         call = sum_binding().calls[0]
 
-        def untyped(instance, analysis, scientific_input, state, control):
+        def untyped(*, scientific_input):
             return call.scientific_call(
-                instance,
-                analysis,
-                scientific_input,
-                state,
-                control,
+                scientific_input=scientific_input,
             )
 
         with self.assertRaises(TypeError):
@@ -304,16 +322,62 @@ class TypedContributionTests(unittest.TestCase):
                 scientific_call=untyped,
             )
 
+        def positional(
+            scientific_input: science.SumInput,
+        ) -> contribution.ScientificReturn[science.SumResult]:
+            return call.scientific_call(
+                scientific_input=scientific_input,
+            )
+
+        with self.assertRaises(TypeError):
+            replace(
+                call,
+                scientific_call=positional,
+            )
+
+    def test_no_input_call_rejects_a_provider_specific_empty_format(self):
+        calculate_call = _weighted_binding().calls[1]
+
+        with self.assertRaises(ValueError):
+            contribution.CallBinding.from_json_dataclasses(
+                name=calculate_call.description.name,
+                input_format="dummy.empty.v1",
+                result_format=calculate_call.description.result_format,
+                state_inputs=calculate_call.description.state_inputs,
+                state_outputs=calculate_call.description.state_outputs,
+                resources=calculate_call.description.resources,
+                concurrency=calculate_call.description.concurrency,
+                interruption=calculate_call.description.interruption,
+                progress=calculate_call.description.progress,
+                scientific_call=calculate_call.scientific_call,
+            )
+
+    def test_binding_rejects_unneeded_control_capability(self):
+        call = sum_binding().calls[0]
+
+        def controlled(
+            *,
+            scientific_input: science.SumInput,
+            control: contribution.ScientificControl,
+        ) -> contribution.ScientificReturn[science.SumResult]:
+            return call.scientific_call(
+                scientific_input=scientific_input,
+            )
+
+        with self.assertRaises(TypeError):
+            replace(
+                call,
+                scientific_call=controlled,
+            )
+
     def test_implementation_rejects_inconsistent_instance_types(self):
         binding = _weighted_binding()
         (prepare_call, calculate_call) = binding.calls
 
         def wrong_instance(
-            instance: None,
-            analysis: science.WeightedSumAnalysis,
-            candidate: science.PreparationInput,
-            state: contribution.NoState,
-            control: contribution.ScientificControl,
+            *,
+            instance: science.SumResult,
+            scientific_input: science.PreparationInput,
         ) -> contribution.ScientificReturn[science.PreparationResult]:
             raise AssertionError("This mismatched adapter must not run")
 

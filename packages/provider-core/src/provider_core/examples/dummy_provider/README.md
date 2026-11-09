@@ -17,26 +17,32 @@ to have the same JSON shape still use different types and format identities when
 they mean different things; for example, `PreparationInput` is not `SumInput`.
 Retained worker-local state is bound into `CalculationState`, rather than exposed
 as an untyped mapping. Calls with no portable fields use the shared `NoInput`
-marker, and calls with no retained state use the shared `NoState` marker; the
-provider does not define call-specific empty records.
+marker and shared `provider-core.no-input.v1` wire format; calls with no retained
+state use the shared `NoState` marker. The provider defines neither empty records
+nor provider-specific empty formats.
 
 `ScientificInputRejected` derives directly from `ScientificRejection`. The
 adapter therefore lets a reviewed scientific refusal cross the contribution
 boundary unchanged; it does not catch and reconstruct the exception.
 
 Each scientific call is declared once with
-`contribution.CallBinding.from_json_dataclasses(...)`. The shared constructor
-derives its input codec, retained-state binding and result codec from the
-scientific function's annotations, then creates the scheduler-facing
-`CallDescription` from the same statement.
-`contribution.ImplementationBinding.from_calls(...)` likewise derives the
-implementation's call descriptions from the bound calls.
+`contribution.CallBinding.from_json_dataclasses(...)`. Its adapter uses required
+keyword-only parameters selected from `instance`, `analysis`, `scientific_input`,
+`state` and `control`, and declares only the values or narrow capabilities it
+actually consumes. The dummy's prepare adapter receives `analysis` and
+`scientific_input`; calculate receives `analysis`, `state` and `control`; the
+stateless sum receives only `scientific_input`.
 
-The implementation also checks the instance and analysis annotations on every
-call. All calls in one implementation must agree, and model/analysis lifecycle
-hooks must declare matching argument and return types. Unannotated or mismatched
-hooks are rejected when the binding is constructed, before scientific resources
-are acquired.
+The shared constructor derives the portable codecs and retained-state binding
+from those annotations, then creates the scheduler-facing `CallDescription` from
+the same statement. `contribution.ImplementationBinding.from_calls(...)` likewise
+derives the implementation's call descriptions from the bound calls. It checks
+any requested instance and analysis types against the lifecycle hooks. Unannotated,
+misordered, positional, unknown or operationally unjustified adapter parameters
+are rejected when the binding is constructed, before scientific resources are
+acquired. Simple results use `ScientificReturn(value=...)`; empty state and
+missing disposal callbacks are shared defaults rather than repeated adapter
+boilerplate.
 
 Canonical configuration and asset descriptions, byte digests and configured
 binding revisions are built by `provider_core.contribution_declaration`.
