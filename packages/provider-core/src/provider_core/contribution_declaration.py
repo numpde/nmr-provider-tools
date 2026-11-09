@@ -12,13 +12,6 @@ from provider_core.contribution import AssetDescription, ConfigurationDescriptio
 from provider_core.payload import JsonDataclassCodec
 
 
-__all__ = (
-    "binding_revision",
-    "json_asset",
-    "json_configuration",
-)
-
-
 def _sha256_digest(content: bytes) -> str:
     if type(content) is not bytes:
         raise TypeError("content must be bytes")
@@ -92,7 +85,7 @@ def json_asset[T](
 def binding_revision(
     *,
     implementation: str,
-    configuration: ConfigurationDescription,
+    configuration: ConfigurationDescription | None,
     assets: tuple[AssetDescription, ...],
 ) -> str:
     """Derive a configured binding revision from code, configuration and assets."""
@@ -108,8 +101,13 @@ def binding_revision(
         raise ValueError(
             "implementation must be a nonempty ASCII identity without whitespace"
         )
-    if type(configuration) is not ConfigurationDescription:
-        raise TypeError("configuration must be a ConfigurationDescription")
+    if (
+        configuration is not None
+        and type(configuration) is not ConfigurationDescription
+    ):
+        raise TypeError(
+            "configuration must be a ConfigurationDescription or None"
+        )
     if not (
         type(assets) is tuple
         and all(type(asset) is AssetDescription for asset in assets)
@@ -118,7 +116,11 @@ def binding_revision(
 
     revision_parts = (
         implementation,
-        configuration.digest,
+        (
+            "configuration:none"
+            if configuration is None
+            else configuration.digest
+        ),
         *(asset.digest for asset in assets),
     )
     return _revision_digest(revision_parts)

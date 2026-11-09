@@ -51,11 +51,6 @@ class WeightedSumSettings:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class PlainSumConfiguration:
-    """Immutable marker for the stateless implementation revision."""
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
 class CoefficientSet:
     values: tuple[float, ...]
 
@@ -79,11 +74,6 @@ class PreparationInput:
             "values",
             _finite_values(self.values, label="prepare input values"),
         )
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
-class CalculationInput:
-    """No portable arguments; calculation uses retained prepared state."""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -203,11 +193,6 @@ class PreparedValues:
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class NoLiveState:
-    """Typed marker for a call with no retained scientific state."""
-
-
-@dataclass(frozen=True, slots=True, kw_only=True)
 class CalculationState:
     prepared: PreparedValues
 
@@ -290,7 +275,6 @@ def prepare(
 
 def calculate(
     analysis: WeightedSumAnalysis,
-    calculation: CalculationInput,
     state: CalculationState,
 ) -> PredictionResult:
     if not analysis.is_open:

@@ -263,6 +263,16 @@ class ScientificControl(Protocol):
     def report_progress(self, event: ProgressEvent) -> None: ...
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class NoInput:
+    """Portable marker for a call with no input fields."""
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class NoState:
+    """Host-bound marker for a call with no retained scientific state."""
+
+
 @dataclass(frozen=True, slots=True)
 class CallDescription:
     name: str
@@ -298,7 +308,7 @@ class ImplementationDescription:
     binding_id: str
     binding_revision: str
     contract_version: int
-    configuration: ConfigurationDescription
+    configuration: ConfigurationDescription | None
     assets: tuple[AssetDescription, ...]
     calls: tuple[CallDescription, ...]
     resident_resources: tuple[ResourceRequirement, ...]
@@ -309,8 +319,14 @@ class ImplementationDescription:
         _digest(self.binding_revision, "Binding revision")
         if not (type(self.contract_version) is int and 1 <= self.contract_version):
             raise ValueError("Contract version must be a positive integer")
-        if type(self.configuration) is not ConfigurationDescription:
-            raise TypeError("An implementation requires a ConfigurationDescription")
+        if (
+            self.configuration is not None
+            and type(self.configuration) is not ConfigurationDescription
+        ):
+            raise TypeError(
+                "Implementation configuration must be a ConfigurationDescription "
+                "or None"
+            )
         _records(self.assets, AssetDescription, "Scientific assets")
         _unique(self.assets, lambda value: value.name, "Scientific assets")
         _records(self.calls, CallDescription, "Call descriptions")
@@ -548,7 +564,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
         binding_id: str,
         binding_revision: str,
         contract_version: int,
-        configuration: ConfigurationDescription,
+        configuration: ConfigurationDescription | None,
         assets: tuple[AssetDescription, ...],
         calls: tuple[CallBinding[InstanceT, AnalysisT, Any, Any, Any], ...],
         resident_resources: tuple[ResourceRequirement, ...],
@@ -592,10 +608,14 @@ def description_document(description: ImplementationDescription) -> dict[str, ob
         "binding_id": description.binding_id,
         "binding_revision": description.binding_revision,
         "contract_version": description.contract_version,
-        "configuration": {
-            "format": description.configuration.format,
-            "digest": description.configuration.digest,
-        },
+        "configuration": (
+            None
+            if description.configuration is None
+            else {
+                "format": description.configuration.format,
+                "digest": description.configuration.digest,
+            }
+        ),
         "assets": [
             {
                 "name": asset.name,

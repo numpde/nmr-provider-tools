@@ -7,7 +7,7 @@ import math
 import unittest
 from dataclasses import dataclass, replace
 
-from provider_core.contribution import ScientificRejection
+import provider_core.contribution as contribution
 from provider_core.examples.dummy_provider import science
 from provider_core.examples.dummy_provider.binding import (
     sum_binding,
@@ -60,7 +60,6 @@ class TypedContributionTests(unittest.TestCase):
 
         result = science.calculate(
             analysis=analysis,
-            calculation=science.CalculationInput(),
             state=science.CalculationState(prepared=prepared),
         )
 
@@ -142,15 +141,19 @@ class TypedContributionTests(unittest.TestCase):
                         call.state_binding.names,
                     )
 
-    def test_call_constructor_derives_provider_types_from_the_scientific_call(self):
+    def test_call_constructor_derives_provider_and_shared_marker_types(self):
         (prepare_call, calculate_call) = _weighted_binding().calls
+        sum_call = sum_binding().calls[0]
 
         self.assertIs(science.PreparationInput, prepare_call.input_codec.value_type)
-        self.assertIs(science.NoLiveState, prepare_call.state_binding.value_type)
+        self.assertIs(contribution.NoState, prepare_call.state_binding.value_type)
         self.assertIs(science.PreparationResult, prepare_call.result_codec.value_type)
-        self.assertIs(science.CalculationInput, calculate_call.input_codec.value_type)
+        self.assertIs(contribution.NoInput, calculate_call.input_codec.value_type)
         self.assertIs(science.CalculationState, calculate_call.state_binding.value_type)
         self.assertIs(science.PredictionResult, calculate_call.result_codec.value_type)
+        self.assertIs(science.SumInput, sum_call.input_codec.value_type)
+        self.assertIs(contribution.NoState, sum_call.state_binding.value_type)
+        self.assertIs(science.SumResult, sum_call.result_codec.value_type)
 
     def test_equal_wire_shapes_keep_distinct_provider_types_and_formats(self):
         prepare_call = _weighted_binding().calls[0]
@@ -198,7 +201,9 @@ class TypedContributionTests(unittest.TestCase):
 
         self.assertIs(science.PreparationInput, type(preparation_input))
 
-        with self.assertRaises(ScientificRejection) as preparation_rejection:
+        with self.assertRaises(
+            contribution.ScientificRejection
+        ) as preparation_rejection:
             prepare_call.invoke(
                 model,
                 analysis,
@@ -211,7 +216,7 @@ class TypedContributionTests(unittest.TestCase):
         sum_call = sum_binding().calls[0]
         sum_input = sum_call.decode_input(b'{"values":[]}')
 
-        with self.assertRaises(ScientificRejection) as sum_rejection:
+        with self.assertRaises(contribution.ScientificRejection) as sum_rejection:
             sum_call.invoke(
                 None,
                 None,

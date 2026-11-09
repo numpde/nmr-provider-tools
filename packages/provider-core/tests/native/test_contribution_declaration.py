@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import dataclass
 
 import provider_core.contribution_declaration as declaration
 from provider_core.examples.dummy_provider import science
@@ -48,18 +49,14 @@ class ContributionDeclarationTests(unittest.TestCase):
             binding.description.binding_revision,
         )
 
-    def test_stateless_binding_revision_includes_its_configuration(self):
+    def test_stateless_binding_does_not_invent_configuration(self):
         binding = sum_binding()
-        configuration = declaration.json_configuration(
-            science.PlainSumConfiguration(),
-            format_id="dummy.sum-configuration.v1",
-        )
 
-        self.assertEqual(configuration, binding.description.configuration)
+        self.assertIsNone(binding.description.configuration)
         self.assertEqual(
             declaration.binding_revision(
-                implementation="dummy.sum.v3",
-                configuration=configuration,
+                implementation="dummy.sum.v4",
+                configuration=None,
                 assets=(),
             ),
             binding.description.binding_revision,
@@ -90,6 +87,29 @@ class ContributionDeclarationTests(unittest.TestCase):
             declaration.binding_revision(
                 implementation="dummy.weighted-sum.v1",
                 configuration=second,
+                assets=(),
+            ),
+        )
+
+    def test_absent_and_explicit_empty_configuration_are_distinct(self):
+        @dataclass(frozen=True, slots=True, kw_only=True)
+        class EmptyConfiguration:
+            pass
+
+        explicit_empty = declaration.json_configuration(
+            EmptyConfiguration(),
+            format_id="test.empty.v1",
+        )
+
+        self.assertNotEqual(
+            declaration.binding_revision(
+                implementation="test.implementation.v1",
+                configuration=None,
+                assets=(),
+            ),
+            declaration.binding_revision(
+                implementation="test.implementation.v1",
+                configuration=explicit_empty,
                 assets=(),
             ),
         )

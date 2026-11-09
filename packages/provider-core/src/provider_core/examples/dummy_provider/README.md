@@ -16,7 +16,9 @@ admit bytes into the exact provider type before science runs. Calls that happen
 to have the same JSON shape still use different types and format identities when
 they mean different things; for example, `PreparationInput` is not `SumInput`.
 Retained worker-local state is bound into `CalculationState`, rather than exposed
-as an untyped mapping.
+as an untyped mapping. Calls with no portable fields use the shared `NoInput`
+marker, and calls with no retained state use the shared `NoState` marker; the
+provider does not define call-specific empty records.
 
 `ScientificInputRejected` derives directly from `ScientificRejection`. The
 adapter therefore lets a reviewed scientific refusal cross the contribution
@@ -33,8 +35,10 @@ implementation's call descriptions from the bound calls.
 Canonical configuration and asset descriptions, byte digests and configured
 binding revisions are built by `provider_core.contribution_declaration`.
 `binding.py` supplies the provider-owned values and semantic identities; it does
-not implement generic JSON encoding or hashing. Callers use `sum_binding` and
-`weighted_sum_binding` to construct the two example implementations.
+not implement generic JSON encoding or hashing. The stateless sum declares
+`configuration=None` instead of inventing an empty configuration record. Callers
+use `sum_binding` and `weighted_sum_binding` to construct the two example
+implementations.
 
 The weighted example declares active CPU work but does not invent a resident
 resource quantity for its tiny coefficient tuple. Shared backend tests add a

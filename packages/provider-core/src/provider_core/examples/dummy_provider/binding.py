@@ -34,7 +34,7 @@ def weighted_sum_binding(
         _model: science.WeightedSumModel,
         analysis: science.WeightedSumAnalysis,
         candidate: science.PreparationInput,
-        _state: science.NoLiveState,
+        _state: contribution.NoState,
         _control: contribution.ScientificControl,
     ) -> contribution.ScientificReturn[science.PreparationResult]:
         prepared = science.prepare(
@@ -58,7 +58,7 @@ def weighted_sum_binding(
     def calculate(
         _model: science.WeightedSumModel,
         analysis: science.WeightedSumAnalysis,
-        calculation: science.CalculationInput,
+        _input: contribution.NoInput,
         state: science.CalculationState,
         control: contribution.ScientificControl,
     ) -> contribution.ScientificReturn[science.PredictionResult]:
@@ -71,7 +71,6 @@ def weighted_sum_binding(
         )
         prediction = science.calculate(
             analysis=analysis,
-            calculation=calculation,
             state=state,
         )
         control.report_progress(
@@ -174,7 +173,7 @@ def sum_binding() -> contribution.ImplementationBinding[None, None]:
         _instance: None,
         _analysis: None,
         summation: science.SumInput,
-        _state: science.NoLiveState,
+        _state: contribution.NoState,
         _control: contribution.ScientificControl,
     ) -> contribution.ScientificReturn[science.SumResult]:
         return contribution.ScientificReturn(
@@ -183,10 +182,7 @@ def sum_binding() -> contribution.ImplementationBinding[None, None]:
             dispose_value=None,
         )
 
-    configuration = declaration.json_configuration(
-        science.PlainSumConfiguration(),
-        format_id="dummy.sum-configuration.v1",
-    )
+    configuration = None
     run_call = contribution.CallBinding.from_json_dataclasses(
         name="run",
         input_format="dummy.sum-input.v1",
@@ -203,7 +199,7 @@ def sum_binding() -> contribution.ImplementationBinding[None, None]:
     return contribution.ImplementationBinding.from_calls(
         binding_id="dummy.sum",
         binding_revision=declaration.binding_revision(
-            implementation="dummy.sum.v3",
+            implementation="dummy.sum.v4",
             configuration=configuration,
             assets=(),
         ),

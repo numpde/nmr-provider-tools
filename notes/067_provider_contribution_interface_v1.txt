@@ -18,9 +18,8 @@ A contribution defines ordinary provider-owned types for its scientific facts.
 The dummy uses separate immutable dataclasses for:
 
 - WeightedSumSettings and CoefficientSet;
-- PreparationInput, CalculationInput and SumInput;
-- PreparationResult, PredictionResult and SumResult;
-- PlainSumConfiguration.
+- PreparationInput and SumInput;
+- PreparationResult, PredictionResult and SumResult.
 
 Equal wire shapes do not collapse distinct meanings. PreparationInput and
 SumInput both contain values, but they are different types with different format
@@ -29,8 +28,10 @@ JSON dictionaries, transport lists, anonymous tuples or execution controllers.
 
 Live scientific state is separate from portable payloads. The dummy has a loaded
 WeightedSumModel, one WeightedSumAnalysis and worker-local PreparedValues.
-CalculationState is the typed view of retained state required by calculate.
-NoLiveState truthfully represents a call with no retained scientific state.
+CalculationState is the typed view of retained state required by calculate. Calls
+with no portable fields use the shared NoInput marker; calls with no retained
+scientific state use shared NoState. Contributions do not define empty records
+merely to satisfy the host interface.
 
 Shared structural admission
 ---------------------------
@@ -80,7 +81,7 @@ Scheduler description and host-local binding
 The scheduler-readable ImplementationDescription contains only immutable data:
 
 - binding identity and sha256 revision;
-- configuration format and digest;
+- optional configuration format and digest;
 - named assets with media type, size and digest;
 - resident and per-call resource requirements;
 - minimum process isolation and call concurrency;
@@ -97,8 +98,10 @@ second time.
 provider_core.contribution_declaration owns canonical JSON encoding for
 configuration and asset descriptions, their sha256 digests and configured binding
 revision construction. A contribution supplies provider-owned values, format and
-media identities, and one implementation revision identity. It does not duplicate
-generic encoding, byte counting, hashing or length-prefixing helpers.
+media identities, and one implementation revision identity. An implementation
+with no configuration uses None; absence remains distinct from an explicit empty
+configuration document. The contribution does not duplicate generic encoding,
+byte counting, hashing or length-prefixing helpers.
 
 ScientificControl is the only optional operational capability visible to an
 adapter. It exposes a stop flag and bounded progress reporting, not Jobs authority,
@@ -135,8 +138,8 @@ modules. The package contains no provider-local operational machinery.
 The stateful implementation demonstrates immutable configuration/assets, loaded
 instance and per-analysis lifetimes, rejected and corrected preparation,
 worker-local prepared state, consuming calculation, progress and cleanup. The
-stateless sum uses the same typed contribution interface without inventing model
-or analysis lifetimes.
+stateless sum uses the same typed contribution interface without inventing
+configuration, model or analysis lifetimes.
 
 Current evidence and limits
 ---------------------------
@@ -145,12 +148,13 @@ notes/000_portable_engineering_practices.txt at main@8e7eb12. The detailed revie
 passes and focused evidence are recorded in note 068. Subsequent simplification
 removed detached call declarations, generic hashing from the provider adapter,
 catch-and-rethrow rejection translation, global adapter callables, repeated exact
-class checks and an unmeasurable dummy resident-resource declaration.
+class checks, provider-specific empty marker records and an unmeasurable dummy
+resident-resource declaration.
 
-Focused checks for the latest changes compiled the revised modules, exercised the
-lightweight rejection identity and direct science import without the runtime guard,
-and reproduced the previous source blobs before applying the intended edits. The
-canonical installed-wheel/Docker lanes remain required.
+The latest focused harness compiled all revised Python files and ran 21 typed,
+declaration and boundary tests successfully. The revised embedded-host suite also
+compiled but was not executed against the complete package. Canonical
+installed-wheel and Docker qualification remain required.
 
 SECS, NMRNet, NMRPeak and Magnet still need their real scientific and guarded
 execution paths connected to this installed contract. Existing AnalysisSession
