@@ -63,6 +63,18 @@ cleanup. It supplies none of the operational platform: no CLI, Jobs client,
 interpreter, scheduler, execution host, pool, allocator, permission owner,
 supervision, recovery, delivery, drain or deployment code.
 
-Shared tests create allocations, submit fake work, enforce permission, retain
-results and perform cleanup. A real provider replaces the dummy scientific types
-and functions while keeping the same ownership boundary.
+## Provider-modular conformance
+
+`tests/providers/dummy.py` owns the dummy provider's binding factories, exact wire
+inputs, expected wire results, reviewed rejection codes and state handoffs.
+`provider_core.provider_conformance.ProviderConformanceTests` owns the generic
+execution checks: it creates fixed allocations, submits identified calls, observes
+results and progress, releases retained results, closes analyses and retires the
+host. `tests/integration/test_dummy_provider_conformance.py` only joins those two
+pieces.
+
+The dummy fixture runs the weighted implementation first with one allocation and
+then with two allocations of the same binding, without changing scientific code.
+It also exercises rejected and corrected preparation, retained prepared state,
+progress and the stateless sum. A real provider repository supplies an equivalent
+fixture while reusing the shared tests.

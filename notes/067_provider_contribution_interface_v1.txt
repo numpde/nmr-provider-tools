@@ -151,6 +151,27 @@ worker-local prepared state, consuming calculation, progress and cleanup. The
 stateless sum uses the same typed contribution interface without inventing
 configuration, model or analysis lifetimes.
 
+Provider-modular conformance
+----------------------------
+provider_core.provider_conformance contains provider-agnostic installed tests for
+the contribution-to-host boundary. A provider-owned fixture supplies configured
+binding factories, allocation names, exact wire inputs, expected wire results,
+reviewed scientific rejection codes and retained-state handoffs. Shared test code
+owns grants, fixed local allocations, invocation identity, observation, result
+release, analysis cleanup and host retirement.
+
+The dummy fixture lives under tests/providers rather than in the scientific
+package. It runs the weighted implementation with one allocation and then with two
+allocations of the same binding, exercises rejection and correction, consumes
+retained prepared state, checks progress, and calls the stateless sum. The
+installed integration test merely combines that fixture with the shared tests.
+Real provider repositories can supply their own fixture without copying host or
+lifecycle assertions.
+
+This is end-to-end evidence for the local contribution-to-host boundary. It does
+not include Jobs discovery, interpretation, delivery, a production registration
+loader, native process supervision or remote execution.
+
 Current evidence and limits
 ---------------------------
 The revision following cfa39f7 was reviewed against numpde/hello-world
@@ -162,11 +183,11 @@ class checks, provider-specific empty marker records, unchecked lifecycle-hook a
 forced five-argument adapters and an unmeasurable dummy resident-resource
 declaration.
 
-The latest focused harness compiled the revised modules and ran 26 typed,
-declaration and boundary tests. These cover the minimal keyword-only call shapes,
-control-capability agreement and implementation lifetime mismatches. The revised
-embedded-host module compiled but was not run against the complete installed
-package. Canonical installed-wheel and Docker qualification remain required.
+The previous focused harness compiled the revised modules and ran 26 typed,
+declaration and boundary tests. The provider-conformance addition was compiled
+under Python 3.13 and its provider fixture was imported with a dependency-light
+smoke harness. The installed integration lane and embedded-host runtime scenarios
+were not available in this environment and remain unverified for this change.
 
 SECS, NMRNet, NMRPeak and Magnet still need their real scientific and guarded
 execution paths connected to this installed contract. Existing AnalysisSession
