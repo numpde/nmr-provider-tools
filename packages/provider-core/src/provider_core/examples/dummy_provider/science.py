@@ -1,17 +1,16 @@
 """Dummy provider-owned science for the shared contribution example.
 
-This module has no dependency on provider-core. Portable records are immutable;
-live model, analysis, and prepared state remain explicit and provider-owned.
+The module depends only on the provider-facing scientific rejection contract.
+Portable records are immutable; live model, analysis, and prepared state remain
+explicit and provider-owned.
 """
 
 from __future__ import annotations
 
 import math
-import re
 from dataclasses import dataclass, field
 
-
-_REJECTION_CODE = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
+from provider_core.contribution import ScientificRejection
 
 
 def _finite_float(value: object, *, label: str) -> float:
@@ -40,20 +39,8 @@ def _require_exact_type[T](
     return value
 
 
-class ScientificInputRejected(ValueError):
-    """A stable scientific refusal after portable input has been admitted."""
-
-    code: str
-    message: str
-
-    def __init__(self, code: str, message: str) -> None:
-        if type(code) is not str or _REJECTION_CODE.fullmatch(code) is None:
-            raise ValueError("code must match [a-z][a-z0-9_]{0,63}")
-        if not (type(message) is str and message):
-            raise ValueError("message must be a nonempty string")
-        self.code = code
-        self.message = message
-        super().__init__(message)
+class ScientificInputRejected(ScientificRejection):
+    """The portable input is valid but scientifically unacceptable."""
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

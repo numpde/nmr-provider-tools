@@ -4,8 +4,9 @@ import ast
 from importlib import resources
 import unittest
 
+from provider_core.contribution import ScientificRejection
 import provider_core.examples.dummy_provider as dummy_provider
-import provider_core.examples.dummy_provider.binding as dummy_binding
+from provider_core.examples.dummy_provider import science
 
 
 class DummyProviderBoundaryTests(unittest.TestCase):
@@ -15,12 +16,20 @@ class DummyProviderBoundaryTests(unittest.TestCase):
 
         self.assertEqual({"__init__.py", "binding.py", "science.py"}, sources)
 
-        provider_core_imports = set()
+        expected_imports = {
+            "__init__.py": set(),
+            "science.py": {"provider_core.contribution"},
+            "binding.py": {
+                "provider_core.contribution",
+                "provider_core.contribution_declaration",
+            },
+        }
         for name in sources:
             tree = ast.parse(
                 root.joinpath(name).read_text(encoding="utf-8"),
                 filename=name,
             )
+            provider_core_imports = set()
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
                     provider_core_imports.update(
@@ -35,21 +44,15 @@ class DummyProviderBoundaryTests(unittest.TestCase):
                 ):
                     provider_core_imports.add(node.module)
 
-        self.assertEqual(
-            {
-                "provider_core.contribution",
-                "provider_core.contribution_declaration",
-            },
-            provider_core_imports,
-        )
+            with self.subTest(name=name):
+                self.assertEqual(expected_imports[name], provider_core_imports)
 
-    def test_adapter_exports_only_binding_factories(self):
-        self.assertEqual(
-            (
-                "sum_binding",
-                "weighted_sum_binding",
-            ),
-            dummy_binding.__all__,
+    def test_scientific_rejection_uses_the_shared_contract(self):
+        self.assertTrue(
+            issubclass(
+                science.ScientificInputRejected,
+                ScientificRejection,
+            )
         )
 
 

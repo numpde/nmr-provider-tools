@@ -6,7 +6,9 @@ provider service or a miniature copy of the shared platform.
 `science.py` defines provider-owned scientific types and functions. Portable
 configuration, inputs and results are immutable dataclasses. Live model,
 analysis and prepared state are separate mutable objects with explicit
-lifetimes. The module imports no `provider_core` code and can be called directly.
+lifetimes. Its only provider-core dependency is `ScientificRejection`, the
+provider-facing exception contract used for reviewed scientific refusals; it
+imports no hosting or execution machinery.
 
 `binding.py` connects that science to `provider_core.contribution`. Shared codecs
 admit bytes into the exact provider type before science runs. Calls that happen
@@ -14,6 +16,10 @@ to have the same JSON shape still use different types and format identities when
 they mean different things; for example, `PreparationInput` is not `SumInput`.
 Retained worker-local state is bound into `CalculationState`, rather than exposed
 as an untyped mapping.
+
+`ScientificInputRejected` derives directly from `ScientificRejection`. The
+adapter therefore lets a reviewed scientific refusal cross the contribution
+boundary unchanged; it does not catch and reconstruct the exception.
 
 Each scientific call is declared once with
 `contribution.CallBinding.from_json_dataclasses(...)`. The shared constructor
@@ -26,8 +32,8 @@ implementation's call descriptions from the bound calls.
 Canonical configuration and asset descriptions, byte digests and configured
 binding revisions are built by `provider_core.contribution_declaration`.
 `binding.py` supplies the provider-owned values and semantic identities; it does
-not implement generic JSON encoding or hashing. The adapter exposes only
-`sum_binding` and `weighted_sum_binding` as its public API.
+not implement generic JSON encoding or hashing. Callers use `sum_binding` and
+`weighted_sum_binding` to construct the two example implementations.
 
 The contribution supplies configuration and asset identities, named scientific
 calls, resource requirements, lifecycle hooks, result encoding and scientific

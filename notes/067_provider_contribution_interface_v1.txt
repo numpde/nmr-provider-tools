@@ -67,9 +67,9 @@ scientific callable declares the exact InputT, StateT, ScientificControl and
 ScientificReturn[OutputT] annotations. Type erasure exists only inside shared
 heterogeneous dispatch.
 
-Scientific and structural refusal remain distinct. The dummy raises
-ScientificInputRejected with a stable code after structural admission; the adapter
-translates it to ScientificRejection while preserving the original cause.
+Scientific and structural refusal remain distinct. ScientificInputRejected derives
+directly from ScientificRejection and supplies the stable code and explanation
+expected by shared execution. The adapter does not catch and reconstruct it.
 Unexpected defects remain failures rather than becoming invalid input.
 
 Scheduler description and host-local binding
@@ -123,9 +123,10 @@ remotely. Those are backend capabilities, not restrictions on contributions.
 Dummy contribution boundary
 ---------------------------
 provider_core.examples.dummy_provider contains science.py, binding.py and its
-package marker. science.py imports no provider-core module. binding.py imports
-the provider-facing contribution and contribution-declaration modules. The package
-contains no provider-local operational machinery.
+package marker. science.py imports only ScientificRejection from the provider-facing
+contribution contract. binding.py imports the contribution and
+contribution-declaration modules. The package contains no provider-local operational
+machinery.
 
 The stateful implementation demonstrates immutable configuration/assets, loaded
 instance and per-analysis lifetimes, rejected and corrected preparation,

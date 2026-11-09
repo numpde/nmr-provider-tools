@@ -3,18 +3,12 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import Final, NoReturn
+from typing import Final
 
 import provider_core.contribution as contribution
 import provider_core.contribution_declaration as declaration
 
 from . import science
-
-
-__all__ = (
-    "sum_binding",
-    "weighted_sum_binding",
-)
 
 
 _PREPARED_VALUES_KIND: Final[str] = "dummy.prepared-values.v1"
@@ -27,15 +21,6 @@ _CPU_THREAD: Final[contribution.ResourceRequirement] = contribution.ResourceRequ
 )
 
 
-def _raise_scientific_rejection(
-    error: science.ScientificInputRejected,
-) -> NoReturn:
-    raise contribution.ScientificRejection(
-        code=error.code,
-        message=error.message,
-    ) from error
-
-
 def _prepare(
     _model: science.WeightedSumModel,
     analysis: science.WeightedSumAnalysis,
@@ -43,13 +28,10 @@ def _prepare(
     _state: science.NoLiveState,
     _control: contribution.ScientificControl,
 ) -> contribution.ScientificReturn[science.PreparationResult]:
-    try:
-        prepared = science.prepare(
-            analysis=analysis,
-            candidate=candidate,
-        )
-    except science.ScientificInputRejected as error:
-        _raise_scientific_rejection(error)
+    prepared = science.prepare(
+        analysis=analysis,
+        candidate=candidate,
+    )
 
     return contribution.ScientificReturn(
         value=science.PreparationResult(count=prepared.value_count),
@@ -106,13 +88,8 @@ def _sum(
     _state: science.NoLiveState,
     _control: contribution.ScientificControl,
 ) -> contribution.ScientificReturn[science.SumResult]:
-    try:
-        result = science.sum_values(summation=summation)
-    except science.ScientificInputRejected as error:
-        _raise_scientific_rejection(error)
-
     return contribution.ScientificReturn(
-        value=result,
+        value=science.sum_values(summation=summation),
         states=(),
         dispose_value=None,
     )
