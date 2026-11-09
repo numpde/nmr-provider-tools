@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from functools import partial
-from typing import Final
 
 import provider_core.contribution as contribution
 import provider_core.contribution_declaration as declaration
@@ -11,88 +10,13 @@ import provider_core.contribution_declaration as declaration
 from . import science
 
 
-_PREPARED_VALUES_KIND: Final[str] = "dummy.prepared-values.v1"
-_CPU_THREAD: Final[contribution.ResourceRequirement] = contribution.ResourceRequirement(
+_CPU_THREAD = contribution.ResourceRequirement(
     kind="cpu",
     amount=1,
     unit="thread",
     selector="generic",
     exclusive=False,
 )
-
-
-def _prepare(
-    _model: science.WeightedSumModel,
-    analysis: science.WeightedSumAnalysis,
-    candidate: science.PreparationInput,
-    _state: science.NoLiveState,
-    _control: contribution.ScientificControl,
-) -> contribution.ScientificReturn[science.PreparationResult]:
-    prepared = science.prepare(
-        analysis=analysis,
-        candidate=candidate,
-    )
-
-    return contribution.ScientificReturn(
-        value=science.PreparationResult(count=prepared.value_count),
-        states=(
-            contribution.ReturnedState(
-                name="prepared",
-                kind=_PREPARED_VALUES_KIND,
-                value=prepared,
-                dispose=science.dispose_prepared,
-            ),
-        ),
-        dispose_value=None,
-    )
-
-
-def _calculate(
-    _model: science.WeightedSumModel,
-    analysis: science.WeightedSumAnalysis,
-    calculation: science.CalculationInput,
-    state: science.CalculationState,
-    control: contribution.ScientificControl,
-) -> contribution.ScientificReturn[science.PredictionResult]:
-    control.report_progress(
-        contribution.ProgressEvent(
-            stage="calculation",
-            completed=0,
-            total=1,
-        )
-    )
-    prediction = science.calculate(
-        analysis=analysis,
-        calculation=calculation,
-        state=state,
-    )
-    control.report_progress(
-        contribution.ProgressEvent(
-            stage="calculation",
-            completed=1,
-            total=1,
-        )
-    )
-
-    return contribution.ScientificReturn(
-        value=prediction,
-        states=(),
-        dispose_value=None,
-    )
-
-
-def _sum(
-    _instance: None,
-    _analysis: None,
-    summation: science.SumInput,
-    _state: science.NoLiveState,
-    _control: contribution.ScientificControl,
-) -> contribution.ScientificReturn[science.SumResult]:
-    return contribution.ScientificReturn(
-        value=science.sum_values(summation=summation),
-        states=(),
-        dispose_value=None,
-    )
 
 
 def weighted_sum_binding(
@@ -104,6 +28,66 @@ def weighted_sum_binding(
     science.WeightedSumAnalysis,
 ]:
     """Bind immutable settings and coefficients to one weighted model revision."""
+    prepared_values_kind = "dummy.prepared-values.v1"
+
+    def prepare(
+        _model: science.WeightedSumModel,
+        analysis: science.WeightedSumAnalysis,
+        candidate: science.PreparationInput,
+        _state: science.NoLiveState,
+        _control: contribution.ScientificControl,
+    ) -> contribution.ScientificReturn[science.PreparationResult]:
+        prepared = science.prepare(
+            analysis=analysis,
+            candidate=candidate,
+        )
+
+        return contribution.ScientificReturn(
+            value=science.PreparationResult(count=prepared.value_count),
+            states=(
+                contribution.ReturnedState(
+                    name="prepared",
+                    kind=prepared_values_kind,
+                    value=prepared,
+                    dispose=science.dispose_prepared,
+                ),
+            ),
+            dispose_value=None,
+        )
+
+    def calculate(
+        _model: science.WeightedSumModel,
+        analysis: science.WeightedSumAnalysis,
+        calculation: science.CalculationInput,
+        state: science.CalculationState,
+        control: contribution.ScientificControl,
+    ) -> contribution.ScientificReturn[science.PredictionResult]:
+        control.report_progress(
+            contribution.ProgressEvent(
+                stage="calculation",
+                completed=0,
+                total=1,
+            )
+        )
+        prediction = science.calculate(
+            analysis=analysis,
+            calculation=calculation,
+            state=state,
+        )
+        control.report_progress(
+            contribution.ProgressEvent(
+                stage="calculation",
+                completed=1,
+                total=1,
+            )
+        )
+
+        return contribution.ScientificReturn(
+            value=prediction,
+            states=(),
+            dispose_value=None,
+        )
+
     configuration = declaration.json_configuration(
         settings,
         format_id="dummy.settings.v1",
@@ -124,14 +108,14 @@ def weighted_sum_binding(
         state_outputs=(
             contribution.StateOutput(
                 name="prepared",
-                kind=_PREPARED_VALUES_KIND,
+                kind=prepared_values_kind,
             ),
         ),
         resources=(_CPU_THREAD,),
         concurrency=contribution.ConcurrencyRequirement.INSTANCE_SERIAL,
         interruption=contribution.InterruptionSupport.NONE,
         progress=False,
-        scientific_call=_prepare,
+        scientific_call=prepare,
     )
     calculate_call = contribution.CallBinding.from_json_dataclasses(
         name="calculate",
@@ -140,7 +124,7 @@ def weighted_sum_binding(
         state_inputs=(
             contribution.StateParameter(
                 name="prepared",
-                kind=_PREPARED_VALUES_KIND,
+                kind=prepared_values_kind,
                 use=contribution.StateUse.CONSUME,
             ),
         ),
@@ -149,7 +133,7 @@ def weighted_sum_binding(
         concurrency=contribution.ConcurrencyRequirement.INSTANCE_SERIAL,
         interruption=contribution.InterruptionSupport.NONE,
         progress=True,
-        scientific_call=_calculate,
+        scientific_call=calculate,
     )
     calls = (prepare_call, calculate_call)
 
@@ -193,6 +177,20 @@ def weighted_sum_binding(
 
 def sum_binding() -> contribution.ImplementationBinding[None, None]:
     """Bind the stateless sum without inventing model or analysis lifetimes."""
+
+    def run(
+        _instance: None,
+        _analysis: None,
+        summation: science.SumInput,
+        _state: science.NoLiveState,
+        _control: contribution.ScientificControl,
+    ) -> contribution.ScientificReturn[science.SumResult]:
+        return contribution.ScientificReturn(
+            value=science.sum_values(summation=summation),
+            states=(),
+            dispose_value=None,
+        )
+
     configuration = declaration.json_configuration(
         science.PlainSumConfiguration(),
         format_id="dummy.sum-configuration.v1",
@@ -207,7 +205,7 @@ def sum_binding() -> contribution.ImplementationBinding[None, None]:
         concurrency=contribution.ConcurrencyRequirement.PARALLEL,
         interruption=contribution.InterruptionSupport.NONE,
         progress=False,
-        scientific_call=_sum,
+        scientific_call=run,
     )
 
     return contribution.ImplementationBinding.from_calls(

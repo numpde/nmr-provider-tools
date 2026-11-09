@@ -43,6 +43,32 @@ def _weighted_binding():
 
 
 class TypedContributionTests(unittest.TestCase):
+    def test_direct_science_uses_the_same_typed_objects_without_hosting(self):
+        settings = science.WeightedSumSettings(scale=2, offset=1)
+        coefficients = science.CoefficientSet(values=(1, 2, 3))
+        model = science.create_model(
+            settings=settings,
+            coefficients=coefficients,
+        )
+        science.load_model(model)
+        analysis = science.create_analysis(model)
+        science.initialize_analysis(analysis)
+        prepared = science.prepare(
+            analysis=analysis,
+            candidate=science.PreparationInput(values=(2, 4, 6)),
+        )
+
+        result = science.calculate(
+            analysis=analysis,
+            calculation=science.CalculationInput(),
+            state=science.CalculationState(prepared=prepared),
+        )
+
+        self.assertEqual(
+            science.PredictionResult(total=57, count=3),
+            result,
+        )
+
     def test_provider_types_survive_payload_state_and_result_boundaries(self):
         binding = _weighted_binding()
         (prepare_call, calculate_call) = binding.calls
@@ -140,12 +166,6 @@ class TypedContributionTests(unittest.TestCase):
             prepare_call.description.input_format,
             sum_call.description.input_format,
         )
-
-    def test_wrong_call_specific_type_is_rejected_by_direct_science(self):
-        preparation_input = science.PreparationInput(values=(1,))
-
-        with self.assertRaises(TypeError):
-            science.sum_values(summation=preparation_input)
 
     def test_payload_codec_rejects_invalid_wire_shapes(self):
         codec = sum_binding().calls[0].input_codec

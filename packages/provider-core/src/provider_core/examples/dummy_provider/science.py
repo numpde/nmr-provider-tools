@@ -28,17 +28,6 @@ def _finite_values(values: object, *, label: str) -> tuple[float, ...]:
     )
 
 
-def _require_exact_type[T](
-    value: object,
-    expected_type: type[T],
-    *,
-    label: str,
-) -> T:
-    if type(value) is not expected_type:
-        raise TypeError(f"{label} must be {expected_type.__qualname__}")
-    return value
-
-
 class ScientificInputRejected(ScientificRejection):
     """The portable input is valid but scientifically unacceptable."""
 
@@ -158,10 +147,6 @@ class WeightedSumModel:
         repr=False,
     )
 
-    def __post_init__(self) -> None:
-        _require_exact_type(self.settings, WeightedSumSettings, label="settings")
-        _require_exact_type(self.coefficients, CoefficientSet, label="coefficients")
-
 
 @dataclass(slots=True, kw_only=True)
 class WeightedSumAnalysis:
@@ -174,9 +159,6 @@ class WeightedSumAnalysis:
         repr=False,
     )
 
-    def __post_init__(self) -> None:
-        _require_exact_type(self.model, WeightedSumModel, label="model")
-
 
 @dataclass(slots=True, kw_only=True)
 class PreparedValues:
@@ -186,7 +168,6 @@ class PreparedValues:
     values: tuple[float, ...] | None = field(repr=False)
 
     def __post_init__(self) -> None:
-        _require_exact_type(self.analysis, WeightedSumAnalysis, label="analysis")
         if not self.values:
             raise ValueError("prepared values must not be empty")
         self.values = _finite_values(self.values, label="prepared values")
@@ -231,9 +212,6 @@ class NoLiveState:
 class CalculationState:
     prepared: PreparedValues
 
-    def __post_init__(self) -> None:
-        _require_exact_type(self.prepared, PreparedValues, label="prepared")
-
 
 def create_model(
     *,
@@ -247,15 +225,12 @@ def create_model(
 
 
 def load_model(model: WeightedSumModel) -> None:
-    _require_exact_type(model, WeightedSumModel, label="model")
-
     if model.loaded_coefficients is not None:
         raise RuntimeError("The model coefficients are already loaded")
     model.loaded_coefficients = model.coefficients.values
 
 
 def dispose_model(model: WeightedSumModel) -> None:
-    _require_exact_type(model, WeightedSumModel, label="model")
     model.loaded_coefficients = None
 
 
@@ -264,8 +239,6 @@ def create_analysis(model: WeightedSumModel) -> WeightedSumAnalysis:
 
 
 def initialize_analysis(analysis: WeightedSumAnalysis) -> None:
-    _require_exact_type(analysis, WeightedSumAnalysis, label="analysis")
-
     if analysis.is_open:
         raise RuntimeError("The analysis is already initialized")
     if analysis.model.loaded_coefficients is None:
@@ -280,9 +253,6 @@ def prepare(
     candidate: PreparationInput,
 ) -> PreparedValues:
     """Reject one candidate without discarding the analysis itself."""
-    _require_exact_type(analysis, WeightedSumAnalysis, label="analysis")
-    _require_exact_type(candidate, PreparationInput, label="candidate")
-
     if not analysis.is_open:
         raise RuntimeError("Cannot prepare input for a closed analysis")
 
@@ -327,10 +297,6 @@ def calculate(
     calculation: CalculationInput,
     state: CalculationState,
 ) -> PredictionResult:
-    _require_exact_type(analysis, WeightedSumAnalysis, label="analysis")
-    _require_exact_type(calculation, CalculationInput, label="calculation")
-    _require_exact_type(state, CalculationState, label="state")
-
     if not analysis.is_open:
         raise RuntimeError("Cannot calculate for a closed analysis")
 
@@ -338,11 +304,10 @@ def calculate(
     if loaded_coefficients is None:
         raise RuntimeError("Cannot calculate because model coefficients are not loaded")
 
-    prepared = state.prepared
-    prepared_values = prepared.consume(analysis=analysis)
+    prepared_values = state.prepared.consume(analysis=analysis)
 
-    # consume() ran before numerical work. A later failure does not make the old
-    # state reference usable again.
+    # State is consumed before numerical work. A later failure does not make the
+    # old state reference usable again.
     weighted_sum = math.fsum(
         coefficient * value
         for (coefficient, value) in zip(
@@ -366,8 +331,6 @@ def calculate(
 
 
 def sum_values(summation: SumInput) -> SumResult:
-    _require_exact_type(summation, SumInput, label="summation")
-
     if not summation.values:
         raise ScientificInputRejected(
             "empty_input",
@@ -386,13 +349,10 @@ def sum_values(summation: SumInput) -> SumResult:
 
 def dispose_prepared(prepared: PreparedValues) -> None:
     """Release retained values without changing the analysis lifetime."""
-    _require_exact_type(prepared, PreparedValues, label="prepared")
     prepared.dispose()
 
 
 def dispose_analysis(analysis: WeightedSumAnalysis) -> None:
-    _require_exact_type(analysis, WeightedSumAnalysis, label="analysis")
-
     accepted_preparation = analysis.accepted_preparation
     if accepted_preparation is not None:
         dispose_prepared(accepted_preparation)
