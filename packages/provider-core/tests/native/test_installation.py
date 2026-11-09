@@ -83,9 +83,14 @@ class NativeInstallationTests(unittest.TestCase):
         import provider_core.lifetime
         import provider_core.conversation
         import provider_core.interpreter
+        import provider_core.contribution
+        import provider_core.hosting
+        import provider_core.embedded_host
+        import provider_core.examples.dummy_provider.binding
         self.assertFalse({
             "provider_core.chat", "provider_core.chat_process", "provider_core.chat_tls",
             "provider_core.chat_wire", "provider_core.chat_worker",
+            "provider_core.api", "provider_core.execution", "provider_core.controller",
         }.intersection(sys.modules), msg="Native conversation imports must not acquire model HTTP/process dependencies")
         distribution = importlib.metadata.distribution("provider-core")
         self.assertTrue(distribution.requires)

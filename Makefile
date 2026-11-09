@@ -71,6 +71,15 @@ override FUZZ_PROFILE_INPUT := $(value FUZZ_PROFILE)
 export FUZZ_PROFILE_INPUT
 endif
 
+unexport DUMMY_INSTANCES
+unexport DUMMY_INSTANCES_INPUT
+unexport DUMMY_INSTANCES_INPUT_ORIGIN
+override export DUMMY_INSTANCES_INPUT_ORIGIN := $(origin DUMMY_INSTANCES)
+ifeq ($(origin DUMMY_INSTANCES),command line)
+override DUMMY_INSTANCES_INPUT := $(value DUMMY_INSTANCES)
+export DUMMY_INSTANCES_INPUT
+endif
+
 unexport OUTPUT
 unexport OUTPUT_INPUT
 unexport OUTPUT_INPUT_ORIGIN
@@ -193,6 +202,7 @@ endif
 .PHONY: delivery/deployment/up delivery/deployment/update delivery/deployment/proxy/restart delivery/deployment/down delivery/deployment/status delivery/deployment/logs delivery/deployment/held delivery/deployment/discard delivery/deployment/retire-old
 .PHONY: delivery/prepare publish/prepare publish/release tests/deployment tests/deployment/route tests/deployment/route/literal delivery/image/build tests/package
 .PHONY: packages/provider-core/download packages/provider-core/check package/build tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/integration/provider-core/delivery tests/fuzz/provider-core
+.PHONY: examples/provider-core/dummy
 .PHONY: wheelhouse/image/build wheelhouse/lock/locate wheelhouse/lock/acquire tests/wheelhouse tests/delivery/publisher
 .PHONY: checks/python-cache/clean
 
@@ -212,6 +222,7 @@ help:
 	  '  SHARED_RUNTIME_IMAGE=sha256:<digest>   Explicit immutable previously built image.' \
 	  '  LOCK=<file>                Input lock for wheelhouse operations.' \
 	  '  FUZZ_PROFILE=<default|extended>   Select bounded or extended SDK fuzz campaign.' \
+	  '  DUMMY_INSTANCES=<1|2>      Required for the dummy provider example; choose its instance count.' \
 	  '  ENGINE_CONFIG=<file>       Absolute daemon configuration for cache maintenance.' \
 	  '' \
 	  'Example release preparation (replace v0.6.8 and cache path for another version):' \
@@ -239,6 +250,7 @@ help:
 	  'make tests/contract/provider-core WHEELHOUSE=<cache-dir> Qualify installed package contracts.' \
 	  'make tests/integration/provider-core WHEELHOUSE=<cache-dir> Run contained package integrations.' \
 	  'make tests/integration/provider-core/delivery WHEELHOUSE=<cache-dir> Qualify real delivery IPC and recovery.' \
+	  'make examples/provider-core/dummy DUMMY_INSTANCES=<1|2> WHEELHOUSE=<cache-dir> Run fake jobs through the installed interface, offline.' \
 	  ''
 	@printf '%s\n' \
 	  '== Cache acquisition and reproducible checker ==' \
@@ -339,6 +351,9 @@ tests/package:
 
 tests/unit/provider-core:
 	bash tools/provider_core.sh unit
+
+examples/provider-core/dummy:
+	bash tools/provider_core.sh example/dummy
 
 tests/fuzz/provider-core:
 	bash tools/provider_core.sh fuzz

@@ -199,6 +199,40 @@ contracts on their real paths. M1 completes when those contributions also work
 through the shared fixed pool. Record temporary backend limitations honestly;
 they do not become restrictions of the scientific interface.
 
+Runnable template before adoption
+  The requested dummy provider now makes the proposed interface executable in
+  provider-core. Its ordinary scientific functions, configured adapter and fake
+  job runner are separate files under provider_core/examples/dummy_provider.
+  A stateful weighted-sum model and a stateless sum use the same contribution
+  contract; one analysis can call both. The embedded backend runs synchronous
+  hooks on explicit, independently owned threads and retains results through
+  analysis cleanup. Use examples/provider-core/dummy with DUMMY_INSTANCES=1 or 2.
+
+  contribution.py defines the concrete optional lifecycle hooks, call bindings,
+  ScientificReturn and declared StateOutput records. The output declarations
+  let hosting reserve state capacity before dispatch. hosting.py defines the
+  request/observation protocols; embedded_host.py provides the exercised backend.
+  Existing original-future observation is reused. Focused checks accompany this
+  code in the installed native-only test lane.
+
+  This is a runnable interface example, not completion of M1 or adoption by any
+  real provider. It has no Jobs connection, durable operation storage, native
+  process isolation or forced interruption of running Python. Fixed assignments
+  and profile checks do not enforce operating-system memory or device limits.
+  No existing AnalysisSession guard has been removed. Real adapters across all
+  four repositories still shape and adopt the common interface before independent
+  service/pool redesign. The template is not another prerequisite test campaign.
+
+  Evidence for this increment: the candidate wheel with SHA256
+  4d1564a5bd8d6a4ab16545f7ba2596bb3383da944a28073d0a5f2a5e9ff2deec ran
+  both one-copy and two-copy examples successfully. All 13 new embedded-host
+  tests passed from that installed wheel. The full native-only lane ran 49 tests:
+  24 passed and 25 errored in existing Unix-socket/child-supervisor setup under
+  this sandbox's socket restrictions. This was an alternative isolated Linux
+  run with only the candidate SDK installed, not the canonical Docker launcher.
+  Docker, API integration, fuzz, real scientific workers and deployment were
+  not qualified by this increment. The broad native run is not recorded as a pass.
+
 1.1 First coordinated implementation: adopt the interface in all repositories
 
 This is a small set of commits across five repositories, not an atomic Git
@@ -206,11 +240,11 @@ commit and not a new pool built before any real consumer. Keep each main branch
 runnable. The core implementation, provider adaptations and required dependency
 updates belong to one coordinated change; independent feature work follows it.
 
-First provider-core commit
-  Proposed title: Add common contribution and execution interfaces with guarded
-  operation ownership
+Provider-core adoption commit
+  Proposed title: Connect the common scientific interface to existing guarded
+  provider execution
 
-  Add packages/provider-core/src/provider_core/contribution.py. Define immutable,
+  Build on packages/provider-core/src/provider_core/contribution.py. Keep immutable,
   data-only descriptions of bindings and named scientific calls. Keep their host
   factories, scientific classes, codecs and cleanup functions separate from those
   descriptions. The binding revision identifies scientific code, configuration
@@ -231,8 +265,8 @@ First provider-core commit
   fail or be cancelled. Scientific cleanup can then deal with partial work. It
   does not certify that a process, reader or device allocation has retired.
 
-  Add packages/provider-core/src/provider_core/hosting.py. Implement the operation
-  and guard helpers used by the first backend bridges, not only Protocol classes.
+  Build on packages/provider-core/src/provider_core/hosting.py and the exercised
+  ownership helpers. Connect the actual backend bridges to this contract.
   Follow note 066's signatures and ownership rules for these operations:
 
   - AnalysisExecution submits and observes its own operations and requests their

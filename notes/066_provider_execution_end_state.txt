@@ -20,6 +20,12 @@ and guarded backend paths must use them. Then improve pools, service loops and
 individual implementations behind that common boundary. This ordering replaces
 the earlier proposal to build a new generic pool before connecting real providers.
 
+The requested dummy provider is now an executable first example of this boundary:
+provider_core.examples.dummy_provider. It uses the new contribution/hosting types
+and a bounded embedded backend. It does not complete real-provider adoption,
+the common service or native-process pooling. Section 7.2 identifies the concrete
+adapter; the package README explains how to run and copy the example.
+
 This is the target, not a description of a finished platform. The runtime review
 was at 1178115c8b1ea89556f4c04f73d69471be8e1b5f. Note 064 records the provider
 versions reviewed; it does not identify what is currently deployed. Earlier test
@@ -367,9 +373,11 @@ Two views of the same registration
   bridge may reserve a conservative whole-analysis grant; later scheduling uses
   the same declarations. Missing knowledge never means unlimited resources.
 
-The following Python sketches describe the target, not an implemented API. They
-show the important public shapes; reference, observation and resource records
-are explained below rather than exhaustively defined here.
+The following Python sketches show the main contract shapes. The dummy provider
+now exercises concrete definitions in provider_core.contribution and
+provider_core.hosting. The embedded backend currently accepts bytes and explicit
+local assignments; the larger deployment, remote and resource capabilities below
+remain targets. The first contract is not adopted across the real consumers yet.
 
 ```python
 from dataclasses import dataclass
@@ -386,11 +394,17 @@ class StateParameter:
     use: StateUse
 
 @dataclass(frozen=True)
+class StateOutput:
+    name: str
+    kind: str
+
+@dataclass(frozen=True)
 class CallDescription:
     name: str
     input_format: str
     result_format: str
     state_inputs: tuple[StateParameter, ...]
+    state_outputs: tuple[StateOutput, ...]
     resource_profile: str
 
 @dataclass(frozen=True)
@@ -407,6 +421,23 @@ class CallRef:
     binding_revision: str
     name: str
 ```
+
+The concrete host binding is ImplementationBinding(description, instance,
+analysis, calls). instance is optional InstanceHooks(construct, initialize,
+dispose); analysis is optional AnalysisHooks(construct, initialize, dispose).
+None means that lifetime needs no scientific object. Each CallBinding pairs its
+description with decode_input(instance, analysis, bytes),
+invoke(instance, analysis, decoded_input, named_scientific_states), and
+encode_result(value). The instance and analysis arguments are scientific objects.
+
+The adapter returns ScientificReturn(value, states, dispose_value). Each
+ReturnedState names its kind, scientific value and disposal hook. Hosting owns
+that return and adopts its state before encoding value. A None value disposer
+means self-contained Python output; it is not permission to forget native output.
+Declared StateOutput records bound returned state before dispatch. Operation
+observations expose new StateRefs separately from the encoded result, so codecs
+never need execution authority or host-reference objects. The scientific modules
+in the example do not import any of these adapter or execution types.
 
 Keep three scientific lifetimes separate
   Instance: reusable model, index, runtime or loader state. This ends at instance
@@ -437,9 +468,9 @@ Retain the owner before initialization can acquire anything
   classes on scientific models.
 
 ```python
-instance = binding.construct_instance()  # Python bookkeeping only
-owner.retain_instance(instance, dispose=binding.dispose_instance)
-binding.initialize_instance(instance)
+instance = binding.instance.construct()  # Python bookkeeping only
+owner.retain_instance(instance, dispose=binding.instance.dispose)
+binding.instance.initialize(instance)
 ```
 
 If initialization fails partway through, the retained object must expose what
@@ -645,6 +676,7 @@ generate = CallDescription(
             use=StateUse.CONSUME,
         ),
     ),
+    state_outputs=(),
     resource_profile="nmrpeak.generation",
 )
 
@@ -688,15 +720,16 @@ Own decoding and the scientific return
   are established, the host follows this ordering:
 
 ```python
-decoded = binding.decode_input(payload)
-raw = binding.invoke(
+decoded = call.decode_input(scientific_instance, scientific_analysis, payload)
+raw = call.invoke(
+    scientific_instance,
     scientific_analysis,
     decoded,
     resolved_scientific_state,
 )
 operation.retain_scientific_return(raw)
 analysis_owner.adopt_returned_state(raw)
-encoded = binding.encode_result(raw)
+encoded = call.encode_result(raw.value)
 operation.record_result(encoded)
 ```
 

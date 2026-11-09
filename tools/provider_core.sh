@@ -6,7 +6,7 @@ printing=false
 if [[ $# -gt 0 && $1 == --print ]]; then printing=true; shift; fi
 if [[ $# != 1 ]]; then printf '%s\n' 'Supply one provider-core target from make help.' >&2; exit 2; fi
 action=$1
-case "$action" in download|check|unit|contract|integration|integration/delivery|fuzz|build|package) ;;
+case "$action" in download|check|unit|contract|integration|integration/delivery|fuzz|build|package|example/dummy) ;;
     *) printf 'Cannot select provider-core operation %q. Use make help.\n' "$action" >&2; exit 2 ;;
 esac
 # Keep campaign selection explicit and confined to the fuzz target.
@@ -20,6 +20,18 @@ if [[ ${FUZZ_PROFILE_INPUT_ORIGIN:-} == 'command line' ]]; then
     case $fuzz_profile in default|extended) ;;
         *) printf 'Cannot select provider-core fuzz profile %q: use default or extended.\n' "$fuzz_profile" >&2; exit 2 ;;
     esac
+fi
+if [[ $action == example/dummy ]]; then
+    if [[ ! -v DUMMY_INSTANCES_INPUT_ORIGIN || $DUMMY_INSTANCES_INPUT_ORIGIN != 'command line' || ! -v DUMMY_INSTANCES_INPUT ]]; then
+        printf '%s\n' 'Select DUMMY_INSTANCES=1 or DUMMY_INSTANCES=2 on the Make command line.' >&2
+        exit 2
+    fi
+    case "$DUMMY_INSTANCES_INPUT" in 1|2) ;;
+        *) printf '%s\n' 'DUMMY_INSTANCES must be 1 or 2 for examples/provider-core/dummy.' >&2; exit 2 ;;
+    esac
+elif [[ -v DUMMY_INSTANCES_INPUT_ORIGIN && $DUMMY_INSTANCES_INPUT_ORIGIN == 'command line' ]]; then
+    printf '%s\n' 'DUMMY_INSTANCES is accepted only by examples/provider-core/dummy.' >&2
+    exit 2
 fi
 source "$root/tools/base_image.sh"
 source "$root/tools/wheelhouse_path.sh"
@@ -130,6 +142,13 @@ case "$action" in
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
             --entrypoint python3 "$base_image" -B -m tools.provider_core_tests "$action" --pattern "$pattern")
         budget=untimed
+        ;;
+    example/dummy)
+        arguments=("${worker[@]}" --network none --init --tmpfs /runtime:rw,nosuid,nodev,exec,size=256m,mode=1777
+            --mount "type=bind,src=$root/packages/provider-core,dst=/package,readonly"
+            --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
+            --entrypoint python3 "$base_image" -B -m tools.provider_core_example --instances "$DUMMY_INSTANCES_INPUT")
+        budget=120
         ;;
     package)
         if [[ ! -v ARTIFACTS_INPUT_ORIGIN || $ARTIFACTS_INPUT_ORIGIN != 'command line' || ! -v ARTIFACTS_INPUT || -z $ARTIFACTS_INPUT || -L $ARTIFACTS_INPUT ]]; then
