@@ -337,23 +337,31 @@ def normalize_sdist(path):
     """Remove host account metadata and use the same fixed epoch as the wheel."""
     # Keep replacement on the same filesystem, with automatic failure cleanup.
     with tempfile.TemporaryDirectory(prefix="sdist-normalize-", dir=path.parent) as temporary:
-        normalized = Path(temporary) / "archive.tar.gz"
-        with tarfile.open(path, "r:gz") as original, normalized.open("xb") as output:
+        normalized_path = Path(temporary) / "archive.tar.gz"
+
+        with tarfile.open(path, "r:gz") as source_archive, normalized_path.open("xb") as output:
             with gzip.GzipFile(fileobj=output, mode="wb", filename="", mtime=315532800) as compressed:
-                with tarfile.open(fileobj=compressed, mode="w") as target:
-                    for member in sorted(original.getmembers(), key=lambda item: item.name):
+                with tarfile.open(fileobj=compressed, mode="w") as normalized_archive:
+                    for member in sorted(source_archive.getmembers(), key=lambda item: item.name):
                         if not (member.isfile() or member.isdir()):
-                            raise ValueError("Cannot admit source distribution: archive contains an unsupported link or special file.")
+                            raise ValueError(
+                                "Cannot admit source distribution: archive contains "
+                                "an unsupported link or special file."
+                            )
+
                         member.uid = member.gid = 0
                         member.uname = member.gname = ""
                         member.mtime = 315532800
                         member.pax_headers = {}
+
                         if member.isfile():
-                            with original.extractfile(member) as content:
-                                target.addfile(member, content)
+                            with source_archive.extractfile(member) as member_content:
+                                normalized_archive.addfile(member, member_content)
                         else:
-                            target.addfile(member)
-        normalized.replace(path)
+                            normalized_archive.addfile(member)
+
+        normalized_path.replace(path)
+
 
 
 def release(source, runtime_lock, build_lock, pool, output, revision):
@@ -362,34 +370,67 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
 
     if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
         raise ValueError("Cannot build release artifacts: source revision must identify the captured Git commit.")
+
     dependency_files(pool, Path("/requirements/wheelhouse-tool.lock"))
-    inventory = source_inventory(source)
-    (wheel, lock, identities) = build_candidate(source, runtime_lock, build_lock, pool, output)
-    prefix = wheel.name.removesuffix("-py3-none-any.whl")
-    sdist = output / (prefix + ".tar.gz")
-    native_lock = output / (prefix + "-native-install.lock")
-    bundle = output / ("wheelhouse-tool-" + prefix.removeprefix("provider_core-") + ".pyz")
-    build_wheelhouse_bundle(pool, bundle, Path("/workspace"), Path("/requirements/wheelhouse-tool.lock"))
-    acquisition = output / ("acquisition-owner-" + prefix.removeprefix("provider_core-") + ".tar.gz")
-    acquisition_record = build_acquisition_bundle(pool, acquisition, Path("/workspace"), wheel,
-                                                  Path("/requirements/acquisition-bootstrap.pylock.toml"))
-    payload = (wheel, sdist, lock, native_lock, bundle, acquisition)
-    record = output / (prefix + "-release.json")
-    record.write_text(json.dumps({
-        "source_revision": revision, "dependency_inputs": identities,
-        "source_files": inventory, "tool_source_files": wheelhouse_source_inventory(Path("/workspace/wheelhouse_tool")),
-        "acquisition_source_files": acquisition_record["source_files"],
-        "acquisition_dependency_inputs": acquisition_record["dependency_inputs"],
-        "files": {path.name: digest(path) for path in payload},
-    }, sort_keys=True, indent=2) + "\n")
-    manifest = output / (prefix + "-sha256.json")
-    manifest.write_text(json.dumps({path.name: digest(path) for path in (*payload, record)}, sort_keys=True, indent=2) + "\n")
-    for path in (*payload, record, manifest):
+    source_files = source_inventory(source)
+    (wheel, install_lock, dependency_inputs) = build_candidate(source, runtime_lock, build_lock, pool, output)
+
+    artifact_prefix = wheel.name.removesuffix("-py3-none-any.whl")
+    sdist = output / (artifact_prefix + ".tar.gz")
+    native_lock = output / (artifact_prefix + "-native-install.lock")
+
+    wheelhouse_bundle = output / ("wheelhouse-tool-" + artifact_prefix.removeprefix("provider_core-") + ".pyz")
+    build_wheelhouse_bundle(
+        pool,
+        wheelhouse_bundle,
+        Path("/workspace"),
+        Path("/requirements/wheelhouse-tool.lock"),
+    )
+
+    acquisition_bundle = output / ("acquisition-owner-" + artifact_prefix.removeprefix("provider_core-") + ".tar.gz")
+    acquisition_record = build_acquisition_bundle(
+        pool,
+        acquisition_bundle,
+        Path("/workspace"),
+        wheel,
+        Path("/requirements/acquisition-bootstrap.pylock.toml"),
+    )
+
+    release_files = (wheel, sdist, install_lock, native_lock, wheelhouse_bundle, acquisition_bundle)
+    release_record = output / (artifact_prefix + "-release.json")
+    release_record.write_text(
+        json.dumps(
+            {
+                "source_revision": revision,
+                "dependency_inputs": dependency_inputs,
+                "source_files": source_files,
+                "tool_source_files": wheelhouse_source_inventory(Path("/workspace/wheelhouse_tool")),
+                "acquisition_source_files": acquisition_record["source_files"],
+                "acquisition_dependency_inputs": acquisition_record["dependency_inputs"],
+                "files": {path.name: digest(path) for path in release_files},
+            },
+            sort_keys=True,
+            indent=2,
+        ) + "\n"
+    )
+
+    checksum_manifest = output / (artifact_prefix + "-sha256.json")
+    checksum_manifest.write_text(
+        json.dumps(
+            {path.name: digest(path) for path in (*release_files, release_record)},
+            sort_keys=True,
+            indent=2,
+        ) + "\n"
+    )
+
+    for path in (*release_files, release_record, checksum_manifest):
         with regular_file(path) as stream:
             os.fchmod(stream.fileno(), 0o644)
             os.fsync(stream.fileno())
+
     fsync_directory(output)
     print(json.dumps({"source_revision": revision, "wheel": wheel.name, "sha256": digest(wheel)}, sort_keys=True))
+
 
 
 def main():
