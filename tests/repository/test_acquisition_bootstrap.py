@@ -14,7 +14,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from tools.acquisition_bootstrap import refresh, verify
+from host.tools.acquisition_bootstrap import refresh, verify
 from tests.repository.quality.sources import ROOT
 
 
@@ -57,7 +57,7 @@ class AcquisitionBootstrapTests(unittest.TestCase):
         self.assertEqual([self.bundle], list(self.bundle.parent.iterdir()))
 
     def test_record_publication_failure_restores_existing_source_and_issuer(self):
-        with patch("tools.acquisition_bootstrap.os.replace", side_effect=OSError("fixture record failure")):
+        with patch("host.tools.acquisition_bootstrap.os.replace", side_effect=OSError("fixture record failure")):
             with self.assertRaisesRegex(OSError, "fixture record failure"):
                 self.install()
         self.assertEqual(b"old source\n", (self.bundle / "owner.sh").read_bytes())

@@ -91,6 +91,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name in (
+                "host/scripts/operation.py",
                 "tools/z.py",
                 "tools/nested/a.py",
                 "tools/readme.txt",
@@ -107,6 +108,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
             with patch.object(sources, "ROOT", root):
                 self.assertEqual(
                     [
+                        root / "host/scripts/operation.py",
                         root / "packages/example/src/example/owner.py",
                         root / "src/nested/future.py",
                         root / "tools/nested/a.py",
@@ -116,6 +118,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
                 )
                 self.assertEqual(
                     [
+                        root / "host/scripts/operation.py",
                         root / "packages/example/src/example/owner.py",
                         root / "packages/example/tests/test_owner.py",
                         root / "src/nested/future.py",
@@ -250,17 +253,17 @@ class SourceInventoryRepositoryTests(unittest.TestCase):
         self.assertEqual([], findings, msg="\n".join(findings))
 
     def test_authored_python_roots_are_complete_safe_trees(self):
-        for subtree in ("tools", "tests"):
+        for subtree in ("host", "tools", "tests"):
             with self.subTest(subtree=subtree):
                 self.assertTrue(discover_source_files(root=ROOT, subtree=subtree))
 
     def test_repository_checker_grants_complete_read_only_source_trees(self):
         result = subprocess.run(
-            ["env", "NMR_SELECTED_DOCKER_ENDPOINT=unix:///var/run/docker.sock", "DOCKER_CONTEXT_INPUT_ORIGIN=command line", "DOCKER_CONTEXT_INPUT=default", "bash", str(ROOT / "tools/repository.sh"), "--print", "tests/repository"], text=True, capture_output=True, check=True
+            ["env", "NMR_SELECTED_DOCKER_ENDPOINT=unix:///var/run/docker.sock", "DOCKER_CONTEXT_INPUT_ORIGIN=command line", "DOCKER_CONTEXT_INPUT=default", "bash", str(ROOT / "host/tools/repository.sh"), "--print", "tests/repository"], text=True, capture_output=True, check=True
         )
         arguments = shlex.split(result.stdout)
         mounts = [arguments[index + 1] for index, value in enumerate(arguments) if value == "--mount"]
-        for subtree in ("tools", "tests", "requirements", "containers", "notes"):
+        for subtree in ("host", "tools", "tests", "requirements", "containers", "notes"):
             self.assertIn(f"type=bind,src={ROOT / subtree},dst=/workspace/{subtree},readonly", mounts)
         for name in ("Makefile", "README.md"):
             self.assertIn(f"type=bind,src={ROOT / name},dst=/workspace/{name},readonly", mounts)

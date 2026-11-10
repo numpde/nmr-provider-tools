@@ -69,12 +69,12 @@ class PythonBytecodePostureTests(unittest.TestCase):
     def test_inventory_is_automatic_and_diagnostics_do_not_echo_payload(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for name in ("tools/run.sh", "new_component/driver.py", "Makefile", "tests/fixtures/run.sh",
+            for name in ("host/tools/run.sh", "new_component/driver.py", "Makefile", "tests/fixtures/run.sh",
                          "bootstrap/generated/run.sh", "vendor/run.py", "docs/example.sh", ".git/hooks/run.sh"):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("# fixture\n")
-            self.assertEqual({"tools/run.sh", "new_component/driver.py", "Makefile"},
+            self.assertEqual({"host/tools/run.sh", "new_component/driver.py", "Makefile"},
                              {path.relative_to(root).as_posix() for path in production_files(root)})
         issue, = findings(Path("safe.sh"), "python3 -I secret-private-path.py")
         self.assertNotIn("secret-private-path", issue.diagnostic())

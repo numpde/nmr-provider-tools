@@ -123,10 +123,12 @@ class LauncherTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             shutil.copytree(ROOT / "tools", root / "tools")
+            shutil.copytree(ROOT / "host", root / "host")
             shutil.copyfile(ROOT / "Makefile", root / "Makefile")
             (root / "pool").mkdir()
-            (root / "tools/delivery_cache_check.sh").write_text("printf 'complete\\n'\n")
-            (root / "tools/delivery_image.sh").write_text("printf 'selected=%s\\n' \"$NMR_SELECTED_DOCKER_ENDPOINT\"\n")
+            (root / "host/tools/checker_operation.sh").write_text("checker_begin() { :; }\n")
+            (root / "host/tools/delivery_cache_check.sh").write_text("printf 'complete\\n'\n")
+            (root / "host/tools/delivery_image.sh").write_text("printf 'selected=%s\\n' \"$NMR_SELECTED_DOCKER_ENDPOINT\"\n")
             log = root / "context-inspections"
             fixture = ROOT / "tests/repository/fixtures/docker-context"
             env = os.environ | {"PATH": f"{fixture}:{os.environ['PATH']}", "FAKE_CONTEXT_LOG": str(log)}
@@ -141,14 +143,14 @@ class LauncherTests(unittest.TestCase):
     def test_preview_discovers_new_public_roots_and_rejects_hidden_links(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for name in ("tools", "requirements", "containers"):
+            for name in ("tools", "host", "requirements", "containers"):
                 shutil.copytree(ROOT / name, root / name)
             (root / "future-source").mkdir()
             (root / ".work").mkdir()
             (root / ".aws").mkdir()
             (root / "release-artifacts").mkdir()
-            launcher = root / "tools/repository.sh"
-            launcher.write_bytes((ROOT / "tools/repository.sh").read_bytes())
+            launcher = root / "host/tools/repository.sh"
+            launcher.write_bytes((ROOT / "host/tools/repository.sh").read_bytes())
             environment = os.environ | {"NMR_SELECTED_DOCKER_ENDPOINT": "unix:///var/run/docker.sock"}
             command = ["bash", str(launcher), "--print", "tests/repository"]
             result = subprocess.run(command, env=environment, capture_output=True, text=True, check=False)
@@ -167,9 +169,9 @@ class LauncherTests(unittest.TestCase):
     def test_missing_inputs_and_unknown_target_fail_before_engine_execution(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "tools").mkdir()
-            launcher = root / "tools/repository.sh"
-            launcher.write_bytes((ROOT / "tools/repository.sh").read_bytes())
+            (root / "host/tools").mkdir(parents=True)
+            launcher = root / "host/tools/repository.sh"
+            launcher.write_bytes((ROOT / "host/tools/repository.sh").read_bytes())
             for target, message in (
                 ("tests/repository", "checker_inputs.sh"),
                 ("unreviewed", "unknown target"),

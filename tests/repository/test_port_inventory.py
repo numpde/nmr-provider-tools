@@ -62,7 +62,7 @@ class PortInventoryTests(unittest.TestCase):
             self.assertIn(entry["disposition"], {"ported", "provider-owned", "on-owner-extraction", "no-current-consumer"})
 
     def test_checker_identity_is_one_exact_immutable_image_input(self):
-        path = ROOT / "tools/base_image.sh"
+        path = ROOT / "host/tools/base_image.sh"
         self.assertFalse(path.is_symlink())
         self.assertEqual(1, len(re.findall(rb"python:3\.12\.[0-9]+-slim-bookworm@sha256:[0-9a-f]{64}", path.read_bytes())))
         self.assertFalse((ROOT / "config/checker-image.txt").exists())

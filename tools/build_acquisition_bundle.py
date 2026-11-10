@@ -78,10 +78,17 @@ def dependency_files(pool, pin):
     return files, {wheel_name: observed_sha256}
 
 
+def source_path(name):
+    """Locate authored sources without changing the published bootstrap layout."""
+    if name == "acquisition_tool/proxy.py":
+        return Path("containers/acquisition/proxy.py")
+    return Path("host") / name
+
+
 def contents(pool, source, core_wheel, pin):
     (files, dependencies) = dependency_files(pool, pin)
     for name in SOURCE_FILES:
-        _add(files, name, (source / name).read_bytes())
+        _add(files, name, (source / source_path(name)).read_bytes())
 
     with zipfile.ZipFile(core_wheel) as archive:
         member_names = archive.namelist()

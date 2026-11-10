@@ -29,9 +29,9 @@ endif
 ifneq ($(strip $(filter-out help publish/release checks/python-cache/clean packages/acquisition-bootstrap/check packages/acquisition-bootstrap/refresh,$(MAKECMDGOALS))),)
 ifeq ($(origin DOCKER_CONTEXT),command line)
 docker_context_quote = '$(subst ','"'"',$(1))'
-override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCKER_ENDPOINT -u DOCKER_CONTEXT_INPUT -u DOCKER_CONTEXT_INPUT_ORIGIN DOCKER_CONTEXT_INPUT_ORIGIN='command line' DOCKER_CONTEXT_INPUT=$(call docker_context_quote,$(value DOCKER_CONTEXT)) bash tools/docker_context.sh --endpoint)
+override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCKER_ENDPOINT -u DOCKER_CONTEXT_INPUT -u DOCKER_CONTEXT_INPUT_ORIGIN DOCKER_CONTEXT_INPUT_ORIGIN='command line' DOCKER_CONTEXT_INPUT=$(call docker_context_quote,$(value DOCKER_CONTEXT)) bash host/tools/docker_context.sh --endpoint)
 else
-override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCKER_ENDPOINT -u DOCKER_CONTEXT_INPUT -u DOCKER_CONTEXT_INPUT_ORIGIN bash tools/docker_context.sh --endpoint)
+override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCKER_ENDPOINT -u DOCKER_CONTEXT_INPUT -u DOCKER_CONTEXT_INPUT_ORIGIN bash host/tools/docker_context.sh --endpoint)
 endif
 ifeq ($(strip $(NMR_SELECTED_DOCKER_ENDPOINT)),)
 $(error Select a local Docker context for this operation)
@@ -296,172 +296,172 @@ help:
 	  ''
 
 packages/provider-core/download:
-	bash tools/provider_core.sh download
+	bash host/tools/provider_core.sh download
 
 wheelhouse/image/build:
-	bash tools/wheelhouse_image.sh build
+	bash host/tools/wheelhouse_image.sh build
 
 tests/wheelhouse:
-	bash tools/wheelhouse_image.sh test
+	bash host/tools/wheelhouse_image.sh test
 
 tests/delivery/publisher:
-	bash tools/delivery_publisher_check.sh
+	bash host/tools/delivery_publisher_check.sh
 
 wheelhouse/lock/locate:
-	@bash tools/wheelhouse_locate.sh
+	@bash host/tools/wheelhouse_locate.sh
 
 wheelhouse/lock/acquire:
-	@bash tools/wheelhouse_acquire.sh
+	@bash host/tools/wheelhouse_acquire.sh
 
 packages/provider-core/check:
-	bash tools/provider_core.sh check
+	bash host/tools/provider_core.sh check
 
 tests/deployment/route:
-	bash tools/delivery_route_tests.sh
+	bash host/tools/delivery_route_tests.sh
 
 tests/deployment/route/literal:
-	bash tools/delivery_route_tests.sh --literal-ip
+	bash host/tools/delivery_route_tests.sh --literal-ip
 
 tests/deployment:
-	bash tools/delivery_tests.sh
+	bash host/tools/delivery_tests.sh
 
 delivery/prepare:
-	bash tools/delivery_prepare.sh
+	bash host/tools/delivery_prepare.sh
 
 delivery/image/build:
-	bash tools/delivery_image.sh
+	bash host/tools/delivery_image.sh
 
 package/build:
-	bash tools/provider_core.sh build
+	bash host/tools/provider_core.sh build
 
 tests/package:
-	bash tools/provider_core.sh package
+	bash host/tools/provider_core.sh package
 
 tests/unit/provider-core:
-	bash tools/provider_core.sh unit
+	bash host/tools/provider_core.sh unit
 
 tests/fuzz/provider-core:
-	bash tools/provider_core.sh fuzz
+	bash host/tools/provider_core.sh fuzz
 
 tests/contract/provider-core:
-	bash tools/provider_core.sh contract
+	bash host/tools/provider_core.sh contract
 
 tests/integration/provider-core:
-	bash tools/provider_core.sh integration
+	bash host/tools/provider_core.sh integration
 
 tests/integration/provider-core/delivery:
-	bash tools/provider_core.sh integration/delivery
+	bash host/tools/provider_core.sh integration/delivery
 
 checks/base-image/download:
-	bash tools/checker.sh base-download
+	bash host/tools/checker.sh base-download
 
 checks/dependencies/download:
-	bash tools/checker.sh download
+	bash host/tools/checker.sh download
 
 checks/dependencies/check:
-	bash tools/checker.sh check
+	bash host/tools/checker.sh check
 
 checks/image/build:
-	bash tools/checker.sh build
+	bash host/tools/checker.sh build
 
 checks/prepare:
-	bash tools/checker.sh prepare
+	bash host/tools/checker.sh prepare
 
 checks/python-cache/clean:
-	bash tools/python_cache_clean.sh
+	bash host/tools/python_cache_clean.sh
 
 tests/acquisition/identity:
-	@bash tools/acquisition_identity_test.sh
+	@bash host/tools/acquisition_identity_test.sh
 
 .PHONY: tests/acquisition/owner
 tests/acquisition/owner:
-	@bash tools/repository.sh tests/acquisition/owner
+	@bash host/tools/repository.sh tests/acquisition/owner
 
 tests: tests/repository tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core tests/deployment
 
 .PHONY: tests/acquisition/shared-network
 tests/acquisition/shared-network:
-	bash tools/acquisition_owner_network_test.sh
+	bash host/tools/acquisition_owner_network_test.sh
 
 tests/acquisition/network:
-	bash tools/acquisition_network_test.sh
+	bash host/tools/acquisition_network_test.sh
 
 tests/repository:
-	bash tools/repository.sh tests/repository
+	bash host/tools/repository.sh tests/repository
 
 tests/repository/quality:
-	bash tools/repository.sh tests/repository/quality
+	bash host/tools/repository.sh tests/repository/quality
 
 .PHONY: tests/repository/bytecode
 tests/repository/bytecode:
-	@bash tools/repository.sh tests/repository/bytecode
+	@bash host/tools/repository.sh tests/repository/bytecode
 
 .PHONY: packages/acquisition-bootstrap/check packages/acquisition-bootstrap/refresh
 packages/acquisition-bootstrap/check:
-	@bash tools/acquisition_bootstrap.sh check
+	@bash host/tools/acquisition_bootstrap.sh check
 
 packages/acquisition-bootstrap/refresh:
-	@bash tools/acquisition_bootstrap.sh refresh
+	@bash host/tools/acquisition_bootstrap.sh refresh
 
 tests/repository/provisioning:
-	bash tools/repository.sh tests/repository/provisioning
+	bash host/tools/repository.sh tests/repository/provisioning
 
 tests/repository/release:
-	bash tools/repository.sh tests/repository/release
+	bash host/tools/repository.sh tests/repository/release
 
 tests/repository/network:
-	bash tools/repository.sh tests/repository/network
+	bash host/tools/repository.sh tests/repository/network
 
 tests/repository/network/identity:
-	bash tools/repository.sh tests/repository/network/identity
+	bash host/tools/repository.sh tests/repository/network/identity
 
 tests/repository/runtime:
-	bash tools/repository.sh tests/repository/runtime
+	bash host/tools/repository.sh tests/repository/runtime
 
 tests/repository/command:
-	bash tools/repository.sh --print tests/repository
+	bash host/tools/repository.sh --print tests/repository
 
 delivery/deployment/up:
-	bash tools/delivery.sh up
+	bash host/tools/delivery.sh up
 
 delivery/deployment/update:
-	bash tools/delivery_prepare.sh
-	bash tools/delivery.sh up
+	bash host/tools/delivery_prepare.sh
+	bash host/tools/delivery.sh up
 
 delivery/deployment/proxy/restart:
-	bash tools/delivery.sh proxy-restart
+	bash host/tools/delivery.sh proxy-restart
 
 delivery/deployment/down:
-	bash tools/delivery.sh down
+	bash host/tools/delivery.sh down
 
 delivery/deployment/status:
-	bash tools/delivery.sh status
+	bash host/tools/delivery.sh status
 
 delivery/deployment/logs:
-	bash tools/delivery.sh logs
+	bash host/tools/delivery.sh logs
 
 delivery/deployment/held:
-	bash tools/delivery.sh held
+	bash host/tools/delivery.sh held
 
 delivery/deployment/discard:
-	bash tools/delivery.sh discard
+	bash host/tools/delivery.sh discard
 
 delivery/deployment/retire-old:
 	[[ $${PROJECT_INPUT_ORIGIN} == 'command line' && $${SHARED_RUNTIME_IMAGE_INPUT_ORIGIN} == 'command line' ]] || { printf '%s\n' 'Select PROJECT and SHARED_RUNTIME_IMAGE on the Make command line.' >&2; exit 2; }
-	bash tools/delivery_retire_old.sh "$$PROJECT_INPUT" "$$SHARED_RUNTIME_IMAGE_INPUT"
+	bash host/tools/delivery_retire_old.sh "$$PROJECT_INPUT" "$$SHARED_RUNTIME_IMAGE_INPUT"
 
 publish/prepare:
-	bash tools/publish.sh prepare
+	bash host/tools/publish.sh prepare
 
 publish/release:
-	bash tools/publish.sh release
+	bash host/tools/publish.sh release
 
 engine/cache/gc/install:
-	bash tools/engine_cache_gc.sh install
+	bash host/tools/engine_cache_gc.sh install
 
 engine/cache/gc:
 	[[ $$DOCKER_CONTEXT_INPUT_ORIGIN == 'command line' && $$ENGINE_CONFIG_INPUT_ORIGIN == 'command line' && -v ENGINE_CONFIG_INPUT && -n $$ENGINE_CONFIG_INPUT ]] || { printf '%s\n' 'Supply DOCKER_CONTEXT=<context> and ENGINE_CONFIG=/absolute/daemon.json on the Make command line.' >&2; exit 2; }
-	bash tools/engine_cache_gc.sh run "$$DOCKER_CONTEXT_INPUT" "$$NMR_SELECTED_DOCKER_ENDPOINT" "$$ENGINE_CONFIG_INPUT"
+	bash host/tools/engine_cache_gc.sh run "$$DOCKER_CONTEXT_INPUT" "$$NMR_SELECTED_DOCKER_ENDPOINT" "$$ENGINE_CONFIG_INPUT"
 
 packages/images/retire:
-	bash tools/image_retirement.sh
+	bash host/tools/image_retirement.sh

@@ -1,6 +1,6 @@
 """Inventory authored sources visible to the contained repository lane.
 
-The launcher pins /workspace; local conventions govern tools, tests, packages and
+The launcher pins /workspace; local conventions govern host, tools, tests, packages and
 standalone examples. Future src, packages/*/src and examples/*/src sources enter
 these inventories automatically.
 """
@@ -13,7 +13,7 @@ from pathlib import Path
 
 ROOT = Path("/workspace")
 REPOSITORY_ROOT = ROOT
-PYTHON_ROOTS = ("tools", "tests")
+PYTHON_ROOTS = ("host", "tools", "tests")
 OPTIONAL_PYTHON_ROOTS = ("src",)
 SKIP_DIRS = {
     ".git",
@@ -35,12 +35,12 @@ def python_sources(*, production_only):
     """Use the caller's explicit production or whole-repository inventory.
 
     Both projections include future src, packages/*/src and examples/*/src
-    modules. Production checks own tools; whole-repository checks also own tests,
+    modules. Production checks own host and contained tools; whole-repository checks also own tests,
     package tests and example tests. The caller must choose the check's
     responsibility.
     """
-    # silent-defaults: allow-contract -- The required production_only choice selects tools or all authored roots; future shared-package and example modules belong to both inventories; proof=tests/repository/quality/test_source_inventory.py::SourceInventoryUnitTests.test_python_source_selection_respects_explicit_scope
-    roots = ("tools",) if production_only else PYTHON_ROOTS
+    # silent-defaults: allow-contract -- The required production_only choice selects host/tools or all authored roots; future shared-package and example modules belong to both inventories; proof=tests/repository/quality/test_source_inventory.py::SourceInventoryUnitTests.test_python_source_selection_respects_explicit_scope
+    roots = ("host", "tools") if production_only else PYTHON_ROOTS
     directories = [ROOT / name for name in (*roots, *OPTIONAL_PYTHON_ROOTS)]
     directories.extend(ROOT.glob("packages/*/src"))
     directories.extend(ROOT.glob("examples/*/src"))

@@ -43,8 +43,12 @@ Preserve all container image references, current input/recipe selections,
 explicit staged image IDs, and exact retained build IID receipts. Unknown
 ownership, digest references, operation base tags and ambiguous multiple aliases
 remain untouched. Legacy incomplete labels preserve that image rather than
-blocking other positively owned candidates. Docker Created accepts native
-timezone offsets; its 24-hour grace is a buffer, not time-since-publication proof.
+blocking other positively owned candidates.
+
+Creation time is not a retention signal. An obsolete positively owned image
+is immediately eligible once its builder has retired and its current selection,
+container, staged-ID, retained-receipt, and alias protections have been checked.
+The current checker remains available for subsequent offline repository tests.
 
 Removal uses exact immutable IDs without force or parent pruning, with fresh
 borrower/alias checks under the maintained checkout lock. Uncoordinated manual

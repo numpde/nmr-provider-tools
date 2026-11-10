@@ -80,14 +80,9 @@ def unguarded_sources(root):
     sources.difference_update(portable_sources)
     # The shared guard must be importable before its caller checks the marker.
     sources.discard(root / "tools" / "container_guard.py")
-    # Cold bootstrap verification/refresh intentionally reads and updates this
-    # checkout before a container or installed SDK can be admitted.
-    sources.discard(root / "tools" / "acquisition_bootstrap.py")
-    # The two build/qualification child scripts run with Python -I, which omits
-    # the repository tools package from their import path. Their launchers own
-    # container confinement and invoke these files as isolated subprocesses.
-    for isolated_entrypoint in ("acquisition_import_check.py", "build_sdist.py"):
-        sources.discard(root / "tools" / isolated_entrypoint)
+    # The scientific rejection contract is portable: it must be importable by
+    # scientific code before any container execution boundary exists.
+    portable_sources.discard(core_root / "contribution_errors.py")
     failures = [
         str(path.relative_to(root))
         for path in sorted(sources)
@@ -115,10 +110,34 @@ def make_targets(source):
     return targets
 
 
+def boundary_imports(root):
+    """Report host imports of contained code and reverse production imports."""
+    violations = []
+    for directory, forbidden in ((root / "host", "tools"), (root / "tools", "host")):
+        for path in sorted(directory.rglob("*.py")):
+            for statement in ast.walk(ast.parse(path.read_text())):
+                if isinstance(statement, ast.ImportFrom):
+                    modules = (statement.module or "",)
+                elif isinstance(statement, ast.Import):
+                    modules = tuple(alias.name for alias in statement.names)
+                else:
+                    continue
+                if any(module.split(".", 1)[0] == forbidden for module in modules):
+                    violations.append(str(path.relative_to(root)))
+    return sorted(set(violations))
+
+
 class RepositoryConventionTests(unittest.TestCase):
     def test_authored_production_sources_require_the_shared_guard(self):
         self.assertTrue(list((ROOT / "tools").rglob("*.py")), msg="production source inventory is empty")
         self.assertEqual([], unguarded_sources(ROOT))
+
+    def test_host_and_contained_code_have_distinct_execution_roots(self):
+        self.assertTrue(list((ROOT / "host").rglob("*.sh")))
+        self.assertTrue(list((ROOT / "host").rglob("*.py")))
+        self.assertEqual([], list((ROOT / "tools").rglob("*.sh")))
+        self.assertFalse((ROOT / "acquisition_tool").exists())
+        self.assertEqual([], boundary_imports(ROOT))
 
     def test_public_make_targets_are_hierarchical_and_test_aggregates_both_suites(self):
         targets = make_targets((ROOT / "Makefile").read_text())
@@ -160,6 +179,17 @@ class ConventionDetectionTests(unittest.TestCase):
                 (root / name).write_text(core_guard)
             ordinary.write_text(self.GUARD)
             self.assertEqual([], unguarded_sources(root))
+
+    def test_boundary_imports_detect_crossing_in_either_direction(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            host = root / "host/tasks.py"
+            contained = root / "tools/tasks.py"
+            host.parent.mkdir()
+            contained.parent.mkdir()
+            host.write_text("from tools.core_environment import release\\n")
+            contained.write_text("import host.tools.engine_cache_gc\\n")
+            self.assertEqual(["host/tasks.py", "tools/tasks.py"], boundary_imports(root))
 
     def test_missing_late_conditional_and_rebound_guards_fail(self):
         for source in (

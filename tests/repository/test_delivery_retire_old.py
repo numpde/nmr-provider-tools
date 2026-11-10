@@ -18,9 +18,9 @@ class DeliveryRetireOldTests(unittest.TestCase):
     def run_retirement(self, scenario, names):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            tools = root / 'tools'
-            tools.mkdir()
-            shutil.copyfile(ROOT / 'tools/delivery_retire_old.sh', tools / 'delivery_retire_old.sh')
+            tools = root / 'host/tools'
+            tools.mkdir(parents=True)
+            shutil.copyfile(ROOT / 'host/tools/delivery_retire_old.sh', tools / 'delivery_retire_old.sh')
             (root / 'volumes').write_text(''.join(name + '\n' for name in names))
             (tools / 'checker_operation.sh').write_text('''
 checker_begin() {

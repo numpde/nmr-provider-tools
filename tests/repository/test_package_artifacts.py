@@ -186,7 +186,7 @@ class PackageArtifactTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("QUALIFIED = True")
 
-        check_script = ROOT / "tools/acquisition_import_check.py"
+        check_script = ROOT / "containers/isolated/acquisition_import_check.py"
         command = [
             sys.executable,
             "-I",

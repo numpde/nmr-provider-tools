@@ -14,7 +14,7 @@ from .sources import ROOT
 
 class PythonCacheCleanupTests(unittest.TestCase):
     def clean(self, root):
-        script = ROOT / "tools/python_cache_clean.sh"
+        script = ROOT / "host/tools/python_cache_clean.sh"
         return subprocess.run(
             ["bash", "-c", 'source "$1"; clean_first_party_bytecode "$2"', "bash", str(script), str(root)],
             capture_output=True, text=True, check=False,
@@ -72,10 +72,10 @@ class PythonCacheCleanupTests(unittest.TestCase):
             cwd=ROOT, capture_output=True, text=True, check=False,
         )
         self.assertEqual(0, result.returncode, msg=result.stderr)
-        self.assertIn("tools/python_cache_clean.sh", result.stdout)
+        self.assertIn("host/tools/python_cache_clean.sh", result.stdout)
         self.assertNotIn("Select a local Docker context", result.stderr)
         self.assertIn(
-            "tests/repository/quality:\n\tbash tools/repository.sh tests/repository/quality",
+            "tests/repository/quality:\n\tbash host/tools/repository.sh tests/repository/quality",
             (ROOT / "Makefile").read_text(encoding="utf-8"),
         )
 

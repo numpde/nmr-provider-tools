@@ -31,7 +31,7 @@ resolvers. The `system` route uses global configuration directly. DNS queries
 and destination connections remain bound to the selected route, with no
 hard-coded public fallback. Configuration changes apply to the next operation.
 
-The shared source bundle includes `acquisition_tool/dns.py` for host-owned build
+The shared source bundle includes `host/acquisition_tool/dns.py` for host-owned build
 launchers. Invoke it with `--interface <name> --output <private-scratch>/resolv.conf`,
 then give that file to the proxy with `--resolver-file`. Keep it until the proxy
 has retired. Containers receive the captured file, not host manager sockets or
@@ -109,3 +109,22 @@ Select a local Docker context for builds, tests and deployments with
 There is no default. Contexts must use a Unix socket on the machine running
 the command. Run operations on the target machine so bind mounts and network
 interfaces refer to that host.
+
+## Authored execution boundaries
+
+`host/tools/` contains the Bash orchestrators and the Python helpers they invoke
+on the operator's host. `host/acquisition_tool/` owns the authored acquisition
+owner and resolver/identity sources. Host Python does not depend on the
+container-only `tools` package.
+
+`tools/` contains contained Python modules; operational entrypoints use the
+container guard. `containers/isolated/` contains build/qualification helpers
+invoked through isolated Python subprocesses; `containers/acquisition/` owns
+the container-side acquisition proxy source. The installed `provider_core`
+package contains both portable scientific contracts and guarded operational
+modules. The `bootstrap/acquisition/` tree is a pinned release snapshot; its
+internal `tools/` and `acquisition_tool/` paths are deliberately unchanged.
+
+Public Make targets remain the supported interface. The separation applies to
+source ownership and execution policy, not to the names of published bundle
+members or the operator CLI.

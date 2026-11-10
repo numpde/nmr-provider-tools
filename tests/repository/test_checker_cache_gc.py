@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from tools.engine_cache_gc import configured, install, limits, unit_files
+from host.tools.engine_cache_gc import configured, install, limits, unit_files
 from tests.repository.quality.sources import ROOT
 
 
@@ -47,7 +47,7 @@ class EngineCacheGCTests(unittest.TestCase):
             config = root / "daemon.json"
             config.write_text('{"data-root":"/keep"}\n')
             before = config.read_bytes()
-            with patch("tools.engine_cache_gc.subprocess.run", return_value=SimpleNamespace(returncode=1)) as command:
+            with patch("host.tools.engine_cache_gc.subprocess.run", return_value=SimpleNamespace(returncode=1)) as command:
                 with self.assertRaisesRegex(ValueError, "original file is unchanged"):
                     install(root, "science", "unix:///tmp/engine.sock", config)
             self.assertEqual(config.read_bytes(), before)
@@ -61,7 +61,7 @@ class EngineCacheGCTests(unittest.TestCase):
             config.write_text("{}\n")
             failure = subprocess.CalledProcessError(1, ["systemctl", "--user", "daemon-reload"])
             with patch(
-                "tools.engine_cache_gc.subprocess.run",
+                "host.tools.engine_cache_gc.subprocess.run",
                 side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(stdout=str(root / "config") + "\n"), failure],
             ):
                 with self.assertRaisesRegex(RuntimeError, "settings were saved.*activation could not be confirmed"):
@@ -79,7 +79,7 @@ class EngineCacheGCTests(unittest.TestCase):
             document["builder"]["gc"]["defaultMaxUsedSpace"] = "24GB"
             config.write_text(json.dumps(document))
             probe = root / "probe.json"
-            result = subprocess.run(["bash", str(root / "tools/engine_cache_gc.sh"), "run", "science",
+            result = subprocess.run(["bash", str(root / "host/tools/engine_cache_gc.sh"), "run", "science",
                                      "unix:///tmp/selected-engine.sock", str(config)], capture_output=True, text=True,
                                     env=os.environ | {"PATH":str(ROOT / "tests/repository/fixtures/cache-gc") + os.pathsep + os.environ["PATH"],
                                                       "GC_PROBE":str(probe), "DOCKER_HOST":"unix:///tmp/wrong.sock",

@@ -2,20 +2,18 @@
 from tools.container_guard import require_container
 require_container()
 
-from datetime import datetime, timezone
 from copy import deepcopy
 from pathlib import Path
 import json
 import tempfile
 import unittest
 
-from tools.image_retirement import RetirementRefused, retire, select_images, retained_image_ids
+from host.tools.image_retirement import RetirementRefused, retire, select_images, retained_image_ids
 
 
 CURRENT = ("a" * 64, "b" * 64)
 OLD = "c" * 64
 IDENTIFIER = "sha256:" + "d" * 64
-NOW = 1800000000
 
 
 def image(**changes):
@@ -64,16 +62,16 @@ class ImageRetirementTests(unittest.TestCase):
     def test_legacy_delivery_metadata_preserves_only_that_image(self):
         legacy = image(Id="sha256:" + "e" * 64,
                        Labels={"org.nmr-provider-tools.role": "delivery"}, RepoTags=[])
-        self.assertEqual([IDENTIFIER], select_images([legacy, image()], set(), CURRENT, NOW))
+        self.assertEqual([IDENTIFIER], select_images([legacy, image()], set(), CURRENT))
 
-    def test_native_creation_time_accepts_explicit_offset(self):
-        value = image(Created="2020-01-01T03:00:00.123456789+03:00")
-        self.assertEqual([IDENTIFIER], select_images([value], set(), CURRENT, NOW))
+    def test_obsolete_image_is_eligible_without_age_grace(self):
+        newly_created = image(Created="2099-01-01T00:00:00Z")
+        self.assertEqual([IDENTIFIER], select_images([newly_created], set(), CURRENT))
 
     def test_only_exact_obsolete_owned_id_is_removed(self):
         engine = Engine(image())
         with tempfile.TemporaryDirectory() as directory:
-            count = retire(Path(directory), engine, lambda: CURRENT, now=NOW, operations=Path(directory))
+            count = retire(Path(directory), engine, lambda: CURRENT, operations=Path(directory))
         self.assertEqual(count, 1)
         self.assertEqual(engine.removals, [("image", "rm", "--no-prune", IDENTIFIER)])
 
@@ -81,13 +79,13 @@ class ImageRetirementTests(unittest.TestCase):
         for borrowed, staged in ((True, ()), (False, (IDENTIFIER,))):
             with self.subTest(borrowed=borrowed), tempfile.TemporaryDirectory() as directory:
                 engine = Engine(image(), borrower=borrowed)
-                self.assertEqual(0, retire(Path(directory), engine, lambda: CURRENT, staged=staged, now=NOW, operations=Path(directory)))
+                self.assertEqual(0, retire(Path(directory), engine, lambda: CURRENT, staged=staged, operations=Path(directory)))
                 self.assertEqual([], engine.removals)
 
     def test_changed_alias_or_new_container_prevents_removal(self):
         with tempfile.TemporaryDirectory() as directory:
             engine = Engine(image(), changed=True)
-            self.assertEqual(0, retire(Path(directory), engine, lambda: CURRENT, now=NOW, operations=Path(directory)))
+            self.assertEqual(0, retire(Path(directory), engine, lambda: CURRENT, operations=Path(directory)))
             self.assertEqual([], engine.removals)
         engine = Engine(image())
         original = engine.__call__
@@ -96,10 +94,10 @@ class ImageRetirementTests(unittest.TestCase):
                 return "2" * 64 + "\n"
             return original(*arguments)
         with tempfile.TemporaryDirectory() as directory:
-            self.assertEqual(0, retire(Path(directory), borrowed_later, lambda: CURRENT, now=NOW, operations=Path(directory)))
+            self.assertEqual(0, retire(Path(directory), borrowed_later, lambda: CURRENT, operations=Path(directory)))
             self.assertEqual([], engine.removals)
 
-    def test_current_inputs_and_unknown_aliases_and_recent_outputs_remain(self):
+    def test_current_inputs_and_unknown_aliases_remain(self):
         cases = [
             image(Labels={"org.nmr-provider-tools.inputs": CURRENT[0]},
                   RepoTags=["nmr-provider-tools/checker:" + CURRENT[0]]),
@@ -107,7 +105,6 @@ class ImageRetirementTests(unittest.TestCase):
             image(RepoTags=["nmr-provider-tools/base-operation:held"]),
             image(RepoDigests=["foreign/retained@sha256:" + "f" * 64]),
             image(RepoTags=["nmr-provider-tools/checker:" + OLD, "foreign/retained:latest"]),
-            image(RepoTags=[], Created=datetime.fromtimestamp(NOW - 60, timezone.utc).isoformat().replace("+00:00", "Z")),
             image(Labels={"org.nmr-provider-tools.role": "delivery",
                           "org.nmr-provider-tools.inputs": OLD,
                           "org.nmr-provider-tools.recipe": CURRENT[1]}, RepoTags=[]),
@@ -115,15 +112,15 @@ class ImageRetirementTests(unittest.TestCase):
         ]
         for value in cases:
             with self.subTest(value=value):
-                self.assertEqual([], select_images([value], set(), CURRENT, NOW))
+                self.assertEqual([], select_images([value], set(), CURRENT))
         self.assertEqual(select_images([image(Labels={"org.nmr-provider-tools.role": "wheelhouse-tool"},
-                                             RepoTags=[])], set(), CURRENT, NOW), [IDENTIFIER])
+                                             RepoTags=[])], set(), CURRENT), [IDENTIFIER])
 
     def test_incomplete_metadata_fails_before_any_removal(self):
         with tempfile.TemporaryDirectory() as directory:
             engine = Engine(image(), malformed=True)
             with self.assertRaises(ValueError):
-                retire(Path(directory), engine, lambda: CURRENT, now=NOW, operations=Path(directory))
+                retire(Path(directory), engine, lambda: CURRENT, operations=Path(directory))
             self.assertEqual([], engine.removals)
 
     def test_current_source_change_fails_before_removal(self):
@@ -131,7 +128,7 @@ class ImageRetirementTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             engine = Engine(image())
             with self.assertRaises(RetirementRefused):
-                retire(Path(directory), engine, lambda: next(identities), now=NOW, operations=Path(directory))
+                retire(Path(directory), engine, lambda: next(identities), operations=Path(directory))
             self.assertEqual([], engine.removals)
 
     def test_known_retained_build_receipt_protects_exact_image(self):
@@ -142,7 +139,7 @@ class ImageRetirementTests(unittest.TestCase):
             receipt = operation / "built-image"
             receipt.write_text(IDENTIFIER + "\n")
             engine = Engine(image())
-            self.assertEqual(0, retire(root, engine, lambda: CURRENT, now=NOW, operations=root))
+            self.assertEqual(0, retire(root, engine, lambda: CURRENT, operations=root))
             self.assertEqual([], engine.removals)
             self.assertEqual(retained_image_ids(root), {IDENTIFIER})
             receipt.unlink()

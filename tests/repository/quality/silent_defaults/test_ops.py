@@ -50,7 +50,8 @@ def ops_files() -> list[Path]:
             "compose/**/*.yaml",
             "containers/**/Dockerfile*",
             "containers/**/*.sh",
-            "tools/**/*.sh",
+            "host/tools/**/*.sh",
+            "host/**/*.py",
             "tools/**/*.py",
             "tests/**/*.sh",
             ".github/workflows/*.yml",
@@ -66,8 +67,8 @@ def ops_files() -> list[Path]:
 def shell_exported_names(source: str) -> set[str] | None:
     """Find literal publication candidates, or retain raw coverage when uncertain."""
     # The pinned Dapp detector matches assignments, not shell publication. In
-    # tools/docker_client.sh, directory resets are private lifecycle state;
-    # tools/inference_inputs.sh explicitly exports its subprocess environment.
+    # Host Docker-client directories are private lifecycle state; exported
+    # environment variables are separate observations.
     # Collect names across the source: even a blank corrected before export is
     # still flagged. This is conservative static policy, not execution tracing.
     # Dynamic exports, options and other publication forms retain raw findings.

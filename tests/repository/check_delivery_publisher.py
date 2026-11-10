@@ -1,5 +1,9 @@
 """Exercise delivery's generated lock with the released shared publisher offline."""
 
+from tools.container_guard import require_container
+
+require_container()
+
 import hashlib
 import tempfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer

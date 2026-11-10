@@ -80,9 +80,11 @@ class ScientificLintTests(unittest.TestCase):
         self.assertEqual([], findings, msg="\n".join(findings))
 
     def test_guard_exception_retains_late_module_import_rejection(self):
+        # Bootstrap identity has an intentional isolated import-path setup;
+        # it is qualified by the cold-bundle import tests, not this rule.
         findings = [
             f"{path.relative_to(ROOT)}:{line}: module import follows operational statements"
-            for name in ("tools", "tests", "src", "packages")
+            for name in ("host/tools", "tools", "tests", "src", "packages")
             for path in sorted((ROOT / name).rglob("*.py"))
             for line in late_module_imports(path.read_text())
         ]

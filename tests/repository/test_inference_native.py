@@ -32,11 +32,12 @@ class CapturedNativeTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.helper = self.root / "inference_native.sh"
-        self.helper.write_bytes(Path("tools/inference_native.sh").read_bytes())
+        self.helper.write_bytes(Path("host/tools/inference_native.sh").read_bytes())
         self.bin = self.root / "bin"
         self.bin.mkdir()
+        utility = Path(__file__).resolve().parent / "fixtures/native_command.py"
         for name in ("mv", "head", "rm"):
-            (self.bin / name).symlink_to(Path(__file__).resolve())
+            (self.bin / name).symlink_to(utility)
         self.observation = self.root / "client.json"
         self.control = self.root / "control.json"
         self.environment = os.environ | {
@@ -57,6 +58,39 @@ class CapturedNativeTests(unittest.TestCase):
             # only when mv publishes status or head reads that status file.
             "NATIVE_STATUS_MUTATION": "",
         }
+
+    def test_fault_commands_are_reached_through_shell_path(self):
+        """The real utilities must never silently substitute for our injected ports."""
+        pending = self.root / "status.pending"
+        pending.write_text("123\n")
+        receipt = self.root / "status.ready"
+        moved = subprocess.run(
+            ["bash", "-c", 'mv -- "$1" "$2"', "bash", str(pending), str(receipt)],
+            env=self.environment | {"NATIVE_PUBLICATION_FAILURE": "ready"},
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+        self.assertEqual(29, moved.returncode, msg=moved.stderr)
+        self.assertTrue(self.control.is_file())
+        self.assertTrue(pending.exists())
+        self.assertFalse(receipt.exists())
+
+        status_file = self.root / "status"
+        status_file.write_text("0\n")
+        read = subprocess.run(
+            ["bash", "-c", 'head -c 5 "$1"', "bash", str(status_file)],
+            env=self.environment | {"NATIVE_STATUS_MUTATION": "read-error"},
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+        self.assertEqual(31, read.returncode, msg=read.stderr)
+        self.assertEqual("", read.stdout)
+
+        removed = subprocess.run(
+            ["bash", "-c", 'rm -f -- "$1"', "bash", str(status_file)],
+            env=self.environment | {"NATIVE_CLEANUP_FAILURE": "1"},
+            capture_output=True, text=True, timeout=5, check=False,
+        )
+        self.assertEqual(23, removed.returncode, msg=removed.stderr)
+        self.assertTrue(status_file.exists())
 
     def test_native_status_is_owned_at_construction_and_required_by_the_client(self):
         with patch.dict(os.environ, {"NATIVE_STATUS": "37"}):
@@ -992,17 +1026,37 @@ class CapturedNativeTests(unittest.TestCase):
         self.assertNotIn("deadline elapsed", result.stderr)
         self.assert_client_retired()
 
+    def run_readied_expiry(self, *, behavior, additions=None):
+        """Exercise the actual timeout only after the native TERM handler exists."""
+        command, environment = self.command(budget="5")
+        process = subprocess.Popen(
+            command,
+            env=environment | {"NATIVE_BEHAVIOR": behavior} | ({} if additions is None else additions),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        self.addCleanup(self.retire_probe, process)
+        self.await_term_handler()
+        self.assertIsNone(process.poll(), msg="The native client expired before its handler was ready.")
+        stdout, stderr = process.communicate(timeout=12)
+        self.retain_cleanup(stderr)
+        self.assertEqual("", stdout)
+        return process.returncode, stderr
+
     def test_resistant_expiry_forwards_term_and_retires_the_full_group(self):
-        result = self.run_native(budget="0.1", additions={"NATIVE_BEHAVIOR": "resistant"})
-        self.assertEqual(124, result.returncode, msg=result.stderr)
-        self.assertIn("deadline elapsed", result.stderr)
-        self.assertTrue((self.root / "term-observed").exists(), msg="the actual client never received deadline TERM")
+        status, diagnostic = self.run_readied_expiry(behavior="resistant")
+        self.assertEqual(124, status, msg=diagnostic)
+        self.assertIn("deadline elapsed", diagnostic)
+        self.assertEqual("TERM\n", (self.root / "term-observed").read_text())
         self.assert_client_retired()
 
     def test_late_success_after_confirmed_expiry_cannot_report_success(self):
-        result = self.run_native(budget="0.1", additions={"NATIVE_BEHAVIOR": "late-success"})
-        self.assertEqual(124, result.returncode, msg=result.stderr)
-        self.assertIn("deadline elapsed", result.stderr)
+        status, diagnostic = self.run_readied_expiry(behavior="late-success")
+        self.assertEqual(124, status, msg=diagnostic)
+        self.assertIn("deadline elapsed", diagnostic)
+        self.assertEqual("completed after TERM\n", (self.root / "late-success-returned").read_text())
         self.assert_client_retired()
 
     def test_cli_signal_dispositions_are_native(self):
@@ -1201,12 +1255,13 @@ class CapturedNativeTests(unittest.TestCase):
                 self.assert_client_retired()
 
     def test_failed_expiry_publication_cannot_claim_a_confirmed_deadline(self):
-        result = self.run_native(
-            budget="0.1", additions={"NATIVE_PUBLICATION_FAILURE": "deadline", "NATIVE_BEHAVIOR": "resistant"}
+        status, diagnostic = self.run_readied_expiry(
+            behavior="resistant", additions={"NATIVE_PUBLICATION_FAILURE": "deadline"}
         )
-        self.assertEqual(1, result.returncode, msg=result.stderr)
-        self.assertIn("publication failed", result.stderr)
-        self.assertNotIn("deadline elapsed", result.stderr)
+        self.assertEqual(1, status, msg=diagnostic)
+        self.assertIn("publication failed", diagnostic)
+        self.assertNotIn("deadline elapsed", diagnostic)
+        self.assertEqual("TERM\n", (self.root / "term-observed").read_text())
         self.assert_client_retired()
 
     def test_drain_failure_preserves_native_failure_and_rejects_success(self):
@@ -1783,84 +1838,6 @@ class StdioNativeTests(unittest.TestCase):
         self.assertNotIn(b"command.log", stderr)
 
 
-def fixture_command(name):
-    """Inject only named local file faults; all other operations use native tools."""
-    arguments = sys.argv[1:]
-    if name == "mv":
-        phase = os.environ["NATIVE_PUBLICATION_FAILURE"]
-        source, target = map(Path, arguments[-2:])
-        receipt = target.parent / "status.ready"
-        if target.name == "status.ready":
-            anchor = int(source.read_text())
-        elif receipt.exists():
-            anchor = int(receipt.read_text())
-        else:
-            anchor = 0
-        Path(os.environ["NATIVE_CONTROL"]).write_text(json.dumps({"anchor": anchor, "directory": str(target.parent)}))
-        if target.name == "status.ready" and os.environ.get("NATIVE_CORRUPT_READY") == "1":
-            source.write_bytes(b"not-the-anchor\n")
-        if target.name == "status.release" and phase.startswith("release-"):
-            if phase == "release-fifo":
-                os.mkfifo(target)
-            elif phase == "release-directory":
-                target.mkdir()
-            else:
-                target.symlink_to(source)
-            return 0
-        if target.name == "status." + phase or (target.name == "status" and phase == "status"):
-            if os.environ.get("NATIVE_CANCEL_PUBLICATION") == "1":
-                parent = int(Path("/proc", str(anchor), "stat").read_text().split()[3])
-                os.kill(parent, signal.SIGTERM)
-            if "NATIVE_PUBLICATION_FAILED_AT" in os.environ:
-                Path(os.environ["NATIVE_PUBLICATION_FAILED_AT"]).write_text(str(time.monotonic()))
-            return 29
-        if target.name == "status":
-            mutation = os.environ["NATIVE_STATUS_MUTATION"]
-            values = {
-                "nul": b"0\0\n",
-                "cr": b"0\r\n",
-                "missing-lf": b"0",
-                "extra-lf": b"0\n\n",
-                "extra-line": b"0\n7\n",
-                "negative": b"-1\n",
-                "256": b"256\n",
-                "text": b"unknown\n",
-            }
-            if mutation in values:
-                source.write_bytes(values[mutation])
-            if mutation == "symlink":
-                target.symlink_to(source)
-                return 0
-            if mutation in {"fifo", "directory", "deadline-fifo", "deadline-directory", "deadline-symlink"}:
-                if mutation.startswith("deadline-"):
-                    target = target.parent / "status.deadline"
-                if mutation.endswith("fifo"):
-                    os.mkfifo(target)
-                elif mutation.endswith("directory"):
-                    target.mkdir()
-                else:
-                    target.symlink_to(source)
-                return 0
-    if name == "head" and arguments[-1].endswith("/status") and os.environ["NATIVE_STATUS_MUTATION"] == "read-error":
-        return 31
-    if name == "head" and arguments == ["-c", "8388608"] and os.environ.get("NATIVE_DRAIN_FAILURE") == "1":
-        return 33
-    if name == "rm" and os.environ.get("NATIVE_CLEANUP_FAILURE") == "1":
-        if "NATIVE_CANCEL_CLEANUP" in os.environ:
-            os.kill(os.getppid(), int(os.environ["NATIVE_CANCEL_CLEANUP"]))
-        return 23
-    if name == "rm" and os.environ.get("NATIVE_CLEANUP_FAILURE") == "after-delete":
-        # Actual deletion plus a secondary failure must not invent retained files
-        # or block the stdio owner by writing another message to its native pipe.
-        subprocess.run(["/bin/rm", *arguments], check=True)
-        if "NATIVE_CANCEL_CLEANUP" in os.environ:
-            os.kill(os.getppid(), int(os.environ["NATIVE_CANCEL_CLEANUP"]))
-        sys.stderr.write("fixture cleanup failed after deletion\n")
-        return 23
-    os.execv("/bin/" + name, [name, *arguments])
-    return 97
-
-
 def native_client():
     """Model a finite native status, resistant group member or output-only EOF."""
     observation = Path(os.environ["NATIVE_OBSERVATION"])
@@ -1924,8 +1901,16 @@ def native_client():
         signal.signal(signal.SIGTERM, lambda *_: (observation.parent / "term-observed").write_text("TERM\n"))
         time.sleep(60)
     if behavior == "late-success":
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
-        time.sleep(0.3)
+        received_term = False
+
+        def accept_deadline(_signum, _frame):
+            nonlocal received_term
+            received_term = True
+
+        signal.signal(signal.SIGTERM, accept_deadline)
+        while not received_term:
+            time.sleep(0.01)
+        (observation.parent / "late-success-returned").write_text("completed after TERM\n")
     if behavior == "slow-success":
         time.sleep(0.4)
     if behavior == "closed-output":
@@ -1937,9 +1922,6 @@ def native_client():
 
 
 if __name__ == "__main__":
-    command_name = Path(sys.argv[0]).name
-    if command_name in {"mv", "head", "rm"}:
-        raise SystemExit(fixture_command(command_name))
     if sys.argv[1:] == ["native-client"]:
         raise SystemExit(native_client())
     unittest.main()
