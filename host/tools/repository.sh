@@ -2,7 +2,7 @@
 # This launcher grants the checker public source reads and disposable /tmp only.
 set -euo pipefail
 
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 cd -- "$root"
 printing=0
 if [[ $# -gt 0 && $1 == --print ]]; then
@@ -36,7 +36,7 @@ if [[ $uid == 0 || $gid == 0 ]]; then
     printf '%s\n' 'Cannot start repository checks as UID or GID zero; use a non-root caller.' >&2
     exit 2
 fi
-source "$root/tools/checker_inputs.sh"
+source "$root/host/tools/checker_inputs.sh"
 fingerprint=$(checker_fingerprint)
 image="nmr-provider-tools/checker:$fingerprint"
 mounts=()
@@ -54,7 +54,7 @@ done
 # The preview does not create files or contact an engine. The real invocation
 # substitutes a private host snapshot of root names/types, without their contents.
 metadata=/tmp/nmr-provider-tools-root-entries
-source "$root/tools/checker_operation.sh"
+source "$root/host/tools/checker_operation.sh"
 if [[ $printing == 1 ]]; then
     if ! docker_client_prepare print; then printf '%s' "$docker_client_diagnostic" >&2; exit 2; fi
 else

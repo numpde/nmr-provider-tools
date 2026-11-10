@@ -75,7 +75,7 @@ class MakeOriginGateTests(unittest.TestCase):
 
     def test_whole_line_gate_is_not_a_waiver_in_other_source_languages(self):
         line = "export PROFILE_INPUT := $(if $(filter command line,$(origin PROFILE)),$(value PROFILE))"
-        for source in ("tools/runner.sh", "tools/runner.py", "containers/Dockerfile"):
+        for source in ("host/tools/runner.sh", "tools/runner.py", "containers/Dockerfile"):
             with self.subTest(source=source):
                 self.assertFalse(is_literal_make_origin_gate(source, line))
                 dapp_findings, vote_findings = self.findings_from_both_collectors(source, line)

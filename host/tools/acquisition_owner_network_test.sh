@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Qualify ordered shared-owner workers from exact release source, without downloads.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 if [[ $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot mount test inputs: checkout path contains a comma or control character.' >&2
     exit 2
 fi
-source "$root/tools/docker_context.sh"
+source "$root/host/tools/docker_context.sh"
 select_docker_context
-source "$root/tools/base_image.sh"
-source "$root/tools/checker_operation.sh"
+source "$root/host/tools/base_image.sh"
+source "$root/host/tools/checker_operation.sh"
 checker_begin
 ordered_container_retirement=true
 owner_started=false

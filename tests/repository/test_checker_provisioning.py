@@ -22,6 +22,7 @@ class CheckerProvisioningTests(unittest.TestCase):
         self.root = Path(temporary.name)
         for name in ("tools", "requirements", "containers"):
             shutil.copytree(ROOT / name, self.root / name)
+        shutil.copytree(ROOT / "host", self.root / "host")
         shutil.copyfile(ROOT / "Makefile", self.root / "Makefile")
         self.record = self.root / "arguments"
         self.environment = os.environ | {"PROVISION_ARGUMENTS": str(self.record), "PATH": f"{ROOT / 'tests/repository/fixtures/docker-context'}:{os.environ['PATH']}"}
@@ -41,11 +42,11 @@ class CheckerProvisioningTests(unittest.TestCase):
         return subprocess.run(arguments, cwd=self.root, env=self.environment, capture_output=True, text=True, check=False)
 
     def test_network_caller_supplies_worker_grants_and_literal_shared_cache(self):
-        (self.root / "tools/checker_operation.sh").write_text('''checker_begin() { :; }
+        (self.root / "host/tools/checker_operation.sh").write_text('''checker_begin() { :; }
 checker_host_identity() { checker_host_uid=$(id -u); checker_host_gid=$(id -g); }
 checker_acquisition_receipt() { operation_acquisition_receipt=$root/retired; }
 ''')
-        (self.root / "tools/docker.sh").write_text('printf "%s\\0" "$@" > "$PROVISION_ARGUMENTS"\n')
+        (self.root / "host/tools/docker.sh").write_text('printf "%s\\0" "$@" > "$PROVISION_ARGUMENTS"\n')
         cache = self.root / "cache $literal 'quoted'"
         result = self.invoke_make("checks/dependencies/download", wheelhouse=str(cache), interface="lo")
         self.assertEqual(0, result.returncode, msg=result.stderr)
@@ -65,7 +66,7 @@ checker_acquisition_receipt() { operation_acquisition_receipt=$root/retired; }
         self.assertFalse(any("docker.sock" in value for value in arguments))
 
     def test_offline_check_ignores_network_selector_and_grants_cache_read_only(self):
-        (self.root / "tools/checker_operation.sh").write_text('''checker_begin() { operation_directory=$root/probe; }
+        (self.root / "host/tools/checker_operation.sh").write_text('''checker_begin() { operation_directory=$root/probe; }
 checker_run() { printf '%s\\0' "$@" > "$PROVISION_ARGUMENTS"; }
 ''')
         result = self.invoke_make("checks/dependencies/check", wheelhouse=".", interface="missing-interface")
@@ -84,7 +85,7 @@ checker_run() { printf '%s\\0' "$@" > "$PROVISION_ARGUMENTS"; }
                 self.assertFalse(self.record.exists())
 
     def test_fingerprint_binds_source_bytes_and_modes_and_refuses_missing_inputs(self):
-        source = 'root=$1; source "$root/tools/checker_inputs.sh"; checker_fingerprint'
+        source = 'root=$1; source "$root/host/tools/checker_inputs.sh"; checker_fingerprint'
         first = self.shell(source)
         self.assertEqual(0, first.returncode, msg=first.stderr)
         target = self.root / "containers/checker/Dockerfile"
@@ -98,9 +99,9 @@ checker_run() { printf '%s\\0' "$@" > "$PROVISION_ARGUMENTS"; }
 
     def test_failed_fingerprint_producer_cannot_publish_partial_digest(self):
         result = self.shell('''root=$1
-source "$root/tools/checker_inputs.sh"
+source "$root/host/tools/checker_inputs.sh"
 sha256sum() {
-    if [[ $# != 0 && $2 == tools/base_image.sh ]]; then return 7; fi
+    if [[ $# != 0 && $2 == host/tools/base_image.sh ]]; then return 7; fi
     command sha256sum "$@"
 }
 if fingerprint=$(checker_fingerprint); then exit 99; else exit "$?"; fi
@@ -108,7 +109,7 @@ if fingerprint=$(checker_fingerprint); then exit 99; else exit "$?"; fi
         self.assertEqual(7, result.returncode, msg=result.stderr)
 
     def test_source_mutation_during_capture_refuses_build_dispatch(self):
-        (self.root / "tools/checker_operation.sh").write_text('''checker_begin() {
+        (self.root / "host/tools/checker_operation.sh").write_text('''checker_begin() {
     operation_directory=$root/probe
     operation_diagnostic=
     mkdir "$operation_directory"
@@ -118,11 +119,11 @@ checker_run() { touch "$root/dispatched"; }
         result = self.shell('''root=$1
 export WHEELHOUSE_INPUT=$root WHEELHOUSE_INPUT_ORIGIN='command line'
 cp() {
-    if [[ $* == *tools/base_image.sh* ]]; then printf '\\n# changed during copy\\n' >> tools/base_image.sh; fi
+    if [[ $* == *host/tools/base_image.sh* ]]; then printf '\\n# changed during copy\\n' >> host/tools/base_image.sh; fi
     command cp "$@"
 }
 export -f cp
-bash "$root/tools/checker.sh" build
+bash "$root/host/tools/checker.sh" build
 ''')
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertFalse((self.root / "dispatched").exists())
@@ -131,7 +132,7 @@ bash "$root/tools/checker.sh" build
         for scenario, expected in (("valid", 0), ("wrong-label", 2), ("nul", 2), ("cancelled", 143), ("missing", 1)):
             with self.subTest(scenario=scenario):
                 result = self.shell('''root=$1
-source "$root/tools/checker_inputs.sh"
+source "$root/host/tools/checker_inputs.sh"
 operation_directory=$root
 operation_diagnostic=
 identifier=sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

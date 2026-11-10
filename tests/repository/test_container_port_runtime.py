@@ -2,7 +2,7 @@
 
 Port of all eight RuntimePostureTests at
 https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/tests/repository/test_container_posture.py#L18
-Identity and numeric resources follow tools/repository.sh: caller ownership,
+Identity and numeric resources follow host/tools/repository.sh: caller ownership,
 512 MiB, two CPUs, 64 PIDs and zero swap. The launcher injects expected identity;
 reading the process's own UID as the expected value would erase this proof.
 Magnet's fixture-install assertion observes temporary build trees in this test

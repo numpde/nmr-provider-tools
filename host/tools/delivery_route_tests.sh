@@ -2,7 +2,7 @@
 # Host owns disposable Engine state; peer/client containers receive no Engine grant.
 set -euo pipefail
 umask 077
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 peer_options=()
 expected_sni='"localhost"'
 if [[ $# == 1 && $1 == --literal-ip ]]; then
@@ -18,7 +18,7 @@ uid=$(id -u) gid=$(id -g)
     || { printf '%s\n' 'Use tests/deployment/route with explicit SHARED_RUNTIME_IMAGE from delivery/image/build.' >&2; exit 2; }
 image=$SHARED_RUNTIME_IMAGE_INPUT
 python=/opt/provider-core/environment/bin/python
-source "$root/tools/checker_operation.sh"
+source "$root/host/tools/checker_operation.sh"
 checker_begin
 project="route-proof-${operation_directory##*/}"
 project=${project,,}

@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # Exercise the cold identity adapter against its exact released dependency.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
-source "$root/tools/docker_context.sh"
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
+source "$root/host/tools/docker_context.sh"
 select_docker_context
-source "$root/tools/base_image.sh"
-source "$root/tools/wheelhouse_path.sh"
+source "$root/host/tools/base_image.sh"
+source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 require_wheelhouse_pool
-source "$root/tools/checker_operation.sh"
+source "$root/host/tools/checker_operation.sh"
 checker_begin
 dependency=$wheelhouse_directory/linux_idmap-0.3.0-py3-none-any.whl
 python3 -I -S - "$root/requirements/acquisition-bootstrap.pylock.toml" "$dependency" <<'PY'

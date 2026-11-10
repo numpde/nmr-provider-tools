@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # One selected engine owns BuildKit cache; project image retirement is separate.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 [[ $(id -u) != 0 ]] || { printf '%s\n' 'Run engine cache GC as the nonroot engine owner.' >&2; exit 2; }
 action=${1:?Select install or run}
 shift
@@ -13,9 +13,9 @@ case "$action" in
             && -v ENGINE_CONFIG_INPUT && -n $ENGINE_CONFIG_INPUT ]] || {
             printf '%s\n' 'Use make engine/cache/gc/install DOCKER_CONTEXT=<context> ENGINE_CONFIG=/absolute/daemon.json.' >&2; exit 2;
         }
-        source "$root/tools/docker_context.sh"
+        source "$root/host/tools/docker_context.sh"
         select_docker_context
-        exec python3 -I -S -B "$root/tools/engine_cache_gc.py" install "$root" \
+        exec python3 -I -S -B "$root/host/tools/engine_cache_gc.py" install "$root" \
             "$DOCKER_CONTEXT_INPUT" "$NMR_SELECTED_DOCKER_ENDPOINT" "$ENGINE_CONFIG_INPUT"
         ;;
     run)
@@ -23,17 +23,17 @@ case "$action" in
         export DOCKER_CONTEXT_INPUT_ORIGIN='command line' DOCKER_CONTEXT_INPUT=$1
         expected_endpoint=$2 native_config=$3
         unset NMR_SELECTED_DOCKER_ENDPOINT
-        source "$root/tools/docker_context.sh"
+        source "$root/host/tools/docker_context.sh"
         select_docker_context
         [[ $NMR_SELECTED_DOCKER_ENDPOINT == "$expected_endpoint" ]] || {
             printf '%s\n' 'Cache GC context now selects another engine; reinstall the timer for the intended engine.' >&2; exit 2;
         }
-        policy=$(python3 -I -S -B "$root/tools/engine_cache_gc.py" policy "$native_config")
+        policy=$(python3 -I -S -B "$root/host/tools/engine_cache_gc.py" policy "$native_config")
         if [[ $policy == disabled ]]; then exit; fi
         mapfile -t limits <<< "$policy"
         [[ ${#limits[@]} == 3 ]] || exit 2
-        source "$root/tools/docker_client.sh"
-        source "$root/tools/inference_native.sh"
+        source "$root/host/tools/docker_client.sh"
+        source "$root/host/tools/inference_native.sh"
         docker_client_directory= inference_diagnostic=
         inference_retirement_confirmed=true
         finish() {

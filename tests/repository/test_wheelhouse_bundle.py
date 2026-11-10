@@ -1,5 +1,9 @@
 """The released bundle uses the declared dependency bytes and source."""
 
+from tools.container_guard import require_container
+
+require_container()
+
 import hashlib
 import json
 import shutil

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Acquire the selected target lock through the interface-bound proxy.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 [[ -v LOCK_INPUT_ORIGIN && $LOCK_INPUT_ORIGIN == 'command line' && -v LOCK_INPUT && -n $LOCK_INPUT ]] || {
     printf '%s\n' 'Supply LOCK as a target-specific pylock file.' >&2; exit 2;
 }
@@ -9,7 +9,7 @@ lock=$(realpath -e -- "$LOCK_INPUT")
 [[ -f $lock && $lock != *','* && $lock != *$'\n'* && $lock != *$'\r'* ]] || {
     printf '%s\n' 'Cannot acquire locked artifacts: select a readable lock without mount delimiters.' >&2; exit 2;
 }
-source "$root/tools/wheelhouse_path.sh"
+source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 require_wheelhouse_pool
 arguments=(acquire --lock /input/pylock.toml --pool /wheelhouse)
@@ -25,7 +25,7 @@ fi
 [[ -v LOCATE_REQUIRED_INPUT ]] || { printf '%s\n' 'Required source preference was not supplied by the Make owner.' >&2; exit 2; }
 read -r -a required <<< "$LOCATE_REQUIRED_INPUT"
 for package in "${required[@]}"; do arguments+=(--require-sdist "$package"); done
-exec bash "$root/tools/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \
+exec bash "$root/host/tools/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \
     --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /opt \
     --mount "type=bind,src=$root/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \

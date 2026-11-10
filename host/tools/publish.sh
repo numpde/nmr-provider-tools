@@ -3,7 +3,7 @@
 # Prepare freezes clean source and qualifies exact bytes. Publish consumes that
 # reviewable directory, uploads a draft, then verifies downloaded bytes first.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 cd -- "$root"
 [[ $# == 1 && $1 =~ ^(prepare|release)$ ]] || exit 2
 action=$1
@@ -11,7 +11,7 @@ action=$1
     || { printf '%s\n' 'Supply TAG=vX.Y.Z on the Make command line.' >&2; exit 2; }
 tag=$TAG_INPUT
 version=${tag#v}
-source "$root/tools/inference_native.sh"
+source "$root/host/tools/inference_native.sh"
 inference_diagnostic=''
 inference_retirement_confirmed=true
 inference_cancellation_status=0
@@ -126,14 +126,14 @@ if [[ $action == prepare ]]; then
     private_directory OUTPUT "$OUTPUT_INPUT"
     [[ -z $(find "$OUTPUT_INPUT" -mindepth 1 -maxdepth 1 -print -quit) ]] || fail 'OUTPUT must be empty; no files were written. Preserve previous evidence and use another empty directory with mode 0700.'
     scratch=$OUTPUT_INPUT
-    source "$root/tools/wheelhouse_path.sh"
+    source "$root/host/tools/wheelhouse_path.sh"
     select_wheelhouse
     require_wheelhouse_pool
-    source "$root/tools/docker_context.sh"
+    source "$root/host/tools/docker_context.sh"
     select_docker_context
     mkdir -m 700 -- "$scratch/artifacts"
     cp -- "${notes[0]}" "$scratch/release-notes.md"
-    if nested 'release package build' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" OUTPUT_INPUT_ORIGIN='command line' OUTPUT_INPUT="$scratch/artifacts" bash "$root/tools/provider_core.sh" build > "$scratch/release-build.log" 2>&1; then
+    if nested 'release package build' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" OUTPUT_INPUT_ORIGIN='command line' OUTPUT_INPUT="$scratch/artifacts" bash "$root/host/tools/provider_core.sh" build > "$scratch/release-build.log" 2>&1; then
         :
     else
         status=$?
@@ -141,7 +141,7 @@ if [[ $action == prepare ]]; then
         exit "$status"
     fi
     [[ -f $scratch/artifacts/$wheel && -f $scratch/artifacts/$sdist ]] || fail 'TAG must match the built package version.'
-    if nested 'exact release artifact qualification' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" ARTIFACTS_INPUT_ORIGIN='command line' ARTIFACTS_INPUT="$scratch/artifacts" bash "$root/tools/provider_core.sh" package > "$scratch/release-test.log" 2>&1; then
+    if nested 'exact release artifact qualification' env WHEELHOUSE_INPUT_ORIGIN='command line' WHEELHOUSE_INPUT="$wheelhouse_directory" ARTIFACTS_INPUT_ORIGIN='command line' ARTIFACTS_INPUT="$scratch/artifacts" bash "$root/host/tools/provider_core.sh" package > "$scratch/release-test.log" 2>&1; then
         :
     else
         status=$?

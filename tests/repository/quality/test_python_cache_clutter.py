@@ -18,7 +18,7 @@ from pathlib import Path
 
 from .sources import REPOSITORY_ROOT
 
-PYTHON_CACHE_ROOTS = ("tools", "tests")
+PYTHON_CACHE_ROOTS = ("host", "tools", "tests")
 PYTHON_TOOL_CACHE_DIRS = (
     ".pytest_cache",
     ".mypy_cache",

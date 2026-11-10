@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Explicit wheel acquisition, installed tests and committed-source package builds.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 printing=false
 if [[ $# -gt 0 && $1 == --print ]]; then printing=true; shift; fi
 if [[ $# != 1 ]]; then printf '%s\n' 'Supply one provider-core target from make help.' >&2; exit 2; fi
@@ -21,8 +21,8 @@ if [[ ${FUZZ_PROFILE_INPUT_ORIGIN:-} == 'command line' ]]; then
         *) printf 'Cannot select provider-core fuzz profile %q: use default or extended.\n' "$fuzz_profile" >&2; exit 2 ;;
     esac
 fi
-source "$root/tools/base_image.sh"
-source "$root/tools/wheelhouse_path.sh"
+source "$root/host/tools/base_image.sh"
+source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 uid=$(id -u)
 gid=$(id -g)
@@ -46,10 +46,10 @@ worker=(--pull never --read-only "${worker_identity[@]}" --cap-drop ALL --securi
 if [[ $action == download ]]; then
     worker+=(--mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly")
     if ! "$printing"; then mkdir -p -- "$wheelhouse_directory"; fi
-    network=(bash "$root/tools/docker.sh")
+    network=(bash "$root/host/tools/docker.sh")
     if "$printing"; then network+=(--print); fi
     if ! "$printing"; then
-        source "$root/tools/checker_operation.sh"
+        source "$root/host/tools/checker_operation.sh"
         checker_begin
         checker_host_identity "$base_image" python3 "$uid" "$gid" || {
             printf '%s\n' 'Cannot map the wheelhouse owner into the selected engine.' >&2; exit 2;
@@ -154,7 +154,8 @@ case "$action" in
             --mount "type=bind,src=$artifacts,dst=/artifacts,readonly"
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
             --mount "type=bind,src=$root/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
-            --mount "type=bind,src=$root/acquisition_tool,dst=/workspace/acquisition_tool,readonly"
+            --mount "type=bind,src=$root/containers,dst=/workspace/containers,readonly"
+            --mount "type=bind,src=$root/host,dst=/workspace/host,readonly"
             --entrypoint python3 "$base_image" -B -m tools.package --artifacts /artifacts --revision "$revision")
         budget=untimed
         ;;
@@ -185,7 +186,7 @@ case "$action" in
         fi
         ;;
 esac
-source "$root/tools/checker_operation.sh"
+source "$root/host/tools/checker_operation.sh"
 if "$printing"; then
     if ! docker_client_prepare print; then printf '%s' "$docker_client_diagnostic" >&2; exit 2; fi
     printf '%q ' "${engine[@]}" create --label org.nmr-provider-tools.operation=PRINT --cidfile /tmp/nmr-provider-tools.PRINT/container.cid "${arguments[@]}"
@@ -207,14 +208,16 @@ fi
 if [[ $action == package ]]; then
     mkdir -- "$operation_directory/source"
     checker_call 'committed qualification source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" tools wheelhouse_tool acquisition_tool requirements
+        --output="$operation_directory/source.tar" "$revision" tools wheelhouse_tool host containers requirements
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     for index in "${!arguments[@]}"; do
         case "${arguments[index]}" in
             "type=bind,src=$root/tools,dst=/workspace/tools,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly" ;;
-            "type=bind,src=$root/acquisition_tool,dst=/workspace/acquisition_tool,readonly")
-                arguments[index]="type=bind,src=$operation_directory/source/acquisition_tool,dst=/workspace/acquisition_tool,readonly" ;;
+            "type=bind,src=$root/host,dst=/workspace/host,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/host,dst=/workspace/host,readonly" ;;
+            "type=bind,src=$root/containers,dst=/workspace/containers,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/containers,dst=/workspace/containers,readonly" ;;
             "type=bind,src=$root/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/requirements/acquisition-bootstrap.pylock.toml,dst=/acquisition-bootstrap.pylock.toml,readonly" ;;
             "type=bind,src=$root/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly")
@@ -231,7 +234,7 @@ fi
 if [[ $action == build ]]; then
     mkdir -- "$operation_directory/source"
     checker_call 'committed core source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" packages/provider-core requirements tools wheelhouse_tool acquisition_tool
+        --output="$operation_directory/source.tar" "$revision" packages/provider-core requirements tools wheelhouse_tool host containers
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     arguments=(--pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL --security-opt no-new-privileges:true
         --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m
@@ -239,7 +242,8 @@ if [[ $action == build ]]; then
         --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace
         --mount "type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly"
         --mount "type=bind,src=$operation_directory/source/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
-        --mount "type=bind,src=$operation_directory/source/acquisition_tool,dst=/workspace/acquisition_tool,readonly"
+        --mount "type=bind,src=$operation_directory/source/host,dst=/workspace/host,readonly"
+        --mount "type=bind,src=$operation_directory/source/containers,dst=/workspace/containers,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/provider-core,dst=/package,readonly"
         --mount "type=bind,src=$operation_directory/source/requirements,dst=/requirements,readonly"
         --mount "type=bind,src=$release_output,dst=/output"

@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from acquisition_tool import dns
+from host.acquisition_tool import dns
 
 
 class ResolverCaptureTests(unittest.TestCase):

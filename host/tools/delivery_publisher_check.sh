@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 # Qualify the delivery lock against the released publisher without network.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
-source "$root/tools/base_image.sh"
-source "$root/tools/wheelhouse_path.sh"
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
+source "$root/host/tools/base_image.sh"
+source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 require_wheelhouse_pool
-source "$root/tools/checker_operation.sh"
+source "$root/host/tools/checker_operation.sh"
 checker_begin
 checker_host_identity "$base_image" python3 "$(id -u)" "$(id -g)"
 checker_run 120 --pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" \

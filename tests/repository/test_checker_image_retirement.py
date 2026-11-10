@@ -9,7 +9,7 @@ import json
 import tempfile
 import unittest
 
-from tools.image_retirement import RetirementRefused, retire, select_images, retained_image_ids
+from host.tools.image_retirement import RetirementRefused, retire, select_images, retained_image_ids
 
 
 CURRENT = ("a" * 64, "b" * 64)

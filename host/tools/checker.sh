@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Prepare one checker from explicit shared-cache inputs; normal checks stay offline.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 if [[ $# != 1 ]]; then printf '%s\n' 'Supply one checker preparation action from make help.' >&2; exit 2; fi
 action=$1
 case "$action" in
-    base-download) exec bash "$root/tools/docker.sh" download-proxy ;;
+    base-download) exec bash "$root/host/tools/docker.sh" download-proxy ;;
     download|check|build|prepare) ;;
     *) printf 'Cannot prepare checker: unknown action %q. Use make help.\n' "$action" >&2; exit 2 ;;
 esac
@@ -16,19 +16,19 @@ fi
 uid=$(id -u)
 gid=$(id -g)
 if [[ $uid == 0 || $gid == 0 ]]; then printf '%s\n' 'Checker preparation requires a nonzero caller UID and GID.' >&2; exit 2; fi
-source "$root/tools/docker_context.sh"
+source "$root/host/tools/docker_context.sh"
 select_docker_context
-source "$root/tools/base_image.sh"
-source "$root/tools/wheelhouse_path.sh"
+source "$root/host/tools/base_image.sh"
+source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 if [[ $action == download || $action == prepare ]]; then
-    source "$root/tools/acquisition_interface.sh"
+    source "$root/host/tools/acquisition_interface.sh"
     select_acquisition_interface
     mkdir -p -- "$wheelhouse_directory"
 else
     require_wheelhouse_pool
 fi
-source "$root/tools/checker_operation.sh"
+source "$root/host/tools/checker_operation.sh"
 checker_begin
 worker_uid=$uid worker_gid=$gid
 if [[ $action != check ]]; then
@@ -49,9 +49,9 @@ worker=(--pull never --read-only --cap-drop ALL --security-opt no-new-privileges
 if [[ $action == download || $action == prepare ]]; then
     # The transport owns both networked containers and their cleanup. Do not
     # put it beneath a signal-forwarding process-group killer.
-    source "$root/tools/inference_native.sh"
+    source "$root/host/tools/inference_native.sh"
     checker_acquisition_receipt
-    if controller_native 'checker acquisition' untimed stdio bash "$root/tools/docker.sh" run --image "$base_image" --retired-receipt "$operation_acquisition_receipt" -- \
+    if controller_native 'checker acquisition' untimed stdio bash "$root/host/tools/docker.sh" run --image "$base_image" --retired-receipt "$operation_acquisition_receipt" -- \
         "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
         --entrypoint python3 -- -B -m tools.checker_dependencies download \
         --declaration /workspace/requirements/checker-dependencies.json --directory /wheelhouse; then :; else
@@ -63,7 +63,7 @@ if [[ $action == download || $action == prepare ]]; then
     if [[ $action == download ]]; then exit; fi
 fi
 
-source "$root/tools/checker_inputs.sh"
+source "$root/host/tools/checker_inputs.sh"
 if [[ $action == check ]]; then
     checker_run 60 --network none --user "$worker_uid:$worker_gid" "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
         --entrypoint python3 "$base_image" -B -m tools.checker_dependencies check \
@@ -82,7 +82,7 @@ if [[ $captured != "$expected" ]]; then
     operation_diagnostic+=$'Cannot build checker: source inputs changed during capture. Retry after source edits finish.\n'
     exit 2
 fi
-build_base_image=$(bash -eu -c 'source "$1"; printf "%s" "$base_image"' bash "$context/tools/base_image.sh")
+build_base_image=$(bash -eu -c 'source "$1"; printf "%s" "$base_image"' bash "$context/host/tools/base_image.sh")
 # All build-mounted tools and declarations now come from the captured context.
 checker_run 60 --pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL --security-opt no-new-privileges:true \
     --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m \

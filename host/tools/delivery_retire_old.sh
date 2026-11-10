@@ -2,14 +2,14 @@
 # Retire the former delivery-owned socket volumes after their borrowers stop.
 set -euo pipefail
 umask 077
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 [[ $# == 2 && $1 =~ ^[a-z0-9][a-z0-9_-]{0,62}$ && $2 =~ ^sha256:[0-9a-f]{64}$ ]] || {
     printf '%s\n' 'Cannot retire old delivery sockets: select the project and immutable shared delivery image.' >&2
     exit 2
 }
 project=$1 image=$2 uid=$(id -u) gid=$(id -g)
 [[ $uid != 0 && $gid != 0 ]] || { printf '%s\n' 'Cannot retire old delivery sockets as root; use the installing account.' >&2; exit 2; }
-source "$root/tools/checker_operation.sh"
+source "$root/host/tools/checker_operation.sh"
 checker_begin
 removal_requested=false
 report_failure() {

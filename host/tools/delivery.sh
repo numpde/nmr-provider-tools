@@ -2,7 +2,7 @@
 # Operator config/secrets are inputs. Docker owns queues, sockets and lifecycle.
 set -euo pipefail
 umask 077
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 [[ $# == 1 && $1 =~ ^(up|proxy-restart|down|status|logs|held|discard)$ ]] || exit 2
 action=$1
 uid=$(id -u) gid=$(id -g)
@@ -13,7 +13,7 @@ mountable_path() {
     [[ $1 == /* && $1 != / && $(realpath -m -- "$1") == "$1" && ! -L $1 && ! $1 =~ [[:cntrl:],] ]] \
         || { refuse 'input paths must be canonical absolute files without links or mount delimiters.'; return 2; }
 }
-source "$root/tools/checker_operation.sh"
+source "$root/host/tools/checker_operation.sh"
 checker_begin
 
 admit_image() {
@@ -118,7 +118,7 @@ select_shared_definition() {
         && $DEPLOYMENT_INPUT =~ ^[a-z0-9][a-z0-9_-]{0,48}$ ]] \
         || { refuse 'select DEPLOYMENT on the Make command line.'; exit 2; }
     definition="$root/config/deployments/$DEPLOYMENT_INPUT/settings.toml"
-    source "$root/tools/delivery_identity.sh"
+    source "$root/host/tools/delivery_identity.sh"
     recipe=$(delivery_recipe_identity)
     if ! checker_metadata "$operation_directory/recipe-image" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.recipe"}}' "nmr-provider-tools/delivery-recipe:$recipe"; then
         refuse 'the pinned delivery image is not prepared; run make delivery/prepare.'; exit 2

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Project a flat locked closure using the interface-bound metadata proxy.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 [[ -v LOCK_INPUT_ORIGIN && $LOCK_INPUT_ORIGIN == 'command line' && -v LOCK_INPUT && -n $LOCK_INPUT ]] || {
     printf '%s\n' 'Supply LOCK as a target-specific pinned requirements file.' >&2; exit 2;
 }
@@ -12,7 +12,7 @@ lock=$(realpath -e -- "$LOCK_INPUT")
 arguments=(--lock /input/requirements.lock)
 pool_mount=()
 if [[ -v WHEELHOUSE_INPUT_ORIGIN && $WHEELHOUSE_INPUT_ORIGIN == 'command line' ]]; then
-    source "$root/tools/wheelhouse_path.sh"
+    source "$root/host/tools/wheelhouse_path.sh"
     select_wheelhouse
     require_wheelhouse_pool
     pool_mount=(--mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly")
@@ -24,7 +24,7 @@ read -r -a sources <<< "$LOCATE_SOURCES_INPUT"
 for source in "${sources[@]}"; do arguments+=(--source "$source"); done
 read -r -a required <<< "$LOCATE_REQUIRED_INPUT"
 for source in "${required[@]}"; do arguments+=(--require-source "$source"); done
-command=(bash "$root/tools/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \
+command=(bash "$root/host/tools/docker.sh" run --image nmr-provider-tools/wheelhouse-tool:local -- --pull never --read-only \
     --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 128 --memory 512m \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /opt \
     --mount "type=bind,src=$root/wheelhouse_tool,dst=/opt/wheelhouse_tool,readonly" \

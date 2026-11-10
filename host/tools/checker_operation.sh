@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # One private engine operation owns its mounts, client, and labeled containers.
-# Cleanup ordering follows dapp32 tools/compose_cleanup.sh at 911d45d:
+# Cleanup ordering follows dapp32 host/tools/compose_cleanup.sh at 911d45d:
 # retire owned resources, verify absence, then release mounted host inputs.
 
-source "$root/tools/docker_client.sh"
-source "$root/tools/inference_native.sh"
+source "$root/host/tools/docker_client.sh"
+source "$root/host/tools/inference_native.sh"
 
 checker_begin() {
-    source "$root/tools/image_lifecycle.sh"
+    source "$root/host/tools/image_lifecycle.sh"
     image_lifecycle_lock shared || return "$?"
     image_retire_after_success=false
     ordered_container_retirement=false
@@ -192,7 +192,7 @@ checker_finish() {
     # No automatic retirement may contend with this operation's own borrow.
     image_lifecycle_unlock || { if [[ $status == 0 ]]; then status=2; fi; }
     if [[ $status == 0 && $image_retire_after_success == true ]]; then
-        if bash "$root/tools/image_retirement.sh" --automatic >&2; then :; else
+        if bash "$root/host/tools/image_retirement.sh" --automatic >&2; then :; else
             printf '%s\n' 'Build completed; automatic image retirement failed. Retry make packages/images/retire with the same Docker context.' >&2
         fi
     fi

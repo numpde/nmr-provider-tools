@@ -11,14 +11,14 @@ import unittest
 from pathlib import Path
 import zipfile
 
-from tools.build_acquisition_bundle import build, PROXY_FILES, SOURCE_FILES
+from tools.build_acquisition_bundle import build, PROXY_FILES, SOURCE_FILES, source_path
 
 
 class AcquisitionBundleTests(unittest.TestCase):
     def fixture(self, root):
         source = root / "source"
         for name in SOURCE_FILES:
-            path = source / name
+            path = source / source_path(name)
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("# cold source\n")
         wheel = root / "provider_core-0.6.0-py3-none-any.whl"
@@ -59,7 +59,7 @@ class AcquisitionBundleTests(unittest.TestCase):
             root = Path(temporary)
             source, wheel, identity, pin = self.fixture(root)
             output = root / "bundle.tar.gz"
-            (source / SOURCE_FILES[0]).unlink()
+            (source / source_path(SOURCE_FILES[0])).unlink()
             with self.assertRaises(FileNotFoundError):
                 build(root, output, source, wheel, pin)
             self.assertFalse(output.exists())

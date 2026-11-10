@@ -82,7 +82,7 @@ class ScientificLintTests(unittest.TestCase):
     def test_guard_exception_retains_late_module_import_rejection(self):
         findings = [
             f"{path.relative_to(ROOT)}:{line}: module import follows operational statements"
-            for name in ("tools", "tests", "src", "packages")
+            for name in ("host", "tools", "tests", "src", "packages")
             for path in sorted((ROOT / name).rglob("*.py"))
             for line in late_module_imports(path.read_text())
         ]

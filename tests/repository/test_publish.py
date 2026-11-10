@@ -24,12 +24,12 @@ class PublicationTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        for name in ("tools/publish.sh", "tools/inference_native.sh", "tools/wheelhouse_path.sh"):
+        for name in ("host/tools/publish.sh", "host/tools/inference_native.sh", "host/tools/wheelhouse_path.sh"):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(name, target)
-        (self.root / "tools/docker_context.sh").write_text("select_docker_context() { :; }\n")
-        (self.root / "tools/provider_core.sh").write_text(
+        (self.root / "host/tools/docker_context.sh").write_text("select_docker_context() { :; }\n")
+        (self.root / "host/tools/provider_core.sh").write_text(
             '#!/usr/bin/env bash\nset -euo pipefail\n'
             'if [[ $1 == build ]]; then\n'
             '  make --no-print-directory package/build "WHEELHOUSE=$WHEELHOUSE_INPUT" "OUTPUT=$OUTPUT_INPUT"\n'
@@ -68,7 +68,7 @@ class PublicationTests(unittest.TestCase):
         if environment is not None:
             selected_environment.update(environment)
         return subprocess.run(
-            ["bash", str(self.root / "tools/publish.sh"), action], cwd=self.root,
+            ["bash", str(self.root / "host/tools/publish.sh"), action], cwd=self.root,
             env={"PATH": str(self.bin) + os.pathsep + os.defpath, "TMPDIR": str(self.root),
                  "TAG_INPUT_ORIGIN": "command line", "TAG_INPUT": "v0.2.0",
                  "ARTIFACTS_INPUT_ORIGIN": "command line", "ARTIFACTS_INPUT": str(self.inputs),
@@ -211,7 +211,7 @@ class PublicationTests(unittest.TestCase):
         self.assertTrue((self.inputs / "artifacts").is_dir())
 
     def test_unknown_native_retirement_stops_before_any_tag_or_draft_effect(self):
-        (self.root / "tools/inference_native.sh").write_text("""inference_native() {
+        (self.root / "host/tools/inference_native.sh").write_text("""inference_native() {
     local operation=$1 status=0
     shift 3
     if ! "$inference_retirement_confirmed"; then

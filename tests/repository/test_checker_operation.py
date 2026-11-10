@@ -68,7 +68,7 @@ esac
     def invocation(self, scenario):
         script = '''set -euo pipefail
 root=$1
-source "$root/tools/checker_operation.sh"
+source "$root/host/tools/checker_operation.sh"
 checker_begin
 printf '%s\\n' "$operation_directory" "$docker_client_directory" > "$PROBE_REPORT"
 engine=(bash "$PROBE_ENGINE")
@@ -107,15 +107,15 @@ if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
 
     def test_successful_build_retires_images_only_after_cleanup_and_lock_release(self):
         shadow = self.directory / "checkout"
-        (shadow / "tools").mkdir(parents=True)
+        (shadow / "host/tools").mkdir(parents=True)
         for name in ("checker_operation.sh", "docker_client.sh", "inference_native.sh", "image_lifecycle.sh"):
-            shutil.copyfile(ROOT / "tools" / name, shadow / "tools" / name)
-        (shadow / "tools/image_retirement.sh").write_text('''set -eu
+            shutil.copyfile(ROOT / "host/tools" / name, shadow / "host/tools" / name)
+        (shadow / "host/tools/image_retirement.sh").write_text('''set -eu
 [[ $1 == --automatic ]]
 [[ ! -e $PROBE_STATE ]]
 readarray -t paths < "$PROBE_REPORT"
 [[ ! -e ${paths[0]} && ! -e ${paths[1]} ]]
-root=$(cd -- "$(dirname -- "$0")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "$0")/../.." && pwd -P)
 exec {borrow}< "$root"
 flock --exclusive --nonblock "$borrow"
 printf 'retired\\n' > "$PROBE_REPORT.retired"

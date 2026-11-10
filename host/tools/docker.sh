@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Root operations consume the last qualified acquisition owner, like providers.
 set -euo pipefail
-readonly repository_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+readonly repository_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)"
 root=$repository_root
-source "$root/tools/base_image.sh"
+source "$root/host/tools/base_image.sh"
 readonly proxy_image=$base_image metadata_timeout=30
 print_command=false
 if [[ $# -gt 0 && $1 == --print ]]; then print_command=true; shift; fi
@@ -13,11 +13,11 @@ operation=
 if [[ $# -gt 0 ]]; then operation=$1; shift; fi
 case "$operation" in
     check-interface)
-        source "$root/tools/acquisition_interface.sh"; select_acquisition_interface; exit ;;
+        source "$root/host/tools/acquisition_interface.sh"; select_acquisition_interface; exit ;;
     download-proxy) [[ $# == 0 ]] || exit 2 ;;
     require-images) ;;
     run) ;;
-    *) printf '%s\n' 'Usage: tools/docker.sh [--print] [--success-note TEXT] {download-proxy|check-interface|require-images IMAGE...|run --image IMAGE [--retired-receipt FILE] -- CREATE_ARGS... -- APPLICATION_ARGS...}' >&2; exit 2 ;;
+    *) printf '%s\n' 'Usage: host/tools/docker.sh [--print] [--success-note TEXT] {download-proxy|check-interface|require-images IMAGE...|run --image IMAGE [--retired-receipt FILE] -- CREATE_ARGS... -- APPLICATION_ARGS...}' >&2; exit 2 ;;
 esac
 image= retired_receipt= scope_started=false
 create=() application=()
@@ -35,10 +35,10 @@ if [[ $operation == run ]]; then
     [[ $# -gt 0 && $1 == -- ]] || exit 2
     shift; application=("$@")
 fi
-source "$root/tools/docker_context.sh"
+source "$root/host/tools/docker_context.sh"
 select_docker_context
-source "$root/tools/docker_client.sh"
-source "$root/tools/inference_native.sh"
+source "$root/host/tools/docker_client.sh"
+source "$root/host/tools/inference_native.sh"
 docker_client_directory= scratch= pending_diagnostic=
 retain_preflight_receipts=false
 inference_diagnostic= inference_retirement_confirmed=true inference_cancellation_status=0
@@ -142,7 +142,7 @@ cleanup() {
 }
 if "$print_command"; then
     if [[ $operation == run ]]; then
-        source "$root/tools/acquisition_interface.sh"
+        source "$root/host/tools/acquisition_interface.sh"
         select_acquisition_interface
     fi
     docker_client_prepare print || { printf '%s' "$docker_client_diagnostic" >&2; exit 2; }
@@ -152,7 +152,7 @@ else
     trap 'exit 130' INT
     trap 'exit 143' TERM
     if [[ $operation == run ]]; then
-        source "$root/tools/acquisition_interface.sh"
+        source "$root/host/tools/acquisition_interface.sh"
         select_acquisition_interface
     fi
     docker_client_prepare run || { pending_diagnostic+=$docker_client_diagnostic; exit 2; }
@@ -181,7 +181,7 @@ fi
 require_images "$proxy_image" "$image"
 # This checked-in source snapshot is refreshed explicitly from a qualified
 # prior release; normal operations never extract, copy or download bootstrap.
-python3 -I -S -B "$root/tools/acquisition_bootstrap.py" \
+python3 -I -S -B "$root/host/tools/acquisition_bootstrap.py" \
     "$root/bootstrap/acquisition" "$root/requirements/acquisition-owner-release.json"
 source "$root/bootstrap/acquisition/acquisition_tool/owner.sh"
 [[ -n $retired_receipt ]] || retired_receipt=$scratch/retired

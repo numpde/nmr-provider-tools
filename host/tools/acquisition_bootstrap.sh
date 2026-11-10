@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Refresh checked-in tool source from an exact reviewed release; never at runtime.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 action=${1:?Select check or refresh}
 case "$action" in
     check)
-        exec python3 -I -S -B "$root/tools/acquisition_bootstrap.py" \
+        exec python3 -I -S -B "$root/host/tools/acquisition_bootstrap.py" \
             "$root/bootstrap/acquisition" "$root/requirements/acquisition-owner-release.json"
         ;;
     refresh)
@@ -18,7 +18,7 @@ case "$action" in
         [[ ${#records[@]} == 1 && ${#archives[@]} == 1 ]] || {
             printf '%s\n' 'Acquisition bootstrap refresh requires one issuer record and one source archive.' >&2; exit 2;
         }
-        exec python3 -I -S -B "$root/tools/acquisition_bootstrap.py" \
+        exec python3 -I -S -B "$root/host/tools/acquisition_bootstrap.py" \
             "$root/bootstrap/acquisition" "${records[0]}" --archive "${archives[0]}" \
             --record-output "$root/requirements/acquisition-owner-release.json"
         ;;

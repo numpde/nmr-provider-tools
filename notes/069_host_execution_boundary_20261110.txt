@@ -1,0 +1,50 @@
+Host and contained source ownership — 10 November 2026
+===================================================
+
+Purpose
+-------
+Keep code authorized to act directly on the host separate from code intended
+for contained execution. An absent container guard must not be interpreted as
+an exception to an all-encompassing source rule; it belongs to a different
+execution boundary.
+
+Authoritative source locations
+------------------------------
+- host/tools/: host Bash launchers, lifecycle/engine controls and the host-side
+  Python used by those launchers (bootstrap maintenance, source stream input
+  inventory, wheelhouse manifest, native engine GC and image retirement).
+- host/acquisition_tool/: authored host acquisition scope, DNS and identity.
+- tools/: Python modules used by checker, build and other controlled containers.
+- containers/isolated/: isolated Python build/qualification entrypoints; their
+  calling launchers use Python -I and own confinement.
+- containers/acquisition/: source of the contained acquisition proxy entrypoint.
+- packages/provider-core/: installed SDK. Lightweight scientific rejection
+  contracts are importable without a runtime guard; operational modules guard
+  their entrypoint before effects.
+
+Release and bootstrap distinction
+---------------------------------
+The checked-in bootstrap/acquisition source is a separately pinned, qualified
+snapshot and is NOT a working-tree alias. The source bundle builder reads
+host/ and containers/ but emits the original bootstrap internal member names.
+Both the package build and its independent qualification capture the relevant
+host/ and containers/ sources from one committed revision. Published bundle
+names and public Make targets remain unchanged.
+
+Tests and limitations
+---------------------
+Repository convention tests recursively distinguish host and contained roots,
+reject imports that cross host/tools, and preserve the explicit installed SDK
+guard rule. Installed integration continues to test the separately built wheel.
+The acquisition fake Docker entrypoint is a checked-in executable source, not
+an executable assumed from a .py test source mounted read-only/noexec-scratch.
+The context-selection test stubs the operation boundary instead of invoking a
+container-identity probe that it was not designed to simulate.
+
+The delivery preparation identity probe was unused and has been removed from
+that caller. The identity helper used by other operations still reads live
+user-namespace maps; consolidating its implementation with linux_idmap is a
+separate behavioral change and is not implied by this source relocation.
+
+At this revision, exact Docker-based repository, integration and production
+qualification must still be run. No release or deployment is claimed.

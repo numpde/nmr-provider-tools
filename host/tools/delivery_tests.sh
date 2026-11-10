@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Qualify the installed finite freezer with no source, network or Engine grant.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 [[ $# == 0 ]] || exit 2
 uid=$(id -u) gid=$(id -g)
 if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then exit 2; fi
@@ -9,7 +9,7 @@ if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then exit 2; fi
     && -v SHARED_RUNTIME_IMAGE_INPUT && $SHARED_RUNTIME_IMAGE_INPUT =~ ^sha256:[0-9a-f]{64}$ ]] \
     || { printf '%s\n' 'Use tests/deployment with explicit SHARED_RUNTIME_IMAGE from delivery/image/build.' >&2; exit 2; }
 image=$SHARED_RUNTIME_IMAGE_INPUT
-source "$root/tools/checker_operation.sh"
+source "$root/host/tools/checker_operation.sh"
 checker_begin
 checker_metadata "$operation_directory/image" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.role"}}' "$image"
 cmp -s "$operation_directory/image" <(printf '%s delivery\n' "$image") || exit 2

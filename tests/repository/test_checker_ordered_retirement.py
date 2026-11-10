@@ -19,7 +19,7 @@ class OrderedRetirementTests(unittest.TestCase):
             directory = Path(temporary)
             script = r'''set -eu
 root=$1
-source "$root/tools/checker_operation.sh"
+source "$root/host/tools/checker_operation.sh"
 operation_directory=$2
 mkdir -p "$operation_directory"
 operation_label=owned

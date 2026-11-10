@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 # Build a science-independent runtime from the issued wheel, never package source.
 set -euo pipefail
-root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd -P)
 [[ $# == 0 ]] || exit 2
-source "$root/tools/base_image.sh"
-source "$root/tools/wheelhouse_path.sh"
+source "$root/host/tools/base_image.sh"
+source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 require_wheelhouse_pool
 uid=$(id -u) gid=$(id -g)
 if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot build shared delivery: use a nonzero caller and repository path without mount delimiters.' >&2; exit 2
 fi
-inputs=(tools/base_image.sh tools/container_guard.py tools/artifacts.py tools/wheelhouse.py tools/core_environment.py
-    tools/delivery_image.py tools/delivery_deployment.py tools/provider_core_acquire.py tools/build_stream_inputs.py
+inputs=(host/tools/base_image.sh tools/container_guard.py tools/artifacts.py tools/wheelhouse.py tools/core_environment.py
+    tools/delivery_image.py tools/delivery_deployment.py tools/provider_core_acquire.py host/tools/build_stream_inputs.py
     requirements/provider-core.lock requirements/delivery-release.json requirements/wheelhouse-tool-release.json
     containers/delivery/Dockerfile containers/delivery/check_runtime.py)
-source "$root/tools/checker_operation.sh"
-source "$root/tools/checker_inputs.sh"
-source "$root/tools/delivery_identity.sh"
+source "$root/host/tools/checker_operation.sh"
+source "$root/host/tools/checker_inputs.sh"
+source "$root/host/tools/delivery_identity.sh"
 recipe=$(delivery_recipe_identity)
 checker_begin
 checker_host_identity "$base_image" python3 "$uid" "$gid" || {
@@ -36,7 +36,7 @@ if [[ $captured != "$expected" ]]; then
     operation_diagnostic+=$'Cannot build shared delivery: construction sources changed during capture; retry after edits finish.\n'
     exit 2
 fi
-base_image_reference=$(bash -eu -c 'source "$1"; printf "%s" "$base_image"' bash "$context/tools/base_image.sh")
+base_image_reference=$(bash -eu -c 'source "$1"; printf "%s" "$base_image"' bash "$context/host/tools/base_image.sh")
 if checker_metadata "$operation_directory/base-image" image inspect --format '{{.Id}} {{.Os}}/{{.Architecture}}' "$base_image_reference"; then :; else
     base_status=$?
     operation_diagnostic+=$'Cannot inspect the pinned Linux/amd64 base image; verify Docker and acquire the base before building shared delivery.\n'
@@ -62,7 +62,7 @@ fingerprint=$(root=$context checker_fingerprint)
 if ! python3 -I -S -B -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
     operation_diagnostic+=$'Cannot build shared delivery: host Python 3.11 or newer is needed to stream build inputs.\n'; exit 2
 fi
-tool_pin=$(python3 -I -S -B "$context/tools/build_stream_inputs.py" "$context" \
+tool_pin=$(python3 -I -S -B "$context/host/tools/build_stream_inputs.py" "$context" \
     "$operation_directory/source-allowlist.json" "${checker_input_paths[@]}")
 [[ $(root=$context checker_fingerprint) == "$fingerprint" ]] || {
     operation_diagnostic+=$'Cannot build shared delivery: captured inputs changed before streaming.\n'; exit 2;

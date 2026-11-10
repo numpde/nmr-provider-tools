@@ -83,8 +83,8 @@ def current_inputs(root):
     selected_inputs = run(
         [
             "bash", "-eu", "-o", "pipefail", "-c",
-            'root=$1; source "$root/tools/checker_inputs.sh"; checker_fingerprint; '
-            'source "$root/tools/delivery_identity.sh"; delivery_recipe_identity',
+            'root=$1; source "$root/host/tools/checker_inputs.sh"; checker_fingerprint; '
+            'source "$root/host/tools/delivery_identity.sh"; delivery_recipe_identity',
             "bash", str(root),
         ]
     )

@@ -32,7 +32,7 @@ class CapturedNativeTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
         self.helper = self.root / "inference_native.sh"
-        self.helper.write_bytes(Path("tools/inference_native.sh").read_bytes())
+        self.helper.write_bytes(Path("host/tools/inference_native.sh").read_bytes())
         self.bin = self.root / "bin"
         self.bin.mkdir()
         for name in ("mv", "head", "rm"):
