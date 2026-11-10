@@ -63,107 +63,215 @@ def read_definition(path):
 
 
 def _bind(source, target):
-    return {"type": "bind", "source": str(source), "target": str(target), "read_only": True,
-            "bind": {"create_host_path": False}}
+    return {
+        "type": "bind",
+        "source": str(source),
+        "target": target,
+        "read_only": True,
+        "bind": {"create_host_path": False},
+    }
+
 
 
 # silent-defaults: allow-contract -- Proxy socket borrowers mount the same volume read-only; its owner explicitly receives writes.
 def _volume(name, target, *, readonly=False):
-    return {"type": "volume", "source": name, "target": target, "read_only": readonly, "volume": {"nocopy": True}}
+    return {
+        "type": "volume",
+        "source": name,
+        "target": target,
+        "read_only": readonly,
+        "volume": {"nocopy": True},
+    }
+
 
 
 def _service(image, module, definition, stop_seconds):
     (uid, gid) = (definition.uid, definition.gid)
     return {
-        "image": image, "pull_policy": "never", "entrypoint": [CORE_PYTHON, "-I", "-B", "-m", module],
-        "user": f"{uid}:{gid}", "init": True, "read_only": True, "cap_drop": ["ALL"],
-        "ipc": "private", "cgroup": "private", "security_opt": ["no-new-privileges:true"],
-        "cpus": 2, "mem_limit": "512m", "memswap_limit": "512m", "pids_limit": 64,
-        "restart": "unless-stopped", "stop_grace_period": f"{stop_seconds}s",
-        "network_mode": "none", "labels": {"org.nmr-provider-tools.delivery": definition.project},
-        "tmpfs": [f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid={uid},gid={gid}" for name in ("tmp", "run")],
-        "logging": {"driver": "json-file", "options": {"max-size": "10m", "max-file": "3",
-                    "mode": "non-blocking", "max-buffer-size": "1m"}},
+        "image": image,
+        "pull_policy": "never",
+        "entrypoint": [CORE_PYTHON, "-I", "-B", "-m", module],
+        "user": f"{uid}:{gid}",
+        "init": True,
+        "read_only": True,
+        "cap_drop": ["ALL"],
+        "ipc": "private",
+        "cgroup": "private",
+        "security_opt": ["no-new-privileges:true"],
+        "cpus": 2,
+        "mem_limit": "512m",
+        "memswap_limit": "512m",
+        "pids_limit": 64,
+        "restart": "unless-stopped",
+        "stop_grace_period": f"{stop_seconds}s",
+        "network_mode": "none",
+        "labels": {"org.nmr-provider-tools.delivery": definition.project},
+        "tmpfs": [
+            f"/{name}:rw,nosuid,nodev,noexec,size=64m,mode=0700,uid={uid},gid={gid}"
+            for name in ("tmp", "run")
+        ],
+        "logging": {
+            "driver": "json-file",
+            "options": {
+                "max-size": "10m",
+                "max-file": "3",
+                "mode": "non-blocking",
+                "max-buffer-size": "1m",
+            },
+        },
     }
+
 
 
 def admit_listeners(definition):
     listeners = {}
     for binding in definition.bindings:
-        key = binding.ipc_volume.removeprefix(definition.project + "-ipc-")
-        listener = f"/ipc/{key}/{binding.socket_path.name}"
+        ipc_key = binding.ipc_volume.removeprefix(definition.project + "-ipc-")
+        socket_path = f"/ipc/{ipc_key}/{binding.socket_path.name}"
         try:
-            require_unix_socket_path(listener)
+            require_unix_socket_path(socket_path)
         except ValueError as cause:
-            raise DeliveryDeploymentRejected("Cannot grant delivery socket: the derived daemon path must fit Linux's 107-byte limit; shorten the provider socket filename.") from cause
-        listeners[binding.name] = key, listener
+            raise DeliveryDeploymentRejected(
+                "Cannot grant delivery socket: the derived daemon path must fit "
+                "Linux's 107-byte limit; shorten the provider socket filename."
+            ) from cause
+        listeners[binding.name] = ipc_key, socket_path
     return listeners
+
 
 
 def daemon_configuration(definition):
     """Project one neutral definition into the existing SDK daemon contract."""
-    configuration = {"schema_id": "provider-core.delivery.v1", "state_directory": "/state",
-                     "request_seconds": definition.request_seconds, "retry_initial_seconds": definition.retry_initial_seconds,
-                     "retry_max_seconds": definition.retry_max_seconds, "limits": definition.limits, "bindings": []}
+    configuration = {
+        "schema_id": "provider-core.delivery.v1",
+        "state_directory": "/state",
+        "request_seconds": definition.request_seconds,
+        "retry_initial_seconds": definition.retry_initial_seconds,
+        "retry_max_seconds": definition.retry_max_seconds,
+        "limits": definition.limits,
+        "bindings": [],
+    }
     listeners = admit_listeners(definition)
     for binding in definition.bindings:
-        (key, listener) = listeners[binding.name]
-        api = dict(binding.api)
+        (ipc_key, socket_path) = listeners[binding.name]
+        api_configuration = dict(binding.api)
         for field in ("credential_file", "ca_file"):
-            if field in api:
-                api[field] = "/grants" + api[field]
-        configuration["bindings"].append({"socket_path": listener, "socket_group_id": definition.gid,
-                                           "proxy_socket": f"/routes/{key}/proxy.sock", "api": api})
+            if field in api_configuration:
+                api_configuration[field] = "/grants" + api_configuration[field]
+
+        configuration["bindings"].append(
+            {
+                "socket_path": socket_path,
+                "socket_group_id": definition.gid,
+                "proxy_socket": f"/routes/{ipc_key}/proxy.sock",
+                "api": api_configuration,
+            }
+        )
     return configuration
+
 
 
 def render(definition, source, image, checksum):
     if definition.uid != os.geteuid() or re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
-        raise DeliveryDeploymentRejected("Delivery rendering requires its installing nonzero UID and an immutable image ID.")
+        raise DeliveryDeploymentRejected(
+            "Delivery rendering requires its installing nonzero UID and an immutable image ID."
+        )
+
     source = _path(source)
     listeners = admit_listeners(definition)
-    queue = definition.project + "-queue"
+    queue_volume = definition.project + "-queue"
     services = {}
     networks = {}
-    volumes = {queue: {"name": queue}}
-    daemon = _service(image, "provider_core.delivery_main", definition, 60)
-    daemon["entrypoint"] = [CORE_PYTHON, "-I", "-B", "/opt/provider-tools/delivery_deployment.py"]
-    daemon["command"] = ["run", "--definition", "/input/delivery.toml", "--sha256", checksum]
-    daemon["healthcheck"] = {
-        "test": ["CMD", CORE_PYTHON, "-I", "-B", "/opt/provider-tools/delivery_deployment.py", "health",
-                 "--definition", "/input/delivery.toml", "--sha256", checksum],
-        "interval": "5s", "timeout": "3s", "retries": 3, "start_period": "5s",
+    volumes = {queue_volume: {"name": queue_volume}}
+
+    delivery_service = _service(image, "provider_core.delivery_main", definition, 60)
+    delivery_service["entrypoint"] = [CORE_PYTHON, "-I", "-B", "/opt/provider-tools/delivery_deployment.py"]
+    delivery_service["command"] = ["run", "--definition", "/input/delivery.toml", "--sha256", checksum]
+    delivery_service["healthcheck"] = {
+        "test": [
+            "CMD",
+            CORE_PYTHON,
+            "-I",
+            "-B",
+            "/opt/provider-tools/delivery_deployment.py",
+            "health",
+            "--definition",
+            "/input/delivery.toml",
+            "--sha256",
+            checksum,
+        ],
+        "interval": "5s",
+        "timeout": "3s",
+        "retries": 3,
+        "start_period": "5s",
     }
-    daemon["depends_on"] = {"init": {"condition": "service_completed_successfully"}}
-    daemon["volumes"] = [_bind(source, "/input/delivery.toml"), _volume(queue, "/state")]
-    roots = [("queue", queue, "/volumes/queue")]
+    delivery_service["depends_on"] = {"init": {"condition": "service_completed_successfully"}}
+    delivery_service["volumes"] = [
+        _bind(source, "/input/delivery.toml"),
+        _volume(queue_volume, "/state"),
+    ]
+
+    owned_volume_roots = [("queue", queue_volume, "/volumes/queue")]
     for binding in definition.bindings:
-        (key, listener) = listeners[binding.name]
-        route = render_api_route(binding, image=image, interpreter=CORE_PYTHON,
-                                 namespace=definition.project, uid=definition.uid, gid=definition.gid,
-                                 storage=NamedRouteVolume(), input_sources={})
-        if set(services) & set(route.compose["services"]):
-            raise DeliveryDeploymentRejected("Delivery proxy identities collide; no ambiguous recipe was published.")
-        for proxy in route.compose["services"].values():
+        (ipc_key, socket_path) = listeners[binding.name]
+        api_route = render_api_route(
+            binding,
+            image=image,
+            interpreter=CORE_PYTHON,
+            namespace=definition.project,
+            uid=definition.uid,
+            gid=definition.gid,
+            storage=NamedRouteVolume(),
+            input_sources={},
+        )
+        if set(services) & set(api_route.compose["services"]):
+            raise DeliveryDeploymentRejected(
+                "Delivery proxy identities collide; no ambiguous recipe was published."
+            )
+
+        for proxy in api_route.compose["services"].values():
             proxy["labels"]["org.nmr-provider-tools.delivery"] = definition.project
-        services.update(route.compose["services"])
-        networks.update(route.compose["networks"])
-        volumes.update(route.compose["volumes"])
+
+        services.update(api_route.compose["services"])
+        networks.update(api_route.compose["networks"])
+        volumes.update(api_route.compose["volumes"])
         volumes[binding.ipc_volume] = {"name": binding.ipc_volume}
-        roots.append(("ipc", binding.ipc_volume, "/volumes/ipc-" + key))
-        daemon["volumes"].extend((_volume(binding.ipc_volume, "/ipc/" + key), route.client_mount))
-        daemon["depends_on"].update(route.client_depends_on)
-    trust_paths = {binding.api[field] for binding in definition.bindings for field in ("credential_file", "ca_file") if field in binding.api}
-    daemon["volumes"].extend(_bind(path, "/grants" + path) for path in sorted(trust_paths))
-    initializer = _service(image, "provider_core.delivery_main", definition, 10)
-    initializer.update(user="0:0", restart="no", cap_add=["CHOWN"],
-                       entrypoint=[CORE_PYTHON, "-I", "-B", "/opt/provider-tools/delivery_deployment.py"],
-                       command=["initialize", "--uid", str(definition.uid), "--gid", str(definition.gid)],
-                       volumes=[_volume(volume, target) for kind, volume, target in roots])
-    for (kind, volume, target) in roots:
-        initializer["command"].extend(("--" + kind, target))
-    services.update(delivery=daemon, init=initializer)
-    return {"name": definition.project, "services": services, "networks": networks, "volumes": volumes}
+        owned_volume_roots.append(("ipc", binding.ipc_volume, "/volumes/ipc-" + ipc_key))
+        delivery_service["volumes"].extend(
+            (_volume(binding.ipc_volume, "/ipc/" + ipc_key), api_route.client_mount)
+        )
+        delivery_service["depends_on"].update(api_route.client_depends_on)
+
+    trust_paths = {
+        binding.api[field]
+        for binding in definition.bindings
+        for field in ("credential_file", "ca_file")
+        if field in binding.api
+    }
+    delivery_service["volumes"].extend(
+        _bind(path, "/grants" + path) for path in sorted(trust_paths)
+    )
+
+    volume_initializer = _service(image, "provider_core.delivery_main", definition, 10)
+    volume_initializer.update(
+        user="0:0",
+        restart="no",
+        cap_add=["CHOWN"],
+        entrypoint=[CORE_PYTHON, "-I", "-B", "/opt/provider-tools/delivery_deployment.py"],
+        command=["initialize", "--uid", str(definition.uid), "--gid", str(definition.gid)],
+        volumes=[_volume(volume, target) for (kind, volume, target) in owned_volume_roots],
+    )
+    for (kind, volume, target) in owned_volume_roots:
+        volume_initializer["command"].extend(("--" + kind, target))
+
+    services.update(delivery=delivery_service, init=volume_initializer)
+    return {
+        "name": definition.project,
+        "services": services,
+        "networks": networks,
+        "volumes": volumes,
+    }
+
 
 
 def render_shared(path, source, image):
