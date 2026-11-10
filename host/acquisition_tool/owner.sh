@@ -132,6 +132,8 @@ _acq_create() {
     local -n _acq_options_ref=$_acq_options_name _acq_arguments_ref=$_acq_arguments_name
     local _acq_role_directory=$_acq_scratch/$_acq_role
     mkdir -m 700 -- "$_acq_role_directory" || return 2
+    _acq_cids[$_acq_role]=
+    _acq_removed[$_acq_role]=false
     _acq_roles+=("$_acq_role")
     _acq_attempted[$_acq_role]=true
     _acq_native "acquisition $_acq_role creation" 30 stdio bash -eu -c '
@@ -145,12 +147,18 @@ _acq_create() {
         _acq_fail "Cannot create $_acq_role: creation did not complete (status $_acq_create_status)."
         return "$_acq_create_status"
     fi
-    [[ -n ${_acq_cids[$_acq_role]:-} ]] && _acq_private_receipt_below_limit "$_acq_role_directory/stderr"         || { _acq_fail "Cannot admit $_acq_role: create output and CID receipt must agree."; return 2; }
+    [[ -n ${_acq_cids[$_acq_role]} ]] && _acq_private_receipt_below_limit "$_acq_role_directory/stderr"         || { _acq_fail "Cannot admit $_acq_role: create output and CID receipt must agree."; return 2; }
 }
 
 _acq_remove() {
-    local _acq_remove_role=$1 _acq_remove_cid=${_acq_cids[$1]:-} _acq_remove_directory=$_acq_scratch/$1
-    [[ ${_acq_removed[$_acq_remove_role]:-false} != true ]] || return 0
+    local _acq_remove_role=$1 _acq_remove_directory=$_acq_scratch/$1
+    [[ -v '_acq_cids[$_acq_remove_role]' && -v '_acq_removed[$_acq_remove_role]' ]] || return 2
+    local _acq_remove_cid=${_acq_cids[$_acq_remove_role]}
+    case ${_acq_removed[$_acq_remove_role]} in
+        true) return 0 ;;
+        false) ;;
+        *) return 2 ;;
+    esac
     if [[ -z $_acq_remove_cid && $_acq_cancelled != 0 ]]; then
         if IFS= read -r -N 64 _acq_remove_cid < "$_acq_remove_directory/cid"             && _acq_container_id_matches_receipt "$_acq_remove_cid" "$_acq_remove_directory/cid"             && _acq_cancellation_stdout_allows_identity "$_acq_remove_cid" "$_acq_remove_directory/stdout"; then
             _acq_cids[$_acq_remove_role]=$_acq_remove_cid
@@ -196,7 +204,10 @@ _acq_scope_identity() {
 }
 
 _acq_start_route() {
-    [[ -z ${_acq_cids[relay]:-} ]] || return 0
+    if [[ -v '_acq_cids[relay]' ]]; then
+        [[ -n ${_acq_cids[relay]} ]] || return 2
+        return 0
+    fi
     [[ -n $_acq_route ]] || { _acq_fail 'Select an explicit acquisition route before online work.'; return 2; }
     _acq_scope_identity || { _acq_failed=true; return 2; }
     _acq_native 'acquisition resolver capture' 10 stdio python3 -I -S -B "$_acq_bundle/acquisition_tool/dns.py" \
