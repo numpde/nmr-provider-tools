@@ -5,6 +5,8 @@ from tools.container_guard import require_container
 require_container()
 
 import hashlib
+import os
+import subprocess
 import tarfile
 import tempfile
 import unittest
@@ -12,9 +14,26 @@ from pathlib import Path
 import zipfile
 
 from tools.build_acquisition_bundle import build, PROXY_FILES, SOURCE_FILES
+from tests.repository.quality.sources import ROOT
 
 
 class AcquisitionBundleTests(unittest.TestCase):
+    def test_missing_pinned_identity_wheel_names_its_acquisition_action(self):
+        with tempfile.TemporaryDirectory() as directory:
+            result = subprocess.run(
+                ["bash", str(ROOT / "host/tools/acquisition_identity_test.sh")],
+                env=os.environ | {
+                    "NMR_SELECTED_DOCKER_ENDPOINT": "unix:///fixture.sock",
+                    "WHEELHOUSE_INPUT_ORIGIN": "command line",
+                    "WHEELHOUSE_INPUT": directory,
+                }, capture_output=True, text=True, timeout=10, check=False)
+            self.assertNotEqual(0, result.returncode)
+            self.assertEqual("", result.stdout)
+            self.assertIn("Cannot test acquisition identity:", result.stderr)
+            self.assertIn("is missing from WHEELHOUSE", result.stderr)
+            self.assertIn("make packages/provider-core/download", result.stderr)
+            self.assertNotIn("Traceback", result.stderr)
+
     def fixture(self, root):
         source = root / "source"
         for name in SOURCE_FILES:
