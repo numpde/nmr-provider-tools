@@ -1,41 +1,40 @@
 # Dummy provider example
 
-This directory is a standalone consumer of `provider-core`. It is deliberately
-shaped like a new scientific-provider repository, not like an internal module of
-the shared package.
+This standalone Python project shows how scientific functions and a binding
+adapter use the installed `provider_core` interface. The scientific package
+contains only `science.py`, `binding.py` and its package marker.
 
 ```text
 src/dummy_provider/
-    science.py       provider-owned types, lifetimes, validation and calculation
-    binding.py       create_*_binding factories for registered implementations
+    science.py         scientific types, functions and state lifetimes
+    binding.py         configured scientific call and lifecycle registrations
 tests/
-    conformance.py   provider-owned end-to-end scenarios and expected outcomes
-    test_science.py  direct scientific behavior without an execution host
-    test_binding.py  provider-specific binding and package-boundary checks
-    test_conformance.py
-                     shared execution assertions applied to these scenarios
+    test_science.py    direct calculations and scientific rejection/correction
+    test_binding.py    binding declarations and installed package boundary
+    test_execution.py one prepare/calculate path through the installed host API
 ```
 
-The provider contributes no scheduler, Jobs client, execution host, pool,
-allocator, permission owner, recovery loop, result delivery, drain or deployment
-machinery. Shared code supplies those responsibilities.
+The weighted-sum binding holds a reusable model and per-analysis state. Its
+prepare call returns worker-local state that calculate consumes. The stateless
+sum binding uses the same interface for a single calculation.
 
 ## Starting another provider
 
-Copy this directory into the new provider repository. Rename the distribution and
-import package, replace `science.py`, then adapt the `create_*_binding` factories.
-Keep scientific configuration and assets in the contribution, and keep
-orchestration authority out of scientific functions. Replace the scenarios in
-`tests/conformance.py` with provider-owned wire inputs, exact expected outputs,
-reviewed scientific rejection codes, progress facts and retained-state handoffs.
+Copy this project into a new provider repository, rename the distribution and
+import package, implement its scientific functions, and adapt the binding
+factories. Test scientific behavior directly; test the production binding
+through the execution backend that the provider actually uses.
 
-Do not copy shared allocation, dispatch, observation or cleanup assertions. The
-`ProviderConformanceTests` mixin in `provider_core.testing.conformance` supplies
-those checks for every provider.
+Keep the shared allocation, dispatch, ownership and retirement rules tested in
+`provider-core`; extend a provider's existing worker and service tests for its
+real native protocol and resource behavior. No test-only scenario description
+or interpreter is needed.
 
-In this repository, the installed integration lane builds the candidate
-`provider-core` wheel, independently builds and installs this example wheel, then
-runs the example tests outside both source trees:
+## Installed integration check
+
+In this repository, the integration lane independently builds the candidate
+`provider-core` and dummy-provider wheels, installs both outside their source
+trees and runs the dummy provider's ordinary tests:
 
 ```sh
 make tests/integration/provider-core \
@@ -43,5 +42,6 @@ make tests/integration/provider-core \
   WHEELHOUSE=/path/to/wheelhouse
 ```
 
-That lane proves the public package boundary. It does not claim Jobs discovery,
-interpretation, durable delivery, native-process supervision or remote execution.
+The embedded-host test demonstrates the installed contribution/execution
+interface; worker-process and deployed-service tests belong to their respective
+backend and provider repositories.

@@ -19,9 +19,8 @@ _EXAMPLE_FILES = frozenset(
         "src/dummy_provider/binding.py",
         "src/dummy_provider/science.py",
         "tests/__init__.py",
-        "tests/conformance.py",
         "tests/test_binding.py",
-        "tests/test_conformance.py",
+        "tests/test_execution.py",
         "tests/test_science.py",
     }
 )
@@ -89,7 +88,7 @@ class DummyProviderExampleTests(unittest.TestCase):
         core = ROOT / "packages/provider-core/src/provider_core"
 
         self.assertFalse((core / "examples").exists())
-        self.assertTrue((core / "testing/conformance.py").is_file())
+        self.assertFalse((core / "testing").exists())
 
 
 if __name__ == "__main__":
