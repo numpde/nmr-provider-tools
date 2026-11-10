@@ -52,7 +52,7 @@ class HostLimits:
     retirement_seconds: float
 
     def __post_init__(self):
-        counts = (
+        capacity_counts = (
             self.analysis_records,
             self.operation_records,
             self.input_bytes,
@@ -60,27 +60,29 @@ class HostLimits:
             self.state_values,
             self.progress_records,
         )
-        if not all(type(value) is int and 0 < value for value in counts):
+        if not all(type(value) is int and 0 < value for value in capacity_counts):
             raise ValueError("Embedded host capacities must be positive integers.")
         positive_seconds(self.initialization_seconds)
         positive_seconds(self.retirement_seconds)
 
 
 def _combined_requirements(resident_requirements, call_requirements):
-    combined = {}
+    combined_requirements = {}
     for requirement in (*resident_requirements, *call_requirements):
-        known = combined.get(requirement.identity)
-        if known is None:
-            combined[requirement.identity] = requirement
+        previous_requirement = combined_requirements.get(requirement.identity)
+        if previous_requirement is None:
+            combined_requirements[requirement.identity] = requirement
             continue
-        combined[requirement.identity] = ResourceRequirement(
+
+        combined_requirements[requirement.identity] = ResourceRequirement(
             kind=requirement.kind,
-            amount=known.amount + requirement.amount,
+            amount=previous_requirement.amount + requirement.amount,
             unit=requirement.unit,
             selector=requirement.selector,
-            exclusive=known.exclusive or requirement.exclusive,
+            exclusive=previous_requirement.exclusive or requirement.exclusive,
         )
-    return tuple(combined.values())
+
+    return tuple(combined_requirements.values())
 
 
 def _grants_cover(grants, requirements):
@@ -117,11 +119,11 @@ class Allocation:
                 raise ValueError("The embedded backend cannot provide this call's interruption contract.")
             if call.progress and not EMBEDDED_CAPABILITIES.progress:
                 raise ValueError("The embedded backend cannot retain this call's progress events.")
-            requirements = _combined_requirements(
+            required_resources = _combined_requirements(
                 self.binding.description.resident_resources,
                 call.resources,
             )
-            if not _grants_cover(self.grants, requirements):
+            if not _grants_cover(self.grants, required_resources):
                 raise ValueError("Allocation grants do not cover one declared resident-plus-call requirement.")
 
 
@@ -175,7 +177,7 @@ class _Cleanup(_Changes):
         self.changed()
 
     async def _run(self, action):
-        timer = self.loop.call_later(self.seconds, self._expire)
+        expiration_timer = self.loop.call_later(self.seconds, self._expire)
         try:
             await action()
         except BaseException as cause:
@@ -183,7 +185,7 @@ class _Cleanup(_Changes):
         else:
             self.settled = True
         finally:
-            timer.cancel()
+            expiration_timer.cancel()
             self.changed()
 
     async def observe(self, *, after, wait_seconds):
@@ -224,14 +226,15 @@ class _Resident:
             raise self.failure
         if self.ready:
             return
-        hooks = self.allocation.binding.instance
-        started = time.monotonic()
+
+        instance_hooks = self.allocation.binding.instance
+        started_at = time.monotonic()
         try:
-            if hooks is not None:
-                self.value = hooks.construct()
+            if instance_hooks is not None:
+                self.value = instance_hooks.construct()
                 self.constructed = True
-                hooks.initialize(self.value)
-            if seconds < time.monotonic() - started:
+                instance_hooks.initialize(self.value)
+            if seconds < time.monotonic() - started_at:
                 raise TimeoutError("Instance initialization exceeded its original allowance.")
         except BaseException as cause:
             self.failure = cause
@@ -242,9 +245,10 @@ class _Resident:
         if self.dispose_attempted:
             raise RuntimeError("Instance disposal was already attempted; retain its earlier evidence.")
         self.dispose_attempted = True
-        hooks = self.allocation.binding.instance
-        if self.constructed and hooks is not None:
-            hooks.dispose(self.value)
+
+        instance_hooks = self.allocation.binding.instance
+        if self.constructed and instance_hooks is not None:
+            instance_hooks.dispose(self.value)
         self.value = None
         self.ready = False
 
@@ -262,12 +266,13 @@ class _ScientificAnalysis:
             raise self.failure
         if self.ready:
             return
-        hooks = self.resident.allocation.binding.analysis
+
+        analysis_hooks = self.resident.allocation.binding.analysis
         try:
-            if hooks is not None:
-                self.value = hooks.construct(self.resident.value)
+            if analysis_hooks is not None:
+                self.value = analysis_hooks.construct(self.resident.value)
                 self.constructed = True
-                hooks.initialize(self.value)
+                analysis_hooks.initialize(self.value)
         except BaseException as cause:
             self.failure = cause
             raise
