@@ -83,19 +83,9 @@ class DummyScienceTests(unittest.TestCase):
         self.assertEqual(2, corrected.value_count)
 
     def test_stateless_sum_needs_no_model_or_analysis(self) -> None:
-        actual_result = science.sum_values(
-            summation=science.SumInput(
-                values=(2, 4, 6),
-            )
-        )
+        actual_result = science.sum_values(summation=science.SumInput(values=(2, 4, 6)))
 
-        self.assertEqual(
-            science.SumResult(
-                total=12,
-                count=3,
-            ),
-            actual_result,
-        )
+        self.assertEqual(science.SumResult(total=12, count=3), actual_result)
 
 
     def test_scientific_calls_reject_other_input_types(self) -> None:

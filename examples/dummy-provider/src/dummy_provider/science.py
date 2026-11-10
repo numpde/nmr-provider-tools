@@ -38,16 +38,8 @@ class WeightedSumSettings:
     offset: float
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "scale",
-            _finite_float(self.scale, label="scale"),
-        )
-        object.__setattr__(
-            self,
-            "offset",
-            _finite_float(self.offset, label="offset"),
-        )
+        object.__setattr__(self, "scale", _finite_float(self.scale, label="scale"))
+        object.__setattr__(self, "offset", _finite_float(self.offset, label="offset"))
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -69,11 +61,7 @@ class PreparationInput:
     values: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "values",
-            _finite_values(self.values, label="prepare input values"),
-        )
+        object.__setattr__(self, "values", _finite_values(self.values, label="prepare input values"))
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -81,11 +69,7 @@ class SumInput:
     values: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "values",
-            _finite_values(self.values, label="sum input values"),
-        )
+        object.__setattr__(self, "values", _finite_values(self.values, label="sum input values"))
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -103,11 +87,7 @@ class PredictionResult:
     count: int
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "total",
-            _finite_float(self.total, label="prediction total"),
-        )
+        object.__setattr__(self, "total", _finite_float(self.total, label="prediction total"))
         if not (type(self.count) is int and 0 < self.count):
             raise ValueError("count must be a positive integer")
 
@@ -118,11 +98,7 @@ class SumResult:
     count: int
 
     def __post_init__(self) -> None:
-        object.__setattr__(
-            self,
-            "total",
-            _finite_float(self.total, label="sum total"),
-        )
+        object.__setattr__(self, "total", _finite_float(self.total, label="sum total"))
         if not (type(self.count) is int and 0 < self.count):
             raise ValueError("count must be a positive integer")
 
@@ -203,10 +179,7 @@ def create_model(
     settings: WeightedSumSettings,
     coefficients: CoefficientSet,
 ) -> WeightedSumModel:
-    return WeightedSumModel(
-        settings=settings,
-        coefficients=coefficients,
-    )
+    return WeightedSumModel(settings=settings, coefficients=coefficients)
 
 
 def load_model(model: WeightedSumModel) -> None:

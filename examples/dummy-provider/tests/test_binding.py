@@ -73,22 +73,10 @@ class DummyBindingTests(unittest.TestCase):
         (prepare, calculate) = weighted.calls
         run = create_sum_binding().calls[0]
 
-        self.assertIs(
-            science.PreparationInput,
-            prepare.input_codec.value_type,
-        )
-        self.assertIs(
-            science.CalculationState,
-            calculate.state_binding.value_type,
-        )
-        self.assertIs(
-            contribution.NoInput,
-            calculate.input_codec.value_type,
-        )
-        self.assertIs(
-            science.SumInput,
-            run.input_codec.value_type,
-        )
+        self.assertIs(science.PreparationInput, prepare.input_codec.value_type)
+        self.assertIs(science.CalculationState, calculate.state_binding.value_type)
+        self.assertIs(contribution.NoInput, calculate.input_codec.value_type)
+        self.assertIs(science.SumInput, run.input_codec.value_type)
 
 
 if __name__ == "__main__":
