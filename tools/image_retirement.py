@@ -39,17 +39,34 @@ def run(arguments):
     # Private receipts never become public config or daemon diagnostics.
     with tempfile.TemporaryFile() as output, tempfile.TemporaryFile() as error:
         try:
-            result = subprocess.run(arguments, stdout=output, stderr=error, check=False, timeout=30,
-                                    preexec_fn=lambda: resource.setrlimit(resource.RLIMIT_FSIZE, (2097152, 2097152)))
+            command_result = subprocess.run(
+                arguments,
+                stdout=output,
+                stderr=error,
+                check=False,
+                timeout=30,
+                preexec_fn=lambda: resource.setrlimit(
+                    resource.RLIMIT_FSIZE,
+                    (2097152, 2097152),
+                ),
+            )
         except (OSError, subprocess.TimeoutExpired):
-            raise RetirementRefused("An image inspection/removal client did not complete; retain remaining images.") from None
-        if result.returncode:
-            raise RetirementRefused(f"An image inspection/removal command failed (status {result.returncode}); retain remaining images.")
+            raise RetirementRefused(
+                "An image inspection/removal client did not complete; retain remaining images."
+            ) from None
+
+        if command_result.returncode:
+            raise RetirementRefused(
+                f"An image inspection/removal command failed (status {command_result.returncode}); "
+                "retain remaining images."
+            )
         output.seek(0)
-        raw = output.read(2097152)
-        if len(raw) >= 2097152:
-            raise RetirementRefused("Image metadata reached its capture limit; no complete inventory was established.")
-        return raw.decode("utf-8")
+        captured_output = output.read(2097152)
+        if len(captured_output) >= 2097152:
+            raise RetirementRefused(
+                "Image metadata reached its capture limit; no complete inventory was established."
+            )
+        return captured_output.decode("utf-8")
 
 
 # silent-defaults: allow-contract -- The image-ID parser defaults to tagged images; container-mode IDs are a separately selected caller contract.
@@ -63,39 +80,51 @@ def ids(raw, *, container=False):
 
 def current_inputs(root):
     # Call the existing input owners rather than copy their fingerprint recipe.
-    raw = run(["bash", "-eu", "-o", "pipefail", "-c",
-               'root=$1; source "$root/tools/checker_inputs.sh"; checker_fingerprint; '
-               'source "$root/tools/delivery_identity.sh"; delivery_recipe_identity', "bash", str(root)])
-    values = raw.splitlines()
-    if len(values) != 2 or any(_HASH.fullmatch(value) is None for value in values):
+    selected_inputs = run(
+        [
+            "bash", "-eu", "-o", "pipefail", "-c",
+            'root=$1; source "$root/tools/checker_inputs.sh"; checker_fingerprint; '
+            'source "$root/tools/delivery_identity.sh"; delivery_recipe_identity',
+            "bash", str(root),
+        ]
+    )
+    identities = selected_inputs.splitlines()
+    if len(identities) != 2 or any(_HASH.fullmatch(identity) is None for identity in identities):
         raise RetirementRefused("Current checker/delivery identities are incomplete.")
-    return tuple(values)
+    return tuple(identities)
 
 
 def retained_image_ids(directory):
     """Read only the known IID receipt in retained root build operations."""
-    protected = set()
+    protected_image_ids = set()
     for receipt in directory.glob("nmr-provider-tools.*/built-image"):
         if receipt.is_symlink() or receipt.parent.is_symlink():
             continue
         try:
             with receipt.open("rb") as source:
-                raw = source.read(73)
+                receipt_bytes = source.read(73)
         except FileNotFoundError:
             # A cooperating owner may already have cleaned its operation.
             continue
-        identifier = raw.rstrip(b"\n").decode("ascii", errors="replace")
-        if _ID.fullmatch(identifier) and raw in (identifier.encode(), (identifier + "\n").encode()):
-            protected.add(identifier)
-    return protected
+
+        image_id = receipt_bytes.rstrip(b"\n").decode("ascii", errors="replace")
+        if _ID.fullmatch(image_id) and receipt_bytes in (
+            image_id.encode(),
+            (image_id + "\n").encode(),
+        ):
+            protected_image_ids.add(image_id)
+    return protected_image_ids
 
 
 def metadata(raw, expected):
-    values = [json.loads(line) for line in raw.splitlines()]
-    if (len(values) != len(expected) or any(type(value) is not dict for value in values)
-            or {value.get("Id") for value in values} != set(expected)):
+    inspected_images = [json.loads(line) for line in raw.splitlines()]
+    if (
+        len(inspected_images) != len(expected)
+        or any(type(image) is not dict for image in inspected_images)
+        or {image.get("Id") for image in inspected_images} != set(expected)
+    ):
         raise RetirementRefused("Docker image inspection was incomplete.")
-    return values
+    return inspected_images
 
 
 def select_images(images, protected, current, now):
@@ -273,23 +302,39 @@ def retire(root, docker, current, *, staged=(), now=None, operations=Path("/tmp"
 
 def main():
     try:
-        root, staged, *engine = sys.argv[1:]
-        if not engine or staged and _ID.fullmatch(staged) is None:
+        (root, staged, *engine) = sys.argv[1:]
+        if not engine or (staged and _ID.fullmatch(staged) is None):
             raise RetirementRefused("No explicit engine or immutable staged image was supplied.")
+
         staged_images = ()
         if staged:
             staged_images = (staged,)
-        removed = retire(Path(root), lambda *arguments: run([*engine, *arguments]),
-                         lambda: current_inputs(Path(root)), staged=staged_images)
-        print(f"Retired {removed} obsolete project images; current selections, aliases and container references remain protected.")
+
+        retired_count = retire(
+            Path(root),
+            lambda *arguments: run([*engine, *arguments]),
+            lambda: current_inputs(Path(root)),
+            staged=staged_images,
+        )
+        print(
+            f"Retired {retired_count} obsolete project images; current selections, "
+            "aliases and container references remain protected."
+        )
         return 0
     # silent-defaults: allow-exception-outcome -- An explicit image-retirement refusal is reported and terminates the CLI with nonzero status.
     except RetirementRefused as failure:
-        print(f"Cannot complete image retirement: {failure} Earlier removals are not rolled back.", file=sys.stderr)
+        print(
+            f"Cannot complete image retirement: {failure} Earlier removals are not rolled back.",
+            file=sys.stderr,
+        )
         return 2
     # silent-defaults: allow-exception-outcome -- Malformed private metadata is reported as a nonzero image-retirement failure, never a successful empty result.
     except (OSError, ValueError, TypeError, KeyError):
-        print("Cannot complete image retirement: required metadata was malformed or unreadable; retain remaining images. Earlier removals are not rolled back.", file=sys.stderr)
+        print(
+            "Cannot complete image retirement: required metadata was malformed or unreadable; "
+            "retain remaining images. Earlier removals are not rolled back.",
+            file=sys.stderr,
+        )
         return 2
 
 
