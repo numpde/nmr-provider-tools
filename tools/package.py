@@ -404,103 +404,223 @@ def wheel_payload(wheel, expected, version):
 def qualify_installed(wheel, lock, source, pool, root, suites):
     # The wheel and runtime-install lock remain exactly as issued. Behavioral
     # tests get the source archive's own test lock; contract/native proofs do not.
-    python = install_environment(root / "runtime", lock, pool, extra_pools=(wheel.parent,),
-                                 required_files={wheel.name: wheel})
+    runtime_python = install_environment(
+        root / "runtime",
+        lock,
+        pool,
+        extra_pools=(wheel.parent,),
+        required_files={wheel.name: wheel},
+    )
+
     behavioral_python = None
     if any(suite in ("unit", "integration") for suite in suites):
         behavioral_lock = behavioral_install_lock(
-            lock, source / "tests/requirements.lock", root / "behavioral-install.lock",
+            lock,
+            source / "tests/requirements.lock",
+            root / "behavioral-install.lock",
         )
         behavioral_python = install_environment(
-            root / "behavioral", behavioral_lock, pool, extra_pools=(wheel.parent,),
+            root / "behavioral",
+            behavioral_lock,
+            pool,
+            extra_pools=(wheel.parent,),
             required_files={wheel.name: wheel},
         )
+
     test_root = root / "run"
     shutil.copytree(source / "tests", test_root / "tests")
     for suite in suites:
-        selected_python = behavioral_python if suite in ("unit", "integration") else python
-        command = [str(selected_python), "-I", "-B", str(test_root / "tests/run_suite.py"), suite, "test*.py"]
-        outcome = subprocess.run(command, cwd=test_root)
-        if outcome.returncode:
+        selected_python = behavioral_python if suite in ("unit", "integration") else runtime_python
+        test_command = [
+            str(selected_python),
+            "-I",
+            "-B",
+            str(test_root / "tests/run_suite.py"),
+            suite,
+            "test*.py",
+        ]
+        test_process = subprocess.run(test_command, cwd=test_root)
+        if test_process.returncode:
             raise SystemExit(
-                f"Installed provider-core {suite} release qualification failed (exit {outcome.returncode}). "
-                "See the suite diagnostic above and the retained release-test.log."
+                f"Installed provider-core {suite} release qualification failed "
+                f"(exit {test_process.returncode}). See the suite diagnostic above "
+                "and the retained release-test.log."
             )
 
 
 def check(artifacts, revision):
     with tempfile.TemporaryDirectory(prefix="package-proof-") as temporary:
         scratch = Path(temporary)
-        captured = artifacts
         for path in artifacts.iterdir():
             with regular_file(path):
                 pass
-        wheels = list(captured.glob("*.whl"))
-        if len(wheels) != 1:
+
+        captured_wheels = list(artifacts.glob("*.whl"))
+        if len(captured_wheels) != 1:
             raise ValueError("Cannot qualify package: expect exactly one provider-core wheel.")
-        match = re.fullmatch(r"provider_core-((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))-py3-none-any.whl", wheels[0].name)
-        if match is None:
+
+        wheel_filename = re.fullmatch(
+            r"provider_core-((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))-py3-none-any.whl",
+            captured_wheels[0].name,
+        )
+        if wheel_filename is None:
             raise ValueError("Cannot qualify package: wheel name must identify a provider-core release version.")
-        version = match[1]
-        prefix = f"provider_core-{version}"
-        if {path.name for path in captured.iterdir()} != artifact_names(version):
+
+        release_version = wheel_filename[1]
+        artifact_prefix = f"provider_core-{release_version}"
+        if {path.name for path in artifacts.iterdir()} != artifact_names(release_version):
             raise ValueError("Cannot qualify package: expect exactly the declared release artifacts.")
-        manifest_path = captured / (prefix + "-sha256.json")
-        manifest_digest = digest(manifest_path)
-        manifest = json.loads(manifest_path.read_text())
-        expected = {path.name: digest(path) for path in captured.iterdir() if not path.name.endswith("-sha256.json")}
-        if manifest != expected:
+
+        checksum_manifest_path = artifacts / (artifact_prefix + "-sha256.json")
+        original_manifest_digest = digest(checksum_manifest_path)
+        recorded_hashes = json.loads(checksum_manifest_path.read_text())
+        observed_hashes = {
+            path.name: digest(path)
+            for path in artifacts.iterdir()
+            if not path.name.endswith("-sha256.json")
+        }
+        if recorded_hashes != observed_hashes:
             raise ValueError("Cannot qualify package: captured release hashes do not match the declared artifacts.")
-        record = json.loads((captured / (prefix + "-release.json")).read_text())
-        if record["source_revision"] != revision or record["files"] != {name: value for name, value in expected.items() if not name.endswith("-release.json")}:
-            raise ValueError("Cannot qualify package: source revision or recorded artifact identities differ from this release.")
-        if record["tool_source_files"] != wheelhouse_source_inventory(Path("/workspace/wheelhouse_tool")):
+
+        release_record = json.loads((artifacts / (artifact_prefix + "-release.json")).read_text())
+        if (
+            release_record["source_revision"] != revision
+            or release_record["files"] != {
+                name: value
+                for (name, value) in observed_hashes.items()
+                if not name.endswith("-release.json")
+            }
+        ):
+            raise ValueError(
+                "Cannot qualify package: source revision or recorded artifact "
+                "identities differ from this release."
+            )
+        if release_record["tool_source_files"] != wheelhouse_source_inventory(Path("/workspace/wheelhouse_tool")):
             raise ValueError("Cannot qualify package: wheelhouse tool source differs from the release inputs.")
-        bundle = captured / f"wheelhouse-tool-{version}.pyz"
-        rebuilt_bundle = scratch / bundle.name
-        build_wheelhouse_bundle(Path("/wheelhouse"), rebuilt_bundle, Path("/workspace"), Path("/wheelhouse-tool.lock"))
-        if bundle.read_bytes() != rebuilt_bundle.read_bytes():
+
+        wheelhouse_bundle = artifacts / f"wheelhouse-tool-{release_version}.pyz"
+        rebuilt_wheelhouse_bundle = scratch / wheelhouse_bundle.name
+        build_wheelhouse_bundle(
+            Path("/wheelhouse"),
+            rebuilt_wheelhouse_bundle,
+            Path("/workspace"),
+            Path("/wheelhouse-tool.lock"),
+        )
+        if wheelhouse_bundle.read_bytes() != rebuilt_wheelhouse_bundle.read_bytes():
             raise ValueError("Cannot qualify package: wheelhouse bundle differs from its source rebuild.")
-        qualify_wheelhouse_bundle(bundle, scratch)
-        acquisition = captured / f"acquisition-owner-{version}.tar.gz"
-        rebuilt_acquisition = scratch / acquisition.name
+        qualify_wheelhouse_bundle(wheelhouse_bundle, scratch)
+
+        acquisition_bundle = artifacts / f"acquisition-owner-{release_version}.tar.gz"
+        rebuilt_acquisition_bundle = scratch / acquisition_bundle.name
         acquisition_record = build_acquisition_bundle(
-            Path("/wheelhouse"), rebuilt_acquisition, Path("/workspace"), wheels[0],
+            Path("/wheelhouse"),
+            rebuilt_acquisition_bundle,
+            Path("/workspace"),
+            captured_wheels[0],
             Path("/acquisition-bootstrap.pylock.toml"),
         )
-        if (acquisition.read_bytes() != rebuilt_acquisition.read_bytes()
-                or record["acquisition_source_files"] != acquisition_record["source_files"]
-                or record["acquisition_dependency_inputs"] != acquisition_record["dependency_inputs"]):
-            raise ValueError("Cannot qualify acquisition source bundle: bytes or provenance differ from the pinned rebuild.")
-        qualify_acquisition_bundle(acquisition, scratch, acquisition_record["source_files"])
-        source = unpack_source(captured / (prefix + ".tar.gz"), scratch / "source", version)
-        document = tomllib.loads((source / "pyproject.toml").read_text())
-        if document["project"]["name"] != "provider-core" or document["project"]["version"] != version:
-            raise ValueError("Cannot qualify package: source project and version differ from the release artifacts.")
-        payload = source_payload(source, record["source_files"])
-        original_metadata = wheel_payload(wheels[0], payload, version)
-        lock = captured / (prefix + "-install.lock")
-        if requirements(lock) != requirements(Path("/core-runtime.lock")) | {("provider-core", version): {digest(wheels[0])}}:
-            raise ValueError("Cannot qualify package: issued install lock differs from the closed runtime dependencies and wheel.")
-        native_lock = captured / (prefix + "-native-install.lock")
-        if requirements(native_lock) != {("provider-core", version): {digest(wheels[0])}}:
-            raise ValueError("Cannot qualify package: native install lock differs from the same released wheel.")
-        rebuilt = scratch / "rebuilt"
-        rebuilt.mkdir()
-        (rebuilt_wheel, rebuilt_lock, identities) = build_candidate(
-            source, Path("/core-runtime.lock"), Path("/core-build.lock"), Path("/wheelhouse"), rebuilt,
+        if (
+            acquisition_bundle.read_bytes() != rebuilt_acquisition_bundle.read_bytes()
+            or release_record["acquisition_source_files"] != acquisition_record["source_files"]
+            or release_record["acquisition_dependency_inputs"] != acquisition_record["dependency_inputs"]
+        ):
+            raise ValueError(
+                "Cannot qualify acquisition source bundle: bytes or provenance "
+                "differ from the pinned rebuild."
+            )
+        qualify_acquisition_bundle(acquisition_bundle, scratch, acquisition_record["source_files"])
+
+        extracted_source = unpack_source(
+            artifacts / (artifact_prefix + ".tar.gz"),
+            scratch / "source",
+            release_version,
         )
-        if identities != record["dependency_inputs"] or wheel_payload(rebuilt_wheel, payload, version) != original_metadata:
-            raise ValueError("Cannot qualify package: source rebuild metadata or dependency inputs differ from the original wheel.")
-        runtime = Path("/runtime/package-proof")
-        runtime.mkdir()
-        qualify_installed(wheels[0], lock, source, Path("/wheelhouse"), runtime / "original", ("unit", "contract", "integration"))
-        qualify_installed(rebuilt_wheel, rebuilt_lock, source, Path("/wheelhouse"), runtime / "rebuilt", ("contract",))
-        qualify_installed(wheels[0], native_lock, source, Path("/wheelhouse"), runtime / "native", ("native",))
-        if (digest(manifest_path) != manifest_digest or
-                {path.name: digest(path) for path in captured.iterdir() if not path.name.endswith("-sha256.json")} != expected):
+        source_project = tomllib.loads((extracted_source / "pyproject.toml").read_text())
+        if (
+            source_project["project"]["name"] != "provider-core"
+            or source_project["project"]["version"] != release_version
+        ):
+            raise ValueError("Cannot qualify package: source project and version differ from the release artifacts.")
+
+        source_python_files = source_payload(extracted_source, release_record["source_files"])
+        original_wheel_metadata = wheel_payload(captured_wheels[0], source_python_files, release_version)
+
+        runtime_install_lock = artifacts / (artifact_prefix + "-install.lock")
+        if requirements(runtime_install_lock) != requirements(Path("/core-runtime.lock")) | {
+            ("provider-core", release_version): {digest(captured_wheels[0])}
+        }:
+            raise ValueError(
+                "Cannot qualify package: issued install lock differs from "
+                "the closed runtime dependencies and wheel."
+            )
+
+        native_install_lock = artifacts / (artifact_prefix + "-native-install.lock")
+        if requirements(native_install_lock) != {
+            ("provider-core", release_version): {digest(captured_wheels[0])}
+        }:
+            raise ValueError(
+                "Cannot qualify package: native install lock differs from "
+                "the same released wheel."
+            )
+
+        rebuild_output = scratch / "rebuilt"
+        rebuild_output.mkdir()
+        (rebuilt_wheel, rebuilt_lock, rebuilt_dependency_inputs) = build_candidate(
+            extracted_source,
+            Path("/core-runtime.lock"),
+            Path("/core-build.lock"),
+            Path("/wheelhouse"),
+            rebuild_output,
+        )
+        if (
+            rebuilt_dependency_inputs != release_record["dependency_inputs"]
+            or wheel_payload(rebuilt_wheel, source_python_files, release_version) != original_wheel_metadata
+        ):
+            raise ValueError(
+                "Cannot qualify package: source rebuild metadata or dependency "
+                "inputs differ from the original wheel."
+            )
+
+        runtime_root = Path("/runtime/package-proof")
+        runtime_root.mkdir()
+        qualify_installed(
+            captured_wheels[0],
+            runtime_install_lock,
+            extracted_source,
+            Path("/wheelhouse"),
+            runtime_root / "original",
+            ("unit", "contract", "integration"),
+        )
+        qualify_installed(
+            rebuilt_wheel,
+            rebuilt_lock,
+            extracted_source,
+            Path("/wheelhouse"),
+            runtime_root / "rebuilt",
+            ("contract",),
+        )
+        qualify_installed(
+            captured_wheels[0],
+            native_install_lock,
+            extracted_source,
+            Path("/wheelhouse"),
+            runtime_root / "native",
+            ("native",),
+        )
+
+        if (
+            digest(checksum_manifest_path) != original_manifest_digest
+            or {
+                path.name: digest(path)
+                for path in artifacts.iterdir()
+                if not path.name.endswith("-sha256.json")
+            } != observed_hashes
+        ):
             raise ValueError("Cannot qualify package: release artifacts changed during qualification.")
-        for (name, checksum) in sorted((expected | {manifest_path.name: manifest_digest}).items()):
+
+        for (name, checksum) in sorted(
+            (observed_hashes | {checksum_manifest_path.name: original_manifest_digest}).items()
+        ):
             print("QUALIFIED_SHA256", checksum, name, flush=True)
 
 
