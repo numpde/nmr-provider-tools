@@ -92,20 +92,23 @@ class EmbeddedHost:
             raise CapacityUnavailable("The host's analysis-record allowance is full.")
         if any(name not in self.residents for name in allocation_names):
             raise CapacityUnavailable("A requested allocation does not belong to this host.")
-        residents = [self.residents[name] for name in allocation_names]
+
+        selected_residents = [self.residents[name] for name in allocation_names]
         if any(
             resident.analysis is not None
             or resident.failure is not None
             or resident.retirement is not None
             or resident.retired
-            for resident in residents
+            for resident in selected_residents
         ):
             raise CapacityUnavailable("A requested allocation is occupied, failed or retiring.")
-        analysis = _Analysis(self, analysis_id, residents)
+
+        analysis = _Analysis(self, analysis_id, selected_residents)
         self.analyses[analysis_id] = analysis
-        for resident in residents:
+        for resident in selected_residents:
             resident.analysis = analysis
         return analysis
+
 
     def retire_allocation(self, reference):
         """Pool administration retires one exact allocation and its current analysis."""
@@ -188,42 +191,47 @@ class _Analysis:
         self.host._require_loop()
         if type(invocation) is not Invocation or not callable(dispatch_guard):
             raise TypeError("Submit requires an Invocation and a host-side permission check.")
+
         operation_key = (self.identity, invocation.operation_id)
-        known = self.host.operations.get(operation_key)
-        if known is not None:
-            if known.analysis is not self or known.invocation != invocation:
+        existing_operation = self.host.operations.get(operation_key)
+        if existing_operation is not None:
+            if existing_operation.analysis is not self or existing_operation.invocation != invocation:
                 raise RequestConflict("This operation ID already identifies different work.")
-            return known
-        refusal = self._refusal(invocation)
-        if refusal is not None:
-            return refusal
-        science = self.science[invocation.reservation.allocation]
-        binding = science.resident.allocation.binding
-        call = next(
+            return existing_operation
+
+        admission_refusal = self._refusal(invocation)
+        if admission_refusal is not None:
+            return admission_refusal
+
+        scientific_analysis = self.science[invocation.reservation.allocation]
+        implementation_binding = scientific_analysis.resident.allocation.binding
+        selected_call = next(
             item
-            for item in binding.calls
+            for item in implementation_binding.calls
             if item.description.name == invocation.target.name
         )
-        state_owners = self._state_owners(invocation, call)
+        state_owners = self._state_owners(invocation, selected_call)
         if isinstance(state_owners, NotAdmitted):
             return state_owners
+
         host = self.host
-        outputs = len(call.description.state_outputs)
+        returned_state_count = len(selected_call.description.state_outputs)
         if not (
             len(host.operations) < host.limits.operation_records
             and host.input_used + len(invocation.payload) <= host.limits.input_bytes
             and host.result_reserved + invocation.limits.result_bytes <= host.limits.result_bytes
-            and host.state_reserved + outputs <= host.limits.state_values
+            and host.state_reserved + returned_state_count <= host.limits.state_values
         ):
             return NotAdmitted(
                 code=AdmissionCode.CAPACITY,
                 message="Operation, input, result or scientific-state capacity is full.",
             )
+
         operation = _Operation(
             analysis=self,
-            science=science,
+            science=scientific_analysis,
             invocation=invocation,
-            call=call,
+            call=selected_call,
             guard=dispatch_guard,
             states=state_owners,
         )
@@ -231,11 +239,12 @@ class _Analysis:
         host.operations[operation_key] = operation
         host.input_used += len(invocation.payload)
         host.result_reserved += invocation.limits.result_bytes
-        host.state_reserved += outputs
+        host.state_reserved += returned_state_count
         for owner in state_owners.values():
             owner.claim = operation.reference
         operation.start()
         return operation
+
 
     def _refusal(self, invocation):
         if self.closed:
@@ -276,27 +285,28 @@ class _Analysis:
         return None
 
     def _state_owners(self, invocation, call):
-        arguments = {item.name: item.reference for item in invocation.states}
-        declared = {item.name: item for item in call.description.state_inputs}
-        if len(arguments) != len(invocation.states) or set(arguments) != set(declared):
+        state_arguments = {item.name: item.reference for item in invocation.states}
+        declared_parameters = {item.name: item for item in call.description.state_inputs}
+        if len(state_arguments) != len(invocation.states) or set(state_arguments) != set(declared_parameters):
             return NotAdmitted(
                 code=AdmissionCode.INVALID_REQUEST,
                 message="State arguments must match the call's distinct declared names.",
             )
-        if len(set(arguments.values())) != len(arguments):
+        if len(set(state_arguments.values())) != len(state_arguments):
             return NotAdmitted(
                 code=AdmissionCode.INVALID_REFERENCE,
                 message="One live state cannot fill several arguments of this embedded call.",
             )
-        owners = {}
-        for (name, reference) in arguments.items():
+
+        state_owners = {}
+        for (name, reference) in state_arguments.items():
             owner = self.states.get(reference)
             if (
                 owner is None
                 or reference.allocation != invocation.reservation.allocation
                 or reference.binding_id != invocation.target.binding_id
                 or reference.binding_revision != invocation.target.binding_revision
-                or reference.kind != declared[name].kind
+                or reference.kind != declared_parameters[name].kind
                 or not owner.available
                 or owner.claim is not None
             ):
@@ -304,8 +314,9 @@ class _Analysis:
                     code=AdmissionCode.INVALID_REFERENCE,
                     message="Scientific state is foreign, incompatible, consumed or already in use.",
                 )
-            owners[name] = owner
-        return owners
+            state_owners[name] = owner
+        return state_owners
+
 
     def close(self):
         self.host._require_loop()
