@@ -81,7 +81,7 @@ def _reject_constant(value: str) -> None:
 
 def _object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
-    for name, value in pairs:
+    for (name, value) in pairs:
         if name in result:
             raise PayloadRejected(
                 "duplicate_field",
@@ -181,7 +181,7 @@ def _validate_annotation(
                 seen=seen,
             )
             return
-        for index, item in enumerate(arguments):
+        for (index, item) in enumerate(arguments):
             _validate_annotation(
                 item,
                 path=f"{path}[{index}]",
@@ -218,7 +218,7 @@ def _validate_dataclass(
 ) -> None:
     if value_type in seen:
         return
-    declared_fields, hints = _dataclass_fields(value_type)
+    (declared_fields, hints) = _dataclass_fields(value_type)
     nested_seen = seen | {value_type}
     for field in declared_fields:
         _validate_annotation(
@@ -275,7 +275,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
                     arguments[0],
                     path=_path_index(path, index),
                 )
-                for index, item in enumerate(value)
+                for (index, item) in enumerate(value)
             )
         if len(value) != len(arguments):
             raise PayloadRejected(
@@ -315,7 +315,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
 def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
     if type(value) is not dict:
         raise PayloadRejected("invalid_type", f"{path} must be an object")
-    declared_fields, hints = _dataclass_fields(value_type)
+    (declared_fields, hints) = _dataclass_fields(value_type)
     declared = {field.name: field for field in declared_fields}
     extra = set(value) - set(declared)
     if extra:
@@ -325,7 +325,7 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
         )
     missing = {
         name
-        for name, field in declared.items()
+        for (name, field) in declared.items()
         if name not in value
         and field.default is MISSING
         and field.default_factory is MISSING
@@ -341,7 +341,7 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
             hints[name],
             path=_path_field(path, name),
         )
-        for name, item in value.items()
+        for (name, item) in value.items()
     }
     try:
         return value_type(**arguments)
@@ -395,7 +395,7 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
                     arguments[0],
                     path=_path_index(path, index),
                 )
-                for index, item in enumerate(value)
+                for (index, item) in enumerate(value)
             ]
         if len(value) != len(arguments):
             raise TypeError(f"{path} must contain exactly {len(arguments)} items")
@@ -436,7 +436,7 @@ def _encode_dataclass(
             f"{path} must be exactly {value_type.__qualname__}, "
             f"got {type(value).__qualname__}"
         )
-    declared_fields, hints = _dataclass_fields(value_type)
+    (declared_fields, hints) = _dataclass_fields(value_type)
     return {
         field.name: _encode_value(
             getattr(value, field.name),
@@ -487,7 +487,7 @@ class DataclassStateBinding[T]:
     value_type: type[T]
 
     def __post_init__(self) -> None:
-        declared_fields, hints = _dataclass_fields(self.value_type)
+        (declared_fields, hints) = _dataclass_fields(self.value_type)
         for field in declared_fields:
             annotation = hints[field.name]
             if get_origin(annotation) is not None or annotation in (Any, object):
@@ -508,7 +508,7 @@ class DataclassStateBinding[T]:
                 "Live scientific state names differ from the declared state struct"
             )
         hints = _resolved_hints(self.value_type)
-        for name, value in values.items():
+        for (name, value) in values.items():
             expected = hints[name]
             if type(value) is not expected:
                 raise TypeError(

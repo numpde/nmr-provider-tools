@@ -289,7 +289,7 @@ class _Analysis:
                 message="One live state cannot fill several arguments of this embedded call.",
             )
         owners = {}
-        for name, reference in arguments.items():
+        for (name, reference) in arguments.items():
             owner = self.states.get(reference)
             if (
                 owner is None
@@ -329,7 +329,7 @@ class _Analysis:
             if operation.release is not None:
                 await asyncio.shield(operation.release.task)
         failures = []
-        for allocation_name, science in self.science.items():
+        for (allocation_name, science) in self.science.items():
             try:
                 original = science.resident.executor.submit(
                     self._dispose_science,
@@ -360,7 +360,7 @@ class _Analysis:
                     operation.dispose_value()
                 except BaseException as cause:
                     failures.append(cause)
-        for reference, owner in self.states.items():
+        for (reference, owner) in self.states.items():
             if reference.allocation == allocation_name:
                 try:
                     owner.dispose()

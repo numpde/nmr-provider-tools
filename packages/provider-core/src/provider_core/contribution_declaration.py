@@ -52,7 +52,7 @@ def json_configuration[T](
     format_id: str,
 ) -> ConfigurationDescription:
     """Describe one immutable JSON configuration value."""
-    actual_format, encoded_value = _json_dataclass_bytes(
+    (actual_format, encoded_value) = _json_dataclass_bytes(
         value,
         format_id=format_id,
     )
@@ -70,7 +70,7 @@ def json_asset[T](
     media_type: str,
 ) -> AssetDescription:
     """Describe one immutable JSON asset value."""
-    _, encoded_value = _json_dataclass_bytes(
+    (_, encoded_value) = _json_dataclass_bytes(
         value,
         format_id=format_id,
     )

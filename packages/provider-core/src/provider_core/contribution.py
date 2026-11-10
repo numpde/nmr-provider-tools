@@ -139,7 +139,7 @@ def _require_callable_signature(
     )
     hints = _resolved_callable_hints(callable_, label=label)
 
-    for parameter, expected_type in zip(parameters, parameter_types, strict=True):
+    for (parameter, expected_type) in zip(parameters, parameter_types, strict=True):
         actual_type = hints.get(parameter.name)
         if actual_type is not expected_type:
             raise TypeError(
@@ -166,7 +166,7 @@ def _constructed_type(
     )
     hints = _resolved_callable_hints(callable_, label=label)
 
-    for parameter, expected_type in zip(parameters, parameter_types, strict=True):
+    for (parameter, expected_type) in zip(parameters, parameter_types, strict=True):
         if hints.get(parameter.name) is not expected_type:
             raise TypeError(
                 f"{label} parameter {parameter.name!r} annotation must be exactly "
@@ -551,7 +551,7 @@ class CallBinding[InputT, StateT, OutputT]:
     def __post_init__(self) -> None:
         if type(self.description) is not CallDescription:
             raise TypeError("A call binding requires its CallDescription")
-        for codec, label in (
+        for (codec, label) in (
             (self.input_codec, "Input codec"),
             (self.result_codec, "Result codec"),
         ):
@@ -573,7 +573,7 @@ class CallBinding[InputT, StateT, OutputT]:
 
         _callback(self.scientific_call, "Scientific call")
         shape = _scientific_call_shape(self.scientific_call)
-        for actual, expected, label in (
+        for (actual, expected, label) in (
             (shape.input, self.input_codec.value_type, "input"),
             (shape.state, self.state_binding.value_type, "state"),
             (shape.output, self.result_codec.value_type, "output"),

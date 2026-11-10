@@ -172,7 +172,7 @@ class _Operation(_Changes):
                 decoded,
                 {
                     name: owner.returned.value
-                    for name, owner in self.state_owners.items()
+                    for (name, owner) in self.state_owners.items()
                 },
                 self.control,
             )
