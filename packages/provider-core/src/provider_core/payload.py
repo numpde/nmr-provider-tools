@@ -131,6 +131,7 @@ def _resolved_hints(value_type: type[object]) -> dict[str, object]:
 def _dataclass_fields(value_type: type[object]):
     if not (isinstance(value_type, type) and is_dataclass(value_type)):
         raise TypeError("Portable values must be dataclass types")
+
     parameters = value_type.__dataclass_params__
     slotted = getattr(
         parameters,
@@ -138,22 +139,22 @@ def _dataclass_fields(value_type: type[object]):
         "__slots__" in value_type.__dict__,
     )
     if not parameters.frozen or not slotted:
+        raise TypeError(f"{value_type.__qualname__} must be a frozen, slotted dataclass")
+
+    declared_fields = fields(value_type)
+    if any(not field.init for field in declared_fields):
+        non_init_field = next(field.name for field in declared_fields if not field.init)
         raise TypeError(
-            f"{value_type.__qualname__} must be a frozen, slotted dataclass"
+            f"{value_type.__qualname__}.{non_init_field} must participate in construction"
         )
-    result = fields(value_type)
-    if any(not field.init for field in result):
-        name = next(field.name for field in result if not field.init)
-        raise TypeError(
-            f"{value_type.__qualname__}.{name} must participate in construction"
-        )
-    hints = _resolved_hints(value_type)
-    declared = {field.name for field in result}
-    if set(hints) != declared:
+
+    annotations = _resolved_hints(value_type)
+    declared_names = {field.name for field in declared_fields}
+    if set(annotations) != declared_names:
         raise TypeError(
             f"{value_type.__qualname__} must annotate every init field and no non-field names"
         )
-    return result, hints
+    return declared_fields, annotations
 
 
 def _validate_annotation(
@@ -315,36 +316,39 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
 def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
     if type(value) is not dict:
         raise PayloadRejected("invalid_type", f"{path} must be an object")
-    (declared_fields, hints) = _dataclass_fields(value_type)
-    declared = {field.name: field for field in declared_fields}
-    extra = set(value) - set(declared)
-    if extra:
+
+    (declared_fields, annotations) = _dataclass_fields(value_type)
+    fields_by_name = {field.name: field for field in declared_fields}
+    unexpected_fields = set(value) - set(fields_by_name)
+    if unexpected_fields:
         raise PayloadRejected(
             "unexpected_field",
-            f"{path} contains unexpected fields: {sorted(extra)!r}",
+            f"{path} contains unexpected fields: {sorted(unexpected_fields)!r}",
         )
-    missing = {
+
+    missing_fields = {
         name
-        for (name, field) in declared.items()
+        for (name, field) in fields_by_name.items()
         if name not in value
         and field.default is MISSING
         and field.default_factory is MISSING
     }
-    if missing:
+    if missing_fields:
         raise PayloadRejected(
             "missing_field",
-            f"{path} is missing required fields: {sorted(missing)!r}",
+            f"{path} is missing required fields: {sorted(missing_fields)!r}",
         )
-    arguments = {
+
+    decoded_arguments = {
         name: _decode_value(
             item,
-            hints[name],
+            annotations[name],
             path=_path_field(path, name),
         )
         for (name, item) in value.items()
     }
     try:
-        return value_type(**arguments)
+        return value_type(**decoded_arguments)
     except CallRejected:
         raise
     except (TypeError, ValueError) as error:
@@ -507,12 +511,13 @@ class DataclassStateBinding[T]:
             raise ValueError(
                 "Live scientific state names differ from the declared state struct"
             )
-        hints = _resolved_hints(self.value_type)
-        for (name, value) in values.items():
-            expected = hints[name]
-            if type(value) is not expected:
+
+        annotations = _resolved_hints(self.value_type)
+        for (name, state_value) in values.items():
+            expected_type = annotations[name]
+            if type(state_value) is not expected_type:
                 raise TypeError(
                     f"Scientific state {name!r} must be exactly "
-                    f"{expected.__qualname__}, got {type(value).__qualname__}"
+                    f"{expected_type.__qualname__}, got {type(state_value).__qualname__}"
                 )
         return self.value_type(**values)
