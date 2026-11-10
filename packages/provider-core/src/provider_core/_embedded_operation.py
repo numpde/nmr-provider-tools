@@ -47,13 +47,13 @@ class _OperationControl:
             raise RuntimeError("This call did not declare progress reporting.")
         if type(event) is not ProgressEvent:
             raise TypeError("Scientific progress must be a ProgressEvent.")
-        receipt = Future()
+        progress_receipt = Future()
         self.operation.loop.call_soon_threadsafe(
             self.operation._record_progress,
             event,
-            receipt,
+            progress_receipt,
         )
-        receipt.result()
+        progress_receipt.result()
 
 
 class _Operation(_Changes):
@@ -107,9 +107,9 @@ class _Operation(_Changes):
             self.original.set_result(None)
             self.failures = (Failure("dispatch", cause),)
         self.original.add_done_callback(
-            lambda original: self.loop.call_soon_threadsafe(
+            lambda execution_future: self.loop.call_soon_threadsafe(
                 self._finished,
-                original,
+                execution_future,
             )
         )
 
@@ -144,6 +144,7 @@ class _Operation(_Changes):
                     self.invocation.limits.execution_seconds,
                     self._expire,
                 )
+                # Consume state only after the guarded scientific dispatch begins.
                 for parameter in self.call.description.state_inputs:
                     if parameter.use is StateUse.CONSUME:
                         self.state_owners[parameter.name].available = False
@@ -157,50 +158,57 @@ class _Operation(_Changes):
         phase = "permission"
         try:
             self._guard_at_handoff()
+
             phase = "instance_initialization"
             self._initialize_instance()
+
             phase = "analysis_initialization"
             self.science.initialize()
+
             phase = "permission"
             self._guard_at_handoff()
+
             phase = "decoding"
-            decoded = self.call.decode_input(self.invocation.payload)
+            scientific_input = self.call.decode_input(self.invocation.payload)
+
             phase = "calculation"
-            raw = self.call.invoke(
+            scientific_return = self.call.invoke(
                 self.science.resident.value,
                 self.science.value,
-                decoded,
+                scientific_input,
                 {
                     name: owner.returned.value
                     for (name, owner) in self.state_owners.items()
                 },
                 self.control,
             )
-            self.raw = raw
+            self.raw = scientific_return
             self.outcome = Outcome.SUCCEEDED
+
             phase = "state_adoption"
-            if type(raw) is not ScientificReturn:
-                raise TypeError(
-                    "A scientific call binding must return ScientificReturn."
-                )
-            adopted = Future()
+            if type(scientific_return) is not ScientificReturn:
+                raise TypeError("A scientific call binding must return ScientificReturn.")
+
+            adoption_receipt = Future()
             self.loop.call_soon_threadsafe(
                 self._adopt_states,
-                raw,
-                adopted,
+                scientific_return,
+                adoption_receipt,
             )
-            adopted.result()
+            adoption_receipt.result()
+
             phase = "encoding"
-            encoded = self.call.encode_result(raw.value)
+            result_payload = self.call.encode_result(scientific_return.value)
             if not (
-                type(encoded) is bytes
-                and len(encoded) <= self.invocation.limits.result_bytes
+                type(result_payload) is bytes
+                and len(result_payload) <= self.invocation.limits.result_bytes
             ):
                 raise ValueError(
                     "Encoded scientific result exceeds its declared byte allowance "
                     "or is not bytes."
                 )
-            self.payload = encoded
+
+            self.payload = result_payload
             self.result = ResultRef(self.reference, uuid4().hex)
             self.result_state = ResultState.AVAILABLE
         except CallRejected as cause:
@@ -217,21 +225,21 @@ class _Operation(_Changes):
     def _initialize_instance(self):
         if self.science.resident.ready:
             return
-        timer_ready = Future()
+        timer_receipt = Future()
         self.loop.call_soon_threadsafe(
             self._start_initialization_clock,
-            timer_ready,
+            timer_receipt,
         )
-        timer = timer_ready.result()
+        initialization_timer = timer_receipt.result()
         try:
             self.science.resident.initialize(
                 self.analysis.host.limits.initialization_seconds
             )
         finally:
-            self.loop.call_soon_threadsafe(timer.cancel)
+            self.loop.call_soon_threadsafe(initialization_timer.cancel)
 
-    def _start_initialization_clock(self, timer_ready):
-        timer_ready.set_result(
+    def _start_initialization_clock(self, timer_receipt):
+        timer_receipt.set_result(
             self.loop.call_later(
                 self.analysis.host.limits.initialization_seconds,
                 self._initialization_expired,
