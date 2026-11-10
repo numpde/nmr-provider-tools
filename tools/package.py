@@ -35,58 +35,160 @@ def artifact_names(version):
 
 
 def qualify_wheelhouse_bundle(bundle, scratch):
-    pins = requirements(Path("/wheelhouse-tool.lock"))
-    (version, hashes) = next((version, hashes) for ((name, version), hashes) in pins.items() if name == "packaging")
-    name = f"packaging-{version}-py3-none-any.whl"
-    checksum = digest(Path("/wheelhouse") / name)
-    if checksum not in hashes:
+    locked_requirements = requirements(Path("/wheelhouse-tool.lock"))
+    (packaging_version, accepted_hashes) = next(
+        (version, hashes)
+        for ((name, version), hashes) in locked_requirements.items()
+        if name == "packaging"
+    )
+    packaging_wheel_name = f"packaging-{packaging_version}-py3-none-any.whl"
+    packaging_digest = digest(Path("/wheelhouse") / packaging_wheel_name)
+    if packaging_digest not in accepted_hashes:
         raise ValueError("Cannot qualify wheelhouse bundle: cached packaging wheel differs from its lock.")
-    lock = scratch / "pylock.toml"
-    lock.write_text('lock-version = "1.0"\ncreated-by = "release qualification"\n'
-                    f'[[packages]]\nname = "packaging"\nversion = "{version}"\n'
-                    f'[[packages.wheels]]\nurl = "https://example.invalid/{name}"\n'
-                    f'hashes = {{ sha256 = "{checksum}" }}\n')
-    projected = scratch / "pylock.local.toml"
-    command = ["python3", "-I", "-S", str(bundle)]
-    subprocess.run([*command, "locate", "--help"], check=True, stdout=subprocess.DEVNULL)
-    selected = subprocess.run([*command, "select", "--lock", str(lock)], check=True,
-                              stdout=subprocess.PIPE, text=True)
-    if json.loads(selected.stdout)["artifacts"][0]["sha256"] != checksum:
+
+    selection_lock = scratch / "pylock.toml"
+    selection_lock.write_text(
+        'lock-version = "1.0"\ncreated-by = "release qualification"\n'
+        f'[[packages]]\nname = "packaging"\nversion = "{packaging_version}"\n'
+        f'[[packages.wheels]]\nurl = "https://example.invalid/{packaging_wheel_name}"\n'
+        f'hashes = {{ sha256 = "{packaging_digest}" }}\n'
+    )
+    projected_lock = scratch / "pylock.local.toml"
+    wheelhouse_command = ["python3", "-I", "-S", str(bundle)]
+    subprocess.run(
+        [*wheelhouse_command, "locate", "--help"],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+
+    selected_wheels = subprocess.run(
+        [*wheelhouse_command, "select", "--lock", str(selection_lock)],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    if json.loads(selected_wheels.stdout)["artifacts"][0]["sha256"] != packaging_digest:
         raise ValueError("Cannot qualify wheelhouse bundle: target selection differs from the lock.")
-    subprocess.run([*command, "check", "--lock", str(lock), "--pool", "/wheelhouse",
-                    "--local-lock", str(projected), "--local-root", "/wheels"], check=True, stdout=subprocess.DEVNULL)
-    projected_artifact = tomllib.loads(projected.read_text())["packages"][0]["wheels"][0]
-    hashes = projected_artifact.get("hashes")
-    if (projected_artifact.get("path") != "/wheels/" + name or "url" in projected_artifact
-            or type(hashes) is not dict or hashes.get("sha256") != checksum):
+
+    subprocess.run(
+        [
+            *wheelhouse_command,
+            "check",
+            "--lock",
+            str(selection_lock),
+            "--pool",
+            "/wheelhouse",
+            "--local-lock",
+            str(projected_lock),
+            "--local-root",
+            "/wheels",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
+    projected_artifact = tomllib.loads(projected_lock.read_text())["packages"][0]["wheels"][0]
+    projected_hashes = projected_artifact.get("hashes")
+    if (
+        projected_artifact.get("path") != "/wheels/" + packaging_wheel_name
+        or "url" in projected_artifact
+        or type(projected_hashes) is not dict
+        or projected_hashes.get("sha256") != packaging_digest
+    ):
         raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
+
     dockerfile = scratch / "Dockerfile"
     dockerfile.write_text("FROM scratch\n")
     manifest = scratch / "stream-manifest.json"
     report = scratch / "pip-report.json"
-    report.write_text(json.dumps({"version": "1", "install": [{"download_info": {
-        "url": "file:///wheelhouse/" + name, "archive_info": {"hashes": {"sha256": checksum}}}}]}))
-    converted = subprocess.run([*command, "report", "--report", str(report), "--pool", "/wheelhouse",
-                                "--directory", "wheels"], check=True, stdout=subprocess.PIPE, text=True)
-    if json.loads(converted.stdout) != [{"filename": name, "sha256": checksum, "directory": "wheels"}]:
+    report.write_text(
+        json.dumps(
+            {
+                "version": "1",
+                "install": [
+                    {
+                        "download_info": {
+                            "url": "file:///wheelhouse/" + packaging_wheel_name,
+                            "archive_info": {"hashes": {"sha256": packaging_digest}},
+                        }
+                    }
+                ],
+            }
+        )
+    )
+
+    report_conversion = subprocess.run(
+        [
+            *wheelhouse_command,
+            "report",
+            "--report",
+            str(report),
+            "--pool",
+            "/wheelhouse",
+            "--directory",
+            "wheels",
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    )
+    expected_report = [
+        {"filename": packaging_wheel_name, "sha256": packaging_digest, "directory": "wheels"}
+    ]
+    if json.loads(report_conversion.stdout) != expected_report:
         raise ValueError("Cannot qualify wheelhouse bundle: pip report projection differs from the selected artifact.")
-    manifest.write_text(converted.stdout)
-    identity = subprocess.run([*command, "identity", "--manifest", str(manifest)], check=True,
-                              stdout=subprocess.PIPE, text=True).stdout.strip()
-    canonical = json.dumps(json.loads(converted.stdout), sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
-    if identity != hashlib.sha256(canonical).hexdigest():
+
+    manifest.write_text(report_conversion.stdout)
+    manifest_identity = subprocess.run(
+        [*wheelhouse_command, "identity", "--manifest", str(manifest)],
+        check=True,
+        stdout=subprocess.PIPE,
+        text=True,
+    ).stdout.strip()
+    canonical_manifest = json.dumps(
+        json.loads(report_conversion.stdout),
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=True,
+    ).encode()
+    if manifest_identity != hashlib.sha256(canonical_manifest).hexdigest():
         raise ValueError("Cannot qualify wheelhouse bundle: selection identity differs from the selected artifact.")
-    sources = scratch / "stream-sources.json"
-    sources.write_text(json.dumps([{"path": str(dockerfile), "destination": "Dockerfile",
-                                   "sha256": digest(dockerfile), "executable": False}]))
-    output = subprocess.run([*command, "stream", "--pool", "/wheelhouse", "--source-allowlist", str(sources),
-                             "--manifest", str(manifest)], check=True, stdout=subprocess.PIPE).stdout
-    with tarfile.open(fileobj=io.BytesIO(output)) as archive:
-        if set(archive.getnames()) != {"Dockerfile", "wheels/" + name}:
+
+    source_allowlist = scratch / "stream-sources.json"
+    source_allowlist.write_text(
+        json.dumps(
+            [
+                {
+                    "path": str(dockerfile),
+                    "destination": "Dockerfile",
+                    "sha256": digest(dockerfile),
+                    "executable": False,
+                }
+            ]
+        )
+    )
+    streamed_context = subprocess.run(
+        [
+            *wheelhouse_command,
+            "stream",
+            "--pool",
+            "/wheelhouse",
+            "--source-allowlist",
+            str(source_allowlist),
+            "--manifest",
+            str(manifest),
+        ],
+        check=True,
+        stdout=subprocess.PIPE,
+    ).stdout
+
+    with tarfile.open(fileobj=io.BytesIO(streamed_context)) as archive:
+        if set(archive.getnames()) != {"Dockerfile", "wheels/" + packaging_wheel_name}:
             raise ValueError("Cannot qualify wheelhouse bundle: streamed inputs differ from the selected context.")
-        with archive.extractfile("wheels/" + name) as selected:
-            if hashlib.file_digest(selected, "sha256").hexdigest() != checksum:
+
+        with archive.extractfile("wheels/" + packaging_wheel_name) as streamed_wheel:
+            if hashlib.file_digest(streamed_wheel, "sha256").hexdigest() != packaging_digest:
                 raise ValueError("Cannot qualify wheelhouse bundle: streamed wheel differs from the lock.")
+
 
 
 def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
