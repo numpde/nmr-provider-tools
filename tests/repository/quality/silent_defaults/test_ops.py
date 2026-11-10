@@ -50,7 +50,7 @@ def ops_files() -> list[Path]:
             "compose/**/*.yaml",
             "containers/**/Dockerfile*",
             "containers/**/*.sh",
-            "host/**/*.sh",
+            "host/tools/**/*.sh",
             "host/**/*.py",
             "tools/**/*.py",
             "tests/**/*.sh",
