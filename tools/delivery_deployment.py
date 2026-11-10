@@ -82,7 +82,6 @@ def _bind(source, target):
     }
 
 
-
 # silent-defaults: allow-contract -- Proxy socket borrowers mount the same volume read-only; its owner explicitly receives writes.
 def _volume(name, target, *, readonly=False):
     return {
@@ -92,7 +91,6 @@ def _volume(name, target, *, readonly=False):
         "read_only": readonly,
         "volume": {"nocopy": True},
     }
-
 
 
 def _service(image, module, definition, stop_seconds):
@@ -132,7 +130,6 @@ def _service(image, module, definition, stop_seconds):
     }
 
 
-
 def admit_listeners(definition):
     listeners = {}
     for binding in definition.bindings:
@@ -147,7 +144,6 @@ def admit_listeners(definition):
             ) from cause
         listeners[binding.name] = ipc_key, socket_path
     return listeners
-
 
 
 def daemon_configuration(definition):
@@ -180,7 +176,6 @@ def daemon_configuration(definition):
     return configuration
 
 
-
 def render(definition, source, image, checksum):
     if definition.uid != os.geteuid() or re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
         raise DeliveryDeploymentRejected(
@@ -199,16 +194,8 @@ def render(definition, source, image, checksum):
     delivery_service["command"] = ["run", "--definition", "/input/delivery.toml", "--sha256", checksum]
     delivery_service["healthcheck"] = {
         "test": [
-            "CMD",
-            CORE_PYTHON,
-            "-I",
-            "-B",
-            "/opt/provider-tools/delivery_deployment.py",
-            "health",
-            "--definition",
-            "/input/delivery.toml",
-            "--sha256",
-            checksum,
+            "CMD", CORE_PYTHON, "-I", "-B", "/opt/provider-tools/delivery_deployment.py",
+            "health", "--definition", "/input/delivery.toml", "--sha256", checksum,
         ],
         "interval": "5s",
         "timeout": "3s",
@@ -283,7 +270,6 @@ def render(definition, source, image, checksum):
     }
 
 
-
 def render_shared(path, source, image):
     """Project the one operator file into independently managed proxy and outbox projects."""
     if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
@@ -348,20 +334,13 @@ def render_shared(path, source, image):
     proxy_owner = SimpleNamespace(uid=proxy_uid, gid=gid, project=project + "-proxy")
     proxy_service = _service(image, "provider_core.provider_proxy", proxy_owner, 15)
     proxy_service["command"] = [
-        "--mode",
-        mode,
-        "--interface",
-        interface,
-        "--socket",
-        "/route/proxy.sock",
-        "--ready-file",
-        "/route/ready",
-        "--status-directory",
-        "/run",
-        "--socket-group-id",
-        str(gid),
-        "--live-config",
-        config_path,
+        "--mode", mode,
+        "--interface", interface,
+        "--socket", "/route/proxy.sock",
+        "--ready-file", "/route/ready",
+        "--status-directory", "/run",
+        "--socket-group-id", str(gid),
+        "--live-config", config_path,
     ]
     proxy_service["volumes"] = [
         _bind(source.parent, "/settings"),
@@ -370,14 +349,8 @@ def render_shared(path, source, image):
     proxy_service["depends_on"] = {"init": {"condition": "service_completed_successfully"}}
     proxy_service["healthcheck"] = {
         "test": [
-            "CMD",
-            CORE_PYTHON,
-            "-I",
-            "-B",
-            "-m",
-            "provider_core.process_status",
-            "/run/status.json",
-            "proxy",
+            "CMD", CORE_PYTHON, "-I", "-B", "-m", "provider_core.process_status",
+            "/run/status.json", "proxy",
         ],
         "interval": "5s",
         "timeout": "2s",
@@ -412,20 +385,13 @@ def render_shared(path, source, image):
 
     outbox_service = _service(image, "provider_core.delivery_main", owner, 60)
     outbox_service["command"] = [
-        "--shared-config",
-        config_path,
-        "--state-directory",
-        "/state",
-        "--socket",
-        "/intake/http.sock",
-        "--socket-group-id",
-        str(gid),
-        "--proxy-socket",
-        "/proxy/proxy.sock",
-        "--request-seconds",
-        str(request_seconds),
-        "--status-directory",
-        "/run",
+        "--shared-config", config_path,
+        "--state-directory", "/state",
+        "--socket", "/intake/http.sock",
+        "--socket-group-id", str(gid),
+        "--proxy-socket", "/proxy/proxy.sock",
+        "--request-seconds", str(request_seconds),
+        "--status-directory", "/run",
     ]
     outbox_service["volumes"] = [
         _bind(source.parent, "/settings"),
@@ -436,14 +402,8 @@ def render_shared(path, source, image):
     outbox_service["depends_on"] = {"init": {"condition": "service_completed_successfully"}}
     outbox_service["healthcheck"] = {
         "test": [
-            "CMD",
-            CORE_PYTHON,
-            "-I",
-            "-B",
-            "-m",
-            "provider_core.process_status",
-            "/run/status.json",
-            "delivery",
+            "CMD", CORE_PYTHON, "-I", "-B", "-m", "provider_core.process_status",
+            "/run/status.json", "delivery",
         ],
         "interval": "5s",
         "timeout": "2s",
@@ -458,14 +418,10 @@ def render_shared(path, source, image):
         entrypoint=[CORE_PYTHON, "-I", "-B", "/opt/provider-tools/delivery_deployment.py"],
         command=[
             "initialize",
-            "--uid",
-            str(uid),
-            "--gid",
-            str(gid),
-            "--queue",
-            "/volumes/queue",
-            "--ipc",
-            "/volumes/intake",
+            "--uid", str(uid),
+            "--gid", str(gid),
+            "--queue", "/volumes/queue",
+            "--ipc", "/volumes/intake",
         ],
         volumes=[
             _volume(queue_volume, "/volumes/queue"),
@@ -482,6 +438,7 @@ def render_shared(path, source, image):
         },
     }
     return {"proxy": proxy_project, "outbox": outbox_project}
+
 
 def runtime_definition(path, expected):
     (definition, actual_checksum) = read_definition(path)
