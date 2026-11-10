@@ -50,16 +50,26 @@ def _details(error, text, diagnostic_window):
 
 def _path(value):
     path = Path(value)
-    if not path.is_absolute() or path.resolve() != path or any(c in str(path) for c in ("\0", "\n", "\r", ",")):
-        raise DeliveryDeploymentRejected("Delivery inputs require canonical absolute paths without mount delimiters.")
+    if (
+        not path.is_absolute()
+        or path.resolve() != path
+        or any(character in str(path) for character in ("\0", "\n", "\r", ","))
+    ):
+        raise DeliveryDeploymentRejected(
+            "Delivery inputs require canonical absolute paths without mount delimiters."
+        )
     return path
 
 
 def read_definition(path):
-    raw = read_startup_file(path, maximum_bytes=65536, label="delivery binding definition")
-    definition = parse_deployment_bindings(raw)
+    raw_definition = read_startup_file(
+        path,
+        maximum_bytes=65536,
+        label="delivery binding definition",
+    )
+    definition = parse_deployment_bindings(raw_definition)
     admit_listeners(definition)
-    return definition, hashlib.sha256(raw).hexdigest()
+    return definition, hashlib.sha256(raw_definition).hexdigest()
 
 
 def _bind(source, target):
@@ -474,31 +484,46 @@ def render_shared(path, source, image):
     return {"proxy": proxy_project, "outbox": outbox_project}
 
 def runtime_definition(path, expected):
-    (definition, checksum) = read_definition(path)
-    if checksum != expected:
-        raise DeliveryDeploymentRejected("Cannot start delivery: the operator definition changed after rendering; stop the project and run up with the intended definition.")
+    (definition, actual_checksum) = read_definition(path)
+    if actual_checksum != expected:
+        raise DeliveryDeploymentRejected(
+            "Cannot start delivery: the operator definition changed after rendering; "
+            "stop the project and run up with the intended definition."
+        )
     return definition
 
 
 def runtime_configuration(path, expected):
     definition = runtime_definition(path, expected)
-    encoded = tomli_w.dumps(daemon_configuration(definition)).encode()
-    if not len(encoded) <= 65536:
-        raise DeliveryDeploymentRejected("Cannot start delivery: the derived SDK configuration exceeds its 65536-byte contract.")
-    target = Path("/run/delivery.toml")
-    with target.open("xb") as stream:
+    encoded_configuration = tomli_w.dumps(daemon_configuration(definition)).encode()
+    if not len(encoded_configuration) <= 65536:
+        raise DeliveryDeploymentRejected(
+            "Cannot start delivery: the derived SDK configuration exceeds "
+            "its 65536-byte contract."
+        )
+
+    configuration_path = Path("/run/delivery.toml")
+    with configuration_path.open("xb") as stream:
         os.fchmod(stream.fileno(), 0o600)
-        stream.write(encoded)
-    return target
+        stream.write(encoded_configuration)
+    return configuration_path
 
 
 async def intake_ready(binding, listener):
-    client = DeliveryClient(DeliveryEndpoint(binding.api["origin"], binding.api["provider_ref"],
-                            Path(listener), socket_group_id=binding.socket_group_id),
-                            exchange_seconds=1, retirement_seconds=0.2)
+    endpoint = DeliveryEndpoint(
+        binding.api["origin"],
+        binding.api["provider_ref"],
+        Path(listener),
+        socket_group_id=binding.socket_group_id,
+    )
+    client = DeliveryClient(
+        endpoint,
+        exchange_seconds=1,
+        retirement_seconds=0.2,
+    )
     try:
-        # This read remains bounded even for a valid oversized legacy queue.
         # A successful response proves local intake, never remote API readiness.
+        # This read remains bounded even for a valid oversized legacy queue.
         await client.status("execution_attempt:sha256:" + "0" * 64)
     finally:
         await client.retire()
@@ -506,16 +531,30 @@ async def intake_ready(binding, listener):
 
 async def health(definition):
     listeners = admit_listeners(definition)
-    settled = await asyncio.gather(*(intake_ready(binding, listeners[binding.name][1]) for binding in definition.bindings),
-                                   return_exceptions=True)
-    failures = [result for result in settled if isinstance(result, BaseException)]
-    if failures:
-        raise BaseExceptionGroup("Delivery intake is not ready for every configured binding.", failures)
+    intake_results = await asyncio.gather(
+        *(
+            intake_ready(binding, listeners[binding.name][1])
+            for binding in definition.bindings
+        ),
+        return_exceptions=True,
+    )
+    intake_failures = [
+        result for result in intake_results if isinstance(result, BaseException)
+    ]
+    if intake_failures:
+        raise BaseExceptionGroup(
+            "Delivery intake is not ready for every configured binding.",
+            intake_failures,
+        )
 
 
 def initialize(uid, gid, queue, ipc):
     if os.geteuid() != 0 or uid <= 0 or gid <= 0:
-        raise DeliveryDeploymentRejected("Volume initialization requires root with CHOWN and explicit nonzero target UID/GID.")
+        raise DeliveryDeploymentRejected(
+            "Volume initialization requires root with CHOWN and explicit "
+            "nonzero target UID/GID."
+        )
+
     for (target, mode) in [(queue, 0o700), *((path, 0o710) for path in ipc)]:
         path = _path(target)
         observed = path.lstat()
@@ -524,7 +563,11 @@ def initialize(uid, gid, queue, ipc):
         if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) == (uid, gid, mode):
             continue
         if observed.st_uid != 0 or any(path.iterdir()):
-            raise DeliveryDeploymentRejected("Refusing to change an existing delivery volume with unexpected ownership, mode or contents.")
+            raise DeliveryDeploymentRejected(
+                "Refusing to change an existing delivery volume with "
+                "unexpected ownership, mode or contents."
+            )
+
         descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
         try:
             os.fchmod(descriptor, mode)
