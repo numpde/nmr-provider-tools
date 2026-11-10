@@ -35,7 +35,12 @@ case "$operation" in
           printf 'container:%s\n' "$(<"$ENGINE_STATE/relay-id")"
         elif [[ $role == gateway ]]; then printf 'host\n'; else printf 'none\n'; fi ;;
       '{{.HostConfig.NetworkMode}} {{.State.Running}}') printf 'none true\n' ;;
-      '{{.State.Running}} {{.State.ExitCode}}') printf 'false %s\n' "${WORKER_STATUS:-0}" ;;
+      '{{.State.Running}} {{.State.ExitCode}}')
+        if [[ -v WORKER_STATUS ]]; then
+          printf 'false %s\n' "$WORKER_STATUS"
+        else
+          printf 'false 0\n'
+        fi ;;
       *) exit 97 ;;
     esac
     ;;
@@ -53,7 +58,7 @@ case "$operation" in
       exit 0
     fi
     : > "$ENGINE_STATE/started-worker"
-    if [[ ${STREAM_WITNESS:-0} == 1 ]]; then
+    if [[ -v STREAM_WITNESS && $STREAM_WITNESS == 1 ]]; then
       printf 'streamed\n'
       while [[ ! -f "$ENGINE_STATE/release-worker" ]]; do sleep 0.01; done
     fi
@@ -64,7 +69,7 @@ case "$operation" in
     identifier=${!#}
     role=$(<"$ENGINE_STATE/role-$identifier")
     printf '%s\n' "$role" >> "$ENGINE_STATE/removal-attempts"
-    if [[ $role == ${FAIL_REMOVE:-} ]]; then exit 1; fi
+    if [[ -v FAIL_REMOVE && $role == "$FAIL_REMOVE" ]]; then exit 1; fi
     rm -f "$ENGINE_STATE/live-$identifier"
     : > "$ENGINE_STATE/removed-worker"
     ;;

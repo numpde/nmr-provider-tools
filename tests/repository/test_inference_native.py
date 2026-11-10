@@ -1029,9 +1029,12 @@ class CapturedNativeTests(unittest.TestCase):
     def run_readied_expiry(self, *, behavior, additions=None):
         """Exercise the actual timeout only after the native TERM handler exists."""
         command, environment = self.command(budget="5")
+        scenario_environment = environment | {"NATIVE_BEHAVIOR": behavior}
+        if additions is not None:
+            scenario_environment.update(additions)
         process = subprocess.Popen(
             command,
-            env=environment | {"NATIVE_BEHAVIOR": behavior} | ({} if additions is None else additions),
+            env=scenario_environment,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

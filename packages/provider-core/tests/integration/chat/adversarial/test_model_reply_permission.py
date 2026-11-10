@@ -224,8 +224,7 @@ class ObservationGap:
 
 
 class ReplyRun:
-    # silent-defaults: allow-contract -- Ordinary reply tests keep the admitted
-    # API and START policy; generated tests supply explicit controlled boundaries.
+    # silent-defaults: allow-contract -- Ordinary reply tests use the admitted API, START policy and terminal budget; generated cases explicitly replace those test boundaries.
     def __init__(self, peer, claims, job, session_type, *, transport_type=ObservedAPI,
                  start_policy=None, delivery=None, maximum_terminal_bytes=2097152):
         self.peer = peer
@@ -630,7 +629,7 @@ class ComposedLifecycleOwnershipTests(unittest.IsolatedAsyncioTestCase):
                                          (healthy.controller, independent)):
                     if task is not None and not task.done():
                         controller.request_stop()
-                tasks = tuple(task for task in (original, independent) if task is not None)
+                tasks = [task for task in (original, independent) if task is not None]
                 if tasks:
                     await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), 8)
 

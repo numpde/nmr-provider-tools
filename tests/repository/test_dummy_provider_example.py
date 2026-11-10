@@ -46,7 +46,7 @@ class DummyProviderExampleTests(unittest.TestCase):
             tree = ast.parse(path.read_text(), filename=str(path))
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
-                    names = tuple(alias.name for alias in node.names)
+                    names = [alias.name for alias in node.names]
                 elif isinstance(node, ast.ImportFrom) and node.module is not None:
                     names = (node.module,)
                 else:

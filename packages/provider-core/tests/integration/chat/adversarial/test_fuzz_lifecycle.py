@@ -7,8 +7,11 @@ The deterministic complete traces live in test_model_reply_permission.py.
 
 import asyncio
 from contextlib import AsyncExitStack
+from functools import partial
 import json
 import os
+import runpy
+import unittest
 from unittest.mock import Mock, patch
 
 from hypothesis import note, settings, strategies as st
@@ -92,8 +95,8 @@ class LifecycleOrders(RuleBasedStateMachine):
             except ExecutionStopped as stopped:
                 for name, case in self.cases.items():
                     if case.controller.operation is executor:
-                        self.verified_stops.setdefault(
-                            name, (stopped, case.session.science.executions))
+                        if name not in self.verified_stops:
+                            self.verified_stops[name] = (stopped, case.session.science.executions)
                         break
                 raise
 
@@ -109,16 +112,16 @@ class LifecycleOrders(RuleBasedStateMachine):
         ))
         self.cases = {}
         self.replies = {}
+
+        async def model_reply(_request, _body, *, gate, identity):
+            await gate.wait()
+            return json.dumps({"choices": [{"message": call(identity, "prepare", {}),
+                                            "finish_reason": "tool_calls"}]}).encode()
+
         for name in ("a", "b"):
             released = asyncio.Event()
-
-            async def model_reply(_request, _body, *, gate=released, identity=name):
-                await gate.wait()
-                return json.dumps({"choices": [{"message": call(identity, "prepare", {}),
-                                                "finish_reason": "tool_calls"}]}).encode()
-
             peer = await self.stack.enter_async_context(
-                TlsPeer("success", response_factory=model_reply))
+                TlsPeer("success", response_factory=partial(model_reply, gate=released, identity=name)))
             self.cases[name] = ReplyRun(
                 peer, self.claims, "job:" + name,
                 _UnknownOutcome if name == "a" else PreparedExecutionGateSession,
@@ -175,10 +178,10 @@ class LifecycleOrders(RuleBasedStateMachine):
             return
 
         async def revoke():
-            self.cases[name].transport.stop = (
-                {"job_state": "cancelled"} if stop == "cancelled"
-                else {"state": "expired"}
-            )
+            self.cases[name].transport.stop = {
+                "cancelled": {"job_state": "cancelled"},
+                "expired": {"state": "expired"},
+            }[stop]
             await self._progress()
 
         self._act("server_" + stop, name, revoke)
@@ -331,12 +334,8 @@ class LifecycleOrders(RuleBasedStateMachine):
             old_dispatches = (original.start_count, original.session.preparations)
             await asyncio.gather(original.controller.join(), return_exceptions=True)
             await original.controller.settle()
-            try:
+            with unittest.TestCase().assertRaises(OwnershipRefused):
                 claim.release(owner=original.controller)
-            except OwnershipRefused:
-                pass
-            else:
-                raise AssertionError("Stale controller released a successor claim")
             assert (original.start_count, original.session.preparations) == old_dispatches
             assert exact_claim.active
             assert exact_claim.lifecycle_owner is successor.controller
@@ -438,13 +437,58 @@ class LifecycleOrders(RuleBasedStateMachine):
             self.runner.close()
 
 
-# silent-defaults: allow-contract -- Normal test discovery uses the bounded campaign; the explicit fuzz lane selects extended.
-_PROFILE = os.environ.get("PROVIDER_CORE_FUZZ_PROFILE", "default")
-if _PROFILE not in ("default", "extended"):
-    raise ValueError("Lifecycle fuzz profile must be default or extended")
 TestLifecycleOrders = LifecycleOrders.TestCase
 TestLifecycleOrders.settings = settings(
-    max_examples=32 if _PROFILE == "default" else 1000,
-    stateful_step_count=40 if _PROFILE == "default" else 150,
-    derandomize=True, database=None, deadline=None, print_blob=True,
+    max_examples=32,
+    stateful_step_count=40,
+    derandomize=True,
+    database=None,
+    deadline=None,
+    print_blob=True,
 )
+
+if "PROVIDER_CORE_FUZZ_PROFILE" in os.environ:
+    campaign_profile = os.environ["PROVIDER_CORE_FUZZ_PROFILE"]
+    if campaign_profile == "extended":
+        TestLifecycleOrders.settings = settings(
+            parent=TestLifecycleOrders.settings,
+            max_examples=1000,
+            stateful_step_count=150,
+        )
+    elif campaign_profile != "default":
+        raise ValueError("Lifecycle fuzz profile must be default or extended")
+
+
+class LifecycleCampaignSettingsTests(unittest.TestCase):
+    def selected_settings(self, profile):
+        environment = os.environ.copy()
+        if "PROVIDER_CORE_FUZZ_PROFILE" in environment:
+            del environment["PROVIDER_CORE_FUZZ_PROFILE"]
+        if profile is not None:
+            environment["PROVIDER_CORE_FUZZ_PROFILE"] = profile
+        with patch.dict(os.environ, environment, clear=True):
+            campaign = runpy.run_path(__file__)
+        return campaign["TestLifecycleOrders"].settings
+
+    def test_direct_discovery_without_a_profile_keeps_the_bounded_campaign(self):
+        bounded = self.selected_settings(None)
+        self.assertEqual((32, 40), (bounded.max_examples, bounded.stateful_step_count))
+        explicit = self.selected_settings("default")
+        self.assertEqual(
+            (bounded.max_examples, bounded.stateful_step_count),
+            (explicit.max_examples, explicit.stateful_step_count),
+        )
+
+    def test_extended_profile_preserves_the_shared_reproducibility_settings(self):
+        extended = self.selected_settings("extended")
+        self.assertEqual((1000, 150), (extended.max_examples, extended.stateful_step_count))
+        self.assertTrue(extended.derandomize)
+        self.assertIsNone(extended.database)
+        self.assertIsNone(extended.deadline)
+        self.assertTrue(extended.print_blob)
+
+    def test_empty_and_unknown_profiles_are_refused(self):
+        for profile in ("", "unknown"):
+            with self.subTest(profile=profile):
+                with self.assertRaisesRegex(ValueError, "profile must be default or extended"):
+                    self.selected_settings(profile)

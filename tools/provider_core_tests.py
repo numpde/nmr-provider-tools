@@ -165,8 +165,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                 test_tree / "tests/integration/dummy_provider_example",
             )
 
-        # silent-defaults: allow-contract -- Fuzz selects both owned suites;
-        # every other admitted selector names one suite.
+        # silent-defaults: allow-contract -- Fuzz selects both owned suites; every other admitted selector names one suite.
         selections = ("integration", "unit") if suite == "fuzz" else (suite,)
         for selection in selections:
             _run_installed_suite(

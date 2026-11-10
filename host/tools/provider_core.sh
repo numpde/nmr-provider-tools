@@ -10,16 +10,16 @@ case "$action" in download|check|unit|contract|integration|integration/delivery|
     *) printf 'Cannot select provider-core operation %q. Use make help.\n' "$action" >&2; exit 2 ;;
 esac
 # Keep campaign selection explicit and confined to the fuzz target.
-fuzz_profile=default
-if [[ ${FUZZ_PROFILE_INPUT_ORIGIN:-} == 'command line' ]]; then
+fuzz_environment=()
+if [[ -v FUZZ_PROFILE_INPUT_ORIGIN && $FUZZ_PROFILE_INPUT_ORIGIN == 'command line' ]]; then
     if [[ $action != fuzz ]]; then
         printf '%s\n' 'FUZZ_PROFILE is accepted only by tests/fuzz/provider-core.' >&2
         exit 2
     fi
-    fuzz_profile=${FUZZ_PROFILE_INPUT:-}
-    case $fuzz_profile in default|extended) ;;
-        *) printf 'Cannot select provider-core fuzz profile %q: use default or extended.\n' "$fuzz_profile" >&2; exit 2 ;;
+    case $FUZZ_PROFILE_INPUT in default|extended) ;;
+        *) printf 'Cannot select provider-core fuzz profile %q: use default or extended.\n' "$FUZZ_PROFILE_INPUT" >&2; exit 2 ;;
     esac
+    fuzz_environment=(--env "PROVIDER_CORE_FUZZ_PROFILE=$FUZZ_PROFILE_INPUT")
 fi
 source "$root/host/tools/base_image.sh"
 source "$root/host/tools/wheelhouse_path.sh"
@@ -121,9 +121,9 @@ case "$action" in
         # The installed cryptography extension requires executable mappings.
         # Only /runtime has that grant; build scratch remains noexec under /tmp.
         pattern='test*.py'
+        worker+=("${fuzz_environment[@]}")
         if [[ $action == fuzz ]]; then
             pattern='test_fuzz*.py'
-            worker+=(--env "PROVIDER_CORE_FUZZ_PROFILE=$fuzz_profile")
         fi
         example_mount=()
         if [[ $action == integration ]]; then

@@ -250,6 +250,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
     marker = directory / f"http-cleanup-{seed}.jsonl"
     pending = selected_start(f"{schedule.stage}-{seed}")
+    # silent-defaults: allow-contract -- The concurrent scenario needs capacity for the original held Attempt and one independent successor.
     claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=2 if concurrent else 1))
     async with TlsPeer("headers-stall") as peer, AsyncExitStack() as patches:
         session = ProseInterpretationSession(peer)
