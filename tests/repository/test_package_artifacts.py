@@ -17,7 +17,14 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from tools.package import artifact_names, check, qualify_acquisition_bundle, source_payload, unpack_source, wheel_payload
+from tools.package import (
+    artifact_names,
+    check,
+    qualify_acquisition_bundle,
+    source_payload,
+    unpack_source,
+    wheel_payload,
+)
 from tools.core_environment import behavioral_install_lock, build_source_wheel, normalize_sdist
 from tools.wheelhouse import digest
 from tests.repository.quality.sources import ROOT
@@ -28,6 +35,18 @@ class PackageArtifactTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+
+    def _acquisition_archive(self, path, members):
+        with tarfile.open(path, "w:gz") as archive:
+            for (name, payload, kind, mode) in members:
+                member = tarfile.TarInfo(name)
+                member.type = kind
+                member.mode = mode
+                if member.isfile():
+                    member.size = len(payload)
+                    archive.addfile(member, io.BytesIO(payload))
+                else:
+                    archive.addfile(member)
 
     def test_source_normalization_cleans_scratch_and_preserves_failed_input(self):
         for kind in (tarfile.REGTYPE, tarfile.SYMTYPE):
@@ -48,18 +67,6 @@ class PackageArtifactTests(unittest.TestCase):
                     with tarfile.open(path, "r:gz") as archive:
                         self.assertEqual(0, archive.getmembers()[0].uid)
                 self.assertEqual([path], list(self.root.iterdir()))
-
-    def _acquisition_archive(self, path, members):
-        with tarfile.open(path, "w:gz") as archive:
-            for (name, payload, kind, mode) in members:
-                member = tarfile.TarInfo(name)
-                member.type = kind
-                member.mode = mode
-                if member.isfile():
-                    member.size = len(payload)
-                    archive.addfile(member, io.BytesIO(payload))
-                else:
-                    archive.addfile(member)
 
     def test_acquisition_sources_are_admitted_before_extraction(self):
         cases = (
@@ -146,12 +153,38 @@ class PackageArtifactTests(unittest.TestCase):
         for (name, payload, _, _) in members:
             self.assertEqual(payload, (scratch / "acquisition-source" / name).read_bytes())
 
+    def test_acquisition_sources_reject_changed_bytes_before_writing(self):
+        scratch = self.root / "changed"
+        scratch.mkdir()
+        archive_path = scratch / "sources.tar.gz"
+        name = "acquisition_tool/owner.sh"
+        changed_bytes = b"after!"
+        expected_bytes = b"before"
+        self._acquisition_archive(
+            archive_path,
+            ((name, changed_bytes, tarfile.REGTYPE, 0o644),),
+        )
+        expected = {
+            name: {
+                "sha256": hashlib.sha256(expected_bytes).hexdigest(),
+                "size": len(expected_bytes),
+                "mode": 0o644,
+            },
+        }
+
+        with patch("tools.package.subprocess.run") as commands:
+            with self.assertRaises(ValueError):
+                qualify_acquisition_bundle(archive_path, scratch, expected)
+
+        commands.assert_not_called()
+        self.assertFalse((scratch / "acquisition-source").exists())
+
     def test_cold_import_check_uses_the_extracted_source_tree(self):
         source = self.root / "cold-import"
         for name in ("linux_idmap/probe.py", "provider_core/bound_http_proxy.py"):
             path = source / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("QUALIFIED = True\\n")
+            path.write_text("QUALIFIED = True")
 
         check_script = ROOT / "tools/acquisition_import_check.py"
         command = [
