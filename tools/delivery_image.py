@@ -22,76 +22,117 @@ from tools.wheelhouse import digest, pool_lock, read_json, requirements, select_
 
 def release_inputs(pin, runtime_lock):
     release = read_json(pin)
-    (version, wheel_hash) = release["version"], release["wheel_sha256"]
-    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) or not re.fullmatch(r"[0-9a-f]{64}", wheel_hash):
+    (release_version, wheel_digest) = (release["version"], release["wheel_sha256"])
+    if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", release_version) or not re.fullmatch(
+        r"[0-9a-f]{64}", wheel_digest
+    ):
         raise ValueError("Cannot use delivery release: invalid pinned version or wheel hash.")
+
     with regular_file(runtime_lock) as source:
-        runtime = source.read().decode("utf-8")
-    lock = (runtime.rstrip() + f"\nprovider-core=={version} \\\n    --hash=sha256:{wheel_hash}\n").encode()
-    if hashlib.sha256(lock).hexdigest() != release["install_lock_sha256"]:
-        raise ValueError("Cannot use delivery release: runtime lock differs from the issued install lock.")
-    return release, lock
+        runtime_requirements = source.read().decode("utf-8")
+
+    install_lock_bytes = (
+        runtime_requirements.rstrip()
+        + f"\nprovider-core=={release_version} \\\n    --hash=sha256:{wheel_digest}\n"
+    ).encode()
+    if hashlib.sha256(install_lock_bytes).hexdigest() != release["install_lock_sha256"]:
+        raise ValueError(
+            "Cannot use delivery release: runtime lock differs from the issued install lock."
+        )
+    return release, install_lock_bytes
+
 
 
 def release_wheels(release):
-    wheel = f"provider_core-{release['version']}-py3-none-any.whl"
-    return dict(release["runtime_wheels"]) | {wheel: release["wheel_sha256"]}
+    provider_wheel_name = f"provider_core-{release['version']}-py3-none-any.whl"
+    return dict(release["runtime_wheels"]) | {provider_wheel_name: release["wheel_sha256"]}
+
 
 
 def missing_wheels(release, pool):
     if not pool.is_dir() or pool.is_symlink():
         raise ValueError("Cannot use delivery release: wheelhouse must be an existing directory.")
-    missing = []
-    for (name, expected) in release_wheels(release).items():
-        if not re.fullmatch(r"[A-Za-z0-9_.+!-]+\.whl", name) or not re.fullmatch(r"[0-9a-f]{64}", expected):
+
+    missing_wheel_ids = []
+    for (wheel_name, expected_sha256) in release_wheels(release).items():
+        if not re.fullmatch(r"[A-Za-z0-9_.+!-]+\.whl", wheel_name) or not re.fullmatch(
+            r"[0-9a-f]{64}", expected_sha256
+        ):
             raise ValueError("Cannot use delivery release: malformed pinned wheel identity.")
-        target = pool / name
-        if target.exists() or target.is_symlink():
-            if digest(target) != expected:
-                raise ValueError(f"Cannot reuse {name}: cached bytes differ from the pinned release; existing file retained.")
+
+        wheel_path = pool / wheel_name
+        if wheel_path.exists() or wheel_path.is_symlink():
+            if digest(wheel_path) != expected_sha256:
+                raise ValueError(
+                    f"Cannot reuse {wheel_name}: cached bytes differ from "
+                    "the pinned release; existing file retained."
+                )
         else:
-            missing.append((name, expected))
-    return missing
+            missing_wheel_ids.append((wheel_name, expected_sha256))
+    return missing_wheel_ids
+
 
 
 def publish_release_wheels(tool, pool, artifacts):
     from pip._vendor.packaging.utils import parse_wheel_filename
 
     with tempfile.TemporaryDirectory(prefix="delivery-lock-") as temporary:
-        lock = Path(temporary) / "pylock.delivery.toml"
-        with lock.open("x", encoding="utf-8") as stream:
+        acquisition_lock = Path(temporary) / "pylock.delivery.toml"
+        with acquisition_lock.open("x", encoding="utf-8") as stream:
             stream.write('lock-version = "1.0"\ncreated-by = "nmr-provider-tools delivery"\n')
-            for (name, checksum, url) in artifacts:
-                (distribution, version, _, _) = parse_wheel_filename(name)
+            for (wheel_name, checksum, url) in artifacts:
+                (distribution, version, _, _) = parse_wheel_filename(wheel_name)
                 stream.write("[[packages]]\n")
-                stream.write(f"name = {json.dumps(str(distribution))}\nversion = {json.dumps(str(version))}\n")
+                stream.write(
+                    f"name = {json.dumps(str(distribution))}\n"
+                    f"version = {json.dumps(str(version))}\n"
+                )
                 stream.write(f"[packages.archive]\nurl = {json.dumps(url)}\n")
                 stream.write(f"[packages.archive.hashes]\nsha256 = {json.dumps(checksum)}\n")
-        subprocess.run([sys.executable, "-I", "-B", str(tool), "acquire", "--lock", str(lock),
-                        "--pool", str(pool)], check=True)
+
+        subprocess.run(
+            [
+                sys.executable, "-I", "-B", str(tool),
+                "acquire", "--lock", str(acquisition_lock), "--pool", str(pool),
+            ],
+            check=True,
+        )
+
 
 
 def acquire_release(pin, runtime_lock, pool, tool):
     (release, _) = release_inputs(pin, runtime_lock)
     with pool_lock(pool):
         missing = missing_wheels(release, pool)
+
     artifacts = []
-    for (name, expected) in missing:
+    for (wheel_name, expected_sha256) in missing:
         require_download_proxy()
-        if name.startswith("provider_core-"):
-            url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{release['version']}/{name}"
+        if wheel_name.startswith("provider_core-"):
+            url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{release['version']}/{wheel_name}"
         else:
-            distribution, version, *_ = name.split("-")
-            with urllib.request.urlopen(f"https://pypi.org/pypi/{distribution}/{version}/json", timeout=30) as response:
+            (distribution, version, *_) = wheel_name.split("-")
+            with urllib.request.urlopen(
+                f"https://pypi.org/pypi/{distribution}/{version}/json",
+                timeout=30,
+            ) as response:
                 metadata = json.load(response)
-            candidates = [item["url"] for item in metadata["urls"]
-                          if item["filename"] == name and item["digests"]["sha256"] == expected]
+            candidates = [
+                item["url"]
+                for item in metadata["urls"]
+                if item["filename"] == wheel_name and item["digests"]["sha256"] == expected_sha256
+            ]
             if len(candidates) != 1 or urllib.parse.urlsplit(candidates[0]).hostname != "files.pythonhosted.org":
-                raise ValueError(f"Cannot acquire {name}: the pinned wheel is absent from its published index.")
+                raise ValueError(
+                    f"Cannot acquire {wheel_name}: the pinned wheel is absent from its published index."
+                )
             url = candidates[0]
-        artifacts.append((name, expected, url))
+
+        artifacts.append((wheel_name, expected_sha256, url))
+
     if artifacts:
         publish_release_wheels(tool, pool, artifacts)
+
 
 
 def capture_image_inputs(pin, runtime_lock, pool, destination):
