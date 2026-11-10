@@ -24,6 +24,15 @@ case "$operation" in
     : > "$ENGINE_STATE/live-$identifier"
     printf '%s\n' "$role" > "$ENGINE_STATE/role-$identifier"
     printf '%s\n' "$scratch" > "$ENGINE_STATE/scratch"
+    if [[ -v FAIL_CREATE_ROLE && $FAIL_CREATE_ROLE == "$role" ]]; then
+      case "${FAILED_CREATE_OUTPUT:?}" in
+        exact) printf '%s\n' "$identifier" ;;
+        disagree) printf '%064d\n' 9 ;;
+        nul) printf '%s\0' "$identifier" ;;
+        *) exit 97 ;;
+      esac
+      exit 23
+    fi
     printf '%s\n' "$identifier"
     ;;
   inspect)
@@ -46,6 +55,7 @@ case "$operation" in
     ;;
   start)
     identifier=${!#}
+    : > "$ENGINE_STATE/start-$identifier"
     role=$(<"$ENGINE_STATE/role-$identifier")
     scratch=$(<"$ENGINE_STATE/scratch")
     if [[ $role == gateway ]]; then
@@ -67,6 +77,7 @@ case "$operation" in
     ;;
   rm)
     identifier=${!#}
+    : > "$ENGINE_STATE/rm-$identifier"
     role=$(<"$ENGINE_STATE/role-$identifier")
     printf '%s\n' "$role" >> "$ENGINE_STATE/removal-attempts"
     if [[ -v FAIL_REMOVE && $role == "$FAIL_REMOVE" ]]; then exit 1; fi

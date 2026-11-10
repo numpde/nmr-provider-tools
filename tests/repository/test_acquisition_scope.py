@@ -78,6 +78,70 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
                 process, root = self.launch(action)
                 self.assert_exit(process, root, 2)
 
+    def test_failed_create_exact_pair_owns_cleanup_without_start(self):
+        roles = ('gateway', 'relay', 'worker-1')
+        for index, role in enumerate(roles, 1):
+            with self.subTest(role=role):
+                process, root = self.launch(
+                    'acquisition_set_route system; '
+                    'acquisition_worker online status fixture:local grants application',
+                    env={'FAIL_CREATE_ROLE': role, 'FAILED_CREATE_OUTPUT': 'exact'})
+                stdout, stderr = process.communicate(timeout=15)
+                self.assertEqual(2, process.returncode, msg=(stdout, stderr))
+                self.assertEqual(['2 yes'], (root / 'caller-exit').read_text().splitlines())
+                self.assertIn(f'Cannot create {role}: creation did not complete (status 23).'.encode(), stderr)
+                identifiers = [f'{value:064x}' for value in range(1, index + 1)]
+                self.assertEqual(
+                    {f'start-{identifier}' for identifier in identifiers[:-1]},
+                    {path.name for path in root.glob('start-*')})
+                self.assertEqual(
+                    {f'rm-{identifier}' for identifier in identifiers},
+                    {path.name for path in root.glob('rm-*')})
+                self.assertEqual(list(reversed(roles[:index])),
+                                 (root / 'removal-attempts').read_text().splitlines())
+                self.assertEqual([], list(root.glob('live-*')))
+                self.assertFalse(Path((root / 'scratch').read_text().strip()).exists())
+                match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
+                                  (root / 'engine-client').read_text())
+                self.assertIsNotNone(match)
+                self.assertFalse(Path(match.group(1)).exists())
+
+    def test_failed_create_disagreeing_or_nul_stdout_retains_ownership(self):
+        roles = ('gateway', 'relay', 'worker-1')
+        for index, role in enumerate(roles, 1):
+            for output in ('disagree', 'nul'):
+                with self.subTest(role=role, output=output):
+                    process, root = self.launch(
+                        'acquisition_set_route system; '
+                        'acquisition_worker online status fixture:local grants application',
+                        env={'FAIL_CREATE_ROLE': role, 'FAILED_CREATE_OUTPUT': output})
+                    stdout, stderr = process.communicate(timeout=20)
+                    operation = Path((root / 'scratch').read_text().strip())
+                    self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+                    match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
+                                      (root / 'engine-client').read_text())
+                    self.assertIsNotNone(match)
+                    client = Path(match.group(1))
+                    self.addCleanup(shutil.rmtree, client, ignore_errors=True)
+                    self.assertEqual(2, process.returncode, msg=(stdout, stderr))
+                    self.assertEqual(['2 no'], (root / 'caller-exit').read_text().splitlines())
+                    self.assertFalse((root / 'retired').exists())
+                    self.assertTrue(operation.is_dir())
+                    self.assertTrue(client.is_dir())
+                    self.assertIn(f'Cannot create {role}: creation did not complete (status 23).'.encode(), stderr)
+                    identifiers = [f'{value:064x}' for value in range(1, index + 1)]
+                    self.assertEqual(
+                        {f'start-{identifier}' for identifier in identifiers[:-1]},
+                        {path.name for path in root.glob('start-*')})
+                    self.assertEqual([], list(root.glob('rm-*')))
+                    self.assertFalse((root / 'removal-attempts').exists())
+                    self.assertEqual({f'live-{identifier}' for identifier in identifiers},
+                                     {path.name for path in root.glob('live-*')})
+                    identifier = identifiers[-1].encode()
+                    self.assertEqual(identifier + b'\n', (operation / role / 'cid').read_bytes())
+                    expected = f'{9:064d}\n'.encode() if output == 'disagree' else identifier + b'\0'
+                    self.assertEqual(expected, (operation / role / 'stdout').read_bytes())
+
     def test_term_to_parent_during_worker_retires_then_chains_caller_exit(self):
         process, root = self.launch('acquisition_worker offline status fixture:local grants application')
         self.wait_marker(process, root / 'started-worker')
