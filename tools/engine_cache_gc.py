@@ -101,41 +101,75 @@ def unit_files(root, context, endpoint, config):
 
 
 def install(root, context, endpoint, path):
-    (raw, document) = native_config(path)
-    candidate = configured(document)
-    (name, service, timer) = unit_files(root, context, endpoint, path)
-    (descriptor, temporary) = tempfile.mkstemp(prefix=".daemon-gc-", suffix=".json", dir=path.parent)
-    temporary = Path(temporary)
+    (original_bytes, document) = native_config(path)
+    proposed_configuration = configured(document)
+    (unit_name, service_document, timer_document) = unit_files(root, context, endpoint, path)
+
+    (temporary_fd, temporary_name) = tempfile.mkstemp(
+        prefix=".daemon-gc-",
+        suffix=".json",
+        dir=path.parent,
+    )
+    temporary_path = Path(temporary_name)
     try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as output:
+        with os.fdopen(temporary_fd, "w", encoding="utf-8") as output:
             os.fchmod(output.fileno(), stat.S_IMODE(path.stat().st_mode))
-            json.dump(candidate, output, indent=2)
+            json.dump(proposed_configuration, output, indent=2)
             output.write("\n")
             output.flush()
             os.fsync(output.fileno())
+
         # Validation never starts or restarts the selected daemon. Reject the
         # candidate before changing the operator's native policy file.
-        result = subprocess.run(["dockerd", "--validate", "--config-file", str(temporary)],
-                                capture_output=True, timeout=30, check=False)
-        if result.returncode:
-            raise ValueError("dockerd rejected the proposed native GC configuration; the original file is unchanged.")
-        if path.read_bytes() != raw:
-            raise ValueError("Native engine configuration changed during validation; retry against the current file.")
-        temporary.replace(path)
+        validation = subprocess.run(
+            ["dockerd", "--validate", "--config-file", str(temporary_path)],
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+        if validation.returncode:
+            raise ValueError(
+                "dockerd rejected the proposed native GC configuration; "
+                "the original file is unchanged."
+            )
+        if path.read_bytes() != original_bytes:
+            raise ValueError(
+                "Native engine configuration changed during validation; "
+                "retry against the current file."
+            )
+        temporary_path.replace(path)
     finally:
-        temporary.unlink(missing_ok=True)
+        temporary_path.unlink(missing_ok=True)
+
     try:
-        configuration = subprocess.run(["systemd-path", "user-configuration"], check=True,
-                                       capture_output=True, text=True, timeout=10).stdout.strip()
-        units = Path(configuration) / "systemd/user"
-        units.mkdir(parents=True, exist_ok=True)
-        (units / (name + ".service")).write_text(service)
-        (units / (name + ".timer")).write_text(timer)
+        configuration_directory = subprocess.run(
+            ["systemd-path", "user-configuration"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        ).stdout.strip()
+        unit_directory = Path(configuration_directory) / "systemd/user"
+        unit_directory.mkdir(parents=True, exist_ok=True)
+        (unit_directory / (unit_name + ".service")).write_text(service_document)
+        (unit_directory / (unit_name + ".timer")).write_text(timer_document)
         subprocess.run(["systemctl", "--user", "daemon-reload"], check=True, timeout=30)
-        subprocess.run(["systemctl", "--user", "enable", "--now", name + ".timer"], check=True, timeout=30)
+        subprocess.run(
+            ["systemctl", "--user", "enable", "--now", unit_name + ".timer"],
+            check=True,
+            timeout=30,
+        )
     except (OSError, subprocess.SubprocessError):
-        raise RuntimeError("Native GC settings were saved, but timer installation or activation could not be confirmed. Inspect the user timer and retry installation; no engine was restarted.") from None
-    print(f"Installed {name}.timer. The timer reads native GC thresholds each run. Native daemon policy applies at its next planned restart; no engine was restarted.")
+        raise RuntimeError(
+            "Native GC settings were saved, but timer installation or activation "
+            "could not be confirmed. Inspect the user timer and retry installation; "
+            "no engine was restarted."
+        ) from None
+
+    print(
+        f"Installed {unit_name}.timer. The timer reads native GC thresholds each run. "
+        "Native daemon policy applies at its next planned restart; no engine was restarted."
+    )
 
 
 def main():
