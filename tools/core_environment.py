@@ -389,7 +389,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
         pool=pool,
         output=wheelhouse_bundle,
         source=Path("/workspace"),
-        pin=Path("/requirements/wheelhouse-tool.lock"),
+        lock=Path("/requirements/wheelhouse-tool.lock"),
     )
 
     acquisition_bundle = output / ("acquisition-owner-" + artifact_prefix.removeprefix("provider_core-") + ".tar.gz")
