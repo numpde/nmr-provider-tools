@@ -18,20 +18,20 @@ from dummy_provider.binding import create_sum_binding, create_weighted_sum_bindi
 
 class DummyBindingTests(unittest.TestCase):
     def test_installed_distribution_contains_the_scientific_package(self) -> None:
-        distribution = metadata.distribution("dummy-provider-example")
+        installed_distribution = metadata.distribution("dummy-provider-example")
         installed_package = Path(resources.files("dummy_provider")).resolve()
         distribution_package = Path(
-            distribution.locate_file("dummy_provider")
+            installed_distribution.locate_file("dummy_provider")
         ).resolve()
-        scientific_packages = {
+        python_package_roots = {
             path.parts[0]
-            for path in distribution.files
+            for path in installed_distribution.files
             if path.suffix == ".py"
         }
 
         self.assertEqual(installed_package, distribution_package)
         self.assertTrue(installed_package.is_relative_to(Path(sys.prefix).resolve()))
-        self.assertEqual({"dummy_provider"}, scientific_packages)
+        self.assertEqual({"dummy_provider"}, python_package_roots)
         self.assertTrue((installed_package / "science.py").is_file())
         self.assertTrue((installed_package / "binding.py").is_file())
 
@@ -40,7 +40,7 @@ class DummyBindingTests(unittest.TestCase):
         environment.pop("NMR_PROVIDER_TOOLS_IN_CONTAINER", None)
         environment.pop("PROVIDER_CORE_IN_CONTAINER", None)
 
-        import_check = subprocess.run(
+        scientific_import = subprocess.run(
             [
                 sys.executable,
                 "-I",
@@ -56,27 +56,22 @@ class DummyBindingTests(unittest.TestCase):
 
         self.assertEqual(
             0,
-            import_check.returncode,
-            msg=import_check.stderr,
+            scientific_import.returncode,
+            msg=scientific_import.stderr,
         )
 
     def test_binding_preserves_provider_owned_types(self) -> None:
-        weighted = create_weighted_sum_binding(
-            settings=science.WeightedSumSettings(
-                scale=2,
-                offset=1,
-            ),
-            coefficients=science.CoefficientSet(
-                values=(1, 2, 3),
-            ),
+        weighted_binding = create_weighted_sum_binding(
+            settings=science.WeightedSumSettings(scale=2, offset=1),
+            coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
-        (prepare, calculate) = weighted.calls
-        run = create_sum_binding().calls[0]
+        (prepare_call, calculate_call) = weighted_binding.calls
+        (sum_call,) = create_sum_binding().calls
 
-        self.assertIs(science.PreparationInput, prepare.input_codec.value_type)
-        self.assertIs(science.CalculationState, calculate.state_binding.value_type)
-        self.assertIs(contribution.NoInput, calculate.input_codec.value_type)
-        self.assertIs(science.SumInput, run.input_codec.value_type)
+        self.assertIs(science.PreparationInput, prepare_call.input_codec.value_type)
+        self.assertIs(science.CalculationState, calculate_call.state_binding.value_type)
+        self.assertIs(contribution.NoInput, calculate_call.input_codec.value_type)
+        self.assertIs(science.SumInput, sum_call.input_codec.value_type)
 
 
 if __name__ == "__main__":

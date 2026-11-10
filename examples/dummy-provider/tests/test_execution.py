@@ -25,6 +25,7 @@ from provider_core.hosting import (
 
 class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
     async def assert_succeeded(self, operation):
+        """Wait for the operation's terminal observation and require success."""
         async with asyncio.timeout(10):
             observed_operation = await operation.observe(after=None, wait_seconds=0)
             while not observed_operation.finished:
@@ -38,6 +39,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         return observed_operation
 
     async def assert_settled(self, control):
+        """Observe required cleanup before reporting it as complete."""
         async with asyncio.timeout(10):
             observed_cleanup = await control.observe(after=None, wait_seconds=0)
             while not observed_cleanup.settled and not observed_cleanup.failures:
@@ -53,13 +55,13 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         await self.assert_settled(host.retire())
 
     async def test_installed_binding_prepares_and_calculates(self):
-        binding = create_weighted_sum_binding(
+        weighted_binding = create_weighted_sum_binding(
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
         model_allocation = Allocation(
             name="weighted",
-            binding=binding,
+            binding=weighted_binding,
             grants=(
                 ResourceGrant(
                     kind="cpu",
@@ -87,7 +89,8 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             allocation_names=("weighted",),
         )
         (reservation,) = analysis.reservations
-        (prepare_call, calculate_call) = binding.calls
+        (prepare_call, calculate_call) = weighted_binding.calls
+
         execution_limits = ExecutionLimits(
             queue_seconds=5,
             execution_seconds=10,
@@ -101,8 +104,8 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
                 Invocation(
                     operation_id=operation_id,
                     target=CallRef(
-                        binding_id=binding.description.binding_id,
-                        binding_revision=binding.description.binding_revision,
+                        binding_id=weighted_binding.description.binding_id,
+                        binding_revision=weighted_binding.description.binding_revision,
                         name=scientific_call.description.name,
                     ),
                     payload=payload,
@@ -114,36 +117,42 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             )
 
         preparation_input = science.PreparationInput(values=(1, 2, 3))
-        preparation = submit_call(
+
+        preparation_operation = submit_call(
             scientific_call=prepare_call,
             operation_id="prepare",
             payload=prepare_call.input_codec.encode(preparation_input),
         )
-        self.assertNotIsInstance(preparation, NotAdmitted)
+        self.assertNotIsInstance(preparation_operation, NotAdmitted)
 
-        preparation_observation = await self.assert_succeeded(preparation)
+        preparation_observation = await self.assert_succeeded(preparation_operation)
         self.assertEqual(1, len(preparation_observation.states))
         self.assertIs(ResultState.AVAILABLE, preparation_observation.result_state)
         self.assertIsNotNone(preparation_observation.result)
+
         preparation_result = prepare_call.result_codec.decode(
-            payload=(await preparation.read_result(preparation_observation.result)),
+            payload=(await preparation_operation.read_result(preparation_observation.result)),
         )
         self.assertEqual(science.PreparationResult(count=3), preparation_result)
-        await self.assert_settled(preparation.release_result(preparation_observation.result))
+        await self.assert_settled(
+            preparation_operation.release_result(preparation_observation.result)
+        )
 
-        calculation = submit_call(
+        # Result release leaves the returned scientific state available to calculate.
+        calculation_operation = submit_call(
             scientific_call=calculate_call,
             operation_id="calculate",
             payload=calculate_call.input_codec.encode(NoInput()),
             states=preparation_observation.states,
         )
-        self.assertNotIsInstance(calculation, NotAdmitted)
+        self.assertNotIsInstance(calculation_operation, NotAdmitted)
 
-        calculation_observation = await self.assert_succeeded(calculation)
+        calculation_observation = await self.assert_succeeded(calculation_operation)
         self.assertIs(ResultState.AVAILABLE, calculation_observation.result_state)
         self.assertIsNotNone(calculation_observation.result)
+
         calculation_result = calculate_call.result_codec.decode(
-            payload=(await calculation.read_result(calculation_observation.result)),
+            payload=(await calculation_operation.read_result(calculation_observation.result)),
         )
 
         self.assertEqual(science.PredictionResult(total=29, count=3), calculation_result)
@@ -154,7 +163,9 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             ),
             calculation_observation.progress,
         )
-        await self.assert_settled(calculation.release_result(calculation_observation.result))
+        await self.assert_settled(
+            calculation_operation.release_result(calculation_observation.result)
+        )
         await self.assert_settled(analysis.close())
 
 
