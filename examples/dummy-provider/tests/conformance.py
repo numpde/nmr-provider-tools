@@ -27,16 +27,7 @@ def _create_weighted_sum_binding() -> contribution.ImplementationBinding[
     science.WeightedSumModel,
     science.WeightedSumAnalysis,
 ]:
-    """Create the configured weighted-sum binding used by conformance scenarios.
-
-    The shared runner calls this zero-argument factory to construct repeatable
-    instances of the provider binding. It supplies scale=2, offset=1 and
-    coefficients (1, 2, 3) to create_weighted_sum_binding, which registers
-    the model and analysis lifecycles and the prepare/calculate operations.
-
-    The resulting model computes offset + scale * sum(coefficient * value).
-    For input (1, 2, 3), the expected result is 1 + 2*(1 + 4 + 9) = 29.
-    """
+    """Adapt the configured binding factory to the runner’s zero-argument interface."""
     return create_weighted_sum_binding(
         settings=science.WeightedSumSettings(
             scale=2,
