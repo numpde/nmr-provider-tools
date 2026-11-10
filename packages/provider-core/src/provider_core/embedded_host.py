@@ -125,17 +125,18 @@ class EmbeddedHost:
 
     async def _retire_resident(self, resident):
         if resident.analysis is not None:
-            cleanup = resident.analysis.close()
-            await asyncio.shield(cleanup.task)
-            if cleanup.failures:
+            analysis_cleanup = resident.analysis.close()
+            await asyncio.shield(analysis_cleanup.task)
+            if analysis_cleanup.failures:
                 raise BaseExceptionGroup(
                     "The allocation's analysis did not settle.",
-                    [failure.cause for failure in cleanup.failures],
+                    [failure.cause for failure in analysis_cleanup.failures],
                 )
         if resident.analysis is not None:
             raise RuntimeError("The allocation remains attached to an unsettled analysis.")
-        original = resident.executor.submit(resident.dispose)
-        await await_original(original, deadline=None)
+
+        disposal_future = resident.executor.submit(resident.dispose)
+        await await_original(disposal_future, deadline=None)
         resident.join_task = self.loop.create_task(
             asyncio.to_thread(resident.executor.shutdown, wait=True)
         )
@@ -195,7 +196,10 @@ class _Analysis:
         operation_key = (self.identity, invocation.operation_id)
         existing_operation = self.host.operations.get(operation_key)
         if existing_operation is not None:
-            if existing_operation.analysis is not self or existing_operation.invocation != invocation:
+            if (
+                existing_operation.analysis is not self
+                or existing_operation.invocation != invocation
+            ):
                 raise RequestConflict("This operation ID already identifies different work.")
             return existing_operation
 
@@ -263,15 +267,18 @@ class _Analysis:
                 code=AdmissionCode.INVALID_REQUEST,
                 message="The selected implementation differs from the reserved binding revision.",
             )
-        science = self.science[reservation.allocation]
-        if science.failure is not None or science.resident.failure is not None:
+        scientific_analysis = self.science[reservation.allocation]
+        if (
+            scientific_analysis.failure is not None
+            or scientific_analysis.resident.failure is not None
+        ):
             return NotAdmitted(
                 code=AdmissionCode.UNAVAILABLE,
                 message="The original scientific initialization failed and remains owned.",
             )
         if invocation.target.name not in {
             item.description.name
-            for item in science.resident.allocation.binding.calls
+            for item in scientific_analysis.resident.allocation.binding.calls
         }:
             return NotAdmitted(
                 code=AdmissionCode.INVALID_REQUEST,
@@ -287,7 +294,10 @@ class _Analysis:
     def _state_owners(self, invocation, call):
         state_arguments = {item.name: item.reference for item in invocation.states}
         declared_parameters = {item.name: item for item in call.description.state_inputs}
-        if len(state_arguments) != len(invocation.states) or set(state_arguments) != set(declared_parameters):
+        if (
+            len(state_arguments) != len(invocation.states)
+            or set(state_arguments) != set(declared_parameters)
+        ):
             return NotAdmitted(
                 code=AdmissionCode.INVALID_REQUEST,
                 message="State arguments must match the call's distinct declared names.",
@@ -322,11 +332,11 @@ class _Analysis:
         self.host._require_loop()
         if self.cleanup is None:
             self.closed = True
-            seconds = min(
+            cleanup_seconds = min(
                 (item.invocation.limits.cleanup_seconds for item in self.operations.values()),
                 default=self.host.limits.retirement_seconds,
             )
-            self.cleanup = _Cleanup(seconds)
+            self.cleanup = _Cleanup(cleanup_seconds)
             for operation in self.operations.values():
                 if not operation.finished:
                     operation.request_stop()
@@ -339,19 +349,20 @@ class _Analysis:
             await operation.completion.wait()
             if operation.release is not None:
                 await asyncio.shield(operation.release.task)
-        failures = []
-        for (allocation_name, science) in self.science.items():
+
+        cleanup_failures = []
+        for (allocation_name, scientific_analysis) in self.science.items():
             try:
-                original = science.resident.executor.submit(
+                disposal_future = scientific_analysis.resident.executor.submit(
                     self._dispose_science,
                     allocation_name,
-                    science,
+                    scientific_analysis,
                 )
-                await await_original(original, deadline=None)
+                await await_original(disposal_future, deadline=None)
             except BaseException as cause:
-                failures.append(cause)
+                cleanup_failures.append(cause)
             else:
-                science.resident.analysis = None
+                scientific_analysis.resident.analysis = None
                 for operation in self.operations.values():
                     if operation.invocation.reservation.allocation == allocation_name:
                         self.host.state_reserved -= operation.state_allowance
@@ -360,27 +371,34 @@ class _Analysis:
                         operation.changed()
                         if operation.result is None:
                             operation._release_capacity()
-        if failures:
-            raise BaseExceptionGroup("Some scientific analyses still need cleanup.", failures)
 
-    def _dispose_science(self, allocation_name, science):
-        failures = []
+        if cleanup_failures:
+            raise BaseExceptionGroup("Some scientific analyses still need cleanup.", cleanup_failures)
+
+    def _dispose_science(self, allocation_name, scientific_analysis):
+        cleanup_failures = []
         for operation in self.operations.values():
             if operation.invocation.reservation.allocation == allocation_name:
                 try:
                     operation.dispose_value()
                 except BaseException as cause:
-                    failures.append(cause)
+                    cleanup_failures.append(cause)
+
         for (reference, owner) in self.states.items():
             if reference.allocation == allocation_name:
                 try:
                     owner.dispose()
                 except BaseException as cause:
-                    failures.append(cause)
-        if failures:
-            raise BaseExceptionGroup("Original scientific values still need cleanup.", failures)
-        hooks = science.resident.allocation.binding.analysis
-        if science.constructed and hooks is not None:
-            hooks.dispose(science.value)
-        science.value = None
-        science.ready = False
+                    cleanup_failures.append(cause)
+
+        if cleanup_failures:
+            raise BaseExceptionGroup(
+                "Original scientific values still need cleanup.",
+                cleanup_failures,
+            )
+
+        hooks = scientific_analysis.resident.allocation.binding.analysis
+        if scientific_analysis.constructed and hooks is not None:
+            hooks.dispose(scientific_analysis.value)
+        scientific_analysis.value = None
+        scientific_analysis.ready = False
