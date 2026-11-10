@@ -149,6 +149,84 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
         self.assert_exit(process, root, 143)
         self.assertTrue((root / 'removed-worker').exists())
 
+    def test_cancelled_create_uses_only_admissible_identity_for_cleanup(self):
+        roles = ('gateway', 'relay', 'worker-1')
+        for index, role in enumerate(roles, 1):
+            for output in ('empty', 'exact', 'disagree', 'nul'):
+                with self.subTest(role=role, output=output):
+                    process, root = self.launch(
+                        'acquisition_set_route system; '
+                        'acquisition_worker online status fixture:local grants application',
+                        env={'FAIL_CREATE_ROLE': role, 'FAILED_CREATE_OUTPUT': output,
+                             'HOLD_FAILED_CREATE': '1'})
+                    try:
+                        self.wait_marker(process, root / 'create-held')
+                        client_pid = int((root / 'create-held').read_text())
+                        anchor_pid = os.getpgid(client_pid)
+                        self.assertEqual(process.pid, os.getsid(anchor_pid))
+                        self.assertTrue(Path('/proc', str(client_pid)).exists())
+                        self.assertIsNone(process.poll())
+                        operation = Path((root / 'scratch').read_text().strip())
+                        self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+                        match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
+                                          (root / 'engine-client').read_text())
+                        self.assertIsNotNone(match)
+                        private_client = Path(match.group(1))
+                        self.addCleanup(shutil.rmtree, private_client, ignore_errors=True)
+                        identifiers = [f'{value:064x}' for value in range(1, index + 1)]
+                        identifier = identifiers[-1].encode()
+                        cid = operation / role / 'cid'
+                        create_stdout = operation / role / 'stdout'
+                        self.assertEqual(identifier + b'\n', cid.read_bytes())
+                        if output == 'empty':
+                            # A complete EOF receipt permits recovery before stdout publication.
+                            cid.write_bytes(identifier)
+                            expected_cid, expected_stdout = identifier, b''
+                            self.assertEqual(64, cid.stat().st_size)
+                        elif output == 'exact':
+                            expected_cid = expected_stdout = identifier + b'\n'
+                        elif output == 'disagree':
+                            expected_cid, expected_stdout = identifier + b'\n', f'{9:064d}\n'.encode()
+                        else:
+                            expected_cid, expected_stdout = identifier + b'\n', identifier + b'\0'
+                        self.assertEqual(expected_cid, cid.read_bytes())
+                        self.assertEqual(expected_stdout, create_stdout.read_bytes())
+                        self.assertEqual(str(index), (root / 'counter').read_text())
+                        process.send_signal(signal.SIGTERM)
+                        stdout, stderr = process.communicate(timeout=15)
+                        self.assertEqual(143, process.returncode, msg=(stdout, stderr))
+                        self.assertEqual(b'', stdout)
+                        self.assertFalse(Path('/proc', str(client_pid)).exists())
+                        self.assertFalse(Path('/proc', str(anchor_pid)).exists())
+                        self.assertEqual({f'start-{value}' for value in identifiers[:-1]},
+                                         {path.name for path in root.glob('start-*')})
+                        self.assertEqual(str(index), (root / 'counter').read_text())
+                        if output in ('empty', 'exact'):
+                            self.assertEqual({f'rm-{value}' for value in identifiers},
+                                             {path.name for path in root.glob('rm-*')})
+                            self.assertEqual(list(reversed(roles[:index])),
+                                             (root / 'removal-attempts').read_text().splitlines())
+                            self.assertEqual([], list(root.glob('live-*')))
+                            self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
+                            self.assertEqual(['143 yes'], (root / 'caller-exit').read_text().splitlines())
+                            self.assertFalse(operation.exists())
+                            self.assertFalse(private_client.exists())
+                        else:
+                            self.assertEqual([], list(root.glob('rm-*')))
+                            self.assertFalse((root / 'removal-attempts').exists())
+                            self.assertEqual({f'live-{value}' for value in identifiers},
+                                             {path.name for path in root.glob('live-*')})
+                            self.assertFalse((root / 'retired').exists())
+                            self.assertEqual(['143 no'], (root / 'caller-exit').read_text().splitlines())
+                            self.assertTrue(operation.is_dir())
+                            self.assertTrue(private_client.is_dir())
+                            self.assertEqual(expected_cid, cid.read_bytes())
+                            self.assertEqual(expected_stdout, create_stdout.read_bytes())
+                    finally:
+                        if process.poll() is None:
+                            process.send_signal(signal.SIGTERM)
+                            process.communicate(timeout=35)
+
     def test_errexit_unwind_retires_the_session_before_caller_exit(self):
         process, root = self.launch(
             'acquisition_set_route system; acquisition_worker online status fixture:local grants application; false',

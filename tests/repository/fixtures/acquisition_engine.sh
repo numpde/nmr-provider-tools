@@ -26,11 +26,22 @@ case "$operation" in
     printf '%s\n' "$scratch" > "$ENGINE_STATE/scratch"
     if [[ -v FAIL_CREATE_ROLE && $FAIL_CREATE_ROLE == "$role" ]]; then
       case "${FAILED_CREATE_OUTPUT:?}" in
+        empty) [[ -v HOLD_FAILED_CREATE && $HOLD_FAILED_CREATE == 1 ]] || exit 97 ;;
         exact) printf '%s\n' "$identifier" ;;
         disagree) printf '%064d\n' 9 ;;
         nul) printf '%s\0' "$identifier" ;;
         *) exit 97 ;;
       esac
+      if [[ -v HOLD_FAILED_CREATE ]]; then
+        case "$HOLD_FAILED_CREATE" in
+          1)
+            printf '%s\n' "$$" > "$ENGINE_STATE/create-held"
+            # Bound a broken cancellation probe without changing its live PID.
+            exec sleep 20
+            ;;
+          *) exit 97 ;;
+        esac
+      fi
       exit 23
     fi
     printf '%s\n' "$identifier"

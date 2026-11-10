@@ -154,6 +154,8 @@ _acq_remove() {
     if [[ -z $_acq_remove_cid && $_acq_cancelled != 0 ]]; then
         if IFS= read -r -N 64 _acq_remove_cid < "$_acq_remove_directory/cid"             && _acq_container_id_matches_receipt "$_acq_remove_cid" "$_acq_remove_directory/cid"             && _acq_cancellation_stdout_allows_identity "$_acq_remove_cid" "$_acq_remove_directory/stdout"; then
             _acq_cids[$_acq_remove_role]=$_acq_remove_cid
+        else
+            return 2
         fi
     fi
     _acq_container_id_matches_receipt "$_acq_remove_cid" "$_acq_remove_directory/cid" || return 2
