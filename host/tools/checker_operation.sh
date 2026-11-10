@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One private engine operation owns its mounts, client, and labeled containers.
-# Cleanup ordering follows dapp32 host/tools/compose_cleanup.sh at 911d45d:
+# Cleanup ordering follows dapp32 tools/compose_cleanup.sh at 911d45d:
 # retire owned resources, verify absence, then release mounted host inputs.
 
 source "$root/host/tools/docker_client.sh"

@@ -119,7 +119,7 @@ checker_run() { touch "$root/dispatched"; }
         result = self.shell('''root=$1
 export WHEELHOUSE_INPUT=$root WHEELHOUSE_INPUT_ORIGIN='command line'
 cp() {
-    if [[ $* == *host/tools/base_image.sh* ]]; then printf '\\n# changed during copy\\n'  >> "$root/host/tools/base_image.sh"; fi
+    if [[ $* == *host/tools/base_image.sh* ]]; then printf '\\n# changed during copy\\n' >> "$root/host/tools/base_image.sh"; fi
     command cp "$@"
 }
 export -f cp

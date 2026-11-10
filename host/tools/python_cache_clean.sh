@@ -16,7 +16,7 @@ clean_first_party_bytecode() {
     fi
     # Check all source roots before removing anything. find defaults to -P;
     # symbolic links within these trees are never traversed.
-    for name in tools tests containers src packages; do
+    for name in host tools tests containers src packages; do
         directory=$root/$name
         if [[ -L $directory || -e $directory && ! -d $directory ]]; then
             printf 'Cannot clean Python bytecode: %s is a symlink or not a directory.\n' "$directory" >&2
@@ -43,8 +43,8 @@ if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
     fi
     script_directory=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)
     checkout=$(git -C "$script_directory" rev-parse --show-toplevel)
-    if [[ $script_directory != "$checkout/tools" ]]; then
-        printf '%s\n' 'Cannot clean Python bytecode: script is not under the selected Git checkout tools directory.' >&2
+    if [[ $script_directory != "$checkout/host/tools" ]]; then
+        printf '%s\n' 'Cannot clean Python bytecode: script is not under the selected Git checkout host tools directory.' >&2
         exit 2
     fi
     clean_first_party_bytecode "$checkout"
