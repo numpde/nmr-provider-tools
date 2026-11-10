@@ -83,6 +83,11 @@ def unguarded_sources(root):
     # Cold bootstrap verification/refresh intentionally reads and updates this
     # checkout before a container or installed SDK can be admitted.
     sources.discard(root / "tools" / "acquisition_bootstrap.py")
+    # The two build/qualification child scripts run with Python -I, which omits
+    # the repository tools package from their import path. Their launchers own
+    # container confinement and invoke these files as isolated subprocesses.
+    for isolated_entrypoint in ("acquisition_import_check.py", "build_sdist.py"):
+        sources.discard(root / "tools" / isolated_entrypoint)
     failures = [
         str(path.relative_to(root))
         for path in sorted(sources)
