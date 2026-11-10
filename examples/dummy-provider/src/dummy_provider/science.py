@@ -1,8 +1,8 @@
-"""Provider-owned science for the standalone dummy-provider example.
+"""Scientific records, operations and state lifetimes for the dummy provider.
 
-The module depends only on the lightweight scientific rejection contract.
-Portable records are immutable; live model, analysis, and prepared state remain
-explicit and provider-owned.
+Portable inputs and results use immutable records. A weighted model persists
+across analyses, each analysis owns its accepted preparation, and calculation
+consumes that preparation.
 """
 
 from __future__ import annotations

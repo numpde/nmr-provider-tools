@@ -1,4 +1,4 @@
-"""Bind the standalone dummy science to the shared contribution interface."""
+"""Register the dummy scientific calls, configuration and lifecycle hooks."""
 
 from __future__ import annotations
 
@@ -158,7 +158,7 @@ def create_weighted_sum_binding(
 
 
 def create_sum_binding() -> contribution.ImplementationBinding[None, None]:
-    """Bind the stateless sum without inventing model or analysis lifetimes."""
+    """Register a stateless sum with one independently callable operation."""
 
     def run(
         *,
