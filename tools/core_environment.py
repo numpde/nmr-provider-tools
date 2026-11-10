@@ -129,10 +129,18 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             python=builder / "bin/python",
             output=output,
         )
+        sdist_builder = Path(__file__).with_name("build_sdist.py")
         subprocess.run(
-            [str(builder / "bin/python"), "-I", "-B", "-c",
-             "import sys; from setuptools.build_meta import build_sdist; build_sdist(sys.argv[1])", str(output)],
-            cwd=package, env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"}, check=True,
+            [
+                str(builder / "bin/python"),
+                "-I",
+                "-B",
+                str(sdist_builder),
+                str(output),
+            ],
+            cwd=package,
+            env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"},
+            check=True,
         )
         wheel = output / f"provider_core-{version}-py3-none-any.whl"
         sdist = output / f"provider_core-{version}.tar.gz"
