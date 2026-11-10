@@ -363,7 +363,6 @@ def normalize_sdist(path):
         normalized_path.replace(path)
 
 
-
 def release(source, runtime_lock, build_lock, pool, output, revision):
     from tools.build_wheelhouse_bundle import build as build_wheelhouse_bundle, dependency_files
     from tools.build_acquisition_bundle import build as build_acquisition_bundle
@@ -373,7 +372,13 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
 
     dependency_files(pool, Path("/requirements/wheelhouse-tool.lock"))
     source_files = source_inventory(source)
-    (wheel, install_lock, dependency_inputs) = build_candidate(source, runtime_lock, build_lock, pool, output)
+    (wheel, install_lock, dependency_inputs) = build_candidate(
+        source=source,
+        runtime_lock=runtime_lock,
+        build_lock=build_lock,
+        pool=pool,
+        output=output,
+    )
 
     artifact_prefix = wheel.name.removesuffix("-py3-none-any.whl")
     sdist = output / (artifact_prefix + ".tar.gz")
@@ -381,19 +386,19 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
 
     wheelhouse_bundle = output / ("wheelhouse-tool-" + artifact_prefix.removeprefix("provider_core-") + ".pyz")
     build_wheelhouse_bundle(
-        pool,
-        wheelhouse_bundle,
-        Path("/workspace"),
-        Path("/requirements/wheelhouse-tool.lock"),
+        pool=pool,
+        output=wheelhouse_bundle,
+        source=Path("/workspace"),
+        pin=Path("/requirements/wheelhouse-tool.lock"),
     )
 
     acquisition_bundle = output / ("acquisition-owner-" + artifact_prefix.removeprefix("provider_core-") + ".tar.gz")
     acquisition_record = build_acquisition_bundle(
-        pool,
-        acquisition_bundle,
-        Path("/workspace"),
-        wheel,
-        Path("/requirements/acquisition-bootstrap.pylock.toml"),
+        pool=pool,
+        output=acquisition_bundle,
+        source=Path("/workspace"),
+        core_wheel=wheel,
+        pin=Path("/requirements/acquisition-bootstrap.pylock.toml"),
     )
 
     release_files = (wheel, sdist, install_lock, native_lock, wheelhouse_bundle, acquisition_bundle)
@@ -430,7 +435,6 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
 
     fsync_directory(output)
     print(json.dumps({"source_revision": revision, "wheel": wheel.name, "sha256": digest(wheel)}, sort_keys=True))
-
 
 
 def main():
