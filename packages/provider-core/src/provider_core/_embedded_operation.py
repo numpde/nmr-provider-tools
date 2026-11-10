@@ -265,97 +265,103 @@ class _Operation(_Changes):
         else:
             receipt.set_result(None)
 
-    def _finished(self, original):
+    def _finished(self, execution_future):
         self.queue_timer.cancel()
         if self.execution_timer is not None:
             self.execution_timer.cancel()
-        if original.exception() is not None:
-            self.failures += (Failure("backend", original.exception()),)
+        if execution_future.exception() is not None:
+            self.failures += (Failure("backend", execution_future.exception()),)
         if self.dispatch is DispatchState.QUEUED:
             self.dispatch = DispatchState.NOT_STARTED
+
         for parameter in self.call.description.state_inputs:
             owner = self.state_owners[parameter.name]
             owner.claim = None
             if self.dispatch is DispatchState.STARTED and self.failures:
                 owner.available = False
+
         if self.raw is None:
             self.analysis.host.state_reserved -= self.state_allowance
             self.state_allowance = 0
             self._release_capacity()
+
         self.finished = True
         self.completion.set()
         self.changed()
 
-    def _adopt_states(self, raw, adopted):
-        returned = []
-        failures = []
-        consumed = {
+    def _adopt_states(self, scientific_return, adoption_receipt):
+        returned_arguments = []
+        contract_failures = []
+        consumed_state_names = {
             item.name
             for item in self.call.description.state_inputs
             if item.use is StateUse.CONSUME
         }
-        for value in raw.states:
-            existing = next(
+        for returned_state in scientific_return.states:
+            existing_owner = next(
                 (
                     owner
                     for owner in self.analysis.states.values()
-                    if not owner.disposed and owner.returned.value is value.value
+                    if not owner.disposed and owner.returned.value is returned_state.value
                 ),
                 None,
             )
-            if existing is not None:
+            if existing_owner is not None:
                 if not any(
-                    self.state_owners[name] is existing
-                    for name in consumed
+                    self.state_owners[name] is existing_owner
+                    for name in consumed_state_names
                 ):
-                    failures.append(
+                    contract_failures.append(
                         ValueError(
                             "Returning an existing state requires consuming its "
                             "original reference."
                         )
                     )
                     continue
-                existing.available = False
-                existing.disposed = True
-            reference = StateRef(
+                existing_owner.available = False
+                existing_owner.disposed = True
+
+            state_reference = StateRef(
                 host=self.analysis.host.identity,
                 analysis=self.analysis.identity,
                 allocation=self.invocation.reservation.allocation,
                 binding_id=self.invocation.target.binding_id,
                 binding_revision=self.invocation.target.binding_revision,
                 state_id=uuid4().hex,
-                kind=value.kind,
+                kind=returned_state.kind,
             )
-            self.analysis.states[reference] = _State(value, self)
-            returned.append(StateArgument(value.name, reference))
-        self.returned_states = tuple(returned)
-        extra = max(0, len(returned) - self.state_allowance)
-        self.analysis.host.state_reserved += extra
-        self.state_allowance += extra
-        expected = {
+            self.analysis.states[state_reference] = _State(returned_state, self)
+            returned_arguments.append(StateArgument(returned_state.name, state_reference))
+
+        self.returned_states = tuple(returned_arguments)
+        additional_state_reservations = max(0, len(returned_arguments) - self.state_allowance)
+        self.analysis.host.state_reserved += additional_state_reservations
+        self.state_allowance += additional_state_reservations
+
+        expected_state_kinds = {
             item.name: item.kind
             for item in self.call.description.state_outputs
         }
-        actual = {
+        actual_state_kinds = {
             item.name: item.kind
-            for item in raw.states
+            for item in scientific_return.states
         }
-        if actual != expected:
-            failures.append(
-                ValueError(
-                    "Returned state differs from the call's declared outputs."
-                )
+        if actual_state_kinds != expected_state_kinds:
+            contract_failures.append(
+                ValueError("Returned state differs from the call's declared outputs.")
             )
-        if failures:
+
+        if contract_failures:
             cause = ExceptionGroup(
                 "Scientific state return violates its binding contract.",
-                failures,
+                contract_failures,
             )
             self.science.failure = cause
             self.science.resident.failure = cause
-            adopted.set_exception(cause)
+            adoption_receipt.set_exception(cause)
         else:
-            adopted.set_result(None)
+            adoption_receipt.set_result(None)
+
 
     async def observe(self, *, after, wait_seconds):
         await self.wait(after, wait_seconds)
@@ -406,8 +412,9 @@ class _Operation(_Changes):
 
     async def _release(self):
         if not self.value_disposed:
-            original = self.science.resident.executor.submit(self.dispose_value)
-            await await_original(original, deadline=None)
+            disposal_future = self.science.resident.executor.submit(self.dispose_value)
+            await await_original(disposal_future, deadline=None)
+
         self.payload = None
         self.result_state = ResultState.RELEASED
         self._release_capacity()
