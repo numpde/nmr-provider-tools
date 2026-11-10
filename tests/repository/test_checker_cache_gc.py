@@ -71,9 +71,9 @@ class EngineCacheGCTests(unittest.TestCase):
     def test_periodic_command_uses_native_limits_and_isolated_selected_engine(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            (root / "tools").mkdir()
+            (root / "host/tools").mkdir(parents=True)
             for name in ("engine_cache_gc.sh", "engine_cache_gc.py", "docker_context.sh", "docker_client.sh", "inference_native.sh"):
-                shutil.copyfile(ROOT / "tools" / name, root / "tools" / name)
+                shutil.copyfile(ROOT / "host/tools" / name, root / "host/tools" / name)
             config = root / "daemon.json"
             document = configured({})
             document["builder"]["gc"]["defaultMaxUsedSpace"] = "24GB"

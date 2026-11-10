@@ -117,12 +117,12 @@ def boundary_imports(root):
         for path in sorted(directory.rglob("*.py")):
             for statement in ast.walk(ast.parse(path.read_text())):
                 if isinstance(statement, ast.ImportFrom):
-                    modules = (statement.module or "",)
+                    modules = (statement.module,)
                 elif isinstance(statement, ast.Import):
-                    modules = tuple(alias.name for alias in statement.names)
+                    modules = [alias.name for alias in statement.names]
                 else:
                     continue
-                if any(module.split(".", 1)[0] == forbidden for module in modules):
+                if any(module is not None and module.split(".", 1)[0] == forbidden for module in modules):
                     violations.append(str(path.relative_to(root)))
     return sorted(set(violations))
 
@@ -187,8 +187,8 @@ class ConventionDetectionTests(unittest.TestCase):
             contained = root / "tools/tasks.py"
             host.parent.mkdir()
             contained.parent.mkdir()
-            host.write_text("from tools.core_environment import release\\n")
-            contained.write_text("import host.tools.engine_cache_gc\\n")
+            host.write_text("from tools.core_environment import release\n")
+            contained.write_text("import host.tools.engine_cache_gc\n")
             self.assertEqual(["host/tasks.py", "tools/tasks.py"], boundary_imports(root))
 
     def test_missing_late_conditional_and_rebound_guards_fail(self):

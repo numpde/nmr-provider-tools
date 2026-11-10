@@ -63,7 +63,7 @@ class AcquisitionBundleTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 build(root, output, source, wheel, pin)
             self.assertFalse(output.exists())
-            (source / SOURCE_FILES[0]).write_text("# restored\n")
+            (source / source_path(SOURCE_FILES[0])).write_text("# restored\n")
             identity.write_bytes(b"changed dependency")
             with self.assertRaisesRegex(ValueError, "pinned hash"):
                 build(root, output, source, wheel, pin)
