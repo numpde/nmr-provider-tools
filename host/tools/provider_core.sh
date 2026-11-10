@@ -131,6 +131,7 @@ case "$action" in
         fi
         arguments=("${worker[@]}" --network none --init --tmpfs /runtime:rw,nosuid,nodev,exec,size=256m,mode=1777
             --mount "type=bind,src=$root/packages/provider-core,dst=/package,readonly"
+            --mount "type=bind,src=$root/containers/isolated,dst=/workspace/containers/isolated,readonly"
             "${example_mount[@]}"
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
             --entrypoint python3 "$base_image" -B -m tools.provider_core_tests "$action" --pattern "$pattern")
