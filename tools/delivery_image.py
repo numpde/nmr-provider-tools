@@ -42,11 +42,9 @@ def release_inputs(pin, runtime_lock):
     return release, install_lock_bytes
 
 
-
 def release_wheels(release):
     provider_wheel_name = f"provider_core-{release['version']}-py3-none-any.whl"
     return dict(release["runtime_wheels"]) | {provider_wheel_name: release["wheel_sha256"]}
-
 
 
 def missing_wheels(release, pool):
@@ -70,7 +68,6 @@ def missing_wheels(release, pool):
         else:
             missing_wheel_ids.append((wheel_name, expected_sha256))
     return missing_wheel_ids
-
 
 
 def publish_release_wheels(tool, pool, artifacts):
@@ -97,7 +94,6 @@ def publish_release_wheels(tool, pool, artifacts):
             ],
             check=True,
         )
-
 
 
 def acquire_release(pin, runtime_lock, pool, tool):
@@ -134,46 +130,59 @@ def acquire_release(pin, runtime_lock, pool, tool):
         publish_release_wheels(tool, pool, artifacts)
 
 
-
 def capture_image_inputs(pin, runtime_lock, pool, destination):
     with pool_lock(pool) as lock_fd:
         _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd)
 
 
 def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
-    (release, lock_bytes) = release_inputs(pin, runtime_lock)
-    lock = destination / "provider-core-install.lock"
-    with lock.open("xb") as target:
-        target.write(lock_bytes)
-    lock.chmod(0o644)
-    requirements(lock)
+    (release, install_lock_bytes) = release_inputs(pin, runtime_lock)
+    captured_lock = destination / "provider-core-install.lock"
+    with captured_lock.open("xb") as target:
+        target.write(install_lock_bytes)
+    captured_lock.chmod(0o644)
+    requirements(captured_lock)
+
     if missing_wheels(release, pool):
         raise ValueError("Cannot build delivery: the selected wheelhouse is missing pinned release wheels.")
-    selected = select_wheels(lock, pool, lock_fd=lock_fd)
-    if selected["files"] != release_wheels(release):
+
+    selected_wheels = select_wheels(captured_lock, pool, lock_fd=lock_fd)
+    if selected_wheels["files"] != release_wheels(release):
         raise ValueError("Cannot build delivery: selected wheels differ from the pinned release closure.")
-    identities = destination / "provider-core-wheel-inputs.json"
-    with identities.open("x", encoding="utf-8") as target:
-        json.dump(selected, target, sort_keys=True)
+
+    wheel_input_record = destination / "provider-core-wheel-inputs.json"
+    with wheel_input_record.open("x", encoding="utf-8") as target:
+        json.dump(selected_wheels, target, sort_keys=True)
         target.write("\n")
-    identities.chmod(0o644)
-    template = destination / "containers/delivery/Dockerfile"
+    wheel_input_record.chmod(0o644)
+
+    dockerfile_template = destination / "containers/delivery/Dockerfile"
     marker = "# selected-wheel-inputs"
-    contents = template.read_text()
-    if contents.count(marker) != 1:
+    template_contents = dockerfile_template.read_text()
+    if template_contents.count(marker) != 1:
         raise ValueError("Cannot build delivery: the Dockerfile has no unique wheel input marker.")
-    copies = "\n".join("COPY " + json.dumps(["wheelhouse/" + name, "/" + name])
-                       for name in sorted(selected["files"]))
-    generated = destination / "containers/delivery/Dockerfile.selected"
-    with generated.open("x") as target:
-        target.write(contents.replace(marker, copies))
-    generated.chmod(0o644)
-    manifest = destination / "provider-core-stream.json"
-    with manifest.open("x", encoding="utf-8") as target:
-        json.dump([{"directory": "wheelhouse", "filename": name, "sha256": checksum}
-                   for (name, checksum) in sorted(selected["files"].items())], target, sort_keys=True)
+
+    copy_instructions = "\n".join(
+        "COPY " + json.dumps(["wheelhouse/" + name, "/" + name])
+        for name in sorted(selected_wheels["files"])
+    )
+    selected_dockerfile = destination / "containers/delivery/Dockerfile.selected"
+    with selected_dockerfile.open("x") as target:
+        target.write(template_contents.replace(marker, copy_instructions))
+    selected_dockerfile.chmod(0o644)
+
+    stream_manifest = destination / "provider-core-stream.json"
+    with stream_manifest.open("x", encoding="utf-8") as target:
+        json.dump(
+            [
+                {"directory": "wheelhouse", "filename": name, "sha256": checksum}
+                for (name, checksum) in sorted(selected_wheels["files"].items())
+            ],
+            target,
+            sort_keys=True,
+        )
         target.write("\n")
-    manifest.chmod(0o644)
+    stream_manifest.chmod(0o644)
 
 
 if __name__ == "__main__":
@@ -188,15 +197,17 @@ if __name__ == "__main__":
     if args.action == "check":
         (release, _) = release_inputs(args.pin, args.runtime_lock)
         with pool_lock(args.pool):
-            if missing_wheels(release, args.pool) or (args.tool_pin and not tool_present(args.pool, read_json(args.tool_pin))):
+            if missing_wheels(release, args.pool) or (
+                args.tool_pin and not tool_present(args.pool, read_json(args.tool_pin))
+            ):
                 print("missing")
             else:
                 print("complete")
     elif args.action == "acquire":
         if args.tool_pin is None:
             parser.error("acquire requires --tool-pin")
-        tool = acquire_tool(args.pool, read_json(args.tool_pin))
-        acquire_release(args.pin, args.runtime_lock, args.pool, tool)
+        acquisition_tool = acquire_tool(args.pool, read_json(args.tool_pin))
+        acquire_release(args.pin, args.runtime_lock, args.pool, acquisition_tool)
     else:
         if args.destination is None:
             parser.error("capture requires --destination")
