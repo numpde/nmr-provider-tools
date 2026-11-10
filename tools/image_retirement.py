@@ -99,62 +99,102 @@ def metadata(raw, expected):
 
 
 def select_images(images, protected, current, now):
-    selected = []
-    (checker, recipe) = current
+    retirement_candidates = []
+    (current_checker, current_recipe) = current
     for image in images:
-        identifier = image.get("Id")
-        (labels, tags, digests) = image.get("Labels"), image.get("RepoTags"), image.get("RepoDigests")
-        if (type(identifier) is not str or _ID.fullmatch(identifier) is None
-                or "RepoTags" not in image or "RepoDigests" not in image
-                or labels is not None and (type(labels) is not dict
-                    or any(type(k) is not str or type(v) is not str for k, v in labels.items()))
-                or any(value is not None and (type(value) is not list
-                    or any(type(item) is not str for item in value)) for value in (tags, digests))):
+        image_id = image.get("Id")
+        (image_labels, image_tags, image_digests) = (
+            image.get("Labels"),
+            image.get("RepoTags"),
+            image.get("RepoDigests"),
+        )
+        if (
+            type(image_id) is not str
+            or _ID.fullmatch(image_id) is None
+            or "RepoTags" not in image
+            or "RepoDigests" not in image
+            or image_labels is not None and (
+                type(image_labels) is not dict
+                or any(
+                    type(key) is not str or type(value) is not str
+                    for (key, value) in image_labels.items()
+                )
+            )
+            or any(
+                value is not None and (
+                    type(value) is not list
+                    or any(type(item) is not str for item in value)
+                )
+                for value in (image_tags, image_digests)
+            )
+        ):
             raise RetirementRefused("Docker returned malformed image ownership or aliases.")
+
         # silent-defaults: allow-contract -- Docker reports absent optional Labels as null; only that absence means no labels.
-        labels = {} if labels is None else labels
+        image_labels = {} if image_labels is None else image_labels
         # silent-defaults: allow-contract -- Docker reports absent optional RepoTags as null; only that absence means no aliases.
-        tags = [] if tags is None else tags
+        image_tags = [] if image_tags is None else image_tags
         # silent-defaults: allow-contract -- Docker reports absent optional RepoDigests as null; only that absence means no digest aliases.
-        digests = [] if digests is None else digests
-        if identifier in protected or digests or len(tags) > 1:
+        image_digests = [] if image_digests is None else image_digests
+
+        if image_id in protected or image_digests or len(image_tags) > 1:
             continue
-        if any(tag in {f"nmr-provider-tools/checker:{checker}",
-                       f"nmr-provider-tools/delivery-recipe:{recipe}",
-                       "nmr-provider-tools/wheelhouse-tool:local"} for tag in tags):
+        if any(
+            tag in {
+                f"nmr-provider-tools/checker:{current_checker}",
+                f"nmr-provider-tools/delivery-recipe:{current_recipe}",
+                "nmr-provider-tools/wheelhouse-tool:local",
+            }
+            for tag in image_tags
+        ):
             continue
-        (role, inputs) = labels.get(_LABEL + "role"), labels.get(_LABEL + "inputs")
+
+        (role, recorded_inputs) = (
+            image_labels.get(_LABEL + "role"),
+            image_labels.get(_LABEL + "inputs"),
+        )
         if role == "delivery":
-            recorded_recipe = labels.get(_LABEL + "recipe")
-            if not (type(inputs) is str and _HASH.fullmatch(inputs)
-                    and type(recorded_recipe) is str and _HASH.fullmatch(recorded_recipe)):
+            recorded_recipe = image_labels.get(_LABEL + "recipe")
+            if not (
+                type(recorded_inputs) is str
+                and _HASH.fullmatch(recorded_inputs)
+                and type(recorded_recipe) is str
+                and _HASH.fullmatch(recorded_recipe)
+            ):
                 # Older outputs without full ownership remain untouched; they
                 # do not prevent retirement of other positively owned images.
                 continue
-            if recorded_recipe == recipe:
+            if recorded_recipe == current_recipe:
                 continue
-            allowed = {f"nmr-provider-tools/delivery:{inputs}",
-                       f"nmr-provider-tools/delivery-recipe:{recorded_recipe}"}
+            allowed_tags = {
+                f"nmr-provider-tools/delivery:{recorded_inputs}",
+                f"nmr-provider-tools/delivery-recipe:{recorded_recipe}",
+            }
         elif role == "wheelhouse-tool":
-            allowed = {"nmr-provider-tools/wheelhouse-tool:local"}
-        elif role is None and type(inputs) is str and _HASH.fullmatch(inputs):
-            if inputs == checker:
+            allowed_tags = {"nmr-provider-tools/wheelhouse-tool:local"}
+        elif role is None and type(recorded_inputs) is str and _HASH.fullmatch(recorded_inputs):
+            if recorded_inputs == current_checker:
                 continue
-            allowed = {f"nmr-provider-tools/checker:{inputs}"}
+            allowed_tags = {f"nmr-provider-tools/checker:{recorded_inputs}"}
         else:
             continue
-        if any(tag not in allowed for tag in tags):
+
+        if any(tag not in allowed_tags for tag in image_tags):
             continue
-        created = image.get("Created")
-        if type(created) is not str:
+
+        created_at = image.get("Created")
+        if type(created_at) is not str:
             raise RetirementRefused("An owned image has no creation time.")
-        instant = datetime.fromisoformat(created.replace("Z", "+00:00"))
-        if instant.utcoffset() is None:
+
+        created_instant = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+        if created_instant.utcoffset() is None:
             raise RetirementRefused("An owned image creation time has no timezone.")
-        timestamp = instant.timestamp()
-        if now - timestamp >= 86400:
-            selected.append(identifier)
-    return selected
+
+        created_timestamp = created_instant.timestamp()
+        if now - created_timestamp >= 86400:
+            retirement_candidates.append(image_id)
+
+    return retirement_candidates
 
 
 # silent-defaults: allow-contract -- Staged images are absent as an immutable tuple unless explicitly retained; the fixed /tmp root holds checker operation receipts for current image borrowers.
