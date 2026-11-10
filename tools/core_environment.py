@@ -36,7 +36,6 @@ def pip_command(python):
     return [str(python), "-I", str(runner), "--isolated"]
 
 
-
 def build_source_wheel(
     *,
     source: Path,

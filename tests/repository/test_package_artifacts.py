@@ -142,7 +142,10 @@ class PackageArtifactTests(unittest.TestCase):
             self.assertEqual("315532800", env["SOURCE_DATE_EPOCH"])
             (staged_source / "build/lib/dummy_provider").mkdir(parents=True)
 
-        with patch("tools.core_environment.subprocess.run", side_effect=simulate_backend) as runner:
+        with (
+            patch("tools.core_environment.pip_command", return_value=["python", "-m", "pip"]),
+            patch("tools.core_environment.subprocess.run", side_effect=simulate_backend) as runner,
+        ):
             actual = build_source_wheel(
                 source=source,
                 staged_source=staged_source,
@@ -167,10 +170,13 @@ class PackageArtifactTests(unittest.TestCase):
         directories = (source, source / "src", package)
         for directory in directories:
             directory.chmod(0o555)
-        self.addCleanup(lambda: [directory.chmod(0o755) for directory in directories])
+            self.addCleanup(directory.chmod, 0o755)
 
         staged_source = self.root / "staged"
-        with patch("tools.core_environment.subprocess.run"):
+        with (
+            patch("tools.core_environment.pip_command", return_value=["python", "-m", "pip"]),
+            patch("tools.core_environment.subprocess.run"),
+        ):
             build_source_wheel(
                 source=source,
                 staged_source=staged_source,
@@ -178,12 +184,11 @@ class PackageArtifactTests(unittest.TestCase):
                 output=self.root,
             )
 
-        self.assertEqual(
-            [True] * len(directories),
-            [(staged_source / directory.relative_to(source)).stat().st_mode & 0o200 != 0
-             for directory in directories],
-        )
-        self.assertEqual([0o555] * len(directories), [directory.stat().st_mode & 0o777 for directory in directories])
+        for directory in directories:
+            with self.subTest(directory=directory.relative_to(source)):
+                staged_directory = staged_source / directory.relative_to(source)
+                self.assertNotEqual(0, staged_directory.stat().st_mode & 0o200)
+                self.assertEqual(0o555, directory.stat().st_mode & 0o777)
 
     def test_wheel_builder_rejects_source_symlinks_and_in_tree_staging(self):
         source = self.root / "source"
