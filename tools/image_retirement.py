@@ -201,40 +201,74 @@ def select_images(images, protected, current, now):
 def retire(root, docker, current, *, staged=(), now=None, operations=Path("/tmp")):
     now = time.time() if now is None else now
     selected_inputs = current()
-    protected = set(staged) | retained_image_ids(operations)
-    containers = ids(docker("ps", "--all", "--quiet", "--no-trunc"), container=True)
-    for offset in range(0, len(containers), 64):
-        batch = containers[offset:offset + 64]
-        images = [json.loads(line) for line in docker(
-            "inspect", "--type", "container", "--format", "{{json .Image}}", *batch).splitlines()]
-        if len(images) != len(batch) or any(type(item) is not str or _ID.fullmatch(item) is None for item in images):
+    protected_images = set(staged) | retained_image_ids(operations)
+
+    container_ids = ids(docker("ps", "--all", "--quiet", "--no-trunc"), container=True)
+    for offset in range(0, len(container_ids), 64):
+        batch = container_ids[offset:offset + 64]
+        container_images = [
+            json.loads(line)
+            for line in docker(
+                "inspect", "--type", "container", "--format", "{{json .Image}}", *batch
+            ).splitlines()
+        ]
+        if len(container_images) != len(batch) or any(
+            type(item) is not str or _ID.fullmatch(item) is None
+            for item in container_images
+        ):
             raise RetirementRefused("Container image references were incomplete.")
-        protected.update(images)
-    owned = set()
+        protected_images.update(container_images)
+
+    owned_image_ids = set()
     for label in ("inputs", "role"):
-        owned.update(ids(docker("image", "ls", "--all", "--quiet", "--no-trunc", "--filter", "label=" + _LABEL + label)))
-    images = []
-    owned = sorted(owned)
-    for offset in range(0, len(owned), 64):
-        batch = owned[offset:offset + 64]
-        images.extend(metadata(docker("image", "inspect", "--format", _IMAGE_JSON, *batch), batch))
-    plan = select_images(images, protected, selected_inputs, now)
-    removed = 0
-    for identifier in plan:
+        owned_image_ids.update(
+            ids(
+                docker(
+                    "image", "ls", "--all", "--quiet", "--no-trunc",
+                    "--filter", "label=" + _LABEL + label,
+                )
+            )
+        )
+
+    inspected_images = []
+    owned_image_ids = sorted(owned_image_ids)
+    for offset in range(0, len(owned_image_ids), 64):
+        batch = owned_image_ids[offset:offset + 64]
+        inspected_images.extend(
+            metadata(docker("image", "inspect", "--format", _IMAGE_JSON, *batch), batch)
+        )
+
+    retirement_plan = select_images(inspected_images, protected_images, selected_inputs, now)
+    removed_count = 0
+    for image_id in retirement_plan:
         if current() != selected_inputs:
-            raise RetirementRefused("Current source selection changed; retain the remaining images and retry.")
-        protected.update(retained_image_ids(operations))
-        borrowers = ids(docker("ps", "--all", "--quiet", "--no-trunc", "--filter", "ancestor=" + identifier), container=True)
+            raise RetirementRefused(
+                "Current source selection changed; retain the remaining images and retry."
+            )
+
+        protected_images.update(retained_image_ids(operations))
+        borrowers = ids(
+            docker(
+                "ps", "--all", "--quiet", "--no-trunc",
+                "--filter", "ancestor=" + image_id,
+            ),
+            container=True,
+        )
         if borrowers:
             continue
-        latest = metadata(docker("image", "inspect", "--format", _IMAGE_JSON, identifier), [identifier])
-        if select_images(latest, protected, selected_inputs, now) != [identifier]:
+
+        latest_image = metadata(
+            docker("image", "inspect", "--format", _IMAGE_JSON, image_id),
+            [image_id],
+        )
+        if select_images(latest_image, protected_images, selected_inputs, now) != [image_id]:
             continue
+
         # Immutable IDs only. Docker refuses late references; never force or
         # remove a retargetable alias, parent image, cache entry, or volume.
-        docker("image", "rm", "--no-prune", identifier)
-        removed += 1
-    return removed
+        docker("image", "rm", "--no-prune", image_id)
+        removed_count += 1
+    return removed_count
 
 
 def main():
