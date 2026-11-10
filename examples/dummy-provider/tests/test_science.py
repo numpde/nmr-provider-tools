@@ -96,5 +96,45 @@ class DummyScienceTests(unittest.TestCase):
         )
 
 
+    def test_scientific_calls_reject_other_input_types(self) -> None:
+        model = science.create_model(
+            settings=science.WeightedSumSettings(scale=1, offset=0),
+            coefficients=science.CoefficientSet(values=(2, 3)),
+        )
+        science.load_model(model)
+        self.addCleanup(science.dispose_model, model)
+
+        analysis = science.create_analysis(model)
+        science.initialize_analysis(analysis)
+        self.addCleanup(science.dispose_analysis, analysis)
+
+        with self.assertRaises(TypeError):
+            science.prepare(
+                analysis=analysis,
+                candidate=science.SumInput(values=(1, 2)),
+            )
+        with self.assertRaises(TypeError):
+            science.sum_values(
+                summation=science.PreparationInput(values=(1, 2)),
+            )
+        with self.assertRaises(TypeError):
+            science.calculate(
+                analysis=analysis,
+                state=science.PreparationInput(values=(1, 2)),
+            )
+
+    def test_prepared_values_validate_type_before_emptiness(self) -> None:
+        model = science.create_model(
+            settings=science.WeightedSumSettings(scale=1, offset=0),
+            coefficients=science.CoefficientSet(values=(1,)),
+        )
+        analysis = science.create_analysis(model)
+
+        with self.assertRaises(TypeError):
+            science.PreparedValues(analysis=analysis, values=[])
+        with self.assertRaises(ValueError):
+            science.PreparedValues(analysis=analysis, values=())
+
+
 if __name__ == "__main__":
     unittest.main()

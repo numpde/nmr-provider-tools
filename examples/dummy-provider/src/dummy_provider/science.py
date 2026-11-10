@@ -157,9 +157,10 @@ class PreparedValues:
     values: tuple[float, ...] | None = field(repr=False)
 
     def __post_init__(self) -> None:
-        if not self.values:
+        normalized_values = _finite_values(self.values, label="prepared values")
+        if not normalized_values:
             raise ValueError("prepared values must not be empty")
-        self.values = _finite_values(self.values, label="prepared values")
+        self.values = normalized_values
 
     @property
     def value_count(self) -> int:
@@ -237,6 +238,8 @@ def prepare(
     candidate: PreparationInput,
 ) -> PreparedValues:
     """Reject one candidate without discarding the analysis itself."""
+    if type(candidate) is not PreparationInput:
+        raise TypeError("Preparation requires PreparationInput")
     if not analysis.is_open:
         raise RuntimeError("Cannot prepare input for a closed analysis")
     if not candidate.values:
@@ -277,6 +280,8 @@ def calculate(
     analysis: WeightedSumAnalysis,
     state: CalculationState,
 ) -> PredictionResult:
+    if type(state) is not CalculationState:
+        raise TypeError("Calculation requires CalculationState")
     if not analysis.is_open:
         raise RuntimeError("Cannot calculate for a closed analysis")
 
@@ -311,6 +316,8 @@ def calculate(
 
 
 def sum_values(summation: SumInput) -> SumResult:
+    if type(summation) is not SumInput:
+        raise TypeError("Summation requires SumInput")
     if not summation.values:
         raise ScientificInputRejected(
             "empty_input",
