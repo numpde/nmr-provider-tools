@@ -27,7 +27,7 @@ def _create_weighted_sum_binding() -> contribution.ImplementationBinding[
     science.WeightedSumModel,
     science.WeightedSumAnalysis,
 ]:
-    """Adapt the configured binding factory to the runner’s zero-argument interface."""
+    """Supply the zero-argument factory required by ImplementationFixture.create_binding."""
     return create_weighted_sum_binding(
         settings=science.WeightedSumSettings(
             scale=2,
