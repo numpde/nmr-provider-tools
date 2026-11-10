@@ -27,7 +27,12 @@ def _create_weighted_sum_binding() -> contribution.ImplementationBinding[
     science.WeightedSumModel,
     science.WeightedSumAnalysis,
 ]:
-    """Supply the zero-argument factory required by ImplementationFixture.create_binding."""
+    """Fix a three-term model for deterministic conformance scenarios.
+
+    Distinct coefficients, a non-unit scale and a nonzero offset expose incorrect
+    weighting or configuration. The three-term input also tests wrong-count
+    rejection and correction before calculation.
+    """
     return create_weighted_sum_binding(
         settings=science.WeightedSumSettings(
             scale=2,
