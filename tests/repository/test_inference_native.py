@@ -1026,17 +1026,37 @@ class CapturedNativeTests(unittest.TestCase):
         self.assertNotIn("deadline elapsed", result.stderr)
         self.assert_client_retired()
 
+    def run_readied_expiry(self, *, behavior, additions=None):
+        """Exercise the actual timeout only after the native TERM handler exists."""
+        command, environment = self.command(budget="5")
+        process = subprocess.Popen(
+            command,
+            env=environment | {"NATIVE_BEHAVIOR": behavior} | ({} if additions is None else additions),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            start_new_session=True,
+        )
+        self.addCleanup(self.retire_probe, process)
+        self.await_term_handler()
+        self.assertIsNone(process.poll(), msg="The native client expired before its handler was ready.")
+        stdout, stderr = process.communicate(timeout=12)
+        self.retain_cleanup(stderr)
+        self.assertEqual("", stdout)
+        return process.returncode, stderr
+
     def test_resistant_expiry_forwards_term_and_retires_the_full_group(self):
-        result = self.run_native(budget="0.1", additions={"NATIVE_BEHAVIOR": "resistant"})
-        self.assertEqual(124, result.returncode, msg=result.stderr)
-        self.assertIn("deadline elapsed", result.stderr)
-        self.assertTrue((self.root / "term-observed").exists(), msg="the actual client never received deadline TERM")
+        status, diagnostic = self.run_readied_expiry(behavior="resistant")
+        self.assertEqual(124, status, msg=diagnostic)
+        self.assertIn("deadline elapsed", diagnostic)
+        self.assertEqual("TERM\n", (self.root / "term-observed").read_text())
         self.assert_client_retired()
 
     def test_late_success_after_confirmed_expiry_cannot_report_success(self):
-        result = self.run_native(budget="0.1", additions={"NATIVE_BEHAVIOR": "late-success"})
-        self.assertEqual(124, result.returncode, msg=result.stderr)
-        self.assertIn("deadline elapsed", result.stderr)
+        status, diagnostic = self.run_readied_expiry(behavior="late-success")
+        self.assertEqual(124, status, msg=diagnostic)
+        self.assertIn("deadline elapsed", diagnostic)
+        self.assertEqual("completed after TERM\n", (self.root / "late-success-returned").read_text())
         self.assert_client_retired()
 
     def test_cli_signal_dispositions_are_native(self):
@@ -1235,12 +1255,13 @@ class CapturedNativeTests(unittest.TestCase):
                 self.assert_client_retired()
 
     def test_failed_expiry_publication_cannot_claim_a_confirmed_deadline(self):
-        result = self.run_native(
-            budget="0.1", additions={"NATIVE_PUBLICATION_FAILURE": "deadline", "NATIVE_BEHAVIOR": "resistant"}
+        status, diagnostic = self.run_readied_expiry(
+            behavior="resistant", additions={"NATIVE_PUBLICATION_FAILURE": "deadline"}
         )
-        self.assertEqual(1, result.returncode, msg=result.stderr)
-        self.assertIn("publication failed", result.stderr)
-        self.assertNotIn("deadline elapsed", result.stderr)
+        self.assertEqual(1, status, msg=diagnostic)
+        self.assertIn("publication failed", diagnostic)
+        self.assertNotIn("deadline elapsed", diagnostic)
+        self.assertEqual("TERM\n", (self.root / "term-observed").read_text())
         self.assert_client_retired()
 
     def test_drain_failure_preserves_native_failure_and_rejects_success(self):
@@ -1880,8 +1901,16 @@ def native_client():
         signal.signal(signal.SIGTERM, lambda *_: (observation.parent / "term-observed").write_text("TERM\n"))
         time.sleep(60)
     if behavior == "late-success":
-        signal.signal(signal.SIGTERM, signal.SIG_IGN)
-        time.sleep(0.3)
+        received_term = False
+
+        def accept_deadline(_signum, _frame):
+            nonlocal received_term
+            received_term = True
+
+        signal.signal(signal.SIGTERM, accept_deadline)
+        while not received_term:
+            time.sleep(0.01)
+        (observation.parent / "late-success-returned").write_text("completed after TERM\n")
     if behavior == "slow-success":
         time.sleep(0.4)
     if behavior == "closed-output":
