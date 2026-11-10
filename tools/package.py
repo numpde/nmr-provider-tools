@@ -139,9 +139,11 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
             output.write(payload)
 
     subprocess.run(["bash", "-n", str(destination / "acquisition_tool/owner.sh")], check=True)
-    subprocess.run(["python3", "-I", "-S", "-B", "-c",
-                    "import sys; sys.path.insert(0, sys.argv[1]); import linux_idmap.probe; import provider_core.bound_http_proxy",
-                    str(destination)], check=True)
+    cold_import_check = Path(__file__).with_name("acquisition_import_check.py")
+    subprocess.run(
+        ["python3", "-I", "-S", "-B", str(cold_import_check), str(destination)],
+        check=True,
+    )
     for entrypoint in ("identity.py", "proxy.py"):
         subprocess.run(["python3", "-I", "-S", "-B",
                         str(destination / "acquisition_tool" / entrypoint), "--help"],

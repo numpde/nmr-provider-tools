@@ -5,15 +5,17 @@ from tools.container_guard import require_container
 require_container()
 
 import ast
-import io
 import hashlib
-from contextlib import redirect_stdout
+import io
+import subprocess
+import sys
 import tarfile
 import tempfile
 import unittest
-from unittest.mock import patch
 import zipfile
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from tools.package import artifact_names, check, qualify_acquisition_bundle, source_payload, unpack_source, wheel_payload
 from tools.core_environment import behavioral_install_lock, build_source_wheel, normalize_sdist
@@ -66,9 +68,9 @@ class PackageArtifactTests(unittest.TestCase):
             ("linked", b"", tarfile.SYMTYPE, 0o644),
             ("writable", b"x", tarfile.REGTYPE, 0o666),
         )
-        for (name, payload, kind, mode) in cases:
+        for (index, (name, payload, kind, mode)) in enumerate(cases):
             with self.subTest(name=name):
-                scratch = self.root / f"scratch-{cases.index((name, payload, kind, mode))}"
+                scratch = self.root / f"scratch-{index}"
                 scratch.mkdir()
                 archive_path = scratch / "sources.tar.gz"
                 self._acquisition_archive(archive_path, ((name, payload, kind, mode),))
@@ -89,12 +91,13 @@ class PackageArtifactTests(unittest.TestCase):
                 self.assertFalse((scratch / "escaped").exists())
 
     def test_acquisition_sources_reject_duplicate_and_conflicting_paths(self):
-        for (names, payloads) in (
+        cases = (
             (("acquisition_tool/owner.sh", "acquisition_tool/owner.sh"), (b"a", b"b")),
             (("acquisition_tool", "acquisition_tool/owner.sh"), (b"a", b"b")),
-        ):
+        )
+        for (index, (names, payloads)) in enumerate(cases):
             with self.subTest(names=names):
-                scratch = self.root / str(len(list(self.root.iterdir())))
+                scratch = self.root / f"conflict-{index}"
                 scratch.mkdir()
                 archive_path = scratch / "sources.tar.gz"
                 members = [
@@ -123,8 +126,8 @@ class PackageArtifactTests(unittest.TestCase):
         scratch.mkdir()
         archive_path = scratch / "sources.tar.gz"
         members = (
-            ("acquisition_tool/owner.sh", b"#!/bin/sh\\nexit 0\\n", tarfile.REGTYPE, 0o644),
-            ("provider_core/bound_http_proxy.py", b"PROXY = 1\\n", tarfile.REGTYPE, 0o644),
+            ("acquisition_tool/owner.sh", b"#!/bin/sh\nexit 0\n", tarfile.REGTYPE, 0o644),
+            ("provider_core/bound_http_proxy.py", b"PROXY = 1\n", tarfile.REGTYPE, 0o644),
         )
         self._acquisition_archive(archive_path, members)
         expected = {
@@ -142,6 +145,30 @@ class PackageArtifactTests(unittest.TestCase):
         self.assertEqual(4, commands.call_count)
         for (name, payload, _, _) in members:
             self.assertEqual(payload, (scratch / "acquisition-source" / name).read_bytes())
+
+    def test_cold_import_check_uses_the_extracted_source_tree(self):
+        source = self.root / "cold-import"
+        for name in ("linux_idmap/probe.py", "provider_core/bound_http_proxy.py"):
+            path = source / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("QUALIFIED = True\\n")
+
+        check_script = ROOT / "tools/acquisition_import_check.py"
+        command = [
+            sys.executable,
+            "-I",
+            "-S",
+            "-B",
+            str(check_script),
+            str(source),
+        ]
+
+        valid_imports = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertEqual(0, valid_imports.returncode, msg=valid_imports.stderr)
+
+        (source / "linux_idmap/probe.py").unlink()
+        missing_import = subprocess.run(command, capture_output=True, text=True, check=False)
+        self.assertNotEqual(0, missing_import.returncode)
 
     def test_source_archive_refuses_traversal_links_duplicate_and_special_members_before_extraction(self):
         for name, kind in (("provider_core-0.2.0/../../outside", tarfile.REGTYPE),
