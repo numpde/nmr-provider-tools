@@ -10,7 +10,6 @@ from tools.container_guard import require_container
 require_container()
 
 import argparse
-import os
 import re
 import shutil
 import subprocess
@@ -21,6 +20,7 @@ from pathlib import Path
 from tools.core_environment import (
     behavioral_install_lock,
     build_candidate,
+    build_source_wheel,
     install_environment,
     install_locked,
     pip_command,
@@ -56,11 +56,6 @@ def _build_and_install_example(
             "The example must depend on the candidate provider-core version"
         )
 
-    # Setuptools writes build/lib inside its source directory. Keep the
-    # repository mount read-only and build from disposable writable scratch.
-    staged_source = root / "example-source"
-    shutil.copytree(source, staged_source)
-
     output = root / "example-release"
     output.mkdir()
     builder = install_environment(
@@ -68,21 +63,11 @@ def _build_and_install_example(
         Path("/core-build.lock"),
         pool,
     )
-    subprocess.run(
-        [
-            *pip_command(builder),
-            "wheel",
-            "--disable-pip-version-check",
-            "--no-cache-dir",
-            "--no-index",
-            "--no-deps",
-            "--no-build-isolation",
-            "--wheel-dir",
-            str(output),
-            str(staged_source),
-        ],
-        check=True,
-        env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"},
+    build_source_wheel(
+        source=source,
+        staged_source=root / "example-source",
+        python=builder,
+        output=output,
     )
 
     normalized_distribution = re.sub(r"[-_.]+", "_", distribution)

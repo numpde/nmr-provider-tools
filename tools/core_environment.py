@@ -15,6 +15,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -33,6 +34,50 @@ def pip_command(python):
 
     runner = Path(pip.__file__).resolve().parent / "__pip-runner__.py"
     return [str(python), "-I", str(runner), "--isolated"]
+
+
+
+def build_source_wheel(
+    *,
+    source: Path,
+    staged_source: Path,
+    python: Path,
+    output: Path,
+) -> Path:
+    """Build from writable scratch, never from a read-only source mount.
+
+    The caller owns staged_source's temporary parent and its cleanup. Returning
+    the stage permits a subsequent source-distribution build from the same tree.
+    """
+    if not source.is_dir() or source.is_symlink():
+        raise ValueError("Cannot build wheel: source must be a real directory.")
+    if any(path.is_symlink() for path in source.rglob("*")):
+        raise ValueError("Cannot build wheel: source must not contain symlinks.")
+    if staged_source.resolve().is_relative_to(source.resolve()):
+        raise ValueError("Cannot build wheel: staged source must be outside the input tree.")
+
+    shutil.copytree(source, staged_source)
+    for directory in (staged_source, *staged_source.rglob("*")):
+        if directory.is_dir():
+            directory.chmod(directory.stat().st_mode | stat.S_IWUSR)
+
+    subprocess.run(
+        [
+            *pip_command(python),
+            "wheel",
+            "--disable-pip-version-check",
+            "--no-cache-dir",
+            "--no-index",
+            "--no-deps",
+            "--no-build-isolation",
+            "--wheel-dir",
+            str(output),
+            str(staged_source),
+        ],
+        check=True,
+        env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"},
+    )
+    return staged_source
 
 
 # silent-defaults: allow-contract -- Installation accepts explicit optional immutable extra wheel pools; an omitted pool is the empty collection, while missing required files has a separate None sentinel.
@@ -70,11 +115,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             requirements(frozen)
             identities[role] = select_wheels(frozen, pool, lock_fd=lock_fd)
             locks[role] = frozen
-        package = scratch / "package"
-        if source.is_symlink() or any(path.is_symlink() for path in source.rglob("*")):
-            raise ValueError("Cannot build provider-core: package inputs must not contain symlinks.")
-        shutil.copytree(source, package)
-        document = tomllib.loads((package / "pyproject.toml").read_text())
+        document = tomllib.loads((source / "pyproject.toml").read_text())
         version = document["project"]["version"]
         if not (document["project"]["name"] == "provider-core" and type(version) is str
                 and re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", version) is not None):
@@ -83,10 +124,11 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         subprocess.run([sys.executable, "-I", "-m", "venv", "--without-pip", str(builder)], check=True)
         if install_locked(builder / "bin/python", locks["build"], pool, scratch / "build-install.json", lock_fd=lock_fd) != identities["build"]:
             raise ValueError("Cannot build provider-core: installed build inputs differ from selected inputs.")
-        subprocess.run(
-            [*pip_command(builder / "bin/python"), "wheel", "--disable-pip-version-check", "--no-cache-dir",
-             "--no-index", "--no-deps", "--no-build-isolation", "--wheel-dir", str(output), str(package)],
-            env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"}, check=True,
+        package = build_source_wheel(
+            source=source,
+            staged_source=scratch / "package",
+            python=builder / "bin/python",
+            output=output,
         )
         subprocess.run(
             [str(builder / "bin/python"), "-I", "-B", "-c",
