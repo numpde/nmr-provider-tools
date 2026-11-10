@@ -193,25 +193,24 @@ def _scientific_call_shape(
         or parameter.default is not inspect.Parameter.empty
         for parameter in parameters
     ):
-        raise TypeError(
-            "Scientific call parameters must be required keyword-only parameters"
-        )
+        raise TypeError("Scientific call parameters must be required keyword-only parameters")
 
-    names = tuple(parameter.name for parameter in parameters)
-    unknown = tuple(name for name in names if name not in _CALL_PARAMETERS)
-    if unknown:
-        raise TypeError(f"Scientific call has unknown parameters: {unknown!r}")
-    canonical_names = tuple(name for name in _CALL_PARAMETERS if name in names)
-    if names != canonical_names:
+    parameter_names = tuple(parameter.name for parameter in parameters)
+    unknown_parameters = tuple(name for name in parameter_names if name not in _CALL_PARAMETERS)
+    if unknown_parameters:
+        raise TypeError(f"Scientific call has unknown parameters: {unknown_parameters!r}")
+
+    canonical_names = tuple(name for name in _CALL_PARAMETERS if name in parameter_names)
+    if parameter_names != canonical_names:
         raise TypeError(
             "Scientific call parameters must follow instance, analysis, "
             "scientific_input, state, control order"
         )
 
-    hints = _resolved_callable_hints(scientific_call, label="Scientific call")
-    annotations = {}
+    resolved_annotations = _resolved_callable_hints(scientific_call, label="Scientific call")
+    parameter_annotations = {}
     for parameter in parameters:
-        annotation = hints.get(parameter.name)
+        annotation = resolved_annotations.get(parameter.name)
         if parameter.name == "control":
             if annotation is not ScientificControl:
                 raise TypeError(
@@ -223,36 +222,37 @@ def _scientific_call_shape(
                 f"Scientific call parameter {parameter.name!r} annotation must be "
                 "a concrete type"
             )
-        annotations[parameter.name] = annotation
+        parameter_annotations[parameter.name] = annotation
 
-    instance_type = annotations.get("instance")
-    analysis_type = annotations.get("analysis")
-    input_type = annotations.get("scientific_input", NoInput)
-    state_type = annotations.get("state", NoState)
+    instance_type = parameter_annotations.get("instance")
+    analysis_type = parameter_annotations.get("analysis")
+    input_type = parameter_annotations.get("scientific_input", NoInput)
+    state_type = parameter_annotations.get("state", NoState)
+
     if instance_type is NoneType:
         raise TypeError("Omit the instance parameter when a call has no instance")
     if analysis_type is NoneType:
         raise TypeError("Omit the analysis parameter when a call has no analysis")
-    if "scientific_input" in names and input_type is NoInput:
+    if "scientific_input" in parameter_names and input_type is NoInput:
         raise TypeError("Omit scientific_input when a call has no input fields")
-    if "state" in names and state_type is NoState:
+    if "state" in parameter_names and state_type is NoState:
         raise TypeError("Omit state when a call has no retained scientific state")
 
-    returned = hints.get("return")
-    if get_origin(returned) is not ScientificReturn or len(get_args(returned)) != 1:
+    return_annotation = resolved_annotations.get("return")
+    if get_origin(return_annotation) is not ScientificReturn or len(get_args(return_annotation)) != 1:
         raise TypeError("Scientific call return annotation must be ScientificReturn[OutputT]")
-    (output_type,) = get_args(returned)
+    (output_type,) = get_args(return_annotation)
     if not isinstance(output_type, type):
         raise TypeError("Scientific call output annotation must be a concrete type")
 
     return _ScientificCallShape(
-        parameters=names,
+        parameters=parameter_names,
         instance=instance_type,
         analysis=analysis_type,
         input=input_type,
         state=state_type,
         output=output_type,
-        control="control" in names,
+        control="control" in parameter_names,
     )
 
 
