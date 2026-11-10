@@ -2,18 +2,51 @@
 
 from contextlib import redirect_stderr, redirect_stdout
 import io
+import json
+import os
 from pathlib import Path
+import shutil
 import signal
+import subprocess
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
 
-from acquisition_tool import identity
+from acquisition_tool import identity_main as identity
 from linux_idmap import IdMap, IdRange
 from linux_idmap.probe import ProbeFailure, ProbeResult, Problem, ResourceState, Retirement
 
 
 class IdentityTests(unittest.TestCase):
+    def test_isolated_wrapper_uses_its_bundle_and_preserves_arguments_streams_and_status(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            package = root / "bundle/acquisition_tool"
+            package.mkdir(parents=True)
+            for name in ("__init__.py", "identity.py"):
+                shutil.copyfile(Path(identity.__file__).with_name(name), package / name)
+            (package / "identity_main.py").write_text(
+                'import json, sys\n'
+                'if __name__ == "__main__":\n'
+                '    sys.stdout.write(json.dumps(sys.argv))\n'
+                '    sys.stderr.write("probe diagnostic\\n")\n'
+                '    raise SystemExit(17)\n'
+            )
+            poison = root / "poison/acquisition_tool"
+            poison.mkdir(parents=True)
+            (poison / "__init__.py").write_text('raise RuntimeError("Host package loaded")\n')
+            entrypoint = package / "identity.py"
+            arguments = ["--image", "fixture image", "$(touch sentinel)"]
+            result = subprocess.run(
+                [sys.executable, "-I", "-S", "-B", str(entrypoint), *arguments],
+                env=os.environ | {"PYTHONPATH": str(poison.parent)},
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(17, result.returncode, result.stderr)
+            self.assertEqual([str(entrypoint), *arguments], json.loads(result.stdout))
+            self.assertEqual("probe diagnostic\n", result.stderr)
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

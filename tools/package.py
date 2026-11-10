@@ -254,19 +254,18 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
         ["python3", "-I", "-S", "-B", str(cold_import_check), str(destination)],
         check=True,
     )
-    for entrypoint in ("identity.py", "proxy.py"):
-        subprocess.run(
-            [
-                "python3",
-                "-I",
-                "-S",
-                "-B",
-                str(destination / "acquisition_tool" / entrypoint),
-                "--help",
-            ],
-            check=True,
-            stdout=subprocess.DEVNULL,
-        )
+    subprocess.run(
+        [
+            "python3",
+            "-I",
+            "-S",
+            "-B",
+            str(destination / "acquisition_tool/identity.py"),
+            "--help",
+        ],
+        check=True,
+        stdout=subprocess.DEVNULL,
+    )
 
 
 def unpack_source(archive, destination, version):
