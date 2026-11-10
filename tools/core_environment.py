@@ -85,12 +85,29 @@ def install_locked(python, lock, wheels, report, extra_pools=(), required_files=
     if lock_fd is not None:
         borrowed_descriptors = (lock_fd,)
     subprocess.run(
-        [*pip_command(python), "install", "--ignore-installed", "--disable-pip-version-check",
-         "--no-cache-dir", "--no-index", "--no-deps", "--only-binary=:all:", "--require-hashes",
-         "--no-compile", "--report", str(report),
-         *[argument for directory in (wheels, *extra_pools) for argument in ("--find-links", str(directory))],
-         "-r", str(lock)],
-        check=True, pass_fds=borrowed_descriptors,
+        [
+            *pip_command(python),
+            "install",
+            "--ignore-installed",
+            "--disable-pip-version-check",
+            "--no-cache-dir",
+            "--no-index",
+            "--no-deps",
+            "--only-binary=:all:",
+            "--require-hashes",
+            "--no-compile",
+            "--report",
+            str(report),
+            *[
+                argument
+                for directory in (wheels, *extra_pools)
+                for argument in ("--find-links", str(directory))
+            ],
+            "-r",
+            str(lock),
+        ],
+        check=True,
+        pass_fds=borrowed_descriptors,
     )
     return wheel_inputs_from_report(lock, wheels, report, extra_pools, required_files)
 
@@ -104,6 +121,7 @@ def build_candidate(source, runtime_lock, build_lock, pool, output):
 def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
     if output.is_symlink() or not output.is_dir() or any(output.iterdir()):
         raise ValueError("Cannot build provider-core: output must be a private empty directory.")
+
     with tempfile.TemporaryDirectory(prefix="core-build-") as temporary:
         scratch = Path(temporary)
         identities = {}
@@ -114,51 +132,94 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             requirements(frozen)
             identities[role] = select_wheels(frozen, pool, lock_fd=lock_fd)
             locks[role] = frozen
-        document = tomllib.loads((source / "pyproject.toml").read_text())
-        version = document["project"]["version"]
-        if not (document["project"]["name"] == "provider-core" and type(version) is str
-                and re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", version) is not None):
-            raise ValueError("Cannot build provider-core release: metadata must identify provider-core and a three-part release version.")
+
+        project_metadata = tomllib.loads((source / "pyproject.toml").read_text())
+        release_version = project_metadata["project"]["version"]
+        if not (
+            project_metadata["project"]["name"] == "provider-core"
+            and type(release_version) is str
+            and re.fullmatch(
+                r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",
+                release_version,
+            ) is not None
+        ):
+            raise ValueError(
+                "Cannot build provider-core release: metadata must identify "
+                "provider-core and a three-part release version."
+            )
+
         builder = scratch / "builder"
-        subprocess.run([sys.executable, "-I", "-m", "venv", "--without-pip", str(builder)], check=True)
-        if install_locked(builder / "bin/python", locks["build"], pool, scratch / "build-install.json", lock_fd=lock_fd) != identities["build"]:
+        subprocess.run(
+            [sys.executable, "-I", "-m", "venv", "--without-pip", str(builder)],
+            check=True,
+        )
+        builder_python = builder / "bin/python"
+        installed_build_inputs = install_locked(
+            python=builder_python,
+            lock=locks["build"],
+            wheels=pool,
+            report=scratch / "build-install.json",
+            lock_fd=lock_fd,
+        )
+        if installed_build_inputs != identities["build"]:
             raise ValueError("Cannot build provider-core: installed build inputs differ from selected inputs.")
-        package = build_source_wheel(
+
+        staged_package = build_source_wheel(
             source=source,
             staged_source=scratch / "package",
-            python=builder / "bin/python",
+            python=builder_python,
             output=output,
         )
         sdist_builder = Path(__file__).with_name("build_sdist.py")
         subprocess.run(
             [
-                str(builder / "bin/python"),
+                str(builder_python),
                 "-I",
                 "-B",
                 str(sdist_builder),
                 str(output),
             ],
-            cwd=package,
+            cwd=staged_package,
             env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"},
             check=True,
         )
-        wheel = output / f"provider_core-{version}-py3-none-any.whl"
-        sdist = output / f"provider_core-{version}.tar.gz"
-        if set(output.iterdir()) != {wheel, sdist} or any(not path.is_file() or path.is_symlink() for path in (wheel, sdist)):
-            raise ValueError("Cannot publish provider-core: build must produce exactly its declared wheel and source distribution.")
+        wheel = output / f"provider_core-{release_version}-py3-none-any.whl"
+        sdist = output / f"provider_core-{release_version}.tar.gz"
+        if set(output.iterdir()) != {wheel, sdist} or any(
+            not path.is_file() or path.is_symlink() for path in (wheel, sdist)
+        ):
+            raise ValueError(
+                "Cannot publish provider-core: build must produce exactly "
+                "its declared wheel and source distribution."
+            )
+
         normalize_sdist(sdist)
-        lock = output / f"provider_core-{version}-install.lock"
-        runtime = locks["runtime"].read_text()
+
+        install_lock = output / f"provider_core-{release_version}-install.lock"
+        runtime_lock_text = locks["runtime"].read_text()
         requirements(locks["runtime"])
-        lock.write_text(runtime.rstrip() + f"\nprovider-core=={version} \\\n    --hash=sha256:{digest(wheel)}\n")
-        expected = requirements(locks["runtime"]) | {("provider-core", version): {digest(wheel)}}
-        if requirements(lock) != expected:
-            raise ValueError("Cannot publish provider-core: installation lock differs from the runtime closure and built wheel.")
-        native_lock = output / f"provider_core-{version}-native-install.lock"
-        native_lock.write_text(f"provider-core=={version} \\\n    --hash=sha256:{digest(wheel)}\n")
-        if requirements(native_lock) != {("provider-core", version): {digest(wheel)}}:
+        install_lock.write_text(
+            runtime_lock_text.rstrip()
+            + f"\nprovider-core=={release_version} \\\n    --hash=sha256:{digest(wheel)}\n"
+        )
+        expected_requirements = requirements(locks["runtime"]) | {
+            ("provider-core", release_version): {digest(wheel)}
+        }
+        observed_requirements = requirements(install_lock)
+        if observed_requirements != expected_requirements:
+            raise ValueError(
+                "Cannot publish provider-core: installation lock differs "
+                "from the runtime closure and built wheel."
+            )
+
+        native_lock = output / f"provider_core-{release_version}-native-install.lock"
+        native_lock.write_text(
+            f"provider-core=={release_version} \\\n    --hash=sha256:{digest(wheel)}\n"
+        )
+        if requirements(native_lock) != {("provider-core", release_version): {digest(wheel)}}:
             raise ValueError("Cannot publish provider-core: native installation lock differs from the built wheel.")
-    return wheel, lock, identities
+
+    return wheel, install_lock, identities
 
 
 # silent-defaults: allow-contract -- An optional caller-supplied wheel pool is immutable and empty by default; the expected-inputs and required-files None values signal distinct checks.
