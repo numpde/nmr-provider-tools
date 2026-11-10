@@ -17,3 +17,6 @@ namespaces = false
 
 [tool.setuptools]
 include-package-data = false
+
+[tool.setuptools.package-data]
+dummy_provider = ["resources.toml"]

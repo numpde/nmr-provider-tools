@@ -2,12 +2,13 @@
 
 This standalone Python project shows how scientific functions and a binding
 adapter use the installed `provider_core` interface. The scientific package
-contains only `science.py`, `binding.py` and its package marker.
+contains `science.py`, `binding.py`, `resources.toml` and its package marker.
 
 ```text
 src/dummy_provider/
     science.py         scientific types, functions and state lifetimes
     binding.py         configured scientific call and lifecycle registrations
+    resources.toml     CPU requirement shared by the three scientific calls
 tests/
     test_science.py    direct calculations and scientific rejection/correction
     test_binding.py    binding declarations and installed package boundary
@@ -17,6 +18,12 @@ tests/
 The weighted-sum binding holds a reusable model and per-analysis state. Its
 prepare call returns worker-local state that calculate consumes. The stateless
 sum binding uses the same interface for a single calculation.
+
+Each binding reads the packaged `resources.toml` and validates it through the
+SDK's resource constructor. The validated declaration is described as a JSON
+asset in the binding revision. Changing a resource value changes that revision;
+TOML whitespace and comments do not. Existing bindings retain their captured
+requirements.
 
 ## Starting another provider
 
