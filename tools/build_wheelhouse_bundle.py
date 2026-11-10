@@ -16,50 +16,84 @@ from tools.wheelhouse import requirements
 
 # Bundle construction and release provenance describe the same authored modules.
 # repo-check: allow-module-constant
-SOURCE_MODULES = ("__init__.py", "__main__.py", "stream.py", "report.py", "identity.py", "locate.py", "network.py")
+SOURCE_MODULES = (
+    "__init__.py",
+    "__main__.py",
+    "stream.py",
+    "report.py",
+    "identity.py",
+    "locate.py",
+    "network.py",
+)
 
 def dependency_files(pool, lock):
     files = {}
-    for (package, version), hashes in requirements(lock).items():
-        name = f"{package.replace('-', '_')}-{version}-py3-none-any.whl"
-        wheel = pool / name
-        data = wheel.read_bytes()
-        if hashlib.sha256(data).hexdigest() not in hashes:
-            raise ValueError(f"Cannot build wheelhouse bundle: {name} differs from its pinned hash.")
-        with zipfile.ZipFile(io.BytesIO(data)) as archive:
+    for ((package, version), hashes) in requirements(lock).items():
+        wheel_name = f"{package.replace('-', '_')}-{version}-py3-none-any.whl"
+        wheel_bytes = (pool / wheel_name).read_bytes()
+        if hashlib.sha256(wheel_bytes).hexdigest() not in hashes:
+            raise ValueError(
+                f"Cannot build wheelhouse bundle: {wheel_name} differs from its pinned hash."
+            )
+        with zipfile.ZipFile(io.BytesIO(wheel_bytes)) as archive:
             for member in archive.infolist():
                 if not member.is_dir():
                     if member.filename in files:
-                        raise ValueError(f"Cannot build wheelhouse bundle: duplicate {member.filename}.")
+                        raise ValueError(
+                            f"Cannot build wheelhouse bundle: duplicate {member.filename}."
+                        )
                     files[member.filename] = archive.read(member)
     return files
 
 
 def build(pool, output, source, lock):
-    files = dependency_files(pool, lock)
-    files["__main__.py"] = b"import sys\nif sys.argv[1:2] == ['stream']:\n    del sys.argv[1]\n    from wheelhouse_tool.stream import main\nelif sys.argv[1:2] == ['report']:\n    del sys.argv[1]\n    from wheelhouse_tool.report import main\nelif sys.argv[1:2] == ['identity']:\n    del sys.argv[1]\n    from wheelhouse_tool.identity import main\nelif sys.argv[1:2] == ['locate']:\n    del sys.argv[1]\n    from wheelhouse_tool.locate import main\nelse:\n    from wheelhouse_tool.__main__ import main\nraise SystemExit(main())\n"
+    bundle_members = dependency_files(pool, lock)
+    bundle_members["__main__.py"] = (
+        b"import sys\n"
+        b"if sys.argv[1:2] == ['stream']:\n"
+        b"    del sys.argv[1]\n"
+        b"    from wheelhouse_tool.stream import main\n"
+        b"elif sys.argv[1:2] == ['report']:\n"
+        b"    del sys.argv[1]\n"
+        b"    from wheelhouse_tool.report import main\n"
+        b"elif sys.argv[1:2] == ['identity']:\n"
+        b"    del sys.argv[1]\n"
+        b"    from wheelhouse_tool.identity import main\n"
+        b"elif sys.argv[1:2] == ['locate']:\n"
+        b"    del sys.argv[1]\n"
+        b"    from wheelhouse_tool.locate import main\n"
+        b"else:\n"
+        b"    from wheelhouse_tool.__main__ import main\n"
+        b"raise SystemExit(main())\n"
+    )
     for name in SOURCE_MODULES:
-        files[f"wheelhouse_tool/{name}"] = (source / "wheelhouse_tool" / name).read_bytes()
-    (descriptor, temporary) = tempfile.mkstemp(prefix=f".{output.name}.", suffix=".part", dir=output.parent)
+        bundle_members[f"wheelhouse_tool/{name}"] = (source / "wheelhouse_tool" / name).read_bytes()
+
+    (temporary_fd, temporary_name) = tempfile.mkstemp(
+        prefix=f".{output.name}.",
+        suffix=".part",
+        dir=output.parent,
+    )
     try:
-        with os.fdopen(descriptor, "wb") as stream:
+        with os.fdopen(temporary_fd, "wb") as stream:
             with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_STORED) as archive:
-                for (name, content) in sorted(files.items()):
-                    entry = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
-                    entry.compress_type = zipfile.ZIP_STORED
-                    entry.external_attr = 0o644 << 16
-                    archive.writestr(entry, content)
+                for (name, member_bytes) in sorted(bundle_members.items()):
+                    zip_entry = zipfile.ZipInfo(name, (1980, 1, 1, 0, 0, 0))
+                    zip_entry.compress_type = zipfile.ZIP_STORED
+                    zip_entry.external_attr = 0o644 << 16
+                    archive.writestr(zip_entry, member_bytes)
             stream.flush()
             os.fchmod(stream.fileno(), 0o644)
             os.fsync(stream.fileno())
-        os.link(temporary, output)
-        directory = os.open(output.parent, os.O_RDONLY | os.O_DIRECTORY)
+
+        os.link(temporary_name, output)
+        directory_fd = os.open(output.parent, os.O_RDONLY | os.O_DIRECTORY)
         try:
-            os.fsync(directory)
+            os.fsync(directory_fd)
         finally:
-            os.close(directory)
+            os.close(directory_fd)
     finally:
-        os.unlink(temporary)
+        os.unlink(temporary_name)
 
 
 def main():
