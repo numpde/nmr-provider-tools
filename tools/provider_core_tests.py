@@ -34,21 +34,19 @@ def _build_and_install_example(
     python: Path,
     pool: Path,
 ) -> None:
-    source = Path("/example")
-    project = tomllib.loads((source / "pyproject.toml").read_text())["project"]
-    distribution = project["name"]
-    version = project["version"]
+    example_source = Path("/example")
+    project = tomllib.loads((example_source / "pyproject.toml").read_text())["project"]
+    distribution_name = project["name"]
+    distribution_version = project["version"]
     core_version = tomllib.loads(
         (Path("/package") / "pyproject.toml").read_text()
     )["project"]["version"]
 
-    if distribution != "dummy-provider-example":
-        raise ValueError(
-            "The installed example must identify dummy-provider-example"
-        )
+    if distribution_name != "dummy-provider-example":
+        raise ValueError("The installed example must identify dummy-provider-example")
     if re.fullmatch(
         r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",
-        version,
+        distribution_version,
     ) is None:
         raise ValueError("The installed example requires a three-part version")
     if project.get("dependencies") != [f"provider-core=={core_version}"]:
@@ -56,47 +54,42 @@ def _build_and_install_example(
             "The example must depend on the candidate provider-core version"
         )
 
-    output = root / "example-release"
-    output.mkdir()
-    builder = install_environment(
+    example_output = root / "example-release"
+    example_output.mkdir()
+
+    builder_python = install_environment(
         Path("/runtime/example-builder"),
         Path("/core-build.lock"),
         pool,
     )
     build_source_wheel(
-        source=source,
+        source=example_source,
         staged_source=root / "example-source",
-        python=builder,
-        output=output,
+        python=builder_python,
+        output=example_output,
     )
 
-    normalized_distribution = re.sub(r"[-_.]+", "_", distribution)
-    wheel = output / f"{normalized_distribution}-{version}-py3-none-any.whl"
-    if set(output.iterdir()) != {wheel} or not wheel.is_file():
+    wheel_distribution_name = re.sub(r"[-_.]+", "_", distribution_name)
+    example_wheel = example_output / f"{wheel_distribution_name}-{distribution_version}-py3-none-any.whl"
+
+    if set(example_output.iterdir()) != {example_wheel} or not example_wheel.is_file():
         raise ValueError("The example build did not produce its one expected wheel")
 
-    lock = root / "example-install.lock"
+    example_install_lock = root / "example-install.lock"
     continuation = "\\"
-    lock.write_text(
-        f"{distribution}=={version} {continuation}\n"
-        f"    --hash=sha256:{digest(wheel)}\n"
+    example_install_lock.write_text(
+        f"{distribution_name}=={distribution_version} {continuation}\n"
+        f"    --hash=sha256:{digest(example_wheel)}\n"
     )
     install_locked(
         python,
-        lock,
+        example_install_lock,
         pool,
         root / "example-install.json",
-        extra_pools=(output,),
-        required_files={wheel.name: wheel},
+        extra_pools=(example_output,),
+        required_files={example_wheel.name: example_wheel},
     )
-    subprocess.run(
-        [
-            *pip_command(python),
-            "--no-cache-dir",
-            "check",
-        ],
-        check=True,
-    )
+    subprocess.run([*pip_command(python), "--no-cache-dir", "check"], check=True)
 
 
 def _run_installed_suite(
@@ -106,7 +99,7 @@ def _run_installed_suite(
     selection: str,
     patterns: tuple[str, ...],
 ) -> None:
-    outcome = subprocess.run(
+    test_process = subprocess.run(
         [
             str(python),
             "-I",
@@ -118,57 +111,58 @@ def _run_installed_suite(
         cwd=run,
         check=False,
     )
-    if outcome.returncode:
+    if test_process.returncode:
         raise SystemExit(
             f"Installed provider-core {selection} tests failed "
-            f"(exit {outcome.returncode}); see the failure summary or "
+            f"(exit {test_process.returncode}); see the failure summary or "
             "diagnostic immediately above."
         )
 
 
 def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
     with tempfile.TemporaryDirectory(prefix="core-tests-") as temporary:
-        root = Path(temporary)
-        pool = Path("/wheelhouse")
-        output = root / "release"
-        output.mkdir()
+        scratch = Path(temporary)
+        wheelhouse = Path("/wheelhouse")
+        candidate_output = scratch / "release"
+        candidate_output.mkdir()
 
-        (wheel, lock, _) = build_candidate(
+        (candidate_wheel, candidate_lock, _) = build_candidate(
             Path("/package"),
             Path("/core-runtime.lock"),
             Path("/core-build.lock"),
-            pool,
-            output,
+            wheelhouse,
+            candidate_output,
         )
 
         # Behavioral suites need their pinned test closure. Contract and native
         # installation proofs remain dependency-pure.
-        install_lock = lock
+        install_lock = candidate_lock
         if suite in ("unit", "integration", "integration/delivery", "fuzz"):
             install_lock = behavioral_install_lock(
-                lock,
+                candidate_lock,
                 Path("/package/tests/requirements.lock"),
-                root / "behavioral-install.lock",
+                scratch / "behavioral-install.lock",
             )
-        python = install_environment(
+
+        runtime_python = install_environment(
             Path("/runtime"),
             install_lock,
-            pool,
-            extra_pools=(output,),
-            required_files={wheel.name: wheel},
+            wheelhouse,
+            extra_pools=(candidate_output,),
+            required_files={candidate_wheel.name: candidate_wheel},
         )
 
-        run = root / "run"
-        shutil.copytree(Path("/package/tests"), run / "tests")
+        test_tree = scratch / "run"
+        shutil.copytree(Path("/package/tests"), test_tree / "tests")
         if suite == "integration":
             _build_and_install_example(
-                root=root,
-                python=python,
-                pool=pool,
+                root=scratch,
+                python=runtime_python,
+                pool=wheelhouse,
             )
             shutil.copytree(
                 Path("/example/tests"),
-                run / "tests/integration/dummy_provider_example",
+                test_tree / "tests/integration/dummy_provider_example",
             )
 
         # silent-defaults: allow-contract -- Fuzz selects both owned suites;
@@ -176,27 +170,27 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
         selections = ("integration", "unit") if suite == "fuzz" else (suite,)
         for selection in selections:
             _run_installed_suite(
-                python=python,
-                run=run,
+                python=runtime_python,
+                run=test_tree,
                 selection=selection,
                 patterns=patterns,
             )
 
         if suite == "unit":
-            native_lock = output / wheel.name.replace(
+            native_lock = candidate_output / candidate_wheel.name.replace(
                 "-py3-none-any.whl",
                 "-native-install.lock",
             )
             native_python = install_environment(
                 Path("/runtime/native-proof"),
                 native_lock,
-                pool,
-                extra_pools=(output,),
-                required_files={wheel.name: wheel},
+                wheelhouse,
+                extra_pools=(candidate_output,),
+                required_files={candidate_wheel.name: candidate_wheel},
             )
             _run_installed_suite(
                 python=native_python,
-                run=run,
+                run=test_tree,
                 selection="native",
                 patterns=("test*.py",),
             )
