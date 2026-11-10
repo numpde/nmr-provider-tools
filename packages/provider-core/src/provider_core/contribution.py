@@ -551,6 +551,7 @@ class CallBinding[InputT, StateT, OutputT]:
     def __post_init__(self) -> None:
         if type(self.description) is not CallDescription:
             raise TypeError("A call binding requires its CallDescription")
+
         for (codec, label) in (
             (self.input_codec, "Input codec"),
             (self.result_codec, "Result codec"),
@@ -564,35 +565,37 @@ class CallBinding[InputT, StateT, OutputT]:
         if not isinstance(self.state_binding, StateBinding):
             raise TypeError("State binding must implement StateBinding")
 
-        declared_states = tuple(
+        declared_state_names = tuple(
             parameter.name
             for parameter in self.description.state_inputs
         )
-        if self.state_binding.names != declared_states:
+        if self.state_binding.names != declared_state_names:
             raise ValueError("State binding fields differ from the call's declared state inputs")
 
         _callback(self.scientific_call, "Scientific call")
-        shape = _scientific_call_shape(self.scientific_call)
-        for (actual, expected, label) in (
-            (shape.input, self.input_codec.value_type, "input"),
-            (shape.state, self.state_binding.value_type, "state"),
-            (shape.output, self.result_codec.value_type, "output"),
+        call_shape = _scientific_call_shape(self.scientific_call)
+        for (actual_type, expected_type, role) in (
+            (call_shape.input, self.input_codec.value_type, "input"),
+            (call_shape.state, self.state_binding.value_type, "state"),
+            (call_shape.output, self.result_codec.value_type, "output"),
         ):
-            if actual is not expected:
+            if actual_type is not expected_type:
                 raise TypeError(
-                    f"Scientific call {label} annotation must be exactly "
-                    f"{expected.__qualname__}"
+                    f"Scientific call {role} annotation must be exactly "
+                    f"{expected_type.__qualname__}"
                 )
-        needs_control = (
+
+        requires_control = (
             self.description.interruption is InterruptionSupport.COOPERATIVE
             or self.description.progress
         )
-        if shape.control != needs_control:
+        if call_shape.control != requires_control:
             raise TypeError(
                 "Scientific call control parameter must match its interruption "
                 "and progress declarations"
             )
-        object.__setattr__(self, "_shape", shape)
+        object.__setattr__(self, "_shape", call_shape)
+
 
     @classmethod
     def from_json_dataclasses(
@@ -610,10 +613,10 @@ class CallBinding[InputT, StateT, OutputT]:
         scientific_call: Callable[..., ScientificReturn[OutputT]],
     ) -> CallBinding[InputT, StateT, OutputT]:
         """Build one typed JSON call from its scientific function and metadata."""
-        shape = _scientific_call_shape(scientific_call)
-        input_type = cast(type[InputT], shape.input)
-        state_type = cast(type[StateT], shape.state)
-        output_type = cast(type[OutputT], shape.output)
+        call_shape = _scientific_call_shape(scientific_call)
+        input_type = cast(type[InputT], call_shape.input)
+        state_type = cast(type[StateT], call_shape.state)
+        output_type = cast(type[OutputT], call_shape.output)
 
         if input_type is NoInput:
             if input_format is not None:
@@ -668,7 +671,7 @@ class CallBinding[InputT, StateT, OutputT]:
         control: ScientificControl,
     ) -> ScientificReturn[OutputT]:
         """Bind and pass only the scientific values this call declares."""
-        available = {
+        scientific_arguments = {
             "instance": instance,
             "analysis": analysis,
             "scientific_input": scientific_input,
@@ -676,7 +679,7 @@ class CallBinding[InputT, StateT, OutputT]:
             "control": control,
         }
         return self.scientific_call(
-            **{name: available[name] for name in self._shape.parameters}
+            **{name: scientific_arguments[name] for name in self._shape.parameters}
         )
 
     def encode_result(self, value: OutputT) -> bytes:
@@ -701,9 +704,9 @@ class ImplementationBinding[InstanceT, AnalysisT]:
             raise TypeError("Analysis hooks must be AnalysisHooks or None")
         _records(self.calls, CallBinding, "Call bindings")
 
-        bound = {call.description.name: call.description for call in self.calls}
-        declared = {call.name: call for call in self.description.calls}
-        if len(bound) != len(self.calls) or bound != declared:
+        bound_descriptions = {call.description.name: call.description for call in self.calls}
+        declared_descriptions = {call.name: call for call in self.description.calls}
+        if len(bound_descriptions) != len(self.calls) or bound_descriptions != declared_descriptions:
             raise ValueError("Call bindings must agree exactly with the declared calls")
 
         if self.instance is None:
@@ -749,13 +752,13 @@ class ImplementationBinding[InstanceT, AnalysisT]:
             )
 
         for call in self.calls:
-            shape = call._shape
-            if shape.instance is not None and shape.instance is not instance_type:
+            call_shape = call._shape
+            if call_shape.instance is not None and call_shape.instance is not instance_type:
                 raise TypeError(
                     f"Call {call.description.name!r} instance annotation must be "
                     f"{instance_type.__qualname__}"
                 )
-            if shape.analysis is not None and shape.analysis is not analysis_type:
+            if call_shape.analysis is not None and call_shape.analysis is not analysis_type:
                 raise TypeError(
                     f"Call {call.description.name!r} analysis annotation must be "
                     f"{analysis_type.__qualname__}"
