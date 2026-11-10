@@ -197,7 +197,7 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
         raise ValueError("Cannot qualify acquisition source bundle: missing source inventory.")
 
     with tarfile.open(bundle, "r:gz") as archive:
-        sources = {}
+        verified_sources = {}
         for member in archive.getmembers():
             member_path = PurePosixPath(member.name)
             if (
@@ -207,9 +207,11 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
                 or ".." in member_path.parts
                 or member_path.as_posix() != member.name
                 or not member.isfile()
-                or member.name in sources
+                or member.name in verified_sources
             ):
-                raise ValueError("Cannot qualify acquisition source bundle: unsafe or duplicate member.")
+                raise ValueError(
+                    "Cannot qualify acquisition source bundle: unsafe or duplicate member."
+                )
 
             expected_member = expected_source_files.get(member.name)
             if (
@@ -218,27 +220,34 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
                 or member.size != expected_member["size"]
                 or member.mode != expected_member["mode"]
             ):
-                raise ValueError("Cannot qualify acquisition source bundle: member differs from source inventory.")
+                raise ValueError(
+                    "Cannot qualify acquisition source bundle: member differs from source inventory."
+                )
 
             with archive.extractfile(member) as reader:
-                payload = reader.read()
-            if hashlib.sha256(payload).hexdigest() != expected_member["sha256"]:
-                raise ValueError("Cannot qualify acquisition source bundle: member checksum differs from source inventory.")
-            sources[member.name] = payload
+                member_bytes = reader.read()
+            if hashlib.sha256(member_bytes).hexdigest() != expected_member["sha256"]:
+                raise ValueError(
+                    "Cannot qualify acquisition source bundle: member checksum "
+                    "differs from source inventory."
+                )
+            verified_sources[member.name] = member_bytes
 
-    if set(sources) != set(expected_source_files):
+    if set(verified_sources) != set(expected_source_files):
         raise ValueError("Cannot qualify acquisition source bundle: incomplete source inventory.")
-    for name in sources:
-        if any(parent.as_posix() in sources for parent in PurePosixPath(name).parents):
-            raise ValueError("Cannot qualify acquisition source bundle: member conflicts with its parent path.")
+    for name in verified_sources:
+        if any(parent.as_posix() in verified_sources for parent in PurePosixPath(name).parents):
+            raise ValueError(
+                "Cannot qualify acquisition source bundle: member conflicts with its parent path."
+            )
 
     destination = scratch / "acquisition-source"
     destination.mkdir()
-    for (name, payload) in sources.items():
-        target = destination / name
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with target.open("xb") as output:
-            output.write(payload)
+    for (name, member_bytes) in verified_sources.items():
+        extracted_file = destination / name
+        extracted_file.parent.mkdir(parents=True, exist_ok=True)
+        with extracted_file.open("xb") as output:
+            output.write(member_bytes)
 
     subprocess.run(["bash", "-n", str(destination / "acquisition_tool/owner.sh")], check=True)
     cold_import_check = Path(__file__).with_name("acquisition_import_check.py")
@@ -247,69 +256,149 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
         check=True,
     )
     for entrypoint in ("identity.py", "proxy.py"):
-        subprocess.run(["python3", "-I", "-S", "-B",
-                        str(destination / "acquisition_tool" / entrypoint), "--help"],
-                       check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(
+            [
+                "python3",
+                "-I",
+                "-S",
+                "-B",
+                str(destination / "acquisition_tool" / entrypoint),
+                "--help",
+            ],
+            check=True,
+            stdout=subprocess.DEVNULL,
+        )
+
 
 
 def unpack_source(archive, destination, version):
     """Admit the complete tar inventory before creating any extracted file."""
     root_name = f"provider_core-{version}"
-    with tarfile.open(archive, "r:gz") as source:
-        members = source.getmembers()
-        names = set()
+    with tarfile.open(archive, "r:gz") as source_archive:
+        members = source_archive.getmembers()
+        member_names = set()
         for member in members:
-            path = PurePosixPath(member.name)
-            if (member.name in names or not member.name or path.is_absolute() or ".." in path.parts
-                    or path.as_posix() != member.name or path.parts[0] != root_name
-                    or not (member.isfile() or member.isdir()) or member.mode & 0o022):
-                raise ValueError("Cannot qualify package: source archive has duplicate, unsafe or unsupported members.")
-            names.add(member.name)
+            member_path = PurePosixPath(member.name)
+            if (
+                member.name in member_names
+                or not member.name
+                or member_path.is_absolute()
+                or ".." in member_path.parts
+                or member_path.as_posix() != member.name
+                or member_path.parts[0] != root_name
+                or not (member.isfile() or member.isdir())
+                or member.mode & 0o022
+            ):
+                raise ValueError(
+                    "Cannot qualify package: source archive has duplicate, "
+                    "unsafe or unsupported members."
+                )
+            member_names.add(member.name)
+
         for member in members:
-            target = destination / member.name
+            extracted_path = destination / member.name
             if member.isdir():
-                target.mkdir(parents=True, exist_ok=True)
+                extracted_path.mkdir(parents=True, exist_ok=True)
             else:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                with source.extractfile(member) as reader, target.open("xb") as writer:
+                extracted_path.parent.mkdir(parents=True, exist_ok=True)
+                with source_archive.extractfile(member) as reader, extracted_path.open("xb") as writer:
                     shutil.copyfileobj(reader, writer)
-                target.chmod(member.mode & 0o777)
+                extracted_path.chmod(member.mode & 0o777)
+
     return destination / root_name
+
 
 
 def source_payload(source, inventory):
     if type(inventory) is not dict or not inventory:
         raise ValueError("Cannot qualify package: the pre-build source inventory is missing.")
+
     for (name, facts) in inventory.items():
-        path = PurePosixPath(name)
-        if (path.is_absolute() or ".." in path.parts or path.as_posix() != name
-                or not (name in {"README.md", "MANIFEST.in", "pyproject.toml"} or name.startswith(("src/provider_core/", "tests/")))
-                or type(facts) is not dict or set(facts) != {"sha256", "size", "mode"}):
-            raise ValueError("Cannot qualify package: the recorded source inventory has unsupported entries.")
-        actual = source / name
-        if (not actual.is_file() or digest(actual) != facts["sha256"] or actual.stat().st_size != facts["size"]
-                or actual.stat().st_mode & 0o777 != facts["mode"]):
-            raise ValueError("Cannot qualify package: source distribution differs from its pre-build source inventory.")
-    generated = {"PKG-INFO", "setup.cfg"} | {
+        member_path = PurePosixPath(name)
+        if (
+            member_path.is_absolute()
+            or ".." in member_path.parts
+            or member_path.as_posix() != name
+            or not (
+                name in {"README.md", "MANIFEST.in", "pyproject.toml"}
+                or name.startswith(("src/provider_core/", "tests/"))
+            )
+            or type(facts) is not dict
+            or set(facts) != {"sha256", "size", "mode"}
+        ):
+            raise ValueError(
+                "Cannot qualify package: the recorded source inventory "
+                "has unsupported entries."
+            )
+
+        source_file = source / name
+        if (
+            not source_file.is_file()
+            or digest(source_file) != facts["sha256"]
+            or source_file.stat().st_size != facts["size"]
+            or source_file.stat().st_mode & 0o777 != facts["mode"]
+        ):
+            raise ValueError(
+                "Cannot qualify package: source distribution differs from "
+                "its pre-build source inventory."
+            )
+
+    generated_metadata_files = {"PKG-INFO", "setup.cfg"} | {
         "src/provider_core.egg-info/" + name
-        for name in ("PKG-INFO", "SOURCES.txt", "dependency_links.txt", "requires.txt", "top_level.txt")
+        for name in (
+            "PKG-INFO",
+            "SOURCES.txt",
+            "dependency_links.txt",
+            "requires.txt",
+            "top_level.txt",
+        )
     }
-    observed = {path.relative_to(source).as_posix() for path in source.rglob("*") if path.is_file()}
-    if observed != set(inventory) | generated:
-        raise ValueError("Cannot qualify package: source distribution has missing or unrecorded authored files.")
-    return {name.removeprefix("src/"): (source / name).read_bytes() for name in inventory if name.startswith("src/provider_core/")}
+    observed_files = {
+        path.relative_to(source).as_posix()
+        for path in source.rglob("*")
+        if path.is_file()
+    }
+    if observed_files != set(inventory) | generated_metadata_files:
+        raise ValueError(
+            "Cannot qualify package: source distribution has missing "
+            "or unrecorded authored files."
+        )
+
+    return {
+        name.removeprefix("src/"): (source / name).read_bytes()
+        for name in inventory
+        if name.startswith("src/provider_core/")
+    }
+
 
 
 def wheel_payload(wheel, expected, version):
     with zipfile.ZipFile(wheel) as archive:
-        names = archive.namelist()
-        metadata = f"provider_core-{version}.dist-info/"
-        if len(names) != len(set(names)) or any(not name.startswith(metadata) and name not in expected for name in names):
+        archive_members = archive.namelist()
+        metadata_prefix = f"provider_core-{version}.dist-info/"
+        if len(archive_members) != len(set(archive_members)) or any(
+            not name.startswith(metadata_prefix) and name not in expected
+            for name in archive_members
+        ):
             raise ValueError("Cannot qualify package: wheel contains duplicate or unexpected payload files.")
-        payload = {name: archive.read(name) for name in names if not name.startswith(metadata)}
-        if payload != expected:
-            raise ValueError("Cannot qualify package: installed wheel payload differs from its captured source files.")
-        return {name.removeprefix(metadata): archive.read(name) for name in names if name.startswith(metadata) and not name.endswith("/RECORD")}
+
+        wheel_files = {
+            name: archive.read(name)
+            for name in archive_members
+            if not name.startswith(metadata_prefix)
+        }
+        if wheel_files != expected:
+            raise ValueError(
+                "Cannot qualify package: installed wheel payload differs "
+                "from its captured source files."
+            )
+
+        return {
+            name.removeprefix(metadata_prefix): archive.read(name)
+            for name in archive_members
+            if name.startswith(metadata_prefix) and not name.endswith("/RECORD")
+        }
+
 
 
 def qualify_installed(wheel, lock, source, pool, root, suites):
