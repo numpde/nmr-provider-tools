@@ -1,5 +1,16 @@
 #!/bin/bash
 set -eu
+if [[ ${0##*/} == python3 ]]; then
+  [[ $# == 14 && $1 == -I && $2 == -S && $3 == -B ]] || exit 97
+  [[ $4 == "$ACQUISITION_SOURCE_ROOT/acquisition_tool/identity.py" ]] || exit 97
+  [[ $5 == --endpoint && $7 == --image && $9 == --host-uid ]] || exit 97
+  [[ ${11} == --host-gid && ${13} == --retired-receipt ]] || exit 97
+  [[ -n $6 && -n $8 && -n ${10} && -n ${12} ]] || exit 97
+  printf '%s\n' "$6" "$8" "${10}" "${12}" >> "$ENGINE_STATE/identity-arguments"
+  (set -C; printf 'retired\n' > "${14}")
+  printf '17 19\n'
+  exit 0
+fi
 exec 2>>"$ENGINE_STATE/engine-error"
 if [[ ${0##*/} == stat ]]; then
   if [[ $# == 4 && $1 == -c && $2 == '%s' && $3 == -- && $4 == */gateway/stdout ]]; then

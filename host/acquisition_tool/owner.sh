@@ -79,11 +79,46 @@ _acq_capture() {
 
 # The helper writes host-owner mapping only after its qualified probe retires.
 acquisition_map_owner() {
+    [[ $# == 3 || $# == 5 ]] || {
+        printf '%s\n' 'Identity mapping requires output names, an image, and optionally a host UID and GID pair.' >&2
+        return 2
+    }
     local _acq_uid_name=$1 _acq_gid_name=$2 _acq_map_image=$3
-    local _acq_host_uid=${4:-$(id -u)} _acq_host_gid=${5:-$(id -g)}
+    local _acq_host_uid _acq_host_gid _acq_map_in_scope=false
     local _acq_map_endpoint _acq_map_bundle _acq_map_directory _acq_map_status=0 _acq_map_uid= _acq_map_gid= _acq_map_diagnostic=
     local inference_retirement_confirmed=true inference_cancellation_status=0 inference_diagnostic=
-    _acq_map_endpoint=${_acq_endpoint:-${NMR_SELECTED_DOCKER_ENDPOINT:-}}
+    if [[ $# == 3 ]]; then
+        _acq_host_uid=$(id -u) || return "$?"
+        _acq_host_gid=$(id -g) || return "$?"
+    else
+        _acq_host_uid=$4
+        _acq_host_gid=$5
+        [[ -n $_acq_host_uid && -n $_acq_host_gid ]] || {
+            printf '%s\n' 'Identity mapping requires a nonempty host UID and GID pair.' >&2
+            return 2
+        }
+    fi
+    # Keep probe diagnostics and cancellation attached to the calling scope.
+    if [[ -v _acq_active ]]; then
+        case $_acq_active in
+            true) _acq_map_in_scope=true ;;
+            false) ;;
+            *) printf '%s\n' 'Cannot map identity: acquisition scope state is invalid.' >&2; return 2 ;;
+        esac
+    fi
+    if "$_acq_map_in_scope"; then
+        [[ -v _acq_endpoint ]] || {
+            printf '%s\n' 'Identity mapping requires the active scope endpoint.' >&2
+            return 2
+        }
+        _acq_map_endpoint=$_acq_endpoint
+    else
+        [[ -v NMR_SELECTED_DOCKER_ENDPOINT ]] || {
+            printf '%s\n' 'Identity mapping requires an explicitly selected endpoint.' >&2
+            return 2
+        }
+        _acq_map_endpoint=$NMR_SELECTED_DOCKER_ENDPOINT
+    fi
     [[ -n $_acq_map_endpoint ]] || { printf '%s\n' 'Identity mapping requires an explicitly selected endpoint.' >&2; return 2; }
     _acq_map_bundle=$(_acq_bundle_path) || return 2
     source "$_acq_map_bundle/tools/inference_native.sh"
@@ -96,17 +131,17 @@ acquisition_map_owner() {
         _acq_map_diagnostic+=$(<"$_acq_map_directory/output.stderr")
         _acq_map_diagnostic+=$'\n'
     fi
-    if [[ ${_acq_active:-false} == true ]]; then _acq_diagnostic+=$_acq_map_diagnostic; fi
+    if [[ $_acq_map_in_scope == true ]]; then _acq_diagnostic+=$_acq_map_diagnostic; fi
     if ! "$inference_retirement_confirmed" || ! cmp -s "$_acq_map_directory/retired" <(printf 'retired\n'); then
-        if [[ ${_acq_active:-false} == true ]]; then _acq_identity_unsettled=true; _acq_failed=true; fi
-        if [[ ${_acq_active:-false} == true ]]; then
+        if [[ $_acq_map_in_scope == true ]]; then _acq_identity_unsettled=true; _acq_failed=true; fi
+        if [[ $_acq_map_in_scope == true ]]; then
             printf -v _acq_diagnostic '%sCannot confirm identity probe retirement; retained evidence at %q.\n' "$_acq_diagnostic" "$_acq_map_directory"
         else
             printf '%s' "$_acq_map_diagnostic" >&2
             printf 'Cannot confirm identity probe retirement; retained evidence at %q.\n' "$_acq_map_directory" >&2
         fi
         if [[ $inference_cancellation_status != 0 ]]; then
-            if [[ ${_acq_active:-false} == true ]]; then
+            if [[ $_acq_map_in_scope == true ]]; then
                 _acq_cancelled=$inference_cancellation_status; exit "$_acq_cancelled"
             fi
             return "$inference_cancellation_status"
@@ -118,8 +153,8 @@ acquisition_map_owner() {
         if [[ ! $_acq_map_uid =~ ^[0-9]+$ || ! $_acq_map_gid =~ ^[0-9]+$ ]]             || ! cmp -s "$_acq_map_directory/output" <(printf '%s %s\n' "$_acq_map_uid" "$_acq_map_gid"); then _acq_map_status=2; fi
     fi
     rm -rf -- "$_acq_map_directory" || return 2
-    if [[ ${_acq_active:-false} != true ]]; then printf '%s' "$_acq_map_diagnostic" >&2; fi
-    if [[ ${_acq_active:-false} == true && ( $_acq_map_status == 129 || $_acq_map_status == 130 || $_acq_map_status == 143 ) ]]; then
+    if [[ $_acq_map_in_scope == false ]]; then printf '%s' "$_acq_map_diagnostic" >&2; fi
+    if [[ $_acq_map_in_scope == true && ( $_acq_map_status == 129 || $_acq_map_status == 130 || $_acq_map_status == 143 ) ]]; then
         _acq_cancelled=$_acq_map_status; exit "$_acq_map_status"
     fi
     [[ $_acq_map_status == 0 ]] || return "$_acq_map_status"
@@ -191,7 +226,8 @@ _acq_ready() {
 }
 
 acquisition_set_route() {
-    [[ ${_acq_active:-false} == true && $# == 1 && -n $1 ]] || return 2
+    [[ -v _acq_active && $_acq_active == true ]] || return 2
+    [[ $# == 1 && -n $1 ]] || return 2
     [[ -z $_acq_route || $_acq_route == "$1" ]] || { _acq_fail 'Cannot change route in an active acquisition scope.'; return 2; }
     _acq_route=$1
 }
@@ -242,8 +278,14 @@ _acq_start_route() {
 
 acquisition_worker() {
     local _acq_budget=untimed
-    if [[ ${1:-} == --timeout ]]; then _acq_budget=$2; shift 2; fi
-    [[ $# == 5 && ${_acq_active:-false} == true ]] || return 2
+    [[ $# -gt 0 ]] || return 2
+    if [[ $1 == --timeout ]]; then
+        [[ $# -ge 2 ]] || return 2
+        _acq_budget=$2
+        shift 2
+    fi
+    [[ $# == 5 ]] || return 2
+    [[ -v _acq_active && $_acq_active == true ]] || return 2
     local _acq_mode=$1 _acq_result_name=$2 _acq_image=$3 _acq_create_name=$4 _acq_app_name=$5
     local _acq_token _acq_attach_status=0 _acq_running _acq_exit _acq_extra
     local -n _acq_create_ref=$_acq_create_name _acq_app_ref=$_acq_app_name
@@ -368,7 +410,9 @@ _acq_cleanup_client() {
 }
 
 acquisition_scope() {
-    [[ ${_acq_active:-false} != true ]] || return 2
+    if [[ -v _acq_active ]]; then
+        [[ $_acq_active == false ]] || return 2
+    fi
     # Bash can unwind function locals before EXIT under errexit. Keep this
     # process's cleanup authority alive until its owned trap has finished.
     declare -g _acq_endpoint= _acq_bootstrap_image= _acq_retired_receipt=

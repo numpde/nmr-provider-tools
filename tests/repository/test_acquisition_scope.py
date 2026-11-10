@@ -18,6 +18,166 @@ import unittest
 
 
 class AcquisitionScopeTests(unittest.TestCase):
+    def run_mapping(self, body):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        binary = root / 'bin'
+        binary.mkdir()
+        actor = Path(__file__).resolve().parent / 'fixtures/acquisition_engine.sh'
+        (binary / 'python3').symlink_to(actor)
+        script = r'''
+set -euo pipefail
+unset _acq_active _acq_endpoint NMR_SELECTED_DOCKER_ENDPOINT
+source "$ACQUISITION_SOURCE_ROOT/acquisition_tool/owner.sh"
+''' + body
+        environment = {
+            **os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}', 'ENGINE_STATE': str(root),
+            'ACQUISITION_SOURCE_ROOT': str(Path(__file__).resolve().parents[2] / 'host'),
+        }
+        process = subprocess.Popen(['bash', '-c', script], env=environment,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+        def stop():
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+                process.communicate()
+        self.addCleanup(stop)
+        stdout, stderr = process.communicate(timeout=20)
+        return process.returncode, stdout, stderr, root
+
+    def test_mapping_uses_native_or_explicit_host_owner_pair(self):
+        status, stdout, stderr, root = self.run_mapping(r'''
+NMR_SELECTED_DOCKER_ENDPOINT=unix:///selected.sock
+uid=unchanged gid=unchanged
+acquisition_map_owner uid gid fixture:identity
+printf '%s %s\n' "$uid" "$gid"
+acquisition_map_owner uid gid fixture:identity 1007 2009
+printf '%s %s\n' "$uid" "$gid"
+''')
+        self.assertEqual(0, status, msg=stderr)
+        self.assertEqual(b'17 19\n17 19\n', stdout)
+        self.assertEqual([
+            'unix:///selected.sock', 'fixture:identity', str(os.geteuid()), str(os.getegid()),
+            'unix:///selected.sock', 'fixture:identity', '1007', '2009',
+        ], (root / 'identity-arguments').read_text().splitlines())
+
+    def test_invalid_mapping_arguments_do_not_probe_or_replace_outputs(self):
+        for arguments in ('', 'uid', 'uid gid', 'uid gid fixture:image 1007',
+                          'uid gid fixture:image 1007 2009 extra',
+                          'uid gid fixture:image "" 2009', 'uid gid fixture:image 1007 ""'):
+            with self.subTest(arguments=arguments):
+                status, stdout, stderr, root = self.run_mapping(r'''
+NMR_SELECTED_DOCKER_ENDPOINT=unix:///selected.sock
+uid=unchanged gid=unchanged
+status=0
+acquisition_map_owner ''' + arguments + r''' || status=$?
+printf '%s %s %s\n' "$status" "$uid" "$gid"
+''')
+                self.assertEqual(0, status, msg=stderr)
+                self.assertEqual(b'2 unchanged unchanged\n', stdout)
+                self.assertFalse((root / 'identity-arguments').exists())
+                self.assertNotIn(b'unbound variable', stderr)
+
+    def test_mapping_uses_active_scope_endpoint_and_current_standalone_selection(self):
+        status, stdout, stderr, root = self.run_mapping(r'''
+NMR_SELECTED_DOCKER_ENDPOINT=unix:///standalone-a.sock
+mapped() { acquisition_map_owner uid gid fixture:identity 1007 2009; }
+acquisition_scope --endpoint unix:///scope.sock --bootstrap-image fixture:bootstrap -- mapped
+[[ $_acq_active == false && $_acq_endpoint == unix:///scope.sock ]]
+NMR_SELECTED_DOCKER_ENDPOINT=unix:///standalone-b.sock
+acquisition_map_owner uid gid fixture:identity 1007 2009
+printf '%s %s\n' "$uid" "$gid"
+''')
+        self.assertEqual(0, status, msg=stderr)
+        self.assertEqual(b'17 19\n', stdout)
+        self.assertEqual([
+            'unix:///scope.sock', 'fixture:identity', '1007', '2009',
+            'unix:///standalone-b.sock', 'fixture:identity', '1007', '2009',
+        ], (root / 'identity-arguments').read_text().splitlines())
+
+    def test_missing_active_endpoint_never_falls_back_to_standalone_selection(self):
+        for mutation in ('_acq_endpoint=', 'unset _acq_endpoint'):
+            with self.subTest(mutation=mutation):
+                status, stdout, stderr, root = self.run_mapping(r'''
+NMR_SELECTED_DOCKER_ENDPOINT=unix:///standalone.sock
+mapped() { ''' + mutation + r'''; acquisition_map_owner uid gid fixture:identity 1007 2009; }
+acquisition_scope --endpoint unix:///scope.sock --bootstrap-image fixture:bootstrap -- mapped
+''')
+                self.assertEqual(2, status, msg=stderr)
+                self.assertEqual(b'', stdout)
+                self.assertFalse((root / 'identity-arguments').exists())
+
+    def test_missing_standalone_selection_does_not_reuse_stale_scope_endpoint(self):
+        for selection in ('unset NMR_SELECTED_DOCKER_ENDPOINT', 'NMR_SELECTED_DOCKER_ENDPOINT='):
+            with self.subTest(selection=selection):
+                status, stdout, stderr, root = self.run_mapping(r'''
+_acq_endpoint=unix:///stale.sock
+''' + selection + r'''
+acquisition_map_owner uid gid fixture:identity 1007 2009
+''')
+                self.assertEqual(2, status, msg=stderr)
+                self.assertEqual(b'', stdout)
+                self.assertFalse((root / 'identity-arguments').exists())
+
+    def test_inactive_scope_operations_and_invalid_state_cannot_dispatch(self):
+        for state in ('unset _acq_active', '_acq_active=false', '_acq_active=invalid'):
+            with self.subTest(state=state):
+                status, stdout, stderr, root = self.run_mapping(state + r'''
+grants=(--read-only) application=(-c ignored)
+route_status=0 worker_status=0
+acquisition_set_route system || route_status=$?
+acquisition_worker offline result fixture:image grants application || worker_status=$?
+printf '%s %s\n' "$route_status" "$worker_status"
+''')
+                self.assertEqual(0, status, msg=stderr)
+                self.assertEqual(b'2 2\n', stdout)
+                self.assertFalse((root / 'identity-arguments').exists())
+
+    def test_invalid_scope_state_is_never_treated_as_inactive(self):
+        status, stdout, stderr, root = self.run_mapping(r'''
+_acq_active=invalid
+_acq_endpoint=unix:///unchanged.sock
+NMR_SELECTED_DOCKER_ENDPOINT=unix:///selected.sock
+uid=unchanged gid=unchanged
+map_status=0 scope_status=0
+acquisition_map_owner uid gid fixture:identity 1007 2009 || map_status=$?
+acquisition_scope --endpoint unix:///new.sock --bootstrap-image fixture:bootstrap -- : || scope_status=$?
+printf '%s %s %s %s\n' "$map_status" "$scope_status" "$uid" "$gid"
+[[ $_acq_active == invalid && $_acq_endpoint == unix:///unchanged.sock ]]
+''')
+        self.assertEqual(0, status, msg=stderr)
+        self.assertEqual(b'2 2 unchanged unchanged\n', stdout)
+        self.assertFalse((root / 'identity-arguments').exists())
+
+    def test_missing_worker_arguments_fail_before_mapping(self):
+        for arguments in ('', '--timeout', '--timeout 30'):
+            with self.subTest(arguments=arguments):
+                status, stdout, stderr, root = self.run_mapping(r'''
+worker() { acquisition_worker ''' + arguments + r'''; }
+acquisition_scope --endpoint unix:///scope.sock --bootstrap-image fixture:bootstrap -- worker
+''')
+                self.assertEqual(2, status, msg=stderr)
+                self.assertEqual(b'', stdout)
+                self.assertNotIn(b'unbound variable', stderr)
+                self.assertFalse((root / 'identity-arguments').exists())
+
+    def test_nested_scope_refusal_preserves_the_outer_cleanup_owner(self):
+        status, stdout, stderr, root = self.run_mapping(r'''
+outer() {
+    local endpoint=$_acq_endpoint scratch=$_acq_scratch owner=$_acq_owner_pid
+    local saved_traps status=0
+    saved_traps=$(trap -p EXIT HUP INT TERM)
+    acquisition_scope --endpoint unix:///nested.sock --bootstrap-image fixture:nested -- : || status=$?
+    [[ $status == 2 && $_acq_endpoint == "$endpoint" && $_acq_scratch == "$scratch" ]] || return 97
+    [[ $_acq_owner_pid == "$owner" && $_acq_active == true ]] || return 97
+    [[ $(trap -p EXIT HUP INT TERM) == "$saved_traps" ]] || return 97
+}
+acquisition_scope --endpoint unix:///outer.sock --bootstrap-image fixture:bootstrap -- outer
+''')
+        self.assertEqual(0, status, msg=stderr)
+        self.assertEqual(b'', stdout)
+        self.assertFalse((root / 'identity-arguments').exists())
+
     def launch(self, callback, *, env=None):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
