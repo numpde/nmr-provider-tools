@@ -6,7 +6,11 @@ from provider_core.container_guard import require_container
 
 require_container()
 
-from provider_core.contribution import CallRef, ImplementationBinding, ScientificRejection
+from provider_core.contribution import (
+    CallRef,
+    ImplementationBinding,
+    ScientificRejection,
+)
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
     ExecutionLimits,
@@ -16,15 +20,7 @@ from provider_core.hosting import (
     ResourceState,
     ResultState,
 )
-from provider_core.provider_conformance import (
-    AnalysisFixture,
-    CallFixture,
-    ConformanceLimits,
-    ExpectedScientificRejection,
-    ExpectedSuccess,
-    ProviderFixture,
-)
-from provider_core._provider_conformance_support import (
+from provider_core.testing._support import (
     allow,
     close_analysis,
     create_bindings,
@@ -34,6 +30,14 @@ from provider_core._provider_conformance_support import (
     result_allowance,
     retire_host,
     settled,
+)
+from provider_core.testing.conformance import (
+    AnalysisFixture,
+    CallFixture,
+    ConformanceLimits,
+    ExpectedScientificRejection,
+    ExpectedSuccess,
+    ProviderFixture,
 )
 
 

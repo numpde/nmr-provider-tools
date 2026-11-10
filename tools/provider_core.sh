@@ -125,8 +125,13 @@ case "$action" in
             pattern='test_fuzz*.py'
             worker+=(--env "PROVIDER_CORE_FUZZ_PROFILE=$fuzz_profile")
         fi
+        example_mount=()
+        if [[ $action == integration ]]; then
+            example_mount=(--mount "type=bind,src=$root/examples/dummy-provider,dst=/example,readonly")
+        fi
         arguments=("${worker[@]}" --network none --init --tmpfs /runtime:rw,nosuid,nodev,exec,size=256m,mode=1777
             --mount "type=bind,src=$root/packages/provider-core,dst=/package,readonly"
+            "${example_mount[@]}"
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
             --entrypoint python3 "$base_image" -B -m tools.provider_core_tests "$action" --pattern "$pattern")
         budget=untimed

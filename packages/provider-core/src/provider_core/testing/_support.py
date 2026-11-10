@@ -10,7 +10,7 @@ import asyncio
 
 from provider_core.contribution import ImplementationBinding, ResourceRequirement
 from provider_core.hosting import ResourceGrant
-from provider_core.provider_conformance import (
+from provider_core.testing.conformance import (
     CallFixture,
     ConformanceLimits,
     ExpectedSuccess,

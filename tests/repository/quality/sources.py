@@ -1,7 +1,8 @@
 """Inventory authored sources visible to the contained repository lane.
 
-The launcher pins /workspace; local conventions govern tools, tests and packages.
-Future src and packages/*/src sources enter these inventories automatically.
+The launcher pins /workspace; local conventions govern tools, tests, packages and
+standalone examples. Future src, packages/*/src and examples/*/src sources enter
+these inventories automatically.
 """
 
 from tools.container_guard import require_container
@@ -33,16 +34,19 @@ SKIP_DIRS = {
 def python_sources(*, production_only):
     """Use the caller's explicit production or whole-repository inventory.
 
-    Both projections include future src and packages/*/src modules. Production
-    checks own tools; whole-repository checks also own tests and package tests.
-    The caller must choose the check's responsibility.
+    Both projections include future src, packages/*/src and examples/*/src
+    modules. Production checks own tools; whole-repository checks also own tests,
+    package tests and example tests. The caller must choose the check's
+    responsibility.
     """
-    # silent-defaults: allow-contract -- The required production_only choice selects tools or all authored roots; future shared-package modules belong to both inventories; proof=tests/repository/quality/test_source_inventory.py::SourceInventoryUnitTests.test_python_source_selection_respects_explicit_scope
+    # silent-defaults: allow-contract -- The required production_only choice selects tools or all authored roots; future shared-package and example modules belong to both inventories; proof=tests/repository/quality/test_source_inventory.py::SourceInventoryUnitTests.test_python_source_selection_respects_explicit_scope
     roots = ("tools",) if production_only else PYTHON_ROOTS
     directories = [ROOT / name for name in (*roots, *OPTIONAL_PYTHON_ROOTS)]
     directories.extend(ROOT.glob("packages/*/src"))
+    directories.extend(ROOT.glob("examples/*/src"))
     if not production_only:
         directories.extend(ROOT.glob("packages/*/tests"))
+        directories.extend(ROOT.glob("examples/*/tests"))
     return sorted(path for directory in directories for path in directory.rglob("*.py"))
 
 

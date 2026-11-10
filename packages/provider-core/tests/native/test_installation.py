@@ -86,7 +86,7 @@ class NativeInstallationTests(unittest.TestCase):
         import provider_core.contribution
         import provider_core.hosting
         import provider_core.embedded_host
-        import provider_core.examples.dummy_provider.binding
+        import provider_core.testing.conformance
         self.assertFalse({
             "provider_core.chat", "provider_core.chat_process", "provider_core.chat_tls",
             "provider_core.chat_wire", "provider_core.chat_worker",

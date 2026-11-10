@@ -6,8 +6,8 @@ import unittest
 from dataclasses import dataclass
 
 import provider_core.contribution_declaration as declaration
-from provider_core.examples.dummy_provider import science
-from provider_core.examples.dummy_provider.binding import (
+from tests.fakes.dummy_provider import science
+from tests.fakes.dummy_provider.binding import (
     sum_binding,
     weighted_sum_binding,
 )

@@ -9,15 +9,15 @@ import unittest
 from dataclasses import dataclass, replace
 
 import provider_core.contribution as contribution
-from provider_core.examples.dummy_provider import science
-from provider_core.examples.dummy_provider.binding import (
-    sum_binding,
-    weighted_sum_binding,
-)
 from provider_core.payload import (
     DataclassStateBinding,
     JsonDataclassCodec,
     PayloadRejected,
+)
+from tests.fakes.dummy_provider import science
+from tests.fakes.dummy_provider.binding import (
+    sum_binding,
+    weighted_sum_binding,
 )
 
 

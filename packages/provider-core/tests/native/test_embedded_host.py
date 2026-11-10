@@ -25,11 +25,6 @@ from provider_core.contribution import (
     description_document,
 )
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
-from provider_core.examples.dummy_provider import science
-from provider_core.examples.dummy_provider.binding import (
-    sum_binding,
-    weighted_sum_binding,
-)
 from provider_core.hosting import (
     DispatchState,
     ExecutionLimits,
@@ -41,6 +36,11 @@ from provider_core.hosting import (
     ResultState,
 )
 from provider_core.payload import PayloadCodec
+from tests.fakes.dummy_provider import science
+from tests.fakes.dummy_provider.binding import (
+    sum_binding,
+    weighted_sum_binding,
+)
 
 
 def _allow() -> None:

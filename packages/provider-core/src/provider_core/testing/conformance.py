@@ -90,7 +90,7 @@ class ProviderConformanceTests:
         return ConformanceLimits()
 
     def test_provider_binding_factories_are_reproducible(self) -> None:
-        from provider_core._provider_conformance_support import create_bindings
+        from provider_core.testing._support import create_bindings
 
         fixture = self.provider_fixture()
         first = create_bindings(self, fixture)
@@ -104,7 +104,7 @@ class ProviderConformanceTests:
                 )
 
     async def test_provider_scenarios_end_to_end(self) -> None:
-        from provider_core._provider_conformance_execution import run_provider_fixture
+        from provider_core.testing._execution import run_provider_fixture
 
         await run_provider_fixture(
             self,

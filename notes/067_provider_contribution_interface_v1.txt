@@ -8,10 +8,11 @@ This note records the concrete provider-facing interface implemented in
 provider-core. Notes 064-066 retain the architecture, safety rules and rollout
 plan. This note owns the implemented v1 names and distinctions.
 
-The dummy provider is an example. Its scientific implementation remains limited
-to science and contribution binding; the example also carries declarative
-conformance scenarios. It implements none of the shared service, scheduling,
-hosting, permission, recovery, delivery or deployment machinery.
+The dummy provider is a standalone consumer example under
+examples/dummy-provider. Its installed package contains only science and the
+contribution binding; its tests carry declarative conformance scenarios. It
+implements none of the shared service, scheduling, hosting, permission, recovery,
+delivery or deployment machinery.
 
 Provider-owned scientific types
 -------------------------------
@@ -139,14 +140,17 @@ small coefficient tuple. The backend cannot forcibly interrupt Python, persist
 work across a process crash, enforce operating-system resource limits or execute
 remotely. Those are backend capabilities, not restrictions on contributions.
 
-Dummy example boundary
-----------------------
-provider_core.examples.dummy_provider contains science.py, binding.py,
-conformance.py and its package marker. science.py imports only the lightweight
-scientific rejection contract. binding.py imports the contribution and
-contribution-declaration modules. conformance.py declares provider-owned example
-scenarios using the shared conformance record types. None of these files
-implements provider-local operational machinery.
+Standalone dummy-provider example
+---------------------------------
+examples/dummy-provider is its own Python project with a pyproject.toml,
+src/dummy_provider and tests. The installed dummy_provider package contains only
+science.py, binding.py and its package marker. tests/conformance.py declares
+provider-owned scenarios using the shared conformance record types. No example
+file implements provider-local operational machinery.
+
+Provider-core's own tests use a private fixture under tests/fakes. The shared
+runtime wheel therefore does not ship a privileged example provider, and its
+native tests do not depend on consumer source.
 
 The stateful implementation demonstrates immutable configuration/assets, loaded
 instance and per-analysis lifetimes, rejected and corrected preparation,
@@ -156,7 +160,7 @@ configuration, model or analysis lifetimes.
 
 Provider-modular conformance
 ----------------------------
-provider_core.provider_conformance contains provider-agnostic installed tests for
+provider_core.testing.conformance contains provider-agnostic installed tests for
 the contribution-to-host boundary. An example or provider-owned scenario
 declaration supplies configured binding factories, allocation names, exact wire
 inputs, expected wire results, reviewed scientific rejection codes and
@@ -164,14 +168,14 @@ retained-state handoffs. Shared test code owns grants, fixed local allocations,
 invocation identity, observation, result release, analysis cleanup and host
 retirement.
 
-The dummy scenarios live with the example in
-provider_core.examples.dummy_provider.conformance. They run the weighted
-implementation with one allocation and then with two allocations of the same
+The dummy scenarios live in examples/dummy-provider/tests/conformance.py. The
+installed integration lane independently builds the provider-core wheel and the
+example wheel, installs both outside their source trees, and runs the example's
+own tests. The scenarios use one and two allocations of the same weighted
 binding, exercise rejection and correction, consume retained prepared state,
-check progress, and call the stateless sum. The installed integration test merely
-applies the shared test case to that packaged example. Real provider repositories
-can carry equivalent scenarios beside their contributions without copying host
-or lifecycle assertions.
+check progress, and call the stateless sum. Real provider repositories can keep
+equivalent scenarios under their own tests without copying host or lifecycle
+assertions.
 
 This is end-to-end evidence for the local contribution-to-host boundary. It does
 not include Jobs discovery, interpretation, delivery, a production registration
@@ -190,10 +194,9 @@ resident-resource declaration.
 
 The previous focused harness compiled the revised modules and ran 26 typed,
 declaration and boundary tests. The provider-conformance addition was compiled
-under Python 3.13 and its scenario declaration was imported with a
-dependency-light smoke harness. The installed integration lane and embedded-host
-runtime scenarios were not available in this environment and remain unverified
-for this change.
+under Python 3.13. The standalone-example restructuring adds an installed-consumer
+path to the canonical integration lane; that Docker lane still requires an actual
+run before this revision has installed end-to-end evidence.
 
 SECS, NMRNet, NMRPeak and Magnet still need their real scientific and guarded
 execution paths connected to this installed contract. Existing AnalysisSession

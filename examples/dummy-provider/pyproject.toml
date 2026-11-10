@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools==84.1.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dummy-provider-example"
+version = "0.1.0"
+description = "Standalone example of a scientific provider contribution"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["provider-core==0.6.8"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["dummy_provider", "dummy_provider.*"]
+namespaces = false
+
+[tool.setuptools]
+include-package-data = false

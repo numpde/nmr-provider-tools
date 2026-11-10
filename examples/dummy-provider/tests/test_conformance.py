@@ -1,12 +1,17 @@
-"""Run shared conformance tests against the packaged dummy example."""
+"""Run shared execution conformance against this provider's scenarios."""
+
+from provider_core.container_guard import require_container
+
+require_container()
 
 import unittest
 
-from provider_core.examples.dummy_provider.conformance import provider_fixture
-from provider_core.provider_conformance import (
+from provider_core.testing.conformance import (
     ProviderConformanceTests,
     ProviderFixture,
 )
+
+from .conformance import provider_fixture
 
 
 class DummyProviderConformanceTests(

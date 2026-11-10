@@ -1,4 +1,4 @@
-"""End-to-end conformance scenarios for the dummy provider example."""
+"""End-to-end conformance scenarios owned by the dummy provider example."""
 
 from __future__ import annotations
 
@@ -7,12 +7,12 @@ from provider_core.container_guard import require_container
 require_container()
 
 import provider_core.contribution as contribution
-from provider_core.examples.dummy_provider import science
-from provider_core.examples.dummy_provider.binding import (
-    sum_binding,
-    weighted_sum_binding,
+from dummy_provider import science
+from dummy_provider.binding import (
+    create_sum_binding,
+    create_weighted_sum_binding,
 )
-from provider_core.provider_conformance import (
+from provider_core.testing.conformance import (
     AllocationFixture,
     AnalysisFixture,
     CallFixture,
@@ -27,7 +27,7 @@ def _create_weighted_sum_binding() -> contribution.ImplementationBinding[
     science.WeightedSumModel,
     science.WeightedSumAnalysis,
 ]:
-    return weighted_sum_binding(
+    return create_weighted_sum_binding(
         settings=science.WeightedSumSettings(
             scale=2,
             offset=1,
@@ -62,7 +62,7 @@ def provider_fixture() -> ProviderFixture:
             ),
             ImplementationFixture(
                 name="sum",
-                create_binding=sum_binding,
+                create_binding=create_sum_binding,
             ),
         ),
         allocations=(
