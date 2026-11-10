@@ -16,6 +16,7 @@ import tempfile
 import time
 import unittest
 
+
 class AcquisitionScopeTests(unittest.TestCase):
     def launch(self, callback, *, env=None):
         temporary = tempfile.TemporaryDirectory()
