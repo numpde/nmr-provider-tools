@@ -514,61 +514,76 @@ def initialize(uid, gid, queue, ipc):
 
     for (target, mode) in [(queue, 0o700), *((path, 0o710) for path in ipc)]:
         path = _path(target)
-        observed = path.lstat()
-        if not stat.S_ISDIR(observed.st_mode):
+        observed_metadata = path.lstat()
+        if not stat.S_ISDIR(observed_metadata.st_mode):
             raise DeliveryDeploymentRejected("Delivery volume root must be a real directory.")
-        if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) == (uid, gid, mode):
+        if (
+            observed_metadata.st_uid,
+            observed_metadata.st_gid,
+            stat.S_IMODE(observed_metadata.st_mode),
+        ) == (uid, gid, mode):
             continue
-        if observed.st_uid != 0 or any(path.iterdir()):
+        if observed_metadata.st_uid != 0 or any(path.iterdir()):
             raise DeliveryDeploymentRejected(
                 "Refusing to change an existing delivery volume with "
                 "unexpected ownership, mode or contents."
             )
 
-        descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        volume_fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
         try:
-            os.fchmod(descriptor, mode)
-            os.fchown(descriptor, uid, gid)
-            os.fsync(descriptor)
+            os.fchmod(volume_fd, mode)
+            os.fchown(volume_fd, uid, gid)
+            os.fsync(volume_fd)
         finally:
-            os.close(descriptor)
+            os.close(volume_fd)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
+
     renderer = commands.add_parser("render")
     renderer.add_argument("--definition", type=Path, required=True)
     renderer.add_argument("--source", type=Path, required=True)
     renderer.add_argument("--image", required=True)
-    shared = commands.add_parser("render-shared")
-    shared.add_argument("--definition", type=Path, required=True)
-    shared.add_argument("--source", type=Path, required=True)
-    shared.add_argument("--image", required=True)
+
+    shared_renderer = commands.add_parser("render-shared")
+    shared_renderer.add_argument("--definition", type=Path, required=True)
+    shared_renderer.add_argument("--source", type=Path, required=True)
+    shared_renderer.add_argument("--image", required=True)
+
     for name in ("run", "operator", "health"):
-        selected = commands.add_parser(name)
-        selected.add_argument("--definition", type=Path, required=True)
-        selected.add_argument("--sha256", required=True)
+        operation_parser = commands.add_parser(name)
+        operation_parser.add_argument("--definition", type=Path, required=True)
+        operation_parser.add_argument("--sha256", required=True)
         if name == "operator":
-            selected.add_argument("arguments", nargs=argparse.REMAINDER)
-    initializer = commands.add_parser("initialize")
+            operation_parser.add_argument("arguments", nargs=argparse.REMAINDER)
+
+    initializer_parser = commands.add_parser("initialize")
     for name in ("uid", "gid"):
-        initializer.add_argument("--" + name, type=int, required=True)
-    initializer.add_argument("--queue", type=Path, required=True)
-    initializer.add_argument("--ipc", type=Path, action="append", required=True)
+        initializer_parser.add_argument("--" + name, type=int, required=True)
+    initializer_parser.add_argument("--queue", type=Path, required=True)
+    initializer_parser.add_argument("--ipc", type=Path, action="append", required=True)
+
     options = parser.parse_args()
     if options.command == "render":
         (definition, checksum) = read_definition(options.definition)
-        plan = render(definition, options.source, options.image, checksum)
-        print(json.dumps(plan, sort_keys=True, indent=2).replace("$", "$$"))
+        compose_plan = render(definition, options.source, options.image, checksum)
+        print(json.dumps(compose_plan, sort_keys=True, indent=2).replace("$", "$$"))
     elif options.command == "render-shared":
-        print(json.dumps(render_shared(options.definition, options.source, options.image), sort_keys=True, indent=2).replace("$", "$$"))
+        print(
+            json.dumps(
+                render_shared(options.definition, options.source, options.image),
+                sort_keys=True,
+                indent=2,
+            ).replace("$", "$$")
+        )
     elif options.command == "initialize":
         initialize(options.uid, options.gid, options.queue, options.ipc)
     elif options.command == "health":
         asyncio.run(health(runtime_definition(options.definition, options.sha256)))
     else:
-        path = runtime_configuration(options.definition, options.sha256)
+        configuration_path = runtime_configuration(options.definition, options.sha256)
         module = "provider_core.delivery_main"
         arguments = []
         if options.command == "operator":
@@ -576,7 +591,14 @@ def main():
             arguments = options.arguments
             if arguments[:1] == ["--"]:
                 arguments = arguments[1:]
-        os.execv(CORE_PYTHON, [CORE_PYTHON, "-I", "-B", "-m", module, "--config", str(path), *arguments])
+
+        os.execv(
+            CORE_PYTHON,
+            [
+                CORE_PYTHON, "-I", "-B", "-m", module,
+                "--config", str(configuration_path), *arguments,
+            ],
+        )
 
 
 if __name__ == "__main__":
@@ -585,5 +607,10 @@ if __name__ == "__main__":
     except SystemExit:
         raise
     except BaseException as error:
-        sys.stderr.write(json.dumps(failure_evidence(error, secrets=(), describe_owner=_details), separators=(",", ":")) + "\n")
+        sys.stderr.write(
+            json.dumps(
+                failure_evidence(error, secrets=(), describe_owner=_details),
+                separators=(",", ":"),
+            ) + "\n"
+        )
         raise SystemExit(2) from None
