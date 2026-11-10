@@ -89,16 +89,55 @@ def qualify_wheelhouse_bundle(bundle, scratch):
                 raise ValueError("Cannot qualify wheelhouse bundle: streamed wheel differs from the lock.")
 
 
-def qualify_acquisition_bundle(bundle, scratch):
-    """Exercise cold source imports after exact pinned-source rebuild equality."""
+def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
+    """Validate the pinned source inventory before extracting or importing code."""
+    if type(expected_source_files) is not dict or not expected_source_files:
+        raise ValueError("Cannot qualify acquisition source bundle: missing source inventory.")
+
+    with tarfile.open(bundle, "r:gz") as archive:
+        sources = {}
+        for member in archive.getmembers():
+            member_path = PurePosixPath(member.name)
+            if (
+                not member.name
+                or not member_path.parts
+                or member_path.is_absolute()
+                or ".." in member_path.parts
+                or member_path.as_posix() != member.name
+                or not member.isfile()
+                or member.name in sources
+            ):
+                raise ValueError("Cannot qualify acquisition source bundle: unsafe or duplicate member.")
+
+            expected_member = expected_source_files.get(member.name)
+            if (
+                type(expected_member) is not dict
+                or set(expected_member) != {"sha256", "size", "mode"}
+                or member.size != expected_member["size"]
+                or member.mode != expected_member["mode"]
+            ):
+                raise ValueError("Cannot qualify acquisition source bundle: member differs from source inventory.")
+
+            with archive.extractfile(member) as reader:
+                payload = reader.read()
+            if hashlib.sha256(payload).hexdigest() != expected_member["sha256"]:
+                raise ValueError("Cannot qualify acquisition source bundle: member checksum differs from source inventory.")
+            sources[member.name] = payload
+
+    if set(sources) != set(expected_source_files):
+        raise ValueError("Cannot qualify acquisition source bundle: incomplete source inventory.")
+    for name in sources:
+        if any(parent.as_posix() in sources for parent in PurePosixPath(name).parents):
+            raise ValueError("Cannot qualify acquisition source bundle: member conflicts with its parent path.")
+
     destination = scratch / "acquisition-source"
     destination.mkdir()
-    with tarfile.open(bundle, "r:gz") as archive:
-        for member in archive.getmembers():
-            target = destination / member.name
-            target.parent.mkdir(parents=True, exist_ok=True)
-            with archive.extractfile(member) as reader, target.open("xb") as writer:
-                shutil.copyfileobj(reader, writer)
+    for (name, payload) in sources.items():
+        target = destination / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("xb") as output:
+            output.write(payload)
+
     subprocess.run(["bash", "-n", str(destination / "acquisition_tool/owner.sh")], check=True)
     subprocess.run(["python3", "-I", "-S", "-B", "-c",
                     "import sys; sys.path.insert(0, sys.argv[1]); import linux_idmap.probe; import provider_core.bound_http_proxy",
@@ -240,7 +279,7 @@ def check(artifacts, revision):
                 or record["acquisition_source_files"] != acquisition_record["source_files"]
                 or record["acquisition_dependency_inputs"] != acquisition_record["dependency_inputs"]):
             raise ValueError("Cannot qualify acquisition source bundle: bytes or provenance differ from the pinned rebuild.")
-        qualify_acquisition_bundle(acquisition, scratch)
+        qualify_acquisition_bundle(acquisition, scratch, acquisition_record["source_files"])
         source = unpack_source(captured / (prefix + ".tar.gz"), scratch / "source", version)
         document = tomllib.loads((source / "pyproject.toml").read_text())
         if document["project"]["name"] != "provider-core" or document["project"]["version"] != version:

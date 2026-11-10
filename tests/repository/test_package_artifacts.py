@@ -6,6 +6,7 @@ require_container()
 
 import ast
 import io
+import hashlib
 from contextlib import redirect_stdout
 import tarfile
 import tempfile
@@ -14,7 +15,7 @@ from unittest.mock import patch
 import zipfile
 from pathlib import Path
 
-from tools.package import artifact_names, check, source_payload, unpack_source, wheel_payload
+from tools.package import artifact_names, check, qualify_acquisition_bundle, source_payload, unpack_source, wheel_payload
 from tools.core_environment import behavioral_install_lock, build_source_wheel, normalize_sdist
 from tools.wheelhouse import digest
 from tests.repository.quality.sources import ROOT
@@ -45,6 +46,102 @@ class PackageArtifactTests(unittest.TestCase):
                     with tarfile.open(path, "r:gz") as archive:
                         self.assertEqual(0, archive.getmembers()[0].uid)
                 self.assertEqual([path], list(self.root.iterdir()))
+
+    def _acquisition_archive(self, path, members):
+        with tarfile.open(path, "w:gz") as archive:
+            for (name, payload, kind, mode) in members:
+                member = tarfile.TarInfo(name)
+                member.type = kind
+                member.mode = mode
+                if member.isfile():
+                    member.size = len(payload)
+                    archive.addfile(member, io.BytesIO(payload))
+                else:
+                    archive.addfile(member)
+
+    def test_acquisition_sources_are_admitted_before_extraction(self):
+        cases = (
+            ("../escaped", b"x", tarfile.REGTYPE, 0o644),
+            ("/absolute", b"x", tarfile.REGTYPE, 0o644),
+            ("linked", b"", tarfile.SYMTYPE, 0o644),
+            ("writable", b"x", tarfile.REGTYPE, 0o666),
+        )
+        for (name, payload, kind, mode) in cases:
+            with self.subTest(name=name):
+                scratch = self.root / f"scratch-{cases.index((name, payload, kind, mode))}"
+                scratch.mkdir()
+                archive_path = scratch / "sources.tar.gz"
+                self._acquisition_archive(archive_path, ((name, payload, kind, mode),))
+                expected = {
+                    name: {
+                        "sha256": hashlib.sha256(payload).hexdigest(),
+                        "size": len(payload),
+                        "mode": 0o644,
+                    },
+                }
+
+                with patch("tools.package.subprocess.run") as commands:
+                    with self.assertRaises(ValueError):
+                        qualify_acquisition_bundle(archive_path, scratch, expected)
+
+                commands.assert_not_called()
+                self.assertFalse((scratch / "acquisition-source").exists())
+                self.assertFalse((scratch / "escaped").exists())
+
+    def test_acquisition_sources_reject_duplicate_and_conflicting_paths(self):
+        for (names, payloads) in (
+            (("acquisition_tool/owner.sh", "acquisition_tool/owner.sh"), (b"a", b"b")),
+            (("acquisition_tool", "acquisition_tool/owner.sh"), (b"a", b"b")),
+        ):
+            with self.subTest(names=names):
+                scratch = self.root / str(len(list(self.root.iterdir())))
+                scratch.mkdir()
+                archive_path = scratch / "sources.tar.gz"
+                members = [
+                    (name, payload, tarfile.REGTYPE, 0o644)
+                    for (name, payload) in zip(names, payloads, strict=True)
+                ]
+                self._acquisition_archive(archive_path, members)
+                expected = {
+                    name: {
+                        "sha256": hashlib.sha256(payload).hexdigest(),
+                        "size": len(payload),
+                        "mode": 0o644,
+                    }
+                    for (name, payload) in zip(names, payloads, strict=True)
+                }
+
+                with patch("tools.package.subprocess.run") as commands:
+                    with self.assertRaises(ValueError):
+                        qualify_acquisition_bundle(archive_path, scratch, expected)
+
+                commands.assert_not_called()
+                self.assertFalse((scratch / "acquisition-source").exists())
+
+    def test_acquisition_sources_extract_verified_members(self):
+        scratch = self.root / "scratch"
+        scratch.mkdir()
+        archive_path = scratch / "sources.tar.gz"
+        members = (
+            ("acquisition_tool/owner.sh", b"#!/bin/sh\\nexit 0\\n", tarfile.REGTYPE, 0o644),
+            ("provider_core/bound_http_proxy.py", b"PROXY = 1\\n", tarfile.REGTYPE, 0o644),
+        )
+        self._acquisition_archive(archive_path, members)
+        expected = {
+            name: {
+                "sha256": hashlib.sha256(payload).hexdigest(),
+                "size": len(payload),
+                "mode": mode,
+            }
+            for (name, payload, _, mode) in members
+        }
+
+        with patch("tools.package.subprocess.run") as commands:
+            qualify_acquisition_bundle(archive_path, scratch, expected)
+
+        self.assertEqual(4, commands.call_count)
+        for (name, payload, _, _) in members:
+            self.assertEqual(payload, (scratch / "acquisition-source" / name).read_bytes())
 
     def test_source_archive_refuses_traversal_links_duplicate_and_special_members_before_extraction(self):
         for name, kind in (("provider_core-0.2.0/../../outside", tarfile.REGTYPE),
