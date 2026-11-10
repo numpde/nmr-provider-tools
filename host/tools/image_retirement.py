@@ -8,7 +8,6 @@ Deployment settings do not select images: the current delivery recipe owns that
 selection. Only known retained build IID receipts are read from /tmp.
 """
 
-from datetime import datetime
 import json
 from pathlib import Path
 import re
@@ -16,7 +15,6 @@ import resource
 import subprocess
 import sys
 import tempfile
-import time
 
 
 class RetirementRefused(RuntimeError):
@@ -31,8 +29,7 @@ _HASH = re.compile(r"[0-9a-f]{64}")
 _LABEL = "org.nmr-provider-tools."
 # repo-check: allow-module-constant
 _IMAGE_JSON = ('{"Id":{{json .Id}},"Labels":{{json .Config.Labels}},'
-               '"RepoTags":{{json .RepoTags}},"RepoDigests":{{json .RepoDigests}},'
-               '"Created":{{json .Created}}}')
+               '"RepoTags":{{json .RepoTags}},"RepoDigests":{{json .RepoDigests}}}')
 
 
 def run(arguments):
@@ -127,7 +124,7 @@ def metadata(raw, expected):
     return inspected_images
 
 
-def select_images(images, protected, current, now):
+def select_images(images, protected, current):
     retirement_candidates = []
     (current_checker, current_recipe) = current
     for image in images:
@@ -211,24 +208,13 @@ def select_images(images, protected, current, now):
         if any(tag not in allowed_tags for tag in image_tags):
             continue
 
-        created_at = image.get("Created")
-        if type(created_at) is not str:
-            raise RetirementRefused("An owned image has no creation time.")
-
-        created_instant = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-        if created_instant.utcoffset() is None:
-            raise RetirementRefused("An owned image creation time has no timezone.")
-
-        created_timestamp = created_instant.timestamp()
-        if now - created_timestamp >= 86400:
-            retirement_candidates.append(image_id)
+        retirement_candidates.append(image_id)
 
     return retirement_candidates
 
 
 # silent-defaults: allow-contract -- Staged images are absent as an immutable tuple unless explicitly retained; the fixed /tmp root holds checker operation receipts for current image borrowers.
-def retire(root, docker, current, *, staged=(), now=None, operations=Path("/tmp")):
-    now = time.time() if now is None else now
+def retire(root, docker, current, *, staged=(), operations=Path("/tmp")):
     selected_inputs = current()
     protected_images = set(staged) | retained_image_ids(operations)
 
@@ -267,7 +253,7 @@ def retire(root, docker, current, *, staged=(), now=None, operations=Path("/tmp"
             metadata(docker("image", "inspect", "--format", _IMAGE_JSON, *batch), batch)
         )
 
-    retirement_plan = select_images(inspected_images, protected_images, selected_inputs, now)
+    retirement_plan = select_images(inspected_images, protected_images, selected_inputs)
     removed_count = 0
     for image_id in retirement_plan:
         if current() != selected_inputs:
@@ -290,7 +276,7 @@ def retire(root, docker, current, *, staged=(), now=None, operations=Path("/tmp"
             docker("image", "inspect", "--format", _IMAGE_JSON, image_id),
             [image_id],
         )
-        if select_images(latest_image, protected_images, selected_inputs, now) != [image_id]:
+        if select_images(latest_image, protected_images, selected_inputs) != [image_id]:
             continue
 
         # Immutable IDs only. Docker refuses late references; never force or
