@@ -1,6 +1,17 @@
 #!/bin/bash
 set -eu
 exec 2>>"$ENGINE_STATE/engine-error"
+if [[ ${0##*/} == stat ]]; then
+  if [[ $# == 4 && $1 == -c && $2 == '%s' && $3 == -- && $4 == */gateway/stdout ]]; then
+    printf '%s\n' "${ACQUISITION_STDOUT_STAT_FAULT:?}" > "$ENGINE_STATE/stat-fault-reached"
+    case "$ACQUISITION_STDOUT_STAT_FAULT" in
+      failure) exit 41 ;;
+      nonnumeric) printf 'unavailable\n'; exit 0 ;;
+      *) exit 97 ;;
+    esac
+  fi
+  exec /usr/bin/stat "$@"
+fi
 [[ $# -ge 5 && "$1" == --config && "$3" == --host ]] || exit 97
 # Metadata inherits a per-file cap; retain only the client cleanup handle.
 printf '%s %s\n' "$1" "$2" > "$ENGINE_STATE/engine-client"
@@ -24,6 +35,10 @@ case "$operation" in
     : > "$ENGINE_STATE/live-$identifier"
     printf '%s\n' "$role" > "$ENGINE_STATE/role-$identifier"
     printf '%s\n' "$scratch" > "$ENGINE_STATE/scratch"
+    if [[ -v CAP_CREATE_STDOUT_ROLE && $CAP_CREATE_STDOUT_ROLE == "$role" ]]; then
+      printf '%4096s' ''
+      exit 0
+    fi
     if [[ -v FAIL_CREATE_ROLE && $FAIL_CREATE_ROLE == "$role" ]]; then
       case "${FAILED_CREATE_OUTPUT:?}" in
         empty) [[ -v HOLD_FAILED_CREATE && $HOLD_FAILED_CREATE == 1 ]] || exit 97 ;;

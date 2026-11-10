@@ -46,6 +46,8 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
         injected = {}
         if env is not None:
             injected.update(env)
+        if 'ACQUISITION_STDOUT_STAT_FAULT' in injected:
+            (binary / 'stat').symlink_to(Path(__file__).resolve().parent / 'fixtures/acquisition_engine.sh')
         environment = {**os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}',
                        'STATE': str(root), 'ENGINE_STATE': str(root), **injected}
         process = subprocess.Popen(['bash', '-c', script], env=environment,
@@ -77,6 +79,63 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
             with self.subTest(action=action):
                 process, root = self.launch(action)
                 self.assert_exit(process, root, 2)
+
+    def test_private_metadata_receipts_must_remain_below_the_native_file_cap(self):
+        with tempfile.TemporaryDirectory() as directory:
+            receipt = Path(directory) / 'receipt'
+            for size, expected_status in ((0, 0), (4095, 0), (4096, 1)):
+                with self.subTest(size=size):
+                    receipt.write_bytes(b'x' * size)
+                    result = subprocess.run(
+                        ['bash', '-c', 'source host/acquisition_tool/owner.sh; '
+                         '_acq_private_receipt_below_limit "$1"', 'bash', str(receipt)],
+                        capture_output=True, timeout=5, check=False)
+                    self.assertEqual(expected_status, result.returncode, msg=result.stderr)
+                    self.assertEqual(b'', result.stdout)
+                    self.assertEqual(b'', result.stderr)
+
+    def test_unknown_or_capped_create_output_size_retains_unadmitted_gateway(self):
+        cases = (
+            ('failure', {'ACQUISITION_STDOUT_STAT_FAULT': 'failure'}),
+            ('nonnumeric', {'ACQUISITION_STDOUT_STAT_FAULT': 'nonnumeric'}),
+            ('cap', {'CAP_CREATE_STDOUT_ROLE': 'gateway'}),
+        )
+        for fault, environment in cases:
+            with self.subTest(fault=fault):
+                process, root = self.launch(
+                    'acquisition_set_route system; '
+                    'acquisition_worker online status fixture:local grants application', env=environment)
+                stdout, stderr = process.communicate(timeout=20)
+                operation = Path((root / 'scratch').read_text().strip())
+                self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+                match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
+                                  (root / 'engine-client').read_text())
+                self.assertIsNotNone(match)
+                private_client = Path(match.group(1))
+                self.addCleanup(shutil.rmtree, private_client, ignore_errors=True)
+                self.assertEqual(2, process.returncode, msg=(stdout, stderr))
+                self.assertEqual(b'', stdout)
+                self.assertIn(b'Cannot admit gateway: create output and CID receipt must agree.', stderr)
+                self.assertIn(b'Cannot confirm acquisition retirement;', stderr)
+                self.assertEqual(['2 no'], (root / 'caller-exit').read_text().splitlines())
+                self.assertFalse((root / 'retired').exists())
+                self.assertEqual([], list(root.glob('start-*')))
+                self.assertEqual([], list(root.glob('rm-*')))
+                self.assertFalse((root / 'removal-attempts').exists())
+                self.assertEqual('1', (root / 'counter').read_text())
+                identifier = f'{1:064x}'
+                self.assertEqual({f'live-{identifier}'}, {path.name for path in root.glob('live-*')})
+                self.assertTrue(operation.is_dir())
+                self.assertTrue(private_client.is_dir())
+                self.assertEqual(identifier.encode() + b'\n', (operation / 'gateway/cid').read_bytes())
+                receipt = operation / 'gateway/stdout'
+                if fault == 'cap':
+                    self.assertEqual(4096, receipt.stat().st_size)
+                    self.assertEqual(b' ' * 4096, receipt.read_bytes())
+                    self.assertFalse((root / 'stat-fault-reached').exists())
+                else:
+                    self.assertEqual(fault + '\n', (root / 'stat-fault-reached').read_text())
+                    self.assertEqual(identifier.encode() + b'\n', receipt.read_bytes())
 
     def test_failed_create_exact_pair_owns_cleanup_without_start(self):
         roles = ('gateway', 'relay', 'worker-1')
