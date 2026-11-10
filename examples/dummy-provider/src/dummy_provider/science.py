@@ -22,6 +22,7 @@ def _finite_float(value: object, *, label: str) -> float:
 def _finite_values(values: object, *, label: str) -> tuple[float, ...]:
     if type(values) is not tuple:
         raise TypeError(f"{label} must be a tuple")
+
     # repo-check: allow-tuple-generator -- portable scientific values must stay immutable
     return tuple(
         _finite_float(value, label=f"{label}[{index}]")
@@ -108,22 +109,14 @@ class SumResult:
 class WeightedSumModel:
     settings: WeightedSumSettings
     coefficients: CoefficientSet
-    loaded_coefficients: tuple[float, ...] | None = field(
-        default=None,
-        init=False,
-        repr=False,
-    )
+    loaded_coefficients: tuple[float, ...] | None = field(default=None, init=False, repr=False)
 
 
 @dataclass(slots=True, kw_only=True)
 class WeightedSumAnalysis:
     model: WeightedSumModel
     is_open: bool = field(default=False, init=False)
-    accepted_preparation: PreparedValues | None = field(
-        default=None,
-        init=False,
-        repr=False,
-    )
+    accepted_preparation: PreparedValues | None = field(default=None, init=False, repr=False)
 
 
 @dataclass(slots=True, kw_only=True)
@@ -142,22 +135,16 @@ class PreparedValues:
     @property
     def value_count(self) -> int:
         if self.values is None:
-            raise RuntimeError(
-                "The prepared values have already been consumed or disposed"
-            )
+            raise RuntimeError("The prepared values have already been consumed or disposed")
         return len(self.values)
 
     def consume(self, *, analysis: WeightedSumAnalysis) -> tuple[float, ...]:
         if self.analysis is not analysis:
             raise RuntimeError("The prepared values belong to another analysis")
         if analysis.accepted_preparation is not self:
-            raise RuntimeError(
-                "The prepared values are not this analysis's accepted preparation"
-            )
+            raise RuntimeError("The prepared values are not this analysis's accepted preparation")
         if self.values is None:
-            raise RuntimeError(
-                "The prepared values have already been consumed or disposed"
-            )
+            raise RuntimeError("The prepared values have already been consumed or disposed")
 
         prepared_values = self.values
         analysis.accepted_preparation = None
@@ -201,9 +188,7 @@ def initialize_analysis(analysis: WeightedSumAnalysis) -> None:
     if analysis.is_open:
         raise RuntimeError("The analysis is already initialized")
     if analysis.model.loaded_coefficients is None:
-        raise RuntimeError(
-            "Cannot initialize an analysis before loading model coefficients"
-        )
+        raise RuntimeError("Cannot initialize an analysis before loading model coefficients")
     analysis.is_open = True
 
 
@@ -229,9 +214,7 @@ def prepare(
 
     loaded_coefficients = analysis.model.loaded_coefficients
     if loaded_coefficients is None:
-        raise RuntimeError(
-            "Cannot prepare input because model coefficients are not loaded"
-        )
+        raise RuntimeError("Cannot prepare input because model coefficients are not loaded")
 
     actual_value_count = len(candidate.values)
     expected_value_count = len(loaded_coefficients)
@@ -242,12 +225,9 @@ def prepare(
             f"{actual_value_count = }, {expected_value_count = }",
         )
 
-    prepared = PreparedValues(
-        analysis=analysis,
-        values=candidate.values,
-    )
-    analysis.accepted_preparation = prepared
-    return prepared
+    prepared_values = PreparedValues(analysis=analysis, values=candidate.values)
+    analysis.accepted_preparation = prepared_values
+    return prepared_values
 
 
 def calculate(
@@ -275,18 +255,12 @@ def calculate(
             strict=True,
         )
     )
-    prediction_total = (
-        analysis.model.settings.offset
-        + analysis.model.settings.scale * weighted_sum
-    )
+    prediction_total = analysis.model.settings.offset + analysis.model.settings.scale * weighted_sum
 
     if not math.isfinite(prediction_total):
         raise ArithmeticError("The weighted prediction total is not finite")
 
-    return PredictionResult(
-        total=prediction_total,
-        count=len(prepared_values),
-    )
+    return PredictionResult(total=prediction_total, count=len(prepared_values))
 
 
 def sum_values(summation: SumInput) -> SumResult:
@@ -302,10 +276,7 @@ def sum_values(summation: SumInput) -> SumResult:
     if not math.isfinite(total):
         raise ArithmeticError("The sum total is not finite")
 
-    return SumResult(
-        total=total,
-        count=len(summation.values),
-    )
+    return SumResult(total=total, count=len(summation.values))
 
 
 def dispose_prepared(prepared: PreparedValues) -> None:

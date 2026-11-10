@@ -29,28 +29,25 @@ def create_weighted_sum_binding(
     prepared_values_kind = "dummy.prepared-values.v1"
 
     def construct_model() -> science.WeightedSumModel:
-        return science.create_model(
-            settings=settings,
-            coefficients=coefficients,
-        )
+        return science.create_model(settings=settings, coefficients=coefficients)
 
     def prepare(
         *,
         analysis: science.WeightedSumAnalysis,
         scientific_input: science.PreparationInput,
     ) -> contribution.ScientificReturn[science.PreparationResult]:
-        prepared = science.prepare(
+        prepared_values = science.prepare(
             analysis=analysis,
             candidate=scientific_input,
         )
 
         return contribution.ScientificReturn(
-            value=science.PreparationResult(count=prepared.value_count),
+            value=science.PreparationResult(count=prepared_values.value_count),
             states=(
                 contribution.ReturnedState(
                     name="prepared",
                     kind=prepared_values_kind,
-                    value=prepared,
+                    value=prepared_values,
                     dispose=science.dispose_prepared,
                 ),
             ),
@@ -63,25 +60,14 @@ def create_weighted_sum_binding(
         control: contribution.ScientificControl,
     ) -> contribution.ScientificReturn[science.PredictionResult]:
         control.report_progress(
-            contribution.ProgressEvent(
-                stage="calculation",
-                completed=0,
-                total=1,
-            )
+            contribution.ProgressEvent(stage="calculation", completed=0, total=1)
         )
-        prediction = science.calculate(
-            analysis=analysis,
-            state=state,
-        )
+        prediction_result = science.calculate(analysis=analysis, state=state)
         control.report_progress(
-            contribution.ProgressEvent(
-                stage="calculation",
-                completed=1,
-                total=1,
-            )
+            contribution.ProgressEvent(stage="calculation", completed=1, total=1)
         )
 
-        return contribution.ScientificReturn(value=prediction)
+        return contribution.ScientificReturn(value=prediction_result)
 
     configuration = declaration.json_configuration(
         settings,
@@ -101,10 +87,7 @@ def create_weighted_sum_binding(
         result_format="dummy.preparation-result.v1",
         state_inputs=(),
         state_outputs=(
-            contribution.StateOutput(
-                name="prepared",
-                kind=prepared_values_kind,
-            ),
+            contribution.StateOutput(name="prepared", kind=prepared_values_kind),
         ),
         resources=(_CPU_THREAD,),
         concurrency=contribution.ConcurrencyRequirement.INSTANCE_SERIAL,
