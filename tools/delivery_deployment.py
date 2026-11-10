@@ -73,7 +73,7 @@ def _volume(name, target, *, readonly=False):
 
 
 def _service(image, module, definition, stop_seconds):
-    uid, gid = definition.uid, definition.gid
+    (uid, gid) = (definition.uid, definition.gid)
     return {
         "image": image, "pull_policy": "never", "entrypoint": [CORE_PYTHON, "-I", "-B", "-m", module],
         "user": f"{uid}:{gid}", "init": True, "read_only": True, "cap_drop": ["ALL"],
@@ -107,7 +107,7 @@ def daemon_configuration(definition):
                      "retry_max_seconds": definition.retry_max_seconds, "limits": definition.limits, "bindings": []}
     listeners = admit_listeners(definition)
     for binding in definition.bindings:
-        key, listener = listeners[binding.name]
+        (key, listener) = listeners[binding.name]
         api = dict(binding.api)
         for field in ("credential_file", "ca_file"):
             if field in api:
@@ -123,7 +123,9 @@ def render(definition, source, image, checksum):
     source = _path(source)
     listeners = admit_listeners(definition)
     queue = definition.project + "-queue"
-    services, networks, volumes = {}, {}, {queue: {"name": queue}}
+    services = {}
+    networks = {}
+    volumes = {queue: {"name": queue}}
     daemon = _service(image, "provider_core.delivery_main", definition, 60)
     daemon["entrypoint"] = [CORE_PYTHON, "-I", "-B", "/opt/provider-tools/delivery_deployment.py"]
     daemon["command"] = ["run", "--definition", "/input/delivery.toml", "--sha256", checksum]
@@ -136,7 +138,7 @@ def render(definition, source, image, checksum):
     daemon["volumes"] = [_bind(source, "/input/delivery.toml"), _volume(queue, "/state")]
     roots = [("queue", queue, "/volumes/queue")]
     for binding in definition.bindings:
-        key, listener = listeners[binding.name]
+        (key, listener) = listeners[binding.name]
         route = render_api_route(binding, image=image, interpreter=CORE_PYTHON,
                                  namespace=definition.project, uid=definition.uid, gid=definition.gid,
                                  storage=NamedRouteVolume(), input_sources={})
@@ -158,7 +160,7 @@ def render(definition, source, image, checksum):
                        entrypoint=[CORE_PYTHON, "-I", "-B", "/opt/provider-tools/delivery_deployment.py"],
                        command=["initialize", "--uid", str(definition.uid), "--gid", str(definition.gid)],
                        volumes=[_volume(volume, target) for kind, volume, target in roots])
-    for kind, volume, target in roots:
+    for (kind, volume, target) in roots:
         initializer["command"].extend(("--" + kind, target))
     services.update(delivery=daemon, init=initializer)
     return {"name": definition.project, "services": services, "networks": networks, "volumes": volumes}
@@ -170,9 +172,18 @@ def render_shared(path, source, image):
         raise DeliveryDeploymentRejected("Shared deployment requires an immutable image ID.")
     try:
         document = tomllib.loads(read_startup_file(path, maximum_bytes=65536, label="shared settings").decode("utf-8"))
-        host, route = document["deployment"], document["api_proxy"]["route"]
-        project, uid, proxy_uid, gid, request_seconds = host["project"], host["uid"], host["proxy_uid"], host["gid"], host["request_seconds"]
-        mode, interface = route["mode"], route["interface"]
+        host = document["deployment"]
+        route = document["api_proxy"]["route"]
+
+        project = host["project"]
+        uid = host["uid"]
+        proxy_uid = host["proxy_uid"]
+        gid = host["gid"]
+        request_seconds = host["request_seconds"]
+
+        mode = route["mode"]
+        interface = route["interface"]
+
         if not (type(project) is str and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,48}", project) is not None
                 and type(uid) is int and uid == os.geteuid() and type(proxy_uid) is int and 0 < proxy_uid and proxy_uid != uid
                 and type(gid) is int and 0 < gid
@@ -190,7 +201,9 @@ def render_shared(path, source, image):
     source = _path(source)
     config_path = "/settings/" + source.name
     owner = SimpleNamespace(uid=uid, gid=gid, project=project)
-    proxy_volume, intake_volume, queue_volume = project + "-proxy-socket", project + "-outbox-socket", project + "-queue"
+    proxy_volume = project + "-proxy-socket"
+    intake_volume = project + "-outbox-socket"
+    queue_volume = project + "-queue"
 
     proxy_owner = SimpleNamespace(uid=proxy_uid, gid=gid, project=project + "-proxy")
     proxy = _service(image, "provider_core.provider_proxy", proxy_owner, 15)
@@ -239,7 +252,7 @@ def render_shared(path, source, image):
 
 
 def runtime_definition(path, expected):
-    definition, checksum = read_definition(path)
+    (definition, checksum) = read_definition(path)
     if checksum != expected:
         raise DeliveryDeploymentRejected("Cannot start delivery: the operator definition changed after rendering; stop the project and run up with the intended definition.")
     return definition
@@ -281,7 +294,7 @@ async def health(definition):
 def initialize(uid, gid, queue, ipc):
     if os.geteuid() != 0 or uid <= 0 or gid <= 0:
         raise DeliveryDeploymentRejected("Volume initialization requires root with CHOWN and explicit nonzero target UID/GID.")
-    for target, mode in [(queue, 0o700), *((path, 0o710) for path in ipc)]:
+    for (target, mode) in [(queue, 0o700), *((path, 0o710) for path in ipc)]:
         path = _path(target)
         observed = path.lstat()
         if not stat.S_ISDIR(observed.st_mode):
@@ -323,7 +336,7 @@ def main():
     initializer.add_argument("--ipc", type=Path, action="append", required=True)
     options = parser.parse_args()
     if options.command == "render":
-        definition, checksum = read_definition(options.definition)
+        (definition, checksum) = read_definition(options.definition)
         plan = render(definition, options.source, options.image, checksum)
         print(json.dumps(plan, sort_keys=True, indent=2).replace("$", "$$"))
     elif options.command == "render-shared":
