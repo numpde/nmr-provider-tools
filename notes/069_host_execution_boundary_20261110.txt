@@ -48,3 +48,11 @@ separate behavioral change and is not implied by this source relocation.
 
 At this revision, exact Docker-based repository, integration and production
 qualification must still be run. No release or deployment is claimed.
+
+Deployment note
+---------------
+The cache-GC installer writes an absolute ExecStart path into an existing user
+systemd service. After migrating a checkout, reinstall that timer through the
+maintained engine/cache/gc/install target with its explicit DOCKER_CONTEXT and
+ENGINE_CONFIG inputs before removing the old checkout path. Merely moving the
+source file does not update previously installed systemd units.
