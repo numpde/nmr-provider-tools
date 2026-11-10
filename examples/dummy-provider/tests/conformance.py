@@ -27,6 +27,21 @@ def _create_weighted_sum_binding() -> contribution.ImplementationBinding[
     science.WeightedSumModel,
     science.WeightedSumAnalysis,
 ]:
+    """Supply a reproducible configured binding to the shared conformance tests.
+
+    ImplementationFixture.create_binding takes a zero-argument factory so that
+    the shared test runner can construct the same implementation repeatedly,
+    without understanding provider-specific configuration. Unlike the stateless
+    sum binding, weighted-sum requires settings and coefficient assets; this
+    wrapper fixes those inputs for the test scenarios below.
+
+    The resulting binding describes how to construct, initialize, call and
+    dispose of WeightedSumModel (reusable instance) and WeightedSumAnalysis
+    (per-analysis state). Creating it does not load the model or run science.
+
+    For input (1, 2, 3), calculate returns
+    offset + scale * (1*1 + 2*2 + 3*3) = 1 + 2*14 = 29.
+    """
     return create_weighted_sum_binding(
         settings=science.WeightedSumSettings(
             scale=2,
