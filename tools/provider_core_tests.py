@@ -56,6 +56,11 @@ def _build_and_install_example(
             "The example must depend on the candidate provider-core version"
         )
 
+    # Setuptools writes build/lib inside its source directory. Keep the
+    # repository mount read-only and build from disposable writable scratch.
+    staged_source = root / "example-source"
+    shutil.copytree(source, staged_source)
+
     output = root / "example-release"
     output.mkdir()
     builder = install_environment(
@@ -74,7 +79,7 @@ def _build_and_install_example(
             "--no-build-isolation",
             "--wheel-dir",
             str(output),
-            str(source),
+            str(staged_source),
         ],
         check=True,
         env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"},
