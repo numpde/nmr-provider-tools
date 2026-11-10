@@ -12,53 +12,70 @@ import tempfile
 
 # Installer profile only; live collection reads the operator's native file.
 # repo-check: allow-module-constant
-DEFAULTS = {"enabled": True, "defaultReservedSpace": "10GB",
-            "defaultMaxUsedSpace": "32GB", "defaultMinFreeSpace": "20GB"}
+DEFAULTS = {
+    "enabled": True,
+    "defaultReservedSpace": "10GB",
+    "defaultMaxUsedSpace": "32GB",
+    "defaultMinFreeSpace": "20GB",
+}
 
 
 def native_config(path):
-    if (not path.is_absolute() or path.resolve() != path or path.is_symlink()
-            or not path.is_file() or path.stat().st_uid != os.getuid()):
+    if (
+        not path.is_absolute()
+        or path.resolve() != path
+        or path.is_symlink()
+        or not path.is_file()
+        or path.stat().st_uid != os.getuid()
+    ):
         raise ValueError("Select the canonical caller-owned native daemon.json file.")
-    raw = path.read_bytes()
-    document = json.loads(raw)
+
+    configuration_bytes = path.read_bytes()
+    document = json.loads(configuration_bytes)
     if type(document) is not dict:
         raise ValueError("The native engine configuration must be a JSON object.")
-    return raw, document
+    return configuration_bytes, document
 
 
 def configured(document):
     # Only these native settings change. Route, storage, logging and unrelated
     # builder settings remain their existing JSON values.
-    candidate = json.loads(json.dumps(document))
+    proposed_configuration = json.loads(json.dumps(document))
+
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
-    builder = candidate.setdefault("builder", {})
-    if type(builder) is not dict:
+    builder_settings = proposed_configuration.setdefault("builder", {})
+    if type(builder_settings) is not dict:
         raise ValueError("Native builder configuration is not an object.")
+
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
-    gc = builder.setdefault("gc", {})
-    if type(gc) is not dict:
+    gc_settings = builder_settings.setdefault("gc", {})
+    if type(gc_settings) is not dict:
         raise ValueError("Native builder.gc configuration is not an object.")
-    gc.update(DEFAULTS)
-    limits(candidate)
-    return candidate
+    gc_settings.update(DEFAULTS)
+    limits(proposed_configuration)
+    return proposed_configuration
 
 
 def limits(document):
-    gc = document["builder"]["gc"]
-    if type(gc) is not dict or type(gc.get("enabled")) is not bool:
+    gc_settings = document["builder"]["gc"]
+    if type(gc_settings) is not dict or type(gc_settings.get("enabled")) is not bool:
         raise ValueError("Native builder.gc must explicitly enable or disable cache collection.")
-    if not gc["enabled"]:
+    if not gc_settings["enabled"]:
         return None
-    if gc.get("policy"):
-        raise ValueError("A custom native GC policy cannot be reproduced by this single threshold-based prune timer.")
-    values = []
-    for key in ("defaultReservedSpace", "defaultMaxUsedSpace", "defaultMinFreeSpace"):
-        value = gc.get(key)
-        if type(value) not in (str, int) or type(value) is str and (not value or any(c.isspace() or ord(c) < 32 for c in value)):
-            raise ValueError(f"Native builder.gc.{key} requires its literal space threshold.")
-        values.append(str(value))
-    return values
+    if gc_settings.get("policy"):
+        raise ValueError(
+            "A custom native GC policy cannot be reproduced by this single threshold-based prune timer."
+        )
+
+    thresholds = []
+    for setting in ("defaultReservedSpace", "defaultMaxUsedSpace", "defaultMinFreeSpace"):
+        threshold = gc_settings.get(setting)
+        if type(threshold) not in (str, int) or type(threshold) is str and (
+            not threshold or any(character.isspace() or ord(character) < 32 for character in threshold)
+        ):
+            raise ValueError(f"Native builder.gc.{setting} requires its literal space threshold.")
+        thresholds.append(str(threshold))
+    return thresholds
 
 
 def argument(value):
