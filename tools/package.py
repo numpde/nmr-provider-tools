@@ -190,7 +190,6 @@ def qualify_wheelhouse_bundle(bundle, scratch):
                 raise ValueError("Cannot qualify wheelhouse bundle: streamed wheel differs from the lock.")
 
 
-
 def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
     """Validate the pinned source inventory before extracting or importing code."""
     if type(expected_source_files) is not dict or not expected_source_files:
@@ -270,7 +269,6 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
         )
 
 
-
 def unpack_source(archive, destination, version):
     """Admit the complete tar inventory before creating any extracted file."""
     root_name = f"provider_core-{version}"
@@ -306,7 +304,6 @@ def unpack_source(archive, destination, version):
                 extracted_path.chmod(member.mode & 0o777)
 
     return destination / root_name
-
 
 
 def source_payload(source, inventory):
@@ -371,7 +368,6 @@ def source_payload(source, inventory):
     }
 
 
-
 def wheel_payload(wheel, expected, version):
     with zipfile.ZipFile(wheel) as archive:
         archive_members = archive.namelist()
@@ -398,7 +394,6 @@ def wheel_payload(wheel, expected, version):
             for name in archive_members
             if name.startswith(metadata_prefix) and not name.endswith("/RECORD")
         }
-
 
 
 def qualify_installed(wheel, lock, source, pool, root, suites):
