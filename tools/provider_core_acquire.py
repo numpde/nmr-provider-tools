@@ -28,18 +28,18 @@ def cache_state(pool, locks):
                       for lock in locks]
     missing = False
     with pool_lock(pool) as lock_fd:
-        for lock, expected in expected_locks:
+        for (lock, expected) in expected_locks:
             specifiers = {identity: Specifier(f"=={identity[1]}") for identity in expected}
             found = set()
             conflicting = {}
             for path in pool.glob("*.whl"):
                 try:
-                    name, version, _, tags = parse_wheel_filename(path.name)
+                    (name, version, _, tags) = parse_wheel_filename(path.name)
                 except InvalidWheelFilename:
                     continue
                 if not tags.intersection(target_tags):
                     continue
-                for identity, specifier in specifiers.items():
+                for (identity, specifier) in specifiers.items():
                     if identity[0] != name or not specifier.contains(version, prereleases=True):
                         continue
                     if digest(path) not in expected[identity]:
@@ -115,7 +115,7 @@ def main():
     if sys.argv[1:] == ["tool"]:
         return
     with tempfile.TemporaryDirectory(prefix="provider-core-locks-") as temporary:
-        for number, lock in enumerate(locks):
+        for (number, lock) in enumerate(locks):
             projection = Path(temporary) / f"pylock.{number}.toml"
             command = [sys.executable, "-I", "-B", str(tool)]
             with projection.open("xb") as output:

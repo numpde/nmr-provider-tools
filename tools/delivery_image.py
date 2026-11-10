@@ -22,7 +22,7 @@ from tools.wheelhouse import digest, pool_lock, read_json, requirements, select_
 
 def release_inputs(pin, runtime_lock):
     release = read_json(pin)
-    version, wheel_hash = release["version"], release["wheel_sha256"]
+    (version, wheel_hash) = release["version"], release["wheel_sha256"]
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version) or not re.fullmatch(r"[0-9a-f]{64}", wheel_hash):
         raise ValueError("Cannot use delivery release: invalid pinned version or wheel hash.")
     with regular_file(runtime_lock) as source:
@@ -42,7 +42,7 @@ def missing_wheels(release, pool):
     if not pool.is_dir() or pool.is_symlink():
         raise ValueError("Cannot use delivery release: wheelhouse must be an existing directory.")
     missing = []
-    for name, expected in release_wheels(release).items():
+    for (name, expected) in release_wheels(release).items():
         if not re.fullmatch(r"[A-Za-z0-9_.+!-]+\.whl", name) or not re.fullmatch(r"[0-9a-f]{64}", expected):
             raise ValueError("Cannot use delivery release: malformed pinned wheel identity.")
         target = pool / name
@@ -61,8 +61,8 @@ def publish_release_wheels(tool, pool, artifacts):
         lock = Path(temporary) / "pylock.delivery.toml"
         with lock.open("x", encoding="utf-8") as stream:
             stream.write('lock-version = "1.0"\ncreated-by = "nmr-provider-tools delivery"\n')
-            for name, checksum, url in artifacts:
-                distribution, version, _, _ = parse_wheel_filename(name)
+            for (name, checksum, url) in artifacts:
+                (distribution, version, _, _) = parse_wheel_filename(name)
                 stream.write("[[packages]]\n")
                 stream.write(f"name = {json.dumps(str(distribution))}\nversion = {json.dumps(str(version))}\n")
                 stream.write(f"[packages.archive]\nurl = {json.dumps(url)}\n")
@@ -72,11 +72,11 @@ def publish_release_wheels(tool, pool, artifacts):
 
 
 def acquire_release(pin, runtime_lock, pool, tool):
-    release, _ = release_inputs(pin, runtime_lock)
+    (release, _) = release_inputs(pin, runtime_lock)
     with pool_lock(pool):
         missing = missing_wheels(release, pool)
     artifacts = []
-    for name, expected in missing:
+    for (name, expected) in missing:
         require_download_proxy()
         if name.startswith("provider_core-"):
             url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{release['version']}/{name}"
@@ -100,7 +100,7 @@ def capture_image_inputs(pin, runtime_lock, pool, destination):
 
 
 def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
-    release, lock_bytes = release_inputs(pin, runtime_lock)
+    (release, lock_bytes) = release_inputs(pin, runtime_lock)
     lock = destination / "provider-core-install.lock"
     with lock.open("xb") as target:
         target.write(lock_bytes)
@@ -130,7 +130,7 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
     manifest = destination / "provider-core-stream.json"
     with manifest.open("x", encoding="utf-8") as target:
         json.dump([{"directory": "wheelhouse", "filename": name, "sha256": checksum}
-                   for name, checksum in sorted(selected["files"].items())], target, sort_keys=True)
+                   for (name, checksum) in sorted(selected["files"].items())], target, sort_keys=True)
         target.write("\n")
     manifest.chmod(0o644)
 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
     parser.add_argument("--tool-pin", type=Path)
     args = parser.parse_args()
     if args.action == "check":
-        release, _ = release_inputs(args.pin, args.runtime_lock)
+        (release, _) = release_inputs(args.pin, args.runtime_lock)
         with pool_lock(args.pool):
             if missing_wheels(release, args.pool) or (args.tool_pin and not tool_present(args.pool, read_json(args.tool_pin))):
                 print("missing")

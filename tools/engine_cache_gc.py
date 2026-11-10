@@ -84,10 +84,10 @@ def unit_files(root, context, endpoint, config):
 
 
 def install(root, context, endpoint, path):
-    raw, document = native_config(path)
+    (raw, document) = native_config(path)
     candidate = configured(document)
-    name, service, timer = unit_files(root, context, endpoint, path)
-    descriptor, temporary = tempfile.mkstemp(prefix=".daemon-gc-", suffix=".json", dir=path.parent)
+    (name, service, timer) = unit_files(root, context, endpoint, path)
+    (descriptor, temporary) = tempfile.mkstemp(prefix=".daemon-gc-", suffix=".json", dir=path.parent)
     temporary = Path(temporary)
     try:
         with os.fdopen(descriptor, "w", encoding="utf-8") as output:
@@ -124,14 +124,14 @@ def install(root, context, endpoint, path):
 def main():
     try:
         if sys.argv[1:2] == ["policy"] and len(sys.argv) == 3:
-            _, document = native_config(Path(sys.argv[2]))
+            (_, document) = native_config(Path(sys.argv[2]))
             values = limits(document)
             if values is None:
                 print("disabled")
             else:
                 print("\n".join(values))
         elif sys.argv[1:2] == ["install"] and len(sys.argv) == 6:
-            root, context, endpoint, config = sys.argv[2:]
+            (root, context, endpoint, config) = sys.argv[2:]
             install(Path(root), context, endpoint, Path(config))
         else:
             raise ValueError("Use the maintained cache-GC installation target.")

@@ -27,7 +27,7 @@ from tools.artifacts import fsync_directory, regular_file, require_download_prox
 
 def unique_fields(pairs):
     document = {}
-    for name, value in pairs:
+    for (name, value) in pairs:
         if name in document:
             raise ValueError(f"Cannot admit checker dependencies: duplicate JSON field {name!r}.")
         document[name] = value

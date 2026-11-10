@@ -58,7 +58,7 @@ def dependency_files(pool, pin):
 
 
 def contents(pool, source, core_wheel, pin):
-    files, dependencies = dependency_files(pool, pin)
+    (files, dependencies) = dependency_files(pool, pin)
     for name in SOURCE_FILES:
         _add(files, name, (source / name).read_bytes())
     with zipfile.ZipFile(core_wheel) as archive:
@@ -69,16 +69,16 @@ def contents(pool, source, core_wheel, pin):
                 raise ValueError("Cannot build acquisition source bundle: SDK proxy member is missing or duplicated.")
             _add(files, name, archive.read(name))
     inventory = {name: {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "mode": 0o644}
-                 for name, data in sorted(files.items())}
+                 for (name, data) in sorted(files.items())}
     return files, {"source_files": inventory, "dependency_inputs": dependencies}
 
 
 def build(pool, output, source, core_wheel, pin):
-    files, record = contents(pool, source, core_wheel, pin)
+    (files, record) = contents(pool, source, core_wheel, pin)
     with tempfile.NamedTemporaryFile(prefix="." + output.name + ".", suffix=".part", dir=output.parent) as temporary:
         with gzip.GzipFile(fileobj=temporary, mode="wb", filename="", mtime=315532800) as compressed:
             with tarfile.open(fileobj=compressed, mode="w", format=tarfile.USTAR_FORMAT) as archive:
-                for name, data in sorted(files.items()):
+                for (name, data) in sorted(files.items()):
                     member = tarfile.TarInfo(name)
                     member.size = len(data)
                     member.mode = 0o644

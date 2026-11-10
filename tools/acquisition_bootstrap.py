@@ -28,7 +28,7 @@ def verify(bundle: Path, record: dict) -> None:
             raise ValueError('Acquisition bootstrap release inventory contains an invalid path.')
         expected.add(name)
     actual = set()
-    for current, directories, files in os.walk(bundle, followlinks=False):
+    for (current, directories, files) in os.walk(bundle, followlinks=False):
         parent = Path(current)
         for name in directories:
             if (parent / name).is_symlink():
@@ -41,7 +41,7 @@ def verify(bundle: Path, record: dict) -> None:
             actual.add(relative)
     if bundle.is_symlink() or not bundle.is_dir() or actual != expected:
         raise ValueError('Acquisition bootstrap members differ from the release inventory.')
-    for name, entry in inventory.items():
+    for (name, entry) in inventory.items():
         path = bundle / name
         data = path.read_bytes()
         if (len(data) != entry['size'] or hashlib.sha256(data).hexdigest() != entry['sha256']
@@ -91,7 +91,7 @@ def refresh(bundle: Path, record: dict, archive_path: Path, version: str,
             output.flush()
             os.fchmod(output.fileno(), 0o644)
             os.fsync(output.fileno())
-        for name, content in contents.items():
+        for (name, content) in contents.items():
             target = stage / name
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes(content)

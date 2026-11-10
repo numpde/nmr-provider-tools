@@ -36,7 +36,7 @@ def artifact_names(version):
 
 def qualify_wheelhouse_bundle(bundle, scratch):
     pins = requirements(Path("/wheelhouse-tool.lock"))
-    version, hashes = next((version, hashes) for (name, version), hashes in pins.items() if name == "packaging")
+    (version, hashes) = next((version, hashes) for ((name, version), hashes) in pins.items() if name == "packaging")
     name = f"packaging-{version}-py3-none-any.whl"
     checksum = digest(Path("/wheelhouse") / name)
     if checksum not in hashes:
@@ -137,7 +137,7 @@ def unpack_source(archive, destination, version):
 def source_payload(source, inventory):
     if type(inventory) is not dict or not inventory:
         raise ValueError("Cannot qualify package: the pre-build source inventory is missing.")
-    for name, facts in inventory.items():
+    for (name, facts) in inventory.items():
         path = PurePosixPath(name)
         if (path.is_absolute() or ".." in path.parts or path.as_posix() != name
                 or not (name in {"README.md", "MANIFEST.in", "pyproject.toml"} or name.startswith(("src/provider_core/", "tests/")))
@@ -255,7 +255,7 @@ def check(artifacts, revision):
             raise ValueError("Cannot qualify package: native install lock differs from the same released wheel.")
         rebuilt = scratch / "rebuilt"
         rebuilt.mkdir()
-        rebuilt_wheel, rebuilt_lock, identities = build_candidate(
+        (rebuilt_wheel, rebuilt_lock, identities) = build_candidate(
             source, Path("/core-runtime.lock"), Path("/core-build.lock"), Path("/wheelhouse"), rebuilt,
         )
         if identities != record["dependency_inputs"] or wheel_payload(rebuilt_wheel, payload, version) != original_metadata:
@@ -268,7 +268,7 @@ def check(artifacts, revision):
         if (digest(manifest_path) != manifest_digest or
                 {path.name: digest(path) for path in captured.iterdir() if not path.name.endswith("-sha256.json")} != expected):
             raise ValueError("Cannot qualify package: release artifacts changed during qualification.")
-        for name, checksum in sorted((expected | {manifest_path.name: manifest_digest}).items()):
+        for (name, checksum) in sorted((expected | {manifest_path.name: manifest_digest}).items()):
             print("QUALIFIED_SHA256", checksum, name, flush=True)
 
 

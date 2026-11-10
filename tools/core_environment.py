@@ -108,7 +108,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         scratch = Path(temporary)
         identities = {}
         locks = {}
-        for role, lock in (("runtime", runtime_lock), ("build", build_lock)):
+        for (role, lock) in (("runtime", runtime_lock), ("build", build_lock)):
             frozen = scratch / f"{role}.lock"
             shutil.copyfile(lock, frozen)
             requirements(frozen)
@@ -248,7 +248,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
         raise ValueError("Cannot build release artifacts: source revision must identify the captured Git commit.")
     dependency_files(pool, Path("/requirements/wheelhouse-tool.lock"))
     inventory = source_inventory(source)
-    wheel, lock, identities = build_candidate(source, runtime_lock, build_lock, pool, output)
+    (wheel, lock, identities) = build_candidate(source, runtime_lock, build_lock, pool, output)
     prefix = wheel.name.removesuffix("-py3-none-any.whl")
     sdist = output / (prefix + ".tar.gz")
     native_lock = output / (prefix + "-native-install.lock")

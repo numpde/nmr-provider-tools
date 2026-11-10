@@ -100,10 +100,10 @@ def metadata(raw, expected):
 
 def select_images(images, protected, current, now):
     selected = []
-    checker, recipe = current
+    (checker, recipe) = current
     for image in images:
         identifier = image.get("Id")
-        labels, tags, digests = image.get("Labels"), image.get("RepoTags"), image.get("RepoDigests")
+        (labels, tags, digests) = image.get("Labels"), image.get("RepoTags"), image.get("RepoDigests")
         if (type(identifier) is not str or _ID.fullmatch(identifier) is None
                 or "RepoTags" not in image or "RepoDigests" not in image
                 or labels is not None and (type(labels) is not dict
@@ -123,7 +123,7 @@ def select_images(images, protected, current, now):
                        f"nmr-provider-tools/delivery-recipe:{recipe}",
                        "nmr-provider-tools/wheelhouse-tool:local"} for tag in tags):
             continue
-        role, inputs = labels.get(_LABEL + "role"), labels.get(_LABEL + "inputs")
+        (role, inputs) = labels.get(_LABEL + "role"), labels.get(_LABEL + "inputs")
         if role == "delivery":
             recorded_recipe = labels.get(_LABEL + "recipe")
             if not (type(inputs) is str and _HASH.fullmatch(inputs)
