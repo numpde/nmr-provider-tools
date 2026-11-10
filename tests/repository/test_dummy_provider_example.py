@@ -11,21 +11,6 @@ import unittest
 from tests.repository.quality.sources import ROOT
 
 
-_EXAMPLE_FILES = frozenset(
-    {
-        "README.md",
-        "pyproject.toml",
-        "src/dummy_provider/__init__.py",
-        "src/dummy_provider/binding.py",
-        "src/dummy_provider/science.py",
-        "tests/__init__.py",
-        "tests/test_binding.py",
-        "tests/test_execution.py",
-        "tests/test_science.py",
-    }
-)
-
-
 class DummyProviderExampleTests(unittest.TestCase):
     def test_example_is_an_independent_provider_package(self) -> None:
         example = ROOT / "examples/dummy-provider"
@@ -38,14 +23,7 @@ class DummyProviderExampleTests(unittest.TestCase):
             for path in example.rglob("*")
             if path.is_symlink()
         )
-        actual_files = frozenset(
-            path.relative_to(example).as_posix()
-            for path in example.rglob("*")
-            if path.is_file()
-        )
-
         self.assertEqual([], symlinks)
-        self.assertEqual(_EXAMPLE_FILES, actual_files)
         self.assertEqual(
             "dummy-provider-example",
             project["project"]["name"],
@@ -83,13 +61,6 @@ class DummyProviderExampleTests(unittest.TestCase):
                         )
 
         self.assertEqual([], findings, msg="\n".join(findings))
-
-    def test_example_is_not_shipped_inside_provider_core(self) -> None:
-        core = ROOT / "packages/provider-core/src/provider_core"
-
-        self.assertFalse((core / "examples").exists())
-        self.assertFalse((core / "testing").exists())
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -20,8 +20,11 @@ class DummyScienceTests(unittest.TestCase):
                 values=(1, 2, 3),
             ),
         )
+        self.addCleanup(science.dispose_model, model)
         science.load_model(model)
+
         analysis = science.create_analysis(model)
+        self.addCleanup(science.dispose_analysis, analysis)
         science.initialize_analysis(analysis)
         prepared = science.prepare(
             analysis=analysis,
@@ -44,8 +47,6 @@ class DummyScienceTests(unittest.TestCase):
             ),
             actual_result,
         )
-        science.dispose_analysis(analysis)
-        science.dispose_model(model)
 
     def test_rejected_candidate_does_not_discard_the_analysis(self) -> None:
         model = science.create_model(
@@ -57,8 +58,11 @@ class DummyScienceTests(unittest.TestCase):
                 values=(2, 3),
             ),
         )
+        self.addCleanup(science.dispose_model, model)
         science.load_model(model)
+
         analysis = science.create_analysis(model)
+        self.addCleanup(science.dispose_analysis, analysis)
         science.initialize_analysis(analysis)
 
         with self.assertRaises(science.ScientificInputRejected) as rejection:
@@ -77,8 +81,6 @@ class DummyScienceTests(unittest.TestCase):
             ),
         )
         self.assertEqual(2, corrected.value_count)
-        science.dispose_analysis(analysis)
-        science.dispose_model(model)
 
     def test_stateless_sum_needs_no_model_or_analysis(self) -> None:
         actual_result = science.sum_values(

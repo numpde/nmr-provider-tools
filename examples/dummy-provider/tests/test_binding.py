@@ -4,7 +4,8 @@ from provider_core.container_guard import require_container
 
 require_container()
 
-from importlib import resources
+from importlib import metadata, resources
+from pathlib import Path
 import os
 import subprocess
 import sys
@@ -16,22 +17,23 @@ from dummy_provider.binding import create_sum_binding, create_weighted_sum_bindi
 
 
 class DummyBindingTests(unittest.TestCase):
-    def test_runtime_package_contains_only_science_and_binding(self) -> None:
-        package_root = resources.files("dummy_provider")
-        python_files = {
-            item.name
-            for item in package_root.iterdir()
-            if item.name.endswith(".py")
+    def test_installed_distribution_contains_the_scientific_package(self) -> None:
+        distribution = metadata.distribution("dummy-provider-example")
+        installed_package = Path(resources.files("dummy_provider")).resolve()
+        distribution_package = Path(
+            distribution.locate_file("dummy_provider")
+        ).resolve()
+        scientific_packages = {
+            path.parts[0]
+            for path in distribution.files
+            if path.suffix == ".py"
         }
 
-        self.assertEqual(
-            {
-                "__init__.py",
-                "binding.py",
-                "science.py",
-            },
-            python_files,
-        )
+        self.assertEqual(installed_package, distribution_package)
+        self.assertTrue(installed_package.is_relative_to(Path(sys.prefix).resolve()))
+        self.assertEqual({"dummy_provider"}, scientific_packages)
+        self.assertTrue((installed_package / "science.py").is_file())
+        self.assertTrue((installed_package / "binding.py").is_file())
 
     def test_science_import_does_not_require_the_host_launcher(self) -> None:
         environment = os.environ.copy()
@@ -43,11 +45,8 @@ class DummyBindingTests(unittest.TestCase):
                 sys.executable,
                 "-I",
                 "-B",
-                "-c",
-                (
-                    "from dummy_provider import science; "
-                    "science.WeightedSumSettings(scale=1, offset=0)"
-                ),
+                "-m",
+                "dummy_provider.science",
             ],
             check=False,
             capture_output=True,

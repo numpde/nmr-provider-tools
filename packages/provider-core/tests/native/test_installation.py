@@ -96,6 +96,24 @@ class NativeInstallationTests(unittest.TestCase):
         self.assertTrue(all('; extra == "api"' in requirement for requirement in distribution.requires))
         self.assertEqual({"provider-core"}, {item.metadata["Name"] for item in importlib.metadata.distributions()})
 
+    def test_core_distribution_excludes_provider_examples(self):
+        distribution_files = importlib.metadata.distribution("provider-core").files
+        self.assertIsNotNone(distribution_files)
+
+        packaged_python = {
+            tuple(path.parts)
+            for path in distribution_files
+            if path.suffix == ".py"
+        }
+        unexpected_examples = [
+            path
+            for path in packaged_python
+            if path[:2] == ("provider_core", "examples")
+            or path[0] == "dummy_provider"
+        ]
+
+        self.assertEqual([], unexpected_examples)
+
     def test_native_runner_retires_its_real_child_and_releases_scratch(self):
         runner = RunningSupervisor(operation_seconds=None)
         self.addCleanup(runner.close)
