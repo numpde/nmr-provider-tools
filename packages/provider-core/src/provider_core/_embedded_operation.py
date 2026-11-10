@@ -365,6 +365,7 @@ class _Operation(_Changes):
 
     async def observe(self, *, after, wait_seconds):
         await self.wait(after, wait_seconds)
+        # silent-defaults: allow-contract -- Result adoption can precede thread completion; only a finished operation may expose its result reference.
         result = self.result if self.finished else None
         return Observation(
             revision=self.revision,

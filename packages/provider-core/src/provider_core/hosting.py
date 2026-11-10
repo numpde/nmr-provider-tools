@@ -27,9 +27,6 @@ from provider_core.contribution import (
 )
 
 
-_SHA256 = re.compile(r"sha256:[0-9a-f]{64}\Z")
-
-
 def positive_seconds(value):
     if not (type(value) in (int, float) and math.isfinite(value) and 0 < value):
         raise ValueError("Execution allowances must be finite positive seconds.")
@@ -45,7 +42,7 @@ def _identity(value, label):
 
 
 def _digest(value, label):
-    if type(value) is not str or _SHA256.fullmatch(value) is None:
+    if type(value) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}\Z", value) is None:
         raise ValueError(f"{label} must be a lowercase sha256:<64 hex characters> digest")
 
 

@@ -5,9 +5,6 @@ from __future__ import annotations
 import re
 
 
-_REJECTION_CODE = re.compile(r"[a-z][a-z0-9_]{0,63}\Z")
-
-
 class CallRejected(Exception):
     """A reviewed refusal before a scientific result is established."""
 
@@ -15,7 +12,7 @@ class CallRejected(Exception):
     message: str
 
     def __init__(self, code: str, message: str) -> None:
-        if type(code) is not str or _REJECTION_CODE.fullmatch(code) is None:
+        if type(code) is not str or re.fullmatch(r"[a-z][a-z0-9_]{0,63}\Z", code) is None:
             raise ValueError("A rejection code must match [a-z][a-z0-9_]{0,63}")
         if not (type(message) is str and message):
             raise ValueError("A rejection needs a nonempty explanatory message")

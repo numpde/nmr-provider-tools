@@ -22,6 +22,7 @@ def _finite_float(value: object, *, label: str) -> float:
 def _finite_values(values: object, *, label: str) -> tuple[float, ...]:
     if type(values) is not tuple:
         raise TypeError(f"{label} must be a tuple")
+    # repo-check: allow-tuple-generator -- Scientific values are normalized into the immutable tuple required by the model contract.
     return tuple(
         _finite_float(value, label=f"{label}[{index}]")
         for (index, value) in enumerate(values)
