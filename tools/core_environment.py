@@ -230,18 +230,51 @@ def install_environment(root, lock, pool, expected_inputs=None, extra_pools=(), 
 
 
 def _install_environment(root, lock, pool, expected_inputs, extra_pools, required_files, lock_fd):
-    python = root / "environment/bin/python"
-    subprocess.run([sys.executable, "-I", "-m", "venv", "--without-pip", str(python.parent.parent)], check=True)
-    selected = select_wheels(lock, pool, extra_pools, required_files, lock_fd)
-    if expected_inputs is not None and selected != expected_inputs:
-        raise ValueError("Cannot admit provider-core installation: selected wheel identities differ from the pinned inputs.")
+    environment_python = root / "environment/bin/python"
+    subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-m",
+            "venv",
+            "--without-pip",
+            str(environment_python.parent.parent),
+        ],
+        check=True,
+    )
+
+    selected_wheel_inputs = select_wheels(
+        lock,
+        pool,
+        extra_pools,
+        required_files,
+        lock_fd,
+    )
+    if expected_inputs is not None and selected_wheel_inputs != expected_inputs:
+        raise ValueError(
+            "Cannot admit provider-core installation: selected wheel identities "
+            "differ from the pinned inputs."
+        )
+
     with tempfile.NamedTemporaryFile(prefix="core-install-report-", suffix=".json") as report:
-        observed = install_locked(python, lock, pool, Path(report.name), extra_pools, required_files, lock_fd)
-        if observed != selected:
-            raise ValueError("Cannot admit provider-core installation: installed wheel identities differ from captured inputs.")
-    subprocess.run([*pip_command(python), "--no-cache-dir", "check"], check=True)
+        installed_wheel_inputs = install_locked(
+            python=environment_python,
+            lock=lock,
+            wheels=pool,
+            report=Path(report.name),
+            extra_pools=extra_pools,
+            required_files=required_files,
+            lock_fd=lock_fd,
+        )
+        if installed_wheel_inputs != selected_wheel_inputs:
+            raise ValueError(
+                "Cannot admit provider-core installation: installed wheel "
+                "identities differ from captured inputs."
+            )
+
+    subprocess.run([*pip_command(environment_python), "--no-cache-dir", "check"], check=True)
     shutil.copyfile(lock, root / "provider-core-install.lock")
-    return python
+    return environment_python
 
 
 def behavioral_install_lock(runtime_lock, test_lock, destination):
@@ -250,17 +283,23 @@ def behavioral_install_lock(runtime_lock, test_lock, destination):
     Issued runtime and native locks are never mutated. Consumers receive a
     temporary complete lock, and duplicate package identities are refused.
     """
-    base = requirements(runtime_lock)
-    tests = requirements(test_lock)
-    overlap = set(base).intersection(tests)
-    if overlap:
+    runtime_requirements = requirements(runtime_lock)
+    test_requirements = requirements(test_lock)
+    overlapping_requirements = set(runtime_requirements).intersection(test_requirements)
+    if overlapping_requirements:
         raise ValueError(
             "Cannot install provider-core behavioral tests: test requirements "
-            f"overlap runtime packages: {sorted(overlap)!r}"
+            f"overlap runtime packages: {sorted(overlapping_requirements)!r}"
         )
-    destination.write_text(runtime_lock.read_text().rstrip() + "\n" + test_lock.read_text().strip() + "\n")
-    if requirements(destination) != base | tests:
-        raise ValueError("Cannot install provider-core behavioral tests: merged wheel lock differs from its inputs")
+
+    destination.write_text(
+        runtime_lock.read_text().rstrip() + "\n" + test_lock.read_text().strip() + "\n"
+    )
+    if requirements(destination) != runtime_requirements | test_requirements:
+        raise ValueError(
+            "Cannot install provider-core behavioral tests: merged wheel lock "
+            "differs from its inputs"
+        )
     return destination
 
 
@@ -271,19 +310,27 @@ def source_inventory(source):
             raise ValueError("Cannot capture package inventory: source links are not release inputs.")
         if path.is_file():
             inventory[path.relative_to(source).as_posix()] = {
-                "sha256": digest(path), "size": path.stat().st_size, "mode": path.stat().st_mode & 0o777,
+                "sha256": digest(path),
+                "size": path.stat().st_size,
+                "mode": path.stat().st_mode & 0o777,
             }
         elif not path.is_dir():
             raise ValueError("Cannot capture package inventory: source must contain regular files and directories.")
+
     return inventory
 
 
 def wheelhouse_source_inventory(source):
     from tools.build_wheelhouse_bundle import SOURCE_MODULES
 
-    return {name: {"sha256": digest(source / name), "size": (source / name).stat().st_size,
-                   "mode": (source / name).stat().st_mode & 0o777}
-            for name in SOURCE_MODULES}
+    return {
+        name: {
+            "sha256": digest(source / name),
+            "size": (source / name).stat().st_size,
+            "mode": (source / name).stat().st_mode & 0o777,
+        }
+        for name in SOURCE_MODULES
+    }
 
 
 def normalize_sdist(path):
