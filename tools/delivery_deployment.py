@@ -278,8 +278,11 @@ def render_shared(path, source, image):
     """Project the one operator file into independently managed proxy and outbox projects."""
     if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
         raise DeliveryDeploymentRejected("Shared deployment requires an immutable image ID.")
+
     try:
-        document = tomllib.loads(read_startup_file(path, maximum_bytes=65536, label="shared settings").decode("utf-8"))
+        document = tomllib.loads(
+            read_startup_file(path, maximum_bytes=65536, label="shared settings").decode("utf-8")
+        )
         host = document["deployment"]
         route = document["api_proxy"]["route"]
 
@@ -288,24 +291,43 @@ def render_shared(path, source, image):
         proxy_uid = host["proxy_uid"]
         gid = host["gid"]
         request_seconds = host["request_seconds"]
-
         mode = route["mode"]
         interface = route["interface"]
 
-        if not (type(project) is str and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,48}", project) is not None
-                and type(uid) is int and uid == os.geteuid() and type(proxy_uid) is int and 0 < proxy_uid and proxy_uid != uid
-                and type(gid) is int and 0 < gid
-                and type(request_seconds) in (int, float) and 0 < request_seconds < float("inf")
-                and mode in ("local", "mapped", "external") and type(interface) is str):
+        if not (
+            type(project) is str
+            and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,48}", project) is not None
+            and type(uid) is int
+            and uid == os.geteuid()
+            and type(proxy_uid) is int
+            and 0 < proxy_uid
+            and proxy_uid != uid
+            and type(gid) is int
+            and 0 < gid
+            and type(request_seconds) in (int, float)
+            and 0 < request_seconds < float("inf")
+            and mode in ("local", "mapped", "external")
+            and type(interface) is str
+        ):
             raise ValueError
+
         LiveProxyConfiguration(path, mode).read()
         SharedDeliveryConfiguration(path).read()
-        if mode == "local" and (type(route["network_id"]) is not str or re.fullmatch(r"[0-9a-f]{64}", route["network_id"]) is None):
+
+        if mode == "local" and (
+            type(route["network_id"]) is not str
+            or re.fullmatch(r"[0-9a-f]{64}", route["network_id"]) is None
+        ):
             raise ValueError
+
         # silent-defaults: allow-contract -- Only external mode grants a resolver file.
         resolver = _path(route["resolver_file"]) if mode == "external" else None
     except (KeyError, TypeError, ValueError, UnicodeError, RecursionError, OverflowError):
-        raise DeliveryDeploymentRejected("Shared deployment settings require the documented host, route, proxy and outbox inputs.") from None
+        raise DeliveryDeploymentRejected(
+            "Shared deployment settings require the documented host, route, "
+            "proxy and outbox inputs."
+        ) from None
+
     source = _path(source)
     config_path = "/settings/" + source.name
     owner = SimpleNamespace(uid=uid, gid=gid, project=project)
@@ -314,50 +336,142 @@ def render_shared(path, source, image):
     queue_volume = project + "-queue"
 
     proxy_owner = SimpleNamespace(uid=proxy_uid, gid=gid, project=project + "-proxy")
-    proxy = _service(image, "provider_core.provider_proxy", proxy_owner, 15)
-    proxy["command"] = ["--mode", mode, "--interface", interface, "--socket", "/route/proxy.sock",
-                        "--ready-file", "/route/ready", "--status-directory", "/run", "--socket-group-id", str(gid),
-                        "--live-config", config_path]
-    proxy["volumes"] = [_bind(source.parent, "/settings"), _volume(proxy_volume, "/route")]
-    proxy["depends_on"] = {"init": {"condition": "service_completed_successfully"}}
-    proxy["healthcheck"] = {"test": ["CMD", CORE_PYTHON, "-I", "-B", "-m", "provider_core.process_status",
-                                      "/run/status.json", "proxy"], "interval": "5s", "timeout": "2s", "retries": 3}
+    proxy_service = _service(image, "provider_core.provider_proxy", proxy_owner, 15)
+    proxy_service["command"] = [
+        "--mode",
+        mode,
+        "--interface",
+        interface,
+        "--socket",
+        "/route/proxy.sock",
+        "--ready-file",
+        "/route/ready",
+        "--status-directory",
+        "/run",
+        "--socket-group-id",
+        str(gid),
+        "--live-config",
+        config_path,
+    ]
+    proxy_service["volumes"] = [
+        _bind(source.parent, "/settings"),
+        _volume(proxy_volume, "/route"),
+    ]
+    proxy_service["depends_on"] = {"init": {"condition": "service_completed_successfully"}}
+    proxy_service["healthcheck"] = {
+        "test": [
+            "CMD",
+            CORE_PYTHON,
+            "-I",
+            "-B",
+            "-m",
+            "provider_core.process_status",
+            "/run/status.json",
+            "proxy",
+        ],
+        "interval": "5s",
+        "timeout": "2s",
+        "retries": 3,
+    }
+
     networks = {}
     if mode == "local":
-        del proxy["network_mode"]
-        proxy["networks"] = ["api"]
+        del proxy_service["network_mode"]
+        proxy_service["networks"] = ["api"]
         networks["api"] = {"external": True, "name": route["network_id"]}
     else:
-        proxy["network_mode"] = "host"
+        proxy_service["network_mode"] = "host"
+
     if resolver is not None:
-        proxy["volumes"].append(_bind(resolver, "/etc/resolv.conf"))
-    proxy_init = _service(image, "provider_core.deployment_route", proxy_owner, 10)
-    proxy_init.update(user="0:0", restart="no", cap_add=["CHOWN"],
-                      command=["initialize", "--uid", str(proxy_uid), "--gid", str(gid), "--shared-group"],
-                      volumes=[_volume(proxy_volume, "/route")])
-    proxy_project = {"name": project + "-proxy", "services": {"proxy": proxy, "init": proxy_init},
-                     "networks": networks, "volumes": {proxy_volume: {"name": proxy_volume}}}
+        proxy_service["volumes"].append(_bind(resolver, "/etc/resolv.conf"))
 
-    outbox = _service(image, "provider_core.delivery_main", owner, 60)
-    outbox["command"] = ["--shared-config", config_path, "--state-directory", "/state", "--socket", "/intake/http.sock",
-                         "--socket-group-id", str(gid), "--proxy-socket", "/proxy/proxy.sock",
-                         "--request-seconds", str(request_seconds), "--status-directory", "/run"]
-    outbox["volumes"] = [_bind(source.parent, "/settings"), _volume(queue_volume, "/state"),
-                          _volume(intake_volume, "/intake"), _volume(proxy_volume, "/proxy", readonly=True)]
-    outbox["depends_on"] = {"init": {"condition": "service_completed_successfully"}}
-    outbox["healthcheck"] = {"test": ["CMD", CORE_PYTHON, "-I", "-B", "-m", "provider_core.process_status",
-                                       "/run/status.json", "delivery"], "interval": "5s", "timeout": "2s", "retries": 3}
-    initializer = _service(image, "provider_core.delivery_main", owner, 10)
-    initializer.update(user="0:0", restart="no", cap_add=["CHOWN"],
-                       entrypoint=[CORE_PYTHON, "-I", "-B", "/opt/provider-tools/delivery_deployment.py"],
-                       command=["initialize", "--uid", str(uid), "--gid", str(gid), "--queue", "/volumes/queue",
-                                "--ipc", "/volumes/intake"],
-                       volumes=[_volume(queue_volume, "/volumes/queue"), _volume(intake_volume, "/volumes/intake")])
-    outbox_project = {"name": project, "services": {"delivery": outbox, "init": initializer}, "volumes": {
-        queue_volume: {"name": queue_volume}, intake_volume: {"name": intake_volume},
-        proxy_volume: {"external": True, "name": proxy_volume}}}
+    proxy_initializer = _service(image, "provider_core.deployment_route", proxy_owner, 10)
+    proxy_initializer.update(
+        user="0:0",
+        restart="no",
+        cap_add=["CHOWN"],
+        command=["initialize", "--uid", str(proxy_uid), "--gid", str(gid), "--shared-group"],
+        volumes=[_volume(proxy_volume, "/route")],
+    )
+    proxy_project = {
+        "name": project + "-proxy",
+        "services": {"proxy": proxy_service, "init": proxy_initializer},
+        "networks": networks,
+        "volumes": {proxy_volume: {"name": proxy_volume}},
+    }
+
+    outbox_service = _service(image, "provider_core.delivery_main", owner, 60)
+    outbox_service["command"] = [
+        "--shared-config",
+        config_path,
+        "--state-directory",
+        "/state",
+        "--socket",
+        "/intake/http.sock",
+        "--socket-group-id",
+        str(gid),
+        "--proxy-socket",
+        "/proxy/proxy.sock",
+        "--request-seconds",
+        str(request_seconds),
+        "--status-directory",
+        "/run",
+    ]
+    outbox_service["volumes"] = [
+        _bind(source.parent, "/settings"),
+        _volume(queue_volume, "/state"),
+        _volume(intake_volume, "/intake"),
+        _volume(proxy_volume, "/proxy", readonly=True),
+    ]
+    outbox_service["depends_on"] = {"init": {"condition": "service_completed_successfully"}}
+    outbox_service["healthcheck"] = {
+        "test": [
+            "CMD",
+            CORE_PYTHON,
+            "-I",
+            "-B",
+            "-m",
+            "provider_core.process_status",
+            "/run/status.json",
+            "delivery",
+        ],
+        "interval": "5s",
+        "timeout": "2s",
+        "retries": 3,
+    }
+
+    outbox_initializer = _service(image, "provider_core.delivery_main", owner, 10)
+    outbox_initializer.update(
+        user="0:0",
+        restart="no",
+        cap_add=["CHOWN"],
+        entrypoint=[CORE_PYTHON, "-I", "-B", "/opt/provider-tools/delivery_deployment.py"],
+        command=[
+            "initialize",
+            "--uid",
+            str(uid),
+            "--gid",
+            str(gid),
+            "--queue",
+            "/volumes/queue",
+            "--ipc",
+            "/volumes/intake",
+        ],
+        volumes=[
+            _volume(queue_volume, "/volumes/queue"),
+            _volume(intake_volume, "/volumes/intake"),
+        ],
+    )
+    outbox_project = {
+        "name": project,
+        "services": {"delivery": outbox_service, "init": outbox_initializer},
+        "volumes": {
+            queue_volume: {"name": queue_volume},
+            intake_volume: {"name": intake_volume},
+            proxy_volume: {"external": True, "name": proxy_volume},
+        },
+    }
     return {"proxy": proxy_project, "outbox": outbox_project}
-
 
 def runtime_definition(path, expected):
     (definition, checksum) = read_definition(path)
