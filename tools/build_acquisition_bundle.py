@@ -16,6 +16,7 @@ from urllib.parse import urlsplit
 import zipfile
 
 from tools.artifacts import fsync_directory
+from tools.installer import release as installer_release, wheel_bytes
 
 
 # These are the authored entrypoints and existing canonical shell owners.
@@ -32,6 +33,13 @@ SOURCE_FILES = (
 # Proxy bootstrap is deliberately the same three members as the SDK wheel.
 # repo-check: allow-module-constant
 PROXY_FILES = ("__init__.py", "container_guard.py", "bound_http_proxy.py")
+
+# Source paths and issued paths differ because the driver is also a contained tool.
+# repo-check: allow-module-constant
+INSTALLER_SOURCES = (
+    ("tools/installer.py", "acquisition_tool/installer/driver.py"),
+    ("requirements/installer-release.json", "acquisition_tool/installer/release.json"),
+)
 
 
 def _add(files, name, data):
@@ -82,6 +90,12 @@ def contents(pool, source, core_wheel, pin):
     (files, dependencies) = dependency_files(pool, pin)
     for name in SOURCE_FILES:
         _add(files, name, (source / "host" / name).read_bytes())
+    for source_name, issued_name in INSTALLER_SOURCES:
+        _add(files, issued_name, (source / source_name).read_bytes())
+    installer = installer_release(source / "requirements/installer-release.json")
+    _add(files, "acquisition_tool/installer/" + installer["name"],
+         wheel_bytes(pool / installer["name"], installer))
+    dependencies[installer["name"]] = installer["sha256"]
 
     with zipfile.ZipFile(core_wheel) as archive:
         member_names = archive.namelist()
