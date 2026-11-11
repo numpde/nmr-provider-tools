@@ -97,6 +97,14 @@ def retry(operation, description):
             delay = None
             if attempt < 3:
                 delay = retry_delay(failure.error, attempt)
+            if isinstance(failure.error, urllib.error.HTTPError):
+                try:
+                    failure.error.close()
+                except OSError as close_error:
+                    raise OSError(
+                        f"{description}: {detail}; could not close the HTTP error "
+                        f"response: {failure_detail(close_error)}."
+                    ) from None
             if delay == -1:
                 raise OSError(f"{description}: {detail}; the requested retry delay exceeds 30 seconds.") from None
             if delay is None:

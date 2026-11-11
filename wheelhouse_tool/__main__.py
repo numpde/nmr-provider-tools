@@ -11,6 +11,7 @@ import secrets
 import stat
 import sys
 import tomllib
+import urllib.error
 import urllib.parse
 import urllib.request
 from contextlib import contextmanager
@@ -219,6 +220,13 @@ def download_once(pool, name, digest, url, directory_fd):
             details = []
             if isinstance(pending, RequestFailure):
                 details.append(failure_detail(pending.error))
+                if isinstance(pending.error, urllib.error.HTTPError):
+                    # This cleanup failure prevents retry from receiving the
+                    # original response, so close it before translating it.
+                    try:
+                        pending.error.close()
+                    except OSError as close_error:
+                        details.append(f"could not close the HTTP error response: {failure_detail(close_error)}")
             elif isinstance(pending, OSError):
                 number = ""
                 if isinstance(pending.errno, int):

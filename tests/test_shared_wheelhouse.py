@@ -21,17 +21,108 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from wheelhouse_tool import __main__ as tool
 from wheelhouse_tool.stream import stream_context
 from wheelhouse_tool.report import manifest as report_manifest
 from wheelhouse_tool.identity import selection_identity
 from wheelhouse_tool.locate import locate
-from wheelhouse_tool.network import retry_delay
+from wheelhouse_tool.network import RequestFailure, retry, retry_delay
 
 
 class WheelhouseTests(unittest.TestCase):
+    def test_permanent_http_error_closes_its_response_without_retry(self):
+        body = io.BytesIO(b"private response body")
+        error = urllib.error.HTTPError("https://secret.invalid/private", 404, "private", {}, body)
+        operation = Mock(side_effect=RequestFailure(error))
+        with patch("wheelhouse_tool.network.time.sleep") as sleep:
+            with self.assertRaisesRegex(OSError, "HTTP 404") as caught:
+                retry(operation, "Cannot acquire locked artifact")
+        self.assertTrue(body.closed)
+        operation.assert_called_once_with()
+        sleep.assert_not_called()
+        self.assertNotIn("private", str(caught.exception))
+        self.assertNotIn("secret.invalid", str(caught.exception))
+
+    def test_transient_http_errors_close_before_delay_and_exhaustion(self):
+        bodies = [io.BytesIO(b"private response body") for _ in range(3)]
+        failures = [RequestFailure(urllib.error.HTTPError(
+            "https://secret.invalid/private", 503, "private", {"Retry-After": "5"}, body,
+        )) for body in bodies]
+        operation = Mock(side_effect=failures)
+
+        def observe_delay(_seconds):
+            self.assertTrue(bodies[operation.call_count - 1].closed)
+
+        with patch("wheelhouse_tool.network.time.sleep", side_effect=observe_delay) as sleep:
+            with self.assertRaisesRegex(OSError, "HTTP 503.*attempt 3 of 3"):
+                retry(operation, "Cannot acquire locked artifact")
+        self.assertEqual(3, operation.call_count)
+        self.assertEqual([5, 5], [call.args[0] for call in sleep.call_args_list])
+        self.assertTrue(all(body.closed for body in bodies))
+
+    def test_response_close_failure_preserves_http_cause_and_stops_retry(self):
+        class BrokenClose(io.BytesIO):
+            def close(self):
+                raise OSError(5, "private response cleanup detail")
+
+        body = BrokenClose(b"private response body")
+        self.addCleanup(io.BytesIO.close, body)
+        error = urllib.error.HTTPError("https://secret.invalid/private", 503, "private", {}, body)
+        operation = Mock(side_effect=RequestFailure(error))
+        with patch("wheelhouse_tool.network.time.sleep") as sleep:
+            with self.assertRaisesRegex(OSError, "HTTP 503.*could not close.*error number 5") as caught:
+                retry(operation, "Cannot acquire locked artifact")
+        operation.assert_called_once_with()
+        sleep.assert_not_called()
+        self.assertNotIn("private", str(caught.exception))
+        self.assertNotIn("secret.invalid", str(caught.exception))
+
+    def test_failed_later_artifact_preserves_progress_and_retry_reuses_it(self):
+        second_name = "zexample-1.0-py3-none-any.whl"
+        second_content = b"second locked artifact"
+        second_digest = hashlib.sha256(second_content).hexdigest()
+        with self.lock.open("a") as lock:
+            lock.write(
+                '[[packages]]\nname = "zexample"\nversion = "1.0"\n'
+                '[[packages.wheels]]\n'
+                f'url = "http://127.0.0.1:{self.server.server_port}/{second_name}"\n'
+                f'hashes = {{ sha256 = "{second_digest}" }}\n'
+            )
+        unrelated = self.pool / "unrelated.bin"
+        unrelated.write_bytes(b"preserve unrelated bytes")
+        unrelated_before = (unrelated.read_bytes(), unrelated.stat().st_ino)
+
+        with self.assertRaisesRegex(OSError, "server returned HTTP 404"):
+            tool.run("acquire", self.lock, self.pool)
+
+        first = self.pool / self.name
+        first_before = (first.read_bytes(), first.stat().st_ino)
+        self.assertEqual(self.content, first_before[0])
+        self.assertEqual(unrelated_before, (unrelated.read_bytes(), unrelated.stat().st_ino))
+        self.assertEqual(
+            {self.name, unrelated.name, ".wheelhouse-acquire.lock"},
+            {path.name for path in self.pool.iterdir()},
+        )
+        self.assertEqual(1, self.requests.count(f"/{self.name}"))
+        failed_requests = [path for path in self.requests if path != f"/{self.name}"]
+        self.assertTrue(failed_requests)
+        self.assertTrue(all(path == f"/{second_name}" for path in failed_requests))
+
+        (self.root / second_name).write_bytes(second_content)
+        self.requests.clear()
+        tool.run("acquire", self.lock, self.pool)
+
+        self.assertEqual([f"/{second_name}"], self.requests)
+        self.assertEqual(first_before, (first.read_bytes(), first.stat().st_ino))
+        self.assertEqual(unrelated_before, (unrelated.read_bytes(), unrelated.stat().st_ino))
+        self.assertEqual(second_content, (self.pool / second_name).read_bytes())
+        self.assertEqual(
+            {self.name, second_name, unrelated.name, ".wheelhouse-acquire.lock"},
+            {path.name for path in self.pool.iterdir()},
+        )
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -180,6 +271,35 @@ class WheelhouseTests(unittest.TestCase):
         self.assertIn('could not remove the temporary file', str(captured.exception))
         self.assertNotIn('private', str(captured.exception))
         sleep.assert_not_called()
+
+    def test_http_response_closes_when_partial_removal_fails(self):
+        body = io.BytesIO(b"private response body")
+        error = urllib.error.HTTPError("https://secret.invalid/private", 503, "private", {}, body)
+        with (patch.object(tool.urllib.request, "urlopen", side_effect=error) as open_url,
+              patch.object(tool.os, "unlink", side_effect=PermissionError("private")),
+              patch("wheelhouse_tool.network.time.sleep") as sleep):
+            with self.assertRaisesRegex(OSError, "HTTP 503.*could not remove the temporary file") as caught:
+                tool.run("acquire", self.lock, self.pool)
+        self.assertTrue(body.closed)
+        open_url.assert_called_once()
+        sleep.assert_not_called()
+        self.assertNotIn("private", str(caught.exception))
+
+    def test_response_and_partial_cleanup_failures_preserve_http_cause(self):
+        body = io.BytesIO(b"private response body")
+        self.addCleanup(body.close)
+        error = urllib.error.HTTPError("https://secret.invalid/private", 503, "private", {}, body)
+        with (patch.object(tool.urllib.request, "urlopen", side_effect=error) as open_url,
+              patch.object(error, "close", side_effect=OSError(5, "private close detail")) as close,
+              patch.object(tool.os, "unlink", side_effect=PermissionError("private unlink detail")),
+              patch("wheelhouse_tool.network.time.sleep") as sleep):
+            with self.assertRaisesRegex(OSError, "HTTP 503.*could not close.*error number 5.*could not remove") as caught:
+                tool.run("acquire", self.lock, self.pool)
+        open_url.assert_called_once()
+        close.assert_called_once()
+        sleep.assert_not_called()
+        self.assertNotIn("private", str(caught.exception))
+        self.assertNotIn("secret.invalid", str(caught.exception))
 
     def test_cleanup_failure_reports_published_file(self):
         with patch.object(tool.os, 'unlink', side_effect=PermissionError('private')):
