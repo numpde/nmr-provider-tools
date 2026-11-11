@@ -93,11 +93,12 @@ class IdentityTests(unittest.TestCase):
     def test_unresolved_probe_keeps_retirement_receipt_absent(self, probe):
         failure = ProbeFailure(Problem("engine", "fixture failure"), Retirement(ResourceState.UNRESOLVED))
         probe.side_effect = failure
-        self.assertEqual((2, ""), self.run_entrypoint()[:2])
+        status, output, diagnostic = self.run_entrypoint()
+        self.assertEqual((2, ""), (status, output))
         self.assertFalse(self.receipt.exists())
-        with self.assertRaises(ProbeFailure) as caught:
-            identity.mapped_owner("unix:///fixture/engine.sock", "fixture:local", 1000, 2000)
-        self.assertIs(failure, caught.exception)
+        probe.assert_called_once()
+        self.assertIn("fixture failure", diagnostic)
+        self.assertNotIn("Traceback", diagnostic)
 
     @patch.object(identity, "probe_identity")
     def test_safe_probe_state_does_not_erase_unresolved_native_client(self, probe):
