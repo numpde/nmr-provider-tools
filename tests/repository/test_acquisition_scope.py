@@ -195,7 +195,7 @@ source host/acquisition_tool/owner.sh
 # supervisor, signal handlers and engine retirement remain real.
 acquisition_map_owner() { printf -v "$1" '%s' 0; printf -v "$2" '%s' 0; printf '%s\n' "$3" >> "$STATE/map-images"; }
 receipt="$STATE/retired"
-trap 'code=$?; if [[ -f "$receipt" ]] && cmp -s "$receipt" <(printf "retired\n"); then ready=yes; else ready=no; fi; printf "%s %s\n" "$code" "$ready" >> "$STATE/caller-exit"; if [[ ${CALLER_EXITS:-0} == 1 ]]; then exit "$code"; fi' EXIT
+trap 'code=$?; if [[ -f "$receipt" ]] && cmp -s "$receipt" <(printf "retired\n"); then ready=yes; else ready=no; fi; printf "%s %s\n" "$code" "$ready" >> "$STATE/caller-exit"; printf "%s" "$_acq_diagnostic" > "$STATE/owner-diagnostic"; if [[ ${CALLER_EXITS:-0} == 1 ]]; then exit "$code"; fi' EXIT
 grants=(--read-only --entrypoint python)
 application=(-c ignored)
 callback() {
@@ -209,6 +209,8 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
             injected.update(env)
         if 'ACQUISITION_STDOUT_STAT_FAULT' in injected:
             (binary / 'stat').symlink_to(Path(__file__).resolve().parent / 'fixtures/acquisition_engine.sh')
+        if 'CLIENT_CLEANUP_FAILURE' in injected:
+            (binary / 'rm').symlink_to(Path(__file__).resolve().parent / 'fixtures/acquisition_engine.sh')
         environment = {**os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}',
                        'STATE': str(root), 'ENGINE_STATE': str(root), **injected}
         process = subprocess.Popen(['bash', '-c', script], env=environment,
@@ -285,7 +287,8 @@ return 2
                                 session = os.getsid(pid)
                             except (FileNotFoundError, ProcessLookupError):
                                 continue
-                            if (argv == [b'bash', b'-c', b'printf "%s" "$1" >&2', b'bash', b'scope reporter barrier\n']
+                            if (len(argv) == 9 and argv[:5] == [b'python3', b'-I', b'-S', b'-B', b'-c']
+                                    and argv[-3:] == [b'scope reporter barrier\n', b'', b'']
                                     and channel in {'pipe_write', 'anon_pipe_write'}
                                     and session == process.pid):
                                 reporter = pid
@@ -310,6 +313,7 @@ return 2
             "_acq_fail 'ordinary reporter status'; "
             'inference_native() { inference_cancellation_status=0; return 143; }; return 2')
         self.assert_exit(process, root, 2)
+        self.assertIn('stderr delivery failed (status 143', (root / 'owner-diagnostic').read_text())
 
     def test_failed_readiness_retains_private_causes_after_container_retirement(self):
         cases = (
@@ -663,6 +667,166 @@ _acq_fail 'fixture diagnostic'
         self.assertEqual(2, process.returncode, msg=(stdout, stderr))
         self.assertIn(b'known framework diagnostic', stderr)
         self.assertEqual(['2 yes'], (root / 'caller-exit').read_text().splitlines())
+
+    def test_completed_worker_failure_survives_unadmitted_removal_identity(self):
+        for status in (37, 143):
+            with self.subTest(status=status):
+                process, root = self.launch(
+                    'acquisition_set_route system; acquisition_worker online status fixture:local grants application '
+                    '|| return $?; return "$status"',
+                    env={'WORKER_STATUS': str(status), 'CORRUPT_COMPLETED_WORKER_CID': 'damaged-worker'})
+                stdout, stderr = process.communicate(timeout=20)
+                operation = Path((root / 'scratch').read_text().strip())
+                self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+                client = Path((root / 'engine-client').read_text().split()[1]).parent
+                self.addCleanup(shutil.rmtree, client, ignore_errors=True)
+                self.assertEqual(status, process.returncode, msg=(stdout, stderr))
+                self.assertTrue(client.is_dir())
+                self.assertTrue(operation.is_dir())
+                self.assertEqual(b'damaged-worker\n', (operation / 'worker-1/cid').read_bytes())
+                self.assertEqual((f'{3:064x}' + '\n').encode(), (operation / 'worker-1/stdout').read_bytes())
+                self.assertFalse((root / 'retired').exists())
+                self.assertFalse((root / 'removal-attempts').exists())
+                self.assertIn(b'worker-1', stderr)
+                self.assertIn(str(status).encode(), stderr)
+                self.assertEqual([f'{status} no'], (root / 'caller-exit').read_text().splitlines())
+
+    def test_client_cleanup_preserves_primary_status_and_actual_removal_effect(self):
+        cases = (
+            (0, 'retain', 41, b'Permission denied'),
+            (37, 'retain', 37, b'Permission denied'),
+            (0, 'delete', 41, b'failed after deleting the selected directory'),
+            (37, 'delete', 37, b'failed after deleting the selected directory'),
+        )
+        for status, effect, expected, cause in cases:
+            with self.subTest(status=status, effect=effect):
+                process, root = self.launch(
+                    'acquisition_set_route system; acquisition_worker online status fixture:local grants application '
+                    '|| return $?; return "$status"',
+                    env={'WORKER_STATUS': str(status), 'CLIENT_CLEANUP_FAILURE': effect})
+                stdout, stderr = process.communicate(timeout=20)
+                client = Path((root / 'client-cleanup-path').read_text().strip())
+                self.addCleanup(shutil.rmtree, client, ignore_errors=True)
+                self.assertEqual(expected, process.returncode, msg=(stdout, stderr))
+                self.assertEqual(effect == 'retain', client.is_dir())
+                self.assertIn(str(client).encode(), stderr)
+                self.assertIn(b'status 41', stderr)
+                self.assertIn(cause, stderr)
+                if status:
+                    self.assertIn(b'already failed with status 37', stderr)
+                operation = Path((root / 'scratch').read_text().strip())
+                self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+                private_cause = operation / 'client-cleanup.stderr'
+                self.assertEqual(0o600, private_cause.stat().st_mode & 0o777)
+                self.assertIn(b'status 41', private_cause.read_bytes())
+                report = operation / 'failure.stderr'
+                self.assertEqual(0o600, report.stat().st_mode & 0o777)
+                self.assertEqual(stderr, report.read_bytes())
+                self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
+                self.assertEqual([], list(root.glob('live-*')))
+                self.assertEqual([f'{expected} yes'], (root / 'caller-exit').read_text().splitlines())
+
+    def test_client_cleanup_cause_is_reported_without_interrupting_its_producer(self):
+        process, root = self.launch(
+            'printf "%s\\n" "$_acq_scratch" > "$STATE/scratch"; return 37',
+            env={'CLIENT_CLEANUP_FAILURE': 'oversized-cause'})
+        stdout, stderr = process.communicate(timeout=15)
+        self.assertEqual(37, process.returncode, msg=(stdout, stderr))
+        operation = Path((root / 'scratch').read_text().strip())
+        client = Path((root / 'client-cleanup-path').read_text().strip())
+        self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+        self.addCleanup(shutil.rmtree, client, ignore_errors=True)
+        private_cause = operation / 'client-cleanup.stderr'
+        self.assertEqual(0o600, private_cause.stat().st_mode & 0o777)
+        self.assertEqual(4097, private_cause.stat().st_size)
+        self.assertIn(b'cleanup-cause-canary', private_cause.read_bytes())
+        self.assertIn(b'cleanup-cause-canary', stderr)
+        self.assertIn(b'status 41', stderr)
+        self.assertIn(b'truncated after 4096 bytes', stderr)
+        self.assertNotIn(b'cleanup-output-tail', stderr)
+        self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
+        self.assertTrue(client.is_dir())
+
+    def test_caller_cancellation_does_not_suppress_a_client_cleanup_failure(self):
+        for interrupted, status in ((signal.SIGHUP, 129), (signal.SIGINT, 130), (signal.SIGTERM, 143)):
+            with self.subTest(interrupted=interrupted):
+                process, root = self.launch(
+                    'acquisition_set_route system; acquisition_worker online result fixture:local grants application',
+                    env={'STREAM_WITNESS': '1', 'CLIENT_CLEANUP_FAILURE': 'retain'})
+                self.wait_marker(process, root / 'started-worker')
+                process.send_signal(interrupted)
+                stdout, stderr = process.communicate(timeout=20)
+                operation = Path((root / 'scratch').read_text().strip())
+                client = Path((root / 'client-cleanup-path').read_text().strip())
+                self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+                self.addCleanup(shutil.rmtree, client, ignore_errors=True)
+                self.assertEqual(status, process.returncode, msg=(stdout, stderr))
+                self.assertIn(f'was interrupted (status {status})'.encode(), stderr)
+                self.assertIn(b'status 41', stderr)
+                self.assertIn(b'Permission denied', stderr)
+                self.assertEqual(stderr, (operation / 'failure.stderr').read_bytes())
+                self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
+                self.assertEqual([], list(root.glob('live-*')))
+
+    def test_client_cleanup_control_bytes_are_escaped_without_losing_raw_evidence(self):
+        process, root = self.launch(
+            'printf "%s\\n" "$_acq_scratch" > "$STATE/scratch"; return 37',
+            env={'CLIENT_CLEANUP_FAILURE': 'binary-cause'})
+        stdout, stderr = process.communicate(timeout=15)
+        self.assertEqual(37, process.returncode, msg=(stdout, stderr))
+        operation = Path((root / 'scratch').read_text().strip())
+        client = Path((root / 'client-cleanup-path').read_text().strip())
+        self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+        self.addCleanup(shutil.rmtree, client, ignore_errors=True)
+        self.assertTrue((operation / 'client-cleanup.stderr').read_bytes().startswith(b'cleanup\0cause\r\n\n'))
+        self.assertIn(b'cleanup\\x00cause\\r\n\n', stderr)
+        self.assertNotIn(b'ignored null byte', stderr)
+        self.assertNotIn(b'\0', stderr)
+        self.assertNotIn(b'truncated after', stderr)
+
+    def test_client_cleanup_failure_finishes_before_public_stderr_is_drained(self):
+        callback = r'''
+printf '%s\n' "$_acq_scratch" > "$STATE/scratch"
+if [[ $CLIENT_CLEANUP_FAILURE == capture-directory ]]; then mkdir -- "$_acq_scratch/client-cleanup.stderr"; fi
+python3 -I -S -B - <<'PY'
+import os
+os.set_blocking(2, False)
+try:
+    while True:
+        os.write(2, b'x' * 4096)
+except BlockingIOError:
+    pass
+finally:
+    os.set_blocking(2, True)
+PY
+return 37
+'''
+        for failure in ('retain', 'oversized-cause', 'capture-directory'):
+            with self.subTest(failure=failure):
+                process, root = self.launch(callback, env={'CLIENT_CLEANUP_FAILURE': failure})
+                self.wait_marker(process, root / 'client-cleanup-path')
+                operation = Path((root / 'scratch').read_text().strip())
+                client = Path((root / 'client-cleanup-path').read_text().strip())
+                self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+                self.addCleanup(shutil.rmtree, client, ignore_errors=True)
+                self.assertEqual(37, process.wait(timeout=10))
+                stdout, stderr = process.communicate(timeout=3)
+                self.assertEqual(b'', stdout)
+                self.assertEqual({ord('x')}, set(stderr))
+                self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
+                self.assertTrue(client.is_dir())
+                self.assertIn('stderr delivery failed (status 124', (root / 'owner-diagnostic').read_text())
+                report = operation / 'failure.stderr'
+                self.assertEqual(0o600, report.stat().st_mode & 0o777)
+                detail = report.read_bytes()
+                self.assertIn(b'already failed with status 37', detail)
+                self.assertIn(b'status 41', detail)
+                if failure == 'capture-directory':
+                    self.assertIn(b'destination is a directory', detail)
+                elif failure == 'oversized-cause':
+                    self.assertIn(b'truncated after 4096 bytes', detail)
+                else:
+                    self.assertIn(b'Permission denied', detail)
 
     def test_failed_removal_can_settle_absence_without_repeating_the_mutation(self):
         process, root = self.launch(
