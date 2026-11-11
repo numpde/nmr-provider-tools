@@ -78,6 +78,7 @@ class WheelhouseTests(unittest.TestCase):
         sleep.assert_not_called()
         self.assertNotIn("private", str(caught.exception))
         self.assertNotIn("secret.invalid", str(caught.exception))
+        self.assertNotIn("the network failed", str(caught.exception))
 
     def test_failed_later_artifact_preserves_progress_and_retry_reuses_it(self):
         second_name = "zexample-1.0-py3-none-any.whl"
@@ -300,6 +301,7 @@ class WheelhouseTests(unittest.TestCase):
         sleep.assert_not_called()
         self.assertNotIn("private", str(caught.exception))
         self.assertNotIn("secret.invalid", str(caught.exception))
+        self.assertNotIn("the network failed", str(caught.exception))
 
     def test_cleanup_failure_reports_published_file(self):
         with patch.object(tool.os, 'unlink', side_effect=PermissionError('private')):
