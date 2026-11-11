@@ -123,12 +123,14 @@ class TypedContributionTests(unittest.TestCase):
 
         for binding in bindings:
             with self.subTest(binding_id=binding.description.binding_id):
+                self.assertIs(type(binding.description.calls), tuple)
                 self.assertEqual(
-                    tuple(call.description for call in binding.calls),
-                    binding.description.calls,
+                    [call.description for call in binding.calls],
+                    list(binding.description.calls),
                 )
 
                 for call in binding.calls:
+                    self.assertIs(type(call.state_binding.names), tuple)
                     self.assertEqual(
                         call.description.input_format,
                         call.input_codec.format,
@@ -138,8 +140,8 @@ class TypedContributionTests(unittest.TestCase):
                         call.result_codec.format,
                     )
                     self.assertEqual(
-                        tuple(state.name for state in call.description.state_inputs),
-                        call.state_binding.names,
+                        [state.name for state in call.description.state_inputs],
+                        list(call.state_binding.names),
                     )
 
     def test_call_constructor_derives_provider_and_shared_marker_types(self):

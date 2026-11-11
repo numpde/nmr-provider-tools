@@ -215,7 +215,7 @@ def _validate_annotation(
 def _validate_dataclass(
     value_type: type[object],
     *,
-    seen: frozenset[type[object]] = frozenset(),
+    seen: frozenset[type[object]],
 ) -> None:
     if value_type in seen:
         return
@@ -270,6 +270,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
         if type(value) is not list:
             raise PayloadRejected("invalid_type", f"{path} must be an array")
         if len(arguments) == 2 and arguments[1] is Ellipsis:
+            # repo-check: allow-tuple-generator -- Decode the provider's variadic tuple annotation into the immutable type its scientific callable requires.
             return tuple(
                 _decode_value(
                     item,
@@ -283,6 +284,7 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
                 "invalid_length",
                 f"{path} must contain exactly {len(arguments)} items",
             )
+        # repo-check: allow-tuple-generator -- A fixed tuple annotation requires an immutable positional result with the declared element types.
         return tuple(
             _decode_value(
                 item,
@@ -460,7 +462,7 @@ class JsonDataclassCodec[T]:
 
     def __post_init__(self) -> None:
         _require_format(self.format)
-        _validate_dataclass(self.value_type)
+        _validate_dataclass(self.value_type, seen=frozenset())
 
     def decode(self, payload: bytes) -> T:
         return _decode_dataclass(
@@ -502,6 +504,7 @@ class DataclassStateBinding[T]:
 
     @property
     def names(self) -> tuple[str, ...]:
+        # repo-check: allow-tuple-generator -- StateBinding.names exposes immutable field order for matching declared live-state inputs.
         return tuple(field.name for field in fields(self.value_type))
 
     def bind(self, values: Mapping[str, object]) -> T:

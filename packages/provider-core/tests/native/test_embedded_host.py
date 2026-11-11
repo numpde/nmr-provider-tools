@@ -86,27 +86,21 @@ def _grants(binding) -> tuple[ResourceGrant, ...]:
 
     grants = []
     for identity in set(resident) | set(active):
-        resident_requirement = resident.get(identity)
-        active_requirement = active.get(identity)
-        requirement = resident_requirement or active_requirement
+        requirements = [mapping[identity] for mapping in (resident, active) if identity in mapping]
+        requirement = requirements[0]
         grants.append(
             ResourceGrant(
                 kind=requirement.kind,
-                amount=(
-                    (resident_requirement.amount if resident_requirement else 0)
-                    + (active_requirement.amount if active_requirement else 0)
-                ),
+                amount=sum(item.amount for item in requirements),
                 unit=requirement.unit,
                 selector=requirement.selector,
-                exclusive=bool(
-                    (resident_requirement and resident_requirement.exclusive)
-                    or (active_requirement and active_requirement.exclusive)
-                ),
+                exclusive=any(item.exclusive for item in requirements),
             )
         )
     return tuple(grants)
 
 
+# silent-defaults: allow-contract -- Stateless invocation witnesses carry no input states; stateful witnesses supply their exact retained references.
 def _invocation(
     analysis,
     binding,
@@ -180,6 +174,7 @@ class _FailingResultCodec[T]:
 class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
     def host(self, bindings, *, limits=None):
         host = EmbeddedHost(
+            # repo-check: allow-tuple-generator -- Each host is constructed from a fixed immutable allocation inventory.
             tuple(
                 Allocation(
                     name=name,

@@ -67,6 +67,7 @@ class EmbeddedHost:
 
     @property
     def allocations(self):
+        # repo-check: allow-tuple-generator -- The host API returns an allocation snapshot rather than a live view of mutable residents.
         return tuple(resident.reference for resident in self.residents.values())
 
     def _require_loop(self):
@@ -173,6 +174,7 @@ class _Analysis:
             resident.allocation.name: _ScientificAnalysis(resident)
             for resident in residents
         }
+        # repo-check: allow-tuple-generator -- Analysis custody retains the exact ordered reservation references admitted at creation.
         self.reservations = tuple(
             ReservationRef(
                 host=host.identity,

@@ -9,8 +9,8 @@ provider-core. Notes 064-066 retain the architecture, safety rules and rollout
 plan. This note owns the implemented v1 names and distinctions.
 
 The dummy provider is a standalone consumer example under
-examples/dummy-provider. Its installed package contains science and the
-contribution binding; its ordinary tests exercise scientific behavior,
+examples/dummy-provider. Its installed package contains science, the
+contribution binding and its local resource TOML; its ordinary tests exercise scientific behavior,
 binding declarations and an installed local-host call sequence. Shared
 execution and provider service responsibilities remain in provider-core.
 
@@ -144,7 +144,7 @@ Standalone dummy-provider example
 ---------------------------------
 examples/dummy-provider is its own Python project with pyproject.toml,
 src/dummy_provider and tests. Its installed package contains only science.py,
-binding.py and its package marker. The ordinary tests have distinct purposes:
+binding.py, resources.toml and its package marker. The ordinary tests have distinct purposes:
 
 - test_science.py checks direct calculations, rejection and correction.
 - test_binding.py checks the scientific binding's types and installed boundary.

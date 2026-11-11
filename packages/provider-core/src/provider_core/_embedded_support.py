@@ -26,6 +26,8 @@ from provider_core.hosting import (
     positive_seconds,
 )
 
+# This describes the backend's implemented features, not operator-selectable settings.
+# repo-check: allow-module-constant
 EMBEDDED_CAPABILITIES = BackendCapabilities(
     contract_versions=(1,),
     isolation=(IsolationRequirement.SHARED_PROCESS,),
@@ -157,7 +159,7 @@ class _Changes:
                 await asyncio.wait_for(self.event.wait(), timeout=wait_seconds)
             except TimeoutError:
                 # Only this event waiter expired. No calculation was cancelled.
-                pass
+                return
 
 
 class _Cleanup(_Changes):

@@ -79,11 +79,46 @@ _acq_capture() {
 
 # The helper writes host-owner mapping only after its qualified probe retires.
 acquisition_map_owner() {
+    [[ $# == 3 || $# == 5 ]] || {
+        printf '%s\n' 'Identity mapping requires output names, an image, and optionally a host UID and GID pair.' >&2
+        return 2
+    }
     local _acq_uid_name=$1 _acq_gid_name=$2 _acq_map_image=$3
-    local _acq_host_uid=${4:-$(id -u)} _acq_host_gid=${5:-$(id -g)}
+    local _acq_host_uid _acq_host_gid _acq_map_in_scope=false
     local _acq_map_endpoint _acq_map_bundle _acq_map_directory _acq_map_status=0 _acq_map_uid= _acq_map_gid= _acq_map_diagnostic=
     local inference_retirement_confirmed=true inference_cancellation_status=0 inference_diagnostic=
-    _acq_map_endpoint=${_acq_endpoint:-${NMR_SELECTED_DOCKER_ENDPOINT:-}}
+    if [[ $# == 3 ]]; then
+        _acq_host_uid=$(id -u) || return "$?"
+        _acq_host_gid=$(id -g) || return "$?"
+    else
+        _acq_host_uid=$4
+        _acq_host_gid=$5
+        [[ -n $_acq_host_uid && -n $_acq_host_gid ]] || {
+            printf '%s\n' 'Identity mapping requires a nonempty host UID and GID pair.' >&2
+            return 2
+        }
+    fi
+    # Keep probe diagnostics and cancellation attached to the calling scope.
+    if [[ -v _acq_active ]]; then
+        case $_acq_active in
+            true) _acq_map_in_scope=true ;;
+            false) ;;
+            *) printf '%s\n' 'Cannot map identity: acquisition scope state is invalid.' >&2; return 2 ;;
+        esac
+    fi
+    if "$_acq_map_in_scope"; then
+        [[ -v _acq_endpoint ]] || {
+            printf '%s\n' 'Identity mapping requires the active scope endpoint.' >&2
+            return 2
+        }
+        _acq_map_endpoint=$_acq_endpoint
+    else
+        [[ -v NMR_SELECTED_DOCKER_ENDPOINT ]] || {
+            printf '%s\n' 'Identity mapping requires an explicitly selected endpoint.' >&2
+            return 2
+        }
+        _acq_map_endpoint=$NMR_SELECTED_DOCKER_ENDPOINT
+    fi
     [[ -n $_acq_map_endpoint ]] || { printf '%s\n' 'Identity mapping requires an explicitly selected endpoint.' >&2; return 2; }
     _acq_map_bundle=$(_acq_bundle_path) || return 2
     source "$_acq_map_bundle/tools/inference_native.sh"
@@ -96,17 +131,17 @@ acquisition_map_owner() {
         _acq_map_diagnostic+=$(<"$_acq_map_directory/output.stderr")
         _acq_map_diagnostic+=$'\n'
     fi
-    if [[ ${_acq_active:-false} == true ]]; then _acq_diagnostic+=$_acq_map_diagnostic; fi
+    if [[ $_acq_map_in_scope == true ]]; then _acq_diagnostic+=$_acq_map_diagnostic; fi
     if ! "$inference_retirement_confirmed" || ! cmp -s "$_acq_map_directory/retired" <(printf 'retired\n'); then
-        if [[ ${_acq_active:-false} == true ]]; then _acq_identity_unsettled=true; _acq_failed=true; fi
-        if [[ ${_acq_active:-false} == true ]]; then
+        if [[ $_acq_map_in_scope == true ]]; then _acq_identity_unsettled=true; _acq_failed=true; fi
+        if [[ $_acq_map_in_scope == true ]]; then
             printf -v _acq_diagnostic '%sCannot confirm identity probe retirement; retained evidence at %q.\n' "$_acq_diagnostic" "$_acq_map_directory"
         else
             printf '%s' "$_acq_map_diagnostic" >&2
             printf 'Cannot confirm identity probe retirement; retained evidence at %q.\n' "$_acq_map_directory" >&2
         fi
         if [[ $inference_cancellation_status != 0 ]]; then
-            if [[ ${_acq_active:-false} == true ]]; then
+            if [[ $_acq_map_in_scope == true ]]; then
                 _acq_cancelled=$inference_cancellation_status; exit "$_acq_cancelled"
             fi
             return "$inference_cancellation_status"
@@ -118,8 +153,8 @@ acquisition_map_owner() {
         if [[ ! $_acq_map_uid =~ ^[0-9]+$ || ! $_acq_map_gid =~ ^[0-9]+$ ]]             || ! cmp -s "$_acq_map_directory/output" <(printf '%s %s\n' "$_acq_map_uid" "$_acq_map_gid"); then _acq_map_status=2; fi
     fi
     rm -rf -- "$_acq_map_directory" || return 2
-    if [[ ${_acq_active:-false} != true ]]; then printf '%s' "$_acq_map_diagnostic" >&2; fi
-    if [[ ${_acq_active:-false} == true && ( $_acq_map_status == 129 || $_acq_map_status == 130 || $_acq_map_status == 143 ) ]]; then
+    if [[ $_acq_map_in_scope == false ]]; then printf '%s' "$_acq_map_diagnostic" >&2; fi
+    if [[ $_acq_map_in_scope == true && ( $_acq_map_status == 129 || $_acq_map_status == 130 || $_acq_map_status == 143 ) ]]; then
         _acq_cancelled=$_acq_map_status; exit "$_acq_map_status"
     fi
     [[ $_acq_map_status == 0 ]] || return "$_acq_map_status"
@@ -132,6 +167,8 @@ _acq_create() {
     local -n _acq_options_ref=$_acq_options_name _acq_arguments_ref=$_acq_arguments_name
     local _acq_role_directory=$_acq_scratch/$_acq_role
     mkdir -m 700 -- "$_acq_role_directory" || return 2
+    _acq_cids[$_acq_role]=
+    _acq_removal_state[$_acq_role]=pending
     _acq_roles+=("$_acq_role")
     _acq_attempted[$_acq_role]=true
     _acq_native "acquisition $_acq_role creation" 30 stdio bash -eu -c '
@@ -145,43 +182,104 @@ _acq_create() {
         _acq_fail "Cannot create $_acq_role: creation did not complete (status $_acq_create_status)."
         return "$_acq_create_status"
     fi
-    [[ -n ${_acq_cids[$_acq_role]:-} ]] && _acq_private_receipt_below_limit "$_acq_role_directory/stderr"         || { _acq_fail "Cannot admit $_acq_role: create output and CID receipt must agree."; return 2; }
+    [[ -n ${_acq_cids[$_acq_role]} ]] && _acq_private_receipt_below_limit "$_acq_role_directory/stderr"         || { _acq_fail "Cannot admit $_acq_role: create output and CID receipt must agree."; return 2; }
 }
 
 _acq_remove() {
-    local _acq_remove_role=$1 _acq_remove_cid=${_acq_cids[$1]:-} _acq_remove_directory=$_acq_scratch/$1
-    [[ ${_acq_removed[$_acq_remove_role]:-false} != true ]] || return 0
+    local _acq_remove_role=$1 _acq_remove_directory=$_acq_scratch/$1
+    [[ -v '_acq_cids[$_acq_remove_role]' && -v '_acq_removal_state[$_acq_remove_role]' ]] || return 2
+    local _acq_remove_cid=${_acq_cids[$_acq_remove_role]}
+    local _acq_remove_status=0
+    case ${_acq_removal_state[$_acq_remove_role]} in
+        removed) return 0 ;;
+        pending) ;;
+        uncertain) return 2 ;;
+        *) return 2 ;;
+    esac
     if [[ -z $_acq_remove_cid && $_acq_cancelled != 0 ]]; then
         if IFS= read -r -N 64 _acq_remove_cid < "$_acq_remove_directory/cid"             && _acq_container_id_matches_receipt "$_acq_remove_cid" "$_acq_remove_directory/cid"             && _acq_cancellation_stdout_allows_identity "$_acq_remove_cid" "$_acq_remove_directory/stdout"; then
             _acq_cids[$_acq_remove_role]=$_acq_remove_cid
+        else
+            return 2
         fi
     fi
     _acq_container_id_matches_receipt "$_acq_remove_cid" "$_acq_remove_directory/cid" || return 2
-    _acq_native "acquisition $_acq_remove_role removal" 30 discard "${_acq_engine[@]}" rm --force "$_acq_remove_cid" || return "$?"
+    # A retired client does not prove the mutation succeeded. Observe absence
+    # after this one attempt; never replay an effect whose outcome is unknown.
+    _acq_removal_state[$_acq_remove_role]=uncertain
+    _acq_native "acquisition $_acq_remove_role removal" 30 discard "${_acq_engine[@]}" rm --force "$_acq_remove_cid" || _acq_remove_status=$?
+    if [[ $_acq_remove_status != 0 ]]; then
+        _acq_fail "Removal client for acquisition $_acq_remove_role failed (status $_acq_remove_status)."
+    fi
+    "$_acq_native_retired" || return 2
     _acq_capture "$_acq_remove_directory/absence" ps --all --quiet --no-trunc --filter "id=$_acq_remove_cid" || return "$?"
     [[ ! -s $_acq_remove_directory/absence ]] || return 2
-    _acq_removed[$_acq_remove_role]=true
+    _acq_removal_state[$_acq_remove_role]=removed
+    return "$_acq_remove_status"
 }
 
 _acq_ready() {
     local _acq_ready_role=$1 _acq_ready_file=$2 _acq_ready_cid=${_acq_cids[$1]} _acq_ready_status=0
-    _acq_capture "$_acq_scratch/$_acq_ready_role/start" start "$_acq_ready_cid" || return "$?"
+    local _acq_log_status=0 _acq_ready_reason= _acq_ready_explanation='readiness observation did not complete'
+    local _acq_ready_directory=$_acq_scratch/$1
+    _acq_capture "$_acq_ready_directory/start" start "$_acq_ready_cid" || return "$?"
     _acq_native "acquisition $_acq_ready_role readiness" 30 stdio bash -eu -c '
         ready=$1 directory=$2 cid=$3; shift 3; umask 077; ulimit -f 4
         for _ in {1..100}; do
             if [[ -f "$ready" && ! -L "$ready" && -s "$ready" ]]; then exit 0; fi
-            "$@" inspect --format "{{.State.Running}}" "$cid" > "$directory/state" 2> "$directory/state.stderr" || exit 2
-            cmp -s "$directory/state" <(printf "true\n") || exit 2
+            if "$@" inspect --format "{{.State.Running}}" "$cid" > "$directory/state" 2> "$directory/state.stderr"; then :; else
+                status=$?
+                printf "inspect-failed %s\n" "$status" > "$directory/readiness-reason"
+                exit 2
+            fi
+            if cmp -s "$directory/state" <(printf "false\n"); then
+                printf "stopped\n" > "$directory/readiness-reason"
+                exit 2
+            fi
+            if ! cmp -s "$directory/state" <(printf "true\n"); then
+                printf "invalid-state\n" > "$directory/readiness-reason"
+                exit 2
+            fi
             sleep 0.05
         done
+        printf "checks-exhausted\n" > "$directory/readiness-reason"
         exit 2
-    ' bash "$_acq_ready_file" "$_acq_scratch/$_acq_ready_role" "$_acq_ready_cid" "${_acq_engine[@]}" || _acq_ready_status=$?
-    [[ $_acq_ready_status == 0 ]] || { _acq_fail "Cannot start acquisition: $_acq_ready_role readiness failed."; return "$_acq_ready_status"; }
+    ' bash "$_acq_ready_file" "$_acq_ready_directory" "$_acq_ready_cid" "${_acq_engine[@]}" || _acq_ready_status=$?
+    if [[ $_acq_ready_status != 0 ]]; then
+        _acq_retain_readiness=true
+        # Publish only the authored reason, never raw engine output.
+        if _acq_private_receipt_below_limit "$_acq_ready_directory/readiness-reason"; then
+            _acq_ready_reason=$(<"$_acq_ready_directory/readiness-reason")
+            case $_acq_ready_reason in
+                stopped) _acq_ready_explanation='container stopped before becoming ready' ;;
+                invalid-state) _acq_ready_explanation='container running state could not be verified' ;;
+                checks-exhausted) _acq_ready_explanation='container did not become ready after 100 checks' ;;
+                *)
+                    if [[ $_acq_ready_reason =~ ^inspect-failed\ ([0-9]{1,3})$ ]]; then
+                        _acq_ready_explanation="container running state could not be verified (inspect status ${BASH_REMATCH[1]})"
+                    fi ;;
+            esac
+        fi
+        _acq_fail "Cannot start acquisition: $_acq_ready_role readiness failed: $_acq_ready_explanation (status $_acq_ready_status)."
+        # Only a retired observation permits another native command. Log
+        # collection is secondary and cannot replace the readiness failure.
+        if "$_acq_native_retired" && ! "$_acq_identity_unsettled"; then
+            _acq_capture "$_acq_ready_directory/logs" logs --tail 80 "$_acq_ready_cid" || _acq_log_status=$?
+            if (umask 077; printf '%s\n' "$_acq_log_status" > "$_acq_ready_directory/log-status"); then :; else
+                _acq_fail "Cannot save acquisition $_acq_ready_role log retrieval status."
+            fi
+            if [[ $_acq_log_status != 0 ]]; then
+                _acq_fail "Cannot collect complete acquisition $_acq_ready_role logs (status $_acq_log_status)."
+            fi
+        fi
+        return "$_acq_ready_status"
+    fi
     _acq_private_receipt_below_limit "$_acq_ready_file"
 }
 
 acquisition_set_route() {
-    [[ ${_acq_active:-false} == true && $# == 1 && -n $1 ]] || return 2
+    [[ -v _acq_active && $_acq_active == true ]] || return 2
+    [[ $# == 1 && -n $1 ]] || return 2
     [[ -z $_acq_route || $_acq_route == "$1" ]] || { _acq_fail 'Cannot change route in an active acquisition scope.'; return 2; }
     _acq_route=$1
 }
@@ -194,7 +292,10 @@ _acq_scope_identity() {
 }
 
 _acq_start_route() {
-    [[ -z ${_acq_cids[relay]:-} ]] || return 0
+    if [[ -v '_acq_cids[relay]' ]]; then
+        [[ -n ${_acq_cids[relay]} ]] || return 2
+        return 0
+    fi
     [[ -n $_acq_route ]] || { _acq_fail 'Select an explicit acquisition route before online work.'; return 2; }
     _acq_scope_identity || { _acq_failed=true; return 2; }
     _acq_native 'acquisition resolver capture' 10 stdio python3 -I -S -B "$_acq_bundle/acquisition_tool/dns.py" \
@@ -229,8 +330,14 @@ _acq_start_route() {
 
 acquisition_worker() {
     local _acq_budget=untimed
-    if [[ ${1:-} == --timeout ]]; then _acq_budget=$2; shift 2; fi
-    [[ $# == 5 && ${_acq_active:-false} == true ]] || return 2
+    [[ $# -gt 0 ]] || return 2
+    if [[ $1 == --timeout ]]; then
+        [[ $# -ge 2 ]] || return 2
+        _acq_budget=$2
+        shift 2
+    fi
+    [[ $# == 5 ]] || return 2
+    [[ -v _acq_active && $_acq_active == true ]] || return 2
     local _acq_mode=$1 _acq_result_name=$2 _acq_image=$3 _acq_create_name=$4 _acq_app_name=$5
     local _acq_token _acq_attach_status=0 _acq_running _acq_exit _acq_extra
     local -n _acq_create_ref=$_acq_create_name _acq_app_ref=$_acq_app_name
@@ -298,7 +405,11 @@ _acq_finish() {
             [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2
         fi
         _acq_cleanup_client || { [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2; }
-        rm -rf -- "$_acq_scratch" || { [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2; }
+        if "$_acq_retain_readiness"; then
+            printf -v _acq_diagnostic '%sRetained acquisition readiness diagnostics at %q.\n' "$_acq_diagnostic" "$_acq_scratch"
+        else
+            rm -rf -- "$_acq_scratch" || { [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2; }
+        fi
     else
         printf -v _acq_diagnostic '%sCannot confirm acquisition retirement; retained operation %q.\n' "$_acq_diagnostic" "$_acq_scratch"
         [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2
@@ -315,6 +426,10 @@ _acq_report() {
     # overwrite the scope's engine/client uncertainty or block caller cleanup.
     if inference_native 'acquisition diagnostic reporting' 2 stdio \
         bash -c 'printf "%s" "$1" >&2' bash "$_acq_diagnostic"; then :; else :; fi
+    if [[ $inference_cancellation_status != 0 ]]; then
+        # Native restored caller traps; deliver its observed signal to them.
+        kill -s "$(kill -l "$inference_cancellation_status")" "$BASHPID"
+    fi
 }
 
 _acq_scope_exit() {
@@ -355,7 +470,9 @@ _acq_cleanup_client() {
 }
 
 acquisition_scope() {
-    [[ ${_acq_active:-false} != true ]] || return 2
+    if [[ -v _acq_active ]]; then
+        [[ $_acq_active == false ]] || return 2
+    fi
     # Bash can unwind function locals before EXIT under errexit. Keep this
     # process's cleanup authority alive until its owned trap has finished.
     declare -g _acq_endpoint= _acq_bootstrap_image= _acq_retired_receipt=
@@ -373,10 +490,10 @@ acquisition_scope() {
     declare -g _acq_saved_exit= _acq_saved_hup= _acq_saved_int= _acq_saved_term=
     _acq_saved_exit=$(trap -p EXIT); _acq_saved_hup=$(trap -p HUP); _acq_saved_int=$(trap -p INT); _acq_saved_term=$(trap -p TERM)
     declare -g _acq_bundle= _acq_scratch= _acq_route= _acq_port= _acq_sequence=0 _acq_active=false _acq_scope_uid= _acq_scope_gid=
-    declare -g _acq_failed=false _acq_identity_unsettled=false _acq_cancelled=0 _acq_diagnostic= _acq_final_status=0
+    declare -g _acq_failed=false _acq_identity_unsettled=false _acq_cancelled=0 _acq_diagnostic= _acq_final_status=0 _acq_retain_readiness=false
     declare -g _acq_native_retired=true _acq_client_directory= _acq_owner_pid=$BASHPID
     declare -ga _acq_engine=() _acq_roles=()
-    declare -gA _acq_cids=() _acq_attempted=() _acq_removed=()
+    declare -gA _acq_cids=() _acq_attempted=() _acq_removal_state=()
     _acq_bundle=$(_acq_bundle_path) || return 2
     source "$_acq_bundle/tools/inference_native.sh"
     source "$_acq_bundle/tools/docker_client.sh"

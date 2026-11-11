@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Standalone example of a scientific provider contribution"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["provider-core==0.6.8"]
+dependencies = ["provider-core==0.6.11"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -17,3 +17,6 @@ namespaces = false
 
 [tool.setuptools]
 include-package-data = false
+
+[tool.setuptools.package-data]
+dummy_provider = ["resources.toml"]

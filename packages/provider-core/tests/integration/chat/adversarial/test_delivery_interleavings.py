@@ -189,6 +189,7 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(1, len(delivery.offers))
                         self.assertFalse(delivery.accepted.is_set())
                         self.assertIs(run.controller.operation._delivery_outcome, original)
+                        # silent-defaults: allow-contract -- A lost acknowledgement follows acceptance; an unavailable receiver has accepted no report.
                         self.assertEqual([original] if disposition == "lost" else [], delivery.items)
                         self.assertTrue(run.controller.work_settled)
                         self.assertFalse(run.controller.shutdown_ready)

@@ -99,7 +99,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             result_bytes=1024,
         )
 
-        def submit_call(*, scientific_call, operation_id: str, payload: bytes, states=()):
+        def submit_call(*, scientific_call, operation_id: str, payload: bytes, states):
             return analysis.submit(
                 Invocation(
                     operation_id=operation_id,
@@ -122,6 +122,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             scientific_call=prepare_call,
             operation_id="prepare",
             payload=prepare_call.input_codec.encode(preparation_input),
+            states=(),
         )
         self.assertNotIsInstance(preparation_operation, NotAdmitted)
 

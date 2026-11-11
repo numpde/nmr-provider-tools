@@ -2,19 +2,25 @@
 
 from __future__ import annotations
 
+from importlib.resources import files
+import tomllib
+
 import provider_core.contribution as contribution
 import provider_core.contribution_declaration as declaration
 
 from . import science
 
 
-_CPU_THREAD = contribution.ResourceRequirement(
-    kind="cpu",
-    amount=1,
-    unit="thread",
-    selector="generic",
-    exclusive=False,
-)
+def _configured_cpu_resource() -> tuple[contribution.ResourceRequirement, contribution.AssetDescription]:
+    resource_file = files(__package__).joinpath("resources.toml")
+    requirement = contribution.ResourceRequirement(**tomllib.loads(resource_file.read_text(encoding="utf-8")))
+    asset = declaration.json_asset(
+        requirement,
+        name="resources",
+        format_id="dummy.resources.v1",
+        media_type="application/vnd.nmr-provider-tools.dummy-resources+json",
+    )
+    return (requirement, asset)
 
 
 def create_weighted_sum_binding(
@@ -26,6 +32,7 @@ def create_weighted_sum_binding(
     science.WeightedSumAnalysis,
 ]:
     """Bind immutable settings and coefficients to one weighted model revision."""
+    (cpu_requirement, resource_asset) = _configured_cpu_resource()
     prepared_values_kind = "dummy.prepared-values.v1"
 
     def construct_model() -> science.WeightedSumModel:
@@ -79,7 +86,7 @@ def create_weighted_sum_binding(
         format_id="dummy.coefficients.v1",
         media_type="application/vnd.nmr-provider-tools.dummy-coefficients+json",
     )
-    assets = (coefficient_asset,)
+    assets = (coefficient_asset, resource_asset)
 
     prepare_call = contribution.CallBinding.from_json_dataclasses(
         name="prepare",
@@ -89,7 +96,7 @@ def create_weighted_sum_binding(
         state_outputs=(
             contribution.StateOutput(name="prepared", kind=prepared_values_kind),
         ),
-        resources=(_CPU_THREAD,),
+        resources=(cpu_requirement,),
         concurrency=contribution.ConcurrencyRequirement.INSTANCE_SERIAL,
         interruption=contribution.InterruptionSupport.NONE,
         progress=False,
@@ -106,7 +113,7 @@ def create_weighted_sum_binding(
             ),
         ),
         state_outputs=(),
-        resources=(_CPU_THREAD,),
+        resources=(cpu_requirement,),
         concurrency=contribution.ConcurrencyRequirement.INSTANCE_SERIAL,
         interruption=contribution.InterruptionSupport.NONE,
         progress=True,
@@ -142,6 +149,7 @@ def create_weighted_sum_binding(
 
 def create_sum_binding() -> contribution.ImplementationBinding[None, None]:
     """Register a stateless sum with one independently callable operation."""
+    (cpu_requirement, resource_asset) = _configured_cpu_resource()
 
     def run(
         *,
@@ -152,13 +160,14 @@ def create_sum_binding() -> contribution.ImplementationBinding[None, None]:
         )
 
     configuration = None
+    assets = (resource_asset,)
     run_call = contribution.CallBinding.from_json_dataclasses(
         name="run",
         input_format="dummy.sum-input.v1",
         result_format="dummy.sum-result.v1",
         state_inputs=(),
         state_outputs=(),
-        resources=(_CPU_THREAD,),
+        resources=(cpu_requirement,),
         concurrency=contribution.ConcurrencyRequirement.PARALLEL,
         interruption=contribution.InterruptionSupport.NONE,
         progress=False,
@@ -170,11 +179,11 @@ def create_sum_binding() -> contribution.ImplementationBinding[None, None]:
         binding_revision=declaration.binding_revision(
             implementation="dummy.sum.v5",
             configuration=configuration,
-            assets=(),
+            assets=assets,
         ),
         contract_version=1,
         configuration=configuration,
-        assets=(),
+        assets=assets,
         calls=(run_call,),
         resident_resources=(),
         isolation=contribution.IsolationRequirement.SHARED_PROCESS,

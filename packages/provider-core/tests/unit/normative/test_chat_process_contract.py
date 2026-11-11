@@ -20,6 +20,7 @@ from provider_core.chat_errors import ChatFailed
 from provider_core.chat_tls import capture_trust, restore_trust
 from provider_core.conversation import ToolFinished
 from provider_core.decoded_body import DecodedBodyRejected
+from provider_core.diagnostics import failure_evidence
 from provider_core.interpreter import Interpreter
 from provider_core.transport import ExchangeFailed
 from tests.fakes.conversation import call
@@ -83,7 +84,12 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             messages = [{"role": "user", "content": "Authored scientific input"}]
             tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
             try:
-                result = await endpoint.complete(messages, tools, not_after=asyncio.get_running_loop().time() + 3)
+                try:
+                    result = await endpoint.complete(messages, tools, not_after=asyncio.get_running_loop().time() + 3)
+                except ChatFailed as error:
+                    error.add_note(json.dumps(failure_evidence(
+                        error, secrets=(factory.spec.api_key, "Authored scientific input"))))
+                    raise
                 self.assertEqual(json.loads(completion())["choices"][0]["message"], result)
                 self.assertEqual(1, len(peer.requests))
                 self.assertTrue(peer.requests[0].startswith(b"POST /configured/chat HTTP/1.1\r\n"))

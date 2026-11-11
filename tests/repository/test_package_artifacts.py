@@ -15,7 +15,7 @@ import unittest
 import zipfile
 from contextlib import redirect_stdout
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 from tools.package import (
     artifact_names,
@@ -149,7 +149,12 @@ class PackageArtifactTests(unittest.TestCase):
         with patch("tools.package.subprocess.run") as commands:
             qualify_acquisition_bundle(archive_path, scratch, expected)
 
-        self.assertEqual(4, commands.call_count)
+        extracted = scratch / "acquisition-source"
+        self.assertEqual([
+            call(["bash", "-n", str(extracted / "acquisition_tool/owner.sh")], check=True),
+            call(["python3", "-I", "-S", "-B", str(ROOT / "containers/isolated/acquisition_import_check.py"), str(extracted)], check=True),
+            call(["python3", "-I", "-S", "-B", str(extracted / "acquisition_tool/identity.py"), "--help"], check=True, stdout=subprocess.DEVNULL),
+        ], commands.call_args_list)
         for (name, payload, _, _) in members:
             self.assertEqual(payload, (scratch / "acquisition-source" / name).read_bytes())
 

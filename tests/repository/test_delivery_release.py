@@ -95,6 +95,6 @@ class DeliveryReleaseTests(unittest.TestCase):
                 core_environment, "install_locked", return_value=selected
             ) as install, patch.object(core_environment.subprocess, "run"):
                 core_environment.install_environment(root, lock, self.pool, selected)
-            self.assertEqual(self.pool, install.call_args.args[2])
+            self.assertEqual(self.pool, install.call_args.kwargs["wheels"])
             self.assertEqual(b"lock", (root / "provider-core-install.lock").read_bytes())
             self.assertFalse((root / "wheels").exists())

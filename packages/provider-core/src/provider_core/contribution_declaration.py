@@ -114,13 +114,11 @@ def binding_revision(
     ):
         raise TypeError("assets must be a tuple of AssetDescription records")
 
+    # silent-defaults: allow-contract -- A missing configuration needs a distinct revision identity from every configured document digest.
+    configuration_identity = "configuration:none" if configuration is None else configuration.digest
     revision_parts = (
         implementation,
-        (
-            "configuration:none"
-            if configuration is None
-            else configuration.digest
-        ),
+        configuration_identity,
         *(asset.digest for asset in assets),
     )
     return _revision_digest(revision_parts)

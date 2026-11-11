@@ -28,9 +28,6 @@ from provider_core.payload import (
 )
 
 
-_SHA256 = re.compile(r"sha256:[0-9a-f]{64}\Z")
-
-
 def _identity(value: object, label: str) -> None:
     if not (
         type(value) is str
@@ -44,7 +41,7 @@ def _identity(value: object, label: str) -> None:
 
 
 def _digest(value: object, label: str) -> None:
-    if type(value) is not str or _SHA256.fullmatch(value) is None:
+    if type(value) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}\Z", value) is None:
         raise ValueError(f"{label} must be a lowercase sha256:<64 hex characters> digest")
 
 
@@ -57,8 +54,7 @@ def _records(values: object, record_type: type[object], label: str) -> None:
 
 
 def _unique(values: tuple[object, ...], key: Callable[[object], object], label: str) -> None:
-    identities = tuple(key(value) for value in values)
-    if len(set(identities)) != len(identities):
+    if len({key(value) for value in values}) != len(values):
         raise ValueError(f"{label} cannot contain duplicates")
 
 
@@ -76,18 +72,6 @@ class _ScientificCallShape:
     state: type[object]
     output: type[object]
     control: bool
-
-
-_NO_INPUT_FORMAT = "provider-core.no-input.v1"
-
-
-_CALL_PARAMETERS = (
-    "instance",
-    "analysis",
-    "scientific_input",
-    "state",
-    "control",
-)
 
 
 def _resolved_callable_hints(
@@ -182,6 +166,7 @@ def _constructed_type(
 def _scientific_call_shape(
     scientific_call: Callable[..., object],
 ) -> _ScientificCallShape:
+    call_parameters = ("instance", "analysis", "scientific_input", "state", "control")
     try:
         signature = inspect.signature(scientific_call)
     except (TypeError, ValueError) as error:
@@ -195,13 +180,13 @@ def _scientific_call_shape(
     ):
         raise TypeError("Scientific call parameters must be required keyword-only parameters")
 
-    parameter_names = tuple(parameter.name for parameter in parameters)
-    unknown_parameters = tuple(name for name in parameter_names if name not in _CALL_PARAMETERS)
+    parameter_names = tuple(signature.parameters)
+    unknown_parameters = [name for name in parameter_names if name not in call_parameters]
     if unknown_parameters:
         raise TypeError(f"Scientific call has unknown parameters: {unknown_parameters!r}")
 
-    canonical_names = tuple(name for name in _CALL_PARAMETERS if name in parameter_names)
-    if parameter_names != canonical_names:
+    canonical_names = [name for name in call_parameters if name in parameter_names]
+    if list(parameter_names) != canonical_names:
         raise TypeError(
             "Scientific call parameters must follow instance, analysis, "
             "scientific_input, state, control order"
@@ -226,7 +211,9 @@ def _scientific_call_shape(
 
     instance_type = parameter_annotations.get("instance")
     analysis_type = parameter_annotations.get("analysis")
+    # silent-defaults: allow-contract -- Omitting scientific_input declares the shared NoInput payload; an annotated parameter must still name its exact type.
     input_type = parameter_annotations.get("scientific_input", NoInput)
+    # silent-defaults: allow-contract -- Omitting state declares no borrowed scientific state, represented by the shared NoState contract.
     state_type = parameter_annotations.get("state", NoState)
 
     if instance_type is NoneType:
@@ -565,6 +552,7 @@ class CallBinding[InputT, StateT, OutputT]:
         if not isinstance(self.state_binding, StateBinding):
             raise TypeError("State binding must implement StateBinding")
 
+        # repo-check: allow-tuple-generator -- StateBinding.names requires an immutable ordered tuple matching the declared state fields.
         declared_state_names = tuple(
             parameter.name
             for parameter in self.description.state_inputs
@@ -623,7 +611,7 @@ class CallBinding[InputT, StateT, OutputT]:
                 raise ValueError(
                     "Omit input_format when the scientific call has no input"
                 )
-            admitted_input_format = _NO_INPUT_FORMAT
+            admitted_input_format = "provider-core.no-input.v1"
         else:
             if input_format is None:
                 raise ValueError(
@@ -787,6 +775,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
                 contract_version=contract_version,
                 configuration=configuration,
                 assets=assets,
+                # repo-check: allow-tuple-generator -- ImplementationDescription owns a fixed call inventory independent of later host-local binding changes.
                 calls=tuple(call.description for call in calls),
                 resident_resources=resident_resources,
                 isolation=isolation,
@@ -815,6 +804,7 @@ def description_document(description: ImplementationDescription) -> dict[str, ob
         "binding_id": description.binding_id,
         "binding_revision": description.binding_revision,
         "contract_version": description.contract_version,
+        # silent-defaults: allow-contract -- The exported contract distinguishes no configuration (null) from an explicitly configured empty document.
         "configuration": (
             None
             if description.configuration is None

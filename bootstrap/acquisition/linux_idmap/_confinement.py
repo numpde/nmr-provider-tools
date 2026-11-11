@@ -2,7 +2,6 @@
 
 from ._probe_model import StepError
 
-
 # Docker inspect fields required for every probe.
 # repo-check: allow-module-constant
 _SETTINGS = {
@@ -19,7 +18,10 @@ def verify(container) -> None:
         actual = settings[field]
         if type(actual) is not type(expected) or actual != expected:
             raise StepError("confinement", "probe differs from the required confinement policy")
-    if (settings["Privileged"] is not False or settings["PidMode"] not in (None, "")
-            or any(settings[key] not in (None, []) for key in ("CapAdd", "Devices", "DeviceRequests"))
-            or container.mounts != []):
+    if (
+        settings["Privileged"] is not False
+        or settings["PidMode"] not in (None, "")
+        or any(settings[key] not in (None, []) for key in ("CapAdd", "Devices", "DeviceRequests"))
+        or container.mounts != []
+    ):
         raise StepError("confinement", "probe acquired forbidden privileges, devices or mounts")
