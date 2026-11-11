@@ -166,6 +166,7 @@ case "$operation" in
     : > "$ENGINE_STATE/removed-worker"
     ;;
   ps)
+    printf '%s\n' "$@" >> "$ENGINE_STATE/absence-probes"
     for arg in "$@"; do
       case "$arg" in id=*) identifier=${arg#id=} ;; esac
     done
