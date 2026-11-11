@@ -25,8 +25,8 @@
     },
     "acquisition_tool/owner.sh": {
       "mode": 420,
-      "sha256": "c62c4ab4dd2c073a38f4dd257151ef09e326c692ca51dc6a81ce38ead7cccd62",
-      "size": 28601
+      "sha256": "aadac0a09a9090837001efee23b17542b4ac0e4a39712eaa481de135b4bf6e6c",
+      "size": 33314
     },
     "linux_idmap-0.3.3.dist-info/METADATA": {
       "mode": 420,
@@ -180,12 +180,12 @@
     }
   },
   "files": {
-    "acquisition-owner-0.6.11.tar.gz": "991bd7405165e15fa23e7847663ff63e59d61bdbbf1eaaa03ff16feeadc251a5",
-    "provider_core-0.6.11-install.lock": "1005287839a10f487ecb1651f5988c3a5d31ccaba57077469dc830260c0284b4",
-    "provider_core-0.6.11-native-install.lock": "8ee0485dc2b18591820f342e3f052c045603eaaba961915802a2a43a021172af",
-    "provider_core-0.6.11-py3-none-any.whl": "a3a32ac83474837863f11f1db7ca6e4efa3994e6715c57cb4390e1b0845321b9",
-    "provider_core-0.6.11.tar.gz": "0eae8f56411738d224ab93559781ced0ef45f758f414407848fcf02f140fb47c",
-    "wheelhouse-tool-0.6.11.pyz": "e3fecec1b52b98372ce898a02ee5c9645a34782a913fd695a91d5f42f89b1e60"
+    "acquisition-owner-0.6.12.tar.gz": "6e325f7c8880bafb9f0e31530752689c547d01b34d95fef8ba395c68f968f13f",
+    "provider_core-0.6.12-install.lock": "600a2cf0bf457e15b00eb575583311fc1865692ec8483abe0d8e89f38f4bded3",
+    "provider_core-0.6.12-native-install.lock": "6582c6786fc3a98dd11dce78b80899f585d7b12b7da3624ad7f95fe4854606cd",
+    "provider_core-0.6.12-py3-none-any.whl": "2e4d03957ec55a97cba3c94a99461ed02a24cb9b04f8c598e57ec6679098d9fd",
+    "provider_core-0.6.12.tar.gz": "693e7c0c1183b7e15238acf09b9b6a7b00aeaad3a88a5b183dc896ac5a6dadf5",
+    "wheelhouse-tool-0.6.12.pyz": "e3fecec1b52b98372ce898a02ee5c9645a34782a913fd695a91d5f42f89b1e60"
   },
   "source_files": {
     "MANIFEST.in": {
@@ -200,7 +200,7 @@
     },
     "pyproject.toml": {
       "mode": 420,
-      "sha256": "5761003dbebb539cbeab33592518c40261275a3e8b15b811a457f2b8b99bcb16",
+      "sha256": "5cfdba543173e84e3a45cab6274da76eccb57a2cd29dc7865d124bdfdb66384b",
       "size": 589
     },
     "src/provider_core/__init__.py": {
@@ -2064,7 +2064,7 @@
       "size": 5770
     }
   },
-  "source_revision": "c653898e5bd8ac825666dccd6f3d823065d1e316",
+  "source_revision": "6bb11df2c4ce942f2a5d6b651b30a50c8a2aa09e",
   "tool_source_files": {
     "__init__.py": {
       "mode": 420,
