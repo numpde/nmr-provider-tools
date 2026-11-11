@@ -7,7 +7,7 @@ import sys
 from dataclasses import replace
 
 from .core import Identifier
-from .probe import ProbeFailure, ProbeRequest, Problem, ResourceState, Retirement, StepError, probe_identity
+from .probe import ProbeFailure, ProbeRequest, ProbeResources, Problem, ResourceState, Retirement, StepError, probe_identity
 
 
 class _SignalCancellation:
@@ -42,6 +42,9 @@ def _parser():
     )
     parser.add_argument("--values", action="store_true", help="print only projected decimal IDs for shell callers")
     parser.add_argument("--timeout", type=float, help="override the measurement time bound in seconds")
+    parser.add_argument("--memory-bytes", type=int, help="probe memory and swap ceiling in bytes")
+    parser.add_argument("--pids-limit", type=int, help="probe process ceiling")
+    parser.add_argument("--nano-cpus", type=int, help="probe CPU ceiling in billionths of one CPU")
     return parser
 
 
@@ -73,6 +76,11 @@ def main(argv: list[str] | None = None) -> int:
             request = replace(request, userns_mode=options.userns)
         if options.timeout is not None:
             request = replace(request, bounds=replace(request.bounds, operation_seconds=options.timeout))
+        ceilings = (options.memory_bytes, options.pids_limit, options.nano_cpus)
+        if any(value is not None for value in ceilings):
+            if any(value is None for value in ceilings):
+                raise StepError("invalid-policy", "supply all three probe resource ceilings")
+            request = replace(request, resources=ProbeResources(*ceilings))
         cancellation = _SignalCancellation()
         for number in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             handlers[number] = signal.signal(number, cancellation.request)

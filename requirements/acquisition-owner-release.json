@@ -1,6 +1,6 @@
 {
   "acquisition_dependency_inputs": {
-    "linux_idmap-0.3.2-py3-none-any.whl": "bb607eb18afa14a6fd839622600aabab5cfbe0c029989764ee137909acee9106"
+    "linux_idmap-0.3.3-py3-none-any.whl": "2f9b47529fe36acf636f3a6a8a62198bed41ee331002d95268fc8ba0c77e3dfc"
   },
   "acquisition_source_files": {
     "acquisition_tool/__init__.py": {
@@ -20,35 +20,35 @@
     },
     "acquisition_tool/identity_main.py": {
       "mode": 420,
-      "sha256": "d49f694a7931a9ec080d94cec67324bbfe7dc607df3f1b0ba1a48fd79fcd504c",
-      "size": 3609
+      "sha256": "784bcc9e1a2fc7a847dcc2e663f501253ef2ffe76d4f0dce3c4c77bf250fb249",
+      "size": 3166
     },
     "acquisition_tool/owner.sh": {
       "mode": 420,
       "sha256": "c62c4ab4dd2c073a38f4dd257151ef09e326c692ca51dc6a81ce38ead7cccd62",
       "size": 28601
     },
-    "linux_idmap-0.3.2.dist-info/METADATA": {
+    "linux_idmap-0.3.3.dist-info/METADATA": {
       "mode": 420,
-      "sha256": "e26c459d9ec4fc466f1eacf9cf5a2ba2826ffdfe06c4c241a08b115350cd0c54",
-      "size": 4271
+      "sha256": "02cc26769597e5f3800a161227fa8c845667db058ff93e5e5b916a9b9d52cb60",
+      "size": 4743
     },
-    "linux_idmap-0.3.2.dist-info/RECORD": {
+    "linux_idmap-0.3.3.dist-info/RECORD": {
       "mode": 420,
-      "sha256": "c0da8c0d2974e463bee3d1bd8464d824bc6e95019692ef32fe9f7a369f53c81b",
-      "size": 1615
+      "sha256": "d4253a7a8b9c3ca66a3607c5d42f06f03281a52cbebb76c15e89cdddb77a01fb",
+      "size": 1616
     },
-    "linux_idmap-0.3.2.dist-info/WHEEL": {
+    "linux_idmap-0.3.3.dist-info/WHEEL": {
       "mode": 420,
       "sha256": "d7a7dcffd469f39e122dc761683123af4bbae69d1edc5859c6284d81c9c213df",
       "size": 91
     },
-    "linux_idmap-0.3.2.dist-info/entry_points.txt": {
+    "linux_idmap-0.3.3.dist-info/entry_points.txt": {
       "mode": 420,
       "sha256": "2e8e446dd453eb528c7c95d34f92628e353c0a80c821096e97cbaf1673c4303d",
       "size": 60
     },
-    "linux_idmap-0.3.2.dist-info/top_level.txt": {
+    "linux_idmap-0.3.3.dist-info/top_level.txt": {
       "mode": 420,
       "sha256": "8b8b78a28949cf75bdbef6321369638eaed53ca04cc48c26463bb58fcfc801c4",
       "size": 12
@@ -60,8 +60,8 @@
     },
     "linux_idmap/_cli.py": {
       "mode": 420,
-      "sha256": "2d36f3e0bd86776f15a0d482137e436f6bc6b2123ae29f6594d7dfc6e743132e",
-      "size": 5917
+      "sha256": "db97e00d67ea39fdeadf29c3206d178ebf03b56e77b65a9b01d301d7c93a5046",
+      "size": 6577
     },
     "linux_idmap/_command.py": {
       "mode": 420,
@@ -70,8 +70,8 @@
     },
     "linux_idmap/_confinement.py": {
       "mode": 420,
-      "sha256": "295624ea298ff995d7dd34bbee07e65ac26e04999efe022d3af9cd21a8d918c0",
-      "size": 964
+      "sha256": "9637ea6fc97e7a36ffa4366ed9ee58c1d8ace9fe3b1c219b196ff5954864c510",
+      "size": 1431
     },
     "linux_idmap/_docker.py": {
       "mode": 420,
@@ -90,8 +90,8 @@
     },
     "linux_idmap/_probe_model.py": {
       "mode": 420,
-      "sha256": "f60542948d8853173203a567e6c8059529f53246c1b23661bb640f2e146174f5",
-      "size": 4672
+      "sha256": "093ca48d601b68c6a104ae7321773a232cf39fa0ad7d0e8dde5a2e5d6d1b6c30",
+      "size": 5568
     },
     "linux_idmap/_probe_process.py": {
       "mode": 420,
@@ -105,8 +105,8 @@
     },
     "linux_idmap/_probe_spec.py": {
       "mode": 420,
-      "sha256": "1fd6ea819428085d1011b89c315042c4b328e2d0996a06079d136809a98f88a8",
-      "size": 3782
+      "sha256": "b53828d811d3d5b1b9d058be83adb7a857cfbeef808831efc0a20c36a0def2f4",
+      "size": 4382
     },
     "linux_idmap/_procfs.py": {
       "mode": 420,
@@ -120,8 +120,8 @@
     },
     "linux_idmap/probe.py": {
       "mode": 420,
-      "sha256": "0b4138706a7b59c0dd86fe9aec47b4421491ecf5792b3a4b9eb57713d24b10ff",
-      "size": 1549
+      "sha256": "ed83298d5e3fb5ae42fdd893905bd45c57976266205c1367b166483935b38bf2",
+      "size": 1591
     },
     "linux_idmap/process.py": {
       "mode": 420,
@@ -180,12 +180,12 @@
     }
   },
   "files": {
-    "acquisition-owner-0.6.10.tar.gz": "c9a5668a1c66bb588e850ef75363fc16e97d614a93749a9583d0e3f2b3913a02",
-    "provider_core-0.6.10-install.lock": "b5aad9ab3ae7b1404c1e02df1aafa3a045b2c1fd65566b2f0ccd9dd7a4769b59",
-    "provider_core-0.6.10-native-install.lock": "f1138211fbeeacfbc5078e230f03c0c288da74086e85c3db43cc1eef5b71b6ed",
-    "provider_core-0.6.10-py3-none-any.whl": "748cb0d13981e1ccfe6cc7c1c0172dd92a7161c4e7c0bc2350baf108c025cae8",
-    "provider_core-0.6.10.tar.gz": "fbc225463a649f58345b5dc78f73d935eab825b25ce80e3b16f7f13cfc9f3ded",
-    "wheelhouse-tool-0.6.10.pyz": "e3fecec1b52b98372ce898a02ee5c9645a34782a913fd695a91d5f42f89b1e60"
+    "acquisition-owner-0.6.11.tar.gz": "991bd7405165e15fa23e7847663ff63e59d61bdbbf1eaaa03ff16feeadc251a5",
+    "provider_core-0.6.11-install.lock": "1005287839a10f487ecb1651f5988c3a5d31ccaba57077469dc830260c0284b4",
+    "provider_core-0.6.11-native-install.lock": "8ee0485dc2b18591820f342e3f052c045603eaaba961915802a2a43a021172af",
+    "provider_core-0.6.11-py3-none-any.whl": "a3a32ac83474837863f11f1db7ca6e4efa3994e6715c57cb4390e1b0845321b9",
+    "provider_core-0.6.11.tar.gz": "0eae8f56411738d224ab93559781ced0ef45f758f414407848fcf02f140fb47c",
+    "wheelhouse-tool-0.6.11.pyz": "e3fecec1b52b98372ce898a02ee5c9645a34782a913fd695a91d5f42f89b1e60"
   },
   "source_files": {
     "MANIFEST.in": {
@@ -200,7 +200,7 @@
     },
     "pyproject.toml": {
       "mode": 420,
-      "sha256": "3f6781bb525264af98242c99d50d2a6b0e8c8446929c098330e24bfff8157372",
+      "sha256": "5761003dbebb539cbeab33592518c40261275a3e8b15b811a457f2b8b99bcb16",
       "size": 589
     },
     "src/provider_core/__init__.py": {
@@ -2064,7 +2064,7 @@
       "size": 5770
     }
   },
-  "source_revision": "620c34f95db318bb945afcf2583ec0b63b20668a",
+  "source_revision": "c653898e5bd8ac825666dccd6f3d823065d1e316",
   "tool_source_files": {
     "__init__.py": {
       "mode": 420,

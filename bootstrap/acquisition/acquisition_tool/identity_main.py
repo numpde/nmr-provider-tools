@@ -8,20 +8,6 @@ from pathlib import Path
 from linux_idmap.probe import ProbeFailure, ProbeRequest, ResourceState, StepError, probe_identity
 
 
-def mapped_owner(endpoint, image, host_uid, host_gid, *, cancel=None):
-    observation = probe_identity(
-        ProbeRequest(
-            endpoint=endpoint,
-            image=image,
-            interpreter="/usr/local/bin/python3",
-            user_uid=0,
-            user_gid=0,
-        ),
-        cancel=cancel,
-    )
-    return (int(observation.uid_map.translate_inverse(host_uid)), int(observation.gid_map.translate_inverse(host_gid)))
-
-
 class Cancellation:
     def __init__(self):
         self.signal = 0

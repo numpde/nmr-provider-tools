@@ -1,6 +1,7 @@
 """One definition of what we create and what we are allowed to remove."""
 
 from dataclasses import dataclass
+from decimal import Decimal
 
 from . import _confinement
 from ._probe_model import ProbeRequest, StepError
@@ -31,6 +32,10 @@ ISOLATION_FIELDS = (
     "CapAdd",
     "Devices",
     "DeviceRequests",
+    "Memory",
+    "MemorySwap",
+    "PidsLimit",
+    "NanoCpus",
 )
 
 
@@ -52,6 +57,19 @@ class ProbeSpec:
         request = self.request
         # silent-defaults: allow-contract -- Default namespace mode adds no Docker option.
         namespace = ["--userns=host"] if request.userns_mode == "host" else []
+        resources = request.resources
+        limits = []
+        if resources is not None:
+            limits = [
+                "--memory",
+                str(resources.memory_bytes),
+                "--memory-swap",
+                str(resources.memory_bytes),
+                "--pids-limit",
+                str(resources.pids_limit),
+                "--cpus",
+                str(Decimal(resources.nano_cpus) / Decimal(1_000_000_000)),
+            ]
         return [
             "container",
             "create",
@@ -75,6 +93,7 @@ class ProbeSpec:
             "ALL",
             "--security-opt",
             "no-new-privileges:true",
+            *limits,
             *namespace,
             "--entrypoint",
             request.interpreter,
@@ -106,4 +125,4 @@ class ProbeSpec:
             or isolation["RestartPolicy"].get("Name") not in ("", "no")
         ):
             raise StepError("ownership", "probe cleanup or restart policy changed")
-        _confinement.verify(container)
+        _confinement.verify(container, resources=request.resources)

@@ -40,6 +40,26 @@ class Bounds:
 
 
 @dataclass(frozen=True)
+class ProbeResources:
+    """Optional exact Docker resource ceilings for one probe container."""
+
+    memory_bytes: int
+    pids_limit: int
+    nano_cpus: int
+
+    def __post_init__(self) -> None:
+        if (
+            type(self.memory_bytes) is not int
+            or not 16 * 1024**2 <= self.memory_bytes <= 1024**3
+            or type(self.pids_limit) is not int
+            or not 1 <= self.pids_limit <= 256
+            or type(self.nano_cpus) is not int
+            or not 100_000_000 <= self.nano_cpus <= 4_000_000_000
+        ):
+            raise StepError("invalid-policy", "probe resources require 16 MiB to 1 GiB, 1 to 256 processes and 0.1 to 4 CPUs")
+
+
+@dataclass(frozen=True)
 class ProbeRequest:
     """Explicit local-engine policy; invalid values raise StepError at construction."""
 
@@ -50,10 +70,13 @@ class ProbeRequest:
     user_gid: int
     userns_mode: str = "default"
     bounds: Bounds = Bounds()
+    resources: ProbeResources | None = None
 
     def __post_init__(self) -> None:
         if type(self.bounds) is not Bounds:
             raise StepError("invalid-policy", "invalid operation bounds")
+        if self.resources is not None and type(self.resources) is not ProbeResources:
+            raise StepError("invalid-policy", "invalid resource policy")
         if (
             not isinstance(self.endpoint, str)
             or not self.endpoint.startswith("unix:///")
