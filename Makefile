@@ -285,6 +285,7 @@ help:
 	  'make engine/cache/gc DOCKER_CONTEXT=<context> ENGINE_CONFIG=/absolute/daemon.json Apply the native cache thresholds now.' \
 	  'make tests/repository            Run repository conventions and detector fixtures offline.' \
 	  'make tests/repository/quality    Run code and operator convention checks offline.' \
+  'make tests/repository/installer  Verify the pinned installer and checker bootstrap offline.' \
 	  'make tests/repository/bytecode   Check maintained Python launches suppress source bytecode.' \
 	  'make checks/python-cache/clean    Explicitly remove generated first-party .pyc/.pyo files and empty __pycache__ directories.' \
 	  'make tests/repository/provisioning Run checker preparation and cleanup fixtures offline.' \
@@ -408,6 +409,10 @@ tests/repository/provisioning:
 
 tests/repository/release:
 	bash host/tools/repository.sh tests/repository/release
+
+.PHONY: tests/repository/installer
+tests/repository/installer:
+	bash host/tools/repository.sh tests/repository/installer
 
 tests/repository/network:
 	bash host/tools/repository.sh tests/repository/network

@@ -20,6 +20,7 @@ case "$1" in
     tests/repository/bytecode) suite=bytecode ;;
     tests/repository/provisioning) suite=tests/repository; pattern='test_checker*.py' ;;
     tests/repository/release) suite=release ;;
+    tests/repository/installer) suite=installer ;;
     tests/repository/network) suite=network ;;
     tests/repository/network/identity) suite=network-identity ;;
     tests/acquisition/owner) suite=acquisition-owner ;;
@@ -78,6 +79,8 @@ arguments=(--init --pull=never --network=none --read-only
 if [[ $suite == release ]]; then
     arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_wheelhouse_bundle tests.repository.test_acquisition_bundle
                 tests.repository.test_delivery_release tests.repository.test_wheelhouse -v)
+elif [[ $suite == installer ]]; then
+    arguments+=(tests.repository.test_installer_driver tests.repository.test_checker_dependencies tests.repository.test_checker_provisioning -v)
 elif [[ $suite == bytecode ]]; then
     arguments+=(tests.repository.quality.test_python_bytecode_posture -v)
 elif [[ $suite == acquisition-owner ]]; then

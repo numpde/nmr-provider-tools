@@ -17,12 +17,14 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import urllib.request
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from tools.artifacts import fsync_directory, regular_file, require_download_proxy
+from tools.installer import capture as capture_installer, release as installer_release
 
 
 def unique_fields(pairs):
@@ -161,18 +163,31 @@ def main():
     parser.add_argument("--declaration", type=Path, required=True)
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--destination", type=Path)
+    parser.add_argument("--installer", type=Path)
     args = parser.parse_args()
     packages = declaration(args.declaration)
+    artifacts = list(packages)
+    if args.installer is not None:
+        record = installer_release(args.installer / "release.json")
+        artifacts.append(record | {"file": record["name"]})
     if args.action == "capture":
         if args.destination is None:
             parser.error("capture requires --destination")
-        capture(packages, args.directory, args.destination)
+        capture(artifacts, args.directory, args.destination)
     elif args.action == "download":
-        download(packages, args.directory)
+        download(artifacts, args.directory)
     elif args.action == "install":
         install(packages, args.directory)
+        if args.installer is not None:
+            wheel = args.directory / record["name"]
+            capture_installer(wheel, record, args.installer / record["name"])
+            subprocess.run(
+                [sys.executable, "-I", "-B", str(args.installer / "driver.py"),
+                 "pip", "install", "--no-index", "--no-deps", "--no-compile", str(wheel)],
+                check=True,
+            )
     else:
-        check(packages, args.directory)
+        check(artifacts, args.directory)
 
 
 if __name__ == "__main__":

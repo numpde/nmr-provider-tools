@@ -5,6 +5,7 @@ from tools.container_guard import require_container
 require_container()
 
 import importlib.metadata
+import json
 import os
 import shutil
 import subprocess
@@ -154,3 +155,7 @@ if checker_admit_image "$fingerprint"; then [[ $checker_image == "$identifier" ]
         self.assertIsNone(shutil.which("ruff"))
         with self.assertRaises(importlib.metadata.PackageNotFoundError):
             importlib.metadata.distribution("ruff")
+
+    def test_owned_checker_uses_the_sdk_installer_release(self):
+        record = json.loads((ROOT / "requirements/installer-release.json").read_text())
+        self.assertEqual(record["name"].split("-")[1], importlib.metadata.version("pip"))

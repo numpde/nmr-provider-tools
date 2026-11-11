@@ -45,6 +45,7 @@ worker=(--pull never --read-only --cap-drop ALL --security-opt no-new-privileges
     --mount "type=bind,src=$root/tools/checker_dependencies.py,dst=/workspace/tools/checker_dependencies.py,readonly"
     --mount "type=bind,src=$root/tools/artifacts.py,dst=/workspace/tools/artifacts.py,readonly"
     --mount "type=bind,src=$root/tools/container_guard.py,dst=/workspace/tools/container_guard.py,readonly"
+    --mount "type=bind,src=$root/requirements/installer-release.json,dst=/installer/release.json,readonly"
     --mount "type=bind,src=$root/requirements/checker-dependencies.json,dst=/workspace/requirements/checker-dependencies.json,readonly")
 if [[ $action == download || $action == prepare ]]; then
     # The transport owns both networked containers and their cleanup. Do not
@@ -54,7 +55,7 @@ if [[ $action == download || $action == prepare ]]; then
     if controller_native 'checker acquisition' untimed stdio bash "$root/host/tools/docker.sh" run --image "$base_image" --retired-receipt "$operation_acquisition_receipt" -- \
         "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
         --entrypoint python3 -- -B -m tools.checker_dependencies download \
-        --declaration /workspace/requirements/checker-dependencies.json --directory /wheelhouse; then :; else
+        --declaration /workspace/requirements/checker-dependencies.json --directory /wheelhouse --installer /installer; then :; else
         acquisition_status=$?
         printf '%s' "$inference_diagnostic" >&2
         exit "$acquisition_status"
@@ -67,7 +68,7 @@ source "$root/host/tools/checker_inputs.sh"
 if [[ $action == check ]]; then
     checker_run 60 --network none --user "$worker_uid:$worker_gid" "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
         --entrypoint python3 "$base_image" -B -m tools.checker_dependencies check \
-        --declaration /workspace/requirements/checker-dependencies.json --directory /wheelhouse
+        --declaration /workspace/requirements/checker-dependencies.json --directory /wheelhouse --installer /installer
     exit
 fi
 
@@ -89,10 +90,11 @@ checker_run 60 --pull never --network none --read-only --user "$checker_host_uid
     --workdir /workspace --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
     --mount "type=bind,src=$context/tools,dst=/workspace/tools,readonly" \
     --mount "type=bind,src=$context/requirements,dst=/workspace/requirements,readonly" \
+    --mount "type=bind,src=$context/requirements/installer-release.json,dst=/installer/release.json,readonly" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
     --mount "type=bind,src=$context/dependencies,dst=/capture" \
     --entrypoint python3 "$build_base_image" -B -m tools.checker_dependencies capture \
-    --declaration /workspace/requirements/checker-dependencies.json --directory /wheelhouse --destination /capture
+    --declaration /workspace/requirements/checker-dependencies.json --directory /wheelhouse --destination /capture --installer /installer
 
 # Local client retirement cannot establish that BuildKit stopped reading.
 # Retain captured inputs on an unsuccessful dispatched build.

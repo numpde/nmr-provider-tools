@@ -3,6 +3,7 @@
 checker_input_paths=(
     host/tools/base_image.sh tools/checker_dependencies.py tools/container_guard.py tools/artifacts.py
     requirements/checker-dependencies.json containers/checker/Dockerfile
+    tools/installer.py requirements/installer-release.json
 )
 
 checker_fingerprint() {
