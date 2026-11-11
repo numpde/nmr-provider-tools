@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: linux-idmap
-Version: 0.3.1
+Version: 0.3.2
 Summary: Read Linux process ID maps and observe host IDs for local Docker images
 Requires-Python: >=3.11
 Description-Content-Type: text/markdown

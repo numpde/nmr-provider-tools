@@ -1,8 +1,8 @@
 """Probe policy, retirement state and failure diagnostics."""
 
+import re
 from dataclasses import asdict, dataclass
 from enum import StrEnum
-import re
 from typing import Protocol
 
 from .core import Identifier
@@ -54,13 +54,17 @@ class ProbeRequest:
     def __post_init__(self) -> None:
         if type(self.bounds) is not Bounds:
             raise StepError("invalid-policy", "invalid operation bounds")
-        if (not isinstance(self.endpoint, str) or not self.endpoint.startswith("unix:///")
-                or len(self.endpoint) > 4096 or self.endpoint != self.endpoint.strip()
-                or "?" in self.endpoint or "#" in self.endpoint
-                or any(ord(c) < 32 or ord(c) == 127 for c in self.endpoint)):
+        if (
+            not isinstance(self.endpoint, str)
+            or not self.endpoint.startswith("unix:///")
+            or len(self.endpoint) > 4096
+            or self.endpoint != self.endpoint.strip()
+            or "?" in self.endpoint
+            or "#" in self.endpoint
+            or any(ord(c) < 32 or ord(c) == 127 for c in self.endpoint)
+        ):
             raise StepError("invalid-policy", "use the caller-selected local Unix Docker endpoint")
-        if (not isinstance(self.image, str)
-                or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/@+-]{0,511}", self.image) is None):
+        if not isinstance(self.image, str) or re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.:/@+-]{0,511}", self.image) is None:
             raise StepError("invalid-policy", "image must be an explicit bounded identifier")
         try:
             object.__setattr__(self, "user_uid", Identifier(self.user_uid))
@@ -69,9 +73,12 @@ class ProbeRequest:
             raise StepError("invalid-policy", "IDs must be integers from 0 through 4294967294") from cause
         if self.userns_mode not in ("default", "host"):
             raise StepError("invalid-policy", "user namespace policy must be default or host")
-        if (not isinstance(self.interpreter, str) or not self.interpreter.startswith("/")
-                or len(self.interpreter) > 512
-                or any(ord(c) < 32 or ord(c) == 127 for c in self.interpreter)):
+        if (
+            not isinstance(self.interpreter, str)
+            or not self.interpreter.startswith("/")
+            or len(self.interpreter) > 512
+            or any(ord(c) < 32 or ord(c) == 127 for c in self.interpreter)
+        ):
             raise StepError("invalid-policy", "supply an absolute Python interpreter path in the probe image")
 
 
@@ -115,5 +122,9 @@ class ProbeFailure(RuntimeError):
 
     def as_dict(self) -> dict:
         # silent-defaults: allow-contract -- A missing diagnostic handle is represented as JSON null, never synthesized ownership evidence; tests/test_cli.py::CliTests.
-        return {"ok": False, "problem": asdict(self.problem), **asdict(self.retirement),
-                "handle": None if self.handle is None else asdict(self.handle)}
+        return {
+            "ok": False,
+            "problem": asdict(self.problem),
+            **asdict(self.retirement),
+            "handle": None if self.handle is None else asdict(self.handle),
+        }
