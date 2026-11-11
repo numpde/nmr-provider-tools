@@ -5,6 +5,7 @@ from tools.container_guard import require_container
 
 require_container()
 
+import json
 import os
 from pathlib import Path
 import re
@@ -211,6 +212,10 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
             (binary / 'stat').symlink_to(Path(__file__).resolve().parent / 'fixtures/acquisition_engine.sh')
         if 'CLIENT_CLEANUP_FAILURE' in injected:
             (binary / 'rm').symlink_to(Path(__file__).resolve().parent / 'fixtures/acquisition_engine.sh')
+        if 'NATIVE_CORRUPT_REMOVAL_ROLE' in injected:
+            (binary / 'mv').symlink_to(Path(__file__).resolve().parent / 'fixtures/native_command.py')
+            injected.update(NATIVE_CONTROL=str(root / 'native-control'), NATIVE_PUBLICATION_FAILURE='none',
+                            NATIVE_STATUS_MUTATION='none', NATIVE_CORRUPT_READY='1')
         environment = {**os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}',
                        'STATE': str(root), 'ENGINE_STATE': str(root), **injected}
         process = subprocess.Popen(['bash', '-c', script], env=environment,
@@ -230,6 +235,24 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
                 self.fail(f'owner exited before {marker.name}: {process.communicate()}')
             time.sleep(.01)
         self.assertTrue(marker.exists(), msg=f'owner did not create {marker}')
+
+    def rescue_native_removal(self, observed, scope_pid, operation, client):
+        # A retained PID alone does not authorize signalling a group.
+        anchor = observed['anchor']
+        command = Path(f'/proc/{anchor}/cmdline').read_bytes().split(b'\0')[:-1]
+        start = Path(f'/proc/{anchor}/stat').read_text().rsplit(')', 1)[1].split()[19]
+        self.assertEqual(observed['command'], [os.fsdecode(part) for part in command])
+        self.assertEqual(observed['start'], start)
+        self.assertEqual(str(Path(observed['directory']) / 'status'), observed['command'][4])
+        self.assertEqual(anchor, os.getpgid(anchor))
+        self.assertEqual(scope_pid, os.getsid(anchor))
+        os.killpg(anchor, signal.SIGKILL)
+        deadline = time.monotonic() + 5
+        while Path(f'/proc/{anchor}').exists() and time.monotonic() < deadline:
+            time.sleep(.01)
+        self.assertFalse(Path(f'/proc/{anchor}').exists())
+        for directory in (Path(observed['directory']), operation, client):
+            shutil.rmtree(directory)
 
     def assert_exit(self, process, root, status):
         stdout, stderr = process.communicate(timeout=15)
@@ -841,6 +864,54 @@ return 37
         self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
         self.assertEqual(['2 yes'], (root / 'caller-exit').read_text().splitlines())
         self.assertFalse(Path((root / 'scratch').read_text().strip()).exists())
+
+    def test_unknown_native_removal_retains_scope_and_blocks_later_workers(self):
+        # Route removal happens after the callback returns. Worker removal
+        # happens inside it, allowing a later admission attempt after the fault.
+        for selected, roles, expected in (('gateway', ('gateway',), '2 0\n'),
+                                           ('relay', ('gateway', 'relay'), '2 0\n'),
+                                           ('worker-1', ('gateway', 'relay', 'worker-1'), '2 2\n')):
+            with self.subTest(selected=selected):
+                environment = {'NATIVE_CORRUPT_REMOVAL_ROLE': selected, 'WORKER_STATUS': '0'}
+                if selected != 'worker-1':
+                    environment.update(READINESS_ROLE=selected, READINESS_SCENARIO='stopped', READINESS_LOG_STATUS='0')
+                process, root = self.launch(r'''
+acquisition_set_route system
+first=0 second=0
+acquisition_worker online status fixture:first grants application || first=$?
+if [[ $NATIVE_CORRUPT_REMOVAL_ROLE == worker-1 ]]; then
+    acquisition_worker online status fixture:second grants application || second=$?
+fi
+printf '%s %s\n' "$first" "$second" > "$STATE/callback-status"
+return "$first"
+''', env=environment)
+                self.wait_marker(process, root / 'native-control')
+                observed = json.loads((root / 'native-control').read_text())
+                anchor = observed['anchor']
+                operation = Path((root / 'scratch').read_text().strip())
+                client = Path((root / 'engine-client').read_text().split()[1]).parent
+
+                self.addCleanup(self.rescue_native_removal, observed, process.pid, operation, client)
+                stdout, stderr = process.communicate(timeout=20)
+                self.assertEqual(2, process.returncode, msg=(stdout, stderr))
+                self.assertEqual(['2 no'], (root / 'caller-exit').read_text().splitlines())
+                self.assertEqual(expected, (root / 'callback-status').read_text())
+                self.assertFalse((root / 'retired').exists())
+                self.assertFalse((root / 'removal-attempts').exists())
+                self.assertFalse((root / 'absence-probes').exists())
+                self.assertEqual([], list(root.glob('rm-*')))
+                self.assertEqual(str(len(roles)), (root / 'counter').read_text())
+                self.assertTrue(client.is_dir())
+                self.assertTrue(Path(observed['directory']).is_dir())
+                self.assertEqual(anchor, observed['group'])
+                self.assertEqual(process.pid, observed['session'])
+                self.assertEqual(['rm', '--force', f'{len(roles):064x}'], observed['command'][-3:])
+                for index, role in enumerate(roles, 1):
+                    identifier = f'{index:064x}'
+                    receipt = operation / role / 'cid'
+                    self.assertEqual((identifier + '\n').encode(), receipt.read_bytes())
+                    self.assertEqual(receipt.read_bytes(), (operation / role / 'stdout').read_bytes())
+                    self.assertTrue((root / f'live-{identifier}').is_file())
 
     def test_failed_worker_or_relay_removal_retains_dependencies_and_receipt(self):
         for failed, forbidden in (('worker-1', ('relay', 'gateway')), ('relay', ('gateway',))):

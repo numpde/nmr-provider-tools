@@ -18,8 +18,22 @@ def fixture_command(name):
     """Inject only named local file faults; all other operations use native tools."""
     arguments = sys.argv[1:]
     if name == "mv":
-        phase = os.environ["NATIVE_PUBLICATION_FAILURE"]
         source, target = map(Path, arguments[-2:])
+        selected = os.environ.get("NATIVE_CORRUPT_REMOVAL_ROLE")
+        identity = {}
+        if selected:
+            if target.name != "status.ready":
+                os.execv("/bin/mv", [name, *arguments])
+            anchor = int(source.read_text())
+            command = Path(f"/proc/{anchor}/cmdline").read_bytes().split(b"\0")[:-1]
+            role = Path(os.environ["ENGINE_STATE"], "role-" + os.fsdecode(command[-1]))
+            if command[-3:-1] != [b"rm", b"--force"] or not role.is_file() or role.read_text().strip() != selected:
+                os.execv("/bin/mv", [name, *arguments])
+            assert anchor == os.getppid()
+            identity = {"command": [os.fsdecode(part) for part in command],
+                        "start": Path(f"/proc/{anchor}/stat").read_text().rsplit(")", 1)[1].split()[19],
+                        "group": os.getpgid(anchor), "session": os.getsid(anchor)}
+        phase = os.environ["NATIVE_PUBLICATION_FAILURE"]
         receipt = target.parent / "status.ready"
         if target.name == "status.ready":
             anchor = int(source.read_text())
@@ -27,7 +41,10 @@ def fixture_command(name):
             anchor = int(receipt.read_text())
         else:
             anchor = 0
-        Path(os.environ["NATIVE_CONTROL"]).write_text(json.dumps({"anchor": anchor, "directory": str(target.parent)}))
+        control = Path(os.environ["NATIVE_CONTROL"])
+        pending = control.with_name(control.name + ".pending")
+        pending.write_text(json.dumps({"anchor": anchor, "directory": str(target.parent), **identity}))
+        pending.replace(control)
         if target.name == "status.ready" and os.environ.get("NATIVE_CORRUPT_READY") == "1":
             source.write_bytes(b"not-the-anchor\n")
         if target.name == "status.release" and phase.startswith("release-"):
