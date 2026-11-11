@@ -232,7 +232,7 @@ help:
 	  ''
 	@printf '%s\n' \
 	  '== Provider-core package and installed tests ==' \
-	  'make packages/provider-core/download WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire locked wheels.' \
+	  'make packages/provider-core/download WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire checker/bootstrap tools, then locked SDK wheels.' \
 	  'make packages/provider-core/check WHEELHOUSE=<cache-dir> Verify locked wheels offline.' \
 	  'make tests/unit/provider-core WHEELHOUSE=<cache-dir> Build and test the isolated installed core.' \
 	  'make tests/fuzz/provider-core WHEELHOUSE=<cache-dir> [FUZZ_PROFILE=extended] Run shrinking lifecycle sequences.' \
@@ -251,11 +251,12 @@ help:
 	  'make wheelhouse/lock/locate LOCK=<file> NETWORK_INTERFACE=<system|interface> [WHEELHOUSE=<cache-dir>] [INDEX_URL=<url>] [SOURCE_URLS=<urls>] [REQUIRE_SOURCE=<source>] Project a pinned lock.' \
 	  'make wheelhouse/lock/acquire LOCK=<file> [SOURCE_LOCK=<file>] WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire locked artifacts.' \
 	  'make checks/base-image/download Bootstrap the pinned base using Docker daemon routing.' \
+	  'make checks/bootstrap/build Build the checker bootstrap offline from the pinned base.' \
 	  'make checks/dependencies/download WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire declared artifacts.' \
 	  'make checks/dependencies/check WHEELHOUSE=<cache-dir> Verify cached artifacts offline.' \
 	  'make checks/image/build WHEELHOUSE=<cache-dir> Build the checker offline.' \
 	  'make checks/prepare WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire artifacts and build.' \
-	  'make wheelhouse/image/build WHEELHOUSE=<cache-dir> Build the wheelhouse tool; bootstrap its pinned streamer if missing.' \
+	  'make wheelhouse/image/build WHEELHOUSE=<cache-dir> Build offline after packages/provider-core/download.' \
 	  'make tests/wheelhouse WHEELHOUSE=<cache-dir> Run shared wheelhouse tests offline.' \
 	  ''
 	@printf '%s\n' \
@@ -293,10 +294,12 @@ help:
 	  'make tests/repository/network    Run acquisition network-owner fixtures offline.' \
 	  'make tests/repository/network/identity Run the focused acquisition identity fixture.' \
 	  'make tests/repository/runtime    Inspect the checker container grants.' \
+	  'make tests/repository/context DOCKER_CONTEXT=<context> WHEELHOUSE=<cache-dir> Qualify disposable client contexts and a real read-only cache worker.' \
+	  'make tests/repository/provisioning/live DOCKER_CONTEXT=<context> NETWORK_INTERFACE=<system|interface> Qualify cold checker acquisition and offline cache admission.' \
 	  'make tests/repository/command    Print the repository checker command without starting it.' \
 	  ''
 
-packages/provider-core/download:
+packages/provider-core/download: checks/prepare
 	bash host/tools/provider_core.sh download
 
 wheelhouse/image/build:
@@ -326,7 +329,7 @@ tests/deployment/route/literal:
 tests/deployment:
 	bash host/tools/delivery_tests.sh
 
-delivery/prepare:
+delivery/prepare: checks/prepare
 	bash host/tools/delivery_prepare.sh
 
 delivery/image/build:
@@ -356,13 +359,17 @@ tests/integration/provider-core/delivery:
 checks/base-image/download:
 	bash host/tools/checker.sh base-download
 
-checks/dependencies/download:
+.PHONY: checks/bootstrap/build
+checks/bootstrap/build:
+	bash host/tools/checker.sh bootstrap-build
+
+checks/dependencies/download: checks/bootstrap/build
 	bash host/tools/checker.sh download
 
 checks/dependencies/check:
 	bash host/tools/checker.sh check
 
-checks/image/build:
+checks/image/build: checks/bootstrap/build
 	bash host/tools/checker.sh build
 
 checks/prepare:
@@ -422,6 +429,14 @@ tests/repository/network/identity:
 
 tests/repository/runtime:
 	bash host/tools/repository.sh tests/repository/runtime
+
+.PHONY: tests/repository/context
+tests/repository/context:
+	bash host/tools/context_test.sh
+
+.PHONY: tests/repository/provisioning/live
+tests/repository/provisioning/live:
+	bash host/tools/checker_provisioning_test.sh
 
 tests/repository/command:
 	bash host/tools/repository.sh --print tests/repository

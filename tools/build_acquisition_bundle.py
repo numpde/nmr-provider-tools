@@ -34,11 +34,12 @@ SOURCE_FILES = (
 # repo-check: allow-module-constant
 PROXY_FILES = ("__init__.py", "container_guard.py", "bound_http_proxy.py")
 
-# Source paths and issued paths differ because the driver is also a contained tool.
+# Consumers bake this qualified helper package and its inputs into tool images.
 # repo-check: allow-module-constant
 INSTALLER_SOURCES = (
-    ("tools/installer.py", "acquisition_tool/installer/driver.py"),
-    ("requirements/installer-release.json", "acquisition_tool/installer/release.json"),
+    ("tools/installer.py", "acquisition_tool/installer/tools/installer.py"),
+    ("tools/container_guard.py", "acquisition_tool/installer/tools/container_guard.py"),
+    ("requirements/installer-release.json", "acquisition_tool/installer/requirements/installer-release.json"),
 )
 
 
@@ -93,7 +94,7 @@ def contents(pool, source, core_wheel, pin):
     for source_name, issued_name in INSTALLER_SOURCES:
         _add(files, issued_name, (source / source_name).read_bytes())
     installer = installer_release(source / "requirements/installer-release.json")
-    _add(files, "acquisition_tool/installer/" + installer["name"],
+    _add(files, "acquisition_tool/installer/wheels/" + installer["name"],
          wheel_bytes(pool / installer["name"], installer))
     dependencies[installer["name"]] = installer["sha256"]
 

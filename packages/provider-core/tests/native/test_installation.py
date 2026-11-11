@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import importlib.metadata
 import importlib.util
+import json
 import os
 import sys
 import tempfile
@@ -94,7 +95,9 @@ class NativeInstallationTests(unittest.TestCase):
         distribution = importlib.metadata.distribution("provider-core")
         self.assertTrue(distribution.requires)
         self.assertTrue(all('; extra == "api"' in requirement for requirement in distribution.requires))
-        self.assertEqual({"provider-core"}, {item.metadata["Name"] for item in importlib.metadata.distributions()})
+        installer = json.loads(Path("/opt/provider-tools/installer/release.json").read_text())
+        self.assertEqual(f"pip-{importlib.metadata.version('pip')}-py3-none-any.whl", installer["name"])
+        self.assertEqual({"provider-core", "pip"}, {item.metadata["Name"] for item in importlib.metadata.distributions()})
 
     def test_core_distribution_excludes_provider_examples(self):
         distribution_files = importlib.metadata.distribution("provider-core").files

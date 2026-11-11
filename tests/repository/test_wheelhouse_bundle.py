@@ -6,7 +6,7 @@ require_container()
 
 import hashlib
 import json
-import shutil
+import os
 import subprocess
 import tempfile
 import unittest
@@ -14,26 +14,22 @@ import zipfile
 from pathlib import Path
 
 from tools.build_wheelhouse_bundle import build
-from tools.core_environment import pip_command, wheelhouse_source_inventory
-from unittest.mock import patch
+from tools.core_environment import wheelhouse_source_inventory
+from tools.installer import create_environment, pip_command
 
 
 class WheelhouseBundleTests(unittest.TestCase):
     def test_target_pip_does_not_expose_other_checker_packages(self):
-        import pip
-
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            pip_copy = root / "checker-site/pip"
-            shutil.copytree(Path(pip.__file__).parent, pip_copy)
             canary = root / "checker-site/checker_only_canary-1.0.dist-info"
-            canary.mkdir()
+            canary.mkdir(parents=True)
             (canary / "METADATA").write_text("Name: checker-only-canary\nVersion: 1.0\n")
             environment = root / "target"
-            subprocess.run(["python3", "-m", "venv", "--without-pip", str(environment)], check=True)
-            with patch.object(pip, "__file__", str(pip_copy / "__init__.py")):
-                command = pip_command(environment / "bin/python")
-            result = subprocess.run([*command, "list", "--format=json"], check=True, capture_output=True, text=True)
+            command = pip_command(create_environment(environment))
+            result = subprocess.run([*command, "list", "--format=json"],
+                                    env=os.environ | {"PYTHONPATH": str(root / "checker-site")},
+                                    check=True, capture_output=True, text=True)
             self.assertNotIn("checker-only-canary", {item["name"] for item in json.loads(result.stdout)})
 
     def test_bundle_rebuild_is_stable_and_refuses_wrong_dependency_bytes(self):

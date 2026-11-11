@@ -266,10 +266,6 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
         check=True,
         stdout=subprocess.DEVNULL,
     )
-    subprocess.run(
-        ["python3", "-I", "-S", "-B", str(destination / "acquisition_tool/installer/driver.py"), "pip", "--version"],
-        check=True, stdout=subprocess.DEVNULL,
-    )
 
 
 def unpack_source(archive, destination, version):

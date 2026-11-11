@@ -16,6 +16,7 @@ import urllib.request
 from pathlib import Path
 
 from tools.artifacts import regular_file, require_download_proxy
+from tools.installer import release as installer_release
 from tools.provider_core_acquire import acquire_tool, tool_present
 from tools.wheelhouse import digest, pool_lock, read_json, requirements, select_wheels
 
@@ -166,6 +167,8 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
         "COPY " + json.dumps(["wheelhouse/" + name, "/" + name])
         for name in sorted(selected_wheels["files"])
     )
+    installer = installer_release(destination / "requirements/installer-release.json")
+    copy_instructions += "\nCOPY " + json.dumps(["installer/" + installer["name"], "/installer/" + installer["name"]])
     selected_dockerfile = destination / "containers/delivery/Dockerfile.selected"
     with selected_dockerfile.open("x") as target:
         target.write(template_contents.replace(marker, copy_instructions))
@@ -177,7 +180,7 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
             [
                 {"directory": "wheelhouse", "filename": name, "sha256": checksum}
                 for (name, checksum) in sorted(selected_wheels["files"].items())
-            ],
+            ] + [{"directory": "installer", "filename": installer["name"], "sha256": installer["sha256"]}],
             target,
             sort_keys=True,
         )

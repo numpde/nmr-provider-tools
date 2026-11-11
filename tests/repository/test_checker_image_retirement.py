@@ -11,7 +11,7 @@ import unittest
 from host.tools.image_retirement import RetirementRefused, retire, select_images, retained_image_ids
 
 
-CURRENT = ("a" * 64, "b" * 64)
+CURRENT = ("a" * 64, "b" * 64, "f" * 64)
 OLD = "c" * 64
 IDENTIFIER = "sha256:" + "d" * 64
 
@@ -124,7 +124,7 @@ class ImageRetirementTests(unittest.TestCase):
             self.assertEqual([], engine.removals)
 
     def test_current_source_change_fails_before_removal(self):
-        identities = iter((CURRENT, ("e" * 64, CURRENT[1])))
+        identities = iter((CURRENT, ("e" * 64, CURRENT[1], CURRENT[2])))
         with tempfile.TemporaryDirectory() as directory:
             engine = Engine(image())
             with self.assertRaises(RetirementRefused):

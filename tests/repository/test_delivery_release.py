@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from tools import core_environment, delivery_image
+from tests.repository.quality.sources import ROOT
 
 
 class DeliveryReleaseTests(unittest.TestCase):
@@ -66,6 +67,10 @@ class DeliveryReleaseTests(unittest.TestCase):
             dockerfile = destination / "containers/delivery/Dockerfile"
             dockerfile.parent.mkdir(parents=True)
             dockerfile.write_text("FROM scratch AS wheel_inputs\n# selected-wheel-inputs\n")
+            record = ROOT / "requirements/installer-release.json"
+            (destination / "requirements").mkdir()
+            (destination / "requirements/installer-release.json").write_bytes(record.read_bytes())
+            installer = json.loads(record.read_text())
             self.wheel.write_bytes(self.content)
             inode = self.wheel.stat().st_ino
             with patch.object(delivery_image, "requirements"), patch.object(
@@ -73,12 +78,13 @@ class DeliveryReleaseTests(unittest.TestCase):
             ), patch.object(delivery_image, "select_wheels", return_value=selected):
                 delivery_image.capture_image_inputs(None, None, self.pool, destination)
             self.assertEqual(
-                {"provider-core-install.lock", "provider-core-wheel-inputs.json", "provider-core-stream.json", "containers"},
+                {"provider-core-install.lock", "provider-core-wheel-inputs.json", "provider-core-stream.json", "containers", "requirements"},
                 {path.name for path in destination.iterdir()},
             )
             self.assertEqual(b"lock", (destination / "provider-core-install.lock").read_bytes())
             self.assertEqual(selected, json.loads((destination / "provider-core-wheel-inputs.json").read_text()))
-            self.assertEqual([{"directory": "wheelhouse", "filename": self.wheel.name, "sha256": self.digest}],
+            self.assertEqual([{"directory": "wheelhouse", "filename": self.wheel.name, "sha256": self.digest},
+                              {"directory": "installer", "filename": installer["name"], "sha256": installer["sha256"]}],
                              json.loads((destination / "provider-core-stream.json").read_text()))
             self.assertIn(self.wheel.name, (dockerfile.parent / "Dockerfile.selected").read_text())
             self.assertEqual(inode, self.wheel.stat().st_ino)

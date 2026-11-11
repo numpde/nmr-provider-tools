@@ -154,7 +154,6 @@ class PackageArtifactTests(unittest.TestCase):
             call(["bash", "-n", str(extracted / "acquisition_tool/owner.sh")], check=True),
             call(["python3", "-I", "-S", "-B", str(ROOT / "containers/isolated/acquisition_import_check.py"), str(extracted)], check=True),
             call(["python3", "-I", "-S", "-B", str(extracted / "acquisition_tool/identity.py"), "--help"], check=True, stdout=subprocess.DEVNULL),
-            call(["python3", "-I", "-S", "-B", str(extracted / "acquisition_tool/installer/driver.py"), "pip", "--version"], check=True, stdout=subprocess.DEVNULL),
         ], commands.call_args_list)
         for (name, payload, _, _) in members:
             self.assertEqual(payload, (scratch / "acquisition-source" / name).read_bytes())

@@ -1,4 +1,6 @@
 #!/bin/sh
+# Model context metadata for offline selection and rejection unit tests.
+# Live context handoff and cleanup use host/tools/context_test.sh instead.
 [ "$1" = context ] || exit 9
 if [ "$2" = ls ]; then printf 'local-test\nremote-test\n'; exit; fi
 if [ -n "$FAKE_CONTEXT_LOG" ]; then printf 'inspect\n' >> "$FAKE_CONTEXT_LOG"; fi

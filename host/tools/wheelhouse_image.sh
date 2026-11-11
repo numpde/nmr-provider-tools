@@ -9,14 +9,16 @@ select_wheelhouse
 require_wheelhouse_pool
 source "$root/host/tools/checker_operation.sh"
 checker_begin
+checker_admit_tools
 image=nmr-provider-tools/wheelhouse-tool:local
 case "$action" in
     build)
         if ! python3 -I -S -B -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
             printf '%s\n' 'Cannot build the wheelhouse tool: host Python 3.11 or newer is required.' >&2; exit 2
         fi
-        checker_host_identity "$base_image" python3 "$(id -u)" "$(id -g)"
-        sources=(containers/wheelhouse/Dockerfile requirements/wheelhouse-tool.lock requirements/wheelhouse-tool-release.json)
+        checker_host_identity "$checker_image" python3 "$(id -u)" "$(id -g)"
+        sources=(containers/wheelhouse/Dockerfile requirements/wheelhouse-tool.lock requirements/wheelhouse-tool-release.json
+            tools/installer.py tools/container_guard.py requirements/installer-release.json)
         for path in "$root"/wheelhouse_tool/*.py; do sources+=("${path#"$root"/}"); done
         tool_pin=$(python3 -I -S -B "$root/host/tools/build_stream_inputs.py" "$root" \
             "$operation_directory/source-allowlist.json" "${sources[@]}")
@@ -25,15 +27,8 @@ case "$action" in
             printf '%s\n' 'Cannot build the wheelhouse tool: its release pin is invalid.' >&2; exit 2;
         }
         if [[ ! -e $wheelhouse_directory/$tool_name && ! -L $wheelhouse_directory/$tool_name ]]; then
-            checker_acquisition_receipt
-            bash "$root/host/tools/docker.sh" run --image "$base_image" --retired-receipt "$operation_acquisition_receipt" -- --pull never --read-only \
-                --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 64 --memory 256m \
-                --tmpfs /tmp:rw,nosuid,nodev,noexec,size=64m --workdir /workspace \
-                --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \
-                --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly" \
-                --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" \
-                --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
-                --entrypoint python3 -- -B -m tools.provider_core_acquire tool
+            printf '%s\n' 'Cannot build the wheelhouse tool: its pinned streamer is missing. Run make packages/provider-core/download with WHEELHOUSE and NETWORK_INTERFACE first.' >&2
+            exit 2
         fi
         [[ -f $wheelhouse_directory/$tool_name && ! -L $wheelhouse_directory/$tool_name ]] \
             && [[ $(sha256sum -- "$wheelhouse_directory/$tool_name" | cut -d' ' -f1) == "$tool_hash" ]] || {
@@ -46,12 +41,12 @@ case "$action" in
             --mount "type=bind,src=$root/tools,dst=/workspace/tools,readonly" \
             --mount "type=bind,src=$root/requirements/wheelhouse-tool.lock,dst=/tool.lock,readonly" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
-            --entrypoint python3 "$base_image" -B -m tools.wheelhouse check --pool /wheelhouse --lock /tool.lock > "$operation_directory/selection.json"
+            --entrypoint python3 "$checker_image" -B -m tools.wheelhouse check --pool /wheelhouse --lock /tool.lock > "$operation_directory/selection.json"
         checker_metadata "$operation_directory/selection-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
         cmp -s "$operation_directory/selection-exit" <(printf 'false 0\n') || {
             printf '%s\n' 'Cannot build the wheelhouse tool: the selection worker did not complete.' >&2; exit 2;
         }
-        python3 -I -S -B "$root/host/tools/wheelhouse_image_manifest.py" "$operation_directory/selection.json" "$operation_directory/manifest.json"
+        python3 -I -S -B "$root/host/tools/wheelhouse_image_manifest.py" "$operation_directory/selection.json" "$operation_directory/manifest.json" "$root/requirements/installer-release.json"
         # BuildKit receives a stream, not host mounts. Once the pipeline is
         # joined it no longer reads scratch; checker_call retains unjoined work.
         checker_call 'offline wheelhouse tool build' 900 stdio bash -o pipefail -c '

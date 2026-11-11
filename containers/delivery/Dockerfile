@@ -4,8 +4,12 @@ FROM scratch AS wheel_inputs
 FROM ${BASE_IMAGE}
 ENV PROVIDER_CORE_IN_CONTAINER=1 PYTHONDONTWRITEBYTECODE=1
 WORKDIR /opt/build
-COPY tools/container_guard.py tools/artifacts.py tools/wheelhouse.py tools/core_environment.py ./tools/
+COPY tools/container_guard.py tools/artifacts.py tools/wheelhouse.py tools/core_environment.py tools/installer.py ./tools/
+COPY requirements/installer-release.json /opt/provider-tools/installer/release.json
+COPY --from=wheel_inputs /installer/ /opt/provider-tools/installer/wheels/
 COPY provider-core-install.lock provider-core-wheel-inputs.json ./
+RUN --network=none --mount=type=bind,from=wheel_inputs,target=/wheels,readonly \
+    NMR_PROVIDER_TOOLS_IN_CONTAINER=1 python3 -B -m tools.installer --record /opt/provider-tools/installer/release.json --pool /wheels/installer
 RUN --mount=type=bind,from=wheel_inputs,target=/wheels,readonly \
     NMR_PROVIDER_TOOLS_IN_CONTAINER=1 python3 -B -m tools.core_environment install --root /opt/provider-core --lock /opt/build/provider-core-install.lock --pool /wheels --expected-inputs /opt/build/provider-core-wheel-inputs.json
 COPY tools/delivery_deployment.py /opt/provider-tools/delivery_deployment.py

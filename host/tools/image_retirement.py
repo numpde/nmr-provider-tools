@@ -80,13 +80,13 @@ def current_inputs(root):
     selected_inputs = run(
         [
             "bash", "-eu", "-o", "pipefail", "-c",
-            'root=$1; source "$root/host/tools/checker_inputs.sh"; checker_fingerprint; '
-            'source "$root/host/tools/delivery_identity.sh"; delivery_recipe_identity',
+            'root=$1; source "$root/host/tools/checker_inputs.sh"; checker_fingerprint checker; '
+            'source "$root/host/tools/delivery_identity.sh"; delivery_recipe_identity; checker_fingerprint bootstrap',
             "bash", str(root),
         ]
     )
     identities = selected_inputs.splitlines()
-    if len(identities) != 2 or any(_HASH.fullmatch(identity) is None for identity in identities):
+    if len(identities) != 3 or any(_HASH.fullmatch(identity) is None for identity in identities):
         raise RetirementRefused("Current checker/delivery identities are incomplete.")
     return tuple(identities)
 
@@ -94,7 +94,10 @@ def current_inputs(root):
 def retained_image_ids(directory):
     """Read only the known IID receipt in retained root build operations."""
     protected_image_ids = set()
-    for receipt in directory.glob("nmr-provider-tools.*/built-image"):
+    for receipt in (
+        path for name in ("built-image", "built-bootstrap", "built-checker")
+        for path in directory.glob("nmr-provider-tools.*/" + name)
+    ):
         if receipt.is_symlink() or receipt.parent.is_symlink():
             continue
         try:
@@ -126,7 +129,7 @@ def metadata(raw, expected):
 
 def select_images(images, protected, current):
     retirement_candidates = []
-    (current_checker, current_recipe) = current
+    (current_checker, current_recipe, current_bootstrap) = current
     for image in images:
         image_id = image.get("Id")
         (image_labels, image_tags, image_digests) = (
@@ -168,6 +171,7 @@ def select_images(images, protected, current):
         if any(
             tag in {
                 f"nmr-provider-tools/checker:{current_checker}",
+                f"nmr-provider-tools/checker-bootstrap:{current_bootstrap}",
                 f"nmr-provider-tools/delivery-recipe:{current_recipe}",
                 "nmr-provider-tools/wheelhouse-tool:local",
             }
@@ -198,7 +202,11 @@ def select_images(images, protected, current):
             }
         elif role == "wheelhouse-tool":
             allowed_tags = {"nmr-provider-tools/wheelhouse-tool:local"}
-        elif role is None and type(recorded_inputs) is str and _HASH.fullmatch(recorded_inputs):
+        elif role == "checker-bootstrap" and type(recorded_inputs) is str and _HASH.fullmatch(recorded_inputs):
+            if recorded_inputs == current_bootstrap:
+                continue
+            allowed_tags = {f"nmr-provider-tools/checker-bootstrap:{recorded_inputs}"}
+        elif role in (None, "checker") and type(recorded_inputs) is str and _HASH.fullmatch(recorded_inputs):
             if recorded_inputs == current_checker:
                 continue
             allowed_tags = {f"nmr-provider-tools/checker:{recorded_inputs}"}

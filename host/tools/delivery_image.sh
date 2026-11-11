@@ -12,6 +12,7 @@ if [[ $uid == 0 || $gid == 0 || $root =~ [[:cntrl:],] ]]; then
     printf '%s\n' 'Cannot build shared delivery: use a nonzero caller and repository path without mount delimiters.' >&2; exit 2
 fi
 inputs=(host/tools/base_image.sh tools/container_guard.py tools/artifacts.py tools/wheelhouse.py tools/core_environment.py
+    tools/installer.py requirements/installer-release.json
     tools/delivery_image.py tools/delivery_deployment.py tools/provider_core_acquire.py host/tools/build_stream_inputs.py
     requirements/provider-core.lock requirements/delivery-release.json requirements/wheelhouse-tool-release.json
     containers/delivery/Dockerfile containers/delivery/check_runtime.py)
@@ -20,18 +21,19 @@ source "$root/host/tools/checker_inputs.sh"
 source "$root/host/tools/delivery_identity.sh"
 recipe=$(delivery_recipe_identity)
 checker_begin
-checker_host_identity "$base_image" python3 "$uid" "$gid" || {
+checker_admit_tools
+checker_host_identity "$checker_image" python3 "$uid" "$gid" || {
     printf '%s\n' 'Cannot map the wheelhouse owner into the selected engine.' >&2; exit 2;
 }
 checker_input_paths=("${inputs[@]}")
-expected=$(checker_fingerprint)
+expected=$(checker_fingerprint checker)
 [[ $recipe == "$expected" ]] || { printf '%s\n' 'Delivery recipe changed before capture; retry.' >&2; exit 2; }
 context=$operation_directory/context
 mkdir -- "$context"
 for path in "${inputs[@]}"; do
     (cd -- "$root"; cp --parents --preserve=mode -- "$path" "$context/")
 done
-captured=$(root=$context checker_fingerprint)
+captured=$(root=$context checker_fingerprint checker)
 if [[ $captured != "$expected" ]]; then
     operation_diagnostic+=$'Cannot build shared delivery: construction sources changed during capture; retry after edits finish.\n'
     exit 2
@@ -53,18 +55,18 @@ checker_run 120 --pull never --network none --read-only --user "$checker_host_ui
     --mount "type=bind,src=$context/requirements/delivery-release.json,dst=/release.json,readonly" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
     --mount "type=bind,src=$context,dst=/capture" \
-    --entrypoint python3 "$build_base_image" -B -m tools.delivery_image capture --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --destination /capture
+    --entrypoint python3 "$checker_image" -B -m tools.delivery_image capture --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --destination /capture
 for path in provider-core-install.lock provider-core-wheel-inputs.json provider-core-stream.json containers/delivery/Dockerfile.selected; do
     [[ -f $context/$path && ! -L $context/$path ]] || exit 2
     checker_input_paths+=("$path")
 done
-fingerprint=$(root=$context checker_fingerprint)
+fingerprint=$(root=$context checker_fingerprint checker)
 if ! python3 -I -S -B -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
     operation_diagnostic+=$'Cannot build shared delivery: host Python 3.11 or newer is needed to stream build inputs.\n'; exit 2
 fi
 tool_pin=$(python3 -I -S -B "$context/host/tools/build_stream_inputs.py" "$context" \
     "$operation_directory/source-allowlist.json" "${checker_input_paths[@]}")
-[[ $(root=$context checker_fingerprint) == "$fingerprint" ]] || {
+[[ $(root=$context checker_fingerprint checker) == "$fingerprint" ]] || {
     operation_diagnostic+=$'Cannot build shared delivery: captured inputs changed before streaming.\n'; exit 2;
 }
 read -r tool_name tool_hash <<< "$tool_pin"

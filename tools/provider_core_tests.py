@@ -23,8 +23,8 @@ from tools.core_environment import (
     build_source_wheel,
     install_environment,
     install_locked,
-    pip_command,
 )
+from tools.installer import pip_command
 from tools.wheelhouse import digest
 
 

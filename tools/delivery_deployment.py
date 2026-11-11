@@ -33,7 +33,7 @@ from provider_core.transport import require_unix_socket_path
 from provider_core.provider_proxy import LiveProxyConfiguration
 from provider_core.shared_delivery_config import SharedDeliveryConfiguration
 
-# Both daemon and generic proxies use the installed, pip-free environment.
+# Both daemon and generic proxies use the installed application environment.
 # repo-check: allow-module-constant
 CORE_PYTHON = "/opt/provider-core/environment/bin/python"
 

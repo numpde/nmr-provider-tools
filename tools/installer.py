@@ -1,10 +1,12 @@
-"""Run the SDK-pinned installer without importing an image's bundled pip.
+"""Own the approved installer for image assembly and new Python environments.
 
-The issued directory contains this driver, its release record and the pip wheel.
-An explicit wheel path lets offline image preparation consume the same cache
-input. Capture and verify those bytes before Python can import them. Keeping
-execution in this interpreter preserves target-venv identity and borrowed locks.
+Verification uses only the standard library. The consuming Dockerfile owns this
+build step; ordinary operations use the resulting image's installed pip.
 """
+
+from .container_guard import require_container
+
+require_container()
 
 import argparse
 import hashlib
@@ -12,8 +14,8 @@ import json
 import os
 from pathlib import Path
 import re
-import runpy
 import stat
+import subprocess
 import sys
 import tempfile
 
@@ -28,11 +30,17 @@ def unique_fields(pairs):
 
 
 def release(path):
+    """Read the SDK identity without accepting symlinks or duplicate JSON fields."""
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(descriptor, "rb") as stream:
         if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
             raise ValueError("Cannot start the installer: release record must be a regular file.")
         record = json.load(stream, object_pairs_hook=unique_fields)
+    return validate_release(record)
+
+
+def validate_release(record):
+    """Validate metadata before using its filename or byte count."""
     if not (
         type(record) is dict and set(record) == {"name", "sha256", "size", "url"}
         and type(record["name"]) is str
@@ -54,7 +62,12 @@ def wheel_bytes(wheel, record):
     with os.fdopen(descriptor, "rb") as source:
         if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
             raise ValueError("Cannot start the installer: its wheel must be a regular file.")
-        data = source.read(record["size"] + 1)
+        return checked_bytes(source, record)
+
+
+def checked_bytes(source, record):
+    """Bound the read and authenticate its bytes before pip can execute them."""
+    data = source.read(record["size"] + 1)
     if len(data) != record["size"] or hashlib.sha256(data).hexdigest() != record["sha256"]:
         raise ValueError(
             "Cannot start the installer: wheel size or SHA-256 differs from the SDK release."
@@ -69,34 +82,48 @@ def capture(wheel, record, destination):
         target.write(data)
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--wheel", type=Path)
-    parser.add_argument("action", choices=("pip", "module"))
-    parser.add_argument("arguments", nargs=argparse.REMAINDER)
-    args = parser.parse_args()
-    directory = Path(__file__).resolve().parent
-    record = release(directory / "release.json")
-    wheel = directory / record["name"]
-    if args.wheel is not None:
-        wheel = args.wheel
-    module = "pip"
-    arguments = args.arguments
-    if args.action == "module":
-        if not arguments:
-            parser.error("module requires the Python module to run")
-        module, *arguments = arguments
-    else:
-        arguments = ["--isolated", *arguments]
-    if "pip" in sys.modules:
-        raise RuntimeError("Cannot start the installer: pip was imported before its release wheel was verified.")
+def install(pool, record):
+    """Bootstrap from authenticated bytes, without executing the inherited pip."""
     with tempfile.TemporaryDirectory(prefix="provider-installer-") as temporary:
         captured = Path(temporary) / record["name"]
-        capture(wheel, record, captured)
-        sys.path.insert(0, str(captured))
-        sys.argv = [module, *arguments]
-        runpy.run_module(module, run_name="__main__", alter_sys=True)
+        capture(pool / record["name"], record, captured)
+        subprocess.run(
+            [sys.executable, "-I", "-B", str(captured / "pip"), "--isolated", "install",
+             "--no-index", "--no-deps", "--no-compile", str(captured)],
+            check=True,
+        )
+
+
+def pip_command(python):
+    """Run the target's pinned installer in the shared-pool lock holder."""
+    return [str(python), "-I", "-B", "-m", "pip", "--isolated"]
+
+
+def create_environment(destination):
+    """Seed an environment from image-owned pip, without running ensurepip.
+
+    Pip is toolchain input separate from the application's installation lock.
+    Subsequent operations use the target's own pip so its process can retain
+    borrowed shared-pool lock descriptors without an intermediate dispatcher.
+    """
+    image = Path("/opt/provider-tools/installer")
+    record = release(image / "release.json")
+    python = destination / "bin/python"
+    with tempfile.TemporaryDirectory(prefix="provider-installer-") as temporary:
+        captured = Path(temporary) / record["name"]
+        capture(image / "wheels" / record["name"], record, captured)
+        subprocess.run([sys.executable, "-I", "-B", "-m", "venv", "--without-pip", str(destination)], check=True)
+        subprocess.run(
+            [sys.executable, "-I", "-B", "-m", "pip", "--isolated", "--python", str(python),
+             "install", "--no-index", "--no-deps", "--no-cache-dir", "--no-compile", str(captured)],
+            check=True,
+        )
+    return python
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--record", type=Path, required=True)
+    parser.add_argument("--pool", type=Path, required=True)
+    args = parser.parse_args()
+    install(args.pool, release(args.record))

@@ -38,7 +38,7 @@ if [[ $uid == 0 || $gid == 0 ]]; then
     exit 2
 fi
 source "$root/host/tools/checker_inputs.sh"
-fingerprint=$(checker_fingerprint)
+fingerprint=$(checker_fingerprint checker)
 image="nmr-provider-tools/checker:$fingerprint"
 mounts=()
 shopt -s dotglob nullglob
@@ -60,7 +60,7 @@ if [[ $printing == 1 ]]; then
     if ! docker_client_prepare print; then printf '%s' "$docker_client_diagnostic" >&2; exit 2; fi
 else
     checker_begin
-    checker_admit_image "$fingerprint"
+    checker_admit_image "$fingerprint" checker
     image=$checker_image
     metadata=$operation_directory/root-entries
     find . -mindepth 1 -maxdepth 1 -printf '%y\t%f\0' > "$metadata"
@@ -80,7 +80,7 @@ if [[ $suite == release ]]; then
     arguments+=(tests.repository.test_publish tests.repository.test_package_artifacts tests.repository.test_wheelhouse_bundle tests.repository.test_acquisition_bundle
                 tests.repository.test_delivery_release tests.repository.test_wheelhouse -v)
 elif [[ $suite == installer ]]; then
-    arguments+=(tests.repository.test_installer_driver tests.repository.test_checker_dependencies tests.repository.test_checker_provisioning -v)
+    arguments+=(tests.repository.test_installer_image tests.repository.test_checker_dependencies tests.repository.test_checker_provisioning -v)
 elif [[ $suite == bytecode ]]; then
     arguments+=(tests.repository.quality.test_python_bytecode_posture -v)
 elif [[ $suite == acquisition-owner ]]; then

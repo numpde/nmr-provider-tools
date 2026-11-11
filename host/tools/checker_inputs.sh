@@ -7,7 +7,7 @@ checker_input_paths=(
 )
 
 checker_fingerprint() {
-    local path mode
+    local path mode target=$1
     for path in "${checker_input_paths[@]}"; do
         if [[ ! -f $root/$path || -L $root/$path ]]; then
             printf 'Cannot identify checker inputs: expected a regular file at %q.\n' "$root/$path" >&2
@@ -16,7 +16,7 @@ checker_fingerprint() {
     done
     (
         cd -- "$root" || exit "$?"
-        printf '%s\0' linux/amd64 || exit "$?"
+        printf '%s\0' linux/amd64 "$target" || exit "$?"
         for path in "${checker_input_paths[@]}"; do
             mode=$(stat -c %a -- "$path") || exit "$?"
             printf '%s\0%s\0' "$path" "$mode" || exit "$?"
@@ -25,8 +25,17 @@ checker_fingerprint() {
     ) | sha256sum | cut -d ' ' -f 1
 }
 
+checker_image_tag() {
+    case $1 in
+        checker) printf 'nmr-provider-tools/checker:%s' "$2" ;;
+        bootstrap) printf 'nmr-provider-tools/checker-bootstrap:%s' "$2" ;;
+        *) printf '%s\n' 'Cannot select checker image: use its bootstrap or checker target.' >&2; return 2 ;;
+    esac
+}
+
 checker_admit_image() {
-    local fingerprint=$1 tag="nmr-provider-tools/checker:$1" receipt=$operation_directory/image status
+    local fingerprint=$1 receipt=$operation_directory/image status tag
+    tag=$(checker_image_tag "$2" "$fingerprint") || return "$?"
     if checker_metadata "$receipt" image inspect --format '{{.Id}} {{index .Config.Labels "org.nmr-provider-tools.inputs"}}' "$tag"; then :; else
         status=$?
         printf -v operation_diagnostic '%sCannot admit prepared checker %s. Run make checks/prepare with an explicit WHEELHOUSE and NETWORK_INTERFACE; inspect Docker availability if preparation already succeeded.\n' "$operation_diagnostic" "$tag"

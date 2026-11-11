@@ -18,7 +18,7 @@ from tests.repository.quality.sources import ROOT
 from tests.repository.test_conventions import has_early_guard
 
 
-def late_module_imports(source):
+def late_module_imports(source, *, package=None):
     """Allow the required early guard, then retain module import ordering.
 
     Only a canonical early guard may precede the import section. Later effects
@@ -26,7 +26,7 @@ def late_module_imports(source):
     Ruffer formatting workflow.
     """
     statements = ast.parse(source).body
-    guarded = has_early_guard(source) or has_early_guard(source, guard_module="provider_core.container_guard")
+    guarded = has_early_guard(source, package=package) or has_early_guard(source, guard_module="provider_core.container_guard", package=package)
     imports_ended = False
     findings = []
     for index, statement in enumerate(statements):
@@ -67,6 +67,9 @@ class ImportOrderDetectionTests(unittest.TestCase):
         core_guard = "from provider_core.container_guard import require_container\nrequire_container()\n"
         self.assertEqual([], late_module_imports(core_guard + "import json\n"))
         self.assertEqual([4], late_module_imports(core_guard + "work()\nimport json\n"))
+        sibling_guard = "from .container_guard import require_container\nrequire_container()\n"
+        self.assertEqual([], late_module_imports(sibling_guard + "import json\n", package="tools"))
+        self.assertEqual([3], late_module_imports(sibling_guard + "import json\n", package="other"))
 
 
 class ScientificLintTests(unittest.TestCase):
@@ -75,7 +78,7 @@ class ScientificLintTests(unittest.TestCase):
         findings = [
             f"{path.relative_to(ROOT)}:{line}: module import follows operational statements"
             for path in paths
-            for line in late_module_imports(path.read_text())
+            for line in late_module_imports(path.read_text(), package=".".join(path.parent.relative_to(ROOT).parts))
         ]
         self.assertEqual([], findings, msg="\n".join(findings))
 
@@ -86,6 +89,6 @@ class ScientificLintTests(unittest.TestCase):
             f"{path.relative_to(ROOT)}:{line}: module import follows operational statements"
             for name in ("host/tools", "tools", "tests", "src", "packages")
             for path in sorted((ROOT / name).rglob("*.py"))
-            for line in late_module_imports(path.read_text())
+            for line in late_module_imports(path.read_text(), package=".".join(path.parent.relative_to(ROOT).parts))
         ]
         self.assertEqual([], findings, msg="\n".join(findings))

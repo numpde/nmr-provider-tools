@@ -24,6 +24,7 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from tools.artifacts import fsync_directory, regular_file
+from tools.installer import pip_command
 
 # repo-check: allow-module-constant
 CHUNK_BYTES = 1024 * 1024
@@ -106,11 +107,7 @@ def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None)
             borrowed_descriptors = (lock_fd,)
         subprocess.run(
             [
-                sys.executable,
-                "-I",
-                "-m",
-                "pip",
-                "--isolated",
+                *pip_command(sys.executable),
                 "install",
                 "--dry-run",
                 "--ignore-installed",

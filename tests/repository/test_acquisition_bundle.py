@@ -44,13 +44,11 @@ class AcquisitionBundleTests(unittest.TestCase):
         for source_name, _issued_name in INSTALLER_SOURCES:
             path = source / source_name
             path.parent.mkdir(parents=True, exist_ok=True)
-            shutil_source = ROOT / source_name
-            path.write_bytes(shutil_source.read_bytes())
+            path.write_bytes((ROOT / source_name).read_bytes())
         installer = json.loads((source / "requirements/installer-release.json").read_text())
-        installer_wheel = root / installer["name"]
-        installer_wheel.write_bytes(b"qualified installer fixture")
-        installer["size"] = installer_wheel.stat().st_size
-        installer["sha256"] = hashlib.sha256(installer_wheel.read_bytes()).hexdigest()
+        payload = b"qualified installer fixture"
+        (root / installer["name"]).write_bytes(payload)
+        installer.update(size=len(payload), sha256=hashlib.sha256(payload).hexdigest())
         (source / "requirements/installer-release.json").write_text(json.dumps(installer))
         wheel = root / "provider_core-0.6.0-py3-none-any.whl"
         with zipfile.ZipFile(wheel, "w") as archive:
@@ -76,7 +74,7 @@ class AcquisitionBundleTests(unittest.TestCase):
             expected = set(SOURCE_FILES) | {"provider_core/" + name for name in PROXY_FILES} | {"linux_idmap/__init__.py"}
             installer = json.loads((source / "requirements/installer-release.json").read_text())
             expected.update(issued_name for _source_name, issued_name in INSTALLER_SOURCES)
-            expected.add("acquisition_tool/installer/" + installer["name"])
+            expected.add("acquisition_tool/installer/wheels/" + installer["name"])
             with tarfile.open(first, "r:gz") as archive:
                 self.assertEqual(expected, set(archive.getnames()))
                 for member in archive.getmembers():
@@ -101,18 +99,6 @@ class AcquisitionBundleTests(unittest.TestCase):
             (source / "host" / SOURCE_FILES[0]).write_text("# restored\n")
             identity.write_bytes(b"changed dependency")
             with self.assertRaisesRegex(ValueError, "pinned hash"):
-                build(root, output, source, wheel, pin)
-            self.assertFalse(output.exists())
-            self.assertEqual([], list(root.glob("*.part")))
-
-    def test_changed_installer_wheel_never_publishes_output(self):
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            source, wheel, _identity, pin = self.fixture(root)
-            installer = json.loads((source / "requirements/installer-release.json").read_text())
-            (root / installer["name"]).write_bytes(b"changed installer")
-            output = root / "bundle.tar.gz"
-            with self.assertRaisesRegex(ValueError, "wheel size or SHA-256 differs"):
                 build(root, output, source, wheel, pin)
             self.assertFalse(output.exists())
             self.assertEqual([], list(root.glob("*.part")))
