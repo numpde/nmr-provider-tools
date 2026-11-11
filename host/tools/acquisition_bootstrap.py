@@ -22,17 +22,21 @@ def verify(bundle: Path, record: dict) -> None:
     if not isinstance(inventory, dict) or not inventory:
         raise ValueError('Acquisition bootstrap release inventory is empty.')
     expected = set()
+    expected_directories = set()
     for name in inventory:
         path = PurePosixPath(name)
         if not isinstance(name, str) or path.is_absolute() or '..' in path.parts or path.as_posix() != name:
             raise ValueError('Acquisition bootstrap release inventory contains an invalid path.')
         expected.add(name)
+        expected_directories.update(parent.as_posix() for parent in path.parents if parent != PurePosixPath('.'))
     actual = set()
     for (current, directories, files) in os.walk(bundle, followlinks=False):
         parent = Path(current)
         for name in directories:
             if (parent / name).is_symlink():
                 raise ValueError('Acquisition bootstrap contains a symlink directory.')
+            if (parent / name).relative_to(bundle).as_posix() not in expected_directories:
+                raise ValueError('Acquisition bootstrap directories differ from the release inventory.')
         for name in files:
             path = parent / name
             relative = path.relative_to(bundle).as_posix()
@@ -81,6 +85,8 @@ def refresh(bundle: Path, record: dict, archive_path: Path, version: str,
         raise ValueError('Acquisition bootstrap parent must be a directory.')
     if bundle.is_symlink() or (bundle.exists() and not bundle.is_dir()):
         raise ValueError('Acquisition bootstrap destination must be a non-symlink directory.')
+    if bundle.exists():
+        verify(bundle, json.loads(record_output.read_bytes()))
     stage = Path(tempfile.mkdtemp(prefix='.acquisition-', dir=bundle.parent))
     backup = None
     staged_record = None
