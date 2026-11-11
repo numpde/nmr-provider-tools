@@ -4,4 +4,6 @@ The shared wheelhouse tool closes rejected HTTP response bodies before retry del
 
 Regression coverage includes permanent HTTP 404, exhausted HTTP 503 retries with Retry-After, response-close failure, and simultaneous response and temporary-file cleanup failure. A real local HTTP test proves that a later artifact failure preserves an earlier verified publication and unrelated pool files, and that retry fetches only the missing artifact. All 44 shared wheelhouse tests pass.
 
+HTTP connection-setup deadline expiry now carries its own phase-specific cause rather than being mislabeled as aggregate exchange expiry. The existing stalled connection and TLS tests retain their strict setup limits. The successful child-transport contract gives real DNS and TLS a one-second setup window, still shorter than its delayed response and original three-second exchange allowance; production deadline settings are unchanged.
+
 The acquisition owner retains the 0.6.12 error-transparency behavior and exact published linux-idmap 0.3.3 dependency. Existing public release tags and assets remain unchanged.

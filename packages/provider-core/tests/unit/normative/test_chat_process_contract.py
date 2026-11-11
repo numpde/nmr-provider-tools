@@ -68,14 +68,16 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(all(child.stdin.is_closing() for child in children))
 
     async def test_factory_preserves_request_identity_trust_and_connected_response_window(self):
+        # Allow real DNS and TLS setup, but keep its grant shorter than the
+        # response delay so success proves the setup timer was disabled.
         async def reply(_request, _body):
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(1.2)
             return completion()
 
         async with TlsPeer("success", response_factory=reply) as peer, launched_children() as children:
             url = peer.origin.replace("127.0.0.1", "localhost") + "/configured/chat"
             factory = self.factory(url, peer.trust, error_response_bytes=128)
-            endpoint = factory(exchange_seconds=3, connect_seconds=0.15)
+            endpoint = factory(exchange_seconds=3, connect_seconds=1)
             reference = ChatEndpoint(factory.spec, transport=object(), request_bytes=32768,
                                      response_bytes=8192, error_response_bytes=128)
             self.assertEqual(reference.identity, endpoint.identity)

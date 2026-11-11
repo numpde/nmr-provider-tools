@@ -391,6 +391,7 @@ class HttpTransport:
                 if type(failure) is TimeoutError and setup.expired():
                     network.observation.deadline_cancelled = True
                     outcome.network_failure = network.observation.error
+                    raise TimeoutError("HTTP connection setup exceeded its configured deadline") from failure
                 else:
                     outcome.network_failure = failure
                 raise
@@ -620,7 +621,7 @@ class HttpTransport:
         if outcome is None or cleanup_failures:
             message = "Cannot complete HTTP exchange: resource retirement is unconfirmed; this transport cannot accept more work"
         elif isinstance(primary, TimeoutError):
-            message = "Cannot complete HTTP exchange: the aggregate deadline expired; resources were retired"
+            message = "Cannot complete HTTP exchange: the HTTP operation timed out; resources were retired"
         elif type(primary) is DecodedBodyRejected:
             message = "Cannot complete HTTP exchange: " + str(primary) + " Resources were retired."
         elif isinstance(primary, ExchangeFailed):
