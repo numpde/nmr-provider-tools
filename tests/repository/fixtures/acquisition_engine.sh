@@ -11,6 +11,24 @@ if [[ ${0##*/} == python3 ]]; then
   printf '17 19\n'
   exit 0
 fi
+if [[ ${0##*/} == rm ]]; then
+  if [[ $# == 3 && $1 == -rf && $2 == -- && $3 == /tmp/nmrnet-docker-client.* ]]; then
+    printf '%s\n' "$3" > "$ENGINE_STATE/client-cleanup-path"
+    case "${CLIENT_CLEANUP_FAILURE:?}" in
+      retain|capture-directory) printf 'fixture cleanup could not remove the selected directory: Permission denied\n' >&2 ;;
+      delete) /bin/rm "$@"; printf 'fixture cleanup failed after deleting the selected directory\n' >&2 ;;
+      binary-cause) printf 'cleanup\0cause\r\n\n' >&2 ;;
+      oversized-cause)
+        printf 'cleanup-cause-canary\n' >&2
+        printf '%8192s' '' >&2
+        printf 'cleanup-output-tail\n' >&2
+        ;;
+      *) exit 97 ;;
+    esac
+    exit 41
+  fi
+  exec /bin/rm "$@"
+fi
 if [[ ! -v READINESS_ROLE ]]; then exec 2>>"$ENGINE_STATE/engine-error"; fi
 if [[ ${0##*/} == stat ]]; then
   if [[ $# == 4 && $1 == -c && $2 == '%s' && $3 == -- && $4 == */gateway/stdout ]]; then
@@ -115,6 +133,9 @@ case "$operation" in
       exit 0
     fi
     : > "$ENGINE_STATE/started-worker"
+    if [[ -v CORRUPT_COMPLETED_WORKER_CID ]]; then
+      printf '%s\n' "$CORRUPT_COMPLETED_WORKER_CID" > "$scratch/$role/cid"
+    fi
     if [[ -v STREAM_WITNESS && $STREAM_WITNESS == 1 ]]; then
       printf 'streamed\n'
       while [[ ! -f "$ENGINE_STATE/release-worker" ]]; do sleep 0.01; done

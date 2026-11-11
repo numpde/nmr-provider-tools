@@ -203,7 +203,10 @@ _acq_remove() {
             return 2
         fi
     fi
-    _acq_container_id_matches_receipt "$_acq_remove_cid" "$_acq_remove_directory/cid" || return 2
+    _acq_container_id_matches_receipt "$_acq_remove_cid" "$_acq_remove_directory/cid" || {
+        _acq_fail "Cannot remove acquisition $_acq_remove_role: its container identity no longer matches its creation receipt."
+        return 2
+    }
     # A retired client does not prove the mutation succeeded. Observe absence
     # after this one attempt; never replay an effect whose outcome is unknown.
     _acq_removal_state[$_acq_remove_role]=uncertain
@@ -246,7 +249,7 @@ _acq_ready() {
         exit 2
     ' bash "$_acq_ready_file" "$_acq_ready_directory" "$_acq_ready_cid" "${_acq_engine[@]}" || _acq_ready_status=$?
     if [[ $_acq_ready_status != 0 ]]; then
-        _acq_retain_readiness=true
+        _acq_retain_diagnostics=true
         # Publish only the authored reason, never raw engine output.
         if _acq_private_receipt_below_limit "$_acq_ready_directory/readiness-reason"; then
             _acq_ready_reason=$(<"$_acq_ready_directory/readiness-reason")
@@ -376,7 +379,14 @@ acquisition_worker() {
     fi
     cmp -s "$_acq_scratch/$_acq_worker_role/state" <(printf '%s %s\n' "$_acq_running" "$_acq_exit") \
         || { _acq_failed=true; return 2; }
-    _acq_remove "$_acq_worker_role" || { _acq_failed=true; return 2; }
+    if ! _acq_remove "$_acq_worker_role"; then
+        _acq_failed=true
+        if [[ $_acq_exit != 0 ]]; then
+            printf -v _acq_diagnostic '%sAcquisition %s completed with status %s; its removal also failed.\n' "$_acq_diagnostic" "$_acq_worker_role" "$_acq_exit"
+            return "$_acq_exit"
+        fi
+        return 2
+    fi
     printf -v "$_acq_result_name" '%s' "$_acq_exit"
 }
 
@@ -389,7 +399,7 @@ _acq_restore_traps() {
 }
 
 _acq_finish() {
-    local _acq_finish_status=$1 _acq_finish_role _acq_index _acq_retired=true
+    local _acq_finish_status=$1 _acq_finish_role _acq_index _acq_retired=true _acq_client_cleanup_status=0
     trap '' HUP INT TERM
     if ! "$_acq_native_retired" || "$_acq_identity_unsettled"; then _acq_retired=false; fi
     if "$_acq_retired"; then
@@ -404,13 +414,24 @@ _acq_finish() {
         if (umask 077; set -o noclobber; printf 'retired\n' > "$_acq_retired_receipt"); then :; else
             [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2
         fi
-        _acq_cleanup_client || { [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2; }
-        if "$_acq_retain_readiness"; then
-            printf -v _acq_diagnostic '%sRetained acquisition readiness diagnostics at %q.\n' "$_acq_diagnostic" "$_acq_scratch"
+        _acq_cleanup_client || _acq_client_cleanup_status=$?
+        if [[ $1 != 0 && $_acq_client_cleanup_status != 0 ]]; then
+            if [[ $_acq_cancelled != 0 ]]; then
+                printf -v _acq_diagnostic 'Acquisition was interrupted (status %s).\n%s' "$_acq_cancelled" "$_acq_diagnostic"
+            else
+                printf -v _acq_diagnostic 'Acquisition already failed with status %s.\n%s' "$1" "$_acq_diagnostic"
+            fi
+        fi
+        if [[ $_acq_finish_status == 0 && $_acq_client_cleanup_status != 0 ]]; then
+            _acq_finish_status=$_acq_client_cleanup_status
+        fi
+        if "$_acq_retain_diagnostics"; then
+            printf -v _acq_diagnostic '%sRetained acquisition diagnostics at %q.\n' "$_acq_diagnostic" "$_acq_scratch"
         else
             rm -rf -- "$_acq_scratch" || { [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2; }
         fi
     else
+        _acq_retain_diagnostics=true
         printf -v _acq_diagnostic '%sCannot confirm acquisition retirement; retained operation %q.\n' "$_acq_diagnostic" "$_acq_scratch"
         [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2
     fi
@@ -421,11 +442,62 @@ _acq_finish() {
 
 _acq_report() {
     local inference_retirement_confirmed=true inference_cancellation_status=0 inference_diagnostic= inference_result=
-    [[ -n $_acq_diagnostic && $_acq_cancelled == 0 ]] || return 0
-    # Reporting borrows only this message. Its separate native outcome cannot
-    # overwrite the scope's engine/client uncertainty or block caller cleanup.
+    local _acq_reporting_status=0 _acq_cause_path= _acq_report_log=
+    [[ -n $_acq_diagnostic ]] || return 0
+    if "$_acq_retain_diagnostics"; then
+        _acq_report_log=$_acq_scratch/failure.stderr
+        if [[ -f $_acq_scratch/client-cleanup.stderr ]]; then _acq_cause_path=$_acq_scratch/client-cleanup.stderr; fi
+    fi
+    # The inline program reads only owned private evidence after cleanup, never
+    # caller inputs. It escapes control bytes and records errors before delivery.
     if inference_native 'acquisition diagnostic reporting' 2 stdio \
-        bash -c 'printf "%s" "$1" >&2' bash "$_acq_diagnostic"; then :; else :; fi
+        python3 -I -S -B -c '
+import os
+import sys
+
+diagnostic, cause_path, report_path = sys.argv[1:]
+status = 0
+if cause_path:
+    try:
+        with open(cause_path, "rb") as source:
+            captured = source.read(4097)
+    except OSError as error:
+        diagnostic += f"Cannot read captured cleanup stderr at {cause_path}: {error}\n"
+        status = 1
+    else:
+        if captured:
+            text = captured[:4096].decode("utf-8", errors="backslashreplace")
+            rendered = []
+            for char in text:
+                if char.isprintable() or char in "\n\t":
+                    rendered.append(char)
+                else:
+                    rendered.append(ascii(char)[1:-1])
+            text = "".join(rendered)
+            diagnostic += f"Cleanup stderr (control characters escaped; captured prefix at {cause_path}):\n{text}"
+            if not text.endswith("\n"):
+                diagnostic += "\n"
+            if len(captured) > 4096:
+                diagnostic += "Cleanup stderr truncated after 4096 bytes.\n"
+if report_path:
+    retained = diagnostic + f"Rendered acquisition error retained at {report_path}.\n"
+    try:
+        descriptor = os.open(report_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as record:
+            record.write(retained)
+    except OSError as error:
+        diagnostic += f"Cannot retain rendered acquisition error at {report_path}: {error}\n"
+        status = 1
+    else:
+        diagnostic = retained
+sys.stderr.write(diagnostic)
+raise SystemExit(status)
+' "$_acq_diagnostic" "$_acq_cause_path" "$_acq_report_log"; then :; else
+        _acq_reporting_status=$?
+        printf -v _acq_diagnostic '%sAcquisition stderr delivery failed (status %s; reporter retired: %s).\n%s' \
+            "$_acq_diagnostic" "$_acq_reporting_status" "$inference_retirement_confirmed" "$inference_diagnostic"
+        [[ $_acq_final_status != 0 ]] || _acq_final_status=$_acq_reporting_status
+    fi
     if [[ $inference_cancellation_status != 0 ]]; then
         # Native restored caller traps; deliver its observed signal to them.
         kill -s "$(kill -l "$inference_cancellation_status")" "$BASHPID"
@@ -464,9 +536,36 @@ _acq_prepare_client() {
 
 _acq_cleanup_client() {
     local docker_client_directory=$_acq_client_directory _acq_client_status=0
-    docker_client_cleanup || _acq_client_status=$?
+    local _acq_client_log=$_acq_scratch/client-cleanup.stderr _acq_drain_pid _acq_capture_status=0
+    # Keep one lookahead byte to identify truncation, then drain the remainder
+    # without interrupting cleanup. This helper starts no other background job;
+    # join its drainer before reading evidence or publishing the cleanup result.
+    if docker_client_cleanup 2> >(
+        {
+            umask 077
+            retained_status=0
+            head -c 4097 > "$_acq_client_log" || retained_status=$?
+            if cat >/dev/null; then :; else
+                discard_status=$?
+                if [[ $retained_status == 0 ]]; then retained_status=$discard_status; fi
+            fi
+            exit "$retained_status"
+        } 2>/dev/null
+    ); then :; else _acq_client_status=$?; fi
+    _acq_drain_pid=$!
+    wait "$_acq_drain_pid" || _acq_capture_status=$?
     _acq_client_directory=$docker_client_directory
-    return "$_acq_client_status"
+    if [[ $_acq_capture_status != 0 ]]; then
+        _acq_retain_diagnostics=true
+        printf -v _acq_diagnostic '%sCannot retain Docker client cleanup stderr at %q (status %s).\n' "$_acq_diagnostic" "$_acq_client_log" "$_acq_capture_status"
+        if [[ -d $_acq_client_log ]]; then _acq_diagnostic+=$'The cleanup stderr destination is a directory.\n'; fi
+    fi
+    if [[ $_acq_client_status != 0 ]]; then
+        _acq_retain_diagnostics=true
+        printf -v _acq_diagnostic '%sCannot confirm Docker client configuration removal for %q (status %s).\n' "$_acq_diagnostic" "$_acq_client_directory" "$_acq_client_status"
+    fi
+    if [[ $_acq_client_status != 0 ]]; then return "$_acq_client_status"; fi
+    return "$_acq_capture_status"
 }
 
 acquisition_scope() {
@@ -490,7 +589,7 @@ acquisition_scope() {
     declare -g _acq_saved_exit= _acq_saved_hup= _acq_saved_int= _acq_saved_term=
     _acq_saved_exit=$(trap -p EXIT); _acq_saved_hup=$(trap -p HUP); _acq_saved_int=$(trap -p INT); _acq_saved_term=$(trap -p TERM)
     declare -g _acq_bundle= _acq_scratch= _acq_route= _acq_port= _acq_sequence=0 _acq_active=false _acq_scope_uid= _acq_scope_gid=
-    declare -g _acq_failed=false _acq_identity_unsettled=false _acq_cancelled=0 _acq_diagnostic= _acq_final_status=0 _acq_retain_readiness=false
+    declare -g _acq_failed=false _acq_identity_unsettled=false _acq_cancelled=0 _acq_diagnostic= _acq_final_status=0 _acq_retain_diagnostics=false
     declare -g _acq_native_retired=true _acq_client_directory= _acq_owner_pid=$BASHPID
     declare -ga _acq_engine=() _acq_roles=()
     declare -gA _acq_cids=() _acq_attempted=() _acq_removal_state=()
