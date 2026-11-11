@@ -1,5 +1,5 @@
 {
-  "install_lock_sha256": "600a2cf0bf457e15b00eb575583311fc1865692ec8483abe0d8e89f38f4bded3",
+  "install_lock_sha256": "702234fbba5667406569eaf5b2c8fd9b629bfe52ed3298995a9a7c8a8fc017be",
   "runtime_wheels": {
     "anyio-4.15.1-py3-none-any.whl": "6152fdbbf9a77fdec97731721bebf7c4c44f7c29b424b0065826173efc7ed101",
     "certifi-2026.10.23-py3-none-any.whl": "e9b54de76e530bb6cf0ccd036787103acb58fd42ba930ea8bf948ddbaa2f61d1",
@@ -14,7 +14,7 @@
     "tomli_w-1.2.0-py3-none-any.whl": "188306098d013b691fcadc011abd66727d3c414c571bb01b1a174ba8c983cf90",
     "typing_extensions-4.16.0-py3-none-any.whl": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8"
   },
-  "source_revision": "6bb11df2c4ce942f2a5d6b651b30a50c8a2aa09e",
-  "version": "0.6.12",
-  "wheel_sha256": "2e4d03957ec55a97cba3c94a99461ed02a24cb9b04f8c598e57ec6679098d9fd"
+  "source_revision": "29e4483dfb1dec24d26cbc14418d18352b5cfc7b",
+  "version": "0.6.13",
+  "wheel_sha256": "dc563160fe1171435d2fd01248f05ce2153e850fe7705eac6de560c276673b7d"
 }
