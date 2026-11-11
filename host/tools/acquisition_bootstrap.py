@@ -124,7 +124,10 @@ def refresh(bundle: Path, record: dict, archive_path: Path, version: str,
                 backup = None
             raise
         if backup is not None:
-            shutil.rmtree(backup)
+            try:
+                shutil.rmtree(backup)
+            except OSError as error:
+                raise OSError(f'Acquisition bootstrap replacement published; cannot remove previous snapshot at {backup}.') from error
             backup = None
     finally:
         if stage.exists():

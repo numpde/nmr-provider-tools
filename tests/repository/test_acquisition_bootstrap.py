@@ -126,3 +126,14 @@ class AcquisitionBootstrapTests(unittest.TestCase):
         self.assertEqual(b"old source\n", (self.bundle / "owner.sh").read_bytes())
         self.assertEqual(self.previous_record_bytes, self.issuer.read_bytes())
         self.assertEqual([self.bundle], list(self.bundle.parent.iterdir()))
+
+    def test_previous_snapshot_cleanup_failure_reports_the_published_replacement(self):
+        with patch("host.tools.acquisition_bootstrap.shutil.rmtree", side_effect=OSError("backup cleanup failed")):
+            with self.assertRaisesRegex(OSError, "replacement published; cannot remove previous snapshot") as raised:
+                self.install()
+        self.assertEqual("backup cleanup failed", str(raised.exception.__cause__))
+        verify(self.bundle, self.record)
+        self.assertEqual(self.record_bytes, self.issuer.read_bytes())
+        backups = list(self.bundle.parent.glob(".acquisition-previous-*"))
+        self.assertEqual(1, len(backups))
+        verify(backups[0], self.previous_record)
