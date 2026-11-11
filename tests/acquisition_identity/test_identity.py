@@ -43,7 +43,7 @@ class IdentityTests(unittest.TestCase):
                 env=os.environ | {"PYTHONPATH": str(poison.parent)},
                 capture_output=True, text=True, check=False,
             )
-            self.assertEqual(17, result.returncode, result.stderr)
+            self.assertEqual(17, result.returncode, msg=result.stderr)
             self.assertEqual([str(entrypoint), *arguments], json.loads(result.stdout))
             self.assertEqual("probe diagnostic\n", result.stderr)
 

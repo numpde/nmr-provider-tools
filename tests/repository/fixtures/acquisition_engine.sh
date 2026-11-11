@@ -117,6 +117,10 @@ case "$operation" in
     : > "$ENGINE_STATE/rm-$identifier"
     role=$(<"$ENGINE_STATE/role-$identifier")
     printf '%s\n' "$role" >> "$ENGINE_STATE/removal-attempts"
+    if [[ -v FAIL_REMOVE_AFTER_EFFECT && $role == "$FAIL_REMOVE_AFTER_EFFECT" ]]; then
+      rm -f "$ENGINE_STATE/live-$identifier"
+      exit 23
+    fi
     if [[ -v FAIL_REMOVE && $role == "$FAIL_REMOVE" ]]; then exit 1; fi
     rm -f "$ENGINE_STATE/live-$identifier"
     : > "$ENGINE_STATE/removed-worker"

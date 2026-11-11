@@ -534,6 +534,20 @@ _acq_fail 'fixture diagnostic'
         self.assertIn(b'known framework diagnostic', stderr)
         self.assertEqual(['2 yes'], (root / 'caller-exit').read_text().splitlines())
 
+    def test_failed_removal_can_settle_absence_without_repeating_the_mutation(self):
+        process, root = self.launch(
+            'acquisition_set_route system; acquisition_worker online status fixture:local grants application',
+            env={'WORKER_STATUS': '0', 'FAIL_REMOVE_AFTER_EFFECT': 'worker-1'})
+        stdout, stderr = process.communicate(timeout=20)
+        self.assertEqual(2, process.returncode, msg=(stdout, stderr))
+        self.assertIn(b'acquisition worker-1 failed (status 23)', stderr)
+        self.assertEqual(['worker-1', 'relay', 'gateway'],
+                         (root / 'removal-attempts').read_text().splitlines())
+        self.assertEqual([], list(root.glob('live-*')))
+        self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
+        self.assertEqual(['2 yes'], (root / 'caller-exit').read_text().splitlines())
+        self.assertFalse(Path((root / 'scratch').read_text().strip()).exists())
+
     def test_failed_worker_or_relay_removal_retains_dependencies_and_receipt(self):
         for failed, forbidden in (('worker-1', ('relay', 'gateway')), ('relay', ('gateway',))):
             with self.subTest(failed=failed):
@@ -549,11 +563,27 @@ _acq_fail 'fixture diagnostic'
                                   (root / 'engine-client').read_text())
                 if match:
                     self.addCleanup(shutil.rmtree, Path(match.group(1)), ignore_errors=True)
+                self.assertIsNotNone(match)
+                self.assertTrue(Path(match.group(1)).is_dir())
+                self.assertTrue(operation.is_dir())
+                for index, role in enumerate(('gateway', 'relay', 'worker-1'), 1):
+                    identifier = f'{index:064x}'
+                    receipt = operation / role / 'cid'
+                    self.assertEqual((identifier + '\n').encode(), receipt.read_bytes())
+                    self.assertEqual(receipt.read_bytes(), (operation / role / 'stdout').read_bytes())
+                expected_live = [1, 2]
+                if failed == 'worker-1':
+                    expected_live.append(3)
+                self.assertEqual({f'live-{index:064x}' for index in expected_live},
+                                 {path.name for path in root.glob('live-*')})
                 self.assertNotEqual(process.returncode, 0, msg=(stdout, stderr))
                 self.assertFalse((root / 'retired').exists(), msg=(stdout, stderr, list(root.iterdir())))
                 self.assertEqual([f'{process.returncode} no'], (root / 'caller-exit').read_text().splitlines())
                 attempts = (root / 'removal-attempts').read_text().splitlines()
-                self.assertIn(failed, attempts)
+                expected_attempts = ['worker-1']
+                if failed == 'relay':
+                    expected_attempts.append('relay')
+                self.assertEqual(expected_attempts, attempts)
                 for role in forbidden:
                     self.assertNotIn(role, attempts)
 

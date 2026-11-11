@@ -168,7 +168,7 @@ _acq_create() {
     local _acq_role_directory=$_acq_scratch/$_acq_role
     mkdir -m 700 -- "$_acq_role_directory" || return 2
     _acq_cids[$_acq_role]=
-    _acq_removed[$_acq_role]=false
+    _acq_removal_state[$_acq_role]=pending
     _acq_roles+=("$_acq_role")
     _acq_attempted[$_acq_role]=true
     _acq_native "acquisition $_acq_role creation" 30 stdio bash -eu -c '
@@ -187,11 +187,13 @@ _acq_create() {
 
 _acq_remove() {
     local _acq_remove_role=$1 _acq_remove_directory=$_acq_scratch/$1
-    [[ -v '_acq_cids[$_acq_remove_role]' && -v '_acq_removed[$_acq_remove_role]' ]] || return 2
+    [[ -v '_acq_cids[$_acq_remove_role]' && -v '_acq_removal_state[$_acq_remove_role]' ]] || return 2
     local _acq_remove_cid=${_acq_cids[$_acq_remove_role]}
-    case ${_acq_removed[$_acq_remove_role]} in
-        true) return 0 ;;
-        false) ;;
+    local _acq_remove_status=0
+    case ${_acq_removal_state[$_acq_remove_role]} in
+        removed) return 0 ;;
+        pending) ;;
+        uncertain) return 2 ;;
         *) return 2 ;;
     esac
     if [[ -z $_acq_remove_cid && $_acq_cancelled != 0 ]]; then
@@ -202,10 +204,18 @@ _acq_remove() {
         fi
     fi
     _acq_container_id_matches_receipt "$_acq_remove_cid" "$_acq_remove_directory/cid" || return 2
-    _acq_native "acquisition $_acq_remove_role removal" 30 discard "${_acq_engine[@]}" rm --force "$_acq_remove_cid" || return "$?"
+    # A retired client does not prove the mutation succeeded. Observe absence
+    # after this one attempt; never replay an effect whose outcome is unknown.
+    _acq_removal_state[$_acq_remove_role]=uncertain
+    _acq_native "acquisition $_acq_remove_role removal" 30 discard "${_acq_engine[@]}" rm --force "$_acq_remove_cid" || _acq_remove_status=$?
+    if [[ $_acq_remove_status != 0 ]]; then
+        _acq_fail "Removal client for acquisition $_acq_remove_role failed (status $_acq_remove_status)."
+    fi
+    "$_acq_native_retired" || return 2
     _acq_capture "$_acq_remove_directory/absence" ps --all --quiet --no-trunc --filter "id=$_acq_remove_cid" || return "$?"
     [[ ! -s $_acq_remove_directory/absence ]] || return 2
-    _acq_removed[$_acq_remove_role]=true
+    _acq_removal_state[$_acq_remove_role]=removed
+    return "$_acq_remove_status"
 }
 
 _acq_ready() {
@@ -433,7 +443,7 @@ acquisition_scope() {
     declare -g _acq_failed=false _acq_identity_unsettled=false _acq_cancelled=0 _acq_diagnostic= _acq_final_status=0
     declare -g _acq_native_retired=true _acq_client_directory= _acq_owner_pid=$BASHPID
     declare -ga _acq_engine=() _acq_roles=()
-    declare -gA _acq_cids=() _acq_attempted=() _acq_removed=()
+    declare -gA _acq_cids=() _acq_attempted=() _acq_removal_state=()
     _acq_bundle=$(_acq_bundle_path) || return 2
     source "$_acq_bundle/tools/inference_native.sh"
     source "$_acq_bundle/tools/docker_client.sh"
