@@ -240,6 +240,65 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
                 process, root = self.launch(action)
                 self.assert_exit(process, root, 2)
 
+    def test_failed_readiness_retains_private_causes_after_container_retirement(self):
+        cases = (
+            ('stopped', b'stopped\n', b'false\n', b'', 1, '0', b'stopped before becoming ready'),
+            ('inspect-failed', b'inspect-failed 37\n', b'', b'private inspect cause\n', 1, '23',
+             b'running state could not be verified'),
+            ('malformed', b'invalid-state\n', b'private malformed state\n', b'', 1, '0',
+             b'running state could not be verified'),
+            ('exhausted', b'checks-exhausted\n', b'true\n', b'', 100, '37', b'did not become ready'),
+        )
+        for role in ('gateway', 'relay'):
+            for scenario, reason, state, inspect_error, polls, log_status, public_reason in cases:
+                with self.subTest(role=role, scenario=scenario):
+                    process, root = self.launch(
+                        'acquisition_set_route system; '
+                        'acquisition_worker online status fixture:local grants application',
+                        env={'READINESS_ROLE': role, 'READINESS_SCENARIO': scenario,
+                             'READINESS_LOG_STATUS': log_status})
+                    stdout, stderr = process.communicate(timeout=20)
+                    operation = Path((root / 'scratch').read_text().strip())
+                    self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+                    self.assertEqual(2, process.returncode, msg=(stdout, stderr))
+                    self.assertEqual(b'', stdout)
+                    self.assertEqual(['2 yes'], (root / 'caller-exit').read_text().splitlines())
+                    self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
+                    self.assertEqual([], list(root.glob('live-*')))
+                    expected_roles = ['gateway']
+                    if role == 'relay':
+                        expected_roles.insert(0, 'relay')
+                    self.assertEqual(expected_roles, (root / 'removal-attempts').read_text().splitlines())
+                    self.assertEqual([role] * polls, (root / 'readiness-inspections').read_text().splitlines())
+                    self.assertEqual([role], (root / 'readiness-logs').read_text().splitlines())
+                    self.assertIn(str(operation).encode(), stderr)
+                    self.assertIn(f'{role} readiness failed'.encode(), stderr)
+                    self.assertIn(public_reason, stderr)
+                    if scenario == 'inspect-failed':
+                        self.assertIn(b'inspect status 37', stderr)
+                    if log_status != '0':
+                        self.assertIn(f'logs (status {log_status})'.encode(), stderr)
+                    for private in (b'private inspect cause', b'private malformed state',
+                                    b'private container stdout', b'private container stderr'):
+                        self.assertNotIn(private, stdout + stderr)
+                    self.assertEqual(0o700, operation.stat().st_mode & 0o777)
+                    evidence = operation / role
+                    expected = {
+                        'readiness-reason': reason, 'state': state, 'state.stderr': inspect_error,
+                        'logs': b'private container stdout\n',
+                        'logs.stderr': b'private container stderr\n',
+                        'log-status': (log_status + '\n').encode(),
+                    }
+                    for name, contents in expected.items():
+                        path = evidence / name
+                        self.assertEqual(contents, path.read_bytes(), msg=str(path))
+                        self.assertEqual(0o600, path.stat().st_mode & 0o777)
+                        self.assertLess(path.stat().st_size, 4096)
+                    match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
+                                      (root / 'engine-client').read_text())
+                    self.assertIsNotNone(match)
+                    self.assertFalse(Path(match.group(1)).exists())
+
     def test_private_metadata_receipts_must_remain_below_the_native_file_cap(self):
         with tempfile.TemporaryDirectory() as directory:
             receipt = Path(directory) / 'receipt'

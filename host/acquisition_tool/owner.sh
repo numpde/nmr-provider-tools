@@ -220,18 +220,60 @@ _acq_remove() {
 
 _acq_ready() {
     local _acq_ready_role=$1 _acq_ready_file=$2 _acq_ready_cid=${_acq_cids[$1]} _acq_ready_status=0
-    _acq_capture "$_acq_scratch/$_acq_ready_role/start" start "$_acq_ready_cid" || return "$?"
+    local _acq_log_status=0 _acq_ready_reason= _acq_ready_explanation='readiness observation did not complete'
+    local _acq_ready_directory=$_acq_scratch/$1
+    _acq_capture "$_acq_ready_directory/start" start "$_acq_ready_cid" || return "$?"
     _acq_native "acquisition $_acq_ready_role readiness" 30 stdio bash -eu -c '
         ready=$1 directory=$2 cid=$3; shift 3; umask 077; ulimit -f 4
         for _ in {1..100}; do
             if [[ -f "$ready" && ! -L "$ready" && -s "$ready" ]]; then exit 0; fi
-            "$@" inspect --format "{{.State.Running}}" "$cid" > "$directory/state" 2> "$directory/state.stderr" || exit 2
-            cmp -s "$directory/state" <(printf "true\n") || exit 2
+            if "$@" inspect --format "{{.State.Running}}" "$cid" > "$directory/state" 2> "$directory/state.stderr"; then :; else
+                status=$?
+                printf "inspect-failed %s\n" "$status" > "$directory/readiness-reason"
+                exit 2
+            fi
+            if cmp -s "$directory/state" <(printf "false\n"); then
+                printf "stopped\n" > "$directory/readiness-reason"
+                exit 2
+            fi
+            if ! cmp -s "$directory/state" <(printf "true\n"); then
+                printf "invalid-state\n" > "$directory/readiness-reason"
+                exit 2
+            fi
             sleep 0.05
         done
+        printf "checks-exhausted\n" > "$directory/readiness-reason"
         exit 2
-    ' bash "$_acq_ready_file" "$_acq_scratch/$_acq_ready_role" "$_acq_ready_cid" "${_acq_engine[@]}" || _acq_ready_status=$?
-    [[ $_acq_ready_status == 0 ]] || { _acq_fail "Cannot start acquisition: $_acq_ready_role readiness failed."; return "$_acq_ready_status"; }
+    ' bash "$_acq_ready_file" "$_acq_ready_directory" "$_acq_ready_cid" "${_acq_engine[@]}" || _acq_ready_status=$?
+    if [[ $_acq_ready_status != 0 ]]; then
+        _acq_retain_readiness=true
+        # Publish only the authored reason, never raw engine output.
+        if _acq_private_receipt_below_limit "$_acq_ready_directory/readiness-reason"; then
+            _acq_ready_reason=$(<"$_acq_ready_directory/readiness-reason")
+            case $_acq_ready_reason in
+                stopped) _acq_ready_explanation='container stopped before becoming ready' ;;
+                invalid-state) _acq_ready_explanation='container running state could not be verified' ;;
+                checks-exhausted) _acq_ready_explanation='container did not become ready after 100 checks' ;;
+                *)
+                    if [[ $_acq_ready_reason =~ ^inspect-failed\ ([0-9]{1,3})$ ]]; then
+                        _acq_ready_explanation="container running state could not be verified (inspect status ${BASH_REMATCH[1]})"
+                    fi ;;
+            esac
+        fi
+        _acq_fail "Cannot start acquisition: $_acq_ready_role readiness failed: $_acq_ready_explanation (status $_acq_ready_status)."
+        # Only a retired observation permits another native command. Log
+        # collection is secondary and cannot replace the readiness failure.
+        if "$_acq_native_retired" && ! "$_acq_identity_unsettled"; then
+            _acq_capture "$_acq_ready_directory/logs" logs --tail 80 "$_acq_ready_cid" || _acq_log_status=$?
+            if (umask 077; printf '%s\n' "$_acq_log_status" > "$_acq_ready_directory/log-status"); then :; else
+                _acq_fail "Cannot save acquisition $_acq_ready_role log retrieval status."
+            fi
+            if [[ $_acq_log_status != 0 ]]; then
+                _acq_fail "Cannot collect complete acquisition $_acq_ready_role logs (status $_acq_log_status)."
+            fi
+        fi
+        return "$_acq_ready_status"
+    fi
     _acq_private_receipt_below_limit "$_acq_ready_file"
 }
 
@@ -363,7 +405,11 @@ _acq_finish() {
             [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2
         fi
         _acq_cleanup_client || { [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2; }
-        rm -rf -- "$_acq_scratch" || { [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2; }
+        if "$_acq_retain_readiness"; then
+            printf -v _acq_diagnostic '%sRetained acquisition readiness diagnostics at %q.\n' "$_acq_diagnostic" "$_acq_scratch"
+        else
+            rm -rf -- "$_acq_scratch" || { [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2; }
+        fi
     else
         printf -v _acq_diagnostic '%sCannot confirm acquisition retirement; retained operation %q.\n' "$_acq_diagnostic" "$_acq_scratch"
         [[ $_acq_finish_status != 0 ]] || _acq_finish_status=2
@@ -440,7 +486,7 @@ acquisition_scope() {
     declare -g _acq_saved_exit= _acq_saved_hup= _acq_saved_int= _acq_saved_term=
     _acq_saved_exit=$(trap -p EXIT); _acq_saved_hup=$(trap -p HUP); _acq_saved_int=$(trap -p INT); _acq_saved_term=$(trap -p TERM)
     declare -g _acq_bundle= _acq_scratch= _acq_route= _acq_port= _acq_sequence=0 _acq_active=false _acq_scope_uid= _acq_scope_gid=
-    declare -g _acq_failed=false _acq_identity_unsettled=false _acq_cancelled=0 _acq_diagnostic= _acq_final_status=0
+    declare -g _acq_failed=false _acq_identity_unsettled=false _acq_cancelled=0 _acq_diagnostic= _acq_final_status=0 _acq_retain_readiness=false
     declare -g _acq_native_retired=true _acq_client_directory= _acq_owner_pid=$BASHPID
     declare -ga _acq_engine=() _acq_roles=()
     declare -gA _acq_cids=() _acq_attempted=() _acq_removal_state=()

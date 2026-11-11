@@ -11,7 +11,7 @@ if [[ ${0##*/} == python3 ]]; then
   printf '17 19\n'
   exit 0
 fi
-exec 2>>"$ENGINE_STATE/engine-error"
+if [[ ! -v READINESS_ROLE ]]; then exec 2>>"$ENGINE_STATE/engine-error"; fi
 if [[ ${0##*/} == stat ]]; then
   if [[ $# == 4 && $1 == -c && $2 == '%s' && $3 == -- && $4 == */gateway/stdout ]]; then
     printf '%s\n' "${ACQUISITION_STDOUT_STAT_FAULT:?}" > "$ENGINE_STATE/stat-fault-reached"
@@ -76,6 +76,15 @@ case "$operation" in
     identifier=${!#}
     role=$(<"$ENGINE_STATE/role-$identifier")
     case "$2" in
+      '{{.State.Running}}')
+        printf '%s\n' "$role" >> "$ENGINE_STATE/readiness-inspections"
+        case "${READINESS_SCENARIO:?}" in
+          stopped) printf 'false\n' ;;
+          inspect-failed) printf 'private inspect cause\n' >&2; exit 37 ;;
+          malformed) printf 'private malformed state\n' ;;
+          exhausted) printf 'true\n' ;;
+          *) exit 97 ;;
+        esac ;;
       '{{.HostConfig.NetworkMode}}')
         if [[ $role == worker-* && -f "$ENGINE_STATE/relay-id" ]]; then
           printf 'container:%s\n' "$(<"$ENGINE_STATE/relay-id")"
@@ -95,6 +104,7 @@ case "$operation" in
     : > "$ENGINE_STATE/start-$identifier"
     role=$(<"$ENGINE_STATE/role-$identifier")
     scratch=$(<"$ENGINE_STATE/scratch")
+    if [[ -v READINESS_ROLE && $role == "$READINESS_ROLE" ]]; then exit 0; fi
     if [[ $role == gateway ]]; then
       python3 -c 'import socket,sys; s=socket.socket(socket.AF_UNIX); s.bind(sys.argv[1]); s.close()' "$scratch/gateway-socket/proxy.sock"
       printf '/gateway/proxy.sock\n' > "$scratch/gateway-ready/socket"
@@ -111,6 +121,15 @@ case "$operation" in
     fi
     if [[ -n ${WORKER_STATUS+x} ]]; then exit "$WORKER_STATUS"; fi
     while :; do sleep 1; done
+    ;;
+  logs)
+    identifier=${!#}
+    role=$(<"$ENGINE_STATE/role-$identifier")
+    printf '%s\n' "$role" >> "$ENGINE_STATE/readiness-logs"
+    [[ ! -f "$ENGINE_STATE/rm-$identifier" ]] || exit 98
+    printf 'private container stdout\n'
+    printf 'private container stderr\n' >&2
+    exit "${READINESS_LOG_STATUS:?}"
     ;;
   rm)
     identifier=${!#}
