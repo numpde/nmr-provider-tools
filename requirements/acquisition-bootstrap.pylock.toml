@@ -3,8 +3,8 @@ created-by = "nmr-provider-tools acquisition bootstrap"
 
 [[packages]]
 name = "linux-idmap"
-version = "0.3.2"
+version = "0.3.3"
 
 [[packages.wheels]]
-url = "https://github.com/numpde/container-tools/releases/download/v0.3.2/linux_idmap-0.3.2-py3-none-any.whl"
-hashes = { sha256 = "bb607eb18afa14a6fd839622600aabab5cfbe0c029989764ee137909acee9106" }
+url = "https://github.com/numpde/container-tools/releases/download/v0.3.3/linux_idmap-0.3.3-py3-none-any.whl"
+hashes = { sha256 = "2f9b47529fe36acf636f3a6a8a62198bed41ee331002d95268fc8ba0c77e3dfc" }
