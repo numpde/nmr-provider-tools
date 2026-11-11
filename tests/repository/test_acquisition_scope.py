@@ -236,6 +236,24 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
             time.sleep(.01)
         self.assertTrue(marker.exists(), msg=f'owner did not create {marker}')
 
+    def rescue_native_removal(self, observed, scope_pid, operation, client):
+        # A retained PID alone does not authorize signalling a group.
+        anchor = observed['anchor']
+        command = Path(f'/proc/{anchor}/cmdline').read_bytes().split(b'\0')[:-1]
+        start = Path(f'/proc/{anchor}/stat').read_text().rsplit(')', 1)[1].split()[19]
+        self.assertEqual(observed['command'], [os.fsdecode(part) for part in command])
+        self.assertEqual(observed['start'], start)
+        self.assertEqual(str(Path(observed['directory']) / 'status'), observed['command'][4])
+        self.assertEqual(anchor, os.getpgid(anchor))
+        self.assertEqual(scope_pid, os.getsid(anchor))
+        os.killpg(anchor, signal.SIGKILL)
+        deadline = time.monotonic() + 5
+        while Path(f'/proc/{anchor}').exists() and time.monotonic() < deadline:
+            time.sleep(.01)
+        self.assertFalse(Path(f'/proc/{anchor}').exists())
+        for directory in (Path(observed['directory']), operation, client):
+            shutil.rmtree(directory)
+
     def assert_exit(self, process, root, status):
         stdout, stderr = process.communicate(timeout=15)
         self.assertEqual(status, process.returncode, msg=(stdout, stderr))
@@ -850,8 +868,9 @@ return 37
     def test_unknown_native_removal_retains_scope_and_blocks_later_workers(self):
         # Route removal happens after the callback returns. Worker removal
         # happens inside it, allowing a later admission attempt after the fault.
-        for selected, roles in (('gateway', ('gateway',)), ('relay', ('gateway', 'relay')),
-                                ('worker-1', ('gateway', 'relay', 'worker-1'))):
+        for selected, roles, expected in (('gateway', ('gateway',), '2 0\n'),
+                                           ('relay', ('gateway', 'relay'), '2 0\n'),
+                                           ('worker-1', ('gateway', 'relay', 'worker-1'), '2 2\n')):
             with self.subTest(selected=selected):
                 environment = {'NATIVE_CORRUPT_REMOVAL_ROLE': selected, 'WORKER_STATUS': '0'}
                 if selected != 'worker-1':
@@ -872,29 +891,11 @@ return "$first"
                 operation = Path((root / 'scratch').read_text().strip())
                 client = Path((root / 'engine-client').read_text().split()[1]).parent
 
-                def rescue(anchor=anchor, observed=observed, process=process, operation=operation, client=client):
-                    # A retained PID alone does not authorize signalling a group.
-                    command = Path(f'/proc/{anchor}/cmdline').read_bytes().split(b'\0')[:-1]
-                    start = Path(f'/proc/{anchor}/stat').read_text().rsplit(')', 1)[1].split()[19]
-                    self.assertEqual(observed['command'], [os.fsdecode(part) for part in command])
-                    self.assertEqual(observed['start'], start)
-                    self.assertEqual(str(Path(observed['directory']) / 'status'), observed['command'][4])
-                    self.assertEqual(anchor, os.getpgid(anchor))
-                    self.assertEqual(process.pid, os.getsid(anchor))
-                    os.killpg(anchor, signal.SIGKILL)
-                    deadline = time.monotonic() + 5
-                    while Path(f'/proc/{anchor}').exists() and time.monotonic() < deadline:
-                        time.sleep(.01)
-                    self.assertFalse(Path(f'/proc/{anchor}').exists())
-                    for directory in (Path(observed['directory']), operation, client):
-                        shutil.rmtree(directory)
-
-                self.addCleanup(rescue)
+                self.addCleanup(self.rescue_native_removal, observed, process.pid, operation, client)
                 stdout, stderr = process.communicate(timeout=20)
                 self.assertEqual(2, process.returncode, msg=(stdout, stderr))
                 self.assertEqual(['2 no'], (root / 'caller-exit').read_text().splitlines())
-                self.assertEqual('2 2\n' if selected == 'worker-1' else '2 0\n',
-                                 (root / 'callback-status').read_text())
+                self.assertEqual(expected, (root / 'callback-status').read_text())
                 self.assertFalse((root / 'retired').exists())
                 self.assertFalse((root / 'removal-attempts').exists())
                 self.assertFalse((root / 'absence-probes').exists())
