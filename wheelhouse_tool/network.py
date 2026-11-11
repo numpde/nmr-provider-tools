@@ -37,10 +37,10 @@ def failure_detail(error):
         if match := re.match(r"^Tunnel connection failed: ([0-9]{3})(?:\s|$)", str(reason)):
             return f"the proxy tunnel returned HTTP {match[1]}"
         if isinstance(reason.errno, int):
-            return f"the network failed with error number {reason.errno}"
+            return f"an I/O operation failed with error number {reason.errno}"
     if isinstance(reason, http.client.HTTPException):
         return "the HTTP connection failed"
-    return "the download request failed"
+    return "the I/O operation failed"
 
 
 def retry_delay(error, attempt):
@@ -97,6 +97,14 @@ def retry(operation, description):
             delay = None
             if attempt < 3:
                 delay = retry_delay(failure.error, attempt)
+            if isinstance(failure.error, urllib.error.HTTPError):
+                try:
+                    failure.error.close()
+                except OSError as close_error:
+                    raise OSError(
+                        f"{description}: {detail}; could not close the HTTP error "
+                        f"response: {failure_detail(close_error)}."
+                    ) from None
             if delay == -1:
                 raise OSError(f"{description}: {detail}; the requested retry delay exceeds 30 seconds.") from None
             if delay is None:
