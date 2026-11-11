@@ -201,6 +201,7 @@ application=(-c ignored)
 callback() {
     CALLBACK_BODY
 }
+if [[ -v CALLER_TERM_TRAP ]]; then trap "$CALLER_TERM_TRAP" TERM; fi
 acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixture:bootstrap --retired-receipt "$receipt" -- callback
 '''.replace('CALLBACK_BODY', callback)
         injected = {}
@@ -239,6 +240,76 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
             with self.subTest(action=action):
                 process, root = self.launch(action)
                 self.assert_exit(process, root, 2)
+
+    def test_reporting_cancellation_reaches_restored_caller_disposition(self):
+        callback = r'''
+python3 -I -S -B - <<'PY'
+import os
+os.set_blocking(2, False)
+try:
+    while True:
+        os.write(2, b'x' * 4096)
+except BlockingIOError:
+    pass
+finally:
+    os.set_blocking(2, True)
+PY
+_acq_fail 'scope reporter barrier'
+return 2
+'''
+        cases = (
+            ('default', {}, -signal.SIGTERM),
+            ('custom', {'CALLER_TERM_TRAP': 'printf "handled\\n" > "$STATE/caller-term"; exit 77'}, 77),
+            ('ignored', {'CALLER_TERM_TRAP': ''}, 2),
+        )
+        for disposition, environment, expected in cases:
+            with self.subTest(disposition=disposition):
+                process, root = self.launch(callback, env=environment)
+                reporter = None
+                deadline = time.monotonic() + 15
+                while reporter is None and time.monotonic() < deadline:
+                    self.assertIsNone(process.poll(), msg='owner exited before blocked reporter')
+                    pending = [process.pid]
+                    while pending:
+                        parent = pending.pop()
+                        try:
+                            children = Path(f'/proc/{parent}/task/{parent}/children').read_text().split()
+                        except FileNotFoundError:
+                            continue
+                        for child in children:
+                            pid = int(child)
+                            pending.append(pid)
+                            try:
+                                argv = Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0')[:-1]
+                                channel = Path(f'/proc/{pid}/wchan').read_text().strip()
+                                session = os.getsid(pid)
+                            except (FileNotFoundError, ProcessLookupError):
+                                continue
+                            if (argv == [b'bash', b'-c', b'printf "%s" "$1" >&2', b'bash', b'scope reporter barrier\n']
+                                    and channel in {'pipe_write', 'anon_pipe_write'}
+                                    and session == process.pid):
+                                reporter = pid
+                    if reporter is None:
+                        time.sleep(.005)
+                self.assertIsNotNone(reporter, msg='no owned blocked reporter observed')
+                self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
+                process.send_signal(signal.SIGTERM)
+                self.assertEqual(expected, process.wait(timeout=5))
+                stdout, stderr = process.communicate(timeout=5)
+                self.assertEqual(b'', stdout, msg=stderr)
+                self.assertFalse(Path(f'/proc/{reporter}').exists())
+                self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
+                if disposition == 'custom':
+                    self.assertEqual('handled\n', (root / 'caller-term').read_text())
+                    self.assertEqual(['77 yes'], (root / 'caller-exit').read_text().splitlines())
+                elif disposition == 'ignored':
+                    self.assertEqual(['2 yes'], (root / 'caller-exit').read_text().splitlines())
+
+    def test_ordinary_reporter_status143_is_not_cancellation(self):
+        process, root = self.launch(
+            "_acq_fail 'ordinary reporter status'; "
+            'inference_native() { inference_cancellation_status=0; return 143; }; return 2')
+        self.assert_exit(process, root, 2)
 
     def test_failed_readiness_retains_private_causes_after_container_retirement(self):
         cases = (

@@ -426,6 +426,10 @@ _acq_report() {
     # overwrite the scope's engine/client uncertainty or block caller cleanup.
     if inference_native 'acquisition diagnostic reporting' 2 stdio \
         bash -c 'printf "%s" "$1" >&2' bash "$_acq_diagnostic"; then :; else :; fi
+    if [[ $inference_cancellation_status != 0 ]]; then
+        # Native restored caller traps; deliver its observed signal to them.
+        kill -s "$(kill -l "$inference_cancellation_status")" "$BASHPID"
+    fi
 }
 
 _acq_scope_exit() {
