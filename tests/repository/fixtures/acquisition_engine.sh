@@ -107,7 +107,8 @@ case "$operation" in
         if [[ $role == worker-* && -f "$ENGINE_STATE/relay-id" ]]; then
           printf 'container:%s\n' "$(<"$ENGINE_STATE/relay-id")"
         elif [[ $role == gateway ]]; then printf 'host\n'; else printf 'none\n'; fi ;;
-      '{{.HostConfig.NetworkMode}} {{.State.Running}}') printf 'none true\n' ;;
+      '{{.HostConfig.NetworkMode}} {{.State.Running}}')
+        if [[ -v INVALID_RELAY_STATE && $role == relay ]]; then printf 'none false\n'; else printf 'none true\n'; fi ;;
       '{{.State.Running}} {{.State.ExitCode}}')
         if [[ -v WORKER_STATUS ]]; then
           printf 'false %s\n' "$WORKER_STATUS"

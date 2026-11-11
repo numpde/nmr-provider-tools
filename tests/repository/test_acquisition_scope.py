@@ -649,6 +649,52 @@ printf '%s %s\n' "$status" "$report_status"
         self.assertTrue(mounts[0].endswith('/resolv.conf,dst=/gateway-resolv.conf,readonly'))
         self.assertNotIn('/run/systemd/resolve/resolv.conf', '\n'.join(arguments))
 
+    def test_incomplete_relay_setup_cannot_admit_a_later_worker(self):
+        cases = (
+            {'WORKER_STATUS': '0', 'READINESS_ROLE': 'relay',
+             'READINESS_SCENARIO': 'stopped', 'READINESS_LOG_STATUS': '0'},
+            {'WORKER_STATUS': '0', 'INVALID_RELAY_STATE': '1'},
+        )
+        for environment in cases:
+            with self.subTest(environment=environment):
+                process, root = self.launch(r'''
+acquisition_set_route system
+first=0 second=0
+acquisition_worker online status fixture:first grants application || first=$?
+acquisition_worker online status fixture:second grants application || second=$?
+printf '%s %s\n' "$first" "$second"
+return "$first"
+''', env=environment)
+                stdout, stderr = process.communicate(timeout=20)
+                operation = Path((root / 'scratch').read_text().strip())
+                self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+                self.assertEqual(2, process.returncode, msg=(stdout, stderr))
+                self.assertEqual(b'2 2\n', stdout, msg=stderr)
+                self.assertIn(b'Cannot reuse acquisition route', stderr)
+                self.assertIn(b'relay setup did not complete', stderr)
+                self.assertEqual('2', (root / 'counter').read_text())
+                self.assertFalse((root / 'started-worker').exists())
+                self.assertEqual(['relay', 'gateway'], (root / 'removal-attempts').read_text().splitlines())
+                self.assertEqual([], list(root.glob('live-*')))
+                self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
+                if 'READINESS_ROLE' in environment:
+                    self.assertIn(b'stopped before becoming ready', stderr)
+                if 'INVALID_RELAY_STATE' in environment:
+                    self.assertIn(b'relay network and running state could not be verified', stderr)
+                    self.assertEqual(b'none false\n', (operation / 'relay/mode').read_bytes())
+
+    def test_ordinary_worker_exit_does_not_invalidate_the_shared_route(self):
+        process, root = self.launch(r'''
+acquisition_set_route system
+acquisition_worker online first fixture:first grants application || return $?
+acquisition_worker online second fixture:second grants application || return $?
+printf '%s %s\n' "$first" "$second"
+''', env={'WORKER_STATUS': '7'})
+        self.assertEqual(b'7 7\n', self.assert_exit(process, root, 0))
+        self.assertEqual('4', (root / 'counter').read_text())
+        self.assertEqual(['worker-1', 'worker-2', 'relay', 'gateway'],
+                         (root / 'removal-attempts').read_text().splitlines())
+
     def test_worker_stdout_is_streamed_before_worker_finishes(self):
         process, root = self.launch(
             'acquisition_worker offline status fixture:local grants application',
