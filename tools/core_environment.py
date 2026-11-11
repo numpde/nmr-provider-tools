@@ -24,16 +24,8 @@ import tomllib
 from pathlib import Path
 
 from tools.artifacts import fsync_directory, regular_file
+from tools.installer import create_environment, pip_command
 from tools.wheelhouse import digest, pool_read_lock, read_json, requirements, select_wheels, wheel_inputs_from_report
-
-
-def pip_command(python):
-    # Run pip in the target interpreter itself so its inherited pool lock stays
-    # with the process reading wheels, even if the launcher is interrupted.
-    import pip
-
-    runner = Path(pip.__file__).resolve().parent / "__pip-runner__.py"
-    return [str(python), "-I", str(runner), "--isolated"]
 
 
 def build_source_wheel(
@@ -149,11 +141,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             )
 
         builder = scratch / "builder"
-        subprocess.run(
-            [sys.executable, "-I", "-m", "venv", "--without-pip", str(builder)],
-            check=True,
-        )
-        builder_python = builder / "bin/python"
+        builder_python = create_environment(builder)
         installed_build_inputs = install_locked(
             python=builder_python,
             lock=locks["build"],
@@ -224,24 +212,13 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
 
 # silent-defaults: allow-contract -- An optional caller-supplied wheel pool is immutable and empty by default; the expected-inputs and required-files None values signal distinct checks.
 def install_environment(root, lock, pool, expected_inputs=None, extra_pools=(), required_files=None):
-    """Create a pip-free runtime from one complete installation lock."""
+    """Install one complete application lock using the image's approved pip."""
     with pool_read_lock(pool) as lock_fd:
         return _install_environment(root, lock, pool, expected_inputs, extra_pools, required_files, lock_fd)
 
 
 def _install_environment(root, lock, pool, expected_inputs, extra_pools, required_files, lock_fd):
-    environment_python = root / "environment/bin/python"
-    subprocess.run(
-        [
-            sys.executable,
-            "-I",
-            "-m",
-            "venv",
-            "--without-pip",
-            str(environment_python.parent.parent),
-        ],
-        check=True,
-    )
+    environment_python = create_environment(root / "environment")
 
     selected_wheel_inputs = select_wheels(
         lock,

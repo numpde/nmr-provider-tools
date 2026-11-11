@@ -6,6 +6,7 @@ source "$root/host/tools/base_image.sh"
 source "$root/host/tools/checker_operation.sh"
 uid=$(id -u) gid=$(id -g)
 checker_begin
+checker_admit_tools
 checker_run 120 --pull never --network none --read-only --user "$uid:$gid" --cap-drop ALL \
     --security-opt no-new-privileges:true --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /workspace \
@@ -15,7 +16,7 @@ checker_run 120 --pull never --network none --read-only --user "$uid:$gid" --cap
     --mount "type=bind,src=$root/requirements/delivery-release.json,dst=/release.json,readonly" \
     --mount "type=bind,src=$root/requirements/wheelhouse-tool-release.json,dst=/wheelhouse-tool-release.json,readonly" \
     --mount "type=bind,src=$1,dst=/wheelhouse,readonly" \
-    --entrypoint python3 "$base_image" -B -m tools.delivery_image check \
+    --entrypoint python3 "$checker_image" -B -m tools.delivery_image check \
     --pin /release.json --runtime-lock /core-runtime.lock --pool /wheelhouse --tool-pin /wheelhouse-tool-release.json > "$operation_directory/result"
 checker_metadata "$operation_directory/check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
 cmp -s "$operation_directory/check-exit" <(printf 'false 0\n') || {

@@ -17,8 +17,9 @@ source "$root/host/tools/checker_operation.sh"
 checker_begin
 cache=$(bash "$root/host/tools/delivery_cache_check.sh" "$wheelhouse_directory")
 if [[ $cache == missing ]]; then
+    checker_admit_tools
     checker_acquisition_receipt
-    bash "$root/host/tools/docker.sh" run --image "$base_image" --retired-receipt "$operation_acquisition_receipt" -- --pull never --read-only --cap-drop ALL \
+    bash "$root/host/tools/docker.sh" run --image "$checker_image" --retired-receipt "$operation_acquisition_receipt" -- --pull never --read-only --cap-drop ALL \
     --security-opt no-new-privileges:true --cpus 2 --memory 512m --memory-swap 512m --pids-limit 64 \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /workspace \
     --env NMR_PROVIDER_TOOLS_IN_CONTAINER=1 --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace \

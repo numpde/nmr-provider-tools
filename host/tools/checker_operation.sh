@@ -38,6 +38,14 @@ checker_acquisition_receipt() {
     operation_acquisition_receipts+=("$operation_acquisition_receipt")
 }
 
+checker_admit_tools() {
+    local -a checker_input_paths
+    source "$root/host/tools/checker_inputs.sh"
+    local fingerprint
+    fingerprint=$(checker_fingerprint checker) || return "$?"
+    checker_admit_image "$fingerprint" checker
+}
+
 checker_call() {
     local status=0
     if ! "$inference_retirement_confirmed"; then

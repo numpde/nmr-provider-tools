@@ -22,7 +22,7 @@ from tests.repository.quality.sources import ROOT
 
 
 # silent-defaults: allow-contract -- Ordinary modules require the guard; the explicit package-marker option permits only empty or docstring-only markers; proof=tests/repository/test_conventions.py::ConventionDetectionTests.test_only_empty_or_documentation_package_markers_are_exempt
-def has_early_guard(source, *, package_marker=False, guard_module="tools.container_guard"):
+def has_early_guard(source, *, package_marker=False, guard_module="tools.container_guard", package=None):
     """Recognize the canonical guard before imports or executable statements.
 
     Empty/docstring-only package markers are a local exception: importing them
@@ -50,8 +50,10 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
     imported, called = statements[:2]
     return (
         isinstance(imported, ast.ImportFrom)
-        and imported.level == 0
-        and imported.module == guard_module
+        and (
+            (imported.level == 0 and imported.module == guard_module)
+            or (imported.level == 1 and package is not None and f"{package}.{imported.module}" == guard_module)
+        )
         and len(imported.names) == 1
         and imported.names[0].name == "require_container"
         and imported.names[0].asname is None
@@ -86,7 +88,8 @@ def unguarded_sources(root):
     failures = [
         str(path.relative_to(root))
         for path in sorted(sources)
-        if not has_early_guard(path.read_text(), package_marker=path.name == "__init__.py")
+        if not has_early_guard(path.read_text(), package_marker=path.name == "__init__.py",
+                               package=".".join(path.parent.relative_to(root).parts))
     ]
     failures.extend(
         str(path.relative_to(root))
@@ -151,6 +154,20 @@ class RepositoryConventionTests(unittest.TestCase):
 
 class ConventionDetectionTests(unittest.TestCase):
     GUARD = "from tools.container_guard import require_container\nrequire_container()\n"
+
+    def test_sibling_guard_must_resolve_to_the_actual_owner(self):
+        source = "from .container_guard import require_container\nrequire_container()\n"
+        self.assertTrue(has_early_guard(source, package="tools"))
+        self.assertFalse(has_early_guard(source))
+        self.assertFalse(has_early_guard(source, package="tools.nested"))
+        for invalid in (
+            source.replace("from .", "from .."),
+            source.replace("import require_container", "import require_container as guard"),
+            source.replace("require_container()", "require_container(True)"),
+            "import os\n" + source,
+        ):
+            with self.subTest(source=invalid):
+                self.assertFalse(has_early_guard(invalid, package="tools"))
 
     def test_installed_core_requires_its_own_portable_guard(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -22,6 +22,9 @@ if [[ -v FUZZ_PROFILE_INPUT_ORIGIN && $FUZZ_PROFILE_INPUT_ORIGIN == 'command lin
     fuzz_environment=(--env "PROVIDER_CORE_FUZZ_PROFILE=$FUZZ_PROFILE_INPUT")
 fi
 source "$root/host/tools/base_image.sh"
+arguments=()
+source "$root/host/tools/checker_inputs.sh"
+tool_image=$(checker_image_tag checker "$(checker_fingerprint checker)")
 source "$root/host/tools/wheelhouse_path.sh"
 select_wheelhouse
 uid=$(id -u)
@@ -51,7 +54,9 @@ if [[ $action == download ]]; then
     if ! "$printing"; then
         source "$root/host/tools/checker_operation.sh"
         checker_begin
-        checker_host_identity "$base_image" python3 "$uid" "$gid" || {
+        checker_admit_tools
+        tool_image=$checker_image
+        checker_host_identity "$tool_image" python3 "$uid" "$gid" || {
             printf '%s\n' 'Cannot map the wheelhouse owner into the selected engine.' >&2; exit 2;
         }
         mkdir -- "$operation_directory/locks"
@@ -79,7 +84,7 @@ if [[ $action == download ]]; then
         done
         checker_run 120 "${worker[@]}" --network none --user "$checker_host_uid:$checker_host_gid" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
-            --entrypoint python3 "$base_image" -B -m tools.provider_core_acquire check > "$operation_directory/pool-state"
+            --entrypoint python3 "$tool_image" -B -m tools.provider_core_acquire check > "$operation_directory/pool-state"
         checker_metadata "$operation_directory/pool-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
         cmp -s "$operation_directory/pool-check-exit" <(printf 'false 0\n') || {
             operation_diagnostic+=$'Cannot acquire dependencies: the pool check did not retire successfully.\n'; exit 2;
@@ -97,12 +102,12 @@ if [[ $action == download ]]; then
         checker_acquisition_receipt
         acquisition_receipt_options=(--retired-receipt "$operation_acquisition_receipt")
     fi
-    "${network[@]}" run --image "$base_image" "${acquisition_receipt_options[@]}" -- "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
+    "${network[@]}" run --image "$tool_image" "${acquisition_receipt_options[@]}" -- "${worker[@]}" --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse" \
         --entrypoint python3 -- -B -m tools.provider_core_acquire
     if ! "$printing"; then
         checker_run 120 "${worker[@]}" --network none --user "$checker_host_uid:$checker_host_gid" \
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \
-            --entrypoint python3 "$base_image" -B -m tools.provider_core_acquire verify > /dev/null
+            --entrypoint python3 "$tool_image" -B -m tools.provider_core_acquire verify > /dev/null
         checker_metadata "$operation_directory/final-check-exit" inspect --format '{{.State.Running}} {{.State.ExitCode}}' "$operation_container"
         cmp -s "$operation_directory/final-check-exit" <(printf 'false 0\n') || {
             operation_diagnostic+=$'Cannot confirm dependency acquisition: the final pool check did not retire successfully.\n'; exit 2;
@@ -114,7 +119,7 @@ require_wheelhouse_pool
 case "$action" in
     check)
         arguments=("${worker[@]}" --network none --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
-            --entrypoint python3 "$base_image" -B -m tools.provider_core_acquire verify)
+            --entrypoint python3 "$tool_image" -B -m tools.provider_core_acquire verify)
         budget=60
         ;;
     unit|contract|integration|integration/delivery|fuzz)
@@ -134,7 +139,7 @@ case "$action" in
             --mount "type=bind,src=$root/containers/isolated,dst=/workspace/containers/isolated,readonly"
             "${example_mount[@]}"
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
-            --entrypoint python3 "$base_image" -B -m tools.provider_core_tests "$action" --pattern "$pattern")
+            --entrypoint python3 "$tool_image" -B -m tools.provider_core_tests "$action" --pattern "$pattern")
         budget=untimed
         ;;
     package)
@@ -157,7 +162,8 @@ case "$action" in
             --mount "type=bind,src=$root/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
             --mount "type=bind,src=$root/containers,dst=/workspace/containers,readonly"
             --mount "type=bind,src=$root/host,dst=/workspace/host,readonly"
-            --entrypoint python3 "$base_image" -B -m tools.package --artifacts /artifacts --revision "$revision")
+            --mount "type=bind,src=$root/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly"
+            --entrypoint python3 "$tool_image" -B -m tools.package --artifacts /artifacts --revision "$revision")
         budget=untimed
         ;;
     build)
@@ -195,8 +201,13 @@ if "$printing"; then
     exit
 fi
 checker_begin
+checker_admit_tools
+for index in "${!arguments[@]}"; do
+    if [[ ${arguments[index]} == "$tool_image" ]]; then arguments[index]=$checker_image; fi
+done
+tool_image=$checker_image
 if [[ $action == build || $action == package ]]; then
-    checker_host_identity "$base_image" python3 "$uid" "$gid" || {
+    checker_host_identity "$tool_image" python3 "$uid" "$gid" || {
         printf '%s\n' 'Cannot map the artifact owner into the selected engine.' >&2; exit 2;
     }
     # The release qualification exercises actual socket groups, which must be
@@ -213,6 +224,8 @@ if [[ $action == package ]]; then
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     for index in "${!arguments[@]}"; do
         case "${arguments[index]}" in
+            "type=bind,src=$root/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly" ;;
             "type=bind,src=$root/tools,dst=/workspace/tools,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly" ;;
             "type=bind,src=$root/host,dst=/workspace/host,readonly")
@@ -247,9 +260,10 @@ if [[ $action == build ]]; then
         --mount "type=bind,src=$operation_directory/source/containers,dst=/workspace/containers,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/provider-core,dst=/package,readonly"
         --mount "type=bind,src=$operation_directory/source/requirements,dst=/requirements,readonly"
+        --mount "type=bind,src=$operation_directory/source/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly"
         --mount "type=bind,src=$release_output,dst=/output"
         --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
-        --entrypoint python3 "$base_image" -B -m tools.core_environment release --pool /wheelhouse
+        --entrypoint python3 "$tool_image" -B -m tools.core_environment release --pool /wheelhouse
         --source /package --runtime-lock /requirements/provider-core.lock --build-lock /requirements/provider-core-build.lock
         --output /output --revision "$revision")
     budget=900
