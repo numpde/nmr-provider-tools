@@ -122,6 +122,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/shared_delivery_worker.py",
                 "provider_core/shared_grants.py",
                 "provider_core/diagnostics.py",
+                "provider_core/diagnostic_text.py",
                 "provider_core/producer_checkpoint.py",
                 "provider_core/startup_file.py",
                 "provider_core/unix_http.py",
