@@ -45,9 +45,6 @@ class RawStream:
     async def write(self, buffer, timeout=None):
         pass
 
-    async def start_tls(self, ssl_context, server_hostname=None, timeout=None):
-        return self
-
     def get_extra_info(self, info):
         return None
 
@@ -81,6 +78,12 @@ def wrapper(error, kind=httpcore.ConnectError):
     return wrapped
 
 
+async def plaintext_tls(stream, **options):
+    """Isolate network ownership here; integration tests exercise real TLS."""
+    return stream
+
+
+@patch("provider_core.network.TLSStream.wrap", new=plaintext_tls)
 class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
     def transport(self, **changes):
         return HttpTransport(**(dict(trust=ssl.create_default_context(), exchange_seconds=.2, retirement_seconds=.1) | changes))

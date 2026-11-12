@@ -6,13 +6,27 @@ import socket
 import unittest
 
 import httpx
+import httpcore
 
-from provider_core.transport import HttpTransport
+from provider_core.transport import ExchangeFailed, HttpTransport
 from tests.fakes.tls_peer import TlsPeer
 from tests.fakes.unix_proxy import UnixProxy
 
 
 class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
+    async def test_bad_headers_keep_the_original_failure_while_unread_body_is_aborted(self):
+        """A TLS goodbye must not replace the error that stopped the request."""
+        async with TlsPeer(
+            "success", response_headers=((b"bad header", b"value"),),
+            response_body=b"unread" * 16384,
+        ) as peer:
+            transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.3)
+            with self.assertRaises(ExchangeFailed) as caught:
+                await transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4)
+            self.assertIsInstance(caught.exception.primary, httpcore.RemoteProtocolError)
+            self.assertEqual(caught.exception.cleanup_failures, ())
+            self.assertTrue(transport.retirement_confirmed)
+
     async def test_complete_response_closes_tls_before_direct_socket(self):
         await self._assert_clean_shutdown(through_proxy=False)
 

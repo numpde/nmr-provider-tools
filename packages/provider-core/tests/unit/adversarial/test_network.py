@@ -13,9 +13,6 @@ class RawStream:
         self.close_failure = None
         self.closed = False
 
-    async def start_tls(self, **options):
-        raise asyncio.CancelledError
-
     async def aclose(self):
         if self.close_failure is not None:
             raise self.close_failure
@@ -40,7 +37,8 @@ class NetworkOwnershipTests(unittest.IsolatedAsyncioTestCase):
             backend = OwnedNetworkBackend(proxy_socket="/egress/proxy.sock")
         stream = await backend.connect_tcp("proxy-metadata.invalid", 80, timeout=0.5)
         native.connect_unix_socket.assert_awaited_once_with(path="/egress/proxy.sock", timeout=0.5, socket_options=None)
-        with self.assertRaises(asyncio.CancelledError):
+        with patch("provider_core.network.TLSStream.wrap", new=AsyncMock(side_effect=asyncio.CancelledError)), \
+                self.assertRaises(asyncio.CancelledError):
             await stream.start_tls(ssl.create_default_context(), "api.example")
         raw.close_failure = OSError("PRIVATE close")
         with self.assertRaises(OSError):
@@ -56,7 +54,8 @@ class NetworkOwnershipTests(unittest.IsolatedAsyncioTestCase):
         with patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(raw)):
             backend = OwnedNetworkBackend()
         stream = await backend.connect_tcp("127.0.0.1", 443)
-        with self.assertRaises(asyncio.CancelledError):
+        with patch("provider_core.network.TLSStream.wrap", new=AsyncMock(side_effect=asyncio.CancelledError)), \
+                self.assertRaises(asyncio.CancelledError):
             await stream.start_tls(ssl.create_default_context(), "localhost")
         failure = RuntimeError("close failed")
         raw.close_failure = failure
