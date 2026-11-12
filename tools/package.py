@@ -249,6 +249,10 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
             output.write(member_bytes)
 
     subprocess.run(["bash", "-n", str(destination / "acquisition_tool/owner.sh")], check=True)
+    subprocess.run([
+        "python3", "-I", "-S", "-B", str(destination / "acquisition_tool/source_update.py"),
+        "verify", "--source-dir", str(destination),
+    ], check=True)
     cold_import_check = Path(__file__).resolve().parent.parent / "containers/isolated/acquisition_import_check.py"
     subprocess.run(
         ["python3", "-I", "-S", "-B", str(cold_import_check), str(destination)],
@@ -512,6 +516,8 @@ def check(artifacts, revision):
             Path("/workspace"),
             captured_wheels[0],
             Path("/acquisition-bootstrap.pylock.toml"),
+            revision=revision,
+            wheelhouse_bundle=wheelhouse_bundle,
         )
         if (
             acquisition_bundle.read_bytes() != rebuilt_acquisition_bundle.read_bytes()

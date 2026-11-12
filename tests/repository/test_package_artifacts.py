@@ -152,6 +152,8 @@ class PackageArtifactTests(unittest.TestCase):
         extracted = scratch / "acquisition-source"
         self.assertEqual([
             call(["bash", "-n", str(extracted / "acquisition_tool/owner.sh")], check=True),
+            call(["python3", "-I", "-S", "-B", str(extracted / "acquisition_tool/source_update.py"),
+                  "verify", "--source-dir", str(extracted)], check=True),
             call(["python3", "-I", "-S", "-B", str(ROOT / "containers/isolated/acquisition_import_check.py"), str(extracted)], check=True),
             call(["python3", "-I", "-S", "-B", str(extracted / "acquisition_tool/identity.py"), "--help"], check=True, stdout=subprocess.DEVNULL),
         ], commands.call_args_list)

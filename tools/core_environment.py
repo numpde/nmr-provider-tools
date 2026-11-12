@@ -376,6 +376,8 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
         source=Path("/workspace"),
         core_wheel=wheel,
         pin=Path("/requirements/acquisition-bootstrap.pylock.toml"),
+        revision=revision,
+        wheelhouse_bundle=wheelhouse_bundle,
     )
 
     release_files = (wheel, sdist, install_lock, native_lock, wheelhouse_bundle, acquisition_bundle)

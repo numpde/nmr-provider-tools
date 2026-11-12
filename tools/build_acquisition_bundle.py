@@ -7,7 +7,9 @@ require_container()
 import gzip
 import hashlib
 import io
+import json
 import os
+import re
 from pathlib import Path, PurePosixPath
 import tarfile
 import tempfile
@@ -15,7 +17,7 @@ import tomllib
 from urllib.parse import urlsplit
 import zipfile
 
-from tools.artifacts import fsync_directory
+from tools.artifacts import fsync_directory, regular_file
 from tools.installer import release as installer_release, wheel_bytes
 
 
@@ -24,6 +26,7 @@ from tools.installer import release as installer_release, wheel_bytes
 SOURCE_FILES = (
     "acquisition_tool/owner.sh",
     "acquisition_tool/compose.sh",
+    "acquisition_tool/source_update.py",
     "acquisition_tool/__init__.py",
     "acquisition_tool/identity.py",
     "acquisition_tool/identity_main.py",
@@ -88,7 +91,12 @@ def dependency_files(pool, pin):
     return files, {wheel_name: observed_sha256}
 
 
-def contents(pool, source, core_wheel, pin):
+def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
+    if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+        raise ValueError("Cannot build acquisition manifest: require the captured Git source revision.")
+    version = core_wheel.name.removeprefix("provider_core-").removesuffix("-py3-none-any.whl")
+    if re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", version) is None:
+        raise ValueError("Cannot build acquisition manifest: the SDK wheel must identify an exact release version.")
     (files, dependencies) = dependency_files(pool, pin)
     for name in SOURCE_FILES:
         _add(files, name, (source / "host" / name).read_bytes())
@@ -99,6 +107,12 @@ def contents(pool, source, core_wheel, pin):
     _add(files, "acquisition_tool/installer/wheels/" + installer["name"],
          wheel_bytes(pool / installer["name"], installer))
     dependencies[installer["name"]] = installer["sha256"]
+    # Select the same built tool artifact that the SDK issuer records. Its
+    # version is not inferred from the owner version or an older consumer pin.
+    if re.fullmatch(r"wheelhouse-tool-[0-9]+\.[0-9]+\.[0-9]+\.pyz", wheelhouse_bundle.name) is None:
+        raise ValueError("Cannot build acquisition manifest: require one built wheelhouse tool artifact.")
+    with regular_file(wheelhouse_bundle) as stream:
+        dependencies[wheelhouse_bundle.name] = hashlib.file_digest(stream, "sha256").hexdigest()
 
     with zipfile.ZipFile(core_wheel) as archive:
         member_names = archive.namelist()
@@ -111,7 +125,7 @@ def contents(pool, source, core_wheel, pin):
                 )
             _add(files, member_name, archive.read(member_name))
 
-    source_inventory = {
+    payload_inventory = {
         name: {
             "sha256": hashlib.sha256(data).hexdigest(),
             "size": len(data),
@@ -119,11 +133,26 @@ def contents(pool, source, core_wheel, pin):
         }
         for (name, data) in sorted(files.items())
     }
+    manifest = (json.dumps({
+        "release_version": version,
+        "source_revision": revision,
+        "payload_files": payload_inventory,
+        "dependency_inputs": dependencies,
+    }, sort_keys=True, indent=2) + "\n").encode()
+    _add(files, "acquisition-manifest.json", manifest)
+    # Legacy importers still need every member in the external SDK issuer.
+    # Only the embedded inventory excludes itself; the archive digest covers it.
+    source_inventory = dict(payload_inventory)
+    source_inventory["acquisition-manifest.json"] = {
+        "sha256": hashlib.sha256(manifest).hexdigest(), "size": len(manifest), "mode": 0o644,
+    }
     return files, {"source_files": source_inventory, "dependency_inputs": dependencies}
 
 
-def build(pool, output, source, core_wheel, pin):
-    (files, source_record) = contents(pool, source, core_wheel, pin)
+def build(pool, output, source, core_wheel, pin, *, revision, wheelhouse_bundle):
+    (files, source_record) = contents(
+        pool, source, core_wheel, pin, revision=revision, wheelhouse_bundle=wheelhouse_bundle,
+    )
     with tempfile.NamedTemporaryFile(
         prefix="." + output.name + ".",
         suffix=".part",

@@ -7,6 +7,7 @@ require_container()
 import hashlib
 import json
 import os
+import re
 import subprocess
 import tarfile
 import tempfile
@@ -15,6 +16,7 @@ from pathlib import Path
 import zipfile
 
 from tools.build_acquisition_bundle import build, INSTALLER_SOURCES, PROXY_FILES, SOURCE_FILES
+from host.acquisition_tool.source_update import verify
 from tests.repository.quality.sources import ROOT
 
 
@@ -63,22 +65,32 @@ class AcquisitionBundleTests(unittest.TestCase):
         pin.write_text('lock-version = "1.0"\n[[packages]]\nname = "linux-idmap"\nversion = "0.3.0"\n'
                        '[[packages.wheels]]\nurl = "https://example.invalid/' + identity.name + '"\n'
                        'hashes = {sha256 = "' + hashlib.sha256(identity.read_bytes()).hexdigest() + '"}\n')
+        (root / "wheelhouse-tool-0.5.9.pyz").write_bytes(b"selected built wheel tool")
         return source, wheel, identity, pin
+
+    def build(self, root, output, source, wheel, pin):
+        return build(root, output, source, wheel, pin, revision="a" * 40,
+                     wheelhouse_bundle=root / "wheelhouse-tool-0.5.9.pyz")
 
     def test_rebuild_has_identical_bytes_and_normalized_source_provenance(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source, wheel, identity, pin = self.fixture(root)
             first, second = root / "first.tar.gz", root / "second.tar.gz"
-            record = build(root, first, source, wheel, pin)
-            self.assertEqual(record, build(root, second, source, wheel, pin))
+            record = self.build(root, first, source, wheel, pin)
+            self.assertEqual(record, self.build(root, second, source, wheel, pin))
             self.assertEqual(first.read_bytes(), second.read_bytes())
-            expected = {"compose/acquisition.yml"} | set(SOURCE_FILES) | {"provider_core/" + name for name in PROXY_FILES} | {"linux_idmap/__init__.py"}
+            expected = {"compose/acquisition.yml", "acquisition-manifest.json"} | set(SOURCE_FILES) | {"provider_core/" + name for name in PROXY_FILES} | {"linux_idmap/__init__.py"}
             installer = json.loads((source / "requirements/installer-release.json").read_text())
             expected.update(issued_name for _source_name, issued_name in INSTALLER_SOURCES)
             expected.add("acquisition_tool/installer/wheels/" + installer["name"])
             with tarfile.open(first, "r:gz") as archive:
                 self.assertEqual(expected, set(archive.getnames()))
+                manifest = json.load(archive.extractfile("acquisition-manifest.json"))
+                self.assertEqual("0.6.0", manifest["release_version"])
+                self.assertEqual("a" * 40, manifest["source_revision"])
+                self.assertEqual(expected - {"acquisition-manifest.json"}, set(manifest["payload_files"]))
+                self.assertEqual(record["dependency_inputs"], manifest["dependency_inputs"])
                 for member in archive.getmembers():
                     self.assertTrue(member.isfile())
                     self.assertEqual((0, 0, "", "", 0o644, 315532800),
@@ -87,7 +99,9 @@ class AcquisitionBundleTests(unittest.TestCase):
                     self.assertEqual({"sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "mode": 0o644},
                                      record["source_files"][member.name])
             self.assertEqual({identity.name: hashlib.sha256(identity.read_bytes()).hexdigest(),
-                              installer["name"]: installer["sha256"]}, record["dependency_inputs"])
+                              installer["name"]: installer["sha256"],
+                              "wheelhouse-tool-0.5.9.pyz": hashlib.sha256(b"selected built wheel tool").hexdigest()},
+                             record["dependency_inputs"])
 
     def test_missing_owner_source_or_changed_identity_wheel_never_publishes_output(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -96,11 +110,29 @@ class AcquisitionBundleTests(unittest.TestCase):
             output = root / "bundle.tar.gz"
             (source / "host" / SOURCE_FILES[0]).unlink()
             with self.assertRaises(FileNotFoundError):
-                build(root, output, source, wheel, pin)
+                self.build(root, output, source, wheel, pin)
             self.assertFalse(output.exists())
             (source / "host" / SOURCE_FILES[0]).write_text("# restored\n")
             identity.write_bytes(b"changed dependency")
             with self.assertRaisesRegex(ValueError, "pinned hash"):
-                build(root, output, source, wheel, pin)
+                self.build(root, output, source, wheel, pin)
             self.assertFalse(output.exists())
             self.assertEqual([], list(root.glob("*.part")))
+
+    def test_dependency_payload_addition_needs_no_consumer_inventory_edit(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, wheel, identity, pin = self.fixture(root)
+            with zipfile.ZipFile(identity, "a") as dependency:
+                dependency.writestr("linux_idmap/ordinary_new_module.py", b"VALUE = 1\n")
+            old_pin = pin.read_text()
+            pin.write_text(re.sub(r'sha256 = "[0-9a-f]{64}"',
+                                  'sha256 = "' + hashlib.sha256(identity.read_bytes()).hexdigest() + '"', old_pin))
+            archive_path = root / "bundle.tar.gz"
+            self.build(root, archive_path, source, wheel, pin)
+            extracted = root / "extracted"
+            extracted.mkdir()
+            with tarfile.open(archive_path) as archive:
+                archive.extractall(extracted, filter="data")
+            manifest = verify(extracted)
+            self.assertIn("linux_idmap/ordinary_new_module.py", manifest["payload_files"])
