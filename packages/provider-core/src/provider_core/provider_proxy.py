@@ -32,6 +32,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from provider_core import bound_http_proxy
+from provider_core.diagnostic_text import CredentialRedactingFormatter
 
 
 def _proxy_routine_record(record):
@@ -46,24 +47,15 @@ def _configure_proxy_logging(level):
     """
     if level not in ("INFO", "DEBUG", "WARNING"):
         raise ValueError("Cannot configure proxy logging: choose INFO, DEBUG or WARNING.")
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(sys.stderr)
     handler.addFilter(_proxy_routine_record)
-    logging.basicConfig(level=logging.WARNING, handlers=[handler],
-                        format="%(asctime)s %(levelname)s %(name)s: %(message)s", force=True)
+    handler.setFormatter(CredentialRedactingFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logging.basicConfig(level=logging.WARNING, handlers=[handler], force=True)
     logging.getLogger("provider_core.proxy").setLevel(level)
 
 
 class ServiceRefused(ValueError):
     """Owned safe refusal; request/configuration values never enter its text."""
-
-
-def native_failure_detail(error):
-    """Project owned DNS reasons or native type/errno, never arbitrary text/notes."""
-    if type(error) in (bound_http_proxy.DNSResponseRejected, bound_http_proxy.DNSNameRejected):
-        return f"{type(error).__name__}: {error}"
-    if isinstance(error, OSError):
-        return f"{type(error).__name__}; errno={error.errno}"
-    return type(error).__name__
 
 
 def authority_parts(authority):
@@ -235,7 +227,7 @@ class LiveProxyConfiguration:
             return
         except (OSError, UnicodeError, ValueError) as error:
             logging.getLogger("provider_core.proxy").warning(
-                "Cannot reload proxy settings; retaining the current settings (%s).", type(error).__name__
+                "Cannot reload proxy settings; retaining current settings", exc_info=error,
             )
             return
         self.apply(server, settings)
@@ -253,23 +245,6 @@ class ServiceProxyHandler(bound_http_proxy.ProxyHandler):
         if isinstance(error, ServiceRefused):
             return b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"
         return super().admission_reply(error)
-
-    def report_failure(self, phase, error):
-        if isinstance(error, ServiceRefused):
-            sys.stderr.write(str(error) + "\n")
-        elif isinstance(error, bound_http_proxy.ProxyResolutionFailed):
-            sys.stderr.write(str(error) + "\n")
-            # Eight one-line native causes bound operator output; the DNS
-            # owner retains all underlying evidence on the exception.
-            for failure in error.failures[:8]:
-                sys.stderr.write(f"Service proxy DNS cause: {native_failure_detail(failure)}.\n")
-            if len(error.failures) > 8:
-                sys.stderr.write(
-                    f"Service proxy DNS: {len(error.failures) - 8} additional causes omitted from operator output.\n"
-                )
-        else:
-            sys.stderr.write(f"Service proxy {phase} failed: {native_failure_detail(error)}. Request contents are not logged.\n")
-
 
 class ServiceProxyServer(bound_http_proxy.ProxyServer):
     """Reuse bounded workers/relay on an exclusively created Unix listener."""
@@ -468,6 +443,9 @@ def main():
         parser.error("live routes take authorities and log level from --live-config")
     if args.live_config is not None and args.address is not None:
         parser.error("live routes take address mappings from --live-config")
+    # Startup errors need the same formatter before live settings can supply
+    # their chosen log level. This initial level affects only configuration.
+    _configure_proxy_logging("WARNING")
     try:
         # Omitted --address supplies no mappings. External mode requires none;
         # local mode still requires complete coverage in ServicePolicy.admit.
@@ -482,18 +460,10 @@ def main():
             if not args.live_config.is_absolute():
                 raise ServiceRefused("Cannot configure service proxy: the live settings path must be absolute.")
             live = LiveProxyConfiguration(args.live_config, args.mode)
-            try:
-                settings = live.read()
-            except ServiceRefused:
-                raise
-            except (UnicodeError, ValueError) as error:
-                raise ServiceRefused(f"Cannot configure service proxy: invalid live settings ({type(error).__name__}).") from None
+            settings = live.read()
             policy = settings.policy
             _configure_proxy_logging(settings.log_level)
-        try:
-            bound_http_proxy.require_interface(args.interface)
-        except ValueError as error:
-            raise ServiceRefused(str(error)) from None
+        bound_http_proxy.require_interface(args.interface)
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             probe.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, args.interface.encode() + b"\0")
         with socket_grant(args.socket, args.ready_file, socket_group_id=args.socket_group_id) as parent:
@@ -504,12 +474,9 @@ def main():
                 bound_http_proxy.publish_readiness(parent / args.ready_file.name, "ready\n")
                 logging.getLogger("provider_core.proxy").info("Service proxy ready.")
                 server.serve_forever()
-    except ServiceRefused as error:
-        raise SystemExit(str(error)) from None
-    except OSError as error:
-        raise SystemExit(
-            f"Cannot run service proxy: {type(error).__name__}; errno={error.errno}. Inspect the retained run before restarting."
-        ) from None
+    except (ValueError, UnicodeError, OSError) as error:
+        bound_http_proxy.log_failure("Starting service proxy", error)
+        raise SystemExit(1) from None
 
 
 if __name__ == "__main__":

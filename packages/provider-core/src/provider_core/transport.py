@@ -438,6 +438,8 @@ class HttpTransport:
             # The owner observes this task separately, so cancellation cannot
             # discard either the primary cause or ownership of unfinished I/O.
             outcome.primary = failure
+            if network is not None:
+                network.abort_tls_shutdown()
         finally:
             if response is not None:
                 try:

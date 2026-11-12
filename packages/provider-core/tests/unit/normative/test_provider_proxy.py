@@ -260,11 +260,11 @@ logging.getLogger('dependency').warning('dependency-warning')
                 result = subprocess.run([sys.executable, "-B", "-c", script, level],
                                         capture_output=True, text=True, timeout=5, check=False)
                 self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertEqual(result.stderr, "")
-                self.assertEqual(result.stdout.count("proxy-info"), int(level != "WARNING"))
-                self.assertEqual(result.stdout.count("proxy-debug"), int(level == "DEBUG"))
-                self.assertNotIn("dependency-info", result.stdout)
-                self.assertEqual(result.stdout.count("dependency-warning"), 1)
+                self.assertEqual(result.stdout, "")
+                self.assertEqual(result.stderr.count("proxy-info"), int(level != "WARNING"))
+                self.assertEqual(result.stderr.count("proxy-debug"), int(level == "DEBUG"))
+                self.assertNotIn("dependency-info", result.stderr)
+                self.assertEqual(result.stderr.count("dependency-warning"), 1)
 
     def test_readiness_failure_closes_the_acquired_listener_before_constructor_raises(self):
         policy = ServicePolicy.admit("external", ["api.example:443"], [])
@@ -372,6 +372,24 @@ logging.getLogger('dependency').warning('dependency-warning')
 
             with patch.object(provider_proxy.sys, "argv", argv), patch.object(ServiceProxyServer, "serve_forever", observe_ready):
                 provider_proxy.main()
+
+    def test_live_config_cli_starts_before_a_log_level_is_available_on_the_command_line(self):
+        """Live settings supply the log level; startup must first read that file."""
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            settings = root / "settings.toml"
+            settings.write_text(
+                '[api_proxy]\nmax_connections=2\nlog_level="INFO"\n'
+                'allowed_authorities=["api.example:443"]\n'
+            )
+            argv = [
+                "provider_proxy", "--interface", "lo", "--mode", "external",
+                "--socket", str(root / "proxy.sock"), "--ready-file", str(root / "ready"),
+                "--status-directory", directory, "--live-config", str(settings),
+            ]
+            with patch.object(provider_proxy.sys, "argv", argv), patch.object(ServiceProxyServer, "serve_forever"):
+                provider_proxy.main()
+            self.assertEqual((root / "ready").read_bytes(), b"ready\n")
 
     def test_local_mapping_selects_only_the_frozen_address_without_dns(self):
         policy = ServicePolicy.admit("local", ["api.example:443", "api.example:8443"], ["api.example=192.0.2.8"])

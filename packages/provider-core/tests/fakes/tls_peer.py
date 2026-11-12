@@ -132,6 +132,7 @@ class TlsPeer:
         (root / "cert.pem").write_bytes(certificate.public_bytes(serialization.Encoding.PEM))
         server_trust = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         server_trust.load_cert_chain(root / "cert.pem", root / "key.pem")
+        self.server_trust = server_trust
 
         def observe_server_name(_connection, server_name, _context):
             self.server_names.append(server_name)

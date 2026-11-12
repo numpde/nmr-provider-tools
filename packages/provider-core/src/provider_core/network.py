@@ -1,4 +1,4 @@
-"""Retain TCP streams across TLS upgrade until their closure succeeds.
+"""Own TCP streams through TLS upgrade and the closing TLS exchange.
 
 httpcore 1.0.9's AnyIOStream.start_tls catches Exception, not cancellation;
 its connection object does not retain the raw stream when TLS is interrupted. Own the
@@ -16,9 +16,16 @@ from dataclasses import dataclass
 import errno
 import socket
 import ssl
+import sys
 
 import anyio
 import httpcore
+from anyio.streams.tls import TLSStream
+
+# These adapters belong to the pinned httpcore 1.0.9 backend. Reuse its
+# timeout/error conversion while choosing TLS shutdown policy explicitly.
+from httpcore._backends.anyio import AnyIOStream
+from httpcore._exceptions import map_exceptions
 
 
 @dataclass(slots=True, repr=False)
@@ -171,10 +178,46 @@ class OwnedNetworkBackend(httpcore.AsyncNetworkBackend):
         for stream in tuple(self._streams):
             await stream.aclose()
 
+    def abort_tls_shutdown(self):
+        """Close interrupted exchanges without reading the unfinished response."""
+        for stream in self._streams:
+            stream._stream = stream._raw_stream
+
+
+class _NetworkByteStream(anyio.abc.ByteStream):
+    """Let AnyIO TLS use the already-owned HTTP network stream."""
+
+    def __init__(self, stream):
+        self.stream = stream
+
+    @property
+    def extra_attributes(self):
+        return {
+            anyio.abc.SocketAttribute.local_address: lambda: self.stream.get_extra_info("client_addr"),
+            anyio.abc.SocketAttribute.remote_address: lambda: self.stream.get_extra_info("server_addr"),
+            anyio.abc.SocketAttribute.raw_socket: lambda: self.stream.get_extra_info("socket"),
+        }
+
+    async def receive(self, max_bytes=65536):
+        data = await self.stream.read(max_bytes)
+        if not data:
+            raise anyio.EndOfStream
+        return data
+
+    async def send(self, item):
+        await self.stream.write(item)
+
+    async def send_eof(self):
+        raise NotImplementedError("TLS owns the closing exchange; raw half-close is not supported")
+
+    async def aclose(self):
+        await self.stream.aclose()
+
 
 class _OwnedStream(httpcore.AsyncNetworkStream):
     def __init__(self, stream, network):
         self._stream = stream
+        self._raw_stream = stream
         self._network = network
         self._owners = network._streams
 
@@ -196,13 +239,42 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
         return self._stream.get_extra_info(info)
 
     async def start_tls(self, ssl_context, server_hostname=None, timeout=None):
+        """Keep the raw stream owned until the TLS handshake succeeds."""
         # Assignment happens only after a successful upgrade: cancellation must
         # leave the raw connection reachable by the final cleanup owner.
         with self._network.io("start_tls"):
-            self._stream = await self._stream.start_tls(ssl_context=ssl_context, server_hostname=server_hostname, timeout=timeout)
+            with map_exceptions({
+                TimeoutError: httpcore.ConnectTimeout,
+                httpcore.ReadTimeout: httpcore.ConnectTimeout,
+                httpcore.WriteTimeout: httpcore.ConnectTimeout,
+                httpcore.ReadError: httpcore.ConnectError,
+                httpcore.WriteError: httpcore.ConnectError,
+                anyio.BrokenResourceError: httpcore.ConnectError,
+                anyio.EndOfStream: httpcore.ConnectError,
+                ssl.SSLError: httpcore.ConnectError,
+            }):
+                with anyio.fail_after(timeout):
+                    # httpcore's default skips the TLS goodbye and drops the
+                    # socket after a complete response. The proxy then fails
+                    # to deliver the server's goodbye to that closed client.
+                    # Finish TLS shutdown instead; HttpTransport's existing
+                    # deadlines still bound a peer that never answers.
+                    stream = await TLSStream.wrap(
+                        _NetworkByteStream(self._stream), ssl_context=ssl_context,
+                        hostname=server_hostname, server_side=False,
+                        standard_compatible=True,
+                    )
+            self._stream = AnyIOStream(stream)
         return self
 
     async def aclose(self):
         if self in self._owners:
-            await self._stream.aclose()
+            # httpcore can close inside an exception handler before
+            # HttpTransport observes that failure. Abort an unfinished response:
+            # TLS unwrap could read more application data and replace the
+            # original failure with a shutdown error. Success still closes TLS.
+            if sys.exception() is not None or asyncio.current_task().cancelling():
+                await self._raw_stream.aclose()
+            else:
+                await self._stream.aclose()
             self._owners.remove(self)

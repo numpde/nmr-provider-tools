@@ -11,11 +11,12 @@ import stat
 import tempfile
 import threading
 import unittest
-from contextlib import contextmanager, redirect_stderr
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from provider_core import bound_http_proxy
+from tests.fakes.proxy_logs import capture_proxy_logs
 
 
 @contextmanager
@@ -85,7 +86,7 @@ class UnixProxyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "absent.sock"
             errors = io.StringIO()
-            with patch.object(bound_http_proxy, "connect_bound") as connect, redirect_stderr(errors):
+            with patch.object(bound_http_proxy, "connect_bound") as connect, capture_proxy_logs(errors):
                 with serving(bound_http_proxy.UnixRelayServer(("127.0.0.1", 0), path)) as relay:
                     with socket.create_connection(relay.server_address, timeout=2) as client:
                         response = read_all(client)
