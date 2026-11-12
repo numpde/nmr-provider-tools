@@ -315,7 +315,14 @@ async def run_outage(directory, *, mode, backlog, seed):
         local_delivery = DurableHandoff(inbox, endpoint, publisher)
         tasks = []
         await scientific_worker.start()
-        publisher_task = asyncio.create_task(publisher.run())
+        async def publish_during_outage():
+            # Queue residence has no HTTP deadline. Start the held receipt only
+            # once the unavailable peer has received a request; child startup
+            # failures before that point must not consume its eight-second budget.
+            await first_failed_request.wait()
+            await publisher.run()
+
+        publisher_task = asyncio.create_task(publish_during_outage())
 
         async def run_job(name, service):
             job_ref = "job:b4-" + name
@@ -368,6 +375,7 @@ async def run_outage(directory, *, mode, backlog, seed):
 
         async def healthy_work_and_original_receipt():
             await first_failed_request.wait()
+            await asyncio.wait_for(original_report_received.wait(), 8)
             healthy = await run_job("healthy-during-outage", healthy_service)
             if receipt_release_phase == "failed_job_settled":
                 await first_failed_job.wait()
@@ -380,7 +388,6 @@ async def run_outage(directory, *, mode, backlog, seed):
             idle_descriptors = _descriptors()
             original_report_ref = JobsControlTransport("job:b4-original-result").attempt_ref
             await run_job("original-result", healthy_service)
-            await asyncio.wait_for(original_report_received.wait(), 8)
             original_report = local_delivery.items[0]
             tasks = [asyncio.create_task(restore_service()), asyncio.create_task(drive_backlog()),
                      asyncio.create_task(healthy_work_and_original_receipt())]
@@ -424,7 +431,11 @@ async def run_outage(directory, *, mode, backlog, seed):
                     task.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
             publisher.request_stop()
-            await asyncio.wait_for(publisher_task, 3)
+            if not first_failed_request.is_set():
+                publisher_task.cancel()
+                await asyncio.gather(publisher_task, return_exceptions=True)
+            else:
+                await asyncio.wait_for(publisher_task, 3)
             await inbox.close()
             queue.close()
             scientific_worker.process.stdin.close()
