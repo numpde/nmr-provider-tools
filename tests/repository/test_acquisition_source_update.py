@@ -29,7 +29,7 @@ class SourceUpdateTests(unittest.TestCase):
         self.write_snapshot(self.source, "1.0.0", self.old)
         self.archive = self.root / "candidate.tar.gz"
         self.pin = self.root / "release-pin.json"
-        self.write_archive()
+        self.write_archive(extra=())
 
     def manifest(self, version, payload):
         return {
@@ -50,7 +50,7 @@ class SourceUpdateTests(unittest.TestCase):
         (root / "acquisition-manifest.json").write_text(json.dumps(self.manifest(version, payload)))
         (root / "acquisition-manifest.json").chmod(0o644)
 
-    def write_archive(self, *, extra=()):
+    def write_archive(self, *, extra):
         payload = dict(self.new)
         payload["acquisition-manifest.json"] = json.dumps(self.manifest("2.0.0", self.new)).encode()
         with tarfile.open(self.archive, "w:gz") as archive:

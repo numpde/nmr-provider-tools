@@ -63,14 +63,14 @@ case "$operation" in
         printf '%s\n' "$project" > "$ENGINE_STATE/compose-project"
         printf '%s\n' "$worker" > "$ENGINE_STATE/compose-worker"
         printf 'package-output\n'
-        if [[ ${HOLD_COMPOSE_WORKER:-0} == 1 ]]; then
+        if [[ ${HOLD_COMPOSE_WORKER} == 1 ]]; then
           touch "$ENGINE_STATE/compose-held"
           exec sleep 20
         fi
-        exit "${ACQUISITION_COMPOSE_EXIT:-0}"
+        exit "${ACQUISITION_COMPOSE_EXIT}"
         ;;
       down)
-        if [[ ${FAIL_COMPOSE_DOWN:-0} == 1 ]]; then exit 41; fi
+        if [[ ${FAIL_COMPOSE_DOWN} == 1 ]]; then exit 41; fi
         /bin/rm -f "$ENGINE_STATE/compose-project" "$ENGINE_STATE/compose-worker"
         ;;
       *) exit 97 ;;
@@ -120,7 +120,7 @@ case "$operation" in
     ;;
   inspect)
     if [[ -f $ENGINE_STATE/compose-worker && ${!#} == "$(<"$ENGINE_STATE/compose-worker")" ]]; then
-      printf 'false %s\n' "${ACQUISITION_COMPOSE_EXIT:-0}"
+      printf 'false %s\n' "${ACQUISITION_COMPOSE_EXIT}"
       exit 0
     fi
     identifier=${!#}

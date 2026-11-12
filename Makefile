@@ -62,6 +62,13 @@ override WHEELHOUSE_INPUT := $(value WHEELHOUSE)
 export WHEELHOUSE_INPUT
 endif
 
+unexport INPUT_RELEASE_ARCHIVE SOURCE_ARCHIVE_INPUT SOURCE_ARCHIVE_INPUT_ORIGIN
+override export SOURCE_ARCHIVE_INPUT_ORIGIN := $(origin INPUT_RELEASE_ARCHIVE)
+ifeq ($(origin INPUT_RELEASE_ARCHIVE),command line)
+override SOURCE_ARCHIVE_INPUT := $(value INPUT_RELEASE_ARCHIVE)
+export SOURCE_ARCHIVE_INPUT
+endif
+
 unexport FUZZ_PROFILE
 unexport FUZZ_PROFILE_INPUT
 unexport FUZZ_PROFILE_INPUT_ORIGIN
@@ -249,6 +256,7 @@ help:
 	  'make provider-tools/import-checked-in-source INPUT_RELEASE_ARCHIVE=<path> Import it offline with acquisitions/builds quiescent.' \
 	  'make tests/acquisition/identity WHEELHOUSE=<cache-dir> Test cold identity mapping and retirement receipts offline.' \
 	  'make tests/acquisition/owner Test common session cancellation, streams and retirement offline.' \
+	  'make tests/acquisition/compose Test Compose worker results, cancellation and retirement offline.' \
 	  'make wheelhouse/lock/locate LOCK=<file> NETWORK_INTERFACE=<system|interface> [WHEELHOUSE=<cache-dir>] [INDEX_URL=<url>] [SOURCE_URLS=<urls>] [REQUIRE_SOURCE=<source>] Project a pinned lock.' \
 	  'make wheelhouse/lock/acquire LOCK=<file> [SOURCE_LOCK=<file>] WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire locked artifacts.' \
 	  'make checks/base-image/download Bootstrap the pinned base using Docker daemon routing.' \
@@ -412,9 +420,8 @@ provider-tools/verify-checked-in-source-hashes:
 provider-tools/update-checked-in-source-from-pinned-release:
 	@python3 -I -S -B bootstrap/acquisition/acquisition_tool/source_update.py update --source-dir bootstrap/acquisition --pin-file requirements/provider-tools-source.json
 
-provider-tools/import-checked-in-source: private export SOURCE_ARCHIVE_INPUT := $(if $(filter command line,$(origin INPUT_RELEASE_ARCHIVE)),$(value INPUT_RELEASE_ARCHIVE))
 provider-tools/import-checked-in-source:
-	@test -n "$${SOURCE_ARCHIVE_INPUT}" || { printf '%s\n' 'Set INPUT_RELEASE_ARCHIVE=<archive path> on the Make command line.' >&2; exit 2; }
+	@[[ "$${SOURCE_ARCHIVE_INPUT_ORIGIN}" == 'command line' && -n "$${SOURCE_ARCHIVE_INPUT}" ]] || { printf '%s\n' 'Set INPUT_RELEASE_ARCHIVE=<archive path> on the Make command line.' >&2; exit 2; }
 	@python3 -I -S -B bootstrap/acquisition/acquisition_tool/source_update.py import --source-dir bootstrap/acquisition --pin-file requirements/provider-tools-source.json --archive "$${SOURCE_ARCHIVE_INPUT}"
 
 tests/repository/provisioning:

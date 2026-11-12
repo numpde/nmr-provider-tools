@@ -217,6 +217,8 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
             injected.update(NATIVE_CONTROL=str(root / 'native-control'), NATIVE_PUBLICATION_FAILURE='none',
                             NATIVE_STATUS_MUTATION='none', NATIVE_CORRUPT_READY='1')
         environment = {**os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}',
+                       'ACQUISITION_COMPOSE_EXIT': '0', 'FAIL_COMPOSE_DOWN': '0',
+                       'HOLD_COMPOSE_WORKER': '0',
                        'STATE': str(root), 'ENGINE_STATE': str(root), **injected}
         process = subprocess.Popen(['bash', '-c', script], env=environment,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,

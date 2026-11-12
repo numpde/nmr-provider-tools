@@ -198,6 +198,7 @@ class _NetworkByteStream(anyio.abc.ByteStream):
             anyio.abc.SocketAttribute.raw_socket: lambda: self.stream.get_extra_info("socket"),
         }
 
+    # silent-defaults: allow-contract -- AnyIO ByteReceiveStream.receive specifies this optional 64 KiB bound; TLS callers may omit it.
     async def receive(self, max_bytes=65536):
         data = await self.stream.read(max_bytes)
         if not data:
