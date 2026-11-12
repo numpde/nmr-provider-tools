@@ -1,0 +1,145 @@
+Acquisition distribution: joint provider-tools and API decision
+=============================================================
+
+Status: agreed design, not an implementation or a new release authorization.
+The tools owner and API owner compared the variants below. Published 0.6.16
+remains unchanged and continues to use its archive plus SDK release record.
+
+The problem
+-----------
+Consumers need the acquisition tool before they can prepare their ordinary
+application dependencies. They keep its source in Git and use it offline.
+The current archive already contains the working source closure: shell/Python
+tools, Compose topology, proxy source and fixed installer/identity inputs.
+Installing an SDK environment is not a prerequisite for using that closure.
+
+Today a second, much larger SDK release record supplies its file inventory.
+Consumers also copy a substantial standard-library verifier/updater. The API
+copy differs from the upstream helper only in comments. A cleaner distribution
+should remove those repeated rules and the acquisition-specific dependence on
+the full SDK record, rather than merely hiding two downloads behind a command.
+
+Variants compared
+-----------------
+1. Keep the archive and SDK record, simplify each consumer's command.
+   This is the immediate path for 0.6.16. It needs no format change or new SDK
+   release. It still leaves copied verification code and separate source/record
+   replacement. Two files fetched from one release establish consistency; they
+   do not independently authenticate each other or make a version immutable.
+
+2. One acquisition archive containing its inventory and the existing updater.
+   Chosen long-term. It fits the existing checked-in/offline source model and
+   lets source and its recorded inventory move together. It can remove local
+   verifier copies without introducing another installed runtime or package.
+   It requires a deliberate artifact-format release and consumer migration.
+
+3. Install a Python wheel into a host environment.
+   Rejected for this boundary. It introduces installation, environment and
+   interpreter ownership before the tool that prepares dependencies is ready.
+   It also does not naturally supply the checked-in shell and Compose source.
+
+4. Fetch a pinned Git checkout or Git source archive.
+   Rejected as the ordinary consumer workflow. A source commit alone does not
+   identify the generated closure of fixed third-party inputs. Git could carry
+   that closure if the publisher committed a matching generated snapshot, but
+   that adds another distribution projection and requires selecting it rather
+   than the SDK's potentially older checked-in bootstrap. We prefer the explicit
+   acquisition release asset over making consumers reconstruct the closure or
+   understand the SDK repository layout and self-consumption release sequence.
+   Git remains the authority for reviewed consumer pins and checked-in source.
+
+Chosen ownership and package contract
+------------------------------------
+The tools repository builds and publishes one versioned acquisition archive as
+a GitHub release asset. Consumers do not follow main or rebuild the closure.
+The SDK can continue publishing its normal release record for SDK consumers;
+the new acquisition updater will not require that record as a second download.
+
+The archive contains acquisition-manifest.json at its root. The builder derives
+it from the same payload map used to construct the archive. It records:
+
+  release_version
+  source_revision
+  payload_files: relative path -> SHA-256, byte size and mode
+  dependency_inputs: the identities/hashes of fixed dependency inputs
+
+payload_files excludes only acquisition-manifest.json itself. The manifest
+does not claim to hash or authenticate itself. A reviewed whole-archive
+checksum covers every byte, including the manifest. Adding or removing an
+ordinary payload file must update this generated inventory without a second
+handwritten inventory in each consumer.
+
+Each consumer owns one reviewed release pin containing version and archive
+SHA-256, in one place. These are two fields of one release identity, not two
+independent version selectors. The embedded version and source revision are
+observed release facts. A download must not rewrite the expected pin to match
+whatever bytes arrived. Git review decides which release bytes are accepted.
+The embedded manifest alone is not an authenticity proof.
+
+Ship the canonical standard-library verifier/updater inside this same source
+closure. This is not a separately installed updater, resolver, cache or service.
+Consumers retain their source location, pin, public Make command and local
+application policy; they stop maintaining copies of the verification rules.
+For the long-term routine update, the packaged updater owns the download and
+invokes the ordinary gh release transport already used by the API Make recipe.
+The release repository and asset naming belong to the tools owner; consumers
+provide their pin and source location. Local-archive import performs no download.
+
+Update and failure contract
+---------------------------
+Normal builds, checks and acquisition operations use the checked-in snapshot;
+they do not download or update it implicitly. An explicit source-maintenance
+command reads the consumer's pin and owns temporary downloads and cleanup.
+An explicit local-archive import uses the same byte-admission and replacement
+code. Verification is a separate offline operation.
+
+Use the trusted updater in the checked-in snapshot to admit a replacement.
+Verify that snapshot against its OLD recorded manifest before overwriting it;
+the expected incoming pin can already select the NEXT release. Verify
+the candidate's whole-archive checksum against the reviewed pin before parsing
+its manifest or running candidate code. Reject malformed or incomplete payloads
+before publication. Stage and verify the complete replacement first.
+
+Publish code and its embedded manifest as one directory. Restore the previous
+snapshot on a handled publication failure. If publication or rollback cannot
+be established, stop, retain the relevant files and report the original errors
+and the known effect state. A cleanup failure after publication must say that
+the replacement was published. Do not add retry or recovery supervisors.
+
+The expected release pin is an input, not part of that directory replacement.
+Do not claim an atomic transaction across Git configuration and source files.
+Source maintenance still requires quiescent acquisition readers; swapping a
+directory does not retire running readers. Keep the current local-edit threat
+model: reviewed Git source, recorded manifests, tool code and pins are trusted.
+The file guard detects payload edits against the recorded manifest. Coordinated
+edits to both payload and its recorded metadata, or to the verifier itself, are
+source changes governed by Git review; the guard does not authenticate those
+changes independently. This is not a hostile-code enclave.
+Do not silently weaken existing consumer verification contracts in migration.
+
+Migration without stranding current consumers
+--------------------------------------------
+The first new-format release must still include the existing SDK issuer record
+for the old importer. Its external acquisition inventory lists every archive
+member, including acquisition-manifest.json and the new updater. The embedded
+inventory excludes itself; those are mechanically derived projections with
+different purposes, not independent handwritten membership lists.
+
+Use the existing verified two-file importer once to admit that first release.
+Then, in one coherent consumer change, switch to its packaged updater and one
+reviewed release pin, and delete the displaced local verifier and acquisition-
+only SDK issuer coupling. Retain any SDK record that still serves real runtime
+SDK consumers. Do not leave two active update policies or invent a permanent
+consumer-side format-selection framework. Existing released artifacts stay
+unchanged. The current API naming work and 0.6.16 consumption need not wait.
+
+Focused acceptance cases for the implementation
+----------------------------------------------
+Show an ordinary payload addition reaching the package and consumer without
+another consumer inventory edit. Show refusal of local source drift and wrong
+incoming checksums without overwriting the installed snapshot. Show an actual
+old-importer-to-new-updater migration, followed by remote and local-archive
+updates through the same admission path. Exercise publication failure and
+truthful rollback/cleanup reporting at the changed boundary. Show that a fresh
+clone can verify and use its checked-in source offline, and that the old copied
+verifier is gone. These are focused behavior proofs, not a new engine matrix.
