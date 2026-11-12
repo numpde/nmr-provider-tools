@@ -19,10 +19,10 @@ class ResultVerbosity(StrEnum):
 
     @classmethod
     def parse(cls, value):
-        message = "The verbosity field must be low, medium or max."
-        if type(value) is not str:
-            raise ValueError(message)
+        if not (type(value) is str):
+            raise TypeError(f"Unexpected {type(value) = }")
+
         try:
             return cls(value)
         except ValueError:
-            raise ValueError(message) from None
+            raise ValueError(f"{cls.__name__} must be one of: {', '.join(x.value for x in cls)}") from None
