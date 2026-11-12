@@ -13,7 +13,6 @@ require_container()
 import errno
 import json
 import os
-import re
 import socket
 import sqlite3
 import ssl
@@ -26,6 +25,7 @@ from pathlib import Path
 
 from provider_core.failure_projection import owned_details as core_owned_details
 from provider_core.failure_projection import owned_relationships as core_owned_relationships
+from provider_core.diagnostic_text import redact_credential_fields
 
 # Bound protected failure-graph traversal and diagnostic output.
 # repo-check: allow-module-constant
@@ -41,26 +41,6 @@ def describe_core_failure(error, text, diagnostic_window):
     if type(error) is DiagnosticOutputRefused:
         return {"message": str(error)}
     return core_owned_details(error)
-
-
-# Redaction recognizes only this reviewed credential grammar.
-# repo-check: allow-module-constant
-_CREDENTIAL = re.compile(r"(?i)\b(?:Bearer|Basic)\s+[^\s\"'<>;,]+|\bsk-[A-Za-z0-9_.-]+")
-# Match an entire quoted secret, including escaped quotes, so redaction cannot
-# leave its suffix visible. Pattern adapted from NMRPeak revision
-# 1697dc84dd1d76ae25b04efc8183fd80614000e5,
-# nmrpeak_provider/diagnostic_text.py::_CREDENTIAL.
-# Redaction recognizes these reviewed secret-bearing field names.
-# repo-check: allow-module-constant
-_SECRET_FIELD = re.compile(
-    r"(?i)(\b(?:api[_-]?key|password|token|secret|authorization)\b[\"']?\s*[:=]\s*)"
-    r"""(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s,;&<>]+)"""
-)
-
-
-def redact_credential_fields(text):
-    """Redact recognizable credentials; other private request data may remain."""
-    return _SECRET_FIELD.sub(r"\1[redacted]", _CREDENTIAL.sub("[redacted]", text))
 
 
 def operator_redactor(*, secrets):

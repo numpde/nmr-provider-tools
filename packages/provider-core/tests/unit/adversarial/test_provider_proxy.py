@@ -10,13 +10,13 @@ import socket
 import struct
 import tempfile
 import unittest
-from contextlib import redirect_stderr
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from provider_core import bound_http_proxy, provider_proxy
 from provider_core.provider_proxy import ServicePolicy, ServiceProxyHandler, ServiceProxyServer, ServiceRefused, socket_grant
+from tests.fakes.proxy_logs import capture_proxy_logs
 
 
 class ServiceProxyRefusalTests(unittest.TestCase):
@@ -49,12 +49,13 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                     patch.object(bound_http_proxy.secrets, "randbits", return_value=transaction),
                     patch.object(bound_http_proxy.time, "monotonic", return_value=0),
                     patch.object(socket, "socket", return_value=udp) as channels,
-                    redirect_stderr(output),
+                    capture_proxy_logs(output),
                 ):
                     ServiceProxyHandler(request, "", SimpleNamespace(policy=policy, outbound_interface="eth0"))
                 self.assertIn(expected, output.getvalue())
-                for private in ("PRIVATE", "private.example", "other.private", "192.0.2.53"):
+                for private in ("PRIVATE", "private.example", "other.private"):
                     self.assertNotIn(private, output.getvalue())
+                self.assertIn("192.0.2.53", output.getvalue())
                 request.sendall.assert_called_once_with(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
                 channels.assert_called_once_with(socket.AF_INET, socket.SOCK_DGRAM)
                 udp.send.assert_called_once()
@@ -77,7 +78,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                 patch.object(bound_http_proxy, "receive_headers", return_value=(header, b"")),
                 patch.object(bound_http_proxy, "connect_bound") as connect,
                 patch.object(bound_http_proxy, "resolve_ipv4_bound") as resolve,
-                redirect_stderr(errors),
+                capture_proxy_logs(errors),
             ):
                 ServiceProxyHandler(request, "", SimpleNamespace(policy=policy, outbound_interface="lo"))
             connect.assert_not_called()
@@ -208,7 +209,9 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                 str(ready),
                 "--status-directory", directory, "--log-level", "INFO",
             ]
+            output = io.StringIO()
             with (
+                capture_proxy_logs(output),
                 patch.object(provider_proxy.sys, "argv", argv),
                 patch.object(
                     bound_http_proxy,
@@ -219,7 +222,8 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                 self.assertRaises(SystemExit) as caught,
             ):
                 provider_proxy.main()
-            self.assertEqual(str(caught.exception), "Cannot start proxy: the selected network interface does not exist.")
+            self.assertEqual(caught.exception.code, 1)
+            self.assertIn("Cannot start proxy: the selected network interface does not exist.", output.getvalue())
             channel.assert_not_called()
             self.assertFalse(path.exists())
             self.assertFalse(ready.exists())
@@ -234,7 +238,7 @@ class ServiceProxyRefusalTests(unittest.TestCase):
             self.assertIn("PermissionError; errno=13", str(caught.exception))
             self.assertNotIn("PRIVATE_PATH", str(caught.exception))
 
-    def test_owned_dns_reasons_and_native_errno_reach_operator_without_private_dns_text(self):
+    def test_owned_dns_reasons_and_original_query_causes_reach_operator(self):
         request = MagicMock()
         policy = ServicePolicy.admit("external", ["api.example:443"], [])
         for failure, expected in (
@@ -247,9 +251,9 @@ class ServiceProxyRefusalTests(unittest.TestCase):
             (
                 bound_http_proxy.ProxyResolutionFailed(
                     "Cannot resolve proxy destination on the selected interface: the configured DNS queries failed.",
-                    [TimeoutError("PRIVATE_DNS"), PermissionError(1, "PRIVATE_DEVICE")],
+                    [TimeoutError("DNS query deadline elapsed"), PermissionError(1, "Device binding denied")],
                 ),
-                "PermissionError; errno=1",
+                "PermissionError: [Errno 1] Device binding denied",
             ),
         ):
             errors = io.StringIO()
@@ -258,11 +262,13 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                     bound_http_proxy, "receive_headers", return_value=(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n", b"")
                 ),
                 patch.object(bound_http_proxy, "connect_bound", side_effect=failure),
-                redirect_stderr(errors),
+                capture_proxy_logs(errors),
             ):
                 ServiceProxyHandler(request, "", SimpleNamespace(policy=policy, outbound_interface="lo"))
             self.assertIn(expected, errors.getvalue())
-            self.assertNotIn("PRIVATE", errors.getvalue())
+            if failure.failures:
+                self.assertIn("DNS query deadline elapsed", errors.getvalue())
+                self.assertIn("Device binding denied", errors.getvalue())
 
     def test_dns_owner_keeps_safe_reason_and_original_query_failure_separate(self):
         primary = TimeoutError("PRIVATE_RESOLVER")

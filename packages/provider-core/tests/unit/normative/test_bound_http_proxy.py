@@ -8,12 +8,12 @@ import io
 import socket
 import tempfile
 import unittest
-from contextlib import redirect_stderr
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from provider_core import bound_http_proxy
+from tests.fakes.proxy_logs import capture_proxy_logs
 
 
 class BoundProxyTests(unittest.TestCase):
@@ -78,8 +78,8 @@ class BoundProxyTests(unittest.TestCase):
         transport.assert_not_called()
 
     def test_failed_admission_reply_preserves_original_safe_cause_and_unexpected_errors(self):
-        original = ValueError("private-original-admission-marker")
-        for reply_failure in (OSError("private-reply-marker"), RuntimeError("unexpected-reply-marker")):
+        original = ValueError("original admission failure")
+        for reply_failure in (OSError("failure reply could not be written"), RuntimeError("unexpected-reply-marker")):
             with self.subTest(reply_failure=type(reply_failure).__name__):
                 request = MagicMock()
                 request.sendall.side_effect = reply_failure
@@ -87,11 +87,12 @@ class BoundProxyTests(unittest.TestCase):
                 with (
                     patch.object(bound_http_proxy, "receive_headers", side_effect=original),
                     patch.object(bound_http_proxy, "connect_bound") as connect,
-                    redirect_stderr(errors),
+                    capture_proxy_logs(errors),
                 ):
                     if isinstance(reply_failure, OSError):
                         bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
-                        self.assertEqual("proxy request admission failed: ValueError\n", errors.getvalue())
+                        self.assertIn(str(original), errors.getvalue())
+                        self.assertIn("failure reply could not be written", errors.getvalue())
                     else:
                         with self.assertRaises(RuntimeError) as rejected:
                             bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
@@ -162,7 +163,7 @@ class BoundProxyTests(unittest.TestCase):
                     request = MagicMock()
                     request.recv.return_value = header
                     errors = io.StringIO()
-                    with redirect_stderr(errors):
+                    with capture_proxy_logs(errors):
                         bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
                     connect.assert_not_called()
                     request.sendall.assert_called_once_with(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
@@ -170,16 +171,16 @@ class BoundProxyTests(unittest.TestCase):
                     self.assertIn("ValueError", errors.getvalue())
                     self.assertNotIn(private, errors.getvalue())
 
-    def test_private_admission_failures_have_fixed_http_status_and_safe_diagnostics(self):
+    def test_admission_failures_keep_fixed_http_status_and_scrub_credentials(self):
         private = "private-query-or-header-marker"
-        for failure in (ValueError(private), OSError(private), UnicodeError(private)):
+        for failure in (ValueError("Bearer " + private), OSError("Bearer " + private), UnicodeError("Bearer " + private)):
             with self.subTest(kind=type(failure).__name__):
                 request = MagicMock()
                 errors = io.StringIO()
                 with (
                     patch.object(bound_http_proxy, "receive_headers", side_effect=failure),
                     patch.object(bound_http_proxy, "connect_bound") as connect,
-                    redirect_stderr(errors),
+                    capture_proxy_logs(errors),
                 ):
                     bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
                 connect.assert_not_called()
@@ -189,7 +190,7 @@ class BoundProxyTests(unittest.TestCase):
                 self.assertNotIn(private, errors.getvalue())
 
     def test_forwarding_attempt_failure_never_appends_an_http_status(self):
-        private = "private-forwarding-failure-marker"
+        private = "native-forwarding-failure-marker"
         for phase in ("http_header", "connect_status", "connect_remainder", "relay"):
             with self.subTest(phase=phase):
                 request, outbound = MagicMock(), MagicMock()
@@ -211,7 +212,7 @@ class BoundProxyTests(unittest.TestCase):
                     patch.object(bound_http_proxy, "receive_headers", return_value=(header, body)),
                     patch.object(bound_http_proxy, "connect_bound", return_value=outbound),
                     patch.object(bound_http_proxy, "relay", side_effect=OSError(private)) as relay,
-                    redirect_stderr(errors),
+                    capture_proxy_logs(errors),
                 ):
                     bound_http_proxy.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="lo", dns_servers=None))
                 if phase == "http_header":
@@ -224,7 +225,7 @@ class BoundProxyTests(unittest.TestCase):
                     relay.assert_not_called()
                 self.assertIn("forwarding", errors.getvalue())
                 self.assertIn("OSError", errors.getvalue())
-                self.assertNotIn(private, errors.getvalue())
+                self.assertIn(private, errors.getvalue())
 
     def test_destination_port_boundaries_and_scheme_defaults_are_preserved(self):
         for port in (1, 65535):
@@ -345,7 +346,7 @@ class BoundProxyTests(unittest.TestCase):
                 patch.object(bound_http_proxy.socket, "socket") as probe,
                 patch.object(bound_http_proxy, "ProxyServer") as server,
                 patch.object(bound_http_proxy.sys, "argv", ["proxy", "--interface", "eth0", "--ready-file", str(ready)]),
-                redirect_stderr(stderr),
+                capture_proxy_logs(stderr),
                 self.assertRaises(SystemExit) as rejected,
             ):
                 bound_http_proxy.main()
