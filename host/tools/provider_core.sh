@@ -161,6 +161,7 @@ case "$action" in
             --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly"
             --mount "type=bind,src=$root/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
             --mount "type=bind,src=$root/containers,dst=/workspace/containers,readonly"
+            --mount "type=bind,src=$root/compose,dst=/workspace/compose,readonly"
             --mount "type=bind,src=$root/host,dst=/workspace/host,readonly"
             --mount "type=bind,src=$root/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly"
             --entrypoint python3 "$tool_image" -B -m tools.package --artifacts /artifacts --revision "$revision")
@@ -220,7 +221,7 @@ fi
 if [[ $action == package ]]; then
     mkdir -- "$operation_directory/source"
     checker_call 'committed qualification source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" tools wheelhouse_tool host containers requirements
+        --output="$operation_directory/source.tar" "$revision" tools wheelhouse_tool host containers compose requirements
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     for index in "${!arguments[@]}"; do
         case "${arguments[index]}" in
@@ -228,6 +229,8 @@ if [[ $action == package ]]; then
                 arguments[index]="type=bind,src=$operation_directory/source/requirements/installer-release.json,dst=/workspace/requirements/installer-release.json,readonly" ;;
             "type=bind,src=$root/tools,dst=/workspace/tools,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly" ;;
+            "type=bind,src=$root/compose,dst=/workspace/compose,readonly")
+                arguments[index]="type=bind,src=$operation_directory/source/compose,dst=/workspace/compose,readonly" ;;
             "type=bind,src=$root/host,dst=/workspace/host,readonly")
                 arguments[index]="type=bind,src=$operation_directory/source/host,dst=/workspace/host,readonly" ;;
             "type=bind,src=$root/containers,dst=/workspace/containers,readonly")
@@ -248,7 +251,7 @@ fi
 if [[ $action == build ]]; then
     mkdir -- "$operation_directory/source"
     checker_call 'committed core source capture' 30 stdio git -C "$root" -c tar.umask=0022 archive --format=tar \
-        --output="$operation_directory/source.tar" "$revision" packages/provider-core requirements tools wheelhouse_tool host containers
+        --output="$operation_directory/source.tar" "$revision" packages/provider-core requirements tools wheelhouse_tool host containers compose
     tar --same-permissions -xf "$operation_directory/source.tar" -C "$operation_directory/source"
     arguments=(--pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" --cap-drop ALL --security-opt no-new-privileges:true
         --cpus 2 --memory 1g --memory-swap 1g --pids-limit 128 --tmpfs /tmp:rw,nosuid,nodev,noexec,size=256m
@@ -256,6 +259,7 @@ if [[ $action == build ]]; then
         --env PYTHONDONTWRITEBYTECODE=1 --env PYTHONPATH=/workspace
         --mount "type=bind,src=$operation_directory/source/tools,dst=/workspace/tools,readonly"
         --mount "type=bind,src=$operation_directory/source/wheelhouse_tool,dst=/workspace/wheelhouse_tool,readonly"
+        --mount "type=bind,src=$operation_directory/source/compose,dst=/workspace/compose,readonly"
         --mount "type=bind,src=$operation_directory/source/host,dst=/workspace/host,readonly"
         --mount "type=bind,src=$operation_directory/source/containers,dst=/workspace/containers,readonly"
         --mount "type=bind,src=$operation_directory/source/packages/provider-core,dst=/package,readonly"
