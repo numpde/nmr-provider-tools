@@ -70,14 +70,14 @@ Implementation checklist: P0 and P1
 [x] Include compose/acquisition.yml and compose.sh through the existing source
     bundle generator in tools/build_acquisition_bundle.py. Update its existing
     inventory/generation tests. Never patch consumer hashes by hand.
-[ ] Generate the candidate bundle through the maintained build workflow. Consume
+[x] Generate the candidate bundle through the maintained build workflow. Consume
     it in an isolated API candidate checkout through the API's existing refresh
     command. A source-only owner patch does not complete the functional slice.
-[ ] Add API compose/browser-acquisition.yml with its current npm installer and
+[x] Add API compose/browser-acquisition.yml with its current npm installer and
     offline verifier. Update tools/host/acquire_browser_dependencies.sh to call
     acquisition_compose_worker. Keep manifest capture, private temporary staging,
     artifact verification, offline image build and publication lock unchanged.
-[ ] Demonstrate cold browser acquisition -> offline dependency-image build ->
+[x] Demonstrate cold browser acquisition -> offline dependency-image build ->
     actual browser test -> warm reuse with acquisition network unavailable.
     Confirm workers/helpers retire and reusable output is the dependency image.
     Fix real failures before expanding the change.
@@ -156,3 +156,15 @@ Deferred qualification checklist (not first-tranche blockers)
 The API cold/offline/browser/warm path remains the next functional integration,
 not evidence already supplied by this tools-only tranche. Add no more qualification
 work before delivering that functionality unless a concrete defect blocks it.
+
+API functional integration completed
+------------------------------------
+Tools source 4bd481c includes the missing Compose source capture/mounts in the
+existing package-build launcher. Offline package/build generated the candidate
+bundle; the isolated API candidate refreshed it through acquisition/bootstrap/refresh.
+API branch refactor/compose-browser-acquisition, commit 0583d7ab, switches the
+browser caller and captures/hashes its Compose overlay. Actual cold acquisition,
+offline dependency-image build and warm reuse without an interface argument pass.
+The actual browser consumer passes all 12 cases and completes teardown. Existing
+focused browser adapter/identity tests pass (22). Both feature branches are pushed;
+no main branch or deployment was changed. Broader qualification remains deferred.
