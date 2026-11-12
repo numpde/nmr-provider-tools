@@ -81,6 +81,14 @@ services:
     environment:
       HTTP_PROXY: http://127.0.0.1:${NMR_ACQ_PORT:?}
       HTTPS_PROXY: http://127.0.0.1:${NMR_ACQ_PORT:?}
+      # Override image-level proxy choices just as the existing argv worker
+      # does; every HTTP client must use the selected relay.
+      http_proxy: http://127.0.0.1:${NMR_ACQ_PORT:?}
+      https_proxy: http://127.0.0.1:${NMR_ACQ_PORT:?}
+      NO_PROXY: ""
+      no_proxy: ""
+      ALL_PROXY: ""
+      all_proxy: ""
   worker-offline:
     <<: *worker
     network_mode: none

@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Standalone example of a scientific provider contribution"
 readme = "README.md"
 requires-python = ">=3.12"
-dependencies = ["provider-core==0.6.15"]
+dependencies = ["provider-core==0.6.16"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
