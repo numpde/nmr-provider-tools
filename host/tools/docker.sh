@@ -181,8 +181,8 @@ fi
 require_images "$proxy_image" "$image"
 # This checked-in source snapshot is refreshed explicitly from a qualified
 # prior release; normal operations never extract, copy or download bootstrap.
-python3 -I -S -B "$root/host/tools/acquisition_bootstrap.py" \
-    "$root/bootstrap/acquisition" "$root/requirements/acquisition-owner-release.json"
+python3 -I -S -B "$root/bootstrap/acquisition/acquisition_tool/source_update.py" verify \
+    --source-dir "$root/bootstrap/acquisition"
 source "$root/bootstrap/acquisition/acquisition_tool/owner.sh"
 [[ -n $retired_receipt ]] || retired_receipt=$scratch/retired
 run_worker() {

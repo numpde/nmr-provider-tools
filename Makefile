@@ -26,7 +26,7 @@ endif
 
 # Select once for every Docker goal in this invocation. Help and publish/release
 # use no Docker; child processes inherit the captured endpoint.
-ifneq ($(strip $(filter-out help publish/release checks/python-cache/clean packages/acquisition-bootstrap/check packages/acquisition-bootstrap/refresh,$(MAKECMDGOALS))),)
+ifneq ($(strip $(filter-out help publish/release checks/python-cache/clean provider-tools/verify-checked-in-source-hashes provider-tools/update-checked-in-source-from-pinned-release provider-tools/import-checked-in-source,$(MAKECMDGOALS))),)
 ifeq ($(origin DOCKER_CONTEXT),command line)
 docker_context_quote = '$(subst ','"'"',$(1))'
 override export NMR_SELECTED_DOCKER_ENDPOINT := $(shell env -u NMR_SELECTED_DOCKER_ENDPOINT -u DOCKER_CONTEXT_INPUT -u DOCKER_CONTEXT_INPUT_ORIGIN DOCKER_CONTEXT_INPUT_ORIGIN='command line' DOCKER_CONTEXT_INPUT=$(call docker_context_quote,$(value DOCKER_CONTEXT)) bash host/tools/docker_context.sh --endpoint)
@@ -244,8 +244,9 @@ help:
 	  '== Cache acquisition and reproducible checker ==' \
 	  'make tests/acquisition/network DOCKER_CONTEXT=<name> Qualify the isolated relay on the selected engine.' \
 	  'make tests/acquisition/shared-network ARTIFACTS=<artifact-dir> DOCKER_CONTEXT=<name> Qualify the released shared owner.' \
-	  'make packages/acquisition-bootstrap/check Verify the checked-in qualified acquisition owner.' \
-	  'make packages/acquisition-bootstrap/refresh ARTIFACTS=<artifact-dir> Refresh owner source from reviewed release artifacts.' \
+	  'make provider-tools/verify-checked-in-source-hashes Verify checked-in acquisition source offline.' \
+	  'make provider-tools/update-checked-in-source-from-pinned-release Download the reviewed acquisition archive.' \
+	  'make provider-tools/import-checked-in-source INPUT_RELEASE_ARCHIVE=<path> Import it offline with acquisitions/builds quiescent.' \
 	  'make tests/acquisition/identity WHEELHOUSE=<cache-dir> Test cold identity mapping and retirement receipts offline.' \
 	  'make tests/acquisition/owner Test common session cancellation, streams and retirement offline.' \
 	  'make wheelhouse/lock/locate LOCK=<file> NETWORK_INTERFACE=<system|interface> [WHEELHOUSE=<cache-dir>] [INDEX_URL=<url>] [SOURCE_URLS=<urls>] [REQUIRE_SOURCE=<source>] Project a pinned lock.' \
@@ -404,12 +405,17 @@ tests/repository/quality:
 tests/repository/bytecode:
 	@bash host/tools/repository.sh tests/repository/bytecode
 
-.PHONY: packages/acquisition-bootstrap/check packages/acquisition-bootstrap/refresh
-packages/acquisition-bootstrap/check:
-	@bash host/tools/acquisition_bootstrap.sh check
+.PHONY: provider-tools/verify-checked-in-source-hashes provider-tools/update-checked-in-source-from-pinned-release provider-tools/import-checked-in-source
+provider-tools/verify-checked-in-source-hashes:
+	@python3 -I -S -B bootstrap/acquisition/acquisition_tool/source_update.py verify --source-dir bootstrap/acquisition
 
-packages/acquisition-bootstrap/refresh:
-	@bash host/tools/acquisition_bootstrap.sh refresh
+provider-tools/update-checked-in-source-from-pinned-release:
+	@python3 -I -S -B bootstrap/acquisition/acquisition_tool/source_update.py update --source-dir bootstrap/acquisition --pin-file requirements/provider-tools-source.json
+
+provider-tools/import-checked-in-source: private export SOURCE_ARCHIVE_INPUT := $(if $(filter command line,$(origin INPUT_RELEASE_ARCHIVE)),$(value INPUT_RELEASE_ARCHIVE))
+provider-tools/import-checked-in-source:
+	@test -n "$${SOURCE_ARCHIVE_INPUT}" || { printf '%s\n' 'Set INPUT_RELEASE_ARCHIVE=<archive path> on the Make command line.' >&2; exit 2; }
+	@python3 -I -S -B bootstrap/acquisition/acquisition_tool/source_update.py import --source-dir bootstrap/acquisition --pin-file requirements/provider-tools-source.json --archive "$${SOURCE_ARCHIVE_INPUT}"
 
 tests/repository/provisioning:
 	bash host/tools/repository.sh tests/repository/provisioning
