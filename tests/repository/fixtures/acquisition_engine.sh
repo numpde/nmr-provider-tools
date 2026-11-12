@@ -48,6 +48,34 @@ shift 4
 operation=$1
 shift
 case "$operation" in
+  compose)
+    [[ $1 == --project-name ]] || exit 97
+    project=$2
+    shift 2
+    while [[ $1 != run && $1 != down && $1 != up ]]; do shift; done
+    action=$1
+    shift
+    printf '%s %s\n' "$project" "$action" >> "$ENGINE_STATE/compose-calls"
+    case "$action" in
+      run)
+        while [[ $1 != --name ]]; do shift; done
+        worker=$2
+        printf '%s\n' "$project" > "$ENGINE_STATE/compose-project"
+        printf '%s\n' "$worker" > "$ENGINE_STATE/compose-worker"
+        printf 'package-output\n'
+        if [[ ${HOLD_COMPOSE_WORKER:-0} == 1 ]]; then
+          touch "$ENGINE_STATE/compose-held"
+          exec sleep 20
+        fi
+        exit "${ACQUISITION_COMPOSE_EXIT:-0}"
+        ;;
+      down)
+        if [[ ${FAIL_COMPOSE_DOWN:-0} == 1 ]]; then exit 41; fi
+        /bin/rm -f "$ENGINE_STATE/compose-project" "$ENGINE_STATE/compose-worker"
+        ;;
+      *) exit 97 ;;
+    esac
+    ;;
   create)
     printf '%s\n' "$@" >> "$ENGINE_STATE/create-arguments"
     while [[ "$1" != --cidfile ]]; do shift; done
@@ -91,6 +119,10 @@ case "$operation" in
     printf '%s\n' "$identifier"
     ;;
   inspect)
+    if [[ -f $ENGINE_STATE/compose-worker && ${!#} == "$(<"$ENGINE_STATE/compose-worker")" ]]; then
+      printf 'false %s\n' "${ACQUISITION_COMPOSE_EXIT:-0}"
+      exit 0
+    fi
     identifier=${!#}
     role=$(<"$ENGINE_STATE/role-$identifier")
     case "$2" in
@@ -167,6 +199,10 @@ case "$operation" in
     : > "$ENGINE_STATE/removed-worker"
     ;;
   ps)
+    if [[ $* == *label=com.docker.compose.project=* ]]; then
+      [[ ! -f $ENGINE_STATE/compose-worker ]] || printf '%064d\n' 1
+      exit 0
+    fi
     printf '%s\n' "$@" >> "$ENGINE_STATE/absence-probes"
     for arg in "$@"; do
       case "$arg" in id=*) identifier=${arg#id=} ;; esac

@@ -24,6 +24,7 @@ case "$1" in
     tests/repository/network) suite=network ;;
     tests/repository/network/identity) suite=network-identity ;;
     tests/acquisition/owner) suite=acquisition-owner ;;
+    tests/acquisition/compose) suite=acquisition-compose ;;
     tests/repository/runtime) suite=tests/repository/test_container_port_runtime.py ;;
     *) printf 'Cannot select repository checks: unknown target %q. Use make help.\n' "$1" >&2; exit 2 ;;
 esac
@@ -83,6 +84,11 @@ elif [[ $suite == installer ]]; then
     arguments+=(tests.repository.test_installer_image tests.repository.test_checker_dependencies tests.repository.test_checker_provisioning -v)
 elif [[ $suite == bytecode ]]; then
     arguments+=(tests.repository.quality.test_python_bytecode_posture -v)
+elif [[ $suite == acquisition-compose ]]; then
+    arguments+=(tests.repository.test_acquisition_scope.AcquisitionScopeTests.test_compose_workers_preserve_stdout_status_and_repeated_scope_calls
+                tests.repository.test_acquisition_scope.AcquisitionScopeTests.test_compose_cleanup_failure_blocks_result_and_retirement
+                tests.repository.test_acquisition_scope.AcquisitionScopeTests.test_compose_cancellation_runs_scope_teardown
+                tests.repository.test_acquisition_bundle -v)
 elif [[ $suite == acquisition-owner ]]; then
     arguments+=(tests.repository.test_acquisition_scope tests.repository.test_acquisition_dns -v)
 elif [[ $suite == network ]]; then

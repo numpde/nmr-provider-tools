@@ -485,3 +485,7 @@ engine/cache/gc:
 
 packages/images/retire:
 	bash host/tools/image_retirement.sh
+
+.PHONY: tests/acquisition/compose
+tests/acquisition/compose:
+	@bash host/tools/repository.sh tests/acquisition/compose

@@ -228,6 +228,46 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
         self.addCleanup(stop)
         return process, root
 
+    def test_compose_workers_preserve_stdout_status_and_repeated_scope_calls(self):
+        process, root = self.launch(r'''
+printf 'services: {}\n' > "$STATE/caller.yml"
+for attempt in 1 2; do
+    result=unchanged
+    acquisition_compose_worker offline result "$STATE/caller.yml" worker-offline || return "$?"
+    printf 'result=%s\n' "$result"
+done
+''', env={'ACQUISITION_COMPOSE_EXIT': '7'})
+        self.assertEqual(b'package-output\nresult=7\npackage-output\nresult=7\n',
+                         self.assert_exit(process, root, 0))
+        calls = (root / 'compose-calls').read_text().splitlines()
+        self.assertEqual(['run', 'down', 'run', 'down'], [line.split()[1] for line in calls])
+        self.assertNotEqual(calls[0].split()[0], calls[2].split()[0])
+
+    def test_compose_cleanup_failure_blocks_result_and_retirement(self):
+        process, root = self.launch(r'''
+printf 'services: {}\n' > "$STATE/caller.yml"
+result=unchanged
+acquisition_compose_worker offline result "$STATE/caller.yml" worker-offline
+status=$?
+printf 'result=%s\n' "$result"
+return "$status"
+''', env={'FAIL_COMPOSE_DOWN': '1'})
+        stdout, stderr = process.communicate(timeout=15)
+        self.assertEqual(2, process.returncode, msg=stderr)
+        self.assertEqual(b'package-output\nresult=unchanged\n', stdout)
+        self.assertEqual(['2 no'], (root / 'caller-exit').read_text().splitlines())
+        self.assertEqual(1, sum(line.endswith(' down') for line in (root / 'compose-calls').read_text().splitlines()))
+
+    def test_compose_cancellation_runs_scope_teardown(self):
+        process, root = self.launch(r'''
+printf 'services: {}\n' > "$STATE/caller.yml"
+acquisition_compose_worker offline result "$STATE/caller.yml" worker-offline
+''', env={'HOLD_COMPOSE_WORKER': '1'})
+        self.wait_marker(process, root / 'compose-held')
+        process.send_signal(signal.SIGTERM)
+        self.assert_exit(process, root, 143)
+        self.assertFalse((root / 'compose-worker').exists())
+
     def wait_marker(self, process, marker):
         deadline = time.monotonic() + 15
         while not marker.exists() and time.monotonic() < deadline:

@@ -41,6 +41,8 @@ class AcquisitionBundleTests(unittest.TestCase):
             path = source / "host" / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text("# cold source\n")
+        (source / "compose").mkdir()
+        (source / "compose/acquisition.yml").write_bytes((ROOT / "compose/acquisition.yml").read_bytes())
         for source_name, _issued_name in INSTALLER_SOURCES:
             path = source / source_name
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -71,7 +73,7 @@ class AcquisitionBundleTests(unittest.TestCase):
             record = build(root, first, source, wheel, pin)
             self.assertEqual(record, build(root, second, source, wheel, pin))
             self.assertEqual(first.read_bytes(), second.read_bytes())
-            expected = set(SOURCE_FILES) | {"provider_core/" + name for name in PROXY_FILES} | {"linux_idmap/__init__.py"}
+            expected = {"compose/acquisition.yml"} | set(SOURCE_FILES) | {"provider_core/" + name for name in PROXY_FILES} | {"linux_idmap/__init__.py"}
             installer = json.loads((source / "requirements/installer-release.json").read_text())
             expected.update(issued_name for _source_name, issued_name in INSTALLER_SOURCES)
             expected.add("acquisition_tool/installer/wheels/" + installer["name"])

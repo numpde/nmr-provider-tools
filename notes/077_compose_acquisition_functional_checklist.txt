@@ -1,0 +1,158 @@
+Compose acquisition: functional refactor and completion checklist
+================================================================
+
+Branch: refactor/compose-acquisition
+Base: 2d41b944eca481670362ab705514c2fa191ec0d5
+Status: first tools-owner tranche implemented; API integration remains pending.
+
+Priority gradient
+-----------------
+P0: working functionality. Run acquisition through Compose, return usable worker
+output, consume it offline, and retire the operation. Complete one actual API
+browser acquisition path before generalizing the design.
+
+P1: required correctness. Preserve clean stdout, package exit status, selected
+route, mapped identity, cancellation, and truthful cleanup results. Keep existing
+callers working. A known failure of these contracts blocks completion; they are
+part of functionality, not optional hardening.
+
+P2: maintainability and reuse. Delete replaced mechanics in the migrated path,
+keep package policy local, and document the working configuration for adaptation.
+Do not require a new package, universal worker language or other repo migrations.
+
+P3: targeted assurance. Exercise changed failure paths and representative supported
+engine modes. Reuse existing tests for unchanged proxy/identity behavior. Tests
+follow completed slices; they do not become a separate qualification programme.
+
+P4: optional hardening. Extra engines, platforms, rare failure combinations,
+storage redesign and performance tuning require an observed need and separate
+scope. They do not hold this refactor open.
+
+Excluded: validation fetish. No exhaustive package/engine/failure matrix, generic
+Compose validator, duplicate dependency inventory, new retirement certificate,
+periodic resource census or parallel package resolver. Every new check must name
+the changed behavior and concrete failure consequence it protects.
+
+Implementation checklist: P0 and P1
+-----------------------------------
+[x] Add compose/acquisition.yml with the existing interface-bound gateway and
+    isolated relay definitions. Preserve proxy commands, socket mounts, readiness
+    files, identity and resource settings from host/acquisition_tool/owner.sh.
+    Worker online network mode is service:relay; offline mode is none. No fixed
+    container names, published ports, implicit image pulls or automatic builds.
+[x] Add host/acquisition_tool/compose.sh, sourced by owner.sh. Keep acquisition_scope
+    as the sole owner of engine selection, scratch, cancellation and retirement.
+    Use an explicit operation project and absolute Compose files with captured
+    inputs. No new executable supervisor or Docker argv-to-YAML translator.
+[x] Add acquisition_compose_worker MODE RESULT_VARIABLE CALLER_FILE SERVICE to
+    owner.sh. MODE is online/offline; CALLER_FILE is a captured trusted repository
+    overlay. The owner supplies topology and mapped user; the caller supplies
+    image, package command, resource needs and narrow mounts.
+[x] Run package workers through noninteractive compose run -T --no-deps, with an
+    explicit scope-derived worker name and no automatic removal before result
+    collection. Start gateway/relay lazily for online work using compose up with
+    --no-build --pull never. Reuse current readiness checks and relay port output.
+    Offline calls do not start helpers. Keep worker stdout separate from controller
+    diagnostics; never substitute aggregated compose up logs for package stdout.
+[x] Collect CLI status and inspected terminal worker status separately. Set the
+    result variable only after completion and retirement are established. Package
+    failure remains the package result; orchestration failure returns nonzero.
+    Cancellation retains its signal status even if the client returns zero.
+[x] Wire worker and helper removal into the existing scope cleanup. Use native
+    Compose removal for stopped one-off workers and project teardown for helpers;
+    explicitly check the owned worker and project are absent before retirement.
+    On partial startup, cancellation or failed removal, use that same cleanup
+    path. Retain inputs still possibly in use and report unresolved cleanup.
+    Do not use global pruning or add per-container fallback reconciliation loops.
+[x] Preserve acquisition_worker and its argv contract for actual wheel/APK/lock
+    callers. Do not add a browser backend switch. Sequential legacy/Compose calls
+    must share scope retirement correctly; no concurrent worker calls are added.
+[x] Include compose/acquisition.yml and compose.sh through the existing source
+    bundle generator in tools/build_acquisition_bundle.py. Update its existing
+    inventory/generation tests. Never patch consumer hashes by hand.
+[ ] Generate the candidate bundle through the maintained build workflow. Consume
+    it in an isolated API candidate checkout through the API's existing refresh
+    command. A source-only owner patch does not complete the functional slice.
+[ ] Add API compose/browser-acquisition.yml with its current npm installer and
+    offline verifier. Update tools/host/acquire_browser_dependencies.sh to call
+    acquisition_compose_worker. Keep manifest capture, private temporary staging,
+    artifact verification, offline image build and publication lock unchanged.
+[ ] Demonstrate cold browser acquisition -> offline dependency-image build ->
+    actual browser test -> warm reuse with acquisition network unavailable.
+    Confirm workers/helpers retire and reusable output is the dependency image.
+    Fix real failures before expanding the change.
+
+Completion checklist: P2 and P3
+-------------------------------
+[ ] Remove dead API browser worker argv assembly and superseded lifecycle branches
+    in the migrated path. Keep the legacy owner implementation only for its real
+    callers; do not force their migration into this slice.
+[ ] Adapt existing acquisition tests for exact stdout, nonzero package result,
+    repeated sequential workers, offline work without helpers, cancellation and
+    cleanup failure. Exercise actual changed ownership on rootless/rootful Docker.
+    Reuse unchanged proxy, DNS and identity tests instead of duplicating them.
+[ ] Check the generated bundle contains and locates the Compose assets independently
+    of the checkout path. Exercise the API caller handoff, not merely a YAML render.
+[ ] Run the relevant maintained container-backed checks on the final integrated
+    source. After corrections, rerun affected checks; do not rerun every engine
+    scenario for prose changes or unrelated helper edits. Report any skipped gate.
+[ ] Document the working caller example: required parameters, optional egress
+    policy, package-owned output, engine/Compose versions exercised and update
+    path. Other repos can adapt it without adopting npm-specific artifact policy.
+[ ] Obtain separate decision and implementation reviews. Resolve concrete blockers,
+    then commit coherent slices. Publication, deployment and unrelated repository
+    migrations require their own authorization.
+
+Parallel assignments and integration order
+------------------------------------------
+Owner worker: common Compose definitions, sourced controller, scope integration
+and generated bundle inputs. API worker: package overlay/caller patch and existing
+end-to-end run sequence. Auditor: independently challenge owner duplication,
+stdout/status preservation, actual consumers and unnecessary machinery.
+Workers prepare isolated patches; the coordinator integrates and controls engines.
+
+Owner implementation -> generated candidate bundle -> API refresh -> integrated
+acquisition/browser run is sequential. API patch preparation and read-only audit
+can overlap owner work. Test preparation can overlap implementation against the
+specified contract. Runtime tests use a fixed source revision and isolated writable
+state; serialize them when engine resources, caches or publication locks overlap.
+
+Deferred P4 work
+-----------------
+Keep today's private temporary artifact staging. This refactor introduces no host
+npm installation or reusable host node_modules cache, but does not eliminate host
+scratch. Do not claim otherwise. No tmpfs prerequisite, engine volume or streaming
+handoff is added. No additional engine/platform port or new distribution system
+is required to finish this checklist.
+
+Done means the actual API acquisition path works with the Compose owner, existing
+callers remain usable, required failure behavior is honest, and the implementation
+is understandable enough to adapt. More assertions are not a completion goal.
+
+First tranche result
+--------------------
+Implemented the common topology, sourced controller, additive callable, scope
+cleanup integration and source-bundle assets. Existing argv workers are unchanged.
+Focused Compose/bundle tests pass (6). A real rootless-engine probe using only a
+locally prepared image returned exact offline output with exit status 7, ran an
+online worker with gateway/relay, and retired the scope successfully. This proves
+launch/result/teardown wiring; it does not prove external acquisition or the API
+browser consumer. The full existing owner regression lane was started before qualification was
+deferred; no completed pass is claimed here.
+
+The real-engine probe exposed an unquoted YAML flow-list tmpfs value; quoting
+preserves the mount options as one string. No new dependency or image was acquired.
+No API integration, release publication, rootful qualification, storage change or
+additional failure matrix is part of this tranche. Those do not delay this commit.
+
+Deferred qualification checklist (not first-tranche blockers)
+------------------------------------------------------------
+[ ] Record the completed result of the owner regression lane if already running;
+    do not wait for it or restart it merely to hold up the functional tranche.
+[ ] Exercise the new Compose ownership on rootful Docker.
+[ ] Exercise partial helper startup failure and residue reporting on a real engine.
+[ ] Exercise actual selected-interface traffic and bypass denial for the new path.
+[ ] Complete broader repository gates when integrating the consumer/release.
+The API cold/offline/browser/warm path remains the next functional integration,
+not evidence already supplied by this tools-only tranche. Add no more qualification
+work before delivering that functionality unless a concrete defect blocks it.

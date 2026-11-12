@@ -23,6 +23,7 @@ from tools.installer import release as installer_release, wheel_bytes
 # repo-check: allow-module-constant
 SOURCE_FILES = (
     "acquisition_tool/owner.sh",
+    "acquisition_tool/compose.sh",
     "acquisition_tool/__init__.py",
     "acquisition_tool/identity.py",
     "acquisition_tool/identity_main.py",
@@ -91,6 +92,7 @@ def contents(pool, source, core_wheel, pin):
     (files, dependencies) = dependency_files(pool, pin)
     for name in SOURCE_FILES:
         _add(files, name, (source / "host" / name).read_bytes())
+    _add(files, "compose/acquisition.yml", (source / "compose/acquisition.yml").read_bytes())
     for source_name, issued_name in INSTALLER_SOURCES:
         _add(files, issued_name, (source / source_name).read_bytes())
     installer = installer_release(source / "requirements/installer-release.json")
