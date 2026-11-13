@@ -1,0 +1,91 @@
+End-state boundary and preparatory refactor
+===========================================
+
+Status: proposed boundary and work split, not an implemented migration.
+Define the destination first. The first refactor preserves current ownership,
+public interfaces and runtime behavior while making later changes local.
+
+Authorities: 066 owns the execution/contribution end-state; 065 owns its work
+order. 052 records interpreter ownership; 056 proposes shared prompt policy.
+057 covers archives and continuation; 083 maps the actual capture points.
+This note connects those boundaries; it does not replace their contracts.
+
+Current boundary to preserve first
+----------------------------------
+Providers compose their analysis-specific interpretation and scientific dispatch,
+bind Job/Attempt context and enforce their existing guarded execution paths.
+The SDK owns conversation mechanics, model scheduling, transport and its current
+lifecycle contracts. Existing provider backends own their original workers and
+state. A preparatory extraction must not transfer any of those responsibilities.
+
+SDK 0.6.19 already contains contribution.py and hosting.py contracts. Their
+presence does not prove that every real provider path uses them. Reuse those
+contracts rather than creating another registration or execution facade.
+
+End-state owners
+----------------
+API
+  Own authenticated admission, Job/Attempt authorization and state, input
+  identity, project access and terminal acceptance receipts.
+
+Service orchestration
+  Bind current work authority to reservations, scheduling and terminal delivery.
+  Operate on data-only implementation/call
+  descriptions and AnalysisExecution. Do not import scientific factories,
+  codecs, checkpoints or framework device objects into the scheduler.
+
+Execution host/backend
+  Bind deployed implementations, settings, assets and assigned resources.
+  Own operations before asynchronous effects, guard actual dispatch, retain
+  scientific state/results and establish cleanup observations. Analysis-scoped
+  control stays separate from administration that retires a shared instance.
+
+Scientific contribution and interpretation adapter
+  Own scientific instructions, tool semantics, source interpretation, validation,
+  numerical work and scientific reporting. Their numerical functions receive
+  typed science/state and any declared narrow progress/stop interface, not Jobs
+  credentials, claim registries, a scheduler, Docker or an archive client.
+
+Shared interpreter and conversation recorder
+  Own generic conversation policy/mechanics and the ordered capture contract.
+  Capture the actual request/reply, tool and lifecycle boundaries in 083. The
+  operational caller binds correlation identities; recording does not acquire
+  permission to dispatch science, classify user input or publish an outcome.
+  Changes to generic prompt policy remain the separate work described in 056.
+
+Central private archive
+  Own authenticated ingestion, durable storage receipts, authorized retrieval,
+  quotas, retention and deletion across providers/hosts. The SDK supplies common
+  recording/spooling/synchronization mechanics. Providers do not each invent
+  a journal, and the delivery outbox does not become a history database.
+  Protected content, user-visible history and model continuation context are
+  separate views. Stored conversations cannot authorize replay or reopen an
+  Attempt. The archive API/storage contract still needs design under 057.
+
+First, boundary-preserving preparation
+-------------------------------------
+1. Each provider maps its existing real call paths and ownership to the target.
+   Reuse earlier maps and existing witnesses; report current differences only.
+2. Identify actual mixed responsibilities and isolate them within today's
+   owners. Reuse the request, admission, dispatch, feedback and retirement seams
+   already present. Do not manufacture wrappers or unused extension points.
+3. Preserve public signatures, scientific inputs/results, exception causes,
+   ordering, retries, admission guards, cleanup ownership and deployment layout.
+   No archive I/O, new service, new prompt policy or execution migration is part
+   of this preparatory refactor.
+4. Prove the changed real path preserves its existing behavior with focused
+   tests. Document which later responsibility can now move independently.
+
+Then make explicit capability changes
+-------------------------------------
+These are independent next capabilities with their own work orders:
+
+- Recording follows 057: implement the shared contract with its first real
+  durable consumer and deliberate failure semantics.
+- Execution adoption follows 065/066: use the existing contribution/execution
+  boundary on guarded and direct scientific paths across all four providers.
+  Only after that adoption replace service loops or add common pools. Archive
+  implementation is not an additional prerequisite for this execution work.
+
+Do not combine either migration with preparatory extraction or claim that
+adopting an interface completes the larger refactor.
