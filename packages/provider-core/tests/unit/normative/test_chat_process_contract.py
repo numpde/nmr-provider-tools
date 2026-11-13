@@ -70,8 +70,16 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
     async def test_factory_preserves_request_identity_trust_and_connected_response_window(self):
         # Allow real DNS and TLS setup, but keep its grant shorter than the
         # response delay so success proves the setup timer was disabled.
+        loop = asyncio.get_running_loop()
+        started = None
+        response_started = None
+        response_ready = None
+
         async def reply(_request, _body):
+            nonlocal response_started, response_ready
+            response_started = loop.time() - started
             await asyncio.sleep(1.2)
+            response_ready = loop.time() - started
             return completion()
 
         async with TlsPeer("success", response_factory=reply) as peer, launched_children() as children:
@@ -86,11 +94,21 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             messages = [{"role": "user", "content": "Authored scientific input"}]
             tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
             try:
+                started = loop.time()
                 try:
-                    result = await endpoint.complete(messages, tools, not_after=asyncio.get_running_loop().time() + 3)
+                    result = await endpoint.complete(messages, tools, not_after=started + 3)
                 except ChatFailed as error:
-                    error.add_note(json.dumps(failure_evidence(
-                        error, secrets=(factory.spec.api_key, "Authored scientific input"))))
+                    evidence = failure_evidence(error, secrets=(factory.spec.api_key, "Authored scientific input"))
+                    evidence["fixture_progress"] = {
+                        "elapsed_seconds": round(loop.time() - started, 3),
+                        "child_started": bool(children),
+                        "tls_server_name_seen": bool(peer.server_names),
+                        "request_seen": bool(peer.requests),
+                        "response_started_seconds": response_started,
+                        "response_ready_seconds": response_ready,
+                        "connection_closed": peer.closed.is_set(),
+                    }
+                    error.add_note(json.dumps(evidence))
                     raise
                 self.assertEqual(json.loads(completion())["choices"][0]["message"], result)
                 self.assertEqual(1, len(peer.requests))
