@@ -1,0 +1,18 @@
+[matching]
+minimum_score = 0.5
+
+[[references]]
+label = "pattern-a"
+values = [3.0, 4.0, 0.0, 0.0]
+
+[[references]]
+label = "pattern-b"
+values = [0.0, 0.0, 1.0, 1.0]
+
+[[references]]
+label = "pattern-c"
+values = [1.0, 0.0, 1.0, 0.0]
+
+[[references]]
+label = "pattern-d"
+values = [0.0, 1.0, 0.0, 2.0]

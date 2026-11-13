@@ -1,0 +1,5 @@
+kind = "cpu"
+amount = 1
+unit = "thread"
+selector = "generic"
+exclusive = false

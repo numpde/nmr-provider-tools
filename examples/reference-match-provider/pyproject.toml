@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools==84.1.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reference-match-provider-example"
+version = "0.1.0"
+description = "Stateful reference matching through the scientific execution boundary"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["provider-core==0.6.19"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["reference_provider", "reference_provider.*"]
+namespaces = false
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.package-data]
+reference_provider = ["settings.toml", "resources.toml"]
