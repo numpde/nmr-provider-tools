@@ -405,6 +405,12 @@ class _Operation(_Changes):
         return self.payload
 
     def release_result(self, result):
+        self.require_loop()
+        # The exact release remains observable after its payload is discarded.
+        # Check identity before returning it; a cached owner grants no authority
+        # over a different operation or result.
+        if self.release is not None and type(result) is ResultRef and result == self.result:
+            return self.release
         self._require_result(result)
         if self.release is None:
             self.release = _Cleanup(self.invocation.limits.cleanup_seconds)

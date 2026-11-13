@@ -33,6 +33,7 @@ from provider_core.hosting import (
     Outcome,
     RequestConflict,
     ResourceGrant,
+    ResultRef,
     ResultState,
 )
 from provider_core.payload import PayloadCodec
@@ -487,6 +488,16 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         release = operation.release_result(completed.result)
         self.assertIs(release, operation.release_result(completed.result))
         await self.settled(release)
+        self.assertIs(release, operation.release_result(completed.result))
+        with self.assertRaises(ValueError):
+            await operation.read_result(completed.result)
+        with self.assertRaises(ValueError):
+            operation.release_result(replace(completed.result, result_id="another-result"))
+        with self.assertRaises(ValueError):
+            operation.release_result(ResultRef(
+                operation=replace(operation.reference, operation_id="another-operation"),
+                result_id=completed.result.result_id,
+            ))
         self.assertIs(
             ResultState.RELEASED,
             (await operation.observe(after=None, wait_seconds=0)).result_state,
