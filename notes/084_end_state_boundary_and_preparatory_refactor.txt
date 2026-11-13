@@ -1,7 +1,8 @@
 End-state boundary and preparatory refactor
 ===========================================
 
-Status: proposed boundary and work split, not an implemented migration.
+Status: working boundary agreed by all four provider owners on 2026-11-13;
+preparatory slice selected below. No refactor or migration is implemented here.
 Define the destination first. The first refactor preserves current ownership,
 public interfaces and runtime behavior while making later changes local.
 
@@ -107,6 +108,61 @@ RunAuthority and acknowledged Attempt context; it is not a pure numerical
 contribution. Preserve its guards and effects now. Existing E02 correction and
 controller/native-retirement witnesses suffice for preparation; no new wrapper
 or test campaign is justified merely to mirror another provider's changes.
+
+Agreed preparation and acceptance
+---------------------------------
+Review baselines: NMRPeak b5d4a4a, SECS 7dcedfe, NMRNet 16f3cbb and Magnet
+e0f2cf9, using SDK 0.6.19. Each owner agreed with the boundary above. This
+settles the ownership split for planning, not every later backend detail.
+
+Select one NMRPeak extraction for a later, separately instructed implementation:
+
+- Add nmrpeak_provider/interpretation_capability.py and move the existing
+  _PROMPT_DIRECTORY, _PROMPT_PATHS, _SUBMIT_DESCRIPTION, _REPORT_DESCRIPTION,
+  _value_schema_for and _InterpretationCapability into it without changing their
+  scientific policy, prompt bytes, generated schemas or rejection behavior.
+- The first real consumer remains
+  InterpretationSession.validate_freeform_input_async in input_interpreter.py.
+  Keep InputInterpreter and INTERPRETER_CONFIG_DIRECTORY imports used by
+  provider_main.py and deployment_runtime.py stable. Move private tests to the
+  new owner as needed; do not leave duplicate definitions or private aliases.
+- Keep lane binding, the post-await deadline/permission checks, validate_input,
+  SDK Interpreter ownership, diagnostics, retire and join in their current
+  session/analysis owners. The new module does not dispatch work or own a slot.
+- Keep existing runtime initialization timing. The new module must not add
+  import-time policy-file reads or acquire resources; a type-only LifecycleLane
+  import can avoid loading its policy-bearing module from the capability.
+- Add the new module to containers/provider/image-inputs.txt. The existing
+  provider Dockerfile.dockerignore already admits the package; it needs no new
+  exception. Do not change runner inputs or introduce another interface.
+
+The existing schema/multiplicity, typed/prose, correction-before-admission,
+permission-withdrawal and single-use-handle witnesses protect this move. The
+maintained future checks are:
+
+  make check/source
+  make test/unit test/integration test/model-behavior-fixtures \
+    test/repository/provider-image DOCKER_CONTEXT=science
+
+These commands are an implementation acceptance plan; they were not run for this
+documentation-only selection. Add a regression only if implementing the move
+demonstrates a gap in the existing witnesses.
+
+SECS, NMRNet and Magnet complete this preparatory selection with their source
+maps and existing witnesses. No preparatory code change is selected for them.
+
+Genuine later decisions, not preparation blockers
+-------------------------------------------------
+- SECS's real backend adoption must map its worker/Attempt-bound prepared state
+  and single consumption into the existing hosting state/result contract, while
+  preserving results through encoding and cleanup without resubmitting science.
+- NMRNet's real backend adoption must retain or explicitly resolve a completed
+  result when worker-channel delivery is unconfirmed. Calculation completion,
+  result delivery and worker retirement remain different facts.
+- The central archive's ingestion/access/retention contract remains work under
+  057. No archive client or storage policy is introduced by the selected move.
+
+No remaining end-state ownership question blocks the selected preparation.
 
 Then make explicit capability changes
 -------------------------------------
