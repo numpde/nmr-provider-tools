@@ -1,4 +1,4 @@
-"""Register the dummy scientific calls, configuration and lifecycle hooks."""
+"""Assemble the dummy provider's scientific bindings and lifecycle hooks."""
 
 from __future__ import annotations
 
@@ -31,7 +31,13 @@ def create_weighted_sum_binding(
     science.WeightedSumModel,
     science.WeightedSumAnalysis,
 ]:
-    """Bind immutable settings and coefficients to one weighted model revision."""
+    """Assemble a weighted-model binding from immutable settings and coefficients.
+
+    This is a provider-owned helper, invoked explicitly by its callers. The SDK
+    consumes the returned ImplementationBinding; it does not discover this
+    function or prescribe its name or signature. Scientific model and analysis
+    construction remain in the returned lifecycle hooks.
+    """
     (cpu_requirement, resource_asset) = _configured_cpu_resource()
     prepared_values_kind = "dummy.prepared-values.v1"
 
@@ -148,7 +154,12 @@ def create_weighted_sum_binding(
 
 
 def create_sum_binding() -> contribution.ImplementationBinding[None, None]:
-    """Register a stateless sum with one independently callable operation."""
+    """Assemble a stateless sum binding with one independently callable operation.
+
+    This provider-owned helper is called explicitly, not discovered by the SDK.
+    Its name and signature are local conventions; the SDK accepts its returned
+    ImplementationBinding.
+    """
     (cpu_requirement, resource_asset) = _configured_cpu_resource()
 
     def run(

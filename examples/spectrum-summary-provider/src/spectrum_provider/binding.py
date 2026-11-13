@@ -15,7 +15,12 @@ def create_bindings() -> tuple[
     contribution.ImplementationBinding[None, None],
     contribution.ImplementationBinding[None, None],
 ]:
-    """Capture immutable deployment settings in independent stateless bindings."""
+    """Capture immutable deployment settings in independent stateless bindings.
+
+    This provider-owned assembly helper is invoked explicitly by startup code
+    or tests. Its name and signature are local conventions, not SDK entrypoints.
+    The caller passes the returned ImplementationBinding objects to the host.
+    """
     spectrum_format = "spectrum.samples.v1"
     package = files(__package__)
     settings = tomllib.loads(package.joinpath("settings.toml").read_text(encoding="utf-8"))

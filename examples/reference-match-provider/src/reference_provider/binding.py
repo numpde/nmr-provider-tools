@@ -28,7 +28,13 @@ def _dispose_library(library: ReferenceLibrary) -> None:
 
 
 def create_binding() -> contribution.ImplementationBinding[ReferenceLibrary, None]:
-    """Snapshot deployment configuration without loading or acquiring a library."""
+    """Snapshot deployment configuration without loading or acquiring a library.
+
+    This provider-owned assembly helper is invoked explicitly by startup code
+    or tests. The SDK accepts the returned ImplementationBinding; it does not
+    discover this function or prescribe its name or signature. Index creation
+    remains in the returned instance-initialization hook.
+    """
     package = files(__package__)
     configured = tomllib.loads(package.joinpath("settings.toml").read_text(encoding="utf-8"))
     settings = science.MatchSettings(**configured["matching"])
