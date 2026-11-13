@@ -19,6 +19,13 @@ class ReferenceLibrary:
     loaded_index: science.ReferenceIndex | None = field(default=None, init=False)
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ReferenceBinding(contribution.ImplementationBinding[ReferenceLibrary, None]):
+    match: contribution.CallBinding[
+        science.VectorInput, contribution.NoState, science.MatchReport,
+    ]
+
+
 def _load_library(library: ReferenceLibrary) -> None:
     library.loaded_index = science.build_index(library.references)
 
@@ -27,7 +34,7 @@ def _dispose_library(library: ReferenceLibrary) -> None:
     library.loaded_index = None
 
 
-def create_binding() -> contribution.ImplementationBinding[ReferenceLibrary, None]:
+def create_binding() -> ReferenceBinding:
     """Snapshot deployment configuration without loading or acquiring a library.
 
     This provider-owned assembly helper is invoked explicitly by startup code
@@ -49,17 +56,24 @@ def create_binding() -> contribution.ImplementationBinding[ReferenceLibrary, Non
         return ReferenceLibrary(settings=settings, references=reference_set)
 
     def match(
-        *, instance: ReferenceLibrary, scientific_input: science.VectorInput,
+        context: contribution.CallContext[
+            ReferenceLibrary, None, science.VectorInput, contribution.NoState,
+        ],
     ) -> contribution.ScientificReturn[science.MatchReport]:
+        instance = context.instance
         if instance.loaded_index is None:
             raise RuntimeError("Cannot match a query before the reference index has been initialized")
         return contribution.ScientificReturn(
-            value=science.match(instance.loaded_index, instance.settings, scientific_input),
+            value=science.match(
+                instance.loaded_index, instance.settings, context.scientific_input,
+            ),
         )
 
     match_call = contribution.CallBinding.from_json_dataclasses(
         name="match", input_format="reference.vector.v1", result_format="reference.match-report.v1",
-        state_inputs=(),
+        input_type=science.VectorInput,
+        state_type=contribution.NoState,
+        result_type=science.MatchReport,
         state_outputs=(), resources=(requirement,), concurrency=contribution.ConcurrencyRequirement.INSTANCE_SERIAL,
         interruption=contribution.InterruptionSupport.NONE, progress=False, scientific_call=match,
     )
@@ -68,10 +82,15 @@ def create_binding() -> contribution.ImplementationBinding[ReferenceLibrary, Non
         declaration.json_asset(reference_set, name="references", format_id="reference.library.v1", media_type="application/json"),
         declaration.json_asset(requirement, name="resources", format_id="reference.resources.v1", media_type="application/json"),
     )
-    return contribution.ImplementationBinding.from_calls(
-        binding_id="reference.match",
-        binding_revision=declaration.binding_revision(implementation="reference.match.v1", configuration=configuration, assets=assets),
-        contract_version=1, configuration=configuration, assets=assets, calls=(match_call,),
+    return ReferenceBinding(
+        identity=contribution.ConfiguredIdentity(
+            binding_id="reference.match",
+            implementation="reference.match.v1",
+            contract_version=1,
+            configuration=configuration,
+            assets=assets,
+        ),
+        match=match_call,
         resident_resources=(), isolation=contribution.IsolationRequirement.SHARED_PROCESS,
         instance=contribution.InstanceHooks(construct=construct, initialize=_load_library, dispose=_dispose_library),
         analysis=None,

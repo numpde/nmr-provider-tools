@@ -16,7 +16,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from provider_core.contribution import CallRef
+from provider_core.contribution import ref
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
     ExecutionLimits, Invocation, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
@@ -41,7 +41,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             return library
 
         binding = replace(binding, instance=replace(binding.instance, construct=construct))
-        call, = binding.calls
+        call = binding.match
         host = EmbeddedHost(
             (Allocation("library", binding, (
                 ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
@@ -72,7 +72,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     operation = analysis.submit(
                         Invocation(
                             operation_id="match",
-                            target=CallRef(binding.description.binding_id, binding.description.binding_revision, "match"),
+                            target=ref(binding.match),
                             payload=call.input_codec.encode(science.VectorInput(values=values)),
                             states=(), reservation=reservation, limits=limits,
                         ),

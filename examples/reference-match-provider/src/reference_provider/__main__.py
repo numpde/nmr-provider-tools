@@ -6,7 +6,7 @@ import asyncio
 import sys
 from threading import Event
 
-from provider_core.contribution import CallRef
+from provider_core.contribution import ref
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
     ExecutionLimits, Invocation, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
@@ -20,7 +20,7 @@ from .science import VectorInput
 async def run_demo() -> None:
     """Reuse initialized science; retain results beyond each analysis lifetime."""
     binding = create_binding()
-    call, = binding.calls
+    call = binding.match
     host = EmbeddedHost(
         (Allocation("library", binding, (
             ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
@@ -56,9 +56,7 @@ async def run_demo() -> None:
             reservation, = analysis.reservations
             operation = analysis.submit(
                 Invocation(
-                    operation_id="match", target=CallRef(
-                        binding.description.binding_id, binding.description.binding_revision, "match",
-                    ),
+                    operation_id="match", target=ref(binding.match),
                     payload=call.input_codec.encode(VectorInput(values=values)),
                     states=(), reservation=reservation, limits=limits,
                 ),

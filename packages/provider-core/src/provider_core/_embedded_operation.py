@@ -28,7 +28,7 @@ from provider_core.hosting import (
     ResourceState,
     ResultRef,
     ResultState,
-    StateArgument,
+    StateResult,
     StateRef,
 )
 from provider_core.payload import CallRejected
@@ -329,9 +329,10 @@ class _Operation(_Changes):
                 binding_revision=self.invocation.target.binding_revision,
                 state_id=uuid4().hex,
                 kind=returned_state.kind,
+                producer=self.reference,
             )
             self.analysis.states[state_reference] = _State(returned_state, self)
-            returned_arguments.append(StateArgument(returned_state.name, state_reference))
+            returned_arguments.append(StateResult(returned_state.name, state_reference))
 
         self.returned_states = tuple(returned_arguments)
         additional_state_reservations = max(0, len(returned_arguments) - self.state_allowance)
@@ -350,6 +351,14 @@ class _Operation(_Changes):
             contract_failures.append(
                 ValueError("Returned state differs from the call's declared outputs.")
             )
+        output_types = {slot.description.name: slot.value_type for slot in self.call._output_slots}
+        for returned_state in scientific_return.states:
+            expected_type = output_types.get(returned_state.name)
+            if expected_type is not None and type(returned_state.value) is not expected_type:
+                contract_failures.append(TypeError(
+                    f"State output {returned_state.name!r} requires {expected_type.__qualname__}; "
+                    f"received {type(returned_state.value).__qualname__}"
+                ))
 
         if contract_failures:
             cause = ExceptionGroup(
@@ -368,6 +377,8 @@ class _Operation(_Changes):
         # silent-defaults: allow-contract -- Result adoption can precede thread completion; only a finished operation may expose its result reference.
         result = self.result if self.finished else None
         return Observation(
+            operation=self.reference,
+            target=self.invocation.target,
             revision=self.revision,
             acceptance=AcceptanceState.OWNED,
             dispatch=self.dispatch,

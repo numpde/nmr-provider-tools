@@ -3,14 +3,20 @@
 from __future__ import annotations
 
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
+from provider_core.contribution import CallRef, ConfiguredIdentity
 import provider_core.contribution_declaration as declaration
 from tests.fakes.dummy_provider import science
 from tests.fakes.dummy_provider.binding import (
     sum_binding,
     weighted_sum_binding,
 )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class EmptyConfiguration:
+    pass
 
 
 class ContributionDeclarationTests(unittest.TestCase):
@@ -41,11 +47,13 @@ class ContributionDeclarationTests(unittest.TestCase):
         self.assertEqual(configuration, binding.description.configuration)
         self.assertEqual((coefficient_asset,), binding.description.assets)
         self.assertEqual(
-            declaration.binding_revision(
+            ConfiguredIdentity(
+                binding_id="dummy.weighted-sum",
                 implementation="dummy.weighted-sum.v2",
+                contract_version=1,
                 configuration=configuration,
                 assets=(coefficient_asset,),
-            ),
+            ).revision,
             binding.description.binding_revision,
         )
 
@@ -54,11 +62,13 @@ class ContributionDeclarationTests(unittest.TestCase):
 
         self.assertIsNone(binding.description.configuration)
         self.assertEqual(
-            declaration.binding_revision(
+            ConfiguredIdentity(
+                binding_id="dummy.sum",
                 implementation="dummy.sum.v5",
+                contract_version=1,
                 configuration=None,
                 assets=(),
-            ),
+            ).revision,
             binding.description.binding_revision,
         )
 
@@ -79,40 +89,96 @@ class ContributionDeclarationTests(unittest.TestCase):
         )
 
         self.assertNotEqual(
-            declaration.binding_revision(
+            ConfiguredIdentity(
+                binding_id="dummy.weighted-sum",
                 implementation="dummy.weighted-sum.v2",
+                contract_version=1,
                 configuration=first,
                 assets=(),
-            ),
-            declaration.binding_revision(
+            ).revision,
+            ConfiguredIdentity(
+                binding_id="dummy.weighted-sum",
                 implementation="dummy.weighted-sum.v2",
+                contract_version=1,
                 configuration=second,
                 assets=(),
-            ),
+            ).revision,
         )
 
     def test_absent_and_explicit_empty_configuration_are_distinct(self):
-        @dataclass(frozen=True, slots=True, kw_only=True)
-        class EmptyConfiguration:
-            pass
-
         explicit_empty = declaration.json_configuration(
             EmptyConfiguration(),
             format_id="test.empty.v1",
         )
 
         self.assertNotEqual(
-            declaration.binding_revision(
+            ConfiguredIdentity(
+                binding_id="test.implementation",
                 implementation="test.implementation.v1",
+                contract_version=1,
                 configuration=None,
                 assets=(),
-            ),
-            declaration.binding_revision(
+            ).revision,
+            ConfiguredIdentity(
+                binding_id="test.implementation",
                 implementation="test.implementation.v1",
+                contract_version=1,
                 configuration=explicit_empty,
                 assets=(),
-            ),
+            ).revision,
         )
+
+    def test_revision_covers_complete_configuration_and_asset_descriptions(self):
+        configuration = declaration.json_configuration(
+            science.WeightedSumSettings(scale=2, offset=1),
+            format_id="dummy.settings.v1",
+        )
+        asset = declaration.json_asset(
+            science.CoefficientSet(values=(1, 2, 3)),
+            name="coefficients",
+            format_id="dummy.coefficients.v1",
+            media_type="application/json",
+        )
+        identity = ConfiguredIdentity(
+            binding_id="dummy.weighted-sum",
+            implementation="dummy.weighted-sum.v2",
+            contract_version=1,
+            configuration=configuration,
+            assets=(asset,),
+        )
+        variants = {
+            "configuration format": replace(
+                identity,
+                configuration=replace(configuration, format="dummy.settings.v2"),
+            ),
+            "asset name": replace(identity, assets=(replace(asset, name="weights"),)),
+            "asset media type": replace(
+                identity, assets=(replace(asset, media_type="application/octet-stream"),),
+            ),
+            "asset byte count": replace(
+                identity, assets=(replace(asset, size_bytes=asset.size_bytes + 1),),
+            ),
+            "contract version": replace(identity, contract_version=2),
+        }
+        for label, changed in variants.items():
+            with self.subTest(changed=label):
+                self.assertNotEqual(identity.revision, changed.revision)
+        self.assertRegex(identity.revision, r"\Aconfigured-v2:sha256:[0-9a-f]{64}\Z")
+        self.assertRegex(configuration.digest, r"\Asha256:[0-9a-f]{64}\Z")
+        self.assertRegex(asset.digest, r"\Asha256:[0-9a-f]{64}\Z")
+        self.assertEqual(configuration.digest, variants["configuration format"].configuration.digest)
+        for label in ("asset name", "asset media type", "asset byte count"):
+            self.assertEqual(asset.digest, variants[label].assets[0].digest)
+
+    def test_legacy_call_revision_remains_distinct_from_configured_revision(self):
+        current = sum_binding().identity.revision
+        legacy = "sha256:" + current.removeprefix("configured-v2:sha256:")
+        old_reference = CallRef("dummy.sum", legacy, "run")
+        new_reference = CallRef("dummy.sum", current, "run")
+
+        self.assertEqual(legacy, old_reference.binding_revision)
+        self.assertEqual(current, new_reference.binding_revision)
+        self.assertNotEqual(old_reference, new_reference)
 
 
 if __name__ == "__main__":

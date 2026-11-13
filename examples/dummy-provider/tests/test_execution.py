@@ -11,7 +11,7 @@ import unittest
 
 from dummy_provider import science
 from dummy_provider.binding import create_weighted_sum_binding
-from provider_core.contribution import CallRef, NoInput, ProgressEvent
+from provider_core.contribution import NoInput, ProgressEvent, ref
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
     ExecutionLimits,
@@ -82,7 +82,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             allocation_names=("weighted",),
         )
         (reservation,) = analysis.reservations
-        (prepare_call, calculate_call) = weighted_binding.calls
+        prepare_call, calculate_call = weighted_binding.prepare, weighted_binding.calculate
 
         execution_limits = ExecutionLimits(
             queue_seconds=5,
@@ -96,11 +96,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             return analysis.submit(
                 Invocation(
                     operation_id=operation_id,
-                    target=CallRef(
-                        binding_id=weighted_binding.description.binding_id,
-                        binding_revision=weighted_binding.description.binding_revision,
-                        name=scientific_call.description.name,
-                    ),
+                    target=ref(scientific_call),
                     payload=payload,
                     states=states,
                     reservation=reservation,
@@ -121,6 +117,12 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
         preparation_observation = await self.assert_succeeded(preparation_operation)
         self.assertEqual(1, len(preparation_observation.states))
+        self.assertEqual("normalized", preparation_observation.states[0].name)
+        prepared = await weighted_binding.prepared_output.reference(
+            prepare_call, preparation_operation,
+        )
+        calculation_state = weighted_binding.prepared_input.bind(prepared)
+        self.assertEqual("candidate", calculation_state.name)
         self.assertIs(ResultState.AVAILABLE, preparation_observation.result_state)
         self.assertIsNotNone(preparation_observation.result)
 
@@ -142,7 +144,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             scientific_call=calculate_call,
             operation_id="calculate",
             payload=calculate_call.input_codec.encode(NoInput()),
-            states=preparation_observation.states,
+            states=(calculation_state,),
         )
         self.assertNotIsInstance(calculation_operation, NotAdmitted)
 

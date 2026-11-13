@@ -103,7 +103,7 @@ class Allocation:
         if not (
             type(self.name) is str
             and 0 < len(self.name) <= 160
-            and type(self.binding) is ImplementationBinding
+            and isinstance(self.binding, ImplementationBinding)
             and type(self.grants) is tuple
             and all(type(grant) is ResourceGrant for grant in self.grants)
         ):

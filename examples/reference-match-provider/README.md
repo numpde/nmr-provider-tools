@@ -5,6 +5,12 @@ across independent analyses** in [the end-state boundary](../../notes/066_provid
 It complements the dummy's prepared-state flow and the spectrum provider's
 portable result transfer.
 
+The provider-owned frozen `ReferenceBinding` exposes its typed `match` member.
+`ref(binding.match)` derives the configured call reference. `create_binding()`
+is ordinary provider assembly code; the SDK does not discover it or prescribe
+its name or signature. Configuration and reference metadata have one owner,
+`ConfiguredIdentity`, using the explicitly versioned configured-v2 revision.
+
 ```text
 src/reference_provider/
 ├── science.py       immutable reference data, inverted index and direct query

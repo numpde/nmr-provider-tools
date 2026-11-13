@@ -44,8 +44,8 @@ def _identity(value, label):
 
 
 def _digest(value, label):
-    if type(value) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}\Z", value) is None:
-        raise ValueError(f"{label} must be a lowercase sha256:<64 hex characters> digest")
+    if type(value) is not str or re.fullmatch(r"(?:sha256:|configured-v2:sha256:)[0-9a-f]{64}\Z", value) is None:
+        raise ValueError(f"{label} must be a lowercase sha256 or configured-v2:sha256 digest")
 
 
 @dataclass(frozen=True, slots=True)
@@ -179,6 +179,7 @@ class StateRef:
     binding_revision: str
     state_id: str
     kind: str
+    producer: OperationRef
 
     def __post_init__(self):
         _identity(self.host, "Host identity")
@@ -188,6 +189,8 @@ class StateRef:
         _digest(self.binding_revision, "Binding revision")
         _identity(self.state_id, "State identity")
         _identity(self.kind, "Scientific state kind")
+        if type(self.producer) is not OperationRef or (self.producer.host, self.producer.analysis) != (self.host, self.analysis):
+            raise ValueError("State producer must belong to the same host and analysis")
 
 
 @dataclass(frozen=True, slots=True)
@@ -210,6 +213,19 @@ class StateArgument:
         _identity(self.name, "State argument name")
         if type(self.reference) is not StateRef:
             raise TypeError("State argument requires a StateRef")
+
+
+@dataclass(frozen=True, slots=True)
+class StateResult:
+    """A named producer output; its name does not name a consumer input."""
+
+    name: str
+    reference: StateRef
+
+    def __post_init__(self):
+        _identity(self.name, "State output name")
+        if type(self.reference) is not StateRef:
+            raise TypeError("State output requires a StateRef")
 
 
 @dataclass(frozen=True, slots=True)
@@ -333,6 +349,8 @@ class Failure:
 
 @dataclass(frozen=True, slots=True)
 class Observation:
+    operation: OperationRef
+    target: CallRef
     revision: int
     acceptance: AcceptanceState
     dispatch: DispatchState
@@ -340,7 +358,7 @@ class Observation:
     outcome: Outcome | None
     result_state: ResultState
     result: ResultRef | None
-    states: tuple[StateArgument, ...]
+    states: tuple[StateResult, ...]
     progress: tuple[ProgressEvent, ...]
     progress_dropped: int
     failures: tuple[Failure, ...]

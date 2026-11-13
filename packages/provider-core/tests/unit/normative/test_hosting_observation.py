@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock
 
 from provider_core.hosting import (
     AcceptanceState,
+    CallRef,
     CleanupObservation,
     DispatchState,
     Failure,
@@ -28,6 +29,8 @@ from provider_core.hosting import (
 
 def pending_operation():
     return Observation(
+        operation=OperationRef(host="host", analysis="analysis", operation_id="calculation"),
+        target=CallRef(binding_id="binding", binding_revision="sha256:" + "a" * 64, name="run"),
         revision=4,
         acceptance=AcceptanceState.OWNED,
         dispatch=DispatchState.STARTED,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from importlib.resources import files
 import tomllib
 
@@ -11,10 +12,27 @@ import provider_core.contribution_declaration as declaration
 from . import science
 
 
-def create_bindings() -> tuple[
-    contribution.ImplementationBinding[None, None],
-    contribution.ImplementationBinding[None, None],
-]:
+@dataclass(frozen=True, slots=True, kw_only=True)
+class BaselineBinding(contribution.ImplementationBinding[None, None]):
+    run: contribution.CallBinding[
+        science.Spectrum, contribution.NoState, science.Spectrum,
+    ]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class PeakBinding(contribution.ImplementationBinding[None, None]):
+    run: contribution.CallBinding[
+        science.Spectrum, contribution.NoState, science.PeakReport,
+    ]
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SpectrumBindings:
+    baseline: BaselineBinding
+    peaks: PeakBinding
+
+
+def create_bindings() -> SpectrumBindings:
     """Capture immutable deployment settings in independent stateless bindings.
 
     This provider-owned assembly helper is invoked explicitly by startup code
@@ -36,45 +54,31 @@ def create_bindings() -> tuple[
         media_type="application/vnd.nmr-provider-tools.spectrum-resources+json",
     )
 
-    def baseline(
-        *,
-        scientific_input: science.Spectrum,
-    ) -> contribution.ScientificReturn[science.Spectrum]:
-        return contribution.ScientificReturn(
-            value=science.subtract_baseline(scientific_input, baseline_settings),
-        )
+    def baseline(scientific_input: science.Spectrum) -> science.Spectrum:
+        return science.subtract_baseline(scientific_input, baseline_settings)
 
-    def peaks(
-        *,
-        scientific_input: science.Spectrum,
-    ) -> contribution.ScientificReturn[science.PeakReport]:
-        return contribution.ScientificReturn(
-            value=science.detect_peaks(scientific_input, peak_settings),
-        )
+    def peaks(scientific_input: science.Spectrum) -> science.PeakReport:
+        return science.detect_peaks(scientific_input, peak_settings)
 
-    baseline_call = contribution.CallBinding.from_json_dataclasses(
+    baseline_call = contribution.CallBinding.from_function(
         name="run",
+        input_type=science.Spectrum,
+        result_type=science.Spectrum,
         input_format=spectrum_format,
         result_format=spectrum_format,
-        state_inputs=(),
-        state_outputs=(),
         resources=(requirement,),
         concurrency=contribution.ConcurrencyRequirement.PARALLEL,
-        interruption=contribution.InterruptionSupport.NONE,
-        progress=False,
-        scientific_call=baseline,
+        function=baseline,
     )
-    peak_call = contribution.CallBinding.from_json_dataclasses(
+    peak_call = contribution.CallBinding.from_function(
         name="run",
+        input_type=science.Spectrum,
+        result_type=science.PeakReport,
         input_format=spectrum_format,
         result_format="spectrum.peaks.v1",
-        state_inputs=(),
-        state_outputs=(),
         resources=(requirement,),
         concurrency=contribution.ConcurrencyRequirement.PARALLEL,
-        interruption=contribution.InterruptionSupport.NONE,
-        progress=False,
-        scientific_call=peaks,
+        function=peaks,
     )
     baseline_configuration = declaration.json_configuration(
         baseline_settings,
@@ -86,36 +90,32 @@ def create_bindings() -> tuple[
     )
     assets = (resource_asset,)
 
-    baseline_binding = contribution.ImplementationBinding.from_calls(
-        binding_id="spectrum.baseline",
-        binding_revision=declaration.binding_revision(
+    baseline_binding = BaselineBinding(
+        identity=contribution.ConfiguredIdentity(
+            binding_id="spectrum.baseline",
             implementation="spectrum.baseline.v1",
+            contract_version=1,
             configuration=baseline_configuration,
             assets=assets,
         ),
-        contract_version=1,
-        configuration=baseline_configuration,
-        assets=assets,
-        calls=(baseline_call,),
+        run=baseline_call,
         resident_resources=(),
         isolation=contribution.IsolationRequirement.SHARED_PROCESS,
         instance=None,
         analysis=None,
     )
-    peak_binding = contribution.ImplementationBinding.from_calls(
-        binding_id="spectrum.peaks",
-        binding_revision=declaration.binding_revision(
+    peak_binding = PeakBinding(
+        identity=contribution.ConfiguredIdentity(
+            binding_id="spectrum.peaks",
             implementation="spectrum.peaks.v1",
+            contract_version=1,
             configuration=peak_configuration,
             assets=assets,
         ),
-        contract_version=1,
-        configuration=peak_configuration,
-        assets=assets,
-        calls=(peak_call,),
+        run=peak_call,
         resident_resources=(),
         isolation=contribution.IsolationRequirement.SHARED_PROCESS,
         instance=None,
         analysis=None,
     )
-    return (baseline_binding, peak_binding)
+    return SpectrumBindings(baseline=baseline_binding, peaks=peak_binding)

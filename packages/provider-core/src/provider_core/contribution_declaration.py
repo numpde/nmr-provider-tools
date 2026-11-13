@@ -30,22 +30,6 @@ def _json_dataclass_bytes[T](
     return codec.format, codec.encode(value)
 
 
-def _revision_digest(parts: tuple[str, ...]) -> str:
-    digest = hashlib.sha256()
-
-    for (index, part) in enumerate(parts):
-        if type(part) is not str:
-            raise TypeError(f"revision part {index} must be a string")
-        try:
-            encoded_part = part.encode("ascii")
-        except UnicodeEncodeError as error:
-            raise ValueError(f"revision part {index} must be ASCII") from error
-        digest.update(len(encoded_part).to_bytes(8, "big"))
-        digest.update(encoded_part)
-
-    return "sha256:" + digest.hexdigest()
-
-
 def json_configuration[T](
     value: T,
     *,
@@ -80,45 +64,3 @@ def json_asset[T](
         digest=_sha256_digest(encoded_value),
         size_bytes=len(encoded_value),
     )
-
-
-def binding_revision(
-    *,
-    implementation: str,
-    configuration: ConfigurationDescription | None,
-    assets: tuple[AssetDescription, ...],
-) -> str:
-    """Derive a configured binding revision from code, configuration and assets."""
-    if not (
-        type(implementation) is str
-        and implementation
-        and implementation.isascii()
-        and all(
-            character.isprintable() and not character.isspace()
-            for character in implementation
-        )
-    ):
-        raise ValueError(
-            "implementation must be a nonempty ASCII identity without whitespace"
-        )
-    if (
-        configuration is not None
-        and type(configuration) is not ConfigurationDescription
-    ):
-        raise TypeError(
-            "configuration must be a ConfigurationDescription or None"
-        )
-    if not (
-        type(assets) is tuple
-        and all(type(asset) is AssetDescription for asset in assets)
-    ):
-        raise TypeError("assets must be a tuple of AssetDescription records")
-
-    # silent-defaults: allow-contract -- A missing configuration needs a distinct revision identity from every configured document digest.
-    configuration_identity = "configuration:none" if configuration is None else configuration.digest
-    revision_parts = (
-        implementation,
-        configuration_identity,
-        *(asset.digest for asset in assets),
-    )
-    return _revision_digest(revision_parts)

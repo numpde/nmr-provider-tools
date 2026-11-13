@@ -22,7 +22,11 @@ handles, execution backend or report publisher. `create_bindings()` explicitly
 loads packaged settings and creates two independent stateless registrations:
 `spectrum.baseline/run` and `spectrum.peaks/run`. Configuration is immutable and
 contributes to each registration's revision. Neither call needs an artificial
-model instance or per-analysis scientific state.
+model instance or per-analysis scientific state. The helper returns an ordinary
+`SpectrumBindings` record: use `bindings.baseline.run` and `bindings.peaks.run`.
+Each registration is a provider-owned frozen dataclass with a typed call field;
+`ref(bindings.baseline.run)` derives its configured wire reference. The helper's
+name and signature have no special SDK meaning.
 
 `PeakWorkflow` chooses the scientific sequence using only the public execution
 contract. It does not import scientific types, codecs or the local backend.

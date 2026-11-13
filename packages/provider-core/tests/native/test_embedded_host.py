@@ -6,11 +6,13 @@ import asyncio
 import threading
 import unittest
 from dataclasses import dataclass, replace
-from functools import wraps
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 from provider_core.contribution import (
     AnalysisHooks,
     CallBinding,
+    CallContext,
     CallRef,
     ConcurrencyRequirement,
     ImplementationBinding,
@@ -23,6 +25,7 @@ from provider_core.contribution import (
     ScientificControl,
     ScientificReturn,
     description_document,
+    ref,
 )
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
@@ -35,6 +38,7 @@ from provider_core.hosting import (
     ResourceGrant,
     ResultRef,
     ResultState,
+    StateArgument,
 )
 from provider_core.payload import PayloadCodec
 from tests.fakes.dummy_provider import science
@@ -260,7 +264,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             "combined",
             allocation_names=("weighted", "sum"),
         )
-        (prepare_call, calculate_call) = weighted.calls
+        prepare_call, calculate_call = weighted.prepare, weighted.calculate
         preparation, _ = await self.success(
             analysis.submit(
                 _invocation(
@@ -282,7 +286,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     operation_id="calculate",
                     call_name="calculate",
                     payload=b"{}",
-                    states=preparation.states,
+                    states=(StateArgument("candidate", preparation.states[0].reference),),
                 ),
                 dispatch_guard=_allow,
             ),
@@ -298,7 +302,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             calculation.progress,
         )
 
-        sum_call = ordinary.calls[0]
+        sum_call = ordinary.run
         _, ordinary_result = await self.success(
             analysis.submit(
                 _invocation(
@@ -316,15 +320,14 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_permission_and_operation_identity_prevent_unowned_replay(self):
         original = sum_binding()
-        original_call = original.calls[0]
+        original_call = original.run
         entered = {"decode": 0, "invoke": 0}
 
-        @wraps(original_call.scientific_call)
-        def scientific_call(*, scientific_input):
+        def scientific_call(
+            context: CallContext[None, None, science.SumInput, NoState],
+        ) -> ScientificReturn[science.SumResult]:
             entered["invoke"] += 1
-            return original_call.scientific_call(
-                scientific_input=scientific_input,
-            )
+            return original_call.scientific_call(context)
 
         wrapped_call = replace(
             original_call,
@@ -334,7 +337,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             ),
             scientific_call=scientific_call,
         )
-        binding = replace(original, calls=(wrapped_call,))
+        binding = replace(original, run=wrapped_call)
         host = self.host({"one": binding, "two": binding})
         analysis = host.open_analysis("permission", allocation_names=("one",))
         permitted = True
@@ -393,7 +396,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
         first = host.open_analysis("first", allocation_names=("one",))
         second = host.open_analysis("second", allocation_names=("two",))
-        (prepare_call, calculate_call) = binding.calls
+        prepare_call, calculate_call = binding.prepare, binding.calculate
 
         rejected = await self.finished(
             first.submit(
@@ -429,7 +432,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 operation_id="foreign",
                 call_name="calculate",
                 payload=b"{}",
-                states=accepted.states,
+                states=(StateArgument("candidate", accepted.states[0].reference),),
             ),
             dispatch_guard=_allow,
         )
@@ -443,7 +446,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     operation_id="calculate",
                     call_name="calculate",
                     payload=b"{}",
-                    states=accepted.states,
+                    states=(StateArgument("candidate", accepted.states[0].reference),),
                 ),
                 dispatch_guard=_allow,
             ),
@@ -458,16 +461,184 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     operation_id="reuse",
                     call_name="calculate",
                     payload=b"{}",
-                    states=accepted.states,
+                    states=(StateArgument("candidate", accepted.states[0].reference),),
                 ),
                 dispatch_guard=_allow,
             ),
             NotAdmitted,
         )
 
+    async def test_typed_projection_checks_producer_correlation_before_consumption(self):
+        binding = weighted_sum_binding(
+            settings=science.WeightedSumSettings(scale=1, offset=0),
+            coefficients=science.CoefficientSet(values=(2, 3)),
+        )
+        host = self.host({"weighted": binding})
+        analysis = host.open_analysis("typed-state", allocation_names=("weighted",))
+        operation = analysis.submit(
+            _invocation(
+                analysis, binding, operation_id="prepare", call_name="prepare",
+                payload=b'{"values":[1,2]}',
+            ),
+            dispatch_guard=_allow,
+        )
+        observed, _ = await self.success(operation, binding.prepare.result_codec)
+        slot = binding.prepared_output
+
+        with self.assertRaisesRegex(ValueError, "not declared by this exact call"):
+            await slot.reference(binding.calculate, operation)
+
+        changed_identity = replace(binding.identity, implementation="dummy.weighted-sum.v3")
+        other_operation = replace(operation.reference, operation_id="another-prepare")
+        mismatches = (
+            (
+                "call", operation.reference,
+                replace(observed, target=ref(binding.calculate)),
+                "another producer call or configured revision",
+            ),
+            (
+                "revision", operation.reference,
+                replace(observed, target=replace(observed.target, binding_revision=changed_identity.revision)),
+                "another producer call or configured revision",
+            ),
+            (
+                "operation observation", other_operation, observed,
+                "another producer operation",
+            ),
+            (
+                "same call swapped state", other_operation,
+                replace(observed, operation=other_operation),
+                "provenance differs from its producer observation",
+            ),
+        )
+        for label, reference, observation, message in mismatches:
+            with self.subTest(mismatch=label):
+                view = SimpleNamespace(
+                    reference=reference,
+                    observe=AsyncMock(return_value=observation),
+                )
+                with self.assertRaisesRegex(ValueError, message):
+                    await slot.reference(binding.prepare, view)
+
+        handle = await slot.reference(binding.prepare, operation)
+        self.assertEqual(operation.reference, handle.producer)
+        self.assertEqual("normalized", observed.states[0].name)
+        argument = binding.prepared_input.bind(handle)
+        self.assertEqual("candidate", argument.name)
+        _, result = await self.success(
+            analysis.submit(
+                _invocation(
+                    analysis, binding, operation_id="calculate", call_name="calculate",
+                    payload=b"{}", states=(argument,),
+                ),
+                dispatch_guard=_allow,
+            ),
+            binding.calculate.result_codec,
+        )
+        self.assertEqual(science.PredictionResult(total=8, count=2), result)
+
+    async def test_denied_consumer_dispatch_preserves_the_original_typed_state(self):
+        binding = weighted_sum_binding(
+            settings=science.WeightedSumSettings(scale=1, offset=0),
+            coefficients=science.CoefficientSet(values=(2, 3)),
+        )
+        host = self.host({"weighted": binding})
+        analysis = host.open_analysis("denied-consume", allocation_names=("weighted",))
+        producer = analysis.submit(
+            _invocation(
+                analysis, binding, operation_id="prepare", call_name="prepare",
+                payload=b'{"values":[1,2]}',
+            ),
+            dispatch_guard=_allow,
+        )
+        await self.success(producer, binding.prepare.result_codec)
+        handle = await binding.prepared_output.reference(binding.prepare, producer)
+        argument = binding.prepared_input.bind(handle)
+        cause = PermissionError("The consumer's dispatch permission was withdrawn")
+
+        def deny():
+            raise cause
+
+        denied = await self.finished(analysis.submit(
+            _invocation(
+                analysis, binding, operation_id="denied", call_name="calculate",
+                payload=b"{}", states=(argument,),
+            ),
+            dispatch_guard=deny,
+        ))
+        self.assertIs(DispatchState.NOT_STARTED, denied.dispatch)
+        self.assertIsNone(denied.outcome)
+        self.assertTrue(any(failure.cause is cause for failure in denied.failures))
+        self.assertEqual(
+            handle,
+            await binding.prepared_output.reference(binding.prepare, producer),
+        )
+        _, result = await self.success(
+            analysis.submit(
+                _invocation(
+                    analysis, binding, operation_id="permitted", call_name="calculate",
+                    payload=b"{}", states=(binding.prepared_input.bind(handle),),
+                ),
+                dispatch_guard=_allow,
+            ),
+            binding.calculate.result_codec,
+        )
+        self.assertEqual(science.PredictionResult(total=8, count=2), result)
+
+    async def test_wrong_concrete_returned_state_is_owned_and_projection_preserves_failure(self):
+        original = weighted_sum_binding(
+            settings=science.WeightedSumSettings(scale=1, offset=0),
+            coefficients=science.CoefficientSet(values=(2, 3)),
+        )
+        invalid_value = object()
+        disposed = []
+
+        def prepare(
+            context: CallContext[
+                science.WeightedSumModel, science.WeightedSumAnalysis,
+                science.PreparationInput, NoState,
+            ],
+        ) -> ScientificReturn[science.PreparationResult]:
+            malformed_state = replace(
+                original.prepared_output.returned(invalid_value), dispose=disposed.append,
+            )
+            return ScientificReturn(
+                value=science.PreparationResult(count=len(context.scientific_input.values)),
+                states=(malformed_state,),
+            )
+
+        binding = replace(
+            original, prepare=replace(original.prepare, scientific_call=prepare),
+        )
+        host = self.host({"weighted": binding})
+        analysis = host.open_analysis("malformed-state", allocation_names=("weighted",))
+        operation = analysis.submit(
+            _invocation(
+                analysis, binding, operation_id="prepare", call_name="prepare",
+                payload=b'{"values":[1,2]}',
+            ),
+            dispatch_guard=_allow,
+        )
+        observed = await self.finished(operation)
+        adoption_failure = next(
+            failure.cause for failure in observed.failures
+            if failure.phase == "state_adoption"
+        )
+        self.assertIsInstance(adoption_failure, ExceptionGroup)
+        self.assertTrue(any(isinstance(cause, TypeError) for cause in adoption_failure.exceptions))
+        self.assertEqual(1, len(observed.states))
+        self.assertEqual("normalized", observed.states[0].name)
+        self.assertEqual([], disposed)
+        with self.assertRaises(ExceptionGroup) as raised:
+            await binding.prepared_output.reference(binding.prepare, operation)
+        self.assertIs(adoption_failure, raised.exception)
+
+        await self.settled(analysis.close())
+        self.assertEqual([invalid_value], disposed)
+
     async def test_result_custody_survives_cleanup_and_encoding_failure(self):
         binding = sum_binding()
-        call = binding.calls[0]
+        call = binding.run
         host = self.host({"one": binding})
         analysis = host.open_analysis("result", allocation_names=("one",))
         operation = analysis.submit(
@@ -504,15 +675,14 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         original = sum_binding()
-        original_call = original.calls[0]
+        original_call = original.run
         retained = []
         disposed = []
 
-        @wraps(original_call.scientific_call)
-        def scientific_call(*, scientific_input):
-            returned = original_call.scientific_call(
-                scientific_input=scientific_input,
-            )
+        def scientific_call(
+            context: CallContext[None, None, science.SumInput, NoState],
+        ) -> ScientificReturn[science.SumResult]:
+            returned = original_call.scientific_call(context)
             retained.append(returned.value)
             return replace(returned, dispose_value=disposed.append)
 
@@ -524,7 +694,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 failure=ValueError("encoding failed"),
             ),
         )
-        failing_binding = replace(original, calls=(failing_call,))
+        failing_binding = replace(original, run=failing_call)
         host = self.host({"encoding": failing_binding})
         analysis = host.open_analysis("encoding", allocation_names=("encoding",))
         invocation = _invocation(
@@ -545,25 +715,24 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_independent_allocations_progress_and_retire_exact_threads(self):
         original = sum_binding()
-        original_call = original.calls[0]
+        original_call = original.run
         entered = asyncio.Event()
         release = threading.Event()
         loop = asyncio.get_running_loop()
         workers = {}
 
-        @wraps(original_call.scientific_call)
-        def scientific_call(*, scientific_input):
-            first_value = scientific_input.values[0]
+        def scientific_call(
+            context: CallContext[None, None, science.SumInput, NoState],
+        ) -> ScientificReturn[science.SumResult]:
+            first_value = context.scientific_input.values[0]
             workers[first_value] = threading.current_thread()
             if first_value == 1.0:
                 loop.call_soon_threadsafe(entered.set)
                 release.wait(10)
-            return original_call.scientific_call(
-                scientific_input=scientific_input,
-            )
+            return original_call.scientific_call(context)
 
         wrapped_call = replace(original_call, scientific_call=scientific_call)
-        binding = replace(original, calls=(wrapped_call,))
+        binding = replace(original, run=wrapped_call)
         host = self.host({"held": binding, "peer": binding})
         held_analysis = host.open_analysis("held", allocation_names=("held",))
         peer_analysis = host.open_analysis("peer", allocation_names=("peer",))
@@ -613,37 +782,15 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_backend_refuses_unenforceable_contracts_and_missing_grants(self):
         original = sum_binding()
-        unsupported_descriptions = (
-            replace(original.description, contract_version=2),
-            replace(
-                original.description,
-                isolation=IsolationRequirement.DEDICATED_PROCESS,
-            ),
-            replace(
-                original.description,
-                calls=(
-                    replace(
-                        original.description.calls[0],
-                        concurrency=ConcurrencyRequirement.PROCESS_SERIAL,
-                    ),
-                ),
-            ),
+        unsupported_bindings = (
+            replace(original, identity=replace(original.identity, contract_version=2)),
+            replace(original, isolation=IsolationRequirement.DEDICATED_PROCESS),
+            replace(original, run=replace(original.run, description=replace(
+                original.run.description, concurrency=ConcurrencyRequirement.PROCESS_SERIAL,
+            ))),
         )
 
-        for (index, description) in enumerate(unsupported_descriptions):
-            calls = original.calls
-            if description.calls != original.description.calls:
-                calls = (
-                    replace(
-                        original.calls[0],
-                        description=description.calls[0],
-                    ),
-                )
-            unsupported_binding = replace(
-                original,
-                description=description,
-                calls=calls,
-            )
+        for index, unsupported_binding in enumerate(unsupported_bindings):
             with self.subTest(index=index), self.assertRaises(ValueError):
                 Allocation(
                     name=f"unsupported-{index}",
@@ -660,10 +807,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
         resident_binding = replace(
             original,
-            description=replace(
-                original.description,
-                resident_resources=(resident_requirement,),
-            ),
+            resident_resources=(resident_requirement,),
         )
         with self.assertRaises(ValueError):
             Allocation(
@@ -778,7 +922,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cooperative_stop_is_narrow_and_observable(self):
         original = sum_binding()
-        original_call = original.calls[0]
+        original_call = original.run
         description = replace(
             original_call.description,
             interruption=InterruptionSupport.COOPERATIVE,
@@ -788,10 +932,9 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         loop = asyncio.get_running_loop()
 
         def scientific_call(
-            *,
-            scientific_input: science.SumInput,
-            control: ScientificControl,
+            context: CallContext[None, None, science.SumInput, NoState],
         ) -> ScientificReturn[science.SumResult]:
+            control = context.require_control()
             loop.call_soon_threadsafe(entered.set)
             while not control.stop_requested:
                 pass
@@ -799,7 +942,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             return ScientificReturn(
                 value=science.SumResult(
                     total=0,
-                    count=len(scientific_input.values),
+                    count=len(context.scientific_input.values),
                 ),
             )
 
@@ -810,12 +953,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             scientific_call=scientific_call,
             result_codec=original_call.result_codec,
         )
-        binding = ImplementationBinding(
-            description=replace(original.description, calls=(description,)),
-            instance=None,
-            analysis=None,
-            calls=(cooperative_call,),
-        )
+        binding = replace(original, run=cooperative_call)
         host = self.host({"one": binding})
         analysis = host.open_analysis("cooperative", allocation_names=("one",))
         operation = analysis.submit(

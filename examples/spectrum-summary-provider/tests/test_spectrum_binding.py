@@ -28,11 +28,14 @@ class SpectrumBindingTests(unittest.TestCase):
                 self.assertIn(f"spectrum_provider/{name}", {str(path) for path in distribution.files})
 
     def test_independent_bindings_share_the_typed_spectrum_format(self) -> None:
-        baseline, peaks = create_bindings()
-        baseline_call, = baseline.calls
-        peak_call, = peaks.calls
+        bindings = create_bindings()
+        baseline, peaks = bindings.baseline, bindings.peaks
+        baseline_call = baseline.run
+        peak_call = peaks.run
         self.assertEqual("spectrum.baseline", baseline.description.binding_id)
         self.assertEqual("spectrum.peaks", peaks.description.binding_id)
+        self.assertRegex(baseline.description.binding_revision, r"\Aconfigured-v2:sha256:[0-9a-f]{64}\Z")
+        self.assertRegex(peaks.description.binding_revision, r"\Aconfigured-v2:sha256:[0-9a-f]{64}\Z")
         self.assertEqual("run", baseline_call.description.name)
         self.assertEqual("run", peak_call.description.name)
         self.assertIs(science.Spectrum, baseline_call.input_codec.value_type)
@@ -51,18 +54,20 @@ class SpectrumBindingTests(unittest.TestCase):
         expected = contribution.ResourceRequirement(
             kind="cpu", amount=1, unit="thread", selector="generic", exclusive=False,
         )
-        for binding in create_bindings():
+        bindings = create_bindings()
+        for binding in (bindings.baseline, bindings.peaks):
             with self.subTest(binding=binding.description.binding_id):
                 self.assertIsNone(binding.instance)
                 self.assertIsNone(binding.analysis)
                 self.assertEqual((), binding.description.resident_resources)
-                call, = binding.calls
+                call = binding.run
                 self.assertEqual((expected,), call.description.resources)
                 self.assertEqual((), call.description.state_inputs)
                 self.assertEqual((), call.description.state_outputs)
 
     def test_settings_revisions_follow_the_affected_implementation(self) -> None:
-        original_baseline, original_peaks = create_bindings()
+        original = create_bindings()
+        original_baseline, original_peaks = original.baseline, original.peaks
         package = resources.files("spectrum_provider")
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -73,17 +78,20 @@ class SpectrumBindingTests(unittest.TestCase):
             configured = "[baseline]\nbaseline = 2.0\n[peaks]\nminimum_height = 2.0\n"
             root.joinpath("settings.toml").write_text(configured, encoding="utf-8")
             with patch("spectrum_provider.binding.files", return_value=root):
-                changed_baseline, same_peaks = create_bindings()
+                changed = create_bindings()
+                changed_baseline, same_peaks = changed.baseline, changed.peaks
                 root.joinpath("settings.toml").write_text(
                     "# Formatting does not change scientific settings\n" + configured,
                     encoding="utf-8",
                 )
-                reformatted_baseline, reformatted_peaks = create_bindings()
+                reformatted = create_bindings()
+                reformatted_baseline, reformatted_peaks = reformatted.baseline, reformatted.peaks
                 root.joinpath("settings.toml").write_text(
                     "[baseline]\nbaseline = 2.0\n[peaks]\nminimum_height = 4.0\n",
                     encoding="utf-8",
                 )
-                same_baseline, changed_peaks = create_bindings()
+                changed_peak_settings = create_bindings()
+                same_baseline, changed_peaks = changed_peak_settings.baseline, changed_peak_settings.peaks
 
         self.assertNotEqual(original_baseline.description.binding_revision, changed_baseline.description.binding_revision)
         self.assertEqual(original_peaks.description.binding_revision, same_peaks.description.binding_revision)
@@ -93,10 +101,14 @@ class SpectrumBindingTests(unittest.TestCase):
         self.assertNotEqual(same_peaks.description.binding_revision, changed_peaks.description.binding_revision)
 
         sample = science.Spectrum(positions=(0, 1, 2), intensities=(1, 4, 1))
-        original_call, = original_baseline.calls
-        changed_call, = changed_baseline.calls
-        self.assertEqual((0, 3, 0), original_call.scientific_call(scientific_input=sample).value.intensities)
-        self.assertEqual((-1, 2, -1), changed_call.scientific_call(scientific_input=sample).value.intensities)
+        original_call = original_baseline.run
+        changed_call = changed_baseline.run
+        context = contribution.CallContext(
+            instance=None, analysis=None, scientific_input=sample,
+            state=contribution.NoState(), control=None,
+        )
+        self.assertEqual((0, 3, 0), original_call.scientific_call(context).value.intensities)
+        self.assertEqual((-1, 2, -1), changed_call.scientific_call(context).value.intensities)
 
 
 if __name__ == "__main__":

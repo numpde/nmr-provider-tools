@@ -1,0 +1,106 @@
+Typed provider API end-state
+============================
+
+Status: implemented with installed runtime qualification; no release/deployment.
+066 owns the execution/lifecycle boundary. This note records its Python-facing
+representation and the explicit configured-identity migration.
+
+One named authority
+-------------------
+Providers define ordinary frozen dataclass subclasses of ImplementationBinding.
+Each scientific call is an actual annotated CallBinding[Input, State, Output]
+field, such as binding.prepare or binding.match. SDK construction derives its
+private heterogeneous dispatch inventory from those fields once, rejecting
+missing/wrongly typed call values, duplicates and codec/type disagreement.
+There is no public positional call inventory, __getattr__ lookup, descriptor DSL
+or separately maintained registry. Provider helper factories remain optional.
+
+Construction clones declarations and anchors each member to the exact binding
+object. ref(binding.match) projects its existing data-only CallRef. An unbound
+declaration cannot produce a reference; binding.ref(member) rejects siblings
+even if their configuration metadata are structurally equal. Private owner
+anchors do not enter representation or dataclass equality.
+
+Typed scientific calls
+----------------------
+A context adapter accepts one CallContext[Instance, Analysis, Input, State]
+and returns ScientificReturn[Output]. Its parameter spelling/order has no
+protocol meaning. Only scientific values appear in the context: no Jobs,
+credentials, scheduler, reservation or pool administration. Control is None
+unless progress or cooperative stopping was declared. Plain unary calculations
+have a constructor that boxes their return and introduces no model/state/control
+requirements. Context lifecycle types are validated against actual hooks at
+construction; public input/state/result types remain linked to their codecs.
+
+State ports and provenance
+--------------------------
+Producer outputs and consumer inputs are distinct typed slots. One StateKind[T]
+owns the scientific kind and Python type; an output owns its name/disposer, and
+an input owns its independent name and BORROW/CONSUME use. Returning via the
+output slot does not repeat its metadata. Binding a typed handle to an input
+does not consume state or grant permission.
+
+StateResult names an output; StateArgument names an input. Observation carries
+its actual operation and target, and host-minted StateRef carries its producer.
+Typed output projection observes the retained Operation and compares exact
+producer/call/revision identities. These are correlation records, not security
+credentials: live host/analysis/allocation/kind/claim checks remain authoritative.
+All returned objects enter host custody before type/contract validation or
+encoding can fail. Alias-transfer, disposal and guarded consumption timing stay
+unchanged. Stateful bindings own their input metadata and concrete types; one
+kind cannot mean different Python classes within a configured implementation.
+The host checks actual live types before claiming state. A rejected guard leaves state available; admitted consumption does
+not become retry permission after a failure or uncertain result.
+
+One configured identity; explicit migration
+------------------------------------------
+ConfiguredIdentity owns implementation assertion, configuration and asset
+descriptions and derives revision once. Provider assembly uses the same frozen
+scientific settings/assets in its callbacks and constructors. SDK metadata does
+not prove arbitrary Python closure purity, hash source code automatically or
+authorize scientific retries.
+
+The configured-v2:sha256:<digest> scheme hashes a canonical v2 document including
+contract version, configuration format/digest and each ordered asset's complete
+name/media-type/digest/size description. This intentionally changes revisions
+relative to the previous content-hash-only scheme. Content digests remain sha256.
+Legacy sha256-only reference syntax remains parseable with its original meaning;
+no converter, alias, reattachment, silent equality or replay is introduced.
+
+Use v2 only for fresh configured bindings/hosts. Running immutable allocations
+and their operation/result/retirement owners remain untouched. Drain those
+owners under their original revisions before replacement; never manufacture new
+reservations/state references for old work. EmbeddedHost has no supported hot
+binding replacement or persistent restart recovery. This source change does
+not migrate, publish or deploy any of the four real provider repositories.
+
+Qualification obligations
+-------------------------
+Exercise named members and shared declarations across configurations; missing
+members, foreign owners, wrong codecs and control absence; different producer
+and consumer slot names; wrong concrete output with retained disposal; exact
+producer-operation mismatch and swapped live state; foreign allocation/analysis/
+revision, duplicate and consumed refs; guarded refusal followed by state reuse;
+settings/source changes without mutating existing bindings; complete semantic
+identity changes; original operation idempotency and interrupted result delivery.
+The dummy's normalized/candidate names deliberately demonstrate independent
+ports under fresh configured-v2 identities; they do not rename any active legacy
+host's ports. Provider-owned slot convenience fields must reference the same
+slots used to assemble the calls; the SDK does not interpret arbitrary helper
+fields as a second port registry.
+
+All three examples use installed candidate wheels; existing lifecycle checks
+retain their scientific and ownership assertions. Static typing claims require
+a real checker, not runtime assert_type or casts presented as evidence.
+
+Qualification recorded on 2026-11-13
+-----------------------------------
+Maintained science-context lanes: 852 unit tests; 337 installed integration tests
+including all three separately built examples; 15 package contract tests; 225
+repository quality checks. The aggregate unit invocation's native phase found a
+missing runtime-checkable protocol decorator. After correcting it, a fresh
+maintained unit selection passed 10 observation tests and all 83 native tests,
+including the new member, identity, state-provenance and custody regressions.
+A final installed example selection passed two execution tests after that fix.
+No static checker was installed/run; runtime qualification is not evidence of
+complete static type correctness. No repository rule was weakened or removed.

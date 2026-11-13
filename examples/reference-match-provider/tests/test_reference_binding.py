@@ -11,6 +11,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+from provider_core.contribution import CallContext, NoState
 from reference_provider import science
 from reference_provider.binding import create_binding
 
@@ -27,8 +28,9 @@ class ReferenceBindingTests(unittest.TestCase):
 
     def test_one_typed_query_call_has_no_analysis_or_state_lifetime(self):
         binding = create_binding()
-        (call,) = binding.calls
+        call = binding.match
         self.assertEqual("reference.match", binding.description.binding_id)
+        self.assertRegex(binding.description.binding_revision, r"\Aconfigured-v2:sha256:[0-9a-f]{64}\Z")
         self.assertEqual("match", call.description.name)
         self.assertIs(science.VectorInput, call.input_codec.value_type)
         self.assertIs(science.MatchReport, call.result_codec.value_type)
@@ -46,8 +48,14 @@ class ReferenceBindingTests(unittest.TestCase):
             binding.instance.initialize(library)
             build.assert_called_once_with(library.references)
             index = library.loaded_index
-            (call,) = binding.calls
-            returned = call.scientific_call(instance=library, scientific_input=science.VectorInput(values=(3, 4, 0, 0)))
+            call = binding.match
+            returned = call.scientific_call(CallContext(
+                instance=library,
+                analysis=None,
+                scientific_input=science.VectorInput(values=(3, 4, 0, 0)),
+                state=NoState(),
+                control=None,
+            ))
             self.assertEqual("pattern-a", returned.value.label)
             self.assertAlmostEqual(1, returned.value.score)
             self.assertEqual((), returned.states)

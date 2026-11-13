@@ -17,7 +17,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from provider_core.contribution import CallRef
+from provider_core.contribution import ref
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
     CleanupObservation, DispatchState, ExecutionLimits, Failure, Invocation,
@@ -40,7 +40,8 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 await observe_cleanup(host.retire())
 
     def workflow(self, *, operation_records, bindings=None, guard=None):
-        baseline, peaks = create_bindings() if bindings is None else bindings
+        bindings = create_bindings() if bindings is None else bindings
+        baseline, peaks = bindings.baseline, bindings.peaks
         grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
         host = EmbeddedHost(
             (Allocation("baseline", baseline, grants), Allocation("peaks", peaks, grants)),
@@ -57,7 +58,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             queue_seconds=5, execution_seconds=10, cleanup_seconds=5,
             input_bytes=4096, result_bytes=4096,
         )
-        baseline_call, = baseline.calls
+        baseline_call = baseline.run
 
         def permitted():
             return None
@@ -66,18 +67,18 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             execution=analysis,
             baseline=Invocation(
                 operation_id="baseline",
-                target=CallRef(baseline.description.binding_id, baseline.description.binding_revision, "run"),
+                target=ref(baseline.run),
                 payload=baseline_call.input_codec.encode(
                     science.Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
                 ),
                 states=(), reservation=reservations["baseline"], limits=limits,
             ),
-            peaks=CallRef(peaks.description.binding_id, peaks.description.binding_revision, "run"),
+            peaks=ref(peaks.run),
             peak_reservation=reservations["peaks"], limits=limits,
             dispatch_guard=permitted if guard is None else guard,
         )
         self.assertNotIsInstance(workflow.start(), NotAdmitted)
-        return workflow, analysis, peaks.calls[0].result_codec
+        return workflow, analysis, peaks.run.result_codec
 
     async def test_result_survives_analysis_close_until_consumer_accepts(self):
         workflow, analysis, codec = self.workflow(operation_records=2)
@@ -327,8 +328,9 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(0, calculate.call_count)
 
     async def test_successful_science_with_failed_encoding_is_not_replayed(self):
-        baseline, peaks = create_bindings()
-        baseline_call, = baseline.calls
+        bindings = create_bindings()
+        baseline = bindings.baseline
+        baseline_call = baseline.run
         cause = OSError("Cannot encode the calculated spectrum")
 
         class BrokenCodec:
@@ -342,9 +344,12 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 return baseline_call.result_codec.decode(payload=payload)
 
         broken_call = replace(baseline_call, result_codec=BrokenCodec())
-        broken_binding = replace(baseline, calls=(broken_call,))
+        broken_binding = replace(baseline, run=broken_call)
         with patch("spectrum_provider.science.subtract_baseline", wraps=science.subtract_baseline) as calculate:
-            workflow, _, _ = self.workflow(operation_records=2, bindings=(broken_binding, peaks))
+            workflow, _, _ = self.workflow(
+                operation_records=2,
+                bindings=replace(bindings, baseline=broken_binding),
+            )
             async with asyncio.timeout(10):
                 completed = await workflow.finish()
                 repeated = await workflow.finish()

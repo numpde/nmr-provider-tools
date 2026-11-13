@@ -19,6 +19,15 @@ The weighted-sum binding holds a reusable model and per-analysis state. Its
 prepare call returns worker-local state that calculate consumes. The stateless
 sum binding uses the same interface for a single calculation.
 
+The configured frozen bindings expose typed members: `weighted.prepare`,
+`weighted.calculate` and `summation.run`. `ref(weighted.prepare)` derives its
+wire reference. The producer's `normalized` output connects to the consumer's
+independently named `candidate` input through typed slots. Projection observes
+the original producer operation; the backend owns live state admission,
+consumption and cleanup. These named slot helpers are provider assembly fields;
+the call's own slot declarations remain authoritative. See
+[the typed API design](../../notes/085_typed_provider_api_end_state.txt).
+
 Each binding reads the packaged `resources.toml` and validates it through the
 SDK's resource constructor. The validated declaration is described as a JSON
 asset in the binding revision. Changing a resource value changes that revision;

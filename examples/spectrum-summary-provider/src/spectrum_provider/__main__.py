@@ -6,7 +6,7 @@ import asyncio
 import sys
 from threading import Event
 
-from provider_core.contribution import CallRef
+from provider_core.contribution import ref
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
     ExecutionLimits, Invocation, NotAdmitted, ResourceGrant, ResultConsumption,
@@ -20,7 +20,8 @@ from .science import Spectrum
 
 async def run_demo() -> None:
     """Print one consumed report and observe analysis and host cleanup separately."""
-    baseline, peaks = create_bindings()
+    bindings = create_bindings()
+    baseline, peaks = bindings.baseline, bindings.peaks
     # This local deployment grants one generic CPU thread to each allocation.
     # Scientific resource requirements remain in resources.toml; they grant no access.
     grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
@@ -50,7 +51,7 @@ async def run_demo() -> None:
     try:
         analysis = host.open_analysis("spectrum-demo", allocation_names=("baseline", "peaks"))
         reservations = {item.allocation: item for item in analysis.reservations}
-        baseline_call, = baseline.calls
+        baseline_call = baseline.run
         limits = ExecutionLimits(
             queue_seconds=5, execution_seconds=10, cleanup_seconds=5,
             input_bytes=4096, result_bytes=4096,
@@ -59,13 +60,13 @@ async def run_demo() -> None:
             execution=analysis,
             baseline=Invocation(
                 operation_id="subtract-baseline",
-                target=CallRef(baseline.description.binding_id, baseline.description.binding_revision, "run"),
+                target=ref(baseline.run),
                 payload=baseline_call.input_codec.encode(
                     Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
                 ),
                 states=(), reservation=reservations["baseline"], limits=limits,
             ),
-            peaks=CallRef(peaks.description.binding_id, peaks.description.binding_revision, "run"),
+            peaks=ref(peaks.run),
             peak_reservation=reservations["peaks"], limits=limits,
             dispatch_guard=require_permission,
         )

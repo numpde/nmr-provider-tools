@@ -213,7 +213,7 @@ class _Analysis:
         implementation_binding = scientific_analysis.resident.allocation.binding
         selected_call = next(
             item
-            for item in implementation_binding.calls
+            for item in implementation_binding._calls
             if item.description.name == invocation.target.name
         )
         state_owners = self._state_owners(invocation, selected_call)
@@ -280,7 +280,7 @@ class _Analysis:
             )
         if invocation.target.name not in {
             item.description.name
-            for item in scientific_analysis.resident.allocation.binding.calls
+            for item in scientific_analysis.resident.allocation.binding._calls
         }:
             return NotAdmitted(
                 code=AdmissionCode.INVALID_REQUEST,
@@ -319,6 +319,7 @@ class _Analysis:
                 or reference.binding_id != invocation.target.binding_id
                 or reference.binding_revision != invocation.target.binding_revision
                 or reference.kind != declared_parameters[name].kind
+                or type(owner.returned.value) is not call.state_binding.input_types[name]
                 or not owner.available
                 or owner.claim is not None
             ):
