@@ -50,5 +50,8 @@ make tests/integration/provider-core \
 ```
 
 The embedded-host test demonstrates the installed contribution/execution
-interface; worker-process and deployed-service tests belong to their respective
+interface. It uses SDK `ResultConsumption` for preparation and calculation
+reports, releasing each exact result only after its typed consumer succeeds.
+Releasing the preparation report leaves its separate worker-local state available
+to calculate. Worker-process and deployed-service tests belong to their respective
 backend and provider repositories.

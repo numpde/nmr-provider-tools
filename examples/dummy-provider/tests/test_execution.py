@@ -19,6 +19,7 @@ from provider_core.hosting import (
     NotAdmitted,
     Outcome,
     ResourceGrant,
+    ResultConsumption,
     ResultState,
     observe_cleanup,
     observe_completion,
@@ -123,13 +124,18 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(ResultState.AVAILABLE, preparation_observation.result_state)
         self.assertIsNotNone(preparation_observation.result)
 
-        preparation_result = prepare_call.result_codec.decode(
-            payload=(await preparation_operation.read_result(preparation_observation.result)),
+        async def accept_preparation(payload: bytes) -> None:
+            preparation_result = prepare_call.result_codec.decode(payload=payload)
+            self.assertEqual(science.PreparationResult(count=3), preparation_result)
+
+        preparation_consumption = ResultConsumption(
+            operation=preparation_operation,
+            result=preparation_observation.result,
+            receive=accept_preparation,
         )
-        self.assertEqual(science.PreparationResult(count=3), preparation_result)
-        await self.assert_settled(
-            preparation_operation.release_result(preparation_observation.result)
-        )
+        self.addAsyncCleanup(preparation_consumption.settle)
+        async with asyncio.timeout(10):
+            await preparation_consumption.consume()
 
         # Result release leaves the returned scientific state available to calculate.
         calculation_operation = submit_call(
@@ -144,11 +150,10 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(ResultState.AVAILABLE, calculation_observation.result_state)
         self.assertIsNotNone(calculation_observation.result)
 
-        calculation_result = calculate_call.result_codec.decode(
-            payload=(await calculation_operation.read_result(calculation_observation.result)),
-        )
+        async def accept_calculation(payload: bytes) -> None:
+            calculation_result = calculate_call.result_codec.decode(payload=payload)
+            self.assertEqual(science.PredictionResult(total=29, count=3), calculation_result)
 
-        self.assertEqual(science.PredictionResult(total=29, count=3), calculation_result)
         self.assertEqual(
             (
                 ProgressEvent(stage="calculation", completed=0, total=1),
@@ -156,9 +161,14 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             ),
             calculation_observation.progress,
         )
-        await self.assert_settled(
-            calculation_operation.release_result(calculation_observation.result)
+        calculation_consumption = ResultConsumption(
+            operation=calculation_operation,
+            result=calculation_observation.result,
+            receive=accept_calculation,
         )
+        self.addAsyncCleanup(calculation_consumption.settle)
+        async with asyncio.timeout(10):
+            await calculation_consumption.consume()
         await self.assert_settled(analysis.close())
 
 
