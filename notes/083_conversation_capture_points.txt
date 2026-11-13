@@ -1,0 +1,62 @@
+Conversation capture points
+===========================
+
+Status: implementation map for a proposed archive, checked against SDK 0.6.19.
+These are existing ownership boundaries, not implemented recording hooks.
+See 052_interpreter_tool_refactor_plan.txt for interpreter ownership,
+056_interpreter_confidence_and_prompt_policy.txt for proposed prompt policy,
+and 057_clarification_and_interpretation_continuation.txt for the archive,
+privacy, effect-settlement and continuation contracts.
+
+Paths below are relative to packages/provider-core/src/provider_core/.
+
+1. Initial context -- interpreter.py: Interpreter.run
+   After initial context admission, retain the original instructions and tool
+   definitions, not only their hashes. The provider supplies the Job/Attempt
+   association; the SDK owns interpretation, model-visit and turn identities.
+
+2. Prepared context and HTTP attempt -- interpreter.py: _ModelVisit.complete,
+   after _request_context; chat.py: ChatEndpoint.complete and _encode_request.
+   Capture scheduler state, model identity, schemas and request settings before
+   authentication headers are attached. Prepared context can still exceed the
+   request-byte limit. Record an HTTP attempt after that check, immediately
+   before exchange_decoded; transport evidence determines what was sent or
+   possibly processed. Distinguish attempts within a turn; retain no credentials
+   or raw transport dumps.
+
+3. Admitted model reply -- chat.py: ChatEndpoint.complete; conversation.py:
+   ToolConversation._admit_carrier and _arguments.
+   Retain the accepted assistant/tool-call content and validated arguments.
+   Invalid or credential-bearing content needs an explicit omission/rejection
+   record under the existing privacy rules. Do not recover erased argument
+   text to claim completeness. A lost response records uncertainty, not proof
+   that the model request was never processed.
+
+4. Tool dispatch -- conversation.py: ToolConversation._run; interpreter.py:
+   _ModelVisit._dispatch and _dispatch_provider.
+   Record the admitted call identity before invoking it, then its rejection,
+   reply, handoff, completion or unresolved outcome. This includes a validated
+   problem-report call before its private explanation becomes a generic handoff
+   summary. Original report text requires authorized protected archive access;
+   otherwise record an omission/private-evidence reference. Do not put it in
+   the cross-model catalogue or public logs. Do not serialize returned Python
+   handles. Providers own scientific effect and settlement facts.
+
+5. Actual feedback -- conversation.py: ToolConversation._feedback and
+   _correct_turn; interpreter.py: _ModelVisit._dispatch.
+   Retain the tool reply with its budget wrapper and any repair user message
+   actually appended. Record a final rejection even when the correction limit
+   prevents feedback from being appended. Do not invent an exchange the model
+   never received; request records establish what was subsequently sent.
+
+6. End and retirement -- interpreter.py: Interpreter.run and retire;
+   conversation.py: ToolConversation._retire_endpoint and retire.
+   Close the record on success, failure or cancellation, preserving the
+   original cause and separately observed cleanup status. Do not export only
+   from Interpreter._result: failed interpretations never reach that method.
+
+The SDK should produce one ordered archive stream. Storage, cross-host ingestion
+and authorized retrieval need the separate archive contract described in 057;
+ordinary logging and the terminal-delivery outbox do not supply it. The current
+observation is a route/turn/schema-hash summary; the bounded cross-model catalogue
+is selective and evicting. Neither is a complete durable conversation archive.
