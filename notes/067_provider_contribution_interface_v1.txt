@@ -141,6 +141,29 @@ needed). These shared helpers do not submit, stop, release, close or retire
 anything. Cancelling a wait leaves the original request owned; the caller owns
 the observation timeout. An expired allowance alone does not prove settlement.
 
+ResultConsumption owns one exact result's receiver attempt and subsequent
+release. start() retains the task before reading bytes or invoking the receiver;
+wait_for_acceptance() joins that same task without authorizing release. consume()
+observes acceptance, requests release only after the receiver returns successfully,
+and retains the original ResultRelease for later observation. Successful receiver
+return remains known even if the release request raises synchronously. Exact
+release requests return their original control after settlement as well.
+
+Cancelling a consumption waiter leaves its original receiver attempt running.
+The caller retains the owner and joins acceptance before closing any resources
+the reader or receiver may use. Receiver failure is retained without an automatic
+resend; a lost acknowledgement stays uncertain under the receiver's own contract.
+Only the receiver establishes durability or publication. Scientific sequencing,
+admission/refusal decisions and cleanup order remain with the caller. This owner
+has no Job/Attempt authority or persistent recovery record.
+
+The operation, exact result and receiver are fixed when the consumption owner is
+created. settle() is the shutdown join for an already-started owner: it finishes
+one consume observation through acceptance and release before propagating waiter
+cancellation, preserving independent failure causes. It may wait indefinitely;
+an untouched owner returns None without starting a receiver. Callers needing a
+bounded wait use consume() and retain the owner and its dependent resources.
+
 The bounded embedded backend exercises the contract with fixed local allocations.
 It refuses unsupported isolation, process-global serialization and missing grants
 before scientific construction. Resource-grant refusal is tested with a synthetic

@@ -1,4 +1,4 @@
-"""Science-independent requests, grants and observations for owned calculations.
+"""Science-independent execution contracts and result-consumption ownership.
 
 These records contain no scientific objects or Jobs authority. Execution backends
 implement the protocols; scientific contributions implement provider_core.contribution.
@@ -10,7 +10,8 @@ from provider_core.container_guard import require_container
 
 require_container()
 
-from collections.abc import Callable
+import asyncio
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
 import math
@@ -25,6 +26,7 @@ from provider_core.contribution import (
     ProgressEvent,
     ResourceRequirement,
 )
+from provider_core.task_boundary import contain_task_exit
 
 
 def positive_seconds(value):
@@ -435,3 +437,138 @@ async def observe_cleanup(
     if causes:
         raise BaseExceptionGroup("Execution cleanup reported multiple failures.", causes)
     return observation
+
+
+class ResultConsumption:
+    """Own one receiver attempt and the subsequent release of an exact result.
+
+    A successful receiver return means acceptance under that receiver's contract;
+    it does not establish durability or publication. A receiver failure, including
+    a lost acknowledgement, remains the original failure and never authorizes an
+    automatic resend. The caller owns any reconciliation and receiver resources.
+
+    Cancelling a waiter leaves acceptance running. Keep this owner and join its
+    acceptance before closing resources the receiver or result reader may use.
+    """
+
+    __slots__ = ("_operation", "_result", "_receive", "_acceptance", "_release")
+
+    def __init__(
+        self,
+        *,
+        operation: Operation,
+        result: ResultRef,
+        receive: Callable[[bytes], Awaitable[None]],
+    ) -> None:
+        self._operation = operation
+        self._result = result
+        self._receive = receive
+        self._acceptance: asyncio.Task[None] | None = None
+        self._release: ResultRelease | None = None
+
+    @property
+    def operation(self) -> Operation:
+        return self._operation
+
+    @property
+    def result(self) -> ResultRef:
+        return self._result
+
+    @property
+    def acceptance(self) -> asyncio.Task[None] | None:
+        return self._acceptance
+
+    @property
+    def release(self) -> ResultRelease | None:
+        return self._release
+
+    @staticmethod
+    def _observe_task(task: asyncio.Task) -> None:
+        # A cancelled waiter may leave nobody currently awaiting this task.
+        # Retrieve its diagnostic while retaining the original task and cause.
+        if not task.cancelled():
+            task.exception()
+
+    async def _accept(self) -> None:
+        payload = await self.operation.read_result(self.result)
+        await self._receive(payload)
+
+    @staticmethod
+    def _create_task(operation) -> asyncio.Task:
+        coroutine = contain_task_exit(operation)
+        try:
+            task = asyncio.create_task(coroutine)
+        except BaseException:
+            coroutine.close()
+            raise
+        task.add_done_callback(ResultConsumption._observe_task)
+        return task
+
+    def start(self) -> asyncio.Task[None]:
+        """Retain the original read/receiver task before its first async effect."""
+        if self.acceptance is None:
+            self._acceptance = self._create_task(self._accept)
+        return self.acceptance
+
+    async def wait_for_acceptance(self) -> None:
+        """Join the original receiver attempt without requesting result release."""
+        await asyncio.shield(self.start())
+
+    async def consume(self) -> CleanupObservation:
+        """Observe acceptance, then request and observe the exact result release.
+
+        Known acceptance lives in the completed task even if requesting release
+        raises. Re-observation retries only that exact idempotent release request,
+        or observes the original release control once one has been returned.
+        """
+        await self.wait_for_acceptance()
+        if self.release is None:
+            self._release = self.operation.release_result(self.result)
+        return await observe_cleanup(self.release)
+
+    async def settle(self) -> CleanupObservation | None:
+        """Finish one consumption observation before propagating cancellation.
+
+        This shutdown join may wait indefinitely. It defers waiter cancellations
+        until the original acceptance and exact release observation return or
+        fail, preserving those interruptions alongside any original failure.
+        Use consume() for an interruptible wait while retaining this owner and
+        its dependent resources. An owner never started has nothing to join and
+        returns None without invoking its receiver. A failed receiver is never
+        retried here.
+        """
+        if self.acceptance is None:
+            return None
+        settlement = self._create_task(self.consume)
+        interruptions = []
+        waiter = asyncio.current_task()
+        while True:
+            cancellations_before_wait = waiter.cancelling()
+            try:
+                observation = await asyncio.shield(settlement)
+            except asyncio.CancelledError as cause:
+                # A caller interruption can race with child completion. Retain
+                # it before observing the child's terminal result on the next
+                # pass; a receiver's own cancellation instead ends settlement.
+                if waiter.cancelling() > cancellations_before_wait:
+                    interruptions.append(cause)
+                    continue
+                if interruptions:
+                    raise BaseExceptionGroup(
+                        "Consumption cancellation and interrupted shutdown observation.",
+                        [*interruptions, cause],
+                    )
+                raise
+            except BaseException as cause:
+                if interruptions:
+                    raise BaseExceptionGroup(
+                        "Consumption failed while shutdown observation was interrupted.",
+                        [*interruptions, cause],
+                    )
+                raise
+            else:
+                if len(interruptions) == 1:
+                    raise interruptions[0]
+                if interruptions:
+                    raise BaseExceptionGroup("Shutdown observation was interrupted.", interruptions)
+                return observation
