@@ -1,8 +1,8 @@
-"""Build and qualify the installed core and standalone consumer example.
+"""Build and qualify the installed core and standalone consumer examples.
 
 Provider-core tests run from the candidate wheel with no checkout on its import
-path. The integration lane separately builds and installs the dummy-provider
-example, then runs the example's own tests outside both source trees.
+path. The integration lane separately builds and installs each standalone
+example, then runs its own tests outside all source trees.
 """
 
 from tools.container_guard import require_container
@@ -28,52 +28,74 @@ from tools.installer import pip_command
 from tools.wheelhouse import digest
 
 
+def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, str, str]]:
+    projects = []
+    names = set()
+    for metadata in sorted(examples.glob("*/pyproject.toml")):
+        project = tomllib.loads(metadata.read_text())["project"]
+        distribution_name = project["name"]
+        distribution_version = project["version"]
+        if not isinstance(distribution_name, str) or re.fullmatch(
+            r"[a-z0-9]+(?:-[a-z0-9]+)*", distribution_name
+        ) is None:
+            raise ValueError(
+                f"Cannot install example {metadata.parent.name!r}: distribution "
+                "name must use lowercase letters, digits and single hyphens."
+            )
+        if distribution_name == "provider-core" or distribution_name in names:
+            raise ValueError(
+                f"Cannot install example {distribution_name!r}: distribution "
+                "names must be unique and must not shadow provider-core."
+            )
+        if not isinstance(distribution_version, str) or re.fullmatch(
+            r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",
+            distribution_version,
+        ) is None:
+            raise ValueError(
+                f"Cannot install example {distribution_name!r}: "
+                "a three-part version is required."
+            )
+        if project.get("dependencies") != [f"provider-core=={core_version}"]:
+            raise ValueError(
+                f"Cannot install example {distribution_name!r}: its only dependency "
+                f"must be provider-core=={core_version}."
+            )
+        names.add(distribution_name)
+        projects.append((metadata.parent, distribution_name, distribution_version))
+
+    if not projects:
+        raise ValueError("Cannot qualify installed examples: /examples contains no standalone projects.")
+    return projects
+
+
 def _build_and_install_example(
     *,
     root: Path,
+    source: Path,
+    distribution_name: str,
+    distribution_version: str,
+    builder_python: Path,
     python: Path,
     pool: Path,
 ) -> None:
-    example_source = Path("/example")
-    project = tomllib.loads((example_source / "pyproject.toml").read_text())["project"]
-    distribution_name = project["name"]
-    distribution_version = project["version"]
-    core_version = tomllib.loads(
-        (Path("/package") / "pyproject.toml").read_text()
-    )["project"]["version"]
-
-    if distribution_name != "dummy-provider-example":
-        raise ValueError("The installed example must identify dummy-provider-example")
-    if re.fullmatch(
-        r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",
-        distribution_version,
-    ) is None:
-        raise ValueError("The installed example requires a three-part version")
-    if project.get("dependencies") != [f"provider-core=={core_version}"]:
-        raise ValueError(
-            "The example must depend on the candidate provider-core version"
-        )
-
-    example_output = root / "example-release"
-    example_output.mkdir()
-
-    builder_python = install_environment(
-        Path("/runtime/example-builder"),
-        Path("/core-build.lock"),
-        pool,
-    )
+    example_output = root / "release"
+    example_output.mkdir(parents=True)
     build_source_wheel(
-        source=example_source,
-        staged_source=root / "example-source",
+        source=source,
+        staged_source=root / "source",
         python=builder_python,
         output=example_output,
     )
 
-    wheel_distribution_name = re.sub(r"[-_.]+", "_", distribution_name)
+    wheel_distribution_name = distribution_name.replace("-", "_")
     example_wheel = example_output / f"{wheel_distribution_name}-{distribution_version}-py3-none-any.whl"
 
-    if set(example_output.iterdir()) != {example_wheel} or not example_wheel.is_file():
-        raise ValueError("The example build did not produce its one expected wheel")
+    if (
+        set(example_output.iterdir()) != {example_wheel}
+        or not example_wheel.is_file()
+        or example_wheel.is_symlink()
+    ):
+        raise ValueError(f"Example {distribution_name!r} did not produce its one expected wheel.")
 
     example_install_lock = root / "example-install.lock"
     continuation = "\\"
@@ -155,15 +177,27 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
         test_tree = scratch / "run"
         shutil.copytree(Path("/package/tests"), test_tree / "tests")
         if suite == "integration":
-            _build_and_install_example(
-                root=scratch,
-                python=runtime_python,
-                pool=wheelhouse,
+            core_version = tomllib.loads(
+                (Path("/package") / "pyproject.toml").read_text()
+            )["project"]["version"]
+            examples = _discover_examples(Path("/examples"), core_version)
+            builder_python = install_environment(
+                Path("/runtime/example-builder"),
+                Path("/core-build.lock"),
+                wheelhouse,
             )
-            shutil.copytree(
-                Path("/example/tests"),
-                test_tree / "tests/integration/dummy_provider_example",
-            )
+            for source, name, version in examples:
+                _build_and_install_example(
+                    root=scratch / "examples" / name,
+                    source=source,
+                    distribution_name=name,
+                    distribution_version=version,
+                    builder_python=builder_python,
+                    python=runtime_python,
+                    pool=wheelhouse,
+                )
+                namespace = "example_" + name.replace("-", "_")
+                shutil.copytree(source / "tests", test_tree / "tests/integration" / namespace)
 
         # silent-defaults: allow-contract -- Fuzz selects both owned suites; every other admitted selector names one suite.
         selections = ("integration", "unit") if suite == "fuzz" else (suite,)

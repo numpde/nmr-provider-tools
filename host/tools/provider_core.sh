@@ -142,7 +142,7 @@ case "$action" in
         fi
         example_mount=()
         if [[ $action == integration ]]; then
-            example_mount=(--mount "type=bind,src=$root/examples/dummy-provider,dst=/example,readonly")
+            example_mount=(--mount "type=bind,src=$root/examples,dst=/examples,readonly")
         fi
         arguments=("${worker[@]}" --network none --init --tmpfs /runtime:rw,nosuid,nodev,exec,size=256m,mode=1777
             --mount "type=bind,src=$root/packages/provider-core,dst=/package,readonly"
