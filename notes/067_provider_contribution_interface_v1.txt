@@ -132,6 +132,15 @@ invocation caused no dispatch or orphaned acquisition. Re-observation never
 resubmits work or renews its budget. Analysis code cannot retire a shared
 instance; pool administration owns that capability.
 
+observe_completion(operation) waits on an existing operation and returns its
+terminal Observation without interpreting scientific outcome or result
+availability. observe_cleanup(control) waits on an existing result release,
+analysis cleanup or instance retirement, returns its settled observation and
+propagates reported original failures (grouping independent causes only when
+needed). These shared helpers do not submit, stop, release, close or retire
+anything. Cancelling a wait leaves the original request owned; the caller owns
+the observation timeout. An expired allowance alone does not prove settlement.
+
 The bounded embedded backend exercises the contract with fixed local allocations.
 It refuses unsupported isolation, process-global serialization and missing grants
 before scientific construction. Resource-grant refusal is tested with a synthetic

@@ -396,3 +396,42 @@ class PoolAdministration(Protocol):
     def retire_allocation(self, reference: AllocationRef) -> InstanceRetirement: ...
 
     def retire(self) -> InstanceRetirement: ...
+
+
+async def observe_completion(operation: Operation) -> Observation:
+    """Wait on an existing operation without submitting or stopping work.
+
+    The caller owns this wait's timeout. Cancelling it leaves the original
+    operation available for another observer; it does not establish that
+    scientific effects have stopped. Completion preserves the independent
+    scientific outcome, result availability and cleanup facts in Observation.
+    """
+    observation = await operation.observe(after=None, wait_seconds=0)
+    while not observation.finished:
+        observation = await operation.observe(
+            after=observation.revision, wait_seconds=1,
+        )
+    return observation
+
+
+async def observe_cleanup(
+    control: AnalysisCleanup | InstanceRetirement | ResultRelease,
+) -> CleanupObservation:
+    """Wait on an existing cleanup request, propagating its original causes.
+
+    Cancellation only ends this wait. An allowance expiring does not prove
+    settlement, so observation continues until settlement or a reported failure.
+    One failure propagates directly; independent failures retain their causes
+    together. This helper never initiates or repeats cleanup itself.
+    """
+    observation = await control.observe(after=None, wait_seconds=0)
+    while not observation.settled and not observation.failures:
+        observation = await control.observe(
+            after=observation.revision, wait_seconds=1,
+        )
+    causes = [failure.cause for failure in observation.failures]
+    if len(causes) == 1:
+        raise causes[0]
+    if causes:
+        raise BaseExceptionGroup("Execution cleanup reported multiple failures.", causes)
+    return observation
