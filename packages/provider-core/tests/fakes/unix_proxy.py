@@ -5,6 +5,7 @@ recorded; TLS and application bytes pass unchanged between real stream peers.
 """
 
 import asyncio
+import errno
 import tempfile
 from builtins import BaseExceptionGroup
 from pathlib import Path
@@ -57,7 +58,14 @@ class UnixProxy:
                 while data := await source.read(65536):
                     target.write(data)
                     await target.drain()
-                target.write_eof()
+                try:
+                    target.write_eof()
+                except OSError as failure:
+                    # A ragged TLS peer can finish disconnecting while this
+                    # pump forwards EOF. The socket is already disconnected;
+                    # every other forwarding error remains a fixture failure.
+                    if failure.errno != errno.ENOTCONN:
+                        raise
 
             pumps = [asyncio.create_task(copy(reader, outbound)), asyncio.create_task(copy(incoming, writer))]
             await asyncio.gather(*pumps)
