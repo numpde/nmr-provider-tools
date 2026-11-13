@@ -69,12 +69,44 @@ First, boundary-preserving preparation
 2. Identify actual mixed responsibilities and isolate them within today's
    owners. Reuse the request, admission, dispatch, feedback and retirement seams
    already present. Do not manufacture wrappers or unused extension points.
+   No preparatory code change is a valid outcome; do not require one patch per
+   provider. Each proposed extraction names the mix and the later move it enables.
 3. Preserve public signatures, scientific inputs/results, exception causes,
    ordering, retries, admission guards, cleanup ownership and deployment layout.
+   Private helpers, internal imports and test patch locations may move. Do not
+   add compatibility wrappers solely to keep private test wiring unchanged.
    No archive I/O, new service, new prompt policy or execution migration is part
    of this preparatory refactor.
-4. Prove the changed real path preserves its existing behavior with focused
+4. Name the existing owner before the first asynchronous effect, the permission
+   check at actual dispatch and the owner of results after interruption. Keep
+   them intact. A helper extraction does not establish new retention or recovery.
+5. Prove the changed real path preserves its existing behavior with focused
    tests. Document which later responsibility can now move independently.
+
+Joint provider review, 2026-11-13
+--------------------------------
+NMRPeak: separating schema/prompt/capability code from conversation orchestration
+is a plausible first extraction. Keep InputInterpreter and the configuration
+imports used by runtime consumers stable. InterpretationSession remains the
+real consumer and keeps admission/retirement. Private tests can follow the moved
+owner; update the image-input inventory. Existing correction, typed-input and
+permission witnesses protect this boundary.
+
+SECS: withdraw the proposed private inspect/prepare wrappers. InputAdapter
+already supplies those calls; delegates would duplicate the seam and split
+prepared-handle ownership. Keep the handler's command/outcome translation,
+Attempt binding, consumption and exception boundary intact during preparation.
+
+NMRNet: withdraw the proposed prediction-collection wrapper. Existing execution
+already owns ordered collection and result assembly. Retaining a scientific
+result after failed worker-channel delivery is later execution capability work,
+not a behavior-preserving extraction. The failed-send witness must remain true.
+
+Magnet: its E02 analysis session is a current integration owner that receives
+RunAuthority and acknowledged Attempt context; it is not a pure numerical
+contribution. Preserve its guards and effects now. Existing E02 correction and
+controller/native-retirement witnesses suffice for preparation; no new wrapper
+or test campaign is justified merely to mirror another provider's changes.
 
 Then make explicit capability changes
 -------------------------------------
