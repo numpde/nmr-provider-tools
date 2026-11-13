@@ -33,9 +33,14 @@ and score and needs no live index to be read.
 The executable reserves one fixed CPU allocation. It closes and observes the
 first analysis before opening the second on that same initialized allocation.
 The first result stays retained and readable while the second query runs.
-Finally, the consumer reads both reports, releases their exact results and
-observes host retirement separately. Generic observation waits belong to the
-SDK, rather than this provider. Cancelling the executable initiates its orderly
+Finally, SDK `ResultConsumption` owns each report's read/consumer attempt and
+releases its exact result only after consumer success. A cancelled waiter can
+join that original attempt; a failed receiver is never automatically invoked
+again. The SDK owner's shutdown join finishes each original acceptance and
+release observation before host teardown, deferring observer cancellation until
+the result or failure is known. Generic
+observation and consumption machinery belong to the SDK. The bootstrap observes
+host retirement separately. Cancelling the executable initiates its orderly
 shutdown; it does not promise restart recovery or forced interruption.
 A later analysis failure still allows an earlier successful report to reach the
 consumer. Failed consumption leaves that result retained until process exit;

@@ -19,7 +19,7 @@ from unittest.mock import patch
 from provider_core.contribution import CallRef
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
-    ExecutionLimits, Invocation, NotAdmitted, Outcome, ResourceGrant, ResultState,
+    ExecutionLimits, Invocation, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
 )
 from reference_provider import science
@@ -96,7 +96,14 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(first_index, match.call_args_list[1].args[0])
                 for operation, result, payload in operations:
                     self.assertEqual(payload, await operation.read_result(result))
-                    await observe_cleanup(operation.release_result(result))
+                    received = []
+
+                    async def receive(value):
+                        received.append(value)
+
+                    consumption = ResultConsumption(operation=operation, result=result, receive=receive)
+                    await consumption.consume()
+                    self.assertEqual([payload], received)
                     released = await operation.observe(after=None, wait_seconds=0)
                     self.assertIs(ResultState.RELEASED, released.result_state)
         finally:

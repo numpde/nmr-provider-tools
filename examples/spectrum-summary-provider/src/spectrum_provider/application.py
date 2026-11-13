@@ -7,7 +7,7 @@ original operation and its retained result owned by this workflow.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Callable
 
 from provider_core.contribution import CallRef
 from provider_core.hosting import (
@@ -21,7 +21,6 @@ from provider_core.hosting import (
     ReservationRef,
     ResultRelease,
     ResultState,
-    observe_cleanup,
     observe_completion,
 )
 
@@ -53,7 +52,6 @@ class PeakWorkflow:
         self.baseline_operation: Operation | None = None
         self.peak_operation: Operation | None = None
         self.baseline_release: ResultRelease | None = None
-        self.peak_release: ResultRelease | None = None
 
     def start(self) -> Operation | NotAdmitted:
         """Acquire the operation handle before any cancellable wait."""
@@ -98,25 +96,3 @@ class PeakWorkflow:
         # not hide an accepted peak operation or its usable result. The caller
         # observes baseline_release separately when settling the workflow.
         return await observe_completion(self.peak_operation)
-
-    async def deliver(
-        self, accept: Callable[[bytes], Awaitable[None]],
-    ) -> Observation | NotAdmitted:
-        """Release the final copy only after the caller's consumer accepts it.
-
-        Consumer failure leaves the result readable. A consumer that can accept
-        and then lose its acknowledgement must make repeated acceptance safe.
-        """
-        completed = await self.finish()
-        if isinstance(completed, NotAdmitted):
-            return completed
-        if self.peak_operation is None:
-            return completed
-        if self.peak_release is None:
-            if completed.outcome is not Outcome.SUCCEEDED or completed.result_state is not ResultState.AVAILABLE:
-                return completed
-            payload = await self.peak_operation.read_result(completed.result)
-            await accept(payload)
-            self.peak_release = self.peak_operation.release_result(completed.result)
-        await observe_cleanup(self.peak_release)
-        return await self.peak_operation.observe(after=None, wait_seconds=0)

@@ -6,6 +6,7 @@ require_container()
 
 import asyncio
 from dataclasses import replace
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -20,10 +21,11 @@ from provider_core.contribution import CallRef
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
     CleanupObservation, DispatchState, ExecutionLimits, Failure, Invocation,
-    NotAdmitted, Outcome, ResourceGrant, ResultState,
+    NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
 )
 from spectrum_provider import science
+from spectrum_provider import __main__ as demo
 from spectrum_provider.application import PeakWorkflow
 from spectrum_provider.binding import create_bindings
 
@@ -96,10 +98,14 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             async def accept(payload):
                 received.append(payload)
 
-            released = await workflow.deliver(accept)
+            consumption = ResultConsumption(
+                operation=workflow.peak_operation, result=completed.result, receive=accept,
+            )
+            await consumption.consume()
+            released = await workflow.peak_operation.observe(after=None, wait_seconds=0)
             self.assertEqual([retained], received)
             self.assertIs(ResultState.RELEASED, released.result_state)
-            await workflow.deliver(accept)
+            await consumption.consume()
             self.assertEqual([retained], received)
 
     async def test_consumer_failure_preserves_original_result_and_does_not_recalculate(self):
@@ -111,19 +117,139 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 raise failure
 
             async with asyncio.timeout(10):
-                with self.assertRaises(OSError) as raised:
-                    await workflow.deliver(reject)
-                self.assertIs(failure, raised.exception)
-                original = workflow.peak_operation
                 completed = await workflow.finish()
+                original = workflow.peak_operation
+                failed_consumption = ResultConsumption(
+                    operation=original, result=completed.result, receive=reject,
+                )
+                for _ in range(2):
+                    with self.assertRaises(OSError) as raised:
+                        await failed_consumption.consume()
+                    self.assertIs(failure, raised.exception)
                 retained = await original.read_result(completed.result)
 
                 async def accept(payload):
                     self.assertEqual(retained, payload)
 
-                await workflow.deliver(accept)
+                # This test receiver refused before any external effect. The
+                # caller explicitly selects a new attempt; the failed owner
+                # itself never retries or infers that replay is safe.
+                replacement = ResultConsumption(operation=original, result=completed.result, receive=accept)
+                await replacement.consume()
                 self.assertIs(original, workflow.peak_operation)
                 self.assertEqual(1, calculate.call_count)
+
+    async def test_cancelled_consumer_wait_resumes_the_same_receiver_without_science_replay(self):
+        entered = asyncio.Event()
+        acknowledge = asyncio.Event()
+        effects = []
+
+        async def receive(payload):
+            effects.append(payload)
+            entered.set()
+            await acknowledge.wait()
+
+        with patch("spectrum_provider.science.detect_peaks", wraps=science.detect_peaks) as calculate:
+            workflow, _, _ = self.workflow(operation_records=2)
+            async with asyncio.timeout(10):
+                completed = await workflow.finish()
+            consumption = ResultConsumption(
+                operation=workflow.peak_operation, result=completed.result, receive=receive,
+            )
+            waiter = asyncio.create_task(consumption.consume())
+            try:
+                async with asyncio.timeout(10):
+                    await entered.wait()
+                waiter.cancel()
+                with self.assertRaises(asyncio.CancelledError):
+                    await waiter
+                original = consumption.acceptance
+                self.assertFalse(original.cancelled())
+                acknowledge.set()
+                async with asyncio.timeout(10):
+                    await consumption.consume()
+                self.assertIs(original, consumption.acceptance)
+                self.assertEqual(1, len(effects))
+                self.assertEqual(1, calculate.call_count)
+            finally:
+                acknowledge.set()
+                waiter.cancel()
+                await asyncio.gather(waiter, return_exceptions=True)
+                await consumption.wait_for_acceptance()
+
+    async def test_cli_settles_consumption_through_repeated_cancellation_before_teardown(self):
+        receiving = asyncio.Event()
+        acknowledge = asyncio.Event()
+        joining = asyncio.Event()
+        events = []
+        output = io.BytesIO()
+
+        class HeldConsumption(ResultConsumption):
+            def __init__(self, *, operation, result, receive):
+                async def held_receive(payload):
+                    receiving.set()
+                    await acknowledge.wait()
+                    await receive(payload)
+                    events.append("receiver returned")
+
+                super().__init__(operation=operation, result=result, receive=held_receive)
+
+            async def settle(self):
+                joining.set()
+                return await super().settle()
+
+        def observed_host(*args, **kwargs):
+            host = EmbeddedHost(*args, **kwargs)
+            original_open = host.open_analysis
+            original_retire = host.retire
+
+            def open_analysis(*arguments, **options):
+                analysis = original_open(*arguments, **options)
+                original_close = analysis.close
+
+                def close():
+                    events.append("analysis close")
+                    return original_close()
+
+                analysis.close = close
+                return analysis
+
+            def retire():
+                events.append("host retire")
+                return original_retire()
+
+            host.open_analysis = open_analysis
+            host.retire = retire
+            return host
+
+        with (
+            patch.object(demo, "ResultConsumption", HeldConsumption),
+            patch.object(demo, "EmbeddedHost", side_effect=observed_host),
+            patch.object(demo, "sys", SimpleNamespace(stdout=SimpleNamespace(buffer=output))),
+        ):
+            task = asyncio.create_task(demo.run_demo())
+            try:
+                async with asyncio.timeout(10):
+                    await receiving.wait()
+                task.cancel("foreground interrupted")
+                async with asyncio.timeout(10):
+                    await joining.wait()
+                task.cancel("shutdown interrupted")
+                loop = asyncio.get_running_loop()
+                loop.call_soon(task.cancel, "shutdown interrupted again")
+                cancellation_callbacks = asyncio.Event()
+                loop.call_soon(cancellation_callbacks.set)
+                await cancellation_callbacks.wait()
+                self.assertEqual([], events)
+                acknowledge.set()
+                with self.assertRaises(BaseExceptionGroup):
+                    await task
+                self.assertLess(events.index("receiver returned"), events.index("analysis close"))
+                self.assertLess(events.index("receiver returned"), events.index("host retire"))
+                self.assertEqual(2, len(json.loads(output.getvalue())["peaks"]))
+            finally:
+                acknowledge.set()
+                await asyncio.gather(task, return_exceptions=True)
 
     async def test_cancelled_wait_resumes_the_original_scientific_call(self):
         entered = Event()

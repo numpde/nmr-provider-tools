@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 import asyncio
-from functools import partial
 import sys
 from threading import Event
 
 from provider_core.contribution import CallRef
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
-    ExecutionLimits, Invocation, NotAdmitted, Outcome, ResourceGrant, ResultState,
+    ExecutionLimits, Invocation, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
 )
 
@@ -44,6 +43,11 @@ async def run_demo() -> None:
     def require_permission():
         if revoked.is_set():
             raise PermissionError("Reference example dispatch permission was withdrawn.")
+
+    async def print_report(payload: bytes) -> None:
+        # Receiver return means flushed local consumption, not durable delivery.
+        sys.stdout.buffer.write(payload + b"\n")
+        sys.stdout.buffer.flush()
 
     try:
         for name, values in (("first", (3, 4, 0, 0)), ("second", (0, 0, 1, 1))):
@@ -82,14 +86,19 @@ async def run_demo() -> None:
         # A later analysis failure must not suppress an earlier usable report.
         # Failed consumption keeps the result owned until this process exits.
         for operation, result in retained:
+            consumption = ResultConsumption(operation=operation, result=result, receive=print_report)
             try:
-                payload = await operation.read_result(result)
-                sys.stdout.buffer.write(payload + b"\n")
-                sys.stdout.buffer.flush()
+                await consumption.consume()
             except BaseException as cause:
                 causes.append(cause)
-            else:
-                cleanup_requests.append(partial(operation.release_result, result))
+            finally:
+                # A cancelled observer must not abandon the original receiver
+                # while later analysis/host cleanup invalidates its resources.
+                try:
+                    await consumption.settle()
+                except BaseException as cause:
+                    if not any(original is cause for original in causes):
+                        causes.append(cause)
         cleanup_requests.append(host.retire)
         # Each request and its observation have their own error boundary.
         for request in cleanup_requests:

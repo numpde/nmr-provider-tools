@@ -37,7 +37,8 @@ failure must not hide an accepted peak operation or a usable final report; the
 composition observes that release independently during cleanup.
 
 The SDK owns generic observation waits, dispatch, guarded permission checks,
-retained results and observable cleanup. The bootstrap separately chooses fixed
+result consumption, retained results and observable cleanup. The bootstrap
+separately chooses fixed
 CPU allocations and capacity limits. Resource requirements do not grant access.
 One analysis reserves both allocations; this example makes no claim about fair
 scheduling or sharing those allocations between concurrent analyses.
@@ -77,10 +78,15 @@ Scientific success and encoded-result availability are checked separately, so
 an encoding failure never triggers scientific replay. A downstream admission
 refusal leaves the intermediate result retained.
 
-The controller calls workflow methods serially. `deliver(accept)` releases the
-final result only after the consumer returns successfully. A consumer exception
-propagates unchanged and the result stays readable. A consumer that accepts a
-report and then loses its acknowledgement must support repeated acceptance.
+The controller calls workflow methods serially. The bootstrap gives the final
+operation, exact result reference and consumer to SDK `ResultConsumption`.
+It retains one read/consumer task before awaiting it; cancelling a waiter and
+resuming consumption observes that same task. The result is released only after
+the consumer returns successfully. Known acceptance survives a release-request
+failure, so re-observation never invokes the acknowledged consumer again.
+Consumer failure remains the original failure and leaves the result retained;
+the SDK never automatically resends it. Any acknowledgement uncertainty requires
+receiver-specific reconciliation before the caller authorizes another attempt.
 The demo's flushed stdout is local consumption, not durable queue acceptance or
 central API publication.
 
@@ -89,3 +95,8 @@ Analysis close and host retirement are separately requested and observed;
 independent cleanup failures retain their original causes. All operation and
 result ownership here is in memory. Stable identifiers do not establish crash
 recovery, forced interruption or remote deduplication.
+The bootstrap calls the shared owner's shutdown join, `settle()`, before
+analysis/host teardown. It finishes acceptance and the exact release observation
+even if shutdown is cancelled again, then propagates the recorded interruptions
+and failures. This join has no new timeout; the demo receiver is a local stdout
+write. A caller needing a bounded wait must retain the owner and its resources.

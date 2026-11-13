@@ -8,7 +8,10 @@ from threading import Event
 
 from provider_core.contribution import CallRef
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
-from provider_core.hosting import ExecutionLimits, Invocation, NotAdmitted, ResourceGrant, ResultState, observe_cleanup
+from provider_core.hosting import (
+    ExecutionLimits, Invocation, NotAdmitted, ResourceGrant, ResultConsumption,
+    ResultState, observe_cleanup,
+)
 
 from .application import PeakWorkflow
 from .binding import create_bindings
@@ -31,6 +34,7 @@ async def run_demo() -> None:
     )
     analysis = None
     workflow = None
+    consumption = None
     revoked = Event()
     causes = []
 
@@ -69,17 +73,31 @@ async def run_demo() -> None:
         if isinstance(started, NotAdmitted):
             raise RuntimeError(f"Baseline admission refused: {started.code.value}: {started.message}")
         async with asyncio.timeout(15):
-            result = await workflow.deliver(print_report)
+            result = await workflow.finish()
         if isinstance(result, NotAdmitted):
             raise RuntimeError(f"Peak admission refused: {result.code.value}: {result.message}")
         if result.failures:
             causes.extend(failure.cause for failure in result.failures)
-        elif result.result_state is not ResultState.RELEASED:
+        elif result.result_state is ResultState.AVAILABLE:
+            consumption = ResultConsumption(
+                operation=workflow.peak_operation, result=result.result, receive=print_report,
+            )
+            async with asyncio.timeout(15):
+                await consumption.consume()
+        else:
             raise RuntimeError(f"Peak report was not delivered: {result!r}")
     except BaseException as cause:
         causes.append(cause)
     finally:
         revoked.set()
+        if consumption is not None and consumption.acceptance is not None:
+            try:
+                # Complete the original acceptance and release observation,
+                # deferring further cancellation until their outcome is known.
+                await consumption.settle()
+            except BaseException as cause:
+                if not any(original is cause for original in causes):
+                    causes.append(cause)
         if workflow is not None and workflow.baseline_release is not None:
             try:
                 async with asyncio.timeout(15):
