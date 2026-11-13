@@ -336,7 +336,15 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 stream = CancelledRead()
                 transport = self.transport(exchange_seconds=.02)
                 client = api(transport, "https://api.fixture.example")
-                with patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(stream)):
+                # This witness isolates aggregate deadline cancellation; httpcore's
+                # separate read deadline must not race it for the same 20 ms.
+                original_read = httpcore._backends.anyio.AnyIOStream.read
+
+                async def read_without_inner_deadline(owner, max_bytes, timeout=None):
+                    return await original_read(owner, max_bytes, timeout=None)
+
+                with (patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(stream)),
+                      patch("provider_core.network.AnyIOStream.read", new=read_without_inner_deadline)):
                     failure = await self.failed_exchange(client, "GET", "/provider/v1/jobs/job:example/uploads")
                 observation = failure.cause.network_io
                 self.assertTrue(transport.retirement_confirmed)
