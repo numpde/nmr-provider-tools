@@ -1,0 +1,1 @@
+"""Installed spectrum example checks."""
