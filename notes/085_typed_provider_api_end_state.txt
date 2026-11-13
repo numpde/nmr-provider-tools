@@ -16,8 +16,16 @@ There is no public positional call inventory, __getattr__ lookup, descriptor DSL
 or separately maintained registry. Provider helper factories remain optional.
 
 Construction clones declarations and anchors each member to the exact binding
-object. ref(binding.match) projects its existing data-only CallRef. An unbound
-declaration cannot produce a reference; binding.ref(member) rejects siblings
+object. EmbeddedHost.open_analysis returns the public local EmbeddedAnalysis.
+Its submit_call(binding.match, ...) projects the member to a data-only Invocation
+and delegates to the existing submission path. Operation ID, payload bytes,
+state arguments, reservation, limits and dispatch guard are explicit; no identity,
+allocation, permission or retry policy is inferred. Simple local callers need
+no ref() or Invocation boilerplate.
+
+The portable AnalysisExecution.submit(Invocation, ...) contract stays data-only.
+A workflow assembling portable requests can use ref(binding.match) to project
+its CallRef explicitly. An unbound declaration cannot produce a reference; binding.ref(member) rejects siblings
 even if their configuration metadata are structurally equal. Private owner
 anchors do not enter representation or dataclass equality.
 
@@ -104,3 +112,8 @@ including the new member, identity, state-provenance and custody regressions.
 A final installed example selection passed two execution tests after that fix.
 No static checker was installed/run; runtime qualification is not evidence of
 complete static type correctness. No repository rule was weakened or removed.
+
+Local bound-call follow-up: the concrete EmbeddedAnalysis.submit_call adapter
+passes 86 native tests plus 10 observation tests. Installed reference workflow
+checks (3), installed execution checks (2), and repository quality checks (225)
+pass. Portable workflow protocols and their execution semantics remain unchanged.

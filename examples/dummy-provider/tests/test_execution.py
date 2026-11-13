@@ -11,11 +11,10 @@ import unittest
 
 from dummy_provider import science
 from dummy_provider.binding import create_weighted_sum_binding
-from provider_core.contribution import NoInput, ProgressEvent, ref
+from provider_core.contribution import NoInput, ProgressEvent
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
     ExecutionLimits,
-    Invocation,
     NotAdmitted,
     Outcome,
     ResourceGrant,
@@ -92,26 +91,16 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             result_bytes=1024,
         )
 
-        def submit_call(*, scientific_call, operation_id: str, payload: bytes, states):
-            return analysis.submit(
-                Invocation(
-                    operation_id=operation_id,
-                    target=ref(scientific_call),
-                    payload=payload,
-                    states=states,
-                    reservation=reservation,
-                    limits=execution_limits,
-                ),
-                dispatch_guard=lambda: None,
-            )
-
         preparation_input = science.PreparationInput(values=(1, 2, 3))
 
-        preparation_operation = submit_call(
-            scientific_call=prepare_call,
+        preparation_operation = analysis.submit_call(
+            prepare_call,
             operation_id="prepare",
             payload=prepare_call.input_codec.encode(preparation_input),
             states=(),
+            reservation=reservation,
+            limits=execution_limits,
+            dispatch_guard=lambda: None,
         )
         self.assertNotIsInstance(preparation_operation, NotAdmitted)
 
@@ -140,11 +129,14 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             await preparation_consumption.consume()
 
         # Result release leaves the returned scientific state available to calculate.
-        calculation_operation = submit_call(
-            scientific_call=calculate_call,
+        calculation_operation = analysis.submit_call(
+            calculate_call,
             operation_id="calculate",
             payload=calculate_call.input_codec.encode(NoInput()),
             states=(calculation_state,),
+            reservation=reservation,
+            limits=execution_limits,
+            dispatch_guard=lambda: None,
         )
         self.assertNotIsInstance(calculation_operation, NotAdmitted)
 

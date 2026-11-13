@@ -99,8 +99,9 @@ or cleanup owners. The host-local ImplementationBinding contains the configured
 factories, lifecycle hooks, codecs and scientific callables inside the authorized
 scientific environment. Providers declare ordinary frozen dataclass subclasses
 with typed call fields such as binding.match. SDK construction derives the
-private dispatch inventory from those fields once; ref(binding.match) projects
-the exact configured call reference. Provider assembly factories are optional
+private dispatch inventory from those fields once. Local EmbeddedAnalysis accepts
+submit_call(binding.match, ...) and builds the portable Invocation internally.
+ref(binding.match) remains available when assembling data-only workflow requests. Provider assembly factories are optional
 provider-owned helpers, without discovery or a prescribed name.
 
 provider_core.contribution_declaration owns canonical JSON encoding for

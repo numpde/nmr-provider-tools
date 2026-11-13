@@ -6,8 +6,10 @@ It complements the dummy's prepared-state flow and the spectrum provider's
 portable result transfer.
 
 The provider-owned frozen `ReferenceBinding` exposes its typed `match` member.
-`ref(binding.match)` derives the configured call reference. `create_binding()`
-is ordinary provider assembly code; the SDK does not discover it or prescribe
+Local execution uses `analysis.submit_call(binding.match, ...)`; the SDK derives
+the configured reference internally. Operation ID, encoded payload, state
+arguments, reservation, limits and dispatch guard remain explicit.
+`create_binding()` is ordinary provider assembly code; the SDK does not discover it or prescribe
 its name or signature. Configuration and reference metadata have one owner,
 `ConfiguredIdentity`, using the explicitly versioned configured-v2 revision.
 

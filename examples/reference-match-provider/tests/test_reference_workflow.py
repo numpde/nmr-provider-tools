@@ -16,10 +16,9 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from provider_core.contribution import ref
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
-    ExecutionLimits, Invocation, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
+    ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
 )
 from reference_provider import science
@@ -69,13 +68,11 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 ):
                     analysis = host.open_analysis(name, allocation_names=("library",))
                     reservation, = analysis.reservations
-                    operation = analysis.submit(
-                        Invocation(
-                            operation_id="match",
-                            target=ref(binding.match),
-                            payload=call.input_codec.encode(science.VectorInput(values=values)),
-                            states=(), reservation=reservation, limits=limits,
-                        ),
+                    operation = analysis.submit_call(
+                        binding.match,
+                        operation_id="match",
+                        payload=call.input_codec.encode(science.VectorInput(values=values)),
+                        states=(), reservation=reservation, limits=limits,
                         dispatch_guard=permitted,
                     )
                     self.assertNotIsInstance(operation, NotAdmitted)

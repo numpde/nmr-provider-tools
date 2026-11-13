@@ -6,10 +6,9 @@ import asyncio
 import sys
 from threading import Event
 
-from provider_core.contribution import ref
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
-    ExecutionLimits, Invocation, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
+    ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
 )
 
@@ -54,12 +53,11 @@ async def run_demo() -> None:
             analysis = host.open_analysis(name, allocation_names=("library",))
             cleanup_requests.append(analysis.close)
             reservation, = analysis.reservations
-            operation = analysis.submit(
-                Invocation(
-                    operation_id="match", target=ref(binding.match),
-                    payload=call.input_codec.encode(VectorInput(values=values)),
-                    states=(), reservation=reservation, limits=limits,
-                ),
+            operation = analysis.submit_call(
+                binding.match,
+                operation_id="match",
+                payload=call.input_codec.encode(VectorInput(values=values)),
+                states=(), reservation=reservation, limits=limits,
                 dispatch_guard=require_permission,
             )
             if isinstance(operation, NotAdmitted):

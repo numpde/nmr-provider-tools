@@ -20,8 +20,9 @@ prepare call returns worker-local state that calculate consumes. The stateless
 sum binding uses the same interface for a single calculation.
 
 The configured frozen bindings expose typed members: `weighted.prepare`,
-`weighted.calculate` and `summation.run`. `ref(weighted.prepare)` derives its
-wire reference. The producer's `normalized` output connects to the consumer's
+`weighted.calculate` and `summation.run`. Local execution uses
+`analysis.submit_call(weighted.prepare, ...)`; the SDK derives the data-only
+reference internally. The producer's `normalized` output connects to the consumer's
 independently named `candidate` input through typed slots. Projection observes
 the original producer operation; the backend owns live state admission,
 consumption and cleanup. These named slot helpers are provider assembly fields;

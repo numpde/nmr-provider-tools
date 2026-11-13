@@ -11,18 +11,24 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
+from collections.abc import Callable
 from uuid import uuid4
 
 from provider_core.async_runner_session import await_original
+from provider_core.contribution import CallBinding, ref
 from provider_core.hosting import (
     AdmissionCode,
     AllocationRef,
+    AnalysisCleanup,
     CapacityUnavailable,
+    ExecutionLimits,
     Invocation,
     NotAdmitted,
+    Operation,
     RequestConflict,
     ReservationRef,
     ResourceState,
+    StateArgument,
 )
 from provider_core._embedded_operation import _Operation
 from provider_core._embedded_support import (
@@ -74,7 +80,9 @@ class EmbeddedHost:
         if asyncio.get_running_loop() is not self.loop:
             raise RuntimeError("The embedded host belongs to its original event loop.")
 
-    def open_analysis(self, analysis_id, *, allocation_names):
+    def open_analysis(
+        self, analysis_id: str, *, allocation_names: tuple[str, ...],
+    ) -> EmbeddedAnalysis:
         """Reserve all named allocations together, without running any science."""
         self._require_loop()
         if self.retiring:
@@ -104,7 +112,7 @@ class EmbeddedHost:
         ):
             raise CapacityUnavailable("A requested allocation is occupied, failed or retiring.")
 
-        analysis = _Analysis(self, analysis_id, selected_residents)
+        analysis = EmbeddedAnalysis(self, analysis_id, selected_residents)
         self.analyses[analysis_id] = analysis
         for resident in selected_residents:
             resident.analysis = analysis
@@ -166,7 +174,13 @@ class EmbeddedHost:
             raise BaseExceptionGroup("Some original resources remain unretired.", failures)
 
 
-class _Analysis:
+class EmbeddedAnalysis:
+    """Local analysis returned by EmbeddedHost.open_analysis.
+
+    Its reservations belong to that host. Both bound-call and portable
+    invocation submission use the same admission and operation owners.
+    """
+
     def __init__(self, host, identity, residents):
         self.host = host
         self.identity = identity
@@ -190,7 +204,38 @@ class _Analysis:
         self.closed = False
         self.cleanup = None
 
-    def submit(self, invocation, *, dispatch_guard):
+    def submit_call[InputT, StateT, OutputT](
+        self,
+        call: CallBinding[InputT, StateT, OutputT],
+        *,
+        operation_id: str,
+        payload: bytes,
+        states: tuple[StateArgument, ...],
+        reservation: ReservationRef,
+        limits: ExecutionLimits,
+        dispatch_guard: Callable[[], None],
+    ) -> Operation | NotAdmitted:
+        """Submit a local bound member through the ordinary data-only path.
+
+        Project the configured address, then let submit own admission,
+        identity and dispatch. The retained invocation is data-only; the
+        reservation and guard remain explicit caller inputs.
+        """
+        if type(call) is not CallBinding:
+            raise TypeError("Local call submission requires a bound CallBinding member")
+        invocation = Invocation(
+            operation_id=operation_id,
+            target=ref(call),
+            payload=payload,
+            states=states,
+            reservation=reservation,
+            limits=limits,
+        )
+        return self.submit(invocation, dispatch_guard=dispatch_guard)
+
+    def submit(
+        self, invocation: Invocation, *, dispatch_guard: Callable[[], None],
+    ) -> Operation | NotAdmitted:
         self.host._require_loop()
         if type(invocation) is not Invocation or not callable(dispatch_guard):
             raise TypeError("Submit requires an Invocation and a host-side permission check.")
@@ -331,7 +376,7 @@ class _Analysis:
         return state_owners
 
 
-    def close(self):
+    def close(self) -> AnalysisCleanup:
         self.host._require_loop()
         if self.cleanup is None:
             self.closed = True

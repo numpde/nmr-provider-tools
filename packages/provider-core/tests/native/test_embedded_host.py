@@ -227,6 +227,86 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         payload = await operation.read_result(observation.result)
         return observation, codec.decode(payload)
 
+    async def test_local_bound_submission_and_portable_submission_share_one_owner(self):
+        binding = sum_binding()
+        host = self.host({"one": binding})
+        analysis = host.open_analysis("local-call", allocation_names=("one",))
+        invocation = _invocation(
+            analysis, binding, operation_id="sum", call_name="run",
+            payload=b'{"values":[4,5]}',
+        )
+        operation = analysis.submit_call(
+            binding.run,
+            operation_id=invocation.operation_id,
+            payload=invocation.payload,
+            states=invocation.states,
+            reservation=invocation.reservation,
+            limits=invocation.limits,
+            dispatch_guard=_allow,
+        )
+        self.assertIs(operation, analysis.submit(invocation, dispatch_guard=_allow))
+        with self.assertRaises(RequestConflict):
+            analysis.submit_call(
+                binding.run,
+                operation_id=invocation.operation_id,
+                payload=b'{"values":[6]}',
+                states=(), reservation=invocation.reservation, limits=invocation.limits,
+                dispatch_guard=_allow,
+            )
+        _, result = await self.success(operation, binding.run.result_codec)
+        self.assertEqual(science.SumResult(total=9, count=2), result)
+
+    async def test_local_submission_rejects_unbound_and_nonmember_targets(self):
+        binding = sum_binding()
+        host = self.host({"one": binding})
+        analysis = host.open_analysis("unbound", allocation_names=("one",))
+        reservation, = analysis.reservations
+        with self.assertRaisesRegex(ValueError, "before a configured binding owns it"):
+            analysis.submit_call(
+                replace(binding.run), operation_id="unbound", payload=b'{"values":[1]}',
+                states=(), reservation=reservation, limits=_execution_limits(), dispatch_guard=_allow,
+            )
+        for target in ("run", ref(binding.run)):
+            with self.subTest(target=target), self.assertRaises(TypeError):
+                analysis.submit_call(
+                    target, operation_id="invalid", payload=b'{"values":[1]}',
+                    states=(), reservation=reservation, limits=_execution_limits(), dispatch_guard=_allow,
+                )
+        self.assertEqual({}, host.operations)
+        self.assertEqual(0, host.input_used)
+        self.assertEqual(0, host.result_reserved)
+
+    async def test_local_submission_preserves_revision_refusal_and_deferred_guard(self):
+        binding = sum_binding()
+        host = self.host({"one": binding})
+        analysis = host.open_analysis("local-guard", allocation_names=("one",))
+        reservation, = analysis.reservations
+        wrong_revision = replace(binding, identity=replace(
+            binding.identity, implementation="dummy.sum.another",
+        ))
+        foreign = analysis.submit_call(
+            wrong_revision.run, operation_id="foreign", payload=b'{"values":[1]}',
+            states=(), reservation=reservation, limits=_execution_limits(), dispatch_guard=_allow,
+        )
+        self.assertIsInstance(foreign, NotAdmitted)
+        self.assertEqual({}, host.operations)
+        permitted = True
+        cause = PermissionError("Local dispatch permission was withdrawn")
+
+        def guard():
+            if not permitted:
+                raise cause
+
+        operation = analysis.submit_call(
+            binding.run, operation_id="revoked", payload=b'{"values":[1]}',
+            states=(), reservation=reservation, limits=_execution_limits(), dispatch_guard=guard,
+        )
+        permitted = False
+        observed = await self.finished(operation)
+        self.assertIs(DispatchState.NOT_STARTED, observed.dispatch)
+        self.assertIsNone(observed.outcome)
+        self.assertTrue(any(failure.cause is cause for failure in observed.failures))
+
     async def test_description_and_direct_science_match_hosted_calls(self):
         settings = science.WeightedSumSettings(scale=2, offset=1)
         coefficients = science.CoefficientSet(values=(1, 2, 3))
