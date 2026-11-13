@@ -445,7 +445,14 @@ class HttpTransport:
                 try:
                     await response.aclose()
                 except BaseException as failure:
-                    outcome.cleanup_failures.append(failure)
+                    # Cancellation during TLS goodbye may already have closed
+                    # the raw socket. Keep the interruption as the operation's
+                    # outcome without inventing an unfinished resource owner.
+                    if isinstance(failure, asyncio.CancelledError) and network is not None and network.retirement_confirmed:
+                        if outcome.primary is None:
+                            outcome.primary = failure
+                    else:
+                        outcome.cleanup_failures.append(failure)
             if network is not None:
                 try:
                     await network.aclose()

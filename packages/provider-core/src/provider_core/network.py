@@ -14,6 +14,7 @@ import asyncio
 from contextlib import contextmanager
 from dataclasses import dataclass
 import errno
+import logging
 import socket
 import ssl
 import sys
@@ -178,6 +179,10 @@ class OwnedNetworkBackend(httpcore.AsyncNetworkBackend):
         for stream in tuple(self._streams):
             await stream.aclose()
 
+    @property
+    def retirement_confirmed(self):
+        return not self._streams
+
     def abort_tls_shutdown(self):
         """Close interrupted exchanges without reading the unfinished response."""
         for stream in self._streams:
@@ -187,8 +192,9 @@ class OwnedNetworkBackend(httpcore.AsyncNetworkBackend):
 class _NetworkByteStream(anyio.abc.ByteStream):
     """Let AnyIO TLS use the already-owned HTTP network stream."""
 
-    def __init__(self, stream):
+    def __init__(self, stream, close_raw):
         self.stream = stream
+        self.close_raw = close_raw
 
     @property
     def extra_attributes(self):
@@ -212,7 +218,7 @@ class _NetworkByteStream(anyio.abc.ByteStream):
         raise NotImplementedError("TLS owns the closing exchange; raw half-close is not supported")
 
     async def aclose(self):
-        await self.stream.aclose()
+        await self.close_raw()
 
 
 class _OwnedStream(httpcore.AsyncNetworkStream):
@@ -221,6 +227,7 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
         self._raw_stream = stream
         self._network = network
         self._owners = network._streams
+        self._raw_close_failure = None
 
     async def read(self, max_bytes, timeout=None):
         with self._network.io("read"):
@@ -261,7 +268,7 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
                     # Finish TLS shutdown instead; HttpTransport's existing
                     # deadlines still bound a peer that never answers.
                     stream = await TLSStream.wrap(
-                        _NetworkByteStream(self._stream), ssl_context=ssl_context,
+                        _NetworkByteStream(self._stream, self._close_raw), ssl_context=ssl_context,
                         hostname=server_hostname, server_side=False,
                         standard_compatible=True,
                     )
@@ -275,7 +282,38 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
             # TLS unwrap could read more application data and replace the
             # original failure with a shutdown error. Success still closes TLS.
             if sys.exception() is not None or asyncio.current_task().cancelling():
-                await self._raw_stream.aclose()
+                await self._close_raw()
             else:
-                await self._stream.aclose()
+                try:
+                    await self._stream.aclose()
+                except BaseException as failure:
+                    # AnyIO's forceful TCP close can be interrupted after it
+                    # closes the descriptor but before it returns. Retry the
+                    # raw close to establish its completion, never SSL unwrap.
+                    self._stream = self._raw_stream
+                    await self._close_raw()
+                    peer_eof = type(failure) is ssl.SSLEOFError or (
+                        type(failure) is anyio.BrokenResourceError
+                        and type(failure.__cause__) is ssl.SSLEOFError
+                    )
+                    # Only a successful raw close releases this owner; an
+                    # EOF-shaped raw-close failure above must still fail.
+                    if not peer_eof or failure is self._raw_close_failure:
+                        raise
+                    logging.getLogger("provider_core.transport").warning(
+                        "TLS peer omitted close_notify; local socket closure confirmed",
+                        exc_info=failure,
+                    )
+            self._owners.discard(self)
+
+    async def _close_raw(self):
+        """Record physical retirement even when AnyIO closes inside unwrap."""
+        if self in self._owners:
+            try:
+                await self._raw_stream.aclose()
+            except BaseException as failure:
+                # A successful retry proves retirement, but cannot turn a raw
+                # close error into a benign peer TLS goodbye with the same type.
+                self._raw_close_failure = failure
+                raise
             self._owners.remove(self)
