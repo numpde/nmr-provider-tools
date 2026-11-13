@@ -81,8 +81,7 @@ read -r resolved_image platform extra < "$operation_directory/base"
 [[ $resolved_image =~ ^sha256:[0-9a-f]{64}$ && $platform == linux/amd64 && -z $extra ]] || {
     printf '%s\n' 'The pinned Python base has invalid selected-engine metadata.' >&2; exit 2;
 }
-checker_host_identity "$base_image" python3 "$(id -u)" "$(id -g)"
-record_container
+checker_host_identity "$base_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"
 uid=$checker_host_uid gid=$checker_host_gid
 mkdir -m 700 "$operation_directory/route"
 route=$operation_directory/route

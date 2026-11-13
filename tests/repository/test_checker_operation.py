@@ -99,6 +99,121 @@ if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
         command, environment = self.invocation(scenario)
         return subprocess.run(command, env=environment, capture_output=True, text=True, timeout=15, check=False)
 
+    def identity_invocation(self, scenario):
+        shadow = self.directory / "identity-checkout"
+        (shadow / "host/tools").mkdir(parents=True)
+        for name in ("checker_operation.sh", "docker_client.sh", "inference_native.sh", "image_lifecycle.sh"):
+            shutil.copyfile(ROOT / "host/tools" / name, shadow / "host/tools" / name)
+        acquisition = shadow / "bootstrap/acquisition/acquisition_tool"
+        acquisition.mkdir(parents=True)
+        # The published owner is an external port here. Its own tests qualify
+        # probing; this fixture exposes its call, result, and retirement receipt.
+        (acquisition / "owner.sh").write_text('''printf 'source\\n' >> "$PROBE_IDENTITY_EVENTS"
+acquisition_project_ids() {
+    printf 'project\\n' >> "$PROBE_IDENTITY_EVENTS"
+    printf '%s\\n' "${@:2:3}" "${@:6}" > "$PROBE_IDENTITY_ARGUMENTS"
+    case "$PROBE_SCENARIO" in
+        missing-receipt) return 0 ;;
+        malformed-receipt) printf 'retired\\nextra\\n' > "$5"; return 0 ;;
+    esac
+    printf 'retired\\n' > "$5"
+    case "$PROBE_SCENARIO" in
+        identity-failure) return 23 ;;
+        identity-signal) return 143 ;;
+    esac
+    local -n fixture_output=$1
+    fixture_output=(17 29)
+}
+''')
+        script = '''set -euo pipefail
+root=$1
+python3() {
+    printf 'verify\\n' >> "$PROBE_IDENTITY_EVENTS"
+    if [[ $PROBE_SCENARIO == verification-failure ]]; then return 31; fi
+}
+source "$root/host/tools/checker_operation.sh"
+checker_begin
+printf '%s\\n' "$operation_directory" "$docker_client_directory" > "$PROBE_REPORT"
+engine=(bash "$PROBE_ENGINE")
+checker_host_uid=old-uid
+checker_host_gid=old-gid
+if checker_host_identity pinned-image /probe/python 1001 1002; then status=0; else status=$?; fi
+printf '%s\\n' "$status" "$checker_host_uid" "$checker_host_gid" "$inference_retirement_confirmed" > "$PROBE_IDENTITY_RESULT"
+if [[ $PROBE_SCENARIO == identity-success ]]; then
+    checker_call 'settled identity follow-up' 1 stdio bash -c 'printf "native\\n" >> "$PROBE_IDENTITY_EVENTS"'
+fi
+if [[ $PROBE_SCENARIO == missing-receipt || $PROBE_SCENARIO == malformed-receipt ]]; then
+    if checker_call 'forbidden native dispatch' 1 stdio bash -c 'printf "native\\n" >> "$PROBE_IDENTITY_EVENTS"'; then next_native=0; else next_native=$?; fi
+    if checker_host_identity next-image /probe/python 1001 1002; then next_identity=0; else next_identity=$?; fi
+    printf '%s\\n' "$next_native" "$next_identity" "$inference_retirement_confirmed" >> "$PROBE_IDENTITY_RESULT"
+fi
+exit "$status"
+'''
+        environment = self.environment | {
+            "PROBE_SCENARIO": scenario,
+            "NMR_SELECTED_DOCKER_ENDPOINT": "unix:///fixture-selected.sock",
+            "PROBE_IDENTITY_EVENTS": str(self.directory / "identity-events"),
+            "PROBE_IDENTITY_ARGUMENTS": str(self.directory / "identity-arguments"),
+            "PROBE_IDENTITY_RESULT": str(self.directory / "identity-result"),
+        }
+        return ["bash", "-c", script, "bash", str(shadow)], environment
+
+    def run_identity_probe(self, scenario):
+        command, environment = self.identity_invocation(scenario)
+        return subprocess.run(command, env=environment, capture_output=True, text=True, timeout=15, check=False)
+
+    def test_shared_identity_owner_receives_selected_endpoint_policy_and_map_order(self):
+        result = self.run_identity_probe("identity-success")
+        self.assertEqual(0, result.returncode, msg=result.stderr)
+        self.assertEqual(["verify", "source", "project", "native"], (self.directory / "identity-events").read_text().splitlines())
+        self.assertEqual(
+            ["2", "unix:///fixture-selected.sock", "pinned-image", "--interpreter", "/probe/python",
+             "--user-uid", "0", "--user-gid", "0", "--memory-bytes", "67108864", "--pids-limit", "16",
+             "--nano-cpus", "1000000000", "--map", "uid", "inverse", "1001", "--map", "gid", "inverse", "1002"],
+            (self.directory / "identity-arguments").read_text().splitlines(),
+        )
+        self.assertEqual(["0", "17", "29", "true"], (self.directory / "identity-result").read_text().splitlines())
+        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
+
+    def assert_identity_receipt_blocks_dispatch(self, scenario):
+        result = self.run_identity_probe(scenario)
+        self.assertEqual(2, result.returncode, msg=result.stderr)
+        self.assertEqual(["verify", "source", "project"], (self.directory / "identity-events").read_text().splitlines())
+        self.assertEqual(
+            ["2", "old-uid", "old-gid", "true", "2", "2", "true"],
+            (self.directory / "identity-result").read_text().splitlines(),
+        )
+        self.assertTrue(all(path.is_dir() for path in self.owned_paths()))
+        self.assertIn("acquisition retirement is unconfirmed", result.stderr)
+
+    def test_missing_identity_receipt_blocks_dispatch_and_retains_inputs(self):
+        self.assert_identity_receipt_blocks_dispatch("missing-receipt")
+
+    def test_malformed_identity_receipt_blocks_dispatch_and_retains_inputs(self):
+        self.assert_identity_receipt_blocks_dispatch("malformed-receipt")
+
+    def assert_settled_identity_failure(self, scenario, status):
+        result = self.run_identity_probe(scenario)
+        self.assertEqual(status, result.returncode, msg=result.stderr)
+        self.assertEqual(
+            [str(status), "old-uid", "old-gid", "true"],
+            (self.directory / "identity-result").read_text().splitlines(),
+        )
+        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
+
+    def test_settled_identity_failure_preserves_status_and_prior_ids(self):
+        self.assert_settled_identity_failure("identity-failure", 23)
+
+    def test_settled_identity_signal_preserves_status_and_prior_ids(self):
+        self.assert_settled_identity_failure("identity-signal", 143)
+
+    def test_identity_verification_failure_stops_before_sourcing_or_probe(self):
+        result = self.run_identity_probe("verification-failure")
+        self.assertEqual(31, result.returncode, msg=result.stderr)
+        self.assertEqual(["verify"], (self.directory / "identity-events").read_text().splitlines())
+        self.assertEqual(["31", "old-uid", "old-gid", "true"], (self.directory / "identity-result").read_text().splitlines())
+        self.assertTrue(all(not path.exists() for path in self.owned_paths()))
+
     def test_success_removes_owned_containers_before_temporary_inputs(self):
         result = self.run_probe("success")
         self.assertEqual(0, result.returncode, msg=result.stderr)

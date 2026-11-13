@@ -8,7 +8,7 @@ select_wheelhouse
 require_wheelhouse_pool
 source "$root/host/tools/checker_operation.sh"
 checker_begin
-checker_host_identity "$base_image" python3 "$(id -u)" "$(id -g)"
+checker_host_identity "$base_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"
 checker_run 120 --pull never --network none --read-only --user "$checker_host_uid:$checker_host_gid" \
     --cap-drop ALL --security-opt no-new-privileges:true --pids-limit 64 --memory 512m \
     --tmpfs /tmp:rw,nosuid,nodev,noexec,size=128m --workdir /workspace \

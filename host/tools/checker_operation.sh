@@ -46,13 +46,25 @@ checker_admit_tools() {
     checker_admit_image "$fingerprint" checker
 }
 
-checker_call() {
-    local status=0
+checker_can_dispatch() {
+    local receipt
     if ! "$inference_retirement_confirmed"; then
         retain_operation=true
         operation_diagnostic+=$'Cannot dispatch another checker client: previous local process retirement is unconfirmed.\n'
         return 2
     fi
+    for receipt in "${operation_acquisition_receipts[@]}"; do
+        if ! cmp -s "$receipt" <(printf 'retired\n'); then
+            retain_operation=true
+            operation_diagnostic+=$'Cannot dispatch another checker client: acquisition retirement is unconfirmed.\n'
+            return 2
+        fi
+    done
+}
+
+checker_call() {
+    local status=0
+    checker_can_dispatch || return "$?"
     if inference_native "$@"; then :; else status=$?; fi
     operation_diagnostic+=$inference_diagnostic
     if ! "$inference_retirement_confirmed"; then retain_operation=true; fi
@@ -98,19 +110,37 @@ checker_run() {
     checker_call 'checker container attachment' "$budget" stdio "${engine[@]}" start --attach "$operation_container"
 }
 
-# Find the container identity that writes as the calling host user. The probe
-# uses the same selected engine as the worker and carries no host mounts.
+# The published owner retires its probe and original native client before
+# admitting values. Its receipt remains distinct from our own native-client fact.
+checker_project_ids() {
+    local checker_identity_output=$1 checker_identity_count=$2 checker_identity_image=$3 checker_identity_status=0
+    shift 3
+    checker_can_dispatch || return "$?"
+    python3 -I -S -B "$root/bootstrap/acquisition/acquisition_tool/source_update.py" \
+        verify --source-dir "$root/bootstrap/acquisition" || return "$?"
+    source "$root/bootstrap/acquisition/acquisition_tool/owner.sh"
+    checker_acquisition_receipt
+    if acquisition_project_ids "$checker_identity_output" "$checker_identity_count" \
+        "$NMR_SELECTED_DOCKER_ENDPOINT" "$checker_identity_image" "$operation_acquisition_receipt" "$@"; then :; else
+        checker_identity_status=$?
+    fi
+    if ! cmp -s "$operation_acquisition_receipt" <(printf 'retired\n'); then
+        retain_operation=true
+        [[ $checker_identity_status != 0 ]] || checker_identity_status=2
+    fi
+    return "$checker_identity_status"
+}
+
+# Inverse projections identify the container user that writes as the host caller.
 checker_host_identity() {
-    local image=$1 python=$2 host_uid=$3 host_gid=$4 pid running
-    checker_create --pull never --network none --read-only --user 0:0 --cap-drop ALL \
-        --security-opt no-new-privileges:true --cpus 1 --memory 64m --memory-swap 64m --pids-limit 16 \
-        --entrypoint "$python" "$image" -I -B -c 'import time; time.sleep(30)' || return 2
-    checker_metadata "$operation_directory/identity-start" start "$operation_container" || return 2
-    checker_metadata "$operation_directory/identity-pid" inspect --format '{{.State.Pid}} {{.State.Running}}' "$operation_container" || return 2
-    read -r pid running < "$operation_directory/identity-pid" || return 2
-    [[ $pid =~ ^[1-9][0-9]*$ && $running == true ]] || return 2
-    checker_host_uid=$(awk -v id="$host_uid" '$2 <= id && id < $2 + $3 {printf "%.0f\n", $1 + id - $2; found=1; exit} END {if (!found) exit 1}' "/proc/$pid/uid_map") || return 2
-    checker_host_gid=$(awk -v id="$host_gid" '$2 <= id && id < $2 + $3 {printf "%.0f\n", $1 + id - $2; found=1; exit} END {if (!found) exit 1}' "/proc/$pid/gid_map") || return 2
+    local image=$1 python=$2 host_uid=$3 host_gid=$4
+    local -a values=()
+    checker_project_ids values 2 "$image" \
+        --interpreter "$python" --user-uid 0 --user-gid 0 \
+        --memory-bytes 67108864 --pids-limit 16 --nano-cpus 1000000000 \
+        --map uid inverse "$host_uid" --map gid inverse "$host_gid" || return "$?"
+    checker_host_uid=${values[0]}
+    checker_host_gid=${values[1]}
 }
 
 checker_teardown() {

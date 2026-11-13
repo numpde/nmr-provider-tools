@@ -22,9 +22,7 @@ source "$root/host/tools/delivery_identity.sh"
 recipe=$(delivery_recipe_identity)
 checker_begin
 checker_admit_tools
-checker_host_identity "$checker_image" python3 "$uid" "$gid" || {
-    printf '%s\n' 'Cannot map the wheelhouse owner into the selected engine.' >&2; exit 2;
-}
+checker_host_identity "$checker_image" /usr/local/bin/python3 "$uid" "$gid" || exit "$?"
 checker_input_paths=("${inputs[@]}")
 expected=$(checker_fingerprint checker)
 [[ $recipe == "$expected" ]] || { printf '%s\n' 'Delivery recipe changed before capture; retry.' >&2; exit 2; }

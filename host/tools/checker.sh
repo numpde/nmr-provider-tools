@@ -126,9 +126,7 @@ if [[ $action == download || $action == prepare ]]; then
     if [[ $action == download ]]; then exit; fi
 fi
 
-checker_host_identity "$bootstrap_image" python3 "$uid" "$gid" || {
-    printf '%s\n' 'Cannot map the wheelhouse owner into the selected engine.' >&2; exit 2;
-}
+checker_host_identity "$bootstrap_image" /usr/local/bin/python3 "$uid" "$gid" || exit "$?"
 worker_uid=$checker_host_uid worker_gid=$checker_host_gid
 checker_run 60 "${worker[@]}" --network none --user "$worker_uid:$worker_gid" \
     --mount "type=bind,src=$wheelhouse_directory,dst=/wheelhouse,readonly" \

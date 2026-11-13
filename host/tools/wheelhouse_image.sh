@@ -16,7 +16,7 @@ case "$action" in
         if ! python3 -I -S -B -c 'import sys; sys.exit(sys.version_info < (3, 11))'; then
             printf '%s\n' 'Cannot build the wheelhouse tool: host Python 3.11 or newer is required.' >&2; exit 2
         fi
-        checker_host_identity "$checker_image" python3 "$(id -u)" "$(id -g)"
+        checker_host_identity "$checker_image" /usr/local/bin/python3 "$(id -u)" "$(id -g)"
         sources=(containers/wheelhouse/Dockerfile requirements/wheelhouse-tool.lock requirements/wheelhouse-tool-release.json
             tools/installer.py tools/container_guard.py requirements/installer-release.json)
         for path in "$root"/wheelhouse_tool/*.py; do sources+=("${path#"$root"/}"); done

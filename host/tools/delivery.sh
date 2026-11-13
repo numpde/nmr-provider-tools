@@ -34,23 +34,20 @@ helper() {
         --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B "$@"
 }
 grant_helper_input() {
-    local mapped pid running host_settings_gid
-    checker_create --pull never --network none --read-only --user "$uid:$gid" --cap-drop ALL \
-        --security-opt no-new-privileges:true --cpus 1 --memory 64m --memory-swap 64m --pids-limit 16 \
-        --entrypoint /opt/provider-core/environment/bin/python "$image" -I -B -c 'import time; time.sleep(30)'
-    checker_metadata "$operation_directory/map-start" start "$operation_container"
-    checker_metadata "$operation_directory/map-pid" inspect --format '{{.State.Pid}} {{.State.Running}}' "$operation_container"
-    read -r pid running < "$operation_directory/map-pid"
-    [[ $pid =~ ^[1-9][0-9]*$ && $running == true ]] || { refuse 'cannot inspect the helper user mapping.'; return 2; }
-    mapped=$(awk -v uid="$uid" '$1 <= uid && uid < $1 + $3 {printf "%.0f\n", $2 + uid - $1; found=1; exit} END {if (!found) exit 1}' "/proc/$pid/uid_map") \
-        || { refuse 'cannot read the helper user mapping.'; return 2; }
-    host_settings_gid=$(stat -c %g -- "$definition")
-    settings_reader_gid=$(awk -v gid="$host_settings_gid" '$2 <= gid && gid < $2 + $3 {printf "%.0f\n", $1 + gid - $2; found=1; exit} END {if (!found) exit 1}' "/proc/$pid/gid_map") \
-        || { refuse 'the settings group is not mapped into the selected engine.'; return 2; }
+    local mapped host_settings_gid
+    local -a values=()
+    host_settings_gid=$(stat -c %g -- "$definition") || return "$?"
+    checker_project_ids values 2 "$image" \
+        --interpreter /opt/provider-core/environment/bin/python --user-uid "$uid" --user-gid "$gid" \
+        --memory-bytes 67108864 --pids-limit 16 --nano-cpus 1000000000 \
+        --map uid forward "$uid" --map gid inverse "$host_settings_gid" || return "$?"
+    mapped=${values[0]}
+    settings_reader_gid=${values[1]}
     if [[ $mapped != "$uid" ]]; then
         setfacl -m "u:$mapped:r--" -- "$1"
     fi
 }
+
 project_containers() {
     checker_metadata "$operation_directory/project-containers" ps --all --quiet --no-trunc --filter "label=com.docker.compose.project=$project"
     identifiers=()

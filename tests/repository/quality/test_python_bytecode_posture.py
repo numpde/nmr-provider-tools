@@ -37,7 +37,7 @@ class PythonBytecodePostureTests(unittest.TestCase):
 
     def test_entrypoint_declarations_shared_arrays_and_compilers_are_explicit_boundaries(self):
         for source in ("options=(--entrypoint python3)",
-                       'checker_host_identity "$image" python3 "$uid" "$gid"',
+                       'checker_host_identity "$image" /usr/local/bin/python3 "$uid" "$gid"',
                        'run "${worker[@]}" --entrypoint python3 "$image" -m tools.helper',
                        "python3 -I -m pip install dependency", "python3 -I -m venv /runtime",
                        "python3 -I -c 'import sys; print(sys.version)'",
