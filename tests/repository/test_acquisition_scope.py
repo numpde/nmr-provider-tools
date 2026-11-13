@@ -34,6 +34,8 @@ source "$ACQUISITION_SOURCE_ROOT/acquisition_tool/owner.sh"
 ''' + body
         environment = {
             **os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}', 'ENGINE_STATE': str(root),
+            'IDENTITY_RECEIPT': 'exact', 'IDENTITY_OUTPUT': '17 19 23 29\n',
+            'IDENTITY_STATUS': '0', 'IDENTITY_DIAGNOSTIC': '',
             'ACQUISITION_SOURCE_ROOT': str(Path(__file__).resolve().parents[2] / 'host'),
         }
         process = subprocess.Popen(['bash', '-c', script], env=environment,
@@ -61,6 +63,78 @@ printf '%s %s\n' "$uid" "$gid"
             'unix:///selected.sock', 'fixture:identity', str(os.geteuid()), str(os.getegid()),
             'unix:///selected.sock', 'fixture:identity', '1007', '2009',
         ], (root / 'identity-arguments').read_text().splitlines())
+
+    def test_generalized_projection_preserves_order_policy_and_retirement(self):
+        status, stdout, stderr, root = self.run_mapping(r'''
+values=(unchanged)
+acquisition_project_ids values 4 unix:///selected.sock fixture:identity "$ENGINE_STATE/retired" \
+    --interpreter /usr/local/bin/python3 --user-uid 0 --user-gid 0 --userns host \
+    --memory-bytes 67108864 --pids-limit 8 --nano-cpus 250000000 \
+    --map uid forward 1007 --map gid inverse 2009 --map uid inverse 0 --map gid forward 0
+printf '%s\n' "${values[*]}"
+''')
+        self.assertEqual(0, status, msg=stderr)
+        self.assertEqual(b'17 19 23 29\n', stdout)
+        self.assertEqual('retired\n', (root / 'retired').read_text())
+        arguments = (root / 'identity-projection-arguments').read_text().splitlines()
+        self.assertEqual([
+            '--endpoint', 'unix:///selected.sock', '--image', 'fixture:identity',
+            '--interpreter', '/usr/local/bin/python3', '--user-uid', '0', '--user-gid', '0',
+            '--userns', 'host', '--memory-bytes', '67108864', '--pids-limit', '8',
+            '--nano-cpus', '250000000', '--map', 'uid', 'forward', '1007',
+            '--map', 'gid', 'inverse', '2009', '--map', 'uid', 'inverse', '0',
+            '--map', 'gid', 'forward', '0', '--retired-receipt',
+        ], arguments[:-1])
+
+    def test_generalized_projection_rejects_malformed_output_without_replacing_values(self):
+        for output in ('', '17 19', '17 19\n', '17 19 23 29 31\n', '17 19 23 29',
+                       '17 19 23 29\nextra\n', '017 19 23 29\n', '17 19 23 4294967295\n',
+                       '17 19 23 -1\n', '17 19 23 29 \n', '17  19 23 29\n'):
+            with self.subTest(output=output):
+                # Shell quoting keeps the scenario bytes literal, including newlines.
+                literal = "'" + output.replace("'", "'\\''") + "'"
+                status, stdout, stderr, root = self.run_mapping(r'''
+export IDENTITY_OUTPUT=''' + literal + r'''
+values=(unchanged retained)
+status=0
+acquisition_project_ids values 4 unix:///selected.sock fixture:identity "$ENGINE_STATE/retired" \
+    --map uid forward 1007 || status=$?
+printf '%s %s\n' "$status" "${values[*]}"
+''')
+                self.assertEqual(0, status, msg=stderr)
+                self.assertEqual(b'2 unchanged retained\n', stdout)
+                self.assertEqual('retired\n', (root / 'retired').read_text())
+                self.assertIn(b'canonical Linux IDs', stderr)
+
+    def test_generalized_projection_rejects_reserved_output_names_before_dispatch(self):
+        for name in ('_acq_project_candidates', '_acq_project_output', 'inference_retirement_confirmed'):
+            with self.subTest(name=name):
+                status, stdout, stderr, root = self.run_mapping(
+                    f'{name}=(unchanged)\n' +
+                    f'acquisition_project_ids {name} 4 unix:///selected.sock fixture:identity "" --map uid forward 0\n')
+                self.assertEqual(2, status, msg=stderr)
+                self.assertEqual(b'', stdout)
+                self.assertIn(b'reserved', stderr)
+                self.assertFalse((root / 'identity-projection-arguments').exists())
+
+    def test_generalized_projection_requires_success_and_exact_retirement(self):
+        for receipt, result, expected in (('exact', 2, 2), ('exact', 129, 129), ('exact', 130, 130),
+                                          ('exact', 143, 143), ('absent', 0, 2),
+                                          ('malformed', 0, 2), ('absent', 130, 2)):
+            with self.subTest(receipt=receipt, result=result):
+                status, stdout, stderr, root = self.run_mapping(
+                    f'export IDENTITY_RECEIPT={receipt} IDENTITY_STATUS={result}\n' + r'''
+export IDENTITY_DIAGNOSTIC='original probe failure'
+values=(unchanged retained)
+status=0
+acquisition_project_ids values 4 unix:///selected.sock fixture:identity "$ENGINE_STATE/retired" \
+    --map uid forward 1007 || status=$?
+printf '%s %s\n' "$status" "${values[*]}"
+''')
+                self.assertEqual(0, status, msg=stderr)
+                self.assertEqual(f'{expected} unchanged retained\n'.encode(), stdout)
+                self.assertEqual(receipt == 'exact', (root / 'retired').exists())
+                self.assertIn(b'original probe failure', stderr)
 
     def test_invalid_mapping_arguments_do_not_probe_or_replace_outputs(self):
         for arguments in ('', 'uid', 'uid gid', 'uid gid fixture:image 1007',

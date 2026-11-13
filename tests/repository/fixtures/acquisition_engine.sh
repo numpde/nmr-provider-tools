@@ -1,6 +1,23 @@
 #!/bin/bash
 set -eu
 if [[ ${0##*/} == python3 ]]; then
+  if [[ $# -lt 9 || $9 != --host-uid ]]; then
+    # The generalized probe is an external port: publish only the selected
+    # scenario's wire output and independent retirement evidence.
+    [[ $1 == -I && $2 == -S && $3 == -B ]] || exit 97
+    [[ $4 == "$ACQUISITION_SOURCE_ROOT/acquisition_tool/identity.py" ]] || exit 97
+    [[ $5 == --endpoint && $7 == --image && ${@: -2:1} == --retired-receipt ]] || exit 97
+    printf '%s\n' "${@:5}" >> "$ENGINE_STATE/identity-projection-arguments"
+    case "$IDENTITY_RECEIPT" in
+      exact) (set -C; printf 'retired\n' > "${!#}") ;;
+      malformed) (set -C; printf 'retired\nextra\n' > "${!#}") ;;
+      absent) ;;
+      *) exit 97 ;;
+    esac
+    printf '%s' "$IDENTITY_OUTPUT"
+    printf '%s' "$IDENTITY_DIAGNOSTIC" >&2
+    exit "$IDENTITY_STATUS"
+  fi
   [[ $# == 14 && $1 == -I && $2 == -S && $3 == -B ]] || exit 97
   [[ $4 == "$ACQUISITION_SOURCE_ROOT/acquisition_tool/identity.py" ]] || exit 97
   [[ $5 == --endpoint && $7 == --image && $9 == --host-uid ]] || exit 97
