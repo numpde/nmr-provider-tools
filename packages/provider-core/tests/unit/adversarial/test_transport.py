@@ -168,6 +168,8 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                 if not task.done():
                     task.cancel()
                     await asyncio.gather(task, return_exceptions=True)
+                if transport._active is not None:
+                    await asyncio.gather(transport._active.task, return_exceptions=True)
                 if cleanup is None:
                     await transport.retire(owner=owner)
                 else:
@@ -289,6 +291,8 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                     if not task.done():
                         task.cancel()
                         await asyncio.gather(task, return_exceptions=True)
+                    if transport._active is not None:
+                        await asyncio.gather(transport._active.task, return_exceptions=True)
                     await transport.retire(owner=owner)
                 self.assertTrue(transport.retirement_confirmed)
                 self.assertEqual(inspect.call_count, 1)
