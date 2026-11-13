@@ -69,6 +69,21 @@ override SOURCE_ARCHIVE_INPUT := $(value INPUT_RELEASE_ARCHIVE)
 export SOURCE_ARCHIVE_INPUT
 endif
 
+unexport TEST_PATTERN
+unexport TEST_PATTERN_INPUT
+unexport TEST_PATTERN_INPUT_ORIGIN
+override export TEST_PATTERN_INPUT_ORIGIN := $(origin TEST_PATTERN)
+ifeq ($(origin TEST_PATTERN),command line)
+override TEST_PATTERN_INPUT := $(value TEST_PATTERN)
+export TEST_PATTERN_INPUT
+ifneq ($(words $(MAKECMDGOALS)),1)
+$(error TEST_PATTERN requires exactly one unit, contract or integration provider-core target)
+endif
+ifeq ($(filter $(MAKECMDGOALS),tests/unit/provider-core tests/contract/provider-core tests/integration/provider-core),)
+$(error TEST_PATTERN requires exactly one unit, contract or integration provider-core target)
+endif
+endif
+
 unexport FUZZ_PROFILE
 unexport FUZZ_PROFILE_INPUT
 unexport FUZZ_PROFILE_INPUT_ORIGIN
@@ -241,7 +256,7 @@ help:
 	  '== Provider-core package and installed tests ==' \
 	  'make packages/provider-core/download WHEELHOUSE=<cache-dir> NETWORK_INTERFACE=<system|interface> Acquire checker/bootstrap tools, then locked SDK wheels.' \
 	  'make packages/provider-core/check WHEELHOUSE=<cache-dir> Verify locked wheels offline.' \
-	  'make tests/unit/provider-core WHEELHOUSE=<cache-dir> Build and test the isolated installed core.' \
+	  'make tests/unit/provider-core WHEELHOUSE=<cache-dir> [TEST_PATTERN=test_<name>.py] Build and test the isolated installed core.' \
 	  'make tests/fuzz/provider-core WHEELHOUSE=<cache-dir> [FUZZ_PROFILE=extended] Run shrinking lifecycle sequences.' \
 	  'make tests/contract/provider-core WHEELHOUSE=<cache-dir> Qualify installed package contracts.' \
 	  'make tests/integration/provider-core WHEELHOUSE=<cache-dir> Run contained package integrations.' \

@@ -9,6 +9,18 @@ action=$1
 case "$action" in download|check|unit|contract|integration|integration/delivery|fuzz|build|package) ;;
     *) printf 'Cannot select provider-core operation %q. Use make help.\n' "$action" >&2; exit 2 ;;
 esac
+# Only an explicit single test filename may narrow the installed suites.
+selected_pattern='test*.py'
+if [[ -v TEST_PATTERN_INPUT_ORIGIN && $TEST_PATTERN_INPUT_ORIGIN == 'command line' ]]; then
+    case $action in unit|contract|integration) ;;
+        *) printf '%s\n' 'TEST_PATTERN is accepted only by unit, contract or integration provider-core tests.' >&2; exit 2 ;;
+    esac
+    if [[ ! -v TEST_PATTERN_INPUT || ! $TEST_PATTERN_INPUT =~ ^test_[A-Za-z0-9_]+\.py$ ]]; then
+        printf '%s\n' 'Cannot select provider-core test: TEST_PATTERN must be one test_<name>.py filename.' >&2
+        exit 2
+    fi
+    selected_pattern=$TEST_PATTERN_INPUT
+fi
 # Keep campaign selection explicit and confined to the fuzz target.
 fuzz_environment=()
 if [[ -v FUZZ_PROFILE_INPUT_ORIGIN && $FUZZ_PROFILE_INPUT_ORIGIN == 'command line' ]]; then
@@ -125,7 +137,7 @@ case "$action" in
     unit|contract|integration|integration/delivery|fuzz)
         # The installed cryptography extension requires executable mappings.
         # Only /runtime has that grant; build scratch remains noexec under /tmp.
-        pattern='test*.py'
+        pattern=$selected_pattern
         worker+=("${fuzz_environment[@]}")
         if [[ $action == fuzz ]]; then
             pattern='test_fuzz*.py'
