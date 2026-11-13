@@ -20,7 +20,7 @@ from tests.fakes.unix_proxy import UnixProxy
 
 class ShutdownPeer:
     # silent-defaults: allow-contract -- Ordinary probes send one write and immediately close; faults select fragmentation, a held peer or failed local close.
-    def __init__(self, replies, *, tunnel, fragment_size=None, hold=False, raw_close_failure=None, hold_raw_close=False):
+    def __init__(self, replies, *, tunnel, fragment_size=None, hold=False, raw_close_failure=None, hold_raw_close=False, raw_close_failures=()):
         self.replies = replies
         self.tunnel = tunnel
         self.fragment_size = fragment_size
@@ -29,6 +29,7 @@ class ShutdownPeer:
         self.requests = []
         self.connections_closed = 0
         self.raw_close_failure = raw_close_failure
+        self.raw_close_failures = list(raw_close_failures)
         self.hold_raw_close = hold_raw_close
         self.raw_close_started = asyncio.Event()
         self.raw_close_release = asyncio.Event()
@@ -84,6 +85,8 @@ class ShutdownPeer:
                     # silent-defaults: allow-contract -- This fault models a physical close that cannot finish until the test releases it, despite observer cancellation.
                     except asyncio.CancelledError:
                         pass
+                if self.raw_close_failures:
+                    raise self.raw_close_failures.pop(0)
                 if self.raw_close_failure is not None:
                     raise self.raw_close_failure
                 await close()

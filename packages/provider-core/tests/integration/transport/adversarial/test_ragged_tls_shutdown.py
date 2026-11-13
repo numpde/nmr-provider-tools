@@ -15,6 +15,25 @@ from tests.fakes.tls_shutdown import ShutdownPeer, fixed_response
 
 
 class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
+    async def assert_transient_close_failure(self, failure):
+        for tunnel in (False, True):
+            with self.subTest(tunnel=tunnel):
+                async with ShutdownPeer([fixed_response(b"data")], tunnel=tunnel, raw_close_failures=(failure,)) as peer:
+                    with self.assertRaises(ExchangeFailed) as caught:
+                        await peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4)
+                    self.assertIn(failure, caught.exception.cleanup_failures)
+                    self.assertGreaterEqual(peer.raw_close_attempts, 2)
+                    self.assertGreater(peer.raw_close_successes, 0)
+                    self.assertTrue(all(sock.fileno() == -1 for sock in peer.raw_sockets))
+
+    async def test_transient_raw_eof_remains_visible_after_successful_retry(self):
+        await self.assert_transient_close_failure(ssl.SSLEOFError(ssl.SSL_ERROR_EOF, "synthetic first close EOF"))
+
+    async def test_transient_wrapped_raw_eof_remains_visible_after_retry(self):
+        failure = anyio.BrokenResourceError("synthetic first close failed")
+        failure.__cause__ = ssl.SSLEOFError(ssl.SSL_ERROR_EOF, "synthetic first close EOF")
+        await self.assert_transient_close_failure(failure)
+
     async def test_cancelled_pending_raw_close_keeps_original_owner(self):
         async with ShutdownPeer([fixed_response(b"data")], tunnel=True, hold_raw_close=True) as peer:
             owner = object()
