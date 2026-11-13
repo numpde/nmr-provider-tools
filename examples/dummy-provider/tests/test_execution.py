@@ -20,6 +20,8 @@ from provider_core.hosting import (
     Outcome,
     ResourceGrant,
     ResultState,
+    observe_cleanup,
+    observe_completion,
 )
 
 
@@ -27,12 +29,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
     async def assert_succeeded(self, operation):
         """Wait for the operation's terminal observation and require success."""
         async with asyncio.timeout(10):
-            observed_operation = await operation.observe(after=None, wait_seconds=0)
-            while not observed_operation.finished:
-                observed_operation = await operation.observe(
-                    after=observed_operation.revision,
-                    wait_seconds=1,
-                )
+            observed_operation = await observe_completion(operation)
 
         self.assertIs(Outcome.SUCCEEDED, observed_operation.outcome)
         self.assertEqual((), observed_operation.failures)
@@ -41,12 +38,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
     async def assert_settled(self, control):
         """Observe required cleanup before reporting it as complete."""
         async with asyncio.timeout(10):
-            observed_cleanup = await control.observe(after=None, wait_seconds=0)
-            while not observed_cleanup.settled and not observed_cleanup.failures:
-                observed_cleanup = await control.observe(
-                    after=observed_cleanup.revision,
-                    wait_seconds=1,
-                )
+            observed_cleanup = await observe_cleanup(control)
 
         self.assertEqual((), observed_cleanup.failures)
         self.assertTrue(observed_cleanup.settled)
