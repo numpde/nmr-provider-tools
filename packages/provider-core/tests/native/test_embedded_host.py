@@ -54,8 +54,6 @@ def _allow() -> None:
 
 def _host_limits(**changes) -> HostLimits:
     values = {
-        "analysis_records": 16,
-        "operation_records": 32,
         "input_bytes": 32768,
         "result_bytes": 32768,
         "state_values": 16,

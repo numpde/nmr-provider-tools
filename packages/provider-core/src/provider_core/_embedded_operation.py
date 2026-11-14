@@ -57,9 +57,10 @@ class _OperationControl:
 
 
 class _Operation(_Changes):
-    def __init__(self, analysis, science, invocation, call, guard, states):
+    def __init__(self, analysis, science, invocation, call, guard, states, *, retain_identity):
         super().__init__()
         self.analysis = analysis
+        self.retain_identity = retain_identity
         self.science = science
         self.invocation = invocation
         self.call = call
@@ -279,12 +280,15 @@ class _Operation(_Changes):
                 owner.available = False
 
         if self.raw is None:
+            self.value_disposed = True
             self.analysis.host.state_reserved -= self.state_allowance
             self.state_allowance = 0
             self._release_capacity()
 
+        self.analysis.host.input_used -= len(self.invocation.payload)
         self.finished = True
         self.completion.set()
+        self._forget_settled()
         self.changed()
 
     def _adopt_states(self, scientific_return, adoption_receipt):
@@ -435,7 +439,26 @@ class _Operation(_Changes):
         self.payload = None
         self.result_state = ResultState.RELEASED
         self._release_capacity()
+        self._forget_settled()
         self.changed()
+
+    def _forget_settled(self):
+        """Drop the host index only after execution and its owned values settle."""
+        if (
+            self.finished
+            and (self.raw is None or self.value_disposed)
+            and self.result_state is not ResultState.AVAILABLE
+            and self.disposal_failure is None
+        ):
+            key = (self.analysis.identity, self.invocation.operation_id)
+            if self.analysis.host.operations.get(key) is self:
+                del self.analysis.host.operations[key]
+            if (
+                not self.retain_identity
+                and self.state_allowance == 0
+                and self.analysis.operations.get(self.invocation.operation_id) is self
+            ):
+                del self.analysis.operations[self.invocation.operation_id]
 
     def _release_capacity(self):
         self.analysis.host.result_reserved -= self.result_allowance

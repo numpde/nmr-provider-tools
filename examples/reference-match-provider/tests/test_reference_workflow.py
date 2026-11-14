@@ -31,7 +31,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
         match = self.enterContext(patch("reference_provider.science.match", wraps=science.match))
         host = EmbeddedHost(
             limits=HostLimits(
-                analysis_records=2, operation_records=2, input_bytes=8192,
+                  input_bytes=8192,
                 result_bytes=8192, state_values=1, progress_records=1,
                 initialization_seconds=5, retirement_seconds=5,
             ),

@@ -22,7 +22,7 @@ from spectrum_provider.binding import Baseline, Peaks, create_bindings
 class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.host = EmbeddedHost(limits=HostLimits(
-            analysis_records=1, operation_records=1, input_bytes=4096, result_bytes=4096,
+              input_bytes=4096, result_bytes=4096,
             state_values=1, progress_records=1, initialization_seconds=5, retirement_seconds=5,
         ))
         self.addAsyncCleanup(self.retire)

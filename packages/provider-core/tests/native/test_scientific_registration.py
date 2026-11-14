@@ -9,7 +9,7 @@ from threading import Barrier
 import unittest
 
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits, ResourceAllocation
-from provider_core.hosting import CapacityUnavailable, AdmissionCode, ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, observe_cleanup, observe_completion
+from provider_core.hosting import ResourceState, CapacityUnavailable, AdmissionCode, ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, observe_cleanup, observe_completion
 from provider_core.scientific import AssetAccess, Contribution, HostedContribution, NoAssets, ResourceRequirement, operation
 
 
@@ -67,7 +67,7 @@ class FailedInitialization(Sum):
 
 def new_host() -> EmbeddedHost:
     return EmbeddedHost(limits=HostLimits(
-        analysis_records=8, operation_records=8, input_bytes=8192,
+          input_bytes=8192,
         result_bytes=8192, state_values=8, progress_records=8,
         initialization_seconds=5, retirement_seconds=5,
     ))
@@ -98,6 +98,55 @@ async def run_sum(*, host, hosted, operation_id):
 
 
 class AdoptionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_released_local_operations_leave_no_submission_history(self):
+        hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
+        analysis = self.host.open_analysis(allocations=(hosted.allocation,))
+        reservation, = analysis.reservations
+        limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024)
+        for _ in range(20):
+            operation = analysis.submit_method(
+                method=hosted.contribution.calculate,
+                scientific_input=Numbers(values=(1,)),
+                states=(),
+                reservation=reservation,
+                limits=limits,
+                dispatch_guard=lambda: None,
+            )
+            completed = await observe_completion(operation=operation)
+            await observe_cleanup(control=operation.release_result(result=completed.result))
+            self.assertEqual(first={}, second=self.host.operations)
+            self.assertEqual(first={}, second=analysis.operations)
+        await observe_cleanup(control=analysis.close())
+        observed = await operation.observe(after=None, wait_seconds=0)
+        self.assertIs(expr1=ResourceState.RELEASED, expr2=observed.resources)
+
+    async def test_finished_analyses_do_not_accumulate_in_the_host(self):
+        instance = Sum(configuration=Settings(scale=2))
+        hosted = adopt(host=self.host, contribution=instance)
+        retained_handles = []
+        for index in range(20):
+            operation, completed = await run_sum(
+                host=self.host,
+                hosted=hosted,
+                operation_id=str(index),
+            )
+            retained_handles.append(operation)
+            self.assertEqual(first={}, second=self.host.analyses)
+            self.assertEqual(first={}, second=operation.analysis.operations)
+            self.assertEqual(first={}, second=operation.analysis.states)
+            self.assertEqual(first=0, second=self.host.input_used)
+            # The finished analysis does not own result release. The result
+            # remains readable, and its unreleased bytes remain host-owned.
+            self.assertTrue(expr=await operation.read_result(result=completed.result))
+            self.assertEqual(first=1, second=len(self.host.operations))
+            await observe_cleanup(control=operation.release_result(result=completed.result))
+            self.assertEqual(first={}, second=self.host.operations)
+            self.assertEqual(first=0, second=self.host.result_reserved)
+        self.assertEqual(first=20, second=instance.calls)
+        self.assertEqual(first=20, second=len(retained_handles))
+        with self.assertRaises(expected_exception=CapacityUnavailable):
+            adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), name="late")
+
     async def test_state_ports_use_python_types_and_attribute_names(self):
         from provider_core.scientific import StateKind, StateUse
 

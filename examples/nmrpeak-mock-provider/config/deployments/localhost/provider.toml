@@ -1,13 +1,7 @@
 # Local mock deployment policy. Scientific model settings remain in settings.toml.
 [execution.host]
-# Retain both offering analyses and their validation/generation operations.
-# For more requests in one host lifetime, replace these values, for example:
-# analysis_records = 8
-# operation_records = 24
-# Completed records still count; these values are not concurrency settings.
-analysis_records = 2
-operation_records = 6
-# Capacity for retained request and result data, measured in bytes.
+# In-flight input and owned result capacity, measured in bytes.
+# Retained caller handles can still contain completed request bytes.
 # For larger spectra or reports, replace either budget independently:
 # input_bytes = 131072
 # result_bytes = 65536

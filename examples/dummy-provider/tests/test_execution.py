@@ -50,7 +50,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
     async def test_partial_model_loading_keeps_the_original_cleanup_owner(self):
         """A loader may fail after acquisition; retirement still owns that model."""
         host = EmbeddedHost(limits=HostLimits(
-            analysis_records=1, operation_records=1, input_bytes=4096, result_bytes=4096,
+              input_bytes=4096, result_bytes=4096,
             state_values=1, progress_records=1, initialization_seconds=5, retirement_seconds=5,
         ))
         self.addAsyncCleanup(self.retire_host, host)
@@ -116,8 +116,8 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
         host_limits = HostLimits(
-            analysis_records=1,
-            operation_records=3,
+
+
             input_bytes=4096,
             result_bytes=4096,
             state_values=2,

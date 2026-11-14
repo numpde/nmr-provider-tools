@@ -44,10 +44,12 @@ EMBEDDED_CAPABILITIES = BackendCapabilities(
 
 @dataclass(frozen=True, slots=True)
 class HostLimits:
-    """Explicit lifetime bounds; completed operation identities are not evicted."""
+    """In-flight input, owned results/state, and lifecycle time allowances.
 
-    analysis_records: int
-    operation_records: int
+    These admission budgets do not cap memory retained by caller-held handles.
+    Concurrent analyses are bounded by their exclusive resident reservations.
+    """
+
     input_bytes: int
     result_bytes: int
     state_values: int
@@ -57,8 +59,6 @@ class HostLimits:
 
     def __post_init__(self):
         capacity_counts = (
-            self.analysis_records,
-            self.operation_records,
             self.input_bytes,
             self.result_bytes,
             self.state_values,

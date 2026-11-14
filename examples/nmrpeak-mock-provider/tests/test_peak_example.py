@@ -40,7 +40,7 @@ def candidate(*, carbon):
 class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.host = EmbeddedHost(limits=HostLimits(
-            analysis_records=5, operation_records=20, input_bytes=65536, result_bytes=65536,
+              input_bytes=65536, result_bytes=65536,
             state_values=8, progress_records=1, initialization_seconds=5, retirement_seconds=5,
         ))
         self.addAsyncCleanup(self.retire)

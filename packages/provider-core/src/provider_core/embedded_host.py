@@ -13,6 +13,7 @@ require_container()
 import asyncio
 from collections.abc import Callable
 from uuid import uuid4
+from weakref import WeakSet
 
 from provider_core.async_runner_session import await_original
 from provider_core.contribution import CallBinding, ImplementationBinding, IsolationRequirement, NoInput, ResourceRequirement, ref
@@ -68,6 +69,7 @@ class EmbeddedHost:
             for item in allocations
         }
         self.analyses = {}
+        self.allocations_fixed = False
         self.operations = {}
         self.input_used = 0
         self.result_reserved = 0
@@ -88,7 +90,7 @@ class EmbeddedHost:
         the receiver before initialization and permanently forbids re-adoption.
         """
         self._require_loop()
-        if self.retiring or self.analyses:
+        if self.retiring or self.allocations_fixed:
             raise CapacityUnavailable("Adopt contributions before opening analyses or retiring the host.")
         if type(allocation) is not ResourceAllocation:
             raise TypeError(f"Unexpected {type(allocation)=}; adoption requires a ResourceAllocation")
@@ -159,8 +161,6 @@ class EmbeddedHost:
             raise ValueError("An analysis needs a name and distinct explicit allocation names.")
         if analysis_id in self.analyses:
             raise RequestConflict("This analysis identity already has an owner.")
-        if self.limits.analysis_records <= len(self.analyses):
-            raise CapacityUnavailable("The host's analysis-record allowance is full.")
         if any(name not in self.residents for name in allocation_names):
             raise CapacityUnavailable("A requested allocation does not belong to this host.")
 
@@ -175,6 +175,7 @@ class EmbeddedHost:
             raise CapacityUnavailable("A requested allocation is occupied, failed or retiring.")
 
         analysis = EmbeddedAnalysis(self, analysis_id, selected_residents)
+        self.allocations_fixed = True
         self.analyses[analysis_id] = analysis
         for resident in selected_residents:
             resident.analysis = analysis
@@ -264,6 +265,9 @@ class EmbeddedAnalysis:
             for resident in residents
         )
         self.operations = {}
+        # Observe resource-release changes through surviving handles without
+        # making their completed operations owned by this analysis.
+        self.observed_operations = WeakSet()
         self.states = {}
         self.closed = False
         self.cleanup = None
@@ -307,7 +311,11 @@ class EmbeddedAnalysis:
             reservation=reservation,
             limits=limits,
         )
-        return self.submit(invocation, dispatch_guard=dispatch_guard)
+        return self._submit(
+            invocation=invocation,
+            dispatch_guard=dispatch_guard,
+            retain_identity=False,
+        )
 
     # silent-defaults: allow-contract -- Methods without a payload use the immutable NoInput record; required inputs are checked before encoding.
     def submit_method(
@@ -338,20 +346,34 @@ class EmbeddedAnalysis:
     def submit(
         self, invocation: Invocation, *, dispatch_guard: Callable[[], None],
     ) -> Operation | NotAdmitted:
+        """Retain portable request identity until this analysis closes."""
+        return self._submit(
+            invocation=invocation,
+            dispatch_guard=dispatch_guard,
+            retain_identity=True,
+        )
+
+    def _submit(self, invocation, *, dispatch_guard, retain_identity):
+        """Admit work and retain portable request identity for the open analysis."""
         self.host._require_loop()
         if type(invocation) is not Invocation or not callable(dispatch_guard):
             raise TypeError("Submit requires an Invocation and a host-side permission check.")
 
         operation_key = (self.identity, invocation.operation_id)
-        existing_operation = self.host.operations.get(operation_key)
+        if self.closed:
+            return NotAdmitted(AdmissionCode.CLOSED, "This analysis is closed to new calls.")
+        existing_operation = self.operations.get(invocation.operation_id)
         if existing_operation is not None:
             if (
                 existing_operation.analysis is not self
                 or existing_operation.invocation != invocation
             ):
                 raise RequestConflict("This operation ID already identifies different work.")
+            existing_operation.retain_identity |= retain_identity
             return existing_operation
 
+        if operation_key in self.host.operations:
+            raise RequestConflict("An earlier analysis still owns this operation identity.")
         admission_refusal = self._refusal(invocation)
         if admission_refusal is not None:
             return admission_refusal
@@ -370,14 +392,13 @@ class EmbeddedAnalysis:
         host = self.host
         returned_state_count = len(selected_call.description.state_outputs)
         if not (
-            len(host.operations) < host.limits.operation_records
-            and host.input_used + len(invocation.payload) <= host.limits.input_bytes
+            host.input_used + len(invocation.payload) <= host.limits.input_bytes
             and host.result_reserved + invocation.limits.result_bytes <= host.limits.result_bytes
             and host.state_reserved + returned_state_count <= host.limits.state_values
         ):
             return NotAdmitted(
                 code=AdmissionCode.CAPACITY,
-                message="Operation, input, result or scientific-state capacity is full.",
+                message="Input, result or scientific-state capacity is full.",
             )
 
         operation = _Operation(
@@ -387,7 +408,9 @@ class EmbeddedAnalysis:
             call=selected_call,
             guard=dispatch_guard,
             states=state_owners,
+            retain_identity=retain_identity,
         )
+        self.observed_operations.add(operation)
         self.operations[invocation.operation_id] = operation
         host.operations[operation_key] = operation
         host.input_used += len(invocation.payload)
@@ -493,14 +516,14 @@ class EmbeddedAnalysis:
                 default=self.host.limits.retirement_seconds,
             )
             self.cleanup = _Cleanup(cleanup_seconds)
-            for operation in self.operations.values():
+            for operation in list(self.operations.values()):
                 if not operation.finished:
                     operation.request_stop()
             self.cleanup.start(self._close)
         return self.cleanup
 
     async def _close(self):
-        for operation in self.operations.values():
+        for operation in list(self.operations.values()):
             await await_original(operation.original, deadline=None)
             await operation.completion.wait()
             if operation.release is not None:
@@ -519,7 +542,7 @@ class EmbeddedAnalysis:
                 cleanup_failures.append(cause)
             else:
                 scientific_analysis.resident.analysis = None
-                for operation in self.operations.values():
+                for operation in list(self.observed_operations):
                     if operation.invocation.reservation.allocation == allocation_name:
                         self.host.state_reserved -= operation.state_allowance
                         operation.state_allowance = 0
@@ -530,10 +553,20 @@ class EmbeddedAnalysis:
 
         if cleanup_failures:
             raise BaseExceptionGroup("Some scientific analyses still need cleanup.", cleanup_failures)
+        # Portable request deduplication lasts only while this analysis is open.
+        # Result handles keep their payloads; the host separately retains any
+        # unreleased result or failed cleanup obligation.
+        for operation in list(self.operations.values()):
+            operation._forget_settled()
+        self.operations.clear()
+        self.observed_operations.clear()
+        self.states.clear()
+        del self.host.analyses[self.identity]
+
 
     def _dispose_science(self, allocation_name, scientific_analysis):
         cleanup_failures = []
-        for operation in self.operations.values():
+        for operation in list(self.operations.values()):
             if operation.invocation.reservation.allocation == allocation_name:
                 try:
                     operation.dispose_value()

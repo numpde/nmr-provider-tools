@@ -84,3 +84,20 @@ Python type. Declare ports as class attributes, such as
 candidate = kind.input(use=StateUse.CONSUME). Python supplies the port name;
 that attribute matches the method's candidate parameter. Inherited ports retain
 their names; one inferred port cannot be declared under two different names.
+
+Host ownership follows outstanding obligations rather than permanent history.
+A successful analysis close clears its operation/state indexes and removes the
+analysis from the host. Available results remain owned and readable through
+operation handles until released. Running work, undisposed scientific values and
+failed cleanup remain retained. Input-byte reservations end when execution
+finishes; result-byte reservations end when the result is released.
+
+Settled local operations leave both indexes once their result/value/state
+obligations settle; their handles remain usable for observation.
+
+Portable submission deduplication is scoped to an open analysis. That analysis
+retains its accepted request history until close; closed analyses reject every
+submission, including a previously accepted request. There is no host-wide
+completed-request archive. HostLimits therefore has no analysis_records or
+operation_records fields: resident reservations bound concurrent analyses, and
+input/result/state capacity bounds admitted scientific work.

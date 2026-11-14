@@ -25,7 +25,7 @@ async def run_demo() -> None:
     grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
     host = EmbeddedHost(
         limits=HostLimits(
-            analysis_records=1, operation_records=2, input_bytes=8192,
+              input_bytes=8192,
             result_bytes=8192, state_values=1, progress_records=1,
             initialization_seconds=5, retirement_seconds=5,
         ),
