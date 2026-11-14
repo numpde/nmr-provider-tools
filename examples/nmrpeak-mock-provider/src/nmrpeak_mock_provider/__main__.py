@@ -31,17 +31,18 @@ async def run_demo() -> None:
 
     # Create the SDK runtime that executes submitted methods, such as prepare
     # and generate, and coordinates cleanup of their models and analysis state.
-    # Read its capacity and time allowances from the deployment's [execution.host].
-    host = EmbeddedHost(**provider_config["execution"]["host"])
+    # Read its capacity and time allowances from the deployment's [execution.embedded_host].
+    host = EmbeddedHost(**provider_config["execution"]["embedded_host"])
 
     # All requirements read from deployment configuration must be met together;
     # their order and identical repeated entries have no meaning.
     requested_requirements = frozenset(
         ResourceRequirement(**resource_requirement)
-        for resource_requirement in provider_config["execution"]["requirements"]
+        for resource_requirement in provider_config["execution"]["resource_requirement"]
     )
 
-    limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=8192, result_bytes=8192)
+    # Apply the deployment's per-operation time and byte allowances to each submission.
+    limits = ExecutionLimits(**provider_config["execution"]["execution_limits"])
     cleanup_requests = []
     consumptions = []
     causes = []

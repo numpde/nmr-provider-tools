@@ -103,7 +103,7 @@ input/result/state capacity bounds admitted scientific work.
 
 EmbeddedHost declares the six capacity/time parameters directly as typed,
 keyword-only constructor arguments. Provider startup can pass
-**provider_config["execution"]["host"] without an intermediate policy record. The host
+**provider_config["execution"]["embedded_host"] without an intermediate policy record. The host
 validates those values at construction and has no knowledge of TOML.
 
 Modern adoption accepts a contribution and ResourceRequirement records directly;
