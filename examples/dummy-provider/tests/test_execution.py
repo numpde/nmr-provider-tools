@@ -10,8 +10,8 @@ import asyncio
 import unittest
 
 from dummy_provider import science
-from dummy_provider.binding import create_weighted_sum_binding
-from provider_core.contribution import NoInput, ProgressEvent
+from dummy_provider.binding import WeightedSum, create_weighted_sum_binding
+from provider_core.contribution import ProgressEvent
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
 from provider_core.hosting import (
     ExecutionLimits,
@@ -65,7 +65,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         )
         host_limits = HostLimits(
             analysis_records=1,
-            operation_records=2,
+            operation_records=3,
             input_bytes=4096,
             result_bytes=4096,
             state_values=2,
@@ -73,15 +73,15 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             initialization_seconds=5,
             retirement_seconds=5,
         )
-        host = EmbeddedHost((model_allocation,), limits=host_limits)
+        host = EmbeddedHost(allocations=(model_allocation,), limits=host_limits)
         self.addAsyncCleanup(self.retire_host, host)
 
         analysis = host.open_analysis(
-            "weighted-analysis",
+            analysis_id="weighted-analysis",
             allocation_names=("weighted",),
         )
         (reservation,) = analysis.reservations
-        prepare_call, calculate_call = weighted_binding.prepare, weighted_binding.calculate
+        prepare_call, calculate_call = weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate)
 
         execution_limits = ExecutionLimits(
             queue_seconds=5,
@@ -93,10 +93,21 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
         preparation_input = science.PreparationInput(values=(1, 2, 3))
 
-        preparation_operation = analysis.submit_call(
-            prepare_call,
+        rejected = analysis.submit_method(
+            method=WeightedSum.prepare,
+            operation_id="rejected-prepare", scientific_input=science.PreparationInput(values=()),
+            states=(), reservation=reservation, limits=execution_limits,
+            dispatch_guard=lambda: None,
+        )
+        rejection = await observe_completion(operation=rejected)
+        self.assertIs(Outcome.REJECTED, rejection.outcome)
+        original_session = analysis.science["weighted"].value
+        self.assertTrue(original_session.value.is_open)
+
+        preparation_operation = analysis.submit_method(
+            method=WeightedSum.prepare,
             operation_id="prepare",
-            payload=prepare_call.input_codec.encode(preparation_input),
+            scientific_input=preparation_input,
             states=(),
             reservation=reservation,
             limits=execution_limits,
@@ -105,12 +116,13 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIsInstance(preparation_operation, NotAdmitted)
 
         preparation_observation = await self.assert_succeeded(preparation_operation)
+        self.assertIs(original_session, analysis.science["weighted"].value)
         self.assertEqual(1, len(preparation_observation.states))
         self.assertEqual("normalized", preparation_observation.states[0].name)
-        prepared = await weighted_binding.prepared_output.reference(
-            prepare_call, preparation_operation,
+        prepared = await WeightedSum.prepared_output.reference(
+            call=prepare_call, operation=preparation_operation,
         )
-        calculation_state = weighted_binding.prepared_input.bind(prepared)
+        calculation_state = WeightedSum.prepared_input.bind(handle=prepared)
         self.assertEqual("candidate", calculation_state.name)
         self.assertIs(ResultState.AVAILABLE, preparation_observation.result_state)
         self.assertIsNotNone(preparation_observation.result)
@@ -129,10 +141,9 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             await preparation_consumption.consume()
 
         # Result release leaves the returned scientific state available to calculate.
-        calculation_operation = analysis.submit_call(
-            calculate_call,
+        calculation_operation = analysis.submit_method(
+            method=WeightedSum.calculate,
             operation_id="calculate",
-            payload=calculate_call.input_codec.encode(NoInput()),
             states=(calculation_state,),
             reservation=reservation,
             limits=execution_limits,

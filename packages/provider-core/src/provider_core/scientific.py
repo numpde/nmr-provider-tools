@@ -1,0 +1,554 @@
+"""Author scientific components as configured objects with exported methods.
+
+Registration compiles declarations for the existing execution host. It acquires
+no scientific resources. Each allocation constructs its own contribution, and
+each analysis retains its own optional session before initialization begins.
+"""
+
+from __future__ import annotations
+
+from provider_core.container_guard import require_container
+
+require_container()
+
+import hashlib
+import inspect
+import json
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field, fields, is_dataclass, replace
+from enum import Enum
+from pathlib import Path
+from types import NoneType
+from typing import Any, ClassVar, Protocol, get_args, get_origin, get_type_hints
+
+from provider_core.contribution import (
+    CallBinding, CallDescription, CallRef, ConfigurationDescription,
+    ConcurrencyRequirement, ImplementationDescription, InterruptionSupport,
+    IsolationRequirement, NoInput, ProgressEvent, ResourceRequirement,
+    ScientificControl, ScientificReturn, StateUse,
+    _MethodCall, _ScientificCallShape, _require_state_kinds, description_document, ref,
+)
+from provider_core.payload import JsonDataclassCodec, PayloadCodec
+from provider_core.state_slots import StateInputSlot, StateKind, StateOutputSlot
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class AssetRef:
+    """Content identity; deployment supplies and retains the corresponding file."""
+
+    digest: str
+    size_bytes: int
+    media_type: str
+
+
+class AssetAccess(Protocol):
+    """Resolve already verified deployment snapshots for one allocation.
+
+    The deployment retains the snapshot while dependent science is alive.
+    A returned path is a lookup result; filesystem isolation is deployment-owned.
+    """
+
+    def path(self, *, asset: AssetRef) -> Path: ...
+
+
+class NoAssets:
+    """An allocation with no file assets cannot resolve a content reference."""
+
+    def path(self, *, asset: AssetRef) -> Path:
+        raise LookupError(f"This allocation grants no asset {asset.digest}")
+
+
+class Contribution[ConfigT]:
+    """One host-managed scientific instance with fixed configuration.
+
+    Construction belongs to the SDK. Acquire resources in initialize and release
+    them in close, including partially initialized resources. Only configuration
+    is immutable; loaded models and instance caches belong to this receiver.
+    """
+
+    analysis_type: ClassVar[type[Analysis] | None] = None
+
+    def __init__(self, *, configuration: ConfigT) -> None:
+        self._configuration = configuration
+
+    def __setattr__(self, name: str, value: object) -> None:
+        if name == "_configuration" and hasattr(self, "_configuration"):
+            raise AttributeError("A contribution's configuration is fixed for its lifetime")
+        object.__setattr__(self, name, value)
+
+    def __delattr__(self, name: str) -> None:
+        if name == "_configuration":
+            raise AttributeError("A contribution's configuration is fixed for its lifetime")
+        object.__delattr__(self, name)
+
+    @property
+    def configuration(self) -> ConfigT:
+        return self._configuration
+
+    def initialize(self, *, assets: AssetAccess) -> None:
+        """Initialize owned resources; stateless contributions need no override."""
+
+    def close(self) -> None:
+        """Release owned resources after the host has settled dependent work."""
+
+
+class Analysis[ContributionT]:
+    """Optional scientific session owned by one analysis, before its first call.
+
+    Session construction is SDK-owned. initialize may acquire resources only
+    after the host retains this owner; close must handle partial initialization.
+    """
+
+    def __init__(self, *, contribution: ContributionT) -> None:
+        self._contribution = contribution
+
+    @property
+    def contribution(self) -> ContributionT:
+        return self._contribution
+
+    def initialize(self) -> None:
+        """Initialize analysis-local resources after custody is established."""
+
+    def close(self) -> None:
+        """Dispose analysis-local resources independently of retained results."""
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class _Declaration:
+    state_inputs: tuple[StateInputSlot, ...]
+    state_outputs: tuple[StateOutputSlot, ...]
+    resources: tuple[ResourceRequirement, ...] | None
+    concurrency: ConcurrencyRequirement
+    interruption: InterruptionSupport
+    progress: bool
+    input_codec: PayloadCodec | None
+    result_codec: PayloadCodec | None
+
+
+# silent-defaults: allow-contract -- Unspecified capabilities declare no state, progress or interruption; omitted codecs derive from annotations and resources come from registration.
+def operation(
+    *,
+    state_inputs: tuple[StateInputSlot, ...] = (),
+    state_outputs: tuple[StateOutputSlot, ...] = (),
+    resources: tuple[ResourceRequirement, ...] | None = None,
+    concurrency: ConcurrencyRequirement = ConcurrencyRequirement.INSTANCE_SERIAL,
+    interruption: InterruptionSupport = InterruptionSupport.NONE,
+    progress: bool = False,
+    input_codec: PayloadCodec | None = None,
+    result_codec: PayloadCodec | None = None,
+) -> Callable:
+    """Export an ordinary method without wrapping or changing direct calls.
+
+    Parameters after self are keyword-only. Annotations identify the payload,
+    optional analysis session and control; explicit state ports name live inputs.
+    Omitted resources use the registration's common call requirements. Explicit
+    empty resources mean that this operation has no call resource requirements.
+    """
+    declaration = _Declaration(
+        state_inputs=state_inputs, state_outputs=state_outputs, resources=resources,
+        concurrency=concurrency, interruption=interruption, progress=progress,
+        input_codec=input_codec, result_codec=result_codec,
+    )
+
+    def decorate(function: Callable) -> Callable:
+        # Python supplies the decorated function positionally; the method itself
+        # remains unchanged, including its keyword-only scientific signature.
+        if not inspect.isfunction(object=function):
+            raise TypeError("An operation must decorate an ordinary instance method")
+        if "__scientific_operation__" in function.__dict__:
+            raise ValueError("An operation may be declared only once")
+        function.__scientific_operation__ = declaration
+        return function
+
+    return decorate
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class _NamedStates:
+    """Pass admitted live inputs as their declared method keyword arguments."""
+
+    inputs: tuple[StateInputSlot, ...]
+    value_type: type = dict
+
+    def __post_init__(self) -> None:
+        if type(self.inputs) is not tuple:
+            raise TypeError(f"Unexpected {type(self.inputs)=}; scientific state inputs must be an immutable tuple")
+        if any(type(slot) is not StateInputSlot for slot in self.inputs):
+            raise TypeError("Scientific state inputs must contain StateInputSlot records")
+
+    @property
+    def names(self) -> tuple[str, ...]:
+        # repo-check: allow-tuple-generator -- The state-binding protocol exposes immutable input names for registration and admission.
+        return tuple(slot.name for slot in self.inputs)
+
+    @property
+    def parameters(self) -> tuple:
+        # repo-check: allow-tuple-generator -- These immutable state parameters enter the registered call description.
+        return tuple(slot.description for slot in self.inputs)
+
+    @property
+    def input_types(self) -> Mapping[str, type]:
+        return {slot.name: slot.value_type for slot in self.inputs}
+
+    def bind(self, values: Mapping[str, object]) -> dict[str, object]:
+        if set(values) != set(self.names):
+            raise ValueError("Scientific state arguments differ from the declared method ports")
+        for slot in self.inputs:
+            slot.read(values=values)
+        return dict(values)
+
+
+def _members(*, contribution: type[Contribution]) -> tuple[tuple[str, Callable], ...]:
+    effective = {}
+    for parent in reversed(contribution.__mro__):
+        effective.update(vars(parent))
+    result = []
+    for name, member in sorted(effective.items()):
+        if isinstance(member, (staticmethod, classmethod)):
+            if "__scientific_operation__" in member.__func__.__dict__:
+                raise TypeError(f"Exported operation {name!r} must be an instance method")
+        if isinstance(member, property):
+            if member.fget is not None and "__scientific_operation__" in member.fget.__dict__:
+                raise TypeError(f"Exported operation {name!r} cannot be a property")
+        if inspect.isfunction(object=member) and "__scientific_operation__" in member.__dict__:
+            if name in ("__init__", "initialize", "close"):
+                raise ValueError(f"Lifecycle method {name!r} cannot also be an operation")
+            result.append((name, member))
+    if not result:
+        raise ValueError("A contribution must export at least one operation")
+    if len({function for _, function in result}) != len(result):
+        raise ValueError("An exported operation cannot have multiple aliases in one contribution")
+    return tuple(result)
+
+
+def _configuration_type(*, contribution: type[Contribution]) -> type:
+    for parent in contribution.__mro__:
+        if "__orig_bases__" not in vars(parent):
+            continue
+        for base in parent.__orig_bases__:
+            if get_origin(tp=base) is Contribution:
+                configuration_type, = get_args(tp=base)
+                if configuration_type is None:
+                    return NoneType
+                if isinstance(configuration_type, type):
+                    return configuration_type
+    raise TypeError("A contribution must specialize Contribution with its concrete configuration type")
+
+
+def _schema(*, annotation: object, seen: frozenset[type]) -> object:
+    """Describe supported codec types without repr-based configuration identity."""
+    origin = get_origin(tp=annotation)
+    if origin is not None:
+        return {
+            "origin": f"{origin.__module__}.{origin.__qualname__}",
+            "arguments": [_schema(annotation=item, seen=seen) for item in get_args(tp=annotation)],
+        }
+    if annotation is Ellipsis:
+        return {"variadic": True}
+    if not isinstance(annotation, type):
+        return {"literal": annotation}
+    document = {"type": f"{annotation.__module__}.{annotation.__qualname__}"}
+    if annotation in seen:
+        return document
+    if is_dataclass(obj=annotation):
+        hints = get_type_hints(obj=annotation)
+        document["fields"] = [
+            {"name": member.name, "type": _schema(annotation=hints[member.name], seen=seen | {annotation})}
+            for member in fields(class_or_instance=annotation)
+        ]
+    elif issubclass(annotation, Enum):
+        document["values"] = [member.value for member in annotation]
+    return document
+
+
+def _codec(*, value_type: type, supplied: PayloadCodec | None) -> PayloadCodec:
+    if supplied is not None:
+        if not isinstance(supplied, PayloadCodec):
+            raise TypeError(f"Unexpected {type(supplied)=}; an explicit scientific codec must implement PayloadCodec")
+        if supplied.value_type is not value_type:
+            raise TypeError("Scientific codec type differs from the method annotation")
+        return supplied
+    return JsonDataclassCodec(
+        format=f"python-json.v1:{value_type.__module__}.{value_type.__qualname__}",
+        value_type=value_type,
+    )
+
+
+def _synchronous(*, function: Callable, label: str) -> None:
+    if not inspect.isfunction(object=function):
+        raise TypeError(f"{label} must be an ordinary instance method")
+    if inspect.iscoroutinefunction(obj=function) or inspect.isgeneratorfunction(obj=function) or inspect.isasyncgenfunction(obj=function):
+        raise TypeError(f"{label} must be synchronous and cannot yield")
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class _LifecycleMethod:
+    """Retain the exact validated lifecycle function of this registration."""
+
+    function: Callable
+    receiver: str
+
+    def invoke(self, *, instance: object, **arguments: object) -> None:
+        self.function(**{self.receiver: instance, **arguments})
+
+
+def _lifecycle(*, owner: type, name: str, keywords: dict[str, type]) -> _LifecycleMethod:
+    function = inspect.getattr_static(obj=owner, attr=name)
+    _synchronous(function=function, label=f"{owner.__qualname__}.{name}")
+    parameters = tuple(inspect.signature(obj=function).parameters.values())
+    if not parameters or parameters[0].kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD:
+        raise TypeError(f"Lifecycle method {name!r} requires an instance receiver")
+    actual = {parameter.name: parameter for parameter in parameters[1:]}
+    if set(actual) != set(keywords):
+        raise TypeError(f"Lifecycle method {name!r} requires keyword arguments {sorted(keywords)!r}")
+    annotations = get_type_hints(obj=function)
+    for key, parameter in actual.items():
+        if parameter.kind is not inspect.Parameter.KEYWORD_ONLY or parameter.default is not inspect.Parameter.empty:
+            raise TypeError(f"Lifecycle argument {key!r} must be required and keyword-only")
+        if key not in annotations:
+            raise TypeError(f"Lifecycle {name=} requires an annotation for {key=}")
+        if annotations[key] is not keywords[key]:
+            raise TypeError(f"Lifecycle argument {key!r} must be annotated as {keywords[key].__qualname__}")
+    if annotations.get("return") is not NoneType:
+        raise TypeError(f"Lifecycle method {name!r} must declare a None return")
+    return _LifecycleMethod(function=function, receiver=parameters[0].name)
+
+
+def _immutable_configuration(*, value: object) -> None:
+    if isinstance(value, Enum):
+        _immutable_configuration(value=value.value)
+    elif is_dataclass(obj=value):
+        for member in fields(class_or_instance=value):
+            _immutable_configuration(value=getattr(value, member.name))
+    elif type(value) is tuple:
+        for member in value:
+            _immutable_configuration(value=member)
+    elif type(value) not in (str, bool, int, float, NoneType):
+        raise TypeError(f"Configuration contains unsupported mutable value {type(value).__qualname__}")
+
+
+def _compile_method(
+    *, contribution: type[Contribution], name: str, function: Callable,
+    resources: tuple[ResourceRequirement, ...],
+) -> CallBinding:
+    _synchronous(function=function, label=f"Operation {name!r}")
+    declaration = function.__scientific_operation__
+    parameters = tuple(inspect.signature(obj=function).parameters.values())
+    if not parameters or parameters[0].kind is not inspect.Parameter.POSITIONAL_OR_KEYWORD:
+        raise TypeError(f"Operation {name!r} requires an ordinary instance receiver")
+    if any(parameter.kind is not inspect.Parameter.KEYWORD_ONLY for parameter in parameters[1:]):
+        raise TypeError(f"Operation {name!r} scientific arguments must be keyword-only")
+    if any(parameter.default is not inspect.Parameter.empty for parameter in parameters):
+        raise TypeError(f"Operation {name!r} arguments must be explicit, without defaults")
+    hints = get_type_hints(obj=function)
+    state_binding = _NamedStates(inputs=declaration.state_inputs)
+    if len(set(state_binding.names)) != len(state_binding.names):
+        raise ValueError(f"Operation {name!r} has duplicate state input names")
+    inputs = []
+    analyses = []
+    controls = []
+    found_states = set()
+    for parameter in parameters[1:]:
+        if parameter.name not in hints:
+            raise TypeError(f"Operation {name=} requires an annotation for {parameter.name=}")
+        annotation = hints[parameter.name]
+        if parameter.name in state_binding.input_types:
+            if annotation is not state_binding.input_types[parameter.name]:
+                raise TypeError(f"Operation {name!r} state {parameter.name!r} has a different declared type")
+            found_states.add(parameter.name)
+        elif annotation is ScientificControl:
+            controls.append(parameter.name)
+        elif contribution.analysis_type is not None and annotation is contribution.analysis_type:
+            analyses.append(parameter.name)
+        else:
+            inputs.append((parameter.name, annotation))
+    if found_states != set(state_binding.names):
+        raise ValueError(f"Operation {name!r} does not accept all its declared state inputs")
+    if len(inputs) > 1 or len(analyses) > 1 or len(controls) > 1:
+        raise TypeError(f"Operation {name!r} accepts at most one payload, analysis and control argument")
+    needs_control = declaration.progress or declaration.interruption is InterruptionSupport.COOPERATIVE
+    if bool(controls) != needs_control:
+        raise ValueError(f"Operation {name!r} must declare a control argument exactly when progress or cooperative stopping is supported")
+    if "return" not in hints:
+        raise TypeError(f"Operation {name=} requires a return annotation")
+    output = hints["return"]
+    wrapped = get_origin(tp=output) is ScientificReturn
+    if wrapped:
+        output, = get_args(tp=output)
+    if declaration.state_outputs and not wrapped:
+        raise TypeError(f"Operation {name!r} returning state must return ScientificReturn[Result]")
+    input_name, input_type = None, NoInput
+    if inputs:
+        input_name, input_type = inputs[0]
+    analysis_type = contribution.analysis_type
+    if analysis_type is None:
+        analysis_type = NoneType
+    analysis_parameter = None
+    if analyses:
+        analysis_parameter = analyses[0]
+    control_parameter = None
+    if controls:
+        control_parameter = controls[0]
+    input_codec = _codec(value_type=input_type, supplied=declaration.input_codec)
+    result_codec = _codec(value_type=output, supplied=declaration.result_codec)
+    callback = _MethodCall(
+        function=function, receiver=parameters[0].name,
+        shape=_ScientificCallShape(
+            instance=contribution, analysis=analysis_type,
+            input=input_type, state=state_binding.value_type, output=output,
+        ),
+        input_parameter=input_name,
+        analysis_parameter=analysis_parameter,
+        control_parameter=control_parameter,
+        wrapped_result=wrapped,
+    )
+    output_descriptions = [slot.description for slot in declaration.state_outputs]
+    return CallBinding(
+        description=CallDescription(
+            name=name, input_format=input_codec.format, result_format=result_codec.format,
+            state_inputs=state_binding.parameters,
+            state_outputs=tuple(output_descriptions),
+            resources=resources if declaration.resources is None else declaration.resources,
+            concurrency=declaration.concurrency, interruption=declaration.interruption,
+            progress=declaration.progress,
+        ),
+        input_codec=input_codec, state_binding=state_binding,
+        scientific_call=callback, result_codec=result_codec,
+        _output_slots=declaration.state_outputs,
+    )
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class Registration[ConfigT]:
+    """Immutable class/configuration contract shared by independent allocations.
+
+    The v3 revision identifies the class, configuration, schemas and exported
+    execution contract. Deployment owns installed artifact provenance separately;
+    this contract neither identifies code bytes nor proves method purity.
+    """
+
+    contribution: type[Contribution[ConfigT]]
+    configuration: ConfigT
+    resources: tuple[ResourceRequirement, ...]
+    resident_resources: tuple[ResourceRequirement, ...] = ()
+    isolation: IsolationRequirement = IsolationRequirement.SHARED_PROCESS
+    description: ImplementationDescription = field(init=False)
+    _calls: tuple[CallBinding, ...] = field(init=False, repr=False, compare=False)
+    _analysis_type: type[Analysis] | None = field(init=False, repr=False, compare=False)
+    _initialize: _LifecycleMethod = field(init=False, repr=False, compare=False)
+    _close: _LifecycleMethod = field(init=False, repr=False, compare=False)
+    _analysis_initialize: _LifecycleMethod | None = field(init=False, repr=False, compare=False)
+    _analysis_close: _LifecycleMethod | None = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.contribution, type):
+            raise TypeError(f"Unexpected {type(self.contribution)=}; registration requires a Contribution class")
+        if not issubclass(self.contribution, Contribution):
+            raise TypeError("A registered implementation must inherit Contribution")
+        if self.contribution.__init__ is not Contribution.__init__ or self.contribution.__new__ is not object.__new__:
+            raise TypeError("Contribution construction is SDK-owned; acquire resources in initialize")
+        if (
+            self.contribution.configuration is not Contribution.configuration
+            or self.contribution.__setattr__ is not Contribution.__setattr__
+            or self.contribution.__delattr__ is not Contribution.__delattr__
+        ):
+            raise TypeError("Contribution configuration storage is SDK-owned")
+        if type(self.resources) is not tuple:
+            raise TypeError(f"Unexpected {type(self.resources)=}; registration resources must be an immutable tuple")
+        if any(type(resource) is not ResourceRequirement for resource in self.resources):
+            raise TypeError("Registration resources must contain ResourceRequirement records")
+        object.__setattr__(self, "_initialize", _lifecycle(owner=self.contribution, name="initialize", keywords={"assets": AssetAccess}))
+        object.__setattr__(self, "_close", _lifecycle(owner=self.contribution, name="close", keywords={}))
+        analysis_type = self.contribution.analysis_type
+        object.__setattr__(self, "_analysis_type", analysis_type)
+        object.__setattr__(self, "_analysis_initialize", None)
+        object.__setattr__(self, "_analysis_close", None)
+        if analysis_type is not None:
+            if not isinstance(analysis_type, type):
+                raise TypeError(f"Unexpected {type(analysis_type)=}; analysis_type must name an Analysis class")
+            if not issubclass(analysis_type, Analysis):
+                raise TypeError("analysis_type must inherit Analysis")
+            if analysis_type.__init__ is not Analysis.__init__ or analysis_type.__new__ is not object.__new__:
+                raise TypeError("Analysis construction is SDK-owned; acquire resources in initialize")
+            object.__setattr__(self, "_analysis_initialize", _lifecycle(owner=analysis_type, name="initialize", keywords={}))
+            object.__setattr__(self, "_analysis_close", _lifecycle(owner=analysis_type, name="close", keywords={}))
+        configuration_type = _configuration_type(contribution=self.contribution)
+        if type(self.configuration) is not configuration_type:
+            raise TypeError(f"Unexpected {type(self.configuration)=}; the contribution requires {configuration_type=}")
+        configuration_description = None
+        if configuration_type is not NoneType:
+            _immutable_configuration(value=self.configuration)
+            codec = _codec(value_type=configuration_type, supplied=None)
+            encoded = codec.encode(value=self.configuration)
+            configuration_description = ConfigurationDescription(
+                format=codec.format, digest="sha256:" + hashlib.sha256(string=encoded).hexdigest(),
+            )
+        members = _members(contribution=self.contribution)
+        calls = []
+        for name, function in members:
+            call = _compile_method(
+                contribution=self.contribution, name=name, function=function,
+                resources=self.resources,
+            )
+            object.__setattr__(call, "_owner", self)
+            calls.append(call)
+        object.__setattr__(self, "_calls", tuple(calls))
+        _require_state_kinds(calls=self._calls)
+        call_descriptions = [call.description for call in calls]
+        description = ImplementationDescription(
+            binding_id=f"{self.contribution.__module__}.{self.contribution.__qualname__}",
+            binding_revision="configured-v3:sha256:" + "0" * 64,
+            contract_version=1, configuration=configuration_description, assets=(),
+            calls=tuple(call_descriptions),
+            resident_resources=self.resident_resources, isolation=self.isolation,
+        )
+        document = description_document(description=description)
+        del document["binding_revision"]
+        document["analysis"] = None
+        if self._analysis_type is not None:
+            document["analysis"] = f"{self._analysis_type.__module__}.{self._analysis_type.__qualname__}"
+        document["configuration_schema"] = _schema(annotation=configuration_type, seen=frozenset())
+        document["operation_schemas"] = [
+            {"input": _schema(annotation=call.input_codec.value_type, seen=frozenset()),
+             "result": _schema(annotation=call.result_codec.value_type, seen=frozenset())}
+            for call in calls
+        ]
+        encoded_contract = json.dumps(obj=document, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode(encoding="ascii")
+        revision = "configured-v3:sha256:" + hashlib.sha256(string=encoded_contract).hexdigest()
+        object.__setattr__(self, "description", replace(description, binding_revision=revision))
+
+    def call(self, *, method: Callable) -> CallBinding:
+        """Select an exported class member by identity, never by a string name."""
+        for call in self._calls:
+            if call.scientific_call.function is method:
+                return call
+        raise ValueError("Method is not an exported operation of this registration")
+
+    def reference(self, *, method: Callable) -> CallRef:
+        return ref(call=self.call(method=method))
+
+    def construct_instance(self) -> Contribution[ConfigT]:
+        instance = object.__new__(self.contribution)
+        Contribution.__init__(self=instance, configuration=self.configuration)
+        return instance
+
+    def initialize_instance(self, *, instance: Contribution, assets: AssetAccess) -> None:
+        self._initialize.invoke(instance=instance, assets=assets)
+
+    def close_instance(self, *, instance: Contribution) -> None:
+        self._close.invoke(instance=instance)
+
+    def construct_analysis(self, *, instance: Contribution) -> Analysis | None:
+        if self._analysis_type is None:
+            return None
+        analysis = object.__new__(self._analysis_type)
+        Analysis.__init__(self=analysis, contribution=instance)
+        return analysis
+
+    def initialize_analysis(self, *, analysis: Analysis | None) -> None:
+        if self._analysis_initialize is not None:
+            self._analysis_initialize.invoke(instance=analysis)
+
+    def close_analysis(self, *, analysis: Analysis | None) -> None:
+        if self._analysis_close is not None:
+            self._analysis_close.invoke(instance=analysis)

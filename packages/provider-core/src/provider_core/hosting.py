@@ -35,17 +35,23 @@ def positive_seconds(value):
 
 
 def _identity(value, label):
-    if not (
-        type(value) is str
-        and value
-        and all(character.isprintable() and not character.isspace() for character in value)
-    ):
+    if not (type(value) is str):
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            f"{label} must be a nonempty identity without whitespace or control characters"
+        )
+    if not (value and all(character.isprintable() and not character.isspace() for character in value)):
         raise ValueError(f"{label} must be a nonempty identity without whitespace or control characters")
 
 
 def _digest(value, label):
-    if type(value) is not str or re.fullmatch(r"(?:sha256:|configured-v2:sha256:)[0-9a-f]{64}\Z", value) is None:
-        raise ValueError(f"{label} must be a lowercase sha256 or configured-v2:sha256 digest")
+    if type(value) is not str:
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            f"{label} must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest"
+        )
+    if re.fullmatch(r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z", value) is None:
+        raise ValueError(f"{label} must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest")
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,12 +67,20 @@ class ResourceGrant:
     def __post_init__(self):
         _identity(self.kind, "Resource grant kind")
         _identity(self.unit, "Resource grant unit")
-        if not (type(self.amount) is int and 0 < self.amount):
+        if not (type(self.amount) is int):
+            raise TypeError(
+                f"Unexpected {type(self.amount)=}; "
+                "Resource grant amount must be a positive integer"
+            )
+        if not (0 < self.amount):
             raise ValueError("Resource grant amount must be a positive integer")
         if self.selector is not None:
             _identity(self.selector, "Resource grant selector")
         if type(self.exclusive) is not bool:
-            raise TypeError("Resource grant exclusivity must be boolean")
+            raise TypeError(
+                f"Unexpected {type(self.exclusive)=}; "
+                "Resource grant exclusivity must be boolean"
+            )
 
     @property
     def identity(self):
@@ -74,7 +88,10 @@ class ResourceGrant:
 
     def covers(self, requirement: ResourceRequirement) -> bool:
         if type(requirement) is not ResourceRequirement:
-            raise TypeError("Resource coverage requires a ResourceRequirement")
+            raise TypeError(
+                f"Unexpected {type(requirement)=}; "
+                "Resource coverage requires a ResourceRequirement"
+            )
         return (
             self.identity == requirement.identity
             and self.amount >= requirement.amount
@@ -93,36 +110,69 @@ class BackendCapabilities:
     progress: bool
 
     def __post_init__(self):
-        if not (
-            type(self.contract_versions) is tuple
-            and self.contract_versions
-            and all(type(version) is int and 0 < version for version in self.contract_versions)
-            and len(set(self.contract_versions)) == len(self.contract_versions)
-        ):
+        if not (type(self.contract_versions) is tuple):
+            raise TypeError(
+                f"Unexpected {type(self.contract_versions)=}; "
+                "Backend contract versions must be a tuple of distinct positive integers"
+            )
+        for version in self.contract_versions:
+            if type(version) is not int:
+                raise TypeError(
+                    f"Unexpected {type(version)=}; "
+                    "Backend contract versions must be distinct positive integers"
+                )
+        if not (self.contract_versions and all(0 < version for version in self.contract_versions) and len(set(self.contract_versions)) == len(self.contract_versions)):
             raise ValueError("Backend contract versions must be distinct positive integers")
-        if not (
-            type(self.isolation) is tuple
-            and self.isolation
-            and all(type(value) is IsolationRequirement for value in self.isolation)
-            and len(set(self.isolation)) == len(self.isolation)
-        ):
-            raise TypeError("Backend isolation support must be a distinct immutable nonempty tuple")
-        if not (
-            type(self.concurrency) is tuple
-            and self.concurrency
-            and all(type(value) is ConcurrencyRequirement for value in self.concurrency)
-            and len(set(self.concurrency)) == len(self.concurrency)
-        ):
-            raise TypeError("Backend concurrency support must be a distinct immutable nonempty tuple")
-        if not (
-            type(self.interruption) is tuple
-            and self.interruption
-            and all(type(value) is InterruptionSupport for value in self.interruption)
-            and len(set(self.interruption)) == len(self.interruption)
-        ):
-            raise TypeError("Backend interruption support must be a distinct immutable nonempty tuple")
+        if not (type(self.isolation) is tuple):
+            raise TypeError(
+                f"Unexpected {type(self.isolation)=}; "
+                "Backend isolation support must be a distinct immutable nonempty tuple"
+            )
+        if not (self.isolation):
+            raise ValueError("Backend isolation support must be a distinct immutable nonempty tuple")
+        for requirement in self.isolation:
+            if type(requirement) is not IsolationRequirement:
+                raise TypeError(
+                    f"Unexpected {type(requirement)=}; "
+                    "Backend isolation entries must be IsolationRequirement values"
+                )
+        if not (len(set(self.isolation)) == len(self.isolation)):
+            raise ValueError("Backend isolation support must be a distinct immutable nonempty tuple")
+        if not (type(self.concurrency) is tuple):
+            raise TypeError(
+                f"Unexpected {type(self.concurrency)=}; "
+                "Backend concurrency support must be a distinct immutable nonempty tuple"
+            )
+        if not (self.concurrency):
+            raise ValueError("Backend concurrency support must be a distinct immutable nonempty tuple")
+        for requirement in self.concurrency:
+            if type(requirement) is not ConcurrencyRequirement:
+                raise TypeError(
+                    f"Unexpected {type(requirement)=}; "
+                    "Backend concurrency entries must be ConcurrencyRequirement values"
+                )
+        if not (len(set(self.concurrency)) == len(self.concurrency)):
+            raise ValueError("Backend concurrency support must be a distinct immutable nonempty tuple")
+        if not (type(self.interruption) is tuple):
+            raise TypeError(
+                f"Unexpected {type(self.interruption)=}; "
+                "Backend interruption support must be a distinct immutable nonempty tuple"
+            )
+        if not (self.interruption):
+            raise ValueError("Backend interruption support must be a distinct immutable nonempty tuple")
+        for support in self.interruption:
+            if type(support) is not InterruptionSupport:
+                raise TypeError(
+                    f"Unexpected {type(support)=}; "
+                    "Backend interruption entries must be InterruptionSupport values"
+                )
+        if not (len(set(self.interruption)) == len(self.interruption)):
+            raise ValueError("Backend interruption support must be a distinct immutable nonempty tuple")
         if type(self.progress) is not bool:
-            raise TypeError("Backend progress support must be boolean")
+            raise TypeError(
+                f"Unexpected {type(self.progress)=}; "
+                "Backend progress support must be boolean"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,7 +216,12 @@ class OperationRef:
     def __post_init__(self):
         _identity(self.host, "Host identity")
         _identity(self.analysis, "Analysis identity")
-        if not (type(self.operation_id) is str and 0 < len(self.operation_id) <= 160):
+        if not (type(self.operation_id) is str):
+            raise TypeError(
+                f"Unexpected {type(self.operation_id)=}; "
+                "Operation identity must contain 1 through 160 characters"
+            )
+        if not (0 < len(self.operation_id) <= 160):
             raise ValueError("Operation identity must contain 1 through 160 characters")
 
 
@@ -189,7 +244,12 @@ class StateRef:
         _digest(self.binding_revision, "Binding revision")
         _identity(self.state_id, "State identity")
         _identity(self.kind, "Scientific state kind")
-        if type(self.producer) is not OperationRef or (self.producer.host, self.producer.analysis) != (self.host, self.analysis):
+        if type(self.producer) is not OperationRef:
+            raise TypeError(
+                f"Unexpected {type(self.producer)=}; "
+                "State producer must be an OperationRef from the same host and analysis"
+            )
+        if (self.producer.host, self.producer.analysis) != (self.host, self.analysis):
             raise ValueError("State producer must belong to the same host and analysis")
 
 
@@ -200,7 +260,10 @@ class ResultRef:
 
     def __post_init__(self):
         if type(self.operation) is not OperationRef:
-            raise TypeError("Result reference requires an OperationRef")
+            raise TypeError(
+                f"Unexpected {type(self.operation)=}; "
+                "Result reference requires an OperationRef"
+            )
         _identity(self.result_id, "Result identity")
 
 
@@ -212,7 +275,10 @@ class StateArgument:
     def __post_init__(self):
         _identity(self.name, "State argument name")
         if type(self.reference) is not StateRef:
-            raise TypeError("State argument requires a StateRef")
+            raise TypeError(
+                f"Unexpected {type(self.reference)=}; "
+                "State argument requires a StateRef"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -225,7 +291,10 @@ class StateResult:
     def __post_init__(self):
         _identity(self.name, "State output name")
         if type(self.reference) is not StateRef:
-            raise TypeError("State output requires a StateRef")
+            raise TypeError(
+                f"Unexpected {type(self.reference)=}; "
+                "State output requires a StateRef"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -259,7 +328,12 @@ class Invocation:
     limits: ExecutionLimits
 
     def __post_init__(self):
-        if not (type(self.operation_id) is str and 0 < len(self.operation_id) <= 160):
+        if not (type(self.operation_id) is str):
+            raise TypeError(
+                f"Unexpected {type(self.operation_id)=}; "
+                "An invocation needs an explicit operation ID of 1 through 160 characters."
+            )
+        if not (0 < len(self.operation_id) <= 160):
             raise ValueError("An invocation needs an explicit operation ID of 1 through 160 characters.")
         if not (
             type(self.target) is CallRef
@@ -269,7 +343,10 @@ class Invocation:
             and type(self.reservation) is ReservationRef
             and type(self.limits) is ExecutionLimits
         ):
-            raise TypeError("Invocation fields must use the declared immutable hosting records.")
+            raise TypeError(
+                f"Unexpected {type(self.target)=}, {type(self.payload)=}, {type(self.states)=}, {type(self.reservation)=}, {type(self.limits)=}; "
+                "Invocation fields must use the declared immutable hosting records."
+            )
 
 
 class AdmissionCode(Enum):
@@ -290,8 +367,16 @@ class NotAdmitted:
 
     def __post_init__(self):
         if type(self.code) is not AdmissionCode:
-            raise TypeError("Non-admission requires an AdmissionCode")
-        if not (type(self.message) is str and self.message):
+            raise TypeError(
+                f"Unexpected {type(self.code)=}; "
+                "Non-admission requires an AdmissionCode"
+            )
+        if not (type(self.message) is str):
+            raise TypeError(
+                f"Unexpected {type(self.message)=}; "
+                "Non-admission requires an explanatory message"
+            )
+        if not (self.message):
             raise ValueError("Non-admission requires an explanatory message")
 
     @property

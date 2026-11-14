@@ -6,7 +6,7 @@ require_container()
 
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import math
 import time
 
@@ -25,6 +25,7 @@ from provider_core.hosting import (
     ResourceGrant,
     positive_seconds,
 )
+from provider_core.scientific import AssetAccess, NoAssets, Registration
 
 # This describes the backend's implemented features, not operator-selectable settings.
 # repo-check: allow-module-constant
@@ -96,18 +97,21 @@ class Allocation:
     """Deployment explicitly assigns a configured binding and resource grants."""
 
     name: str
-    binding: ImplementationBinding
+    binding: ImplementationBinding | Registration
     grants: tuple[ResourceGrant, ...]
+    assets: AssetAccess = field(default_factory=NoAssets)
 
     def __post_init__(self):
+        if type(self.name) is not str:
+            raise TypeError("Allocation name must be a string")
         if not (
-            type(self.name) is str
-            and 0 < len(self.name) <= 160
-            and isinstance(self.binding, ImplementationBinding)
+            isinstance(self.binding, (ImplementationBinding, Registration))
             and type(self.grants) is tuple
             and all(type(grant) is ResourceGrant for grant in self.grants)
         ):
-            raise ValueError("An allocation requires a name, binding and explicit resource grants.")
+            raise TypeError("An allocation requires a binding and explicit resource grants.")
+        if not 0 < len(self.name) <= 160:
+            raise ValueError("Allocation name must contain between 1 and 160 characters.")
         if len({grant.identity for grant in self.grants}) != len(self.grants):
             raise ValueError("Allocation resource grants cannot contain duplicate identities.")
         if self.binding.description.contract_version not in EMBEDDED_CAPABILITIES.contract_versions:
@@ -229,13 +233,12 @@ class _Resident:
         if self.ready:
             return
 
-        instance_hooks = self.allocation.binding.instance
+        binding = self.allocation.binding
         started_at = time.monotonic()
         try:
-            if instance_hooks is not None:
-                self.value = instance_hooks.construct()
-                self.constructed = True
-                instance_hooks.initialize(self.value)
+            self.value = binding.construct_instance()
+            self.constructed = True
+            binding.initialize_instance(instance=self.value, assets=self.allocation.assets)
             if seconds < time.monotonic() - started_at:
                 raise TimeoutError("Instance initialization exceeded its original allowance.")
         except BaseException as cause:
@@ -248,9 +251,8 @@ class _Resident:
             raise RuntimeError("Instance disposal was already attempted; retain its earlier evidence.")
         self.dispose_attempted = True
 
-        instance_hooks = self.allocation.binding.instance
-        if self.constructed and instance_hooks is not None:
-            instance_hooks.dispose(self.value)
+        if self.constructed:
+            self.allocation.binding.close_instance(instance=self.value)
         self.value = None
         self.ready = False
 
@@ -269,12 +271,11 @@ class _ScientificAnalysis:
         if self.ready:
             return
 
-        analysis_hooks = self.resident.allocation.binding.analysis
+        binding = self.resident.allocation.binding
         try:
-            if analysis_hooks is not None:
-                self.value = analysis_hooks.construct(self.resident.value)
-                self.constructed = True
-                analysis_hooks.initialize(self.value)
+            self.value = binding.construct_analysis(instance=self.resident.value)
+            self.constructed = True
+            binding.initialize_analysis(analysis=self.value)
         except BaseException as cause:
             self.failure = cause
             raise

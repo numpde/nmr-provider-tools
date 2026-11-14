@@ -6,6 +6,7 @@ inference, offerings, model configuration and their execution policy.
 
 ## Contents
 
+- [Scientific contributions](#scientific-contributions)
 - [Attempts and capacity](#attempts-and-capacity)
 - [Crashes and recovery](#crashes-and-recovery)
 - [Shared result delivery](#shared-result-delivery)
@@ -15,6 +16,33 @@ inference, offerings, model configuration and their execution policy.
 - [API behavior](#api-behavior)
 - [Package and qualification](#package-and-qualification)
 - [Source history](#source-history)
+
+## Scientific contributions
+
+`provider_core.scientific.Contribution[Config]` defines a host-managed scientific
+instance. Providers implement ordinary keyword-only methods marked with
+`@operation()` and read immutable scientific settings through
+`self.configuration`. Optional `initialize(assets=...)` and `close()` methods
+own loaded instance resources. An optional `Analysis[ContributionType]` owns a
+separate scientific session for each analysis.
+
+An SDK `Registration` combines the contribution class, configuration and
+execution requirements without loading science. Allocations
+create independent instances. Provider workflows select actual class methods;
+`EmbeddedAnalysis.submit_method(reservation=..., method=..., scientific_input=...,
+...)` uses the existing permission, operation and state-ownership path. Workflows
+using portable `Invocation` obtain addresses with
+`registration.reference(method=...)`.
+
+The SDK derives configured-v3 revisions from configuration and the declared
+execution contract. The class supplies the component name; the reservation
+selects its configured allocation. Installed code identity belongs to deployment's
+artifact provenance and is not asserted by this contract revision.
+The SDK owns serialization and lifecycle mechanics; providers
+own scientific meaning and operation ordering. See the
+[implemented interface](../../notes/086_configured_science_boundary.md) and the
+[three standalone examples](../../examples/README.md). This authoring API adds
+no automatic retries, worker pool, Jobs service or deployment authority.
 
 ## Attempts and capacity
 

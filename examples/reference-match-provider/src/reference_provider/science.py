@@ -37,7 +37,9 @@ class Reference:
     values: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        if type(self.label) is not str or not self.label.strip():
+        if type(self.label) is not str:
+            raise TypeError("Reference label must be a string")
+        if not self.label.strip():
             raise ValueError("Each matching reference requires a nonempty label")
         object.__setattr__(self, "values", VectorInput(values=self.values).values)
         if not any(self.values):

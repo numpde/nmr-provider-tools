@@ -11,9 +11,9 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from provider_core.contribution import CallContext, NoState
+import provider_core.scientific as sdk
 from reference_provider import science
-from reference_provider.binding import create_binding
+from reference_provider.binding import ReferenceMatcher, create_binding
 
 
 class ReferenceBindingTests(unittest.TestCase):
@@ -28,13 +28,12 @@ class ReferenceBindingTests(unittest.TestCase):
 
     def test_one_typed_query_call_has_no_analysis_or_state_lifetime(self):
         binding = create_binding()
-        call = binding.match
-        self.assertEqual("reference.match", binding.description.binding_id)
-        self.assertRegex(binding.description.binding_revision, r"\Aconfigured-v2:sha256:[0-9a-f]{64}\Z")
+        call = binding.call(method=ReferenceMatcher.match)
+        self.assertRegex(binding.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")
         self.assertEqual("match", call.description.name)
         self.assertIs(science.VectorInput, call.input_codec.value_type)
         self.assertIs(science.MatchReport, call.result_codec.value_type)
-        self.assertIsNone(binding.analysis)
+        self.assertIsNone(binding.contribution.analysis_type)
         self.assertEqual((), call.description.state_inputs)
         self.assertEqual((), call.description.state_outputs)
         self.assertEqual(1, call.description.resources[0].amount)
@@ -42,27 +41,19 @@ class ReferenceBindingTests(unittest.TestCase):
     def test_factory_defers_index_building_to_the_instance_initializer(self):
         with patch("reference_provider.science.build_index", wraps=science.build_index) as build:
             binding = create_binding()
-            library = binding.instance.construct()
+            library = binding.construct_instance()
             build.assert_not_called()
             self.assertIsNone(library.loaded_index)
-            binding.instance.initialize(library)
-            build.assert_called_once_with(library.references)
+            binding.initialize_instance(instance=library, assets=sdk.NoAssets())
+            build.assert_called_once_with(reference_set=library.configuration.references)
             index = library.loaded_index
-            call = binding.match
-            returned = call.scientific_call(CallContext(
-                instance=library,
-                analysis=None,
-                scientific_input=science.VectorInput(values=(3, 4, 0, 0)),
-                state=NoState(),
-                control=None,
-            ))
-            self.assertEqual("pattern-a", returned.value.label)
-            self.assertAlmostEqual(1, returned.value.score)
-            self.assertEqual((), returned.states)
+            returned = library.match(candidate=science.VectorInput(values=(3, 4, 0, 0)))
+            self.assertEqual("pattern-a", returned.label)
+            self.assertAlmostEqual(1, returned.score)
             self.assertIs(index, library.loaded_index)
-            binding.instance.dispose(library)
+            binding.close_instance(instance=library)
             self.assertIsNone(library.loaded_index)
-            self.assertEqual("pattern-a", returned.value.label)
+            self.assertEqual("pattern-a", returned.label)
 
     def test_settings_and_reference_assets_change_revision_without_mutating_existing_bindings(self):
         original = create_binding()
@@ -82,9 +73,9 @@ class ReferenceBindingTests(unittest.TestCase):
         self.assertNotEqual(original.description.binding_revision, changed_references.description.binding_revision)
         self.assertEqual(original.description.binding_revision, reformatted.description.binding_revision)
         self.assertEqual(original.description.assets, changed_settings.description.assets)
-        self.assertEqual(original.description.configuration, changed_references.description.configuration)
-        self.assertEqual(0.5, original.instance.construct().settings.minimum_score)
-        self.assertEqual((3, 4, 0, 0), original.instance.construct().references.entries[0].values)
+        self.assertNotEqual(original.description.configuration, changed_references.description.configuration)
+        self.assertEqual(0.5, original.configuration.settings.minimum_score)
+        self.assertEqual((3, 4, 0, 0), original.configuration.references.entries[0].values)
 
 
 if __name__ == "__main__":

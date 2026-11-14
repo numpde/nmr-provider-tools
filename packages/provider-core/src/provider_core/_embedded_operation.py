@@ -199,13 +199,11 @@ class _Operation(_Changes):
 
             phase = "encoding"
             result_payload = self.call.encode_result(scientific_return.value)
-            if not (
-                type(result_payload) is bytes
-                and len(result_payload) <= self.invocation.limits.result_bytes
-            ):
+            if type(result_payload) is not bytes:
+                raise TypeError(f"Unexpected {type(result_payload)=}; encoded scientific results must be bytes")
+            if not len(result_payload) <= self.invocation.limits.result_bytes:
                 raise ValueError(
-                    "Encoded scientific result exceeds its declared byte allowance "
-                    "or is not bytes."
+                    "Encoded scientific result exceeds its declared byte allowance."
                 )
 
             self.payload = result_payload
@@ -397,9 +395,10 @@ class _Operation(_Changes):
 
     def _require_result(self, result):
         self.require_loop()
+        if type(result) is not ResultRef:
+            raise TypeError(f"Unexpected {type(result)=}; result access requires a ResultRef")
         if not (
-            type(result) is ResultRef
-            and result == self.result
+            result == self.result
             and self.finished
             and self.result_state is ResultState.AVAILABLE
         ):

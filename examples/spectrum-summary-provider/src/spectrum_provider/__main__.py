@@ -14,7 +14,7 @@ from provider_core.hosting import (
 )
 
 from .application import PeakWorkflow
-from .binding import create_bindings
+from .binding import Baseline, Peaks, create_bindings
 from .science import Spectrum
 
 
@@ -26,7 +26,7 @@ async def run_demo() -> None:
     # Scientific resource requirements remain in resources.toml; they grant no access.
     grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
     host = EmbeddedHost(
-        (Allocation("baseline", baseline, grants), Allocation("peaks", peaks, grants)),
+        allocations=(Allocation(name="baseline", binding=baseline, grants=grants), Allocation(name="peaks", binding=peaks, grants=grants)),
         limits=HostLimits(
             analysis_records=1, operation_records=2, input_bytes=8192,
             result_bytes=8192, state_values=1, progress_records=1,
@@ -49,9 +49,9 @@ async def run_demo() -> None:
         sys.stdout.buffer.flush()
 
     try:
-        analysis = host.open_analysis("spectrum-demo", allocation_names=("baseline", "peaks"))
+        analysis = host.open_analysis(analysis_id="spectrum-demo", allocation_names=("baseline", "peaks"))
         reservations = {item.allocation: item for item in analysis.reservations}
-        baseline_call = baseline.run
+        baseline_call = baseline.call(method=Baseline.run)
         limits = ExecutionLimits(
             queue_seconds=5, execution_seconds=10, cleanup_seconds=5,
             input_bytes=4096, result_bytes=4096,
@@ -60,13 +60,13 @@ async def run_demo() -> None:
             execution=analysis,
             baseline=Invocation(
                 operation_id="subtract-baseline",
-                target=ref(baseline.run),
+                target=ref(call=baseline_call),
                 payload=baseline_call.input_codec.encode(
-                    Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
+                    value=Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
                 ),
                 states=(), reservation=reservations["baseline"], limits=limits,
             ),
-            peaks=ref(peaks.run),
+            peaks=peaks.reference(method=Peaks.run),
             peak_reservation=reservations["peaks"], limits=limits,
             dispatch_guard=require_permission,
         )
@@ -102,7 +102,7 @@ async def run_demo() -> None:
         if workflow is not None and workflow.baseline_release is not None:
             try:
                 async with asyncio.timeout(15):
-                    await observe_cleanup(workflow.baseline_release)
+                    await observe_cleanup(control=workflow.baseline_release)
             except BaseException as cause:
                 causes.append(cause)
         # Try both owners even if one reports failure, preserving every cause.
@@ -114,7 +114,7 @@ async def run_demo() -> None:
             try:
                 control = request()
                 async with asyncio.timeout(15):
-                    await observe_cleanup(control)
+                    await observe_cleanup(control=control)
             except BaseException as cause:
                 causes.append(cause)
     if len(causes) == 1:

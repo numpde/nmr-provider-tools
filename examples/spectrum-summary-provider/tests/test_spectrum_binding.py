@@ -12,8 +12,9 @@ import unittest
 from unittest.mock import patch
 
 import provider_core.contribution as contribution
+import provider_core.scientific as sdk
 from spectrum_provider import science
-from spectrum_provider.binding import create_bindings
+from spectrum_provider.binding import Baseline, Peaks, create_bindings
 
 
 class SpectrumBindingTests(unittest.TestCase):
@@ -30,12 +31,11 @@ class SpectrumBindingTests(unittest.TestCase):
     def test_independent_bindings_share_the_typed_spectrum_format(self) -> None:
         bindings = create_bindings()
         baseline, peaks = bindings.baseline, bindings.peaks
-        baseline_call = baseline.run
-        peak_call = peaks.run
-        self.assertEqual("spectrum.baseline", baseline.description.binding_id)
-        self.assertEqual("spectrum.peaks", peaks.description.binding_id)
-        self.assertRegex(baseline.description.binding_revision, r"\Aconfigured-v2:sha256:[0-9a-f]{64}\Z")
-        self.assertRegex(peaks.description.binding_revision, r"\Aconfigured-v2:sha256:[0-9a-f]{64}\Z")
+        baseline_call = baseline.call(method=Baseline.run)
+        peak_call = peaks.call(method=Peaks.run)
+        self.assertNotEqual(baseline.description.binding_id, peaks.description.binding_id)
+        self.assertRegex(baseline.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")
+        self.assertRegex(peaks.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")
         self.assertEqual("run", baseline_call.description.name)
         self.assertEqual("run", peak_call.description.name)
         self.assertIs(science.Spectrum, baseline_call.input_codec.value_type)
@@ -57,10 +57,10 @@ class SpectrumBindingTests(unittest.TestCase):
         bindings = create_bindings()
         for binding in (bindings.baseline, bindings.peaks):
             with self.subTest(binding=binding.description.binding_id):
-                self.assertIsNone(binding.instance)
-                self.assertIsNone(binding.analysis)
+                self.assertIs(binding.contribution.initialize, sdk.Contribution.initialize)
+                self.assertIsNone(binding.contribution.analysis_type)
                 self.assertEqual((), binding.description.resident_resources)
-                call = binding.run
+                call = binding.call(method=binding.contribution.run)
                 self.assertEqual((expected,), call.description.resources)
                 self.assertEqual((), call.description.state_inputs)
                 self.assertEqual((), call.description.state_outputs)
@@ -101,14 +101,12 @@ class SpectrumBindingTests(unittest.TestCase):
         self.assertNotEqual(same_peaks.description.binding_revision, changed_peaks.description.binding_revision)
 
         sample = science.Spectrum(positions=(0, 1, 2), intensities=(1, 4, 1))
-        original_call = original_baseline.run
-        changed_call = changed_baseline.run
-        context = contribution.CallContext(
-            instance=None, analysis=None, scientific_input=sample,
-            state=contribution.NoState(), control=None,
-        )
-        self.assertEqual((0, 3, 0), original_call.scientific_call(context).value.intensities)
-        self.assertEqual((-1, 2, -1), changed_call.scientific_call(context).value.intensities)
+        original_call = original_baseline.call(method=Baseline.run)
+        changed_call = changed_baseline.call(method=Baseline.run)
+        original_instance = original_baseline.construct_instance()
+        changed_instance = changed_baseline.construct_instance()
+        self.assertEqual((0, 3, 0), original_instance.run(spectrum=sample).intensities)
+        self.assertEqual((-1, 2, -1), changed_instance.run(spectrum=sample).intensities)
 
 
 if __name__ == "__main__":

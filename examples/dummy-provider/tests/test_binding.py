@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 import provider_core.contribution as contribution
 from dummy_provider import science
-from dummy_provider.binding import create_sum_binding, create_weighted_sum_binding
+from dummy_provider.binding import Sum, WeightedSum, create_sum_binding, create_weighted_sum_binding
 
 
 class DummyBindingTests(unittest.TestCase):
@@ -71,16 +71,16 @@ class DummyBindingTests(unittest.TestCase):
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
-        prepare_call, calculate_call = weighted_binding.prepare, weighted_binding.calculate
-        sum_call = create_sum_binding().run
+        prepare_call, calculate_call = weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate)
+        sum_call = create_sum_binding().call(method=Sum.run)
 
-        self.assertRegex(weighted_binding.description.binding_revision, r"\Aconfigured-v2:sha256:[0-9a-f]{64}\Z")
+        self.assertRegex(weighted_binding.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")
         self.assertIs(science.PreparationInput, prepare_call.input_codec.value_type)
-        self.assertIs(science.CalculationState, calculate_call.state_binding.value_type)
+        self.assertIs(science.PreparedValues, calculate_call.state_binding.input_types["candidate"])
         self.assertIs(contribution.NoInput, calculate_call.input_codec.value_type)
         self.assertIs(science.SumInput, sum_call.input_codec.value_type)
-        self.assertEqual("normalized", weighted_binding.prepared_output.name)
-        self.assertEqual("candidate", weighted_binding.prepared_input.name)
+        self.assertEqual("normalized", WeightedSum.prepared_output.name)
+        self.assertEqual("candidate", WeightedSum.prepared_input.name)
 
     def test_all_calls_declare_the_packaged_cpu_requirement(self) -> None:
         weighted = create_weighted_sum_binding(

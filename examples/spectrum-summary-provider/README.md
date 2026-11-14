@@ -20,12 +20,14 @@ src/spectrum_provider/
 `science.py` can be called directly. It knows no Jobs, allocations, operation
 handles, execution backend or report publisher. `create_bindings()` explicitly
 loads packaged settings and creates two independent stateless registrations:
-`spectrum.baseline/run` and `spectrum.peaks/run`. Configuration is immutable and
-contributes to each registration's revision. Neither call needs an artificial
-model instance or per-analysis scientific state. The helper returns an ordinary
-`SpectrumBindings` record: use `bindings.baseline.run` and `bindings.peaks.run`.
-Each registration is a provider-owned frozen dataclass with a typed call field;
-`ref(bindings.baseline.run)` derives its configured wire reference. The helper's
+exporting `Baseline.run` and `Peaks.run`. Configuration is immutable and
+contributes to each registration's revision. Neither call needs loaded model
+resources or per-analysis scientific state. The helper returns an ordinary
+`SpectrumBindings` record containing SDK registrations. `Baseline` and `Peaks`
+inherit `Contribution[Settings]` and export keyword-only `run` methods with
+`@operation()`. Each instance reads its own fixed `self.configuration`.
+`bindings.baseline.reference(method=Baseline.run)` projects the configured wire
+reference used by the data-only workflow. The helper's
 name and signature have no special SDK meaning.
 
 `PeakWorkflow` chooses the scientific sequence using only the public execution

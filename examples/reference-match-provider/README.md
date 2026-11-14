@@ -5,13 +5,17 @@ across independent analyses** in [the end-state boundary](../../notes/066_provid
 It complements the dummy's prepared-state flow and the spectrum provider's
 portable result transfer.
 
-The provider-owned frozen `ReferenceBinding` exposes its typed `match` member.
-Local execution uses `analysis.submit_call(binding.match, ...)`; the SDK derives
-the configured reference internally. Operation ID, encoded payload, state
+`ReferenceMatcher` inherits `Contribution[ReferenceConfig]` and exports the ordinary
+keyword-only `match` method with `@operation()`. A registration combines that
+class with immutable matching settings and reference data. Local execution uses
+`analysis.submit_method(method=ReferenceMatcher.match, ...)`;
+the SDK derives the configured reference and encodes the typed input internally.
+Operation ID, scientific input, state
 arguments, reservation, limits and dispatch guard remain explicit.
 `create_binding()` is ordinary provider assembly code; the SDK does not discover it or prescribe
-its name or signature. Configuration and reference metadata have one owner,
-`ConfiguredIdentity`, using the explicitly versioned configured-v2 revision.
+its name or signature. The SDK derives the configured-v3 revision from the
+class, configuration, schemas and operation contracts. Installed-artifact
+provenance remains deployment-owned.
 
 ```text
 src/reference_provider/
@@ -32,7 +36,7 @@ overlap and scores below the configured threshold are explicit rejections.
 Exact score ties choose the lexicographically smallest label.
 
 `create_binding()` captures immutable settings and the reference asset in the
-binding revision. It describes one `reference.match/match` call. The instance
+binding revision. It exports `ReferenceMatcher.match`. The instance
 initializer builds the actual index once; retirement disposes that retained
 index. Each query is self-contained, so there are no analysis hooks, scratch
 workspace or prepared-state handles. A completed report contains only a label

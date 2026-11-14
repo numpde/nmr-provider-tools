@@ -64,9 +64,10 @@ class StateBinding[T](Protocol):
 
 
 def _require_format(value: object) -> None:
+    if type(value) is not str:
+        raise TypeError(f"Unexpected {type(value)=}; a payload format must be a string")
     if not (
-        type(value) is str
-        and value
+        value
         and all(character.isprintable() and not character.isspace() for character in value)
     ):
         raise ValueError("A payload format must be a nonempty identity without whitespace")

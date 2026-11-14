@@ -15,7 +15,8 @@ from collections.abc import Callable
 from uuid import uuid4
 
 from provider_core.async_runner_session import await_original
-from provider_core.contribution import CallBinding, ref
+from provider_core.contribution import CallBinding, NoInput, ref
+from provider_core.scientific import NoAssets, Registration
 from provider_core.hosting import (
     AdmissionCode,
     AllocationRef,
@@ -46,10 +47,10 @@ class EmbeddedHost:
 
     capabilities = EMBEDDED_CAPABILITIES
 
-    def __init__(self, allocations, *, limits):
+    # silent-defaults: allow-contract -- An empty host accepts explicit allocations before its first analysis opens.
+    def __init__(self, allocations=(), *, limits):
         if not (
             type(allocations) is tuple
-            and allocations
             and all(type(item) is Allocation for item in allocations)
             and type(limits) is HostLimits
         ):
@@ -71,6 +72,22 @@ class EmbeddedHost:
         self.retirement = None
         self.retiring = False
 
+    def allocate(self, *, name, registration, grants, assets=None) -> AllocationRef:
+        """Assign a registered implementation before this fixed host starts work."""
+        self._require_loop()
+        if self.retiring or self.analyses:
+            raise CapacityUnavailable("Configure fixed allocations before opening analyses.")
+        if not isinstance(registration, Registration):
+            raise TypeError("An allocation requires a compiled Registration")
+        if name in self.residents:
+            raise ValueError("Allocation names must be unique within a host.")
+        if assets is None:
+            assets = NoAssets()
+        allocation = Allocation(name=name, binding=registration, grants=grants, assets=assets)
+        resident = _Resident(self.identity, allocation)
+        self.residents[name] = resident
+        return resident.reference
+
     @property
     def allocations(self):
         # repo-check: allow-tuple-generator -- The host API returns an allocation snapshot rather than a live view of mutable residents.
@@ -87,10 +104,12 @@ class EmbeddedHost:
         self._require_loop()
         if self.retiring:
             raise CapacityUnavailable("The host is retiring and refuses new analyses.")
+        if type(analysis_id) is not str:
+            raise TypeError(f"Unexpected {type(analysis_id)=}; an analysis identity must be a string")
+        if type(allocation_names) is not tuple:
+            raise TypeError(f"Unexpected {type(allocation_names)=}; supply an immutable tuple of allocation names")
         if not (
-            type(analysis_id) is str
-            and 0 < len(analysis_id) <= 160
-            and type(allocation_names) is tuple
+            0 < len(analysis_id) <= 160
             and allocation_names
             and len(set(allocation_names)) == len(allocation_names)
         ):
@@ -122,7 +141,9 @@ class EmbeddedHost:
     def retire_allocation(self, reference):
         """Pool administration retires one exact allocation and its current analysis."""
         self._require_loop()
-        if type(reference) is not AllocationRef or reference.host != self.identity:
+        if type(reference) is not AllocationRef:
+            raise TypeError(f"Unexpected {type(reference)=}; allocation retirement requires an AllocationRef")
+        if reference.host != self.identity:
             raise ValueError("Allocation retirement requires this host's exact AllocationRef.")
         resident = self.residents.get(reference.allocation)
         if resident is None or resident.reference != reference:
@@ -233,6 +254,30 @@ class EmbeddedAnalysis:
         )
         return self.submit(invocation, dispatch_guard=dispatch_guard)
 
+    # silent-defaults: allow-contract -- Methods without a payload use the immutable NoInput record; required inputs are checked before encoding.
+    def submit_method(
+        self, *, method: Callable, operation_id: str,
+        scientific_input: object = NoInput(), states: tuple[StateArgument, ...],
+        reservation: ReservationRef, limits: ExecutionLimits,
+        dispatch_guard: Callable[[], None],
+    ) -> Operation | NotAdmitted:
+        """Select a method on the exact registration owned by the reservation."""
+        self.host._require_loop()
+        refusal = self._reservation_refusal(reservation=reservation)
+        if refusal is not None:
+            return refusal
+        registration = self.science[reservation.allocation].resident.allocation.binding
+        if not isinstance(registration, Registration):
+            raise TypeError(f"Unexpected {type(registration)=}; method submission requires a scientific Registration")
+        call = registration.call(method=method)
+        if type(scientific_input) is NoInput and call.input_codec.value_type is not NoInput:
+            raise TypeError(f"Unexpected {type(scientific_input)=}; {call.description.name=} requires {call.input_codec.value_type=}")
+        return self.submit_call(
+            call=call, operation_id=operation_id,
+            payload=call.encode_input(value=scientific_input), states=states,
+            reservation=reservation, limits=limits, dispatch_guard=dispatch_guard,
+        )
+
     def submit(
         self, invocation: Invocation, *, dispatch_guard: Callable[[], None],
     ) -> Operation | NotAdmitted:
@@ -297,14 +342,20 @@ class EmbeddedAnalysis:
         return operation
 
 
-    def _refusal(self, invocation):
-        if self.closed:
-            return NotAdmitted(AdmissionCode.CLOSED, "This analysis is closed to new calls.")
-        if invocation.reservation not in self.reservations:
+    def _reservation_refusal(self, *, reservation):
+        if reservation not in self.reservations:
             return NotAdmitted(
                 code=AdmissionCode.INVALID_REFERENCE,
                 message="Reservation belongs to another analysis, host or allocation.",
             )
+        return None
+
+    def _refusal(self, invocation):
+        if self.closed:
+            return NotAdmitted(AdmissionCode.CLOSED, "This analysis is closed to new calls.")
+        refusal = self._reservation_refusal(reservation=invocation.reservation)
+        if refusal is not None:
+            return refusal
         reservation = invocation.reservation
         if (invocation.target.binding_id, invocation.target.binding_revision) != (
             reservation.binding_id,
@@ -445,8 +496,7 @@ class EmbeddedAnalysis:
                 cleanup_failures,
             )
 
-        hooks = scientific_analysis.resident.allocation.binding.analysis
-        if scientific_analysis.constructed and hooks is not None:
-            hooks.dispose(scientific_analysis.value)
+        if scientific_analysis.constructed:
+            scientific_analysis.resident.allocation.binding.close_analysis(analysis=scientific_analysis.value)
         scientific_analysis.value = None
         scientific_analysis.ready = False

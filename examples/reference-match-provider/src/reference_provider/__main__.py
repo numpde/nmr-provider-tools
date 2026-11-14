@@ -12,16 +12,15 @@ from provider_core.hosting import (
     observe_cleanup, observe_completion,
 )
 
-from .binding import create_binding
+from .binding import ReferenceMatcher, create_binding
 from .science import VectorInput
 
 
 async def run_demo() -> None:
     """Reuse initialized science; retain results beyond each analysis lifetime."""
     binding = create_binding()
-    call = binding.match
     host = EmbeddedHost(
-        (Allocation("library", binding, (
+        allocations=(Allocation(name="library", binding=binding, grants=(
             ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
         )),),
         limits=HostLimits(
@@ -50,20 +49,20 @@ async def run_demo() -> None:
 
     try:
         for name, values in (("first", (3, 4, 0, 0)), ("second", (0, 0, 1, 1))):
-            analysis = host.open_analysis(name, allocation_names=("library",))
+            analysis = host.open_analysis(analysis_id=name, allocation_names=("library",))
             cleanup_requests.append(analysis.close)
             reservation, = analysis.reservations
-            operation = analysis.submit_call(
-                binding.match,
+            operation = analysis.submit_method(
+                method=ReferenceMatcher.match,
                 operation_id="match",
-                payload=call.input_codec.encode(VectorInput(values=values)),
+                scientific_input=VectorInput(values=values),
                 states=(), reservation=reservation, limits=limits,
                 dispatch_guard=require_permission,
             )
             if isinstance(operation, NotAdmitted):
                 raise RuntimeError(f"Reference match admission refused: {operation.code.value}: {operation.message}")
             async with asyncio.timeout(15):
-                completed = await observe_completion(operation)
+                completed = await observe_completion(operation=operation)
             if completed.failures:
                 causes.extend(failure.cause for failure in completed.failures)
                 break
@@ -73,7 +72,7 @@ async def run_demo() -> None:
             # Same allocation supports sequential analyses. Its index remains
             # initialized; its first result remains retained under a separate owner.
             async with asyncio.timeout(15):
-                await observe_cleanup(analysis.close())
+                await observe_cleanup(control=analysis.close())
 
     except BaseException as cause:
         causes.append(cause)
@@ -100,7 +99,7 @@ async def run_demo() -> None:
         for request in cleanup_requests:
             try:
                 async with asyncio.timeout(15):
-                    await observe_cleanup(request())
+                    await observe_cleanup(control=request())
             except BaseException as cause:
                 causes.append(cause)
     if len(causes) == 1:

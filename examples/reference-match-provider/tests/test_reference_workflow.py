@@ -5,7 +5,6 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-from dataclasses import replace
 import io
 import json
 from pathlib import Path
@@ -23,7 +22,7 @@ from provider_core.hosting import (
 )
 from reference_provider import science
 from reference_provider import __main__ as demo
-from reference_provider.binding import ReferenceLibrary, create_binding
+from reference_provider.binding import ReferenceMatcher, create_binding
 
 
 class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
@@ -31,16 +30,8 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
         build = self.enterContext(patch("reference_provider.science.build_index", wraps=science.build_index))
         match = self.enterContext(patch("reference_provider.science.match", wraps=science.match))
         binding = create_binding()
-        original_construct = binding.instance.construct
         libraries = []
-
-        def construct() -> ReferenceLibrary:
-            library = original_construct()
-            libraries.append(library)
-            return library
-
-        binding = replace(binding, instance=replace(binding.instance, construct=construct))
-        call = binding.match
+        call = binding.call(method=ReferenceMatcher.match)
         host = EmbeddedHost(
             (Allocation("library", binding, (
                 ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
@@ -68,15 +59,18 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 ):
                     analysis = host.open_analysis(name, allocation_names=("library",))
                     reservation, = analysis.reservations
-                    operation = analysis.submit_call(
-                        binding.match,
+                    operation = analysis.submit_method(
+                        method=ReferenceMatcher.match,
                         operation_id="match",
-                        payload=call.input_codec.encode(science.VectorInput(values=values)),
+                        scientific_input=science.VectorInput(values=values),
                         states=(), reservation=reservation, limits=limits,
                         dispatch_guard=permitted,
                     )
                     self.assertNotIsInstance(operation, NotAdmitted)
                     completed = await observe_completion(operation)
+                    if not libraries:
+                        libraries.append(host.residents["library"].value)
+                    self.assertIs(libraries[0], host.residents["library"].value)
                     self.assertIs(Outcome.SUCCEEDED, completed.outcome)
                     self.assertEqual((), completed.failures)
                     payload = await operation.read_result(completed.result)
@@ -89,8 +83,8 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(1, len(libraries))
                     self.assertIsNotNone(libraries[0].loaded_index)
 
-                first_index = match.call_args_list[0].args[0]
-                self.assertIs(first_index, match.call_args_list[1].args[0])
+                first_index = match.call_args_list[0].kwargs["index"]
+                self.assertIs(first_index, match.call_args_list[1].kwargs["index"])
                 for operation, result, payload in operations:
                     self.assertEqual(payload, await operation.read_result(result))
                     received = []
@@ -114,11 +108,11 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
         cause = OSError("The second reference query failed")
         output = io.BytesIO()
 
-        def fail_second(index, settings, candidate):
+        def fail_second(*, index, settings, candidate):
             calls.append(candidate)
             if len(calls) == 2:
                 raise cause
-            return original_match(index, settings, candidate)
+            return original_match(index=index, settings=settings, candidate=candidate)
 
         with (
             patch("reference_provider.science.match", side_effect=fail_second),

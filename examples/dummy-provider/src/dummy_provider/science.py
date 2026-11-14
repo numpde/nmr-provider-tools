@@ -14,7 +14,9 @@ from provider_core.contribution_errors import ScientificRejection
 
 
 def _finite_float(value: object, *, label: str) -> float:
-    if type(value) not in (int, float) or not math.isfinite(value):
+    if type(value) not in (int, float):
+        raise TypeError(f"{label} must be a number")
+    if not math.isfinite(value):
         raise ValueError(f"{label} must be a finite number")
     return float(value)
 
@@ -79,7 +81,9 @@ class PreparationResult:
     count: int
 
     def __post_init__(self) -> None:
-        if not (type(self.count) is int and 0 < self.count):
+        if type(self.count) is not int:
+            raise TypeError("count must be an integer")
+        if not 0 < self.count:
             raise ValueError("count must be a positive integer")
 
 
@@ -90,7 +94,9 @@ class PredictionResult:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "total", _finite_float(self.total, label="prediction total"))
-        if not (type(self.count) is int and 0 < self.count):
+        if type(self.count) is not int:
+            raise TypeError("count must be an integer")
+        if not 0 < self.count:
             raise ValueError("count must be a positive integer")
 
 
@@ -101,7 +107,9 @@ class SumResult:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "total", _finite_float(self.total, label="sum total"))
-        if not (type(self.count) is int and 0 < self.count):
+        if type(self.count) is not int:
+            raise TypeError("count must be an integer")
+        if not 0 < self.count:
             raise ValueError("count must be a positive integer")
 
 

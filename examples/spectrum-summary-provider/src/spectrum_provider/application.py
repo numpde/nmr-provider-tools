@@ -58,7 +58,7 @@ class PeakWorkflow:
         if self.baseline_operation is not None:
             return self.baseline_operation
         accepted = self.execution.submit(
-            self.baseline_invocation, dispatch_guard=self.dispatch_guard,
+            invocation=self.baseline_invocation, dispatch_guard=self.dispatch_guard,
         )
         if not isinstance(accepted, NotAdmitted):
             self.baseline_operation = accepted
@@ -69,13 +69,13 @@ class PeakWorkflow:
         if self.baseline_operation is None:
             raise RuntimeError("Start the baseline operation before waiting for peaks.")
         if self.peak_operation is None:
-            baseline = await observe_completion(self.baseline_operation)
+            baseline = await observe_completion(operation=self.baseline_operation)
             # Science may succeed while encoding fails. Keep both facts intact.
             if baseline.outcome is not Outcome.SUCCEEDED or baseline.result_state is not ResultState.AVAILABLE:
                 return baseline
-            payload = await self.baseline_operation.read_result(baseline.result)
+            payload = await self.baseline_operation.read_result(result=baseline.result)
             accepted = self.execution.submit(
-                Invocation(
+                invocation=Invocation(
                     operation_id="detect-peaks",
                     target=self.peak_target,
                     payload=payload,
@@ -91,8 +91,8 @@ class PeakWorkflow:
             self.peak_operation = accepted
             # The accepted invocation now owns its input bytes. This is an
             # in-memory handoff, not durable report acceptance or publication.
-            self.baseline_release = self.baseline_operation.release_result(baseline.result)
+            self.baseline_release = self.baseline_operation.release_result(result=baseline.result)
         # Intermediate cleanup is an independent owner. A release failure must
         # not hide an accepted peak operation or its usable result. The caller
         # observes baseline_release separately when settling the workflow.
-        return await observe_completion(self.peak_operation)
+        return await observe_completion(operation=self.peak_operation)

@@ -19,19 +19,22 @@ The weighted-sum binding holds a reusable model and per-analysis state. Its
 prepare call returns worker-local state that calculate consumes. The stateless
 sum binding uses the same interface for a single calculation.
 
-The configured frozen bindings expose typed members: `weighted.prepare`,
-`weighted.calculate` and `summation.run`. Local execution uses
-`analysis.submit_call(weighted.prepare, ...)`; the SDK derives the data-only
-reference internally. The producer's `normalized` output connects to the consumer's
+`WeightedSum` and `Sum` inherit the SDK's `Contribution[Config]` contract.
+Their exported methods use keyword-only scientific arguments and read settings
+from `self.configuration`. A `Registration` records the class and immutable
+configuration; each allocation creates its own instance. Local execution uses
+`analysis.submit_method(method=WeightedSum.prepare, ...)`;
+the SDK derives the data-only reference and encodes the typed input internally.
+The producer's `normalized` output connects to the consumer's
 independently named `candidate` input through typed slots. Projection observes
 the original producer operation; the backend owns live state admission,
 consumption and cleanup. These named slot helpers are provider assembly fields;
 the call's own slot declarations remain authoritative. See
-[the typed API design](../../notes/085_typed_provider_api_end_state.txt).
+[the contribution interface](../../notes/086_configured_science_boundary.md).
 
 Each binding reads the packaged `resources.toml` and validates it through the
-SDK's resource constructor. The validated declaration is described as a JSON
-asset in the binding revision. Changing a resource value changes that revision;
+SDK's resource constructor. The validated requirements enter the configured-v3
+revision together with configuration and operation contracts. Changing a resource value changes that revision;
 TOML whitespace and comments do not. Existing bindings retain their captured
 requirements.
 
