@@ -38,8 +38,8 @@ composition observes that release independently during cleanup.
 
 The SDK owns generic observation waits, dispatch, guarded permission checks,
 result consumption, retained results and observable cleanup. The bootstrap
-separately chooses fixed
-CPU allocations and capacity limits. Resource requirements do not grant access.
+chooses the scientific objects and SDK buffer and time limits. Resource
+requirements describe what science needs; they do not grant hardware access.
 One analysis reserves both allocations; this example makes no claim about fair
 scheduling or sharing those allocations between concurrent analyses.
 
@@ -106,10 +106,14 @@ Provider constructor settings are ordinary object attributes. The SDK does not
 serialize or hash them. Call identity refers to the adopted allocation; scientific
 provenance remains provider-owned. Local submission uses the actual receiver
 (e.g. `method=contribution.generate`). Adoption takes `requirements=...`;
-deployment supplies resource `grants`.
+hardware availability must be established by the environment running the provider.
 
 The SDK supplies execution identities. Use allocation handles with
 `host.open_analysis(allocations=(hosted.allocation,))`, retain returned operation
 handles, and observe those handles to resume waiting. Each new submission means
 new work. State kinds and ports derive their names from Python types and class
 attributes rather than manually assigned labels.
+
+Adoption records resource requirements and establishes scientific-object ownership.
+It does not discover or allocate CPU/GPU hardware. The returned allocation handle
+identifies an execution owner, not a hardware grant.

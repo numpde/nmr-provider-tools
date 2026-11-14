@@ -15,9 +15,9 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
-    ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
+    ExecutionLimits, NotAdmitted, Outcome, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
 )
 from reference_provider import science
@@ -47,9 +47,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             return None
 
         try:
-            binding = create_binding(host=host, allocation=ResourceAllocation(name="library", grants=(
-                ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
-            )))
+            binding = create_binding(host=host)
             call = binding.call(method=ReferenceMatcher.match)
             library = binding.contribution
             async with asyncio.timeout(15):
@@ -57,18 +55,17 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     ("first", (3, 4, 0, 0), "pattern-a"),
                     ("second", (0, 0, 1, 1), "pattern-b"),
                 ):
-                    analysis = host.open_analysis(name, allocation_names=("library",))
+                    analysis = host.open_analysis(allocations=(binding.allocation,))
                     reservation, = analysis.reservations
                     operation = analysis.submit_method(
                         method=binding.contribution.match,
-
                         scientific_input=science.VectorInput(values=values),
                         states=(), reservation=reservation, limits=limits,
                         dispatch_guard=permitted,
                     )
                     self.assertNotIsInstance(operation, NotAdmitted)
                     completed = await observe_completion(operation)
-                    self.assertIs(library, host.residents["library"].value)
+                    self.assertIs(library, host.residents[binding.allocation.allocation].value)
                     self.assertIs(Outcome.SUCCEEDED, completed.outcome)
                     self.assertEqual((), completed.failures)
                     payload = await operation.read_result(completed.result)

@@ -22,13 +22,12 @@ progress_records = 1
 initialization_seconds = 5
 retirement_seconds = 5
 
-# Each offering receives this deployment's generic CPU thread grant.
-# To grant more CPU capacity, replace amount below rather than adding another
-# entry with the same kind/unit/selector:
+# Resource requirements requested for each offering, not granted capacity.
+# To request two CPU threads, replace amount below:
 # amount = 2
-# Scientific CPU requirements remain in the package's resources.toml. A larger
-# grant does not itself make the model parallel or pin operating-system threads.
-[[execution.grants]]
+# This declares a requirement. EmbeddedHost does not discover, reserve or pin
+# hardware; the environment running the provider must satisfy it.
+[[execution.requirements]]
 kind = "cpu"
 amount = 1
 unit = "thread"

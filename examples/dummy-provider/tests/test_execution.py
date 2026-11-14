@@ -13,12 +13,11 @@ from unittest.mock import patch
 from dummy_provider import science
 from dummy_provider.binding import WeightedSum, create_weighted_sum_binding
 from provider_core.contribution import ProgressEvent
-from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
     ExecutionLimits,
     NotAdmitted,
     Outcome,
-    ResourceGrant,
     ResultConsumption,
     ResultState,
     observe_cleanup,
@@ -60,9 +59,6 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.retire_host, host)
         hosted = create_weighted_sum_binding(
             host=host,
-            allocation=ResourceAllocation(name="weighted", grants=(
-                ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
-            )),
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
@@ -83,7 +79,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             patch("dummy_provider.science.dispose_model", wraps=science.dispose_model) as dispose,
             patch("dummy_provider.science.prepare", wraps=science.prepare) as prepare,
         ):
-            analysis = host.open_analysis(analysis_id="failed-load", allocation_names=("weighted",))
+            analysis = host.open_analysis(allocations=(hosted.allocation,))
             reservation, = analysis.reservations
             operation = analysis.submit_method(
                 method=contribution.prepare,
@@ -108,20 +104,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(model.loaded_coefficients)
 
     async def test_installed_binding_prepares_and_calculates(self):
-        model_allocation = ResourceAllocation(
-            name="weighted",
-            grants=(
-                ResourceGrant(
-                    kind="cpu",
-                    amount=1,
-                    unit="thread",
-                    selector="generic",
-                ),
-            ),
-        )
         host_options = dict(
-
-
             input_bytes=4096,
             result_bytes=4096,
             state_values=2,
@@ -134,14 +117,13 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         )
         self.addAsyncCleanup(self.retire_host, host)
         weighted_binding = create_weighted_sum_binding(
-            host=host, allocation=model_allocation,
+            host=host,
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
 
         analysis = host.open_analysis(
-            analysis_id="weighted-analysis",
-            allocation_names=("weighted",),
+            allocations=(weighted_binding.allocation,),
         )
         (reservation,) = analysis.reservations
         prepare_call, calculate_call = weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate)
@@ -164,12 +146,11 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         )
         rejection = await observe_completion(operation=rejected)
         self.assertIs(Outcome.REJECTED, rejection.outcome)
-        original_session = analysis.science["weighted"].value
+        original_session = analysis.science[weighted_binding.allocation.allocation].value
         self.assertTrue(original_session.value.is_open)
 
         preparation_operation = analysis.submit_method(
             method=weighted_binding.contribution.prepare,
-
             scientific_input=preparation_input,
             states=(),
             reservation=reservation,
@@ -179,7 +160,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotIsInstance(preparation_operation, NotAdmitted)
 
         preparation_observation = await self.assert_succeeded(preparation_operation)
-        self.assertIs(original_session, analysis.science["weighted"].value)
+        self.assertIs(original_session, analysis.science[weighted_binding.allocation.allocation].value)
         self.assertEqual(1, len(preparation_observation.states))
         self.assertEqual("normalized", preparation_observation.states[0].name)
         prepared = await WeightedSum.normalized.reference(
@@ -206,7 +187,6 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         # Result release leaves the returned scientific state available to calculate.
         calculation_operation = analysis.submit_method(
             method=weighted_binding.contribution.calculate,
-
             states=(calculation_state,),
             reservation=reservation,
             limits=execution_limits,

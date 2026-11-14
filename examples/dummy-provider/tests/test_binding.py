@@ -14,8 +14,8 @@ import unittest
 from unittest.mock import patch
 
 import provider_core.contribution as contribution
-from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
-from provider_core.hosting import ResourceGrant, observe_cleanup
+from provider_core.embedded_host import EmbeddedHost
+from provider_core.hosting import observe_cleanup
 from dummy_provider import science
 from dummy_provider.binding import Sum, WeightedSum, create_sum_binding, create_weighted_sum_binding
 
@@ -35,19 +35,13 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
     async def retire(self):
         await observe_cleanup(control=self.host.retire())
 
-    def allocation(self):
-        return ResourceAllocation(
-            name=f"example-{len(self.host.allocations)}",
-            grants=(ResourceGrant(kind="cpu", amount=4, unit="thread", selector="generic"),),
-        )
-
     def weighted_binding(self, *, settings, coefficients):
         return create_weighted_sum_binding(
-            host=self.host, allocation=self.allocation(), settings=settings, coefficients=coefficients,
+            host=self.host,  settings=settings, coefficients=coefficients,
         )
 
     def sum_binding(self):
-        return create_sum_binding(host=self.host, allocation=self.allocation())
+        return create_sum_binding(host=self.host, )
 
     async def test_installed_distribution_contains_the_scientific_package(self) -> None:
         installed_distribution = metadata.distribution("dummy-provider-example")

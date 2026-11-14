@@ -13,8 +13,8 @@ from unittest.mock import patch
 
 import provider_core.contribution as contribution
 import provider_core.scientific as sdk
-from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
-from provider_core.hosting import ResourceGrant, observe_cleanup
+from provider_core.embedded_host import EmbeddedHost
+from provider_core.hosting import observe_cleanup
 from spectrum_provider import science
 from spectrum_provider.binding import Baseline, Peaks, create_bindings
 
@@ -35,12 +35,9 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
         await observe_cleanup(control=self.host.retire())
 
     def bindings(self):
-        grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
         suffix = len(self.host.allocations)
         return create_bindings(
             host=self.host,
-            baseline_allocation=ResourceAllocation(name=f"baseline-{suffix}", grants=grants),
-            peak_allocation=ResourceAllocation(name=f"peaks-{suffix}", grants=grants),
         )
 
     async def test_installed_distribution_contains_its_package_and_configuration(self) -> None:

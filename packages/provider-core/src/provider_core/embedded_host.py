@@ -17,7 +17,7 @@ from weakref import WeakSet
 
 from provider_core.async_runner_session import await_original
 from provider_core.contribution import CallBinding, ImplementationBinding, IsolationRequirement, NoInput, ResourceRequirement, ref
-from provider_core.scientific import Contribution, HostedContribution
+from provider_core.scientific import AssetAccess, NoAssets, Contribution, HostedContribution
 from provider_core.hosting import (
     AdmissionCode,
     AllocationRef,
@@ -37,7 +37,7 @@ from provider_core._embedded_operation import _Operation
 from provider_core._embedded_support import (
     EMBEDDED_CAPABILITIES,
     Allocation,
-    ResourceAllocation,
+    _require_supported_binding,
     _Cleanup,
     _Resident,
     _ScientificAnalysis,
@@ -101,7 +101,7 @@ class EmbeddedHost:
         self.initialization_seconds = initialization_seconds
         self.retirement_seconds = retirement_seconds
         self.residents = {
-            item.name: _Resident(self.identity, item)
+            item.name: _Resident(host_identity=self.identity, name=item.name, binding=item.binding, assets=item.assets)
             for item in allocations
         }
         self.analyses = {}
@@ -113,14 +113,15 @@ class EmbeddedHost:
         self.retirement = None
         self.retiring = False
 
-    # silent-defaults: allow-contract -- No resident requirements and shared-process execution describe the ordinary embedded contribution contract.
+    # silent-defaults: allow-contract -- No file assets, no resident requirements and shared-process execution describe the ordinary embedded contribution contract.
     def adopt(
-        self, *, contribution: Contribution, allocation: ResourceAllocation,
+        self, *, contribution: Contribution,
         requirements: tuple[ResourceRequirement, ...],
+        assets: AssetAccess = NoAssets(),
         resident_resources: tuple[ResourceRequirement, ...] = (),
         isolation: IsolationRequirement = IsolationRequirement.SHARED_PROCESS,
     ) -> HostedContribution:
-        """Take ownership of this exact object after validating its assignment.
+        """Take ownership of this exact object after validating execution support.
 
         Rejection leaves ownership with the caller. Successful adoption retains
         the receiver before initialization and permanently forbids re-adoption.
@@ -128,27 +129,20 @@ class EmbeddedHost:
         self._require_loop()
         if self.retiring or self.allocations_fixed:
             raise CapacityUnavailable("Adopt contributions before opening analyses or retiring the host.")
-        if type(allocation) is not ResourceAllocation:
-            raise TypeError(f"Unexpected {type(allocation)=}; adoption requires a ResourceAllocation")
-        if type(allocation.name) is not str:
-            raise TypeError(f"Unexpected {type(allocation.name)=}; an allocation name must be a string")
-        if allocation.name in self.residents:
-            raise ValueError("Allocation names must be unique within a host.")
+        allocation_name = uuid4().hex
         hosted = HostedContribution(
-            contribution=contribution, host=self.identity, allocation_name=allocation.name,
+            contribution=contribution, host=self.identity, allocation_name=allocation_name,
             requirements=requirements, resident_resources=resident_resources, isolation=isolation,
         )
-        assignment = Allocation(
-            name=allocation.name, binding=hosted, grants=allocation.grants, assets=allocation.assets,
-        )
+        _require_supported_binding(hosted)
         custody = contribution._custody
         with custody.lock:
             if custody.owner is not None:
                 raise ValueError(f"Cannot adopt this contribution again; {custody.owner=} already owns its lifetime")
-            resident = _Resident(self.identity, assignment)
+            resident = _Resident(host_identity=self.identity, name=allocation_name, binding=hosted, assets=assets)
             resident.value = contribution
             resident.constructed = True
-            self.residents[allocation.name] = resident
+            self.residents[allocation_name] = resident
             custody.owner = resident.reference
         return hosted
 
@@ -286,7 +280,7 @@ class EmbeddedAnalysis:
         self.host = host
         self.identity = identity
         self.science = {
-            resident.allocation.name: _ScientificAnalysis(resident)
+            resident.name: _ScientificAnalysis(resident)
             for resident in residents
         }
         # repo-check: allow-tuple-generator -- Analysis custody retains the exact ordered reservation references admitted at creation.
@@ -294,9 +288,9 @@ class EmbeddedAnalysis:
             ReservationRef(
                 host=host.identity,
                 analysis=identity,
-                allocation=resident.allocation.name,
-                binding_id=resident.allocation.binding.description.binding_id,
-                binding_revision=resident.allocation.binding.description.binding_revision,
+                allocation=resident.name,
+                binding_id=resident.binding.description.binding_id,
+                binding_revision=resident.binding.description.binding_revision,
             )
             for resident in residents
         )
@@ -365,7 +359,7 @@ class EmbeddedAnalysis:
         refusal = self._reservation_refusal(reservation=reservation)
         if refusal is not None:
             return refusal
-        hosted = self.science[reservation.allocation].resident.allocation.binding
+        hosted = self.science[reservation.allocation].resident.binding
         if not isinstance(hosted, HostedContribution):
             raise TypeError(f"Unexpected {type(hosted)=}; method submission requires an adopted contribution")
         if getattr(method, "__self__", None) is not hosted.contribution:
@@ -415,7 +409,7 @@ class EmbeddedAnalysis:
             return admission_refusal
 
         scientific_analysis = self.science[invocation.reservation.allocation]
-        implementation_binding = scientific_analysis.resident.allocation.binding
+        implementation_binding = scientific_analysis.resident.binding
         selected_call = next(
             item
             for item in implementation_binding._calls
@@ -492,7 +486,7 @@ class EmbeddedAnalysis:
             )
         if invocation.target.name not in {
             item.description.name
-            for item in scientific_analysis.resident.allocation.binding._calls
+            for item in scientific_analysis.resident.binding._calls
         }:
             return NotAdmitted(
                 code=AdmissionCode.INVALID_REQUEST,
@@ -623,6 +617,6 @@ class EmbeddedAnalysis:
             )
 
         if scientific_analysis.constructed:
-            scientific_analysis.resident.allocation.binding.close_analysis(analysis=scientific_analysis.value)
+            scientific_analysis.resident.binding.close_analysis(analysis=scientific_analysis.value)
         scientific_analysis.value = None
         scientific_analysis.ready = False

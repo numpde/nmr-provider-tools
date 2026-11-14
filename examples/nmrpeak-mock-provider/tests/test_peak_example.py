@@ -16,8 +16,8 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
-from provider_core.hosting import ExecutionLimits, NotAdmitted, ResourceGrant, ResultConsumption, ResultState, observe_cleanup, observe_completion
+from provider_core.embedded_host import EmbeddedHost
+from provider_core.hosting import ExecutionLimits, NotAdmitted, ResultConsumption, ResultState, observe_cleanup, observe_completion
 from provider_core.interpreter import Interpreter, ModelWindowExpired, ProseService
 from provider_core.scientific import ResourceRequirement
 
@@ -48,11 +48,9 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             retirement_seconds=5,
         )
         self.addAsyncCleanup(self.retire)
-        self.grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
         self.offerings = adopt_offerings(
             host=self.host,
-            hf_allocation=ResourceAllocation(name="hf", grants=self.grants),
-            chf_allocation=ResourceAllocation(name="chf", grants=self.grants),
+            requested_requirements=(ResourceRequirement(kind="cpu", amount=1, unit="thread", selector="generic"),),
         )
 
     async def retire(self):
@@ -68,7 +66,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             context_bytes=factory.context_bytes, secrets=(),
         )
         self.addAsyncCleanup(interpreter.retire)
-        execution = self.host.open_analysis(analysis_id=name, allocation_names=(hosted.allocation.allocation,))
+        execution = self.host.open_analysis(allocations=(hosted.allocation,))
         self.addAsyncCleanup(self.close_analysis, execution=execution)
         return Prediction(
             execution=execution, hosted=hosted, interpreter=interpreter,
@@ -228,7 +226,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         settings = replace(self.offerings.hf.contribution.configuration, checkpoint_sha256="0" * 64)
         contribution = Hf(configuration=settings, checkpoint_path=self.offerings.hf.contribution.checkpoint_path, create_model=Model)
         hosted = self.host.adopt(
-            contribution=contribution, allocation=ResourceAllocation(name="mismatch", grants=self.grants),
+            contribution=contribution,
             requirements=(ResourceRequirement(kind="cpu", amount=1, unit="thread", selector="generic"),),
         )
         prediction, _ = self.prediction(hosted=hosted, proposals=(candidate(carbon=False),), name="bad-checkpoint")

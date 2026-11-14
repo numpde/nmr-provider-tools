@@ -7,7 +7,7 @@ from importlib.resources import files
 import tomllib
 
 import provider_core.scientific as sdk
-from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost
 
 from . import science
 
@@ -39,7 +39,7 @@ class SpectrumBindings:
 
 
 def create_bindings(
-    *, host: EmbeddedHost, baseline_allocation: ResourceAllocation, peak_allocation: ResourceAllocation,
+    *, host: EmbeddedHost,
 ) -> SpectrumBindings:
     """Provider-owned assembly; the workflow chooses how these calls compose."""
     package = files(anchor=__package__)
@@ -50,12 +50,10 @@ def create_bindings(
     return SpectrumBindings(
         baseline=host.adopt(
             contribution=Baseline(configuration=science.BaselineSettings(**settings["baseline"])),
-            allocation=baseline_allocation,
             requirements=(requirement,),
         ),
         peaks=host.adopt(
             contribution=Peaks(configuration=science.PeakSettings(**settings["peaks"])),
-            allocation=peak_allocation,
             requirements=(requirement,),
         ),
     )

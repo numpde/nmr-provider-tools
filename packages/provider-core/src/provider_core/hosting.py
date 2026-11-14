@@ -56,8 +56,12 @@ def _digest(value, label):
 
 
 @dataclass(frozen=True, slots=True)
-class ResourceGrant:
-    """Capacity that deployment has assigned to one execution allocation."""
+class ResourceCapacity:
+    """Caller-declared capacity for the legacy execution-binding interface.
+
+    The caller establishes availability. This record only allows comparison
+    with declared requirements; it does not discover or allocate hardware.
+    """
 
     kind: str
     amount: int
@@ -66,21 +70,21 @@ class ResourceGrant:
     exclusive: bool = False
 
     def __post_init__(self):
-        _identity(self.kind, "Resource grant kind")
-        _identity(self.unit, "Resource grant unit")
+        _identity(self.kind, "Resource capacity kind")
+        _identity(self.unit, "Resource capacity unit")
         if not (type(self.amount) is int):
             raise TypeError(
                 f"Unexpected {type(self.amount)=}; "
-                "Resource grant amount must be a positive integer"
+                "Resource capacity amount must be a positive integer"
             )
         if not (0 < self.amount):
-            raise ValueError("Resource grant amount must be a positive integer")
+            raise ValueError("Resource capacity amount must be a positive integer")
         if self.selector is not None:
-            _identity(self.selector, "Resource grant selector")
+            _identity(self.selector, "Resource capacity selector")
         if type(self.exclusive) is not bool:
             raise TypeError(
                 f"Unexpected {type(self.exclusive)=}; "
-                "Resource grant exclusivity must be boolean"
+                "Resource capacity exclusivity must be boolean"
             )
 
     @property

@@ -83,8 +83,9 @@ class Contribution:
     and analysis_type=None for contributions without a separate analysis session.
 
     Construct the object without acquiring external resources, then pass it to
-    host.adopt(contribution=object, allocation=..., requirements=...). The host
-    validates the assignment before accepting ownership. Rejection leaves the
+    host.adopt(contribution=object, requirements=...). The host
+    validates execution support before accepting ownership. Requirements describe
+    what science needs; adoption does not discover or reserve hardware. Rejection leaves the
     object with you; the host neither initializes nor closes it. Success retains
     that exact object. It cannot be adopted again by this or another host, even
     after retirement. Construct a new object for another allocation.
@@ -484,7 +485,7 @@ class HostedContribution:
         contribution_type = type(self.contribution)
         if type(self.requirements) is not tuple:
             raise TypeError(f"Unexpected {type(self.requirements)=}; contribution resources must be an immutable tuple")
-        if any(type(resource) is not ResourceRequirement for resource in self.requirements):
+        if any(type(resource_requirement) is not ResourceRequirement for resource_requirement in self.requirements):
             raise TypeError("Contribution resources must contain ResourceRequirement records")
         object.__setattr__(self, "_initialize", _lifecycle(owner=contribution_type, name="initialize", keywords={"assets": AssetAccess}))
         object.__setattr__(self, "_close", _lifecycle(owner=contribution_type, name="close", keywords={}))

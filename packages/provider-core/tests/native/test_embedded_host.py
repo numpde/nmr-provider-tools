@@ -35,7 +35,7 @@ from provider_core.hosting import (
     NotAdmitted,
     Outcome,
     RequestConflict,
-    ResourceGrant,
+    ResourceCapacity,
     ResultRef,
     ResultState,
     StateArgument,
@@ -75,7 +75,7 @@ def _execution_limits() -> ExecutionLimits:
     )
 
 
-def _grants(binding) -> tuple[ResourceGrant, ...]:
+def _resource_capacities(binding) -> tuple[ResourceCapacity, ...]:
     resident = {
         requirement.identity: requirement
         for requirement in binding.description.resident_resources
@@ -87,12 +87,12 @@ def _grants(binding) -> tuple[ResourceGrant, ...]:
             if known is None or known.amount < requirement.amount:
                 active[requirement.identity] = requirement
 
-    grants = []
+    resource_capacities = []
     for identity in set(resident) | set(active):
         requirements = [mapping[identity] for mapping in (resident, active) if identity in mapping]
         requirement = requirements[0]
-        grants.append(
-            ResourceGrant(
+        resource_capacities.append(
+            ResourceCapacity(
                 kind=requirement.kind,
                 amount=sum(item.amount for item in requirements),
                 unit=requirement.unit,
@@ -100,7 +100,7 @@ def _grants(binding) -> tuple[ResourceGrant, ...]:
                 exclusive=any(item.exclusive for item in requirements),
             )
         )
-    return tuple(grants)
+    return tuple(resource_capacities)
 
 
 # silent-defaults: allow-contract -- Stateless invocation witnesses carry no input states; stateful witnesses supply their exact retained references.
@@ -182,7 +182,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 Allocation(
                     name=name,
                     binding=binding,
-                    grants=_grants(binding),
+                    capacities=_resource_capacities(binding),
                 )
                 for (name, binding) in bindings.items()
             ),
@@ -235,7 +235,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
         operation = analysis.submit_call(
             binding.run,
-
             payload=invocation.payload,
             states=invocation.states,
             reservation=invocation.reservation,
@@ -856,7 +855,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         await self.settled(host.retire_allocation(held_allocation))
         self.assertFalse(workers[1.0].is_alive())
 
-    async def test_backend_refuses_unenforceable_contracts_and_missing_grants(self):
+    async def test_backend_refuses_unenforceable_contracts_and_missing_resource_capacities(self):
         original = sum_binding()
         unsupported_bindings = (
             replace(original, identity=replace(original.identity, contract_version=2)),
@@ -871,7 +870,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 Allocation(
                     name=f"unsupported-{index}",
                     binding=unsupported_binding,
-                    grants=_grants(original),
+                    capacities=_resource_capacities(original),
                 )
 
         resident_requirement = ResourceRequirement(
@@ -889,7 +888,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             Allocation(
                 name="missing-resident-grant",
                 binding=resident_binding,
-                grants=_grants(original),
+                capacities=_resource_capacities(original),
             )
 
     async def test_partial_initialization_keeps_the_original_cleanup_owner(self):

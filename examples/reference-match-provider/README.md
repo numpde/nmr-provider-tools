@@ -75,10 +75,14 @@ Provider constructor settings are ordinary object attributes. The SDK does not
 serialize or hash them. Call identity refers to the adopted allocation; scientific
 provenance remains provider-owned. Local submission uses the actual receiver
 (e.g. `method=contribution.generate`). Adoption takes `requirements=...`;
-deployment supplies resource `grants`.
+hardware availability must be established by the environment running the provider.
 
 The SDK supplies execution identities. Use allocation handles with
 `host.open_analysis(allocations=(hosted.allocation,))`, retain returned operation
 handles, and observe those handles to resume waiting. Each new submission means
 new work. State kinds and ports derive their names from Python types and class
 attributes rather than manually assigned labels.
+
+Adoption records resource requirements and establishes scientific-object ownership.
+It does not discover or allocate CPU/GPU hardware. The returned allocation handle
+identifies an execution owner, not a hardware grant.

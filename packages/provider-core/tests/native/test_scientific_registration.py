@@ -8,9 +8,9 @@ from dataclasses import dataclass, replace
 from threading import Barrier
 import unittest
 
-from provider_core.embedded_host import Allocation, EmbeddedHost, ResourceAllocation
-from provider_core.hosting import ResourceState, CapacityUnavailable, AdmissionCode, ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, observe_cleanup, observe_completion
-from provider_core.scientific import AssetAccess, Contribution, HostedContribution, NoAssets, ResourceRequirement, operation
+from provider_core.embedded_host import Allocation, EmbeddedHost
+from provider_core.hosting import ResourceState, CapacityUnavailable, AdmissionCode, ExecutionLimits, NotAdmitted, Outcome, ResourceCapacity, observe_cleanup, observe_completion
+from provider_core.scientific import AssetAccess, Contribution, HostedContribution, IsolationRequirement, NoAssets, ResourceRequirement, operation
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -76,11 +76,10 @@ def new_host() -> EmbeddedHost:
     )
 
 
-# silent-defaults: allow-contract -- Tests vary one part of the fixed CPU assignment and scientific requirement.
-def adopt(*, host, contribution, name="sum", amount=1, grant=4):
+# silent-defaults: allow-contract -- Tests vary the scientific CPU requirement.
+def adopt(*, host, contribution, amount=1):
     return host.adopt(
         contribution=contribution,
-        allocation=ResourceAllocation(name=name, grants=(ResourceGrant(kind="cpu", amount=grant, unit="thread"),)),
         requirements=(ResourceRequirement(kind="cpu", amount=amount, unit="thread"),),
     )
 
@@ -172,7 +171,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=20, second=instance.calls)
         self.assertEqual(first=20, second=len(retained_handles))
         with self.assertRaises(expected_exception=CapacityUnavailable):
-            adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), name="late")
+            adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
 
     async def test_state_ports_use_python_types_and_attribute_names(self):
         from provider_core.scientific import StateKind, StateUse
@@ -198,7 +197,6 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         instance = Sum(configuration=Settings(scale=2))
         hosted = self.host.adopt(
             contribution=instance,
-            allocation=ResourceAllocation(grants=(ResourceGrant(kind="cpu", amount=1, unit="thread"),)),
             requirements=(ResourceRequirement(kind="cpu", amount=1, unit="thread"),),
         )
         analysis = self.host.open_analysis(allocations=(hosted.allocation,))
@@ -259,10 +257,10 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
     async def test_identical_objects_cannot_exchange_bound_methods_or_portable_targets(self):
         from provider_core.hosting import Invocation
 
-        first = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), name="first")
-        second = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), name="second")
-        analysis = self.host.open_analysis(analysis_id="identical", allocation_names=("first", "second"))
-        reservation = next(item for item in analysis.reservations if item.allocation == "second")
+        first = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
+        second = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
+        analysis = self.host.open_analysis(allocations=(first.allocation, second.allocation))
+        reservation = analysis.reservation(allocation=second.allocation)
         limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024)
         for method in (first.contribution.calculate, Sum.calculate):
             with self.assertRaises(expected_exception=ValueError):
@@ -276,10 +274,10 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=0, second=second.contribution.calls)
 
     async def test_setup_is_private_and_requirements_determine_execution_contract(self):
-        original = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), name="original")
-        same = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), name="same")
-        changed = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=3)), name="changed")
-        requirements = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), name="requirements", amount=2)
+        original = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
+        same = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
+        changed = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=3)))
+        requirements = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), amount=2)
         self.assertNotEqual(first=original.description.binding_id, second=same.description.binding_id)
         self.assertNotEqual(first=original.allocation, second=same.allocation)
         self.assertEqual(first=original.description.binding_revision, second=changed.description.binding_revision)
@@ -369,14 +367,28 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         finally:
             ConfiguredSum.initialize = original
 
-    async def test_insufficient_grants_leave_object_available_for_valid_adoption(self):
+    async def test_invalid_requirements_leave_object_available_for_valid_adoption(self):
         instance = Sum(configuration=Settings(scale=2))
         with self.assertRaises(expected_exception=ValueError):
-            adopt(host=self.host, contribution=instance, amount=2, grant=1)
+            adopt(host=self.host, contribution=instance, amount=0)
         self.assertEqual(first=0, second=instance.initializations)
         self.assertEqual(first=0, second=instance.closes)
         self.assertEqual(first=(), second=self.host.allocations)
-        hosted = adopt(host=self.host, contribution=instance, amount=2, grant=2)
+        hosted = adopt(host=self.host, contribution=instance, amount=2)
+        self.assertIs(expr1=instance, expr2=hosted.contribution)
+
+    async def test_unsupported_isolation_leaves_object_available_for_valid_adoption(self):
+        instance = Sum(configuration=Settings(scale=2))
+        with self.assertRaises(expected_exception=ValueError):
+            self.host.adopt(
+                contribution=instance,
+                requirements=(ResourceRequirement(kind="cpu", amount=1, unit="thread"),),
+                isolation=IsolationRequirement.DEDICATED_PROCESS,
+            )
+        self.assertEqual(first=0, second=instance.initializations)
+        self.assertEqual(first=0, second=instance.closes)
+        self.assertEqual(first=(), second=self.host.allocations)
+        hosted = adopt(host=self.host, contribution=instance)
         self.assertIs(expr1=instance, expr2=hosted.contribution)
 
     async def test_one_instance_cannot_be_adopted_twice_or_reused_after_retirement(self):
@@ -386,7 +398,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.retire, host=other)
         for host in (self.host, other):
             with self.assertRaises(expected_exception=ValueError):
-                adopt(host=host, contribution=instance, name="duplicate")
+                adopt(host=host, contribution=instance)
         self.assertEqual(first=(), second=other.allocations)
         await self.retire(host=self.host)
         self.assertEqual(first=0, second=instance.initializations)
@@ -426,7 +438,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         hosted = adopt(host=self.host, contribution=instance)
         with self.assertRaises(expected_exception=TypeError):
             EmbeddedHost(
-                allocations=(Allocation(name="bypass", binding=hosted, grants=(ResourceGrant(kind="cpu", amount=4, unit="thread"),)),),
+                allocations=(Allocation(name="bypass", binding=hosted, capacities=(ResourceCapacity(kind="cpu", amount=4, unit="thread"),)),),
                 input_bytes=8192,
                 result_bytes=8192,
                 state_values=8,
@@ -437,7 +449,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_reservation_rejects_foreign_ownership_and_missing_input_before_dispatch(self):
         hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
-        analysis = self.host.open_analysis(analysis_id="test", allocation_names=("sum",))
+        analysis = self.host.open_analysis(allocations=(hosted.allocation,))
         reservation, = analysis.reservations
         limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024)
         for forged in (replace(reservation, host="other"), replace(reservation, allocation="missing"), replace(reservation, analysis="other")):
@@ -453,7 +465,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         configuration = Settings(scale=3)
         first = Sum(configuration=configuration)
         second = Sum(configuration=configuration)
-        handles = [adopt(host=self.host, contribution=instance, name=name) for instance, name in ((first, "first"), (second, "second"))]
+        handles = [adopt(host=self.host, contribution=instance) for instance in (first, second)]
         for hosted in handles:
             _, observed = await run_sum(host=self.host, hosted=hosted, operation_id=hosted.allocation.allocation)
             self.assertEqual(first=(), second=observed.failures)
@@ -465,7 +477,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         host = new_host()
         instance = FailedInitialization(configuration=Settings(scale=2))
         hosted = adopt(host=host, contribution=instance)
-        resident = host.residents["sum"]
+        resident = host.residents[hosted.allocation.allocation]
         self.addCleanup(resident.executor.shutdown, wait=True)
         _, completed = await run_sum(host=host, hosted=hosted, operation_id="failure")
         self.assertIs(expr1=instance.startup_failure, expr2=completed.failures[0].cause)

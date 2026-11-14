@@ -312,7 +312,7 @@ class ConfiguredIdentity:
 
 @dataclass(frozen=True, slots=True)
 class ResourceRequirement:
-    """Neutral quantity that deployment must grant to the scientific host."""
+    """Resource kind, quantity and constraints required for scientific execution."""
 
     kind: str
     amount: int

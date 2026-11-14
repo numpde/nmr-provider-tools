@@ -11,8 +11,8 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
-from provider_core.hosting import ResourceGrant, observe_cleanup
+from provider_core.embedded_host import EmbeddedHost
+from provider_core.hosting import observe_cleanup
 from reference_provider import science
 from reference_provider.binding import ReferenceMatcher, create_binding
 
@@ -33,10 +33,7 @@ class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
         await observe_cleanup(control=self.host.retire())
 
     def binding(self):
-        return create_binding(host=self.host, allocation=ResourceAllocation(
-            name=f"library-{len(self.host.allocations)}",
-            grants=(ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),),
-        ))
+        return create_binding(host=self.host, )
 
     async def test_installed_distribution_contains_the_scientific_package_and_settings(self):
         distribution = metadata.distribution("reference-match-provider-example")

@@ -6,9 +6,9 @@ import asyncio
 import sys
 from threading import Event
 
-from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
-    ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
+    ExecutionLimits, NotAdmitted, Outcome, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
 )
 
@@ -45,16 +45,13 @@ async def run_demo() -> None:
         sys.stdout.buffer.flush()
 
     try:
-        binding = create_binding(host=host, allocation=ResourceAllocation(grants=(
-            ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
-        )))
+        binding = create_binding(host=host)
         for name, values in (("first", (3, 4, 0, 0)), ("second", (0, 0, 1, 1))):
             analysis = host.open_analysis(allocations=(binding.allocation,))
             cleanup_requests.append(analysis.close)
             reservation, = analysis.reservations
             operation = analysis.submit_method(
                 method=binding.contribution.match,
-
                 scientific_input=VectorInput(values=values),
                 states=(), reservation=reservation, limits=limits,
                 dispatch_guard=require_permission,

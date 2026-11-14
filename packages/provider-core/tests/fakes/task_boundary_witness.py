@@ -72,7 +72,7 @@ async def child(owner_kind, failure_kind):
     if fatal is not None:
         original.set_exception(fatal)
     session = Session(probe)
-    resources = []
+    child_processes = []
     cleanup = None
     if cleanup_kind is not None:
         cleanup = {"system-exit": SystemExit, "keyboard-interrupt": KeyboardInterrupt}[cleanup_kind]("PRIVATE cleanup fatal")
@@ -80,7 +80,7 @@ async def child(owner_kind, failure_kind):
 
     async def prepare(_acknowledged, _instructions, *, report_condition):
         session.events.append(("prepare",))
-        resources.append(await asyncio.create_subprocess_exec(
+        child_processes.append(await asyncio.create_subprocess_exec(
             sys.executable, "-I", "-B", "-c", "import signal; signal.pause()"))
         entered.set()
         try:
@@ -91,10 +91,10 @@ async def child(owner_kind, failure_kind):
     session.prepare = prepare
     scripted_retire = session.retire
     async def retire():
-        for resource in resources:
-            if resource.returncode is None:
-                resource.terminate()
-            await asyncio.wait_for(resource.wait(), 1)
+        for child_process in child_processes:
+            if child_process.returncode is None:
+                child_process.terminate()
+            await asyncio.wait_for(child_process.wait(), 1)
         await scripted_retire()
     session.retire = retire
 

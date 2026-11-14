@@ -17,7 +17,6 @@ class Peaks(sdk.Contribution):
 peaks = Peaks(settings=settings)
 hosted = host.adopt(
     contribution=peaks,
-    allocation=ResourceAllocation(grants=grants),
     requirements=requirements,
 )
 ```
@@ -50,10 +49,10 @@ model provenance or code bytes. Portable calls from another allocation are
 refused even when class, settings and execution contracts match. The existing
 legacy ImplementationBinding path keeps its original reference semantics.
 
-Requirements describe what execution needs; grants describe deployment's
-assignment. Resident requirements and operation requirements retain their
-existing distinct lifetimes. Neither declarations nor Python identity grant
-execution authority; the reservation and dispatch guard do that.
+Requirements describe the resource conditions requested for execution. Adoption
+records them; it does not discover or reserve CPU/GPU hardware. Resident and
+operation requirements retain distinct lifetimes. Invocation permission comes
+from the execution reservation and dispatch guard, independently of hardware.
 
 Analysis sessions and produced state retain their existing ownership. State is
 allocation-local, consumed only after guarded dispatch. Operation observation,
@@ -104,5 +103,12 @@ input/result/state capacity bounds admitted scientific work.
 
 EmbeddedHost declares the six capacity/time parameters directly as typed,
 keyword-only constructor arguments. Provider startup can pass
-**policy["execution"]["host"] without an intermediate policy record. The host
+**provider_config["execution"]["host"] without an intermediate policy record. The host
 validates those values at construction and has no knowledge of TOML.
+
+Modern adoption accepts a contribution and ResourceRequirement records directly;
+asset access is optional. No caller-created ResourceAllocation or capacity
+assertion is needed. The returned allocation reference identifies the hosted
+object and its executor, not a hardware grant. The older ImplementationBinding
+entrypoint retains its explicitly caller-declared ResourceCapacity comparison;
+that does not establish hardware availability for the modern path.

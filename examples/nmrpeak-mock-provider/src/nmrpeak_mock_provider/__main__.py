@@ -6,9 +6,10 @@ from pathlib import Path
 import sys
 import tomllib
 
-from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
-from provider_core.hosting import ExecutionLimits, ResourceGrant, ResultConsumption, observe_cleanup
+from provider_core.embedded_host import EmbeddedHost
+from provider_core.hosting import ExecutionLimits, ResultConsumption, observe_cleanup
 from provider_core.interpreter import Interpreter, ProseService
+from provider_core.scientific import ResourceRequirement
 
 from .application import Prediction
 from .composition import adopt_offerings, interpretation_messages, interpretation_tools
@@ -26,17 +27,19 @@ async def close_analysis(*, execution) -> None:
 
 async def run_demo() -> None:
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
-        policy = tomllib.load(source)
+        provider_config = tomllib.load(source)
 
-    host = EmbeddedHost(
-        **policy["execution"]["host"],
+    # Create the SDK runtime that executes submitted methods, such as prepare
+    # and generate, and coordinates cleanup of their models and analysis state.
+    # Read its capacity and time allowances from the deployment's [execution.host].
+    host = EmbeddedHost(**provider_config["execution"]["host"])
+
+    # repo-check: allow-tuple-generator -- Adoption retains an immutable requirement inventory shared by both offerings.
+    requested_requirements = tuple(
+        ResourceRequirement(**resource_requirement)
+        for resource_requirement in provider_config["execution"]["requirements"]
     )
 
-    configured_grants = [
-        ResourceGrant(**grant)
-        for grant in policy["execution"]["grants"]
-    ]
-    grants = tuple(configured_grants)
     limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=8192, result_bytes=8192)
     cleanup_requests = []
     consumptions = []
@@ -53,8 +56,7 @@ async def run_demo() -> None:
     try:
         offerings = adopt_offerings(
             host=host,
-            hf_allocation=ResourceAllocation(grants=grants),
-            chf_allocation=ResourceAllocation(grants=grants),
+            requested_requirements=requested_requirements,
         )
         for name, hosted, carbon in (("hf", offerings.hf, False), ("chf", offerings.chf, True)):
             candidate = {

@@ -9,7 +9,6 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 import math
 import time
-from uuid import uuid4
 
 from provider_core.contribution import (
     ConcurrencyRequirement,
@@ -23,7 +22,7 @@ from provider_core.hosting import (
     BackendCapabilities,
     CleanupObservation,
     Failure,
-    ResourceGrant,
+    ResourceCapacity,
 )
 from provider_core.scientific import AssetAccess, NoAssets, HostedContribution
 
@@ -60,26 +59,32 @@ def _combined_requirements(resident_requirements, call_requirements):
     return tuple(combined_requirements.values())
 
 
-def _grants_cover(grants, requirements):
-    return all(any(grant.covers(requirement) for grant in grants) for requirement in requirements)
+def _capacities_cover_requirements(capacities, requirements):
+    return all(any(resource_capacity.covers(requirement) for resource_capacity in capacities) for requirement in requirements)
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class ResourceAllocation:
-    """Deployment resource assignment; the SDK supplies its internal identity."""
-
-    name: str = field(default_factory=lambda: uuid4().hex)
-    grants: tuple[ResourceGrant, ...]
-    assets: AssetAccess = field(default_factory=NoAssets)
+def _require_supported_binding(binding):
+    """Validate execution features independently of hardware availability."""
+    if binding.description.contract_version not in EMBEDDED_CAPABILITIES.contract_versions:
+        raise ValueError("The embedded backend does not support this contribution contract version.")
+    if binding.description.isolation not in EMBEDDED_CAPABILITIES.isolation:
+        raise ValueError("The embedded backend cannot provide this implementation's isolation boundary.")
+    for call in binding.description.calls:
+        if call.concurrency not in EMBEDDED_CAPABILITIES.concurrency:
+            raise ValueError("The embedded backend cannot enforce this call's concurrency boundary.")
+        if call.interruption not in EMBEDDED_CAPABILITIES.interruption:
+            raise ValueError("The embedded backend cannot provide this call's interruption contract.")
+        if call.progress and not EMBEDDED_CAPABILITIES.progress:
+            raise ValueError("The embedded backend cannot retain this call's progress events.")
 
 
 @dataclass(frozen=True, slots=True)
 class Allocation:
-    """Deployment explicitly assigns a configured binding and resource grants."""
+    """Deployment explicitly assigns a configured binding and resource capacities."""
 
     name: str
     binding: ImplementationBinding | HostedContribution
-    grants: tuple[ResourceGrant, ...]
+    capacities: tuple[ResourceCapacity, ...]
     assets: AssetAccess = field(default_factory=NoAssets)
 
     def __post_init__(self):
@@ -87,31 +92,22 @@ class Allocation:
             raise TypeError("Allocation name must be a string")
         if not (
             isinstance(self.binding, (ImplementationBinding, HostedContribution))
-            and type(self.grants) is tuple
-            and all(type(grant) is ResourceGrant for grant in self.grants)
+            and type(self.capacities) is tuple
+            and all(type(resource_capacity) is ResourceCapacity for resource_capacity in self.capacities)
         ):
-            raise TypeError("An allocation requires a binding and explicit resource grants.")
+            raise TypeError("An allocation requires a binding and explicit resource capacities.")
         if not 0 < len(self.name) <= 160:
             raise ValueError("Allocation name must contain between 1 and 160 characters.")
-        if len({grant.identity for grant in self.grants}) != len(self.grants):
-            raise ValueError("Allocation resource grants cannot contain duplicate identities.")
-        if self.binding.description.contract_version not in EMBEDDED_CAPABILITIES.contract_versions:
-            raise ValueError("The embedded backend does not support this contribution contract version.")
-        if self.binding.description.isolation not in EMBEDDED_CAPABILITIES.isolation:
-            raise ValueError("The embedded backend cannot provide this implementation's isolation boundary.")
+        if len({resource_capacity.identity for resource_capacity in self.capacities}) != len(self.capacities):
+            raise ValueError("Allocation resource capacities cannot contain duplicate identities.")
+        _require_supported_binding(self.binding)
         for call in self.binding.description.calls:
-            if call.concurrency not in EMBEDDED_CAPABILITIES.concurrency:
-                raise ValueError("The embedded backend cannot enforce this call's concurrency boundary.")
-            if call.interruption not in EMBEDDED_CAPABILITIES.interruption:
-                raise ValueError("The embedded backend cannot provide this call's interruption contract.")
-            if call.progress and not EMBEDDED_CAPABILITIES.progress:
-                raise ValueError("The embedded backend cannot retain this call's progress events.")
             required_resources = _combined_requirements(
                 self.binding.description.resident_resources,
                 call.resources,
             )
-            if not _grants_cover(self.grants, required_resources):
-                raise ValueError("Allocation grants do not cover one declared resident-plus-call requirement.")
+            if not _capacities_cover_requirements(self.capacities, required_resources):
+                raise ValueError("Allocation capacities do not cover one declared resident-plus-call requirement.")
 
 
 class _Changes:
@@ -186,17 +182,19 @@ class _Cleanup(_Changes):
 
 
 class _Resident:
-    def __init__(self, host_identity, allocation):
-        if isinstance(allocation.binding, HostedContribution):
-            self.reference = allocation.binding.allocation
+    def __init__(self, *, host_identity, name, binding, assets):
+        if isinstance(binding, HostedContribution):
+            self.reference = binding.allocation
         else:
             self.reference = AllocationRef(
                 host=host_identity,
-                allocation=allocation.name,
-                binding_id=allocation.binding.description.binding_id,
-                binding_revision=allocation.binding.description.binding_revision,
+                allocation=name,
+                binding_id=binding.description.binding_id,
+                binding_revision=binding.description.binding_revision,
             )
-        self.allocation = allocation
+        self.name = name
+        self.binding = binding
+        self.assets = assets
         self.executor = ThreadPoolExecutor(
             max_workers=1,
             thread_name_prefix="provider-science",
@@ -217,13 +215,13 @@ class _Resident:
         if self.ready:
             return
 
-        binding = self.allocation.binding
+        binding = self.binding
         started_at = time.monotonic()
         try:
             if not self.constructed:
                 self.value = binding.construct_instance()
                 self.constructed = True
-            binding.initialize_instance(instance=self.value, assets=self.allocation.assets)
+            binding.initialize_instance(instance=self.value, assets=self.assets)
             if seconds < time.monotonic() - started_at:
                 raise TimeoutError("Instance initialization exceeded its original allowance.")
         except BaseException as cause:
@@ -237,7 +235,7 @@ class _Resident:
         self.dispose_attempted = True
 
         if self.constructed:
-            self.allocation.binding.close_instance(instance=self.value)
+            self.binding.close_instance(instance=self.value)
         self.value = None
         self.ready = False
 
@@ -256,7 +254,7 @@ class _ScientificAnalysis:
         if self.ready:
             return
 
-        binding = self.resident.allocation.binding
+        binding = self.resident.binding
         try:
             self.value = binding.construct_analysis(instance=self.resident.value)
             self.constructed = True

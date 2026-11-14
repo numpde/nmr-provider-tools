@@ -7,9 +7,9 @@ import sys
 from threading import Event
 
 from provider_core.contribution import ref
-from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
-    ExecutionLimits, Invocation, NotAdmitted, ResourceGrant, ResultConsumption,
+    ExecutionLimits, Invocation, NotAdmitted, ResultConsumption,
     ResultState, observe_cleanup,
 )
 
@@ -20,9 +20,8 @@ from .science import Spectrum
 
 async def run_demo() -> None:
     """Print one consumed report and observe analysis and host cleanup separately."""
-    # This local deployment grants one generic CPU thread to each allocation.
-    # Scientific resource requirements remain in resources.toml; they grant no access.
-    grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
+    # Scientific requirements come from resources.toml; adoption records them
+    # without claiming that hardware has been reserved.
     host = EmbeddedHost(
         input_bytes=8192,
         result_bytes=8192,
@@ -49,8 +48,6 @@ async def run_demo() -> None:
     try:
         bindings = create_bindings(
             host=host,
-            baseline_allocation=ResourceAllocation(grants=grants),
-            peak_allocation=ResourceAllocation(grants=grants),
         )
         baseline, peaks = bindings.baseline, bindings.peaks
         analysis = host.open_analysis(allocations=(baseline.allocation, peaks.allocation))

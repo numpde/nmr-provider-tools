@@ -32,9 +32,10 @@ src/nmrpeak_mock_provider/
     fake_services.py stand-in LLM endpoint and report receiver
     interpreter.md   source-faithful extraction instructions
     settings.toml    checkpoint digests and scientific limits
-    resources.toml   CPU requirement
     hf.json/chf.json tiny checkpoint substitutes
     __main__.py      run both offerings and settle their owners
+config/deployments/localhost/
+    provider.toml    execution limits and requested resource requirements
 ```
 
 Assembly constructs `Hf` and `Chf` with scientific settings, a deployment-owned
@@ -85,7 +86,7 @@ Provider constructor settings are ordinary object attributes. The SDK does not
 serialize or hash them. Call identity refers to the adopted allocation; scientific
 provenance remains provider-owned. Local submission uses the actual receiver
 (e.g. `method=contribution.generate`). Adoption takes `requirements=...`;
-deployment supplies resource `grants`.
+hardware availability must be established by the environment running the provider.
 
 The SDK supplies execution identities. Use allocation handles with
 `host.open_analysis(allocations=(hosted.allocation,))`, retain returned operation
@@ -95,11 +96,15 @@ attributes rather than manually assigned labels.
 
 Runtime policy follows the real providers' layout:
 `config/deployments/<name>/provider.toml`. The `[execution.host]` table supplies
-the execution host directly; `[[execution.grants]]` supplies the resource grants assigned to
-each offering. The top-level `PROVIDER_CONFIG_PATH` in `__main__.py` selects that
+the execution host directly; `[[execution.requirements]]` supplies the resource requirements requested
+for each offering. The top-level `PROVIDER_CONFIG_PATH` in `__main__.py` selects that
 file relative to the deployment working directory; no command-line arguments
 are required. This operator-owned policy is not packaged into the application
 wheel. The installed-test lane copies the maintained config into a temporary
 deployment directory and runs the installed executable there. Real NMRPeak,
 NMRNet, Magnet and SECS use this directory convention; this example's host table
 belongs to the proposed SDK execution runtime rather than their current schemas.
+
+Adoption records resource requirements and establishes scientific-object ownership.
+It does not discover or allocate CPU/GPU hardware. The returned allocation handle
+identifies an execution owner, not a hardware grant.
