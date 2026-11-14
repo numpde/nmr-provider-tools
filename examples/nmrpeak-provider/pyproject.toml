@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools==84.1.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nmrpeak-provider-example"
+version = "0.1.0"
+description = "NMRPeak-shaped scientific hosting with lightweight model and service stand-ins"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["provider-core==0.6.19"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["peak_provider", "peak_provider.*"]
+namespaces = false
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.package-data]
+peak_provider = ["*.toml", "*.json", "interpreter.md"]

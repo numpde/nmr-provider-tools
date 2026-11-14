@@ -1,0 +1,6 @@
+# Scientific call capacity, separate from deployment's resource grant.
+kind = "cpu"
+amount = 1
+unit = "thread"
+selector = "generic"
+exclusive = false

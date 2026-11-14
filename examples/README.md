@@ -13,3 +13,6 @@ modules inside the shared runtime package.
 - [`reference-match-provider`](reference-match-provider/) demonstrates a real
   reference index reused across sequential analyses, with independent result
   retention and allocation retirement.
+- [`nmrpeak-provider`](nmrpeak-provider/) demonstrates HF/CHF interpretation,
+  checkpoint loading, tokenizer validation, consumed preparation and candidate
+  delivery, using real SDK owners with lightweight model and service stand-ins.

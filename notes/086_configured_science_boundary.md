@@ -157,10 +157,15 @@ or establish that science stopped.
 `NoAssets` refuses file lookup. Content references may be fields of immutable
 configuration. The resolver neither downloads data nor promises filesystem
 confinement; snapshot lifetime and process/mount isolation remain deployment
-responsibilities. The current examples keep their scientific coefficients and
-reference records inline and need no file assets. No concrete retained snapshot
-resolver is implemented here yet. A file-backed example needs that owner first;
-hashing a path and reopening it later would not demonstrate verified acquisition.
+responsibilities. Dummy and reference keep scientific coefficients and reference
+records inline. The NMRPeak-shaped example instead follows the real provider's
+existing verified-stream loader: deployment supplies a checkpoint path, and the
+initializer verifies and loads through the same open descriptor. Its content
+digest is configuration; its deployment path is constructor bookkeeping. The
+deployment must not overwrite installed checkpoint files during use. This needs
+no new shared snapshot service and does not promise protection from in-place
+mutation. `AssetAccess` remains available for deployments that already own
+verified snapshots.
 
 ## Identity and limits
 
