@@ -12,7 +12,7 @@ from provider_core.contribution_errors import CallRejected
 from provider_core.conversation import ToolFinished, ToolRejected
 from provider_core.embedded_host import EmbeddedAnalysis
 from provider_core.hosting import (
-    ExecutionLimits, NotAdmitted, Outcome, ResultState,
+    OperationPolicy, NotAdmitted, Outcome, ResultState,
     observe_cleanup, observe_completion,
 )
 from provider_core.interpreter import Interpreter, ModelWindowExpired
@@ -26,12 +26,12 @@ class Prediction:
 
     def __init__(
         self, *, execution: EmbeddedAnalysis, hosted: HostedContribution,
-        interpreter: Interpreter, limits: ExecutionLimits, require_permission,
+        interpreter: Interpreter, policy: OperationPolicy, require_permission,
     ) -> None:
         self.execution = execution
         self.hosted = hosted
         self.interpreter = interpreter
-        self.limits = limits
+        self.policy = policy
         self.require_permission = require_permission
         self.preparations = []
         self.prepared = None
@@ -64,7 +64,7 @@ class Prediction:
         operation = self.execution.submit_method(
             method=contribution.prepare,
             scientific_input=candidate, states=(), reservation=reservation,
-            limits=self.limits, dispatch_guard=permit_validation,
+            policy=self.policy, dispatch_guard=permit_validation,
         )
         if isinstance(operation, NotAdmitted):
             raise RuntimeError(f"Cannot prepare scientific input: {operation=}")
@@ -94,7 +94,7 @@ class Prediction:
             accepted = self.execution.submit_method(
                 method=self.hosted.contribution.generate,
                 states=(PeakContribution.candidate.bind(handle=self.prepared),),
-                reservation=reservation, limits=self.limits,
+                reservation=reservation, policy=self.policy,
                 dispatch_guard=self.require_permission,
             )
             if isinstance(accepted, NotAdmitted):

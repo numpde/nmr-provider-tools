@@ -23,7 +23,7 @@ from provider_core.hosting import (
     AllocationRef,
     AnalysisCleanup,
     CapacityUnavailable,
-    ExecutionLimits,
+    OperationPolicy,
     Invocation,
     NotAdmitted,
     Operation,
@@ -322,7 +322,7 @@ class EmbeddedAnalysis:
         payload: bytes,
         states: tuple[StateArgument, ...],
         reservation: ReservationRef,
-        limits: ExecutionLimits,
+        policy: OperationPolicy,
         dispatch_guard: Callable[[], None],
     ) -> Operation | NotAdmitted:
         """Submit a local bound member through the ordinary data-only path.
@@ -339,7 +339,7 @@ class EmbeddedAnalysis:
             payload=payload,
             states=states,
             reservation=reservation,
-            limits=limits,
+            policy=policy,
         )
         return self._submit(
             invocation=invocation,
@@ -351,7 +351,7 @@ class EmbeddedAnalysis:
     def submit_method(
         self, *, method: Callable,
         scientific_input: object = NoInput(), states: tuple[StateArgument, ...],
-        reservation: ReservationRef, limits: ExecutionLimits,
+        reservation: ReservationRef, policy: OperationPolicy,
         dispatch_guard: Callable[[], None],
     ) -> Operation | NotAdmitted:
         """Select a method on the exact contribution owned by the reservation."""
@@ -370,7 +370,7 @@ class EmbeddedAnalysis:
         return self.submit_call(
             call=call,
             payload=call.encode_input(value=scientific_input), states=states,
-            reservation=reservation, limits=limits, dispatch_guard=dispatch_guard,
+            reservation=reservation, policy=policy, dispatch_guard=dispatch_guard,
         )
 
     def submit(
@@ -423,7 +423,7 @@ class EmbeddedAnalysis:
         returned_state_count = len(selected_call.description.state_outputs)
         if not (
             host.input_used + len(invocation.payload) <= host.input_bytes
-            and host.result_reserved + invocation.limits.result_bytes <= host.result_bytes
+            and host.result_reserved + invocation.policy.reject_encoded_result_over_bytes <= host.result_bytes
             and host.state_reserved + returned_state_count <= host.state_values
         ):
             return NotAdmitted(
@@ -444,7 +444,7 @@ class EmbeddedAnalysis:
         self.operations[invocation.operation_id] = operation
         host.operations[operation_key] = operation
         host.input_used += len(invocation.payload)
-        host.result_reserved += invocation.limits.result_bytes
+        host.result_reserved += invocation.policy.reject_encoded_result_over_bytes
         host.state_reserved += returned_state_count
         for owner in state_owners.values():
             owner.claim = operation.reference
@@ -492,7 +492,7 @@ class EmbeddedAnalysis:
                 code=AdmissionCode.INVALID_REQUEST,
                 message="The selected scientific call is not registered.",
             )
-        if invocation.limits.input_bytes < len(invocation.payload):
+        if invocation.policy.reject_encoded_input_over_bytes < len(invocation.payload):
             return NotAdmitted(
                 code=AdmissionCode.INVALID_REQUEST,
                 message="Scientific input exceeds this invocation's byte allowance.",
@@ -541,11 +541,11 @@ class EmbeddedAnalysis:
         self.host._require_loop()
         if self.cleanup is None:
             self.closed = True
-            cleanup_seconds = min(
-                (item.invocation.limits.cleanup_seconds for item in self.operations.values()),
+            cleanup_overdue_flag_seconds = min(
+                (item.invocation.policy.cleanup_overdue_flag_seconds for item in self.operations.values()),
                 default=self.host.retirement_seconds,
             )
-            self.cleanup = _Cleanup(cleanup_seconds)
+            self.cleanup = _Cleanup(cleanup_overdue_flag_seconds)
             for operation in list(self.operations.values()):
                 if not operation.finished:
                     operation.request_stop()

@@ -22,21 +22,22 @@ progress_records = 1
 initialization_seconds = 5
 retirement_seconds = 5
 
-[execution.execution_limits]
-# Allowances for each submitted operation, not total host capacity.
-# Queue time starts at submission; execution time starts at guarded dispatch.
-# Expiry requests stopping but does not prove the work has exited.
-# For slower science, replace execution_seconds below:
-# execution_seconds = 60
-queue_seconds = 5
-execution_seconds = 5
-# Cleanup time starts when closing begins.
-cleanup_seconds = 5
-# Maximum input and result size for one operation, measured in bytes.
-# For larger inputs, replace input_bytes below:
-# input_bytes = 16384
-input_bytes = 8192
-result_bytes = 8192
+[execution.operation_policy]
+# Policy for each submitted operation, not total host capacity.
+# Queue time starts when the SDK accepts the call.
+# Execution time starts at guarded dispatch.
+# Queue/execution expiry requests stopping but does not prove work has exited.
+# For slower science, replace execution_stop_request_seconds below:
+# execution_stop_request_seconds = 60
+queue_stop_request_seconds = 5
+execution_stop_request_seconds = 5
+# Flag unfinished cleanup after this many seconds; do not cancel it.
+cleanup_overdue_flag_seconds = 5
+# Maximum encoded input and result size for one operation, measured in bytes.
+# For larger inputs, replace reject_encoded_input_over_bytes below:
+# reject_encoded_input_over_bytes = 16384
+reject_encoded_input_over_bytes = 8192
+reject_encoded_result_over_bytes = 8192
 
 # Resource requirements requested for each offering, not granted capacity.
 # To request two CPU threads, replace amount below:

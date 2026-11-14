@@ -105,6 +105,8 @@ EmbeddedHost declares the six capacity/time parameters directly as typed,
 keyword-only constructor arguments. Provider startup can pass
 **provider_config["execution"]["embedded_host"] without an intermediate policy record. The host
 validates those values at construction and has no knowledge of TOML.
+OperationPolicy describes per-operation stop requests, cleanup overdue reporting
+and encoded byte rejection; it does not promise forced thread termination.
 
 Modern adoption accepts a contribution and ResourceRequirement records directly;
 asset access is optional. No caller-created ResourceAllocation or capacity

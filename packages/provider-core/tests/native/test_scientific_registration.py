@@ -9,7 +9,7 @@ from threading import Barrier
 import unittest
 
 from provider_core.embedded_host import Allocation, EmbeddedHost
-from provider_core.hosting import ResourceState, CapacityUnavailable, AdmissionCode, ExecutionLimits, NotAdmitted, Outcome, observe_cleanup, observe_completion
+from provider_core.hosting import ResourceState, CapacityUnavailable, AdmissionCode, OperationPolicy, NotAdmitted, Outcome, observe_cleanup, observe_completion
 from provider_core.scientific import AssetAccess, Contribution, HostedContribution, IsolationRequirement, NoAssets, ResourceRequirement, operation
 
 
@@ -90,7 +90,13 @@ async def run_sum(*, host, hosted, operation_id):
     operation = analysis.submit_method(
         method=hosted.contribution.calculate,
         scientific_input=Numbers(values=(1, 2)), states=(), reservation=reservation,
-        limits=ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024),
+        policy=OperationPolicy(
+            queue_stop_request_seconds=5,
+            execution_stop_request_seconds=5,
+            cleanup_overdue_flag_seconds=5,
+            reject_encoded_input_over_bytes=1024,
+            reject_encoded_result_over_bytes=1024,
+        ),
         dispatch_guard=lambda: None,
     )
     async with asyncio.timeout(10):
@@ -128,14 +134,20 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
         analysis = self.host.open_analysis(allocations=(hosted.allocation,))
         reservation, = analysis.reservations
-        limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024)
+        operation_policy = OperationPolicy(
+            queue_stop_request_seconds=5,
+            execution_stop_request_seconds=5,
+            cleanup_overdue_flag_seconds=5,
+            reject_encoded_input_over_bytes=1024,
+            reject_encoded_result_over_bytes=1024,
+        )
         for _ in range(20):
             operation = analysis.submit_method(
                 method=hosted.contribution.calculate,
                 scientific_input=Numbers(values=(1,)),
                 states=(),
                 reservation=reservation,
-                limits=limits,
+                policy=operation_policy,
                 dispatch_guard=lambda: None,
             )
             completed = await observe_completion(operation=operation)
@@ -201,10 +213,16 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         )
         analysis = self.host.open_analysis(allocations=(hosted.allocation,))
         reservation = analysis.reservation(allocation=hosted.allocation)
-        limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024)
+        operation_policy = OperationPolicy(
+            queue_stop_request_seconds=5,
+            execution_stop_request_seconds=5,
+            cleanup_overdue_flag_seconds=5,
+            reject_encoded_input_over_bytes=1024,
+            reject_encoded_result_over_bytes=1024,
+        )
         operations = [analysis.submit_method(
             method=instance.calculate, scientific_input=Numbers(values=(1,)),
-            states=(), reservation=reservation, limits=limits, dispatch_guard=lambda: None,
+            states=(), reservation=reservation, policy=operation_policy, dispatch_guard=lambda: None,
         ) for _ in range(2)]
         self.assertIsNot(expr1=operations[0], expr2=operations[1])
         for operation in operations:
@@ -261,14 +279,20 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         second = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
         analysis = self.host.open_analysis(allocations=(first.allocation, second.allocation))
         reservation = analysis.reservation(allocation=second.allocation)
-        limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024)
+        operation_policy = OperationPolicy(
+            queue_stop_request_seconds=5,
+            execution_stop_request_seconds=5,
+            cleanup_overdue_flag_seconds=5,
+            reject_encoded_input_over_bytes=1024,
+            reject_encoded_result_over_bytes=1024,
+        )
         for method in (first.contribution.calculate, Sum.calculate):
             with self.assertRaises(expected_exception=ValueError):
-                analysis.submit_method(method=method,  scientific_input=Numbers(values=(1,)), states=(), reservation=reservation, limits=limits, dispatch_guard=lambda: None)
+                analysis.submit_method(method=method,  scientific_input=Numbers(values=(1,)), states=(), reservation=reservation, policy=operation_policy, dispatch_guard=lambda: None)
         refused = analysis.submit(invocation=Invocation(
             operation_id="portable", target=first.reference(method=first.contribution.calculate),
             payload=first.call(method=first.contribution.calculate).input_codec.encode(value=Numbers(values=(1,))),
-            states=(), reservation=reservation, limits=limits,
+            states=(), reservation=reservation, policy=operation_policy,
         ), dispatch_guard=lambda: None)
         self.assertIsInstance(obj=refused, cls=NotAdmitted)
         self.assertEqual(first=0, second=second.contribution.calls)
@@ -507,13 +531,19 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
         analysis = self.host.open_analysis(allocations=(hosted.allocation,))
         reservation, = analysis.reservations
-        limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024)
+        operation_policy = OperationPolicy(
+            queue_stop_request_seconds=5,
+            execution_stop_request_seconds=5,
+            cleanup_overdue_flag_seconds=5,
+            reject_encoded_input_over_bytes=1024,
+            reject_encoded_result_over_bytes=1024,
+        )
         for forged in (replace(reservation, host="other"), replace(reservation, allocation="missing"), replace(reservation, analysis="other")):
-            refused = analysis.submit_method(method=Sum.calculate,  scientific_input=Numbers(values=(1,)), states=(), reservation=forged, limits=limits, dispatch_guard=lambda: None)
+            refused = analysis.submit_method(method=Sum.calculate,  scientific_input=Numbers(values=(1,)), states=(), reservation=forged, policy=operation_policy, dispatch_guard=lambda: None)
             self.assertIsInstance(obj=refused, cls=NotAdmitted)
             self.assertIs(expr1=AdmissionCode.INVALID_REFERENCE, expr2=refused.code)
         with self.assertRaises(expected_exception=TypeError):
-            analysis.submit_method(method=hosted.contribution.calculate,  states=(), reservation=reservation, limits=limits, dispatch_guard=lambda: None)
+            analysis.submit_method(method=hosted.contribution.calculate,  states=(), reservation=reservation, policy=operation_policy, dispatch_guard=lambda: None)
         self.assertEqual(first=0, second=hosted.contribution.calls)
         self.assertEqual(first={}, second=self.host.operations)
 

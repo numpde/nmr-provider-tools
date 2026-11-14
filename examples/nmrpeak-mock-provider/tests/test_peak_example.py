@@ -17,7 +17,7 @@ import unittest
 from unittest.mock import patch
 
 from provider_core.embedded_host import EmbeddedHost
-from provider_core.hosting import ExecutionLimits, NotAdmitted, ResultConsumption, ResultState, observe_cleanup, observe_completion
+from provider_core.hosting import OperationPolicy, NotAdmitted, ResultConsumption, ResultState, observe_cleanup, observe_completion
 from provider_core.interpreter import Interpreter, ModelWindowExpired, ProseService
 from provider_core.scientific import ResourceRequirement
 
@@ -70,7 +70,13 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.close_analysis, execution=execution)
         return Prediction(
             execution=execution, hosted=hosted, interpreter=interpreter,
-            limits=ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=8192, result_bytes=8192),
+            policy=OperationPolicy(
+                queue_stop_request_seconds=5,
+                execution_stop_request_seconds=5,
+                cleanup_overdue_flag_seconds=5,
+                reject_encoded_input_over_bytes=8192,
+                reject_encoded_result_over_bytes=8192,
+            ),
             require_permission=lambda: None,
         ), factory
 
@@ -144,7 +150,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         duplicate = prediction.execution.submit_method(
             method=self.offerings.hf.contribution.generate,
             states=(PeakContribution.candidate.bind(handle=prediction.prepared),),
-            reservation=reservation, limits=prediction.limits, dispatch_guard=lambda: None,
+            reservation=reservation, policy=prediction.policy, dispatch_guard=lambda: None,
         )
         self.assertIsInstance(obj=duplicate, cls=NotAdmitted)
 

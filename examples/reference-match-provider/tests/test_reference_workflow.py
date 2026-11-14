@@ -17,7 +17,7 @@ from unittest.mock import patch
 
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
-    ExecutionLimits, NotAdmitted, Outcome, ResultConsumption, ResultState,
+    OperationPolicy, NotAdmitted, Outcome, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
 )
 from reference_provider import science
@@ -37,9 +37,12 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             initialization_seconds=5,
             retirement_seconds=5,
         )
-        limits = ExecutionLimits(
-            queue_seconds=5, execution_seconds=10, cleanup_seconds=5,
-            input_bytes=4096, result_bytes=4096,
+        operation_policy = OperationPolicy(
+            queue_stop_request_seconds=5,
+            execution_stop_request_seconds=10,
+            cleanup_overdue_flag_seconds=5,
+            reject_encoded_input_over_bytes=4096,
+            reject_encoded_result_over_bytes=4096,
         )
         operations = []
 
@@ -60,7 +63,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     operation = analysis.submit_method(
                         method=binding.contribution.match,
                         scientific_input=science.VectorInput(values=values),
-                        states=(), reservation=reservation, limits=limits,
+                        states=(), reservation=reservation, policy=operation_policy,
                         dispatch_guard=permitted,
                     )
                     self.assertNotIsInstance(operation, NotAdmitted)

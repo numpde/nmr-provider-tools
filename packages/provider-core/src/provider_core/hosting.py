@@ -253,23 +253,37 @@ class StateResult:
 
 
 @dataclass(frozen=True, slots=True)
-class ExecutionLimits:
-    """Original allowances; observing an operation cannot renew them.
+class OperationPolicy:
+    """Stop-request thresholds, cleanup reporting and encoded byte rejection.
 
-    Queue time starts at submission, execution at guarded dispatch, and cleanup
-    when closing starts. Expiry requests stopping; it does not establish exit.
+    Queue time starts at admitted submission; execution time starts at guarded
+    dispatch, including initialization, decoding, science and result encoding.
+    Expiry requests stopping without forcing the scientific thread to exit.
+    Cleanup time starts when release or analysis close begins; expiry only marks
+    that cleanup overdue, without canceling it or issuing another stop request.
+
+    Reject oversized encoded input before admission. Reserve the encoded result
+    allowance at admission and fail if the encoded result exceeds it. Observing
+    an operation does not renew its thresholds or authorize another submission.
     """
 
-    queue_seconds: float
-    execution_seconds: float
-    cleanup_seconds: float
-    input_bytes: int
-    result_bytes: int
+    queue_stop_request_seconds: float
+    execution_stop_request_seconds: float
+    cleanup_overdue_flag_seconds: float
+    reject_encoded_input_over_bytes: int
+    reject_encoded_result_over_bytes: int
 
     def __post_init__(self):
-        for value in (self.queue_seconds, self.execution_seconds, self.cleanup_seconds):
+        for value in (
+            self.queue_stop_request_seconds,
+            self.execution_stop_request_seconds,
+            self.cleanup_overdue_flag_seconds,
+        ):
             positive_seconds(value)
-        if not all(type(value) is int and 0 < value for value in (self.input_bytes, self.result_bytes)):
+        if not all(type(value) is int and 0 < value for value in (
+            self.reject_encoded_input_over_bytes,
+            self.reject_encoded_result_over_bytes,
+        )):
             raise ValueError("Input and result allowances must be positive byte counts.")
 
 
@@ -286,7 +300,7 @@ class Invocation:
     payload: bytes = field(repr=False)
     states: tuple[StateArgument, ...]
     reservation: ReservationRef
-    limits: ExecutionLimits
+    policy: OperationPolicy
 
     def __post_init__(self):
         if not (type(self.operation_id) is str):
@@ -302,10 +316,10 @@ class Invocation:
             and type(self.states) is tuple
             and all(type(item) is StateArgument for item in self.states)
             and type(self.reservation) is ReservationRef
-            and type(self.limits) is ExecutionLimits
+            and type(self.policy) is OperationPolicy
         ):
             raise TypeError(
-                f"Unexpected {type(self.target)=}, {type(self.payload)=}, {type(self.states)=}, {type(self.reservation)=}, {type(self.limits)=}; "
+                f"Unexpected {type(self.target)=}, {type(self.payload)=}, {type(self.states)=}, {type(self.reservation)=}, {type(self.policy)=}; "
                 "Invocation fields must use the declared immutable hosting records."
             )
 

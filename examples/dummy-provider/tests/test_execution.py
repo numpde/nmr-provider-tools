@@ -15,7 +15,7 @@ from dummy_provider.binding import WeightedSum, create_weighted_sum_binding
 from provider_core.contribution import ProgressEvent
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
-    ExecutionLimits,
+    OperationPolicy,
     NotAdmitted,
     Outcome,
     ResultConsumption,
@@ -85,9 +85,12 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
                 method=contribution.prepare,
                 scientific_input=science.PreparationInput(values=(1, 2, 3)),
                 states=(), reservation=reservation,
-                limits=ExecutionLimits(
-                    queue_seconds=5, execution_seconds=5, cleanup_seconds=5,
-                    input_bytes=4096, result_bytes=4096,
+                policy=OperationPolicy(
+                    queue_stop_request_seconds=5,
+                    execution_stop_request_seconds=5,
+                    cleanup_overdue_flag_seconds=5,
+                    reject_encoded_input_over_bytes=4096,
+                    reject_encoded_result_over_bytes=4096,
                 ),
                 dispatch_guard=lambda: None,
             )
@@ -128,12 +131,12 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         (reservation,) = analysis.reservations
         prepare_call, calculate_call = weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate)
 
-        execution_limits = ExecutionLimits(
-            queue_seconds=5,
-            execution_seconds=10,
-            cleanup_seconds=5,
-            input_bytes=1024,
-            result_bytes=1024,
+        operation_policy = OperationPolicy(
+            queue_stop_request_seconds=5,
+            execution_stop_request_seconds=10,
+            cleanup_overdue_flag_seconds=5,
+            reject_encoded_input_over_bytes=1024,
+            reject_encoded_result_over_bytes=1024,
         )
 
         preparation_input = science.PreparationInput(values=(1, 2, 3))
@@ -141,7 +144,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         rejected = analysis.submit_method(
             method=weighted_binding.contribution.prepare,
              scientific_input=science.PreparationInput(values=()),
-            states=(), reservation=reservation, limits=execution_limits,
+            states=(), reservation=reservation, policy=operation_policy,
             dispatch_guard=lambda: None,
         )
         rejection = await observe_completion(operation=rejected)
@@ -154,7 +157,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             scientific_input=preparation_input,
             states=(),
             reservation=reservation,
-            limits=execution_limits,
+            policy=operation_policy,
             dispatch_guard=lambda: None,
         )
         self.assertNotIsInstance(preparation_operation, NotAdmitted)
@@ -189,7 +192,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             method=weighted_binding.contribution.calculate,
             states=(calculation_state,),
             reservation=reservation,
-            limits=execution_limits,
+            policy=operation_policy,
             dispatch_guard=lambda: None,
         )
         self.assertNotIsInstance(calculation_operation, NotAdmitted)

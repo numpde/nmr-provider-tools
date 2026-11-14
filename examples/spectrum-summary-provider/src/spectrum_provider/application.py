@@ -12,7 +12,7 @@ from collections.abc import Callable
 from provider_core.contribution import CallRef
 from provider_core.hosting import (
     AnalysisExecution,
-    ExecutionLimits,
+    OperationPolicy,
     Invocation,
     NotAdmitted,
     Observation,
@@ -40,14 +40,14 @@ class PeakWorkflow:
         baseline: Invocation,
         peaks: CallRef,
         peak_reservation: ReservationRef,
-        limits: ExecutionLimits,
+        policy: OperationPolicy,
         dispatch_guard: Callable[[], None],
     ) -> None:
         self.execution = execution
         self.baseline_invocation = baseline
         self.peak_target = peaks
         self.peak_reservation = peak_reservation
-        self.limits = limits
+        self.policy = policy
         self.dispatch_guard = dispatch_guard
         self.baseline_operation: Operation | None = None
         self.peak_operation: Operation | None = None
@@ -83,7 +83,7 @@ class PeakWorkflow:
                     payload=payload,
                     states=(),
                     reservation=self.peak_reservation,
-                    limits=self.limits,
+                    policy=self.policy,
                 )
             accepted = self.execution.submit(
                 invocation=self.peak_invocation,

@@ -20,7 +20,7 @@ from provider_core.contribution import JsonDataclassCodec, ref
 from provider_core.scientific import operation
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
-    CleanupObservation, DispatchState, ExecutionLimits, Failure, Invocation,
+    CleanupObservation, DispatchState, OperationPolicy, Failure, Invocation,
     NotAdmitted, Outcome, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
 )
@@ -77,9 +77,12 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
         analysis = host.open_analysis(allocations=(baseline.allocation, peaks.allocation))
         baseline_reservation = analysis.reservation(allocation=baseline.allocation)
         peak_reservation = analysis.reservation(allocation=peaks.allocation)
-        limits = ExecutionLimits(
-            queue_seconds=5, execution_seconds=10, cleanup_seconds=5,
-            input_bytes=4096, result_bytes=4096,
+        operation_policy = OperationPolicy(
+            queue_stop_request_seconds=5,
+            execution_stop_request_seconds=10,
+            cleanup_overdue_flag_seconds=5,
+            reject_encoded_input_over_bytes=4096,
+            reject_encoded_result_over_bytes=4096,
         )
         baseline_call = baseline.call(method=baseline.contribution.run)
 
@@ -94,10 +97,10 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 payload=baseline_call.input_codec.encode(
                     science.Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
                 ),
-                states=(), reservation=baseline_reservation, limits=limits,
+                states=(), reservation=baseline_reservation, policy=operation_policy,
             ),
             peaks=peaks.reference(method=Peaks.run),
-            peak_reservation=peak_reservation, limits=limits,
+            peak_reservation=peak_reservation, policy=operation_policy,
             dispatch_guard=permitted if guard is None else guard,
         )
         self.assertNotIsInstance(workflow.start(), NotAdmitted)

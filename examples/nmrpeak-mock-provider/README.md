@@ -96,8 +96,8 @@ attributes rather than manually assigned labels.
 
 Runtime policy follows the real providers' layout:
 `config/deployments/<name>/provider.toml`. The `[execution.embedded_host]` table supplies
-the execution host directly; `[execution.execution_limits]` supplies the time and byte
-allowances applied to each submitted operation. `[[execution.resource_requirement]]`
+the execution host directly; `[execution.operation_policy]` supplies the stop-request thresholds,
+cleanup overdue threshold and encoded byte caps for each submitted operation. `[[execution.resource_requirement]]`
 supplies the resource requirements requested for each offering. The top-level `PROVIDER_CONFIG_PATH` in `__main__.py` selects that
 file relative to the deployment working directory; no command-line arguments
 are required. This operator-owned policy is not packaged into the application

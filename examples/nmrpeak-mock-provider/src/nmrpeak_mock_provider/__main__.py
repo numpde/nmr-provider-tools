@@ -7,7 +7,7 @@ import sys
 import tomllib
 
 from provider_core.embedded_host import EmbeddedHost
-from provider_core.hosting import ExecutionLimits, ResultConsumption, observe_cleanup
+from provider_core.hosting import OperationPolicy, ResultConsumption, observe_cleanup
 from provider_core.interpreter import Interpreter, ProseService
 from provider_core.scientific import ResourceRequirement
 
@@ -41,8 +41,8 @@ async def run_demo() -> None:
         for resource_requirement in provider_config["execution"]["resource_requirement"]
     )
 
-    # Apply the deployment's per-operation time and byte allowances to each submission.
-    limits = ExecutionLimits(**provider_config["execution"]["execution_limits"])
+    # Read the deployment's stop-request thresholds, cleanup flag threshold and byte caps.
+    operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
     cleanup_requests = []
     consumptions = []
     causes = []
@@ -77,7 +77,7 @@ async def run_demo() -> None:
             cleanup_requests.append(partial(close_analysis, execution=execution))
             prediction = Prediction(
                 execution=execution, hosted=hosted, interpreter=interpreter,
-                limits=limits, require_permission=require_permission,
+                policy=operation_policy, require_permission=require_permission,
             )
             await prediction.interpret(
                 messages=interpretation_messages(source="Formula C2H6O. Proton peak: 1.2 ppm, 3H, triplet, coupling 7 Hz. Carbon peaks: 18 and 58 ppm."),

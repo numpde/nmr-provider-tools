@@ -8,7 +8,7 @@ from threading import Event
 
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
-    ExecutionLimits, NotAdmitted, Outcome, ResultConsumption, ResultState,
+    OperationPolicy, NotAdmitted, Outcome, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
 )
 
@@ -26,9 +26,12 @@ async def run_demo() -> None:
         initialization_seconds=5,
         retirement_seconds=5,
     )
-    limits = ExecutionLimits(
-        queue_seconds=5, execution_seconds=10, cleanup_seconds=5,
-        input_bytes=4096, result_bytes=4096,
+    operation_policy = OperationPolicy(
+        queue_stop_request_seconds=5,
+        execution_stop_request_seconds=10,
+        cleanup_overdue_flag_seconds=5,
+        reject_encoded_input_over_bytes=4096,
+        reject_encoded_result_over_bytes=4096,
     )
     revoked = Event()
     cleanup_requests = []
@@ -53,7 +56,7 @@ async def run_demo() -> None:
             operation = analysis.submit_method(
                 method=binding.contribution.match,
                 scientific_input=VectorInput(values=values),
-                states=(), reservation=reservation, limits=limits,
+                states=(), reservation=reservation, policy=operation_policy,
                 dispatch_guard=require_permission,
             )
             if isinstance(operation, NotAdmitted):

@@ -90,7 +90,7 @@ class _Operation(_Changes):
         self.stop_signal = threading.Event()
         self.expired = False
         self.release = None
-        self.result_allowance = invocation.limits.result_bytes
+        self.result_allowance = invocation.policy.reject_encoded_result_over_bytes
         self.state_allowance = len(call.description.state_outputs)
         self.execution_timer = None
         self.resources = ResourceState.RESERVED
@@ -98,7 +98,7 @@ class _Operation(_Changes):
 
     def start(self):
         self.queue_timer = self.loop.call_later(
-            self.invocation.limits.queue_seconds,
+            self.invocation.policy.queue_stop_request_seconds,
             self._expire,
         )
         try:
@@ -142,7 +142,7 @@ class _Operation(_Changes):
                 self.resources = ResourceState.OCCUPIED
                 self.queue_timer.cancel()
                 self.execution_timer = self.loop.call_later(
-                    self.invocation.limits.execution_seconds,
+                    self.invocation.policy.execution_stop_request_seconds,
                     self._expire,
                 )
                 # Consume state only after the guarded scientific dispatch begins.
@@ -202,7 +202,7 @@ class _Operation(_Changes):
             result_payload = self.call.encode_result(scientific_return.value)
             if type(result_payload) is not bytes:
                 raise TypeError(f"Unexpected {type(result_payload)=}; encoded scientific results must be bytes")
-            if not len(result_payload) <= self.invocation.limits.result_bytes:
+            if not len(result_payload) <= self.invocation.policy.reject_encoded_result_over_bytes:
                 raise ValueError(
                     "Encoded scientific result exceeds its declared byte allowance."
                 )
@@ -427,7 +427,7 @@ class _Operation(_Changes):
             return self.release
         self._require_result(result)
         if self.release is None:
-            self.release = _Cleanup(self.invocation.limits.cleanup_seconds)
+            self.release = _Cleanup(self.invocation.policy.cleanup_overdue_flag_seconds)
             self.release.start(self._release)
         return self.release
 
