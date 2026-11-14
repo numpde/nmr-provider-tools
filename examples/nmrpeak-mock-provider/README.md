@@ -33,9 +33,9 @@ src/nmrpeak_mock_provider/
     interpreter.md   source-faithful extraction instructions
     hf.json/chf.json tiny checkpoint substitutes
     __main__.py      run both offerings and settle their owners
-    config/
-        deployments/localhost/
-            provider.toml    scientific settings and execution policy
+config/
+    deployments/localhost/
+        provider.toml    scientific settings and execution policy
 ```
 
 Assembly constructs `Hf` and `Chf` with scientific settings, a deployment-owned
@@ -72,11 +72,10 @@ make tests/integration/provider-core DOCKER_CONTEXT=science \
   WHEELHOUSE=/home/ra/Downloads/wheelhouse TEST_PATTERN=test_peak_example.py
 ```
 
-With both installed inside a permitted container, start from this example project
-and enter the directory containing its maintained `config/` tree:
+With both installed inside a permitted container, run from this example project
+root, which contains the maintained `config/` tree:
 
 ```sh
-cd src/nmrpeak_mock_provider
 python -I -B -m nmrpeak_mock_provider
 ```
 
@@ -97,9 +96,9 @@ new work. State kinds and ports derive their names from Python types and class
 attributes rather than manually assigned labels.
 
 Each deployment's `provider.toml` supplies both scientific settings and execution
-policy. The maintained example lives under
-`src/nmrpeak_mock_provider/config/deployments/localhost/`, but configuration is
-excluded from the wheel. Supply its `config/` tree in the working directory;
+policy. The maintained file is `config/deployments/localhost/provider.toml`
+relative to this example project root. Configuration is excluded from the wheel.
+Supply its `config/` tree in the working directory;
 the top-level `PROVIDER_CONFIG_PATH` in `__main__.py` selects the deployment file.
 No command-line arguments are required.
 

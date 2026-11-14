@@ -212,7 +212,8 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                 shutil.copytree(source / "tests", test_tree / "tests/integration" / namespace)
                 # Configuration is supplied alongside the installed application;
                 # these source fixtures deliberately stay outside its wheel.
-                for configuration_directory in (source / "src").glob("*/config"):
+                configuration_directory = source / "config"
+                if configuration_directory.is_dir():
                     shutil.copytree(
                         src=configuration_directory,
                         dst=test_tree / "tests/integration" / namespace / "config",
