@@ -25,7 +25,6 @@ from provider_core.contribution import (
     InterruptionSupport,
     IsolationRequirement,
     ProgressEvent,
-    ResourceRequirement,
 )
 from provider_core.task_boundary import contain_task_exit
 
@@ -53,55 +52,6 @@ def _digest(value, label):
         )
     if re.fullmatch(r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z", value) is None:
         raise ValueError(f"{label} must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest")
-
-
-@dataclass(frozen=True, slots=True)
-class ResourceCapacity:
-    """Caller-declared capacity for the legacy execution-binding interface.
-
-    The caller establishes availability. This record only allows comparison
-    with declared requirements; it does not discover or allocate hardware.
-    """
-
-    kind: str
-    amount: int
-    unit: str
-    selector: str | None = None
-    exclusive: bool = False
-
-    def __post_init__(self):
-        _identity(self.kind, "Resource capacity kind")
-        _identity(self.unit, "Resource capacity unit")
-        if not (type(self.amount) is int):
-            raise TypeError(
-                f"Unexpected {type(self.amount)=}; "
-                "Resource capacity amount must be a positive integer"
-            )
-        if not (0 < self.amount):
-            raise ValueError("Resource capacity amount must be a positive integer")
-        if self.selector is not None:
-            _identity(self.selector, "Resource capacity selector")
-        if type(self.exclusive) is not bool:
-            raise TypeError(
-                f"Unexpected {type(self.exclusive)=}; "
-                "Resource capacity exclusivity must be boolean"
-            )
-
-    @property
-    def identity(self):
-        return self.kind, self.unit, self.selector
-
-    def covers(self, requirement: ResourceRequirement) -> bool:
-        if type(requirement) is not ResourceRequirement:
-            raise TypeError(
-                f"Unexpected {type(requirement)=}; "
-                "Resource coverage requires a ResourceRequirement"
-            )
-        return (
-            self.identity == requirement.identity
-            and self.amount >= requirement.amount
-            and (not requirement.exclusive or self.exclusive)
-        )
 
 
 @dataclass(frozen=True, slots=True)

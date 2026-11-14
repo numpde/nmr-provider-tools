@@ -109,6 +109,7 @@ validates those values at construction and has no knowledge of TOML.
 Modern adoption accepts a contribution and ResourceRequirement records directly;
 asset access is optional. No caller-created ResourceAllocation or capacity
 assertion is needed. The returned allocation reference identifies the hosted
-object and its executor, not a hardware grant. The older ImplementationBinding
-entrypoint retains its explicitly caller-declared ResourceCapacity comparison;
-that does not establish hardware availability for the modern path.
+object and its executor, not a hardware grant. ResourceRequirement is the single
+resource declaration type, including on the older ImplementationBinding path.
+Neither path discovers, reserves or validates hardware availability. Backend
+execution support is checked independently before ownership is accepted.

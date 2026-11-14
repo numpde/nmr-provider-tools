@@ -9,7 +9,7 @@ from threading import Barrier
 import unittest
 
 from provider_core.embedded_host import Allocation, EmbeddedHost
-from provider_core.hosting import ResourceState, CapacityUnavailable, AdmissionCode, ExecutionLimits, NotAdmitted, Outcome, ResourceCapacity, observe_cleanup, observe_completion
+from provider_core.hosting import ResourceState, CapacityUnavailable, AdmissionCode, ExecutionLimits, NotAdmitted, Outcome, observe_cleanup, observe_completion
 from provider_core.scientific import AssetAccess, Contribution, HostedContribution, IsolationRequirement, NoAssets, ResourceRequirement, operation
 
 
@@ -438,7 +438,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         hosted = adopt(host=self.host, contribution=instance)
         with self.assertRaises(expected_exception=TypeError):
             EmbeddedHost(
-                allocations=(Allocation(name="bypass", binding=hosted, capacities=(ResourceCapacity(kind="cpu", amount=4, unit="thread"),)),),
+                allocations=(Allocation(name="bypass", binding=hosted),),
                 input_bytes=8192,
                 result_bytes=8192,
                 state_values=8,

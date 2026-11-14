@@ -15,14 +15,12 @@ from provider_core.contribution import (
     ImplementationBinding,
     InterruptionSupport,
     IsolationRequirement,
-    ResourceRequirement,
 )
 from provider_core.hosting import (
     AllocationRef,
     BackendCapabilities,
     CleanupObservation,
     Failure,
-    ResourceCapacity,
 )
 from provider_core.scientific import AssetAccess, NoAssets, HostedContribution
 
@@ -38,29 +36,6 @@ EMBEDDED_CAPABILITIES = BackendCapabilities(
     interruption=(InterruptionSupport.NONE, InterruptionSupport.COOPERATIVE),
     progress=True,
 )
-
-
-def _combined_requirements(resident_requirements, call_requirements):
-    combined_requirements = {}
-    for requirement in (*resident_requirements, *call_requirements):
-        previous_requirement = combined_requirements.get(requirement.identity)
-        if previous_requirement is None:
-            combined_requirements[requirement.identity] = requirement
-            continue
-
-        combined_requirements[requirement.identity] = ResourceRequirement(
-            kind=requirement.kind,
-            amount=previous_requirement.amount + requirement.amount,
-            unit=requirement.unit,
-            selector=requirement.selector,
-            exclusive=previous_requirement.exclusive or requirement.exclusive,
-        )
-
-    return tuple(combined_requirements.values())
-
-
-def _capacities_cover_requirements(capacities, requirements):
-    return all(any(resource_capacity.covers(requirement) for resource_capacity in capacities) for requirement in requirements)
 
 
 def _require_supported_binding(binding):
@@ -80,34 +55,20 @@ def _require_supported_binding(binding):
 
 @dataclass(frozen=True, slots=True)
 class Allocation:
-    """Deployment explicitly assigns a configured binding and resource capacities."""
+    """A legacy binding and its assets assigned to one named execution owner."""
 
     name: str
     binding: ImplementationBinding | HostedContribution
-    capacities: tuple[ResourceCapacity, ...]
     assets: AssetAccess = field(default_factory=NoAssets)
 
     def __post_init__(self):
         if type(self.name) is not str:
             raise TypeError("Allocation name must be a string")
-        if not (
-            isinstance(self.binding, (ImplementationBinding, HostedContribution))
-            and type(self.capacities) is tuple
-            and all(type(resource_capacity) is ResourceCapacity for resource_capacity in self.capacities)
-        ):
-            raise TypeError("An allocation requires a binding and explicit resource capacities.")
+        if not isinstance(self.binding, (ImplementationBinding, HostedContribution)):
+            raise TypeError(f"Unexpected {type(self.binding)=}; an allocation requires a scientific binding")
         if not 0 < len(self.name) <= 160:
             raise ValueError("Allocation name must contain between 1 and 160 characters.")
-        if len({resource_capacity.identity for resource_capacity in self.capacities}) != len(self.capacities):
-            raise ValueError("Allocation resource capacities cannot contain duplicate identities.")
         _require_supported_binding(self.binding)
-        for call in self.binding.description.calls:
-            required_resources = _combined_requirements(
-                self.binding.description.resident_resources,
-                call.resources,
-            )
-            if not _capacities_cover_requirements(self.capacities, required_resources):
-                raise ValueError("Allocation capacities do not cover one declared resident-plus-call requirement.")
 
 
 class _Changes:
