@@ -24,7 +24,6 @@ from provider_core.hosting import (
     CleanupObservation,
     Failure,
     ResourceGrant,
-    positive_seconds,
 )
 from provider_core.scientific import AssetAccess, NoAssets, HostedContribution
 
@@ -40,34 +39,6 @@ EMBEDDED_CAPABILITIES = BackendCapabilities(
     interruption=(InterruptionSupport.NONE, InterruptionSupport.COOPERATIVE),
     progress=True,
 )
-
-
-@dataclass(frozen=True, slots=True)
-class HostLimits:
-    """In-flight input, owned results/state, and lifecycle time allowances.
-
-    These admission budgets do not cap memory retained by caller-held handles.
-    Concurrent analyses are bounded by their exclusive resident reservations.
-    """
-
-    input_bytes: int
-    result_bytes: int
-    state_values: int
-    progress_records: int
-    initialization_seconds: float
-    retirement_seconds: float
-
-    def __post_init__(self):
-        capacity_counts = (
-            self.input_bytes,
-            self.result_bytes,
-            self.state_values,
-            self.progress_records,
-        )
-        if not all(type(value) is int and 0 < value for value in capacity_counts):
-            raise ValueError("Embedded host capacities must be positive integers.")
-        positive_seconds(self.initialization_seconds)
-        positive_seconds(self.retirement_seconds)
 
 
 def _combined_requirements(resident_requirements, call_requirements):

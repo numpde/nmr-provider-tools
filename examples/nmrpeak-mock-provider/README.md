@@ -95,7 +95,7 @@ attributes rather than manually assigned labels.
 
 Runtime policy follows the real providers' layout:
 `config/deployments/<name>/provider.toml`. The `[execution.host]` table supplies
-HostLimits; `[[execution.grants]]` supplies the resource grants assigned to
+the execution host directly; `[[execution.grants]]` supplies the resource grants assigned to
 each offering. The top-level `PROVIDER_CONFIG_PATH` in `__main__.py` selects that
 file relative to the deployment working directory; no command-line arguments
 are required. This operator-owned policy is not packaged into the application

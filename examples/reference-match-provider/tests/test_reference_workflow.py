@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
 from provider_core.hosting import (
     ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
@@ -30,11 +30,12 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
         build = self.enterContext(patch("reference_provider.science.build_index", wraps=science.build_index))
         match = self.enterContext(patch("reference_provider.science.match", wraps=science.match))
         host = EmbeddedHost(
-            limits=HostLimits(
-                  input_bytes=8192,
-                result_bytes=8192, state_values=1, progress_records=1,
-                initialization_seconds=5, retirement_seconds=5,
-            ),
+            input_bytes=8192,
+            result_bytes=8192,
+            state_values=1,
+            progress_records=1,
+            initialization_seconds=5,
+            retirement_seconds=5,
         )
         limits = ExecutionLimits(
             queue_seconds=5, execution_seconds=10, cleanup_seconds=5,

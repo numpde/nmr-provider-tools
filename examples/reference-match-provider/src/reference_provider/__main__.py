@@ -6,7 +6,7 @@ import asyncio
 import sys
 from threading import Event
 
-from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
 from provider_core.hosting import (
     ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
@@ -19,11 +19,12 @@ from .science import VectorInput
 async def run_demo() -> None:
     """Reuse initialized science; retain results beyond each analysis lifetime."""
     host = EmbeddedHost(
-        limits=HostLimits(
-              input_bytes=8192,
-            result_bytes=8192, state_values=1, progress_records=1,
-            initialization_seconds=5, retirement_seconds=5,
-        ),
+        input_bytes=8192,
+        result_bytes=8192,
+        state_values=1,
+        progress_records=1,
+        initialization_seconds=5,
+        retirement_seconds=5,
     )
     limits = ExecutionLimits(
         queue_seconds=5, execution_seconds=10, cleanup_seconds=5,

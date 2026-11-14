@@ -27,7 +27,7 @@ from provider_core.contribution import (
     description_document,
     ref,
 )
-from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
+from provider_core.embedded_host import Allocation, EmbeddedHost
 from provider_core.hosting import (
     DispatchState,
     ExecutionLimits,
@@ -52,7 +52,7 @@ def _allow() -> None:
     return None
 
 
-def _host_limits(**changes) -> HostLimits:
+def _host_options(**changes) -> dict[str, int | float]:
     values = {
         "input_bytes": 32768,
         "result_bytes": 32768,
@@ -62,7 +62,7 @@ def _host_limits(**changes) -> HostLimits:
         "retirement_seconds": 5,
     }
     values.update(changes)
-    return HostLimits(**values)
+    return values
 
 
 def _execution_limits() -> ExecutionLimits:
@@ -175,10 +175,10 @@ class _FailingResultCodec[T]:
 
 
 class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
-    def host(self, bindings, *, limits=None):
+    def host(self, bindings, *, options=None):
         host = EmbeddedHost(
             # repo-check: allow-tuple-generator -- Each host is constructed from a fixed immutable allocation inventory.
-            tuple(
+            allocations=tuple(
                 Allocation(
                     name=name,
                     binding=binding,
@@ -186,7 +186,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 )
                 for (name, binding) in bindings.items()
             ),
-            limits=limits or _host_limits(),
+            **(options or _host_options()),
         )
         self.addAsyncCleanup(self.retire_host, host)
         return host
@@ -468,7 +468,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
         host = self.host(
             {"one": binding, "two": binding},
-            limits=_host_limits(state_values=2),
+            options=_host_options(state_values=2),
         )
         first = host.open_analysis("first", allocation_names=("one",))
         second = host.open_analysis("second", allocation_names=("two",))

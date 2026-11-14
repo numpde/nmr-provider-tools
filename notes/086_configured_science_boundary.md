@@ -98,6 +98,11 @@ obligations settle; their handles remain usable for observation.
 Portable submission deduplication is scoped to an open analysis. That analysis
 retains its accepted request history until close; closed analyses reject every
 submission, including a previously accepted request. There is no host-wide
-completed-request archive. HostLimits therefore has no analysis_records or
-operation_records fields: resident reservations bound concurrent analyses, and
+completed-request archive. EmbeddedHost therefore has no analysis_records or
+operation_records parameters: resident reservations bound concurrent analyses, and
 input/result/state capacity bounds admitted scientific work.
+
+EmbeddedHost declares the six capacity/time parameters directly as typed,
+keyword-only constructor arguments. Provider startup can pass
+**policy["execution"]["host"] without an intermediate policy record. The host
+validates those values at construction and has no knowledge of TOML.

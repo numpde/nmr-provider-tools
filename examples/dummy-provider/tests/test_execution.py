@@ -13,7 +13,7 @@ from unittest.mock import patch
 from dummy_provider import science
 from dummy_provider.binding import WeightedSum, create_weighted_sum_binding
 from provider_core.contribution import ProgressEvent
-from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
 from provider_core.hosting import (
     ExecutionLimits,
     NotAdmitted,
@@ -49,10 +49,14 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_partial_model_loading_keeps_the_original_cleanup_owner(self):
         """A loader may fail after acquisition; retirement still owns that model."""
-        host = EmbeddedHost(limits=HostLimits(
-              input_bytes=4096, result_bytes=4096,
-            state_values=1, progress_records=1, initialization_seconds=5, retirement_seconds=5,
-        ))
+        host = EmbeddedHost(
+            input_bytes=4096,
+            result_bytes=4096,
+            state_values=1,
+            progress_records=1,
+            initialization_seconds=5,
+            retirement_seconds=5,
+        )
         self.addAsyncCleanup(self.retire_host, host)
         hosted = create_weighted_sum_binding(
             host=host,
@@ -115,7 +119,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
                 ),
             ),
         )
-        host_limits = HostLimits(
+        host_options = dict(
 
 
             input_bytes=4096,
@@ -125,7 +129,9 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             initialization_seconds=5,
             retirement_seconds=5,
         )
-        host = EmbeddedHost(limits=host_limits)
+        host = EmbeddedHost(
+            **host_options,
+        )
         self.addAsyncCleanup(self.retire_host, host)
         weighted_binding = create_weighted_sum_binding(
             host=host, allocation=model_allocation,

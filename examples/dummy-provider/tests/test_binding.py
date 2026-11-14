@@ -14,7 +14,7 @@ import unittest
 from unittest.mock import patch
 
 import provider_core.contribution as contribution
-from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
 from provider_core.hosting import ResourceGrant, observe_cleanup
 from dummy_provider import science
 from dummy_provider.binding import Sum, WeightedSum, create_sum_binding, create_weighted_sum_binding
@@ -22,10 +22,14 @@ from dummy_provider.binding import Sum, WeightedSum, create_sum_binding, create_
 
 class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.host = EmbeddedHost(limits=HostLimits(
-              input_bytes=4096, result_bytes=4096,
-            state_values=1, progress_records=1, initialization_seconds=5, retirement_seconds=5,
-        ))
+        self.host = EmbeddedHost(
+            input_bytes=4096,
+            result_bytes=4096,
+            state_values=1,
+            progress_records=1,
+            initialization_seconds=5,
+            retirement_seconds=5,
+        )
         self.addAsyncCleanup(self.retire)
 
     async def retire(self):

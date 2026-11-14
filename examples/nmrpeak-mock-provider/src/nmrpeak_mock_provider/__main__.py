@@ -6,7 +6,7 @@ from pathlib import Path
 import sys
 import tomllib
 
-from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
 from provider_core.hosting import ExecutionLimits, ResourceGrant, ResultConsumption, observe_cleanup
 from provider_core.interpreter import Interpreter, ProseService
 
@@ -27,11 +27,11 @@ async def close_analysis(*, execution) -> None:
 async def run_demo() -> None:
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         policy = tomllib.load(source)
+
     host = EmbeddedHost(
-        limits=HostLimits(
-            **policy["execution"]["host"],
-        ),
+        **policy["execution"]["host"],
     )
+
     configured_grants = [
         ResourceGrant(**grant)
         for grant in policy["execution"]["grants"]

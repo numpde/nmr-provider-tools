@@ -232,7 +232,7 @@ class _Operation(_Changes):
         initialization_timer = timer_receipt.result()
         try:
             self.science.resident.initialize(
-                self.analysis.host.limits.initialization_seconds
+                self.analysis.host.initialization_seconds
             )
         finally:
             self.loop.call_soon_threadsafe(initialization_timer.cancel)
@@ -240,7 +240,7 @@ class _Operation(_Changes):
     def _start_initialization_clock(self, timer_receipt):
         timer_receipt.set_result(
             self.loop.call_later(
-                self.analysis.host.limits.initialization_seconds,
+                self.analysis.host.initialization_seconds,
                 self._initialization_expired,
             )
         )
@@ -254,7 +254,7 @@ class _Operation(_Changes):
 
     def _record_progress(self, event, receipt):
         try:
-            if len(self.progress) == self.analysis.host.limits.progress_records:
+            if len(self.progress) == self.analysis.host.progress_records:
                 del self.progress[0]
                 self.progress_dropped += 1
             self.progress.append(event)

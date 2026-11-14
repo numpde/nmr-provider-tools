@@ -11,7 +11,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
 from provider_core.hosting import ResourceGrant, observe_cleanup
 from reference_provider import science
 from reference_provider.binding import ReferenceMatcher, create_binding
@@ -19,10 +19,14 @@ from reference_provider.binding import ReferenceMatcher, create_binding
 
 class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.host = EmbeddedHost(limits=HostLimits(
-              input_bytes=4096, result_bytes=4096,
-            state_values=1, progress_records=1, initialization_seconds=5, retirement_seconds=5,
-        ))
+        self.host = EmbeddedHost(
+            input_bytes=4096,
+            result_bytes=4096,
+            state_values=1,
+            progress_records=1,
+            initialization_seconds=5,
+            retirement_seconds=5,
+        )
         self.addAsyncCleanup(self.retire)
 
     async def retire(self):

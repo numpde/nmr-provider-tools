@@ -16,7 +16,7 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
 from provider_core.hosting import ExecutionLimits, NotAdmitted, ResourceGrant, ResultConsumption, ResultState, observe_cleanup, observe_completion
 from provider_core.interpreter import Interpreter, ModelWindowExpired, ProseService
 from provider_core.scientific import ResourceRequirement
@@ -39,10 +39,14 @@ def candidate(*, carbon):
 
 class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
-        self.host = EmbeddedHost(limits=HostLimits(
-              input_bytes=65536, result_bytes=65536,
-            state_values=8, progress_records=1, initialization_seconds=5, retirement_seconds=5,
-        ))
+        self.host = EmbeddedHost(
+            input_bytes=65536,
+            result_bytes=65536,
+            state_values=8,
+            progress_records=1,
+            initialization_seconds=5,
+            retirement_seconds=5,
+        )
         self.addAsyncCleanup(self.retire)
         self.grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
         self.offerings = adopt_offerings(

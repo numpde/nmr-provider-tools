@@ -18,7 +18,7 @@ from unittest.mock import AsyncMock, patch
 
 from provider_core.contribution import JsonDataclassCodec, ref
 from provider_core.scientific import operation
-from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
 from provider_core.hosting import (
     CleanupObservation, DispatchState, ExecutionLimits, Failure, Invocation,
     NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
@@ -63,11 +63,12 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
     def workflow(self, *, result_bytes, guard=None):
         grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
         host = EmbeddedHost(
-            limits=HostLimits(
-
-                input_bytes=8192, result_bytes=result_bytes, state_values=1,
-                progress_records=1, initialization_seconds=5, retirement_seconds=5,
-            ),
+            input_bytes=8192,
+            result_bytes=result_bytes,
+            state_values=1,
+            progress_records=1,
+            initialization_seconds=5,
+            retirement_seconds=5,
         )
         self.hosts.append(host)
         bindings = create_bindings(

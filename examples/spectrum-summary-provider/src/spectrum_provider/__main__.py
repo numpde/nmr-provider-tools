@@ -7,7 +7,7 @@ import sys
 from threading import Event
 
 from provider_core.contribution import ref
-from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
 from provider_core.hosting import (
     ExecutionLimits, Invocation, NotAdmitted, ResourceGrant, ResultConsumption,
     ResultState, observe_cleanup,
@@ -24,11 +24,12 @@ async def run_demo() -> None:
     # Scientific resource requirements remain in resources.toml; they grant no access.
     grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
     host = EmbeddedHost(
-        limits=HostLimits(
-              input_bytes=8192,
-            result_bytes=8192, state_values=1, progress_records=1,
-            initialization_seconds=5, retirement_seconds=5,
-        ),
+        input_bytes=8192,
+        result_bytes=8192,
+        state_values=1,
+        progress_records=1,
+        initialization_seconds=5,
+        retirement_seconds=5,
     )
     analysis = None
     workflow = None

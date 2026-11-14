@@ -8,7 +8,7 @@ from dataclasses import dataclass, replace
 from threading import Barrier
 import unittest
 
-from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.embedded_host import Allocation, EmbeddedHost, ResourceAllocation
 from provider_core.hosting import ResourceState, CapacityUnavailable, AdmissionCode, ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, observe_cleanup, observe_completion
 from provider_core.scientific import AssetAccess, Contribution, HostedContribution, NoAssets, ResourceRequirement, operation
 
@@ -66,11 +66,14 @@ class FailedInitialization(Sum):
 
 
 def new_host() -> EmbeddedHost:
-    return EmbeddedHost(limits=HostLimits(
-          input_bytes=8192,
-        result_bytes=8192, state_values=8, progress_records=8,
-        initialization_seconds=5, retirement_seconds=5,
-    ))
+    return EmbeddedHost(
+        input_bytes=8192,
+        result_bytes=8192,
+        state_values=8,
+        progress_records=8,
+        initialization_seconds=5,
+        retirement_seconds=5,
+    )
 
 
 # silent-defaults: allow-contract -- Tests vary one part of the fixed CPU assignment and scientific requirement.
@@ -98,6 +101,30 @@ async def run_sum(*, host, hosted, operation_id):
 
 
 class AdoptionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_host_constructor_validates_its_explicit_policy_arguments(self):
+        options = {
+            "input_bytes": 8192,
+            "result_bytes": 8192,
+            "state_values": 8,
+            "progress_records": 8,
+            "initialization_seconds": 5,
+            "retirement_seconds": 5,
+        }
+        for name in options:
+            for value in (True, "5"):
+                with self.subTest(name=name, value=value):
+                    with self.assertRaises(expected_exception=TypeError):
+                        EmbeddedHost(**(options | {name: value}))
+            for value in (0, -1):
+                with self.subTest(name=name, value=value):
+                    with self.assertRaises(expected_exception=ValueError):
+                        EmbeddedHost(**(options | {name: value}))
+        for name in ("initialization_seconds", "retirement_seconds"):
+            for value in (float("inf"), float("nan")):
+                with self.subTest(name=name, value=value):
+                    with self.assertRaises(expected_exception=ValueError):
+                        EmbeddedHost(**(options | {name: value}))
+
     async def test_released_local_operations_leave_no_submission_history(self):
         hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
         analysis = self.host.open_analysis(allocations=(hosted.allocation,))
@@ -398,7 +425,15 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         instance = Sum(configuration=Settings(scale=2))
         hosted = adopt(host=self.host, contribution=instance)
         with self.assertRaises(expected_exception=TypeError):
-            EmbeddedHost(allocations=(Allocation(name="bypass", binding=hosted, grants=(ResourceGrant(kind="cpu", amount=4, unit="thread"),)),), limits=self.host.limits)
+            EmbeddedHost(
+                allocations=(Allocation(name="bypass", binding=hosted, grants=(ResourceGrant(kind="cpu", amount=4, unit="thread"),)),),
+                input_bytes=8192,
+                result_bytes=8192,
+                state_values=8,
+                progress_records=8,
+                initialization_seconds=5,
+                retirement_seconds=5,
+            )
 
     async def test_reservation_rejects_foreign_ownership_and_missing_input_before_dispatch(self):
         hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))

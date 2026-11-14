@@ -31,12 +31,12 @@ from provider_core.hosting import (
     ReservationRef,
     ResourceState,
     StateArgument,
+    positive_seconds,
 )
 from provider_core._embedded_operation import _Operation
 from provider_core._embedded_support import (
     EMBEDDED_CAPABILITIES,
     Allocation,
-    HostLimits,
     ResourceAllocation,
     _Cleanup,
     _Resident,
@@ -50,20 +50,56 @@ class EmbeddedHost:
     capabilities = EMBEDDED_CAPABILITIES
 
     # silent-defaults: allow-contract -- An empty host accepts explicit allocations before its first analysis opens.
-    def __init__(self, allocations=(), *, limits):
+    def __init__(
+        self,
+        allocations: tuple[Allocation, ...] = (),
+        *,
+        input_bytes: int,
+        result_bytes: int,
+        state_values: int,
+        progress_records: int,
+        initialization_seconds: float,
+        retirement_seconds: float,
+    ) -> None:
+        """Configure in-flight data capacity and loading/cleanup allowances.
+
+        Byte and state budgets cover currently owned work; they do not impose
+        a memory limit on caller-held handles. Time allowances are in seconds.
+        """
+        for name, value in (
+            ("input_bytes", input_bytes),
+            ("result_bytes", result_bytes),
+            ("state_values", state_values),
+            ("progress_records", progress_records),
+        ):
+            if type(value) is not int:
+                raise TypeError(f"Unexpected {type(value)=}; {name=} requires an integer")
+            if not (0 < value):
+                raise ValueError(f"Expected a positive capacity for {name=}; received {value=}")
+        for name, value in (
+            ("initialization_seconds", initialization_seconds),
+            ("retirement_seconds", retirement_seconds),
+        ):
+            if type(value) not in (int, float):
+                raise TypeError(f"Unexpected {type(value)=}; {name=} requires a number of seconds")
+            positive_seconds(value=value)
         if not (
             type(allocations) is tuple
             and all(type(item) is Allocation for item in allocations)
-            and type(limits) is HostLimits
         ):
-            raise TypeError("Supply explicit Allocation records and HostLimits.")
+            raise TypeError(f"Unexpected {type(allocations)=}; supply a tuple of Allocation records")
         if len({item.name for item in allocations}) != len(allocations):
             raise ValueError("Allocation names must be unique within a host.")
         if any(not isinstance(item.binding, ImplementationBinding) for item in allocations):
             raise TypeError("Object contributions must be handed over with host.adopt")
         self.loop = asyncio.get_running_loop()
         self.identity = uuid4().hex
-        self.limits = limits
+        self.input_bytes = input_bytes
+        self.result_bytes = result_bytes
+        self.state_values = state_values
+        self.progress_records = progress_records
+        self.initialization_seconds = initialization_seconds
+        self.retirement_seconds = retirement_seconds
         self.residents = {
             item.name: _Resident(self.identity, item)
             for item in allocations
@@ -193,7 +229,7 @@ class EmbeddedHost:
         if resident is None or resident.reference != reference:
             raise ValueError("Allocation reference does not name this host's current instance.")
         if resident.retirement is None:
-            resident.retirement = _Cleanup(self.limits.retirement_seconds)
+            resident.retirement = _Cleanup(self.retirement_seconds)
             resident.retirement.start(lambda: self._retire_resident(resident))
         return resident.retirement
 
@@ -222,7 +258,7 @@ class EmbeddedHost:
         self._require_loop()
         if self.retirement is None:
             self.retiring = True
-            self.retirement = _Cleanup(self.limits.retirement_seconds)
+            self.retirement = _Cleanup(self.retirement_seconds)
             retirements = [
                 self.retire_allocation(resident.reference)
                 for resident in self.residents.values()
@@ -392,9 +428,9 @@ class EmbeddedAnalysis:
         host = self.host
         returned_state_count = len(selected_call.description.state_outputs)
         if not (
-            host.input_used + len(invocation.payload) <= host.limits.input_bytes
-            and host.result_reserved + invocation.limits.result_bytes <= host.limits.result_bytes
-            and host.state_reserved + returned_state_count <= host.limits.state_values
+            host.input_used + len(invocation.payload) <= host.input_bytes
+            and host.result_reserved + invocation.limits.result_bytes <= host.result_bytes
+            and host.state_reserved + returned_state_count <= host.state_values
         ):
             return NotAdmitted(
                 code=AdmissionCode.CAPACITY,
@@ -513,7 +549,7 @@ class EmbeddedAnalysis:
             self.closed = True
             cleanup_seconds = min(
                 (item.invocation.limits.cleanup_seconds for item in self.operations.values()),
-                default=self.host.limits.retirement_seconds,
+                default=self.host.retirement_seconds,
             )
             self.cleanup = _Cleanup(cleanup_seconds)
             for operation in list(self.operations.values()):
