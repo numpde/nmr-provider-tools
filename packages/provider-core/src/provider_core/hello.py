@@ -45,7 +45,10 @@ class HelloAccepted:
 
 def _require_text(value, name, maximum):
     if type(value) is not str:
-        raise ValueError(f"Cannot announce provider: {name} must be Unicode text")
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            f"Cannot announce provider: {name} must be Unicode text"
+        )
     if not 1 <= len(value) <= maximum:
         raise ValueError(f"Cannot announce provider: {name} has {len(value)} characters; expected 1 through {maximum} Unicode scalars")
     if "\0" in value or any(0xD800 <= ord(character) <= 0xDFFF for character in value):
@@ -61,12 +64,20 @@ def hello_body(*, display_name, description, analysis_offerings):
     """
     _require_text(display_name, "display name", 128)
     _require_text(description, "description", 1024)
-    if not (type(analysis_offerings) is tuple and len(analysis_offerings) <= 64):
+    if not (type(analysis_offerings) is tuple):
+        raise TypeError(
+            f"Unexpected {type(analysis_offerings)=}; "
+            "Cannot announce provider: analysis offerings must be a tuple of at most 64 entries"
+        )
+    if not (len(analysis_offerings) <= 64):
         raise ValueError("Cannot announce provider: analysis offerings must be a tuple of at most 64 entries")
     offerings, kinds = [], set()
     for offering in analysis_offerings:
         if type(offering) is not AnalysisOffering:
-            raise ValueError("Cannot announce provider: each entry must be an AnalysisOffering")
+            raise TypeError(
+                f"Unexpected {type(offering)=}; "
+                "Cannot announce provider: each entry must be an AnalysisOffering"
+            )
         if offering.analysis_kind_ref in kinds:
             raise ValueError("Cannot announce provider: analysis kinds must not repeat")
         kinds.add(offering.analysis_kind_ref)

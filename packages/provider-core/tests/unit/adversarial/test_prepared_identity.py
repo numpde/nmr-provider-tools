@@ -18,8 +18,8 @@ from tests.fakes.job_input import response
 
 class PreparedIdentityRefusalTests(unittest.TestCase):
     def test_protected_evidence_refuses_empty_mutable_and_oversized_content(self):
-        for content in (b"", bytearray(b"mutable"), b"x" * (MAX_EVIDENCE_BYTES + 1)):
-            with self.subTest(content_type=type(content).__name__), self.assertRaises(ValueError):
+        for content, error_type in ((b"", ValueError), (bytearray(b"mutable"), TypeError), (b"x" * (MAX_EVIDENCE_BYTES + 1), ValueError)):
+            with self.subTest(content_type=type(content).__name__), self.assertRaises(error_type):
                 ProtectedEvidence("fixture.input.v1", content)
 
     def test_entry_requires_explicit_protected_identity(self):
@@ -27,7 +27,7 @@ class PreparedIdentityRefusalTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             mark_execution_entered(acknowledged)
         for value in (None, b"unbound identity", object()):
-            with self.subTest(value_type=type(value).__name__), self.assertRaises(ValueError):
+            with self.subTest(value_type=type(value).__name__), self.assertRaises(TypeError):
                 mark_execution_entered(acknowledged, value)
 
     def test_identity_cannot_be_attached_before_execution_entry(self):
@@ -38,7 +38,7 @@ class PreparedIdentityRefusalTests(unittest.TestCase):
     def test_checkpoint_entry_requires_its_actual_prepared_digest(self):
         acknowledged = AcknowledgedCheckpoint(record(), admission())
         for value in (None, b"unbound identity", ProtectedEvidence("fixture.input.v1", b"identity")):
-            with self.subTest(value_type=type(value).__name__), self.assertRaises(ValueError):
+            with self.subTest(value_type=type(value).__name__), self.assertRaises(TypeError):
                 EnteredCheckpoint(acknowledged, value)
 
 

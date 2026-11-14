@@ -21,14 +21,14 @@ class AttemptReadRejectionTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_invalid_request_identity_sends_nothing(self):
-        for attempt, job in (
-            (ATTEMPT_REF + "\n", "job:example"),
-            ("../private", "job:example"),
-            (None, "job:example"),
-            (ATTEMPT_REF, "job:example?private"),
+        for attempt, job, error_type in (
+            (ATTEMPT_REF + "\n", "job:example", ValueError),
+            ("../private", "job:example", ValueError),
+            (None, "job:example", TypeError),
+            (ATTEMPT_REF, "job:example?private", ValueError),
         ):
             transport = Transport()
-            with self.assertRaises(ValueError):
+            with self.assertRaises(error_type):
                 await self.api(transport).read_attempt(attempt, job_ref=job)
             self.assertEqual(transport.calls, [])
 

@@ -41,17 +41,40 @@ def release(path):
 
 def validate_release(record):
     """Validate metadata before using its filename or byte count."""
-    if not (
-        type(record) is dict and set(record) == {"name", "sha256", "size", "url"}
-        and type(record["name"]) is str
-        and re.fullmatch(r"pip-[0-9]+\.[0-9]+(?:\.[0-9]+)?-py3-none-any\.whl", record["name"])
-        and type(record["sha256"]) is str
-        and re.fullmatch(r"[0-9a-f]{64}", record["sha256"])
-        and type(record["size"]) is int and record["size"] > 0
-        and type(record["url"]) is str
-        and record["url"].startswith("https://files.pythonhosted.org/")
-        and record["url"].endswith("/" + record["name"])
-    ):
+    if not (type(record) is dict):
+        raise TypeError(
+            f"Unexpected {type(record)=}; "
+            "Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source."
+        )
+    if not (set(record) == {"name", "sha256", "size", "url"}):
+        raise ValueError("Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source.")
+    if not (type(record["name"]) is str):
+        raise TypeError(
+            f"Unexpected {type(record['name'])=}; "
+            "Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source."
+        )
+    if not (re.fullmatch(r"pip-[0-9]+\.[0-9]+(?:\.[0-9]+)?-py3-none-any\.whl", record["name"])):
+        raise ValueError("Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source.")
+    if not (type(record["sha256"]) is str):
+        raise TypeError(
+            f"Unexpected {type(record['sha256'])=}; "
+            "Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source."
+        )
+    if not (re.fullmatch(r"[0-9a-f]{64}", record["sha256"])):
+        raise ValueError("Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source.")
+    if not (type(record["size"]) is int):
+        raise TypeError(
+            f"Unexpected {type(record['size'])=}; "
+            "Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source."
+        )
+    if not (record["size"] > 0):
+        raise ValueError("Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source.")
+    if not (type(record["url"]) is str):
+        raise TypeError(
+            f"Unexpected {type(record['url'])=}; "
+            "Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source."
+        )
+    if not (record["url"].startswith("https://files.pythonhosted.org/") and record["url"].endswith("/" + record["name"])):
         raise ValueError("Cannot start the installer: release record must identify one pip wheel by name, size, SHA-256 and HTTPS source.")
     return record
 

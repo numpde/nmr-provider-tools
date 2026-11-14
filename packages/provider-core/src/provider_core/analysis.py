@@ -66,10 +66,20 @@ class ObservedWorkerCrash(RuntimeError):
     """
 
     def __init__(self, acknowledged, *, phase, owner, runner, evidence, cause):
-        if (type(acknowledged) is not AcknowledgedAttempt or phase not in ("preparing", "running")
-                or owner is None or type(runner) is not RunnerSession or type(evidence) is not ProtectedEvidence
-                or (cause is not None and not isinstance(cause, BaseException))):
+        if type(acknowledged) is not AcknowledgedAttempt:
+            raise TypeError(
+                f"Unexpected {type(acknowledged)=}; "
+                "Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence"
+            )
+        if phase not in ("preparing", "running") or owner is None:
             raise ValueError("Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence")
+        if type(runner) is not RunnerSession or type(evidence) is not ProtectedEvidence:
+            raise TypeError(
+                f"Unexpected {type(runner)=}, {type(evidence)=}; "
+                "Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence"
+            )
+        if (cause is not None and not isinstance(cause, BaseException)):
+            raise TypeError(f"Unexpected {type(cause)=}; an observed crash cause must be an exception or None")
         original = runner.original_exit
         if original is None:
             raise ValueError("Cannot classify a worker crash without an original exit observed before local interruption")
@@ -108,7 +118,10 @@ class PreparedAnalysis:
 
     def __post_init__(self):
         if type(self.identity) is not ProtectedEvidence:
-            raise ValueError("Cannot prepare analysis: protected candidate identity is required before execution.")
+            raise TypeError(
+                f"Unexpected {type(self.identity)=}; "
+                "Cannot prepare analysis: protected candidate identity is required before execution."
+            )
 
 
 class AnalysisSession(Protocol):

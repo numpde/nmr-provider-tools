@@ -43,7 +43,10 @@ class LiveAttemptLimits:
 
 def _identity(scope, reference):
     if type(scope) is not RecoveryScope:
-        raise ValueError("Attempt ownership requires an admitted recovery scope")
+        raise TypeError(
+            f"Unexpected {type(scope)=}; "
+            "Attempt ownership requires an admitted recovery scope"
+        )
     require_attempt_ref(reference)
     # Lane/generation labels cannot partition ownership of one remote Attempt.
     return scope.api_origin, scope.provider_ref, "attempt", reference
@@ -51,7 +54,10 @@ def _identity(scope, reference):
 
 def _start_identity(pending):
     if type(pending) is not StartPending:
-        raise ValueError("Start ownership requires an admitted pending-start record")
+        raise TypeError(
+            f"Unexpected {type(pending)=}; "
+            "Start ownership requires an admitted pending-start record"
+        )
     # nmr-api-v1 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8,
     # nmr_api/operations/execution_attempt_start.py:396-412 reserves keys
     # provider-wide: another Job or lane must not form a separate local owner.
@@ -62,7 +68,10 @@ def _start_identity(pending):
 class AttemptClaims:
     def __init__(self, *, limits):
         if type(limits) is not LiveAttemptLimits:
-            raise ValueError("Live Attempt claims require admitted LiveAttemptLimits")
+            raise TypeError(
+                f"Unexpected {type(limits)=}; "
+                "Live Attempt claims require admitted LiveAttemptLimits"
+            )
         self._claims = {}
         self._loop = None
         self._limits = limits
@@ -74,9 +83,19 @@ class AttemptClaims:
 
     # silent-defaults: allow-contract -- Note 010 reserves the existing 2 MiB wire ceiling unless the live owner declares a smaller sufficient allowance.
     def claim_live(self, pending, *, lifecycle_owner, maximum_terminal_bytes=2097152):
-        if type(pending) is not StartPending or lifecycle_owner is None:
+        if type(pending) is not StartPending:
+            raise TypeError(
+                f"Unexpected {type(pending)=}; "
+                "Live selection requires an admitted pending START and its exact lifecycle owner"
+            )
+        if lifecycle_owner is None:
             raise ValueError("Live selection requires an admitted pending START and its exact lifecycle owner")
-        if type(maximum_terminal_bytes) is not int or not 16384 <= maximum_terminal_bytes <= 2097152:
+        if type(maximum_terminal_bytes) is not int:
+            raise TypeError(
+                f"Unexpected {type(maximum_terminal_bytes)=}; "
+                "Live terminal allowance must cover 16384 through 2097152 encoded request bytes"
+            )
+        if not (16384 <= maximum_terminal_bytes <= 2097152):
             raise ValueError("Live terminal allowance must cover 16384 through 2097152 encoded request bytes")
         # Reject oversized control input before publishing indexes or allowing START.
         # The owner retains the original object; do not keep another encoded copy.
@@ -115,7 +134,10 @@ class AttemptClaims:
         """Exclude a held Job across lanes without copying its lifecycle state."""
         self._require_live_view()
         if type(scope) is not RecoveryScope:
-            raise ValueError("Live Job exclusion requires an admitted recovery scope")
+            raise TypeError(
+                f"Unexpected {type(scope)=}; "
+                "Live Job exclusion requires an admitted recovery scope"
+            )
         require_job_ref(job_ref)
         return (scope.api_origin, scope.provider_ref, "job", job_ref) in self._claims
 

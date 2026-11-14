@@ -18,6 +18,15 @@ from host.acquisition_tool import source_update as updates
 
 
 class SourceUpdateTests(unittest.TestCase):
+    def test_manifest_distinguishes_record_types_from_unsupported_values(self):
+        manifest = self.manifest("1.0.0", self.old)
+        for changes in ({"source_revision": []}, {"payload_files": []}, {"dependency_inputs": []}):
+            with self.subTest(changes=changes), self.assertRaises(TypeError):
+                updates.read_manifest(json.dumps(manifest | changes))
+        for changes in ({"source_revision": "bad"}, {"payload_files": {}}, {"dependency_inputs": {"wheel.pyz": "bad"}}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                updates.read_manifest(json.dumps(manifest | changes))
+
     def setUp(self):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)

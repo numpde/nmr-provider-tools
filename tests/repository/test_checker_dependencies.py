@@ -39,11 +39,16 @@ class CheckerDependencyTests(unittest.TestCase):
         self.manifest.write_text('{"platform":"linux/amd64","platform":"linux/amd64","packages":[]}')
         with self.assertRaisesRegex(ValueError, "duplicate JSON field"):
             dependencies.declaration(self.manifest)
-        for changes in ({"name": "ruff"}, {"file": "../make.deb"}, {"size": True}, {"url": "https://other.invalid/make.deb"}):
+        for changes, error_type in (
+            ({"name": "ruff"}, ValueError),
+            ({"file": "../make.deb"}, ValueError),
+            ({"size": True}, TypeError),
+            ({"url": "https://other.invalid/make.deb"}, ValueError),
+        ):
             with self.subTest(changes=changes):
                 package = self.package | changes
                 self.manifest.write_text(json.dumps({"platform": "linux/amd64", "packages": [package]}))
-                with self.assertRaises(ValueError):
+                with self.assertRaises(error_type):
                     dependencies.declaration(self.manifest)
 
     def test_shared_pool_ignores_unrelated_files_and_captures_only_declared_bytes(self):

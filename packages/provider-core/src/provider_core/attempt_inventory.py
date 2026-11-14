@@ -57,7 +57,7 @@ def read_attempt_inventory(raw, *, limit):
         raise ResponseRejected("Attempt inventory exceeds the requested or supported item count")
     try:
         require_cursor(document["next_cursor"])
-    except ValueError as cause:
+    except (TypeError, ValueError) as cause:
         raise ResponseRejected(str(cause)) from None
     # repo-check: allow-tuple-generator -- The admitted AttemptPage retains an immutable ordered collection.
     return AttemptInventoryPage(tuple(_read_item(item) for item in attempts), document["next_cursor"])
@@ -73,7 +73,7 @@ def _read_item(item):
         require_attempt_ref(item["execution_attempt_ref"])
         require_job_ref(item["job_ref"])
         require_provider_attempt_key(item["provider_attempt_key"])
-    except ValueError as cause:
+    except (TypeError, ValueError) as cause:
         raise ResponseRejected(str(cause)) from None
     if item["state"] != "in_progress":
         raise ResponseRejected("Inventory Attempt state must be in_progress")

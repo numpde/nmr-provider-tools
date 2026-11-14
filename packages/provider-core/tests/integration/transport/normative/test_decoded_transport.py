@@ -252,16 +252,16 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_decoded_configuration_rejected_before_pool_or_dispatch(self):
         transport = self.transport()
-        bad = (0, -1, True, 1.0, '5', 2**100)
+        bad = ((0, ValueError), (-1, ValueError), (True, TypeError), (1.0, TypeError), ('5', TypeError), (2**100, ValueError))
         with patch.object(m.httpcore, 'AsyncConnectionPool', side_effect=AssertionError('I/O dispatched')):
-            for value in bad:
+            for value, error_type in bad:
                 for field in ('maximum_bytes', 'error_maximum_bytes'):
                     kwargs = dict(maximum_bytes=10, error_maximum_bytes=10)
                     kwargs[field] = value
-                    with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                    with self.subTest(field=field, value=value), self.assertRaises(error_type):
                         await transport.exchange_decoded(self.request(), **kwargs)
-            for status in (True, 99, 600, '200', 200.0):
-                with self.subTest(status=status), self.assertRaises(ValueError):
+            for status, error_type in ((True, TypeError), (99, ValueError), (600, ValueError), ('200', TypeError), (200.0, TypeError)):
+                with self.subTest(status=status), self.assertRaises(error_type):
                     await transport.exchange_decoded(self.request(), maximum_bytes=10, error_maximum_bytes=10, success_status=status)
         self.assertTrue(transport.retirement_confirmed)
 
@@ -270,7 +270,7 @@ class TransportDecodedTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ValueError):
                 await self.transport().exchange_decoded(self.request('http://model.example/chat'), maximum_bytes=10, error_maximum_bytes=10)
         for value in (0, 1, None, 'yes'):
-            with self.subTest(value=value), self.assertRaises(ValueError):
+            with self.subTest(value=value), self.assertRaises(TypeError):
                 self.transport(allow_http=value)
         with self.assertRaises(ValueError):
             self.transport(allow_http=True, proxy_socket='/tmp/proxy.sock')

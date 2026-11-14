@@ -290,22 +290,28 @@ def render_shared(path, source, image):
         mode = route["mode"]
         interface = route["interface"]
 
-        if not (
-            type(project) is str
-            and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,48}", project) is not None
-            and type(uid) is int
-            and uid == os.geteuid()
-            and type(proxy_uid) is int
-            and 0 < proxy_uid
-            and proxy_uid != uid
-            and type(gid) is int
-            and 0 < gid
-            and type(request_seconds) in (int, float)
-            and 0 < request_seconds < float("inf")
-            and mode in ("local", "mapped", "external")
-            and type(interface) is str
-        ):
+        if not (type(project) is str):
+            raise TypeError(f"Unexpected {type(project)=}; the deployment project must be text")
+        if not (re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,48}", project) is not None):
             raise ValueError
+        if not (type(uid) is int):
+            raise TypeError(f"Unexpected {type(uid)=}; the deployment owner UID must be an integer")
+        if not (uid == os.geteuid()):
+            raise ValueError
+        if not (type(proxy_uid) is int):
+            raise TypeError(f"Unexpected {type(proxy_uid)=}; the proxy owner UID must be an integer")
+        if not (0 < proxy_uid and proxy_uid != uid):
+            raise ValueError
+        if not (type(gid) is int):
+            raise TypeError(f"Unexpected {type(gid)=}; the deployment group ID must be an integer")
+        if not (0 < gid):
+            raise ValueError
+        if not (type(request_seconds) in (int, float)):
+            raise TypeError(f"Unexpected {type(request_seconds)=}; request seconds must be an integer or float")
+        if not (0 < request_seconds < float("inf") and mode in ("local", "mapped", "external")):
+            raise ValueError
+        if not (type(interface) is str):
+            raise TypeError(f"Unexpected {type(interface)=}; the selected interface must be text")
 
         LiveProxyConfiguration(path, mode).read()
         SharedDeliveryConfiguration(path).read()

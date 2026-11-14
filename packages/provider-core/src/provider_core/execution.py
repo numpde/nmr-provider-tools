@@ -287,12 +287,12 @@ def _observe_task_failure(task):
 
 def require_execution_settings(*, allowed_job_states, poll_seconds, task_settle_seconds):
     """Validate before either a controller or executor accepts its session."""
-    if (
-        type(allowed_job_states) is not frozenset
-        or not allowed_job_states
-        or not allowed_job_states <= JOB_STATES
-        or "cancelled" in allowed_job_states
-    ):
+    if type(allowed_job_states) is not frozenset:
+        raise TypeError(
+            f"Unexpected {type(allowed_job_states)=}; "
+            "Cannot configure execution: allowed_job_states must be a nonempty frozenset of open or closed; cancelled Jobs stop work"
+        )
+    if not (allowed_job_states) or not (allowed_job_states <= JOB_STATES) or "cancelled" in allowed_job_states:
         raise ValueError(
             "Cannot configure execution: allowed_job_states must be a nonempty frozenset of open or closed; cancelled Jobs stop work"
         )
@@ -344,7 +344,12 @@ class AttemptExecutor:
         condition_recovery=None,
     ):
         claim.require_live(scope)
-        if type(scope) is not RecoveryScope or api.origin != scope.api_origin:
+        if type(scope) is not RecoveryScope:
+            raise TypeError(
+                f"Unexpected {type(scope)=}; "
+                "Cannot configure execution: scope must be an admitted RecoveryScope"
+            )
+        if api.origin != scope.api_origin:
             raise ValueError("Cannot configure execution: signing origin differs from the selected scope")
         if preverified_input is not None and type(preverified_input) is not VerifiedJobInput:
             raise ValueError("Execution requires the actual verified Job input or an explicit post-START read")
@@ -541,6 +546,7 @@ class AttemptExecutor:
         else:
             if type(prepared) is not PreparedAnalysis:
                 raise TypeError(
+                    f"Unexpected {type(prepared)=}; "
                     "Cannot execute analysis: preparation must return its handle and protected candidate identity."
                 )
             entered = mark_execution_entered(acknowledged, prepared.identity)

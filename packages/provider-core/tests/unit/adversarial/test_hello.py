@@ -15,12 +15,16 @@ from tests.fakes.hello import announcement, receipt
 
 class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
     def test_offering_fields_are_admitted_at_construction_before_aggregation(self):
-        for kind, description in (
-            ("PRIVATE invalid", "d"), ("nmr_predict", "PRIVATE\udfff"), ("nmr_predict", "PRIVATE\0value"),
-            ("nmr_predict", ""), ("nmr_predict", "x" * 1025), ("nmr_predict", []),
+        for kind, description, error_type in (
+            ("PRIVATE invalid", "d", ValueError),
+            ("nmr_predict", "PRIVATE\udfff", ValueError),
+            ("nmr_predict", "PRIVATE\0value", ValueError),
+            ("nmr_predict", "", ValueError),
+            ("nmr_predict", "x" * 1025, ValueError),
+            ("nmr_predict", [], TypeError),
         ):
             with self.subTest(kind_valid=kind == "nmr_predict"):
-                with self.assertRaises(ValueError) as caught:
+                with self.assertRaises(error_type) as caught:
                     AnalysisOffering(kind, description)
                 self.assertNotIn("PRIVATE", str(caught.exception))
 

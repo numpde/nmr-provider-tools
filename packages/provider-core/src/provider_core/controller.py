@@ -90,7 +90,12 @@ class LiveStartPolicy:
         for name, value in (("cadence_seconds", self.cadence_seconds), ("window_seconds", self.window_seconds)):
             if not (type(value) in (int, float) and math.isfinite(value) and value > 0):
                 raise ValueError(f"Live START {name} must be finite positive seconds")
-        if type(self.maximum_replays) is not int or not 0 <= self.maximum_replays <= 1:
+        if type(self.maximum_replays) is not int:
+            raise TypeError(
+                f"Unexpected {type(self.maximum_replays)=}; "
+                "One live START invocation permits zero or one exact replay"
+            )
+        if not (0 <= self.maximum_replays <= 1):
             raise ValueError("One live START invocation permits zero or one exact replay")
         if not callable(self.on_retry) or not callable(self.on_recovered):
             raise ValueError("Live START requires protected retry and recovery observers")
@@ -162,20 +167,39 @@ class AttemptController:
         admission_stopping=None,
     ):
         claims._require_live_view()
-        if type(scope) is not RecoveryScope or api.origin != scope.api_origin:
+        if type(scope) is not RecoveryScope:
+            raise TypeError(
+                f"Unexpected {type(scope)=}; "
+                "Cannot configure Attempt controller: scope must be an admitted RecoveryScope"
+            )
+        if api.origin != scope.api_origin:
             raise ValueError("Cannot configure Attempt controller: signing origin differs from the selected scope")
         if preverified_input is not None and type(preverified_input) is not VerifiedJobInput:
             raise ValueError("Attempt controller requires the actual verified Job input or an explicit post-START read")
         if type(stopping) is not asyncio.Event or type(start_policy) is not LiveStartPolicy:
-            raise ValueError("Live Attempt controller requires its stop event and admitted LiveStartPolicy")
+            raise TypeError(
+                f"Unexpected {type(stopping)=}, {type(start_policy)=}; "
+                "Live Attempt controller requires its stop event and admitted LiveStartPolicy"
+            )
         if admission_stopping is None:
             admission_stopping = stopping
         if type(admission_stopping) is not asyncio.Event:
-            raise ValueError("Live Attempt admission stopping requires an asyncio Event")
-        if type(maximum_terminal_bytes) is not int or not 16384 <= maximum_terminal_bytes <= 2097152:
+            raise TypeError(
+                f"Unexpected {type(admission_stopping)=}; "
+                "Live Attempt admission stopping requires an asyncio Event"
+            )
+        if type(maximum_terminal_bytes) is not int:
+            raise TypeError(
+                f"Unexpected {type(maximum_terminal_bytes)=}; "
+                "Live terminal allowance must cover 16384 through 2097152 encoded request bytes"
+            )
+        if not (16384 <= maximum_terminal_bytes <= 2097152):
             raise ValueError("Live terminal allowance must cover 16384 through 2097152 encoded request bytes")
         if type(allow_active_start_replay) is not bool:
-            raise ValueError("Live Attempt controller requires an explicit boolean active-replay decision")
+            raise TypeError(
+                f"Unexpected {type(allow_active_start_replay)=}; "
+                "Live Attempt controller requires an explicit boolean active-replay decision"
+            )
         require_execution_settings(
             allowed_job_states=allowed_job_states, poll_seconds=poll_seconds, task_settle_seconds=task_settle_seconds
         )

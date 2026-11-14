@@ -35,7 +35,13 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
         project = tomllib.loads(metadata.read_text())["project"]
         distribution_name = project["name"]
         distribution_version = project["version"]
-        if not isinstance(distribution_name, str) or re.fullmatch(
+        if not (isinstance(distribution_name, str)):
+            raise TypeError(
+                f"Unexpected {type(distribution_name)=}; "
+                f"Cannot install example {metadata.parent.name!r}: distribution "
+                "name must use lowercase letters, digits and single hyphens."
+            )
+        if re.fullmatch(
             r"[a-z0-9]+(?:-[a-z0-9]+)*", distribution_name
         ) is None:
             raise ValueError(
@@ -47,7 +53,13 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
                 f"Cannot install example {distribution_name!r}: distribution "
                 "names must be unique and must not shadow provider-core."
             )
-        if not isinstance(distribution_version, str) or re.fullmatch(
+        if not (isinstance(distribution_version, str)):
+            raise TypeError(
+                f"Unexpected {type(distribution_version)=}; "
+                f"Cannot install example {distribution_name!r}: "
+                "a three-part version is required."
+            )
+        if re.fullmatch(
             r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",
             distribution_version,
         ) is None:

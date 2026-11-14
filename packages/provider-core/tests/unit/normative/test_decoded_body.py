@@ -115,13 +115,16 @@ class DecodedBodyTests(unittest.TestCase):
                 DecodedBody(((b"content-encoding", coding),), maximum_bytes=32)
             self.assertEqual(caught.exception.reason, "unsupported_encoding")
             self.assertNotIn("private-coding-sentinel", str(caught.exception))
-        for reason in ("private-reason-sentinel", [], None):
-            with self.assertRaises(ValueError):
+        for reason, error_type in (("private-reason-sentinel", ValueError), ([], TypeError), (None, TypeError)):
+            with self.assertRaises(error_type):
                 DecodedBodyRejected(reason)
 
     def test_configuration_errors_and_reuse_are_local_defects(self):
-        for limit in (0, -1, True, 1.5, sys.maxsize, sys.maxsize + 1):
-            with self.subTest(limit=limit), self.assertRaises(ValueError):
+        for limit, error_type in (
+            (0, ValueError), (-1, ValueError), (True, TypeError), (1.5, TypeError),
+            (sys.maxsize, ValueError), (sys.maxsize + 1, ValueError),
+        ):
+            with self.subTest(limit=limit), self.assertRaises(error_type):
                 DecodedBody((), maximum_bytes=limit)
         decoder = DecodedBody((), maximum_bytes=1)
         self.assertEqual(decoder.feed(b"x"), b"x")

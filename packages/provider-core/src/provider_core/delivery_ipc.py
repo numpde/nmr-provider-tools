@@ -202,7 +202,7 @@ class DeliveryInbox:
                     endpoint.api_origin, endpoint.provider_ref, headers.get(b"nmr-job-ref"), parts[3],
                     TerminalOperation(parts[2]), body,
                 )
-            except ValueError:
+            except (TypeError, ValueError):
                 raise DeliveryRequestRejected("Delivery refused an invalid terminal operation, identity or request body; correct the producer request.") from None
             accepted = await self.storage(self.queue.enqueue, item)
             self.on_accepted(endpoint)

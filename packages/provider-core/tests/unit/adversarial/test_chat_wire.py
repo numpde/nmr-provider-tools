@@ -177,7 +177,7 @@ class ChatWireAvailabilityTests(unittest.TestCase):
             with self.subTest(version=version):
                 document = response_message(HttpResponse(200, (), b"{}"))
                 document["version"] = version
-                with self.assertRaises(ValueError):
+                with self.assertRaises(TypeError):
                     read_reply(document, maximum_bytes=32, error_maximum_bytes=16)
 
 

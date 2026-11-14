@@ -85,7 +85,10 @@ class DeliveryOutcome:
         require_job_ref(self.job_ref)
         require_attempt_ref(self.execution_attempt_ref)
         if type(self.operation) is not TerminalOperation:
-            raise ValueError("Delivery requires an explicit complete or fail operation.")
+            raise TypeError(
+                f"Unexpected {type(self.operation)=}; "
+                "Delivery requires an explicit complete or fail operation."
+            )
         parser = read_complete_body if self.operation is TerminalOperation.COMPLETE else read_fail_body
         parser(self.body, execution_attempt_ref=self.execution_attempt_ref)
 
@@ -129,7 +132,10 @@ class DeliveryQueue:
 
     def __init__(self, directory, *, limits):
         if type(limits) is not QueueLimits:
-            raise ValueError("Delivery storage requires explicit queue limits.")
+            raise TypeError(
+                f"Unexpected {type(limits)=}; "
+                "Delivery storage requires explicit queue limits."
+            )
         self.limits, self.directory = limits, directory
         self._serial = threading.RLock()
         self._db, self._lock, self._failure = None, None, None
@@ -226,7 +232,10 @@ class DeliveryQueue:
     def enqueue_handoff(self, handoff):
         from provider_core.delivery_handoff import DeliveryHandoff
         if type(handoff) is not DeliveryHandoff:
-            raise ValueError("Delivery requires a complete publication handoff.")
+            raise TypeError(
+                f"Unexpected {type(handoff)=}; "
+                "Delivery requires a complete publication handoff."
+            )
         return self._enqueue(handoff.outcome, handoff.publication_bytes(), handoff.acceptance())
 
     def _enqueue(self, item, publication, acceptance):
@@ -289,7 +298,10 @@ class DeliveryQueue:
         from provider_core.api_config import ApiPublicationMaterial, api_settings_from_material
         from provider_core.delivery_handoff import publication_bytes
         if type(material) is not ApiPublicationMaterial:
-            raise ValueError("Legacy delivery requires its original publication material.")
+            raise TypeError(
+                f"Unexpected {type(material)=}; "
+                "Legacy delivery requires its original publication material."
+            )
         settings, provider_ref = api_settings_from_material(
             material.api_fields(), credential_bytes=material.credential_bytes, ca_bytes=material.ca_bytes
         )
@@ -313,7 +325,7 @@ class DeliveryQueue:
                 item = DeliveryOutcome(api_origin, provider_ref, row[0], row[1], TerminalOperation(row[2]), row[3])
                 if item.body_sha256 != row[4]:
                     raise ValueError("Stored delivery body does not match its retained SHA-256.")
-            except ValueError as cause:
+            except (TypeError, ValueError) as cause:
                 raise DeliveryStorageFailed("Cannot publish corrupted delivery storage; preserve the row for operator reconciliation.", cause=cause) from None
             return item
 
@@ -407,7 +419,12 @@ class DeliveryQueue:
 
     def hold(self, item, reason):
         """Retain a reviewed operator explanation, never raw remote response text."""
-        if type(reason) is not str or not 1 <= len(reason) <= 512:
+        if type(reason) is not str:
+            raise TypeError(
+                f"Unexpected {type(reason)=}; "
+                "A held delivery requires a bounded operator explanation."
+            )
+        if not (1 <= len(reason) <= 512):
             raise ValueError("A held delivery requires a bounded operator explanation.")
         with self._transaction("hold a request in"):
             cursor = self._db.execute("UPDATE outstanding SET state='held',held_reason=? WHERE api_origin=? AND provider_ref=? AND attempt_ref=? AND job_ref=? AND operation=? AND body=?", (reason, *self._match(item)))
@@ -420,7 +437,12 @@ class DeliveryQueue:
             raise ValueError("Discard requires the configured canonical API origin.")
         require_provider_ref(provider_ref)
         require_attempt_ref(attempt_ref)
-        if type(body_sha256) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", body_sha256) is None:
+        if type(body_sha256) is not str:
+            raise TypeError(
+                f"Unexpected {type(body_sha256)=}; "
+                "Discard requires the held payload's exact SHA-256 from its metadata."
+            )
+        if re.fullmatch(r"sha256:[0-9a-f]{64}", body_sha256) is None:
             raise ValueError("Discard requires the held payload's exact SHA-256 from its metadata.")
         with self._transaction("discard a held request from"):
             cursor = self._db.execute(

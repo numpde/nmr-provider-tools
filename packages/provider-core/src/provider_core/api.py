@@ -128,7 +128,12 @@ def require_api_topology(value):
     API pin above, nmr_api/edge_topology.py::EdgeTopology. In particular, the
     credential profile 'run' is not the response topology 'web'. No default.
     """
-    if type(value) is not str or value not in {"dev-local", "dev", "web"}:
+    if type(value) is not str:
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "Cannot configure Provider API: expected topology must be dev-local, dev or web"
+        )
+    if value not in {"dev-local", "dev", "web"}:
         raise ValueError("Cannot configure Provider API: expected topology must be dev-local, dev or web")
     return value
 
@@ -696,10 +701,16 @@ class ProviderAPI:
         these observations from its authenticated feed before calling this method.
         """
         if type(feed) is not FeedInputFacts:
-            raise ValueError("Cannot read Job input: admitted feed identity is required")
-        if (
-            not (type(analysis_kind_ref) is str and len(analysis_kind_ref) <= 128 and re.fullmatch('[a-z][a-z0-9]*(?:_[a-z0-9]+)*', analysis_kind_ref) is not None)
-        ):
+            raise TypeError(
+                f"Unexpected {type(feed)=}; "
+                "Cannot read Job input: admitted feed identity is required"
+            )
+        if not (type(analysis_kind_ref) is str):
+            raise TypeError(
+                f"Unexpected {type(analysis_kind_ref)=}; "
+                "Cannot read Job input: analysis kind must be a lower snake-case catalog key of at most 128 characters"
+            )
+        if not (len(analysis_kind_ref) <= 128 and re.fullmatch('[a-z][a-z0-9]*(?:_[a-z0-9]+)*', analysis_kind_ref) is not None):
             raise ValueError(
                 "Cannot read Job input: analysis kind must be a lower snake-case catalog key of at most 128 characters"
             )

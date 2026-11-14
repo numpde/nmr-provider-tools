@@ -88,12 +88,14 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     )
     projected_artifact = tomllib.loads(projected_lock.read_text())["packages"][0]["wheels"][0]
     projected_hashes = projected_artifact.get("hashes")
-    if (
-        projected_artifact.get("path") != "/wheels/" + packaging_wheel_name
-        or "url" in projected_artifact
-        or type(projected_hashes) is not dict
-        or projected_hashes.get("sha256") != packaging_digest
-    ):
+    if projected_artifact.get("path") != "/wheels/" + packaging_wheel_name or "url" in projected_artifact:
+        raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
+    if type(projected_hashes) is not dict:
+        raise TypeError(
+            f"Unexpected {type(projected_hashes)=}; "
+            "Cannot qualify wheelhouse bundle: projected hashes must be an object."
+        )
+    if projected_hashes.get("sha256") != packaging_digest:
         raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
 
     dockerfile = scratch / "Dockerfile"
@@ -192,7 +194,12 @@ def qualify_wheelhouse_bundle(bundle, scratch):
 
 def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
     """Validate the pinned source inventory before extracting or importing code."""
-    if type(expected_source_files) is not dict or not expected_source_files:
+    if type(expected_source_files) is not dict:
+        raise TypeError(
+            f"Unexpected {type(expected_source_files)=}; "
+            "Cannot qualify acquisition source bundle: source inventory must be an object."
+        )
+    if not (expected_source_files):
         raise ValueError("Cannot qualify acquisition source bundle: missing source inventory.")
 
     with tarfile.open(bundle, "r:gz") as archive:
@@ -213,12 +220,12 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
                 )
 
             expected_member = expected_source_files.get(member.name)
-            if (
-                type(expected_member) is not dict
-                or set(expected_member) != {"sha256", "size", "mode"}
-                or member.size != expected_member["size"]
-                or member.mode != expected_member["mode"]
-            ):
+            if type(expected_member) is not dict:
+                raise TypeError(
+                    f"Unexpected {type(expected_member)=}; "
+                    "Cannot qualify acquisition source bundle: member inventory must be an object."
+                )
+            if set(expected_member) != {"sha256", "size", "mode"} or member.size != expected_member["size"] or member.mode != expected_member["mode"]:
                 raise ValueError(
                     "Cannot qualify acquisition source bundle: member differs from source inventory."
                 )
@@ -310,22 +317,29 @@ def unpack_source(archive, destination, version):
 
 
 def source_payload(source, inventory):
-    if type(inventory) is not dict or not inventory:
+    if type(inventory) is not dict:
+        raise TypeError(
+            f"Unexpected {type(inventory)=}; "
+            "Cannot qualify package: the pre-build source inventory must be an object."
+        )
+    if not (inventory):
         raise ValueError("Cannot qualify package: the pre-build source inventory is missing.")
 
     for (name, facts) in inventory.items():
         member_path = PurePosixPath(name)
-        if (
-            member_path.is_absolute()
-            or ".." in member_path.parts
-            or member_path.as_posix() != name
-            or not (
-                name in {"README.md", "MANIFEST.in", "pyproject.toml"}
-                or name.startswith(("src/provider_core/", "tests/"))
+        if member_path.is_absolute() or ".." in member_path.parts or member_path.as_posix() != name or not (name in {"README.md", "MANIFEST.in", "pyproject.toml"}
+                or name.startswith(("src/provider_core/", "tests/"))):
+            raise ValueError(
+                "Cannot qualify package: the recorded source inventory "
+                "has unsupported entries."
             )
-            or type(facts) is not dict
-            or set(facts) != {"sha256", "size", "mode"}
-        ):
+        if type(facts) is not dict:
+            raise TypeError(
+                f"Unexpected {type(facts)=}; "
+                "Cannot qualify package: the recorded source inventory "
+                "has unsupported entries."
+            )
+        if set(facts) != {"sha256", "size", "mode"}:
             raise ValueError(
                 "Cannot qualify package: the recorded source inventory "
                 "has unsupported entries."

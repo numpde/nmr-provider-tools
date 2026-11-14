@@ -22,7 +22,12 @@ from provider_core.upload_response import require_job_ref
 
 
 def require_provider_attempt_key(value):
-    if type(value) is not str or re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", value) is None:
+    if type(value) is not str:
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "Provider attempt key must contain 1 through 128 ASCII letters, digits, dots, underscores, colons or hyphens"
+        )
+    if re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", value) is None:
         raise ValueError(
             "Provider attempt key must contain 1 through 128 ASCII letters, digits, dots, underscores, colons or hyphens"
         )
@@ -48,7 +53,12 @@ def require_start_body(body, *, job_ref):
         document = read_document(body, 4096)
     except ResponseRejected as cause:
         raise ValueError(f"Cannot start Execution Attempt: retained request is invalid: {cause}") from None
-    if type(document) is not dict or set(document) != {"schema_id", "job_ref", "provider_attempt_key"}:
+    if type(document) is not dict:
+        raise TypeError(
+            f"Unexpected {type(document)=}; "
+            "Cannot start Execution Attempt: retained request fields do not match the start schema"
+        )
+    if set(document) != {"schema_id", "job_ref", "provider_attempt_key"}:
         raise ValueError("Cannot start Execution Attempt: retained request fields do not match the start schema")
     if document["schema_id"] != "nmr.provider.execution_attempt_start_request.v1" or document["job_ref"] != job_ref:
         raise ValueError("Cannot start Execution Attempt: retained request schema or Job differs from the expected start")
@@ -56,7 +66,12 @@ def require_start_body(body, *, job_ref):
 
 
 def require_analysis_kind(value):
-    if not (type(value) is str and len(value) <= 128 and re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) is not None):
+    if not (type(value) is str):
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "Analysis kind must be a lower snake-case catalog key of at most 128 characters"
+        )
+    if not (len(value) <= 128 and re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) is not None):
         raise ValueError("Analysis kind must be a lower snake-case catalog key of at most 128 characters")
 
 
@@ -88,19 +103,34 @@ def progress_body(phase, condition_code):
 
 
 def require_provider_ref(value):
-    if type(value) is not str or re.fullmatch(r"provider:[A-Za-z0-9_.-]{1,119}", value) is None:
+    if type(value) is not str:
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "Provider reference must be provider: followed by 1 through 119 letters, digits, underscores, dots or hyphens"
+        )
+    if re.fullmatch(r"provider:[A-Za-z0-9_.-]{1,119}", value) is None:
         raise ValueError(
             "Provider reference must be provider: followed by 1 through 119 letters, digits, underscores, dots or hyphens"
         )
 
 
 def _scalar_text(value, label):
-    if type(value) is not str or not 1 <= len(value) <= 1024 or any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value):
+    if type(value) is not str:
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            f"Cannot publish Attempt outcome: {label} must contain 1 through 1024 Unicode scalar values without NUL"
+        )
+    if not (1 <= len(value) <= 1024) or any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value):
         raise ValueError(f"Cannot publish Attempt outcome: {label} must contain 1 through 1024 Unicode scalar values without NUL")
 
 
 def _failure_code(value):
-    if not (type(value) is str and len(value) <= 128 and re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) is not None):
+    if not (type(value) is str):
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "Cannot publish Attempt failure: code must be lower snake-case ASCII of at most 128 characters"
+        )
+    if not (len(value) <= 128 and re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) is not None):
         raise ValueError("Cannot publish Attempt failure: code must be lower snake-case ASCII of at most 128 characters")
 
 
@@ -112,7 +142,12 @@ def complete_body(execution_attempt_ref, result_schema_id, result):
     """
     require_attempt_ref(execution_attempt_ref)
     _scalar_text(result_schema_id, "result schema identity")
-    if type(result) is not bytes or not 1 <= len(result) <= 786432:
+    if type(result) is not bytes:
+        raise TypeError(
+            f"Unexpected {type(result)=}; "
+            "Cannot publish Attempt result: content must be immutable bytes with length 1 through 786432"
+        )
+    if not (1 <= len(result) <= 786432):
         raise ValueError("Cannot publish Attempt result: content must be immutable bytes with length 1 through 786432")
     return json.dumps(
         {
@@ -151,7 +186,12 @@ def _outcome_document(body, operation, limit, execution_attempt_ref, fields):
         document = read_document(body, limit)
     except ResponseRejected as cause:
         raise ValueError(f"Cannot publish Attempt outcome: retained request is invalid: {cause}") from None
-    if type(document) is not dict or set(document) != {"schema_id", "execution_attempt_ref", *fields}:
+    if type(document) is not dict:
+        raise TypeError(
+            f"Unexpected {type(document)=}; "
+            "Cannot publish Attempt outcome: retained fields do not match the terminal request schema"
+        )
+    if set(document) != {"schema_id", "execution_attempt_ref", *fields}:
         raise ValueError("Cannot publish Attempt outcome: retained fields do not match the terminal request schema")
     if (
         document["schema_id"] != f"nmr.provider.execution_attempt_{operation}_request.v1"
@@ -168,7 +208,12 @@ def read_complete_body(body, *, execution_attempt_ref):
     )
     _scalar_text(document["result_schema_id"], "result schema identity")
     encoded = document["canonical_result_base64"]
-    if type(encoded) is not str or not 1 <= len(encoded) <= 1048576:
+    if type(encoded) is not str:
+        raise TypeError(
+            f"Unexpected {type(encoded)=}; "
+            "Cannot publish Attempt result: base64 content must contain 1 through 1048576 characters"
+        )
+    if not (1 <= len(encoded) <= 1048576):
         raise ValueError("Cannot publish Attempt result: base64 content must contain 1 through 1048576 characters")
     try:
         result = b64decode(encoded, validate=True)

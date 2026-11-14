@@ -121,3 +121,11 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         path.write_text('{"name":"first","name":"second"}')
         with self.assertRaisesRegex(ValueError, "duplicate field"):
             installer.release(path)
+
+    def test_release_distinguishes_field_types_from_unsupported_values(self):
+        for changes in ({"name": []}, {"sha256": 1}, {"size": True}, {"url": None}):
+            with self.subTest(changes=changes), self.assertRaises(TypeError):
+                installer.validate_release(self.record | changes)
+        for changes in ({"name": "../outside.whl"}, {"sha256": "bad"}, {"size": 0}, {"url": "http://files.pythonhosted.org/pip.whl"}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                installer.validate_release(self.record | changes)

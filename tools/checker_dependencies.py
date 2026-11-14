@@ -38,15 +38,30 @@ def unique_fields(pairs):
 def declaration(path):
     with regular_file(path) as stream:
         document = json.load(stream, object_pairs_hook=unique_fields)
-    if not isinstance(document, dict) or set(document) != {"platform", "packages"}:
+    if not (isinstance(document, dict)):
+        raise TypeError(
+            f"Unexpected {type(document)=}; "
+            "Cannot admit checker dependencies: expected platform and packages fields."
+        )
+    if set(document) != {"platform", "packages"}:
         raise ValueError("Cannot admit checker dependencies: expected platform and packages fields.")
-    if document["platform"] != "linux/amd64" or not isinstance(document["packages"], list):
+    if document["platform"] != "linux/amd64":
         raise ValueError("Cannot admit checker dependencies: expected Linux/amd64 package list.")
+    if not (isinstance(document["packages"], list)):
+        raise TypeError(
+            f"Unexpected {type(document['packages'])=}; "
+            "Cannot admit checker dependencies: expected Linux/amd64 package list."
+        )
     packages = document["packages"]
     if len(packages) != 1:
         raise ValueError("Cannot admit checker dependencies: this checker requires exactly GNU Make.")
     package = packages[0]
-    if not isinstance(package, dict) or set(package) != {"name", "version", "file", "url", "size", "sha256"}:
+    if not (isinstance(package, dict)):
+        raise TypeError(
+            f"Unexpected {type(package)=}; "
+            "Cannot admit checker dependency: package identity fields differ."
+        )
+    if set(package) != {"name", "version", "file", "url", "size", "sha256"}:
         raise ValueError("Cannot admit checker dependency: package identity fields differ.")
     if not all(isinstance(package[key], str) for key in ("name", "version", "file", "url", "sha256")):
         raise ValueError("Cannot admit checker dependency: identity fields must be strings.")
@@ -55,7 +70,12 @@ def declaration(path):
     filename = f"make_{package['version'].split(':', 1)[-1]}_amd64.deb"
     if package["file"] != filename or package["url"] != f"https://deb.debian.org/debian/pool/main/m/make-dfsg/{filename}":
         raise ValueError("Cannot admit checker dependency: URL must name the declared Debian Make artifact.")
-    if not (type(package["size"]) is int and 0 < package["size"] and re.fullmatch(r"[0-9a-f]{64}", package["sha256"]) is not None):
+    if not (type(package["size"]) is int):
+        raise TypeError(
+            f"Unexpected {type(package['size'])=}; "
+            "Cannot admit checker dependency: expected a positive byte count and SHA-256."
+        )
+    if not (0 < package["size"] and re.fullmatch(r"[0-9a-f]{64}", package["sha256"]) is not None):
         raise ValueError("Cannot admit checker dependency: expected a positive byte count and SHA-256.")
     return packages
 

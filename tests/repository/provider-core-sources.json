@@ -2716,7 +2716,10 @@
         "BoundProxyTests.test_private_admission_failures_have_fixed_http_status_and_safe_diagnostics",
         "BoundProxyTests.test_startup_binding_failure_cannot_publish_readiness",
         "BoundProxyTests.test_tiny_header_fragments_preserve_body_and_early_eof_rejects"
-      ]
+      ],
+      "replaced_test_methods": {
+        "BoundProxyTests.test_private_admission_failures_have_fixed_http_status_and_safe_diagnostics": "BoundProxyTests.test_admission_failures_keep_fixed_http_status_and_scrub_credentials"
+      }
     },
     {
       "path": "packages/provider-core/tests/unit/normative/test_provider_proxy.py",
@@ -2755,7 +2758,10 @@
         "ServiceProxyRefusalTests.test_policy_refuses_ambiguity_and_incomplete_or_extra_local_mappings",
         "ServiceProxyRefusalTests.test_real_dns_decoder_reasons_reach_operator_without_private_packet_or_request_data",
         "ServiceProxyRefusalTests.test_socket_and_readiness_grants_refuse_existing_leaves_or_public_parent"
-      ]
+      ],
+      "replaced_test_methods": {
+        "ServiceProxyRefusalTests.test_owned_dns_reasons_and_native_errno_reach_operator_without_private_dns_text": "ServiceProxyRefusalTests.test_owned_dns_reasons_and_original_query_causes_reach_operator"
+      }
     },
     {
       "path": "packages/provider-core/tests/integration/test_provider_proxy.py",

@@ -34,13 +34,21 @@ SCHEMA = "provider_core.producer_checkpoint.v1"
 def checkpoint_volume_name(scope, *, namespace="nmr-api-delivery"):
     """Keep producer control private to its original API/provider/lane/generation."""
     if type(scope) is not RecoveryScope:
-        raise ValueError("Checkpoint volume naming requires the admitted recovery scope.")
+        raise TypeError(
+            f"Unexpected {type(scope)=}; "
+            "Checkpoint volume naming requires the admitted recovery scope."
+        )
     raw = json.dumps(asdict(scope), sort_keys=True, separators=(",", ":")).encode()
     return namespace + "-control-" + hashlib.sha256(raw).hexdigest()
 
 
 def _require_digest(value):
-    if type(value) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", value) is None:
+    if type(value) is not str:
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "A control checkpoint digest must be a canonical SHA-256 identity."
+        )
+    if re.fullmatch(r"sha256:[0-9a-f]{64}", value) is None:
         raise ValueError("A control checkpoint digest must be a canonical SHA-256 identity.")
 
 
@@ -53,13 +61,21 @@ class EvidenceDigest:
     def __post_init__(self):
         _scalar_text(self.schema_id, "prepared identity schema")
         _require_digest(self.sha256)
-        if not (type(self.byte_length) is int and 1 <= self.byte_length):
+        if not (type(self.byte_length) is int):
+            raise TypeError(
+                f"Unexpected {type(self.byte_length)=}; "
+                "A prepared identity digest requires its positive byte length."
+            )
+        if not (1 <= self.byte_length):
             raise ValueError("A prepared identity digest requires its positive byte length.")
 
     @classmethod
     def from_evidence(cls, evidence):
         if type(evidence) is not ProtectedEvidence:
-            raise ValueError("Digest the actual protected prepared identity before retaining control metadata.")
+            raise TypeError(
+                f"Unexpected {type(evidence)=}; "
+                "Digest the actual protected prepared identity before retaining control metadata."
+            )
         return cls(evidence.schema_id, "sha256:" + hashlib.sha256(evidence.content).hexdigest(), len(evidence.content))
 
 
@@ -72,7 +88,10 @@ class AcknowledgedCheckpoint:
 
     def __post_init__(self):
         if type(self.start) is not StartPending:
-            raise ValueError("An acknowledgement checkpoint requires its exact pending START.")
+            raise TypeError(
+                f"Unexpected {type(self.start)=}; "
+                "An acknowledgement checkpoint requires its exact pending START."
+            )
         read_start(_admission_bytes(self.admission), job_ref=self.start.input.job_ref,
                    analysis_kind_ref=self.start.analysis_kind_ref, provider_ref=self.start.scope.provider_ref)
 
@@ -83,9 +102,18 @@ class EnteredCheckpoint:
     prepared: EvidenceDigest
 
     def __post_init__(self):
-        if (type(self.acknowledgement) is not AcknowledgedCheckpoint
-                or self.acknowledgement.admission.state != "in_progress" or type(self.prepared) is not EvidenceDigest):
+        if type(self.acknowledgement) is not AcknowledgedCheckpoint:
+            raise TypeError(
+                f"Unexpected {type(self.acknowledgement)=}; "
+                "Execution entry requires an active acknowledgement and only its prepared identity digest."
+            )
+        if self.acknowledgement.admission.state != "in_progress":
             raise ValueError("Execution entry requires an active acknowledgement and only its prepared identity digest.")
+        if type(self.prepared) is not EvidenceDigest:
+            raise TypeError(
+                f"Unexpected {type(self.prepared)=}; "
+                "Execution entry requires an active acknowledgement and only its prepared identity digest."
+            )
 
 
 def checkpoint_acknowledgement(checkpoint):
@@ -121,9 +149,17 @@ class TerminalSelectedCheckpoint:
     def __post_init__(self):
         _require_active(self.attempt)
         if type(self.operation) is not TerminalOperation:
-            raise ValueError("Terminal selection requires an explicit complete or fail operation.")
+            raise TypeError(
+                f"Unexpected {type(self.operation)=}; "
+                "Terminal selection requires an explicit complete or fail operation."
+            )
         _require_digest(self.body_sha256)
-        if not (type(self.body_bytes) is int and 1 <= self.body_bytes):
+        if not (type(self.body_bytes) is int):
+            raise TypeError(
+                f"Unexpected {type(self.body_bytes)=}; "
+                "Terminal selection requires the chosen command's positive byte length."
+            )
+        if not (1 <= self.body_bytes):
             raise ValueError("Terminal selection requires the chosen command's positive byte length.")
 
 
@@ -135,7 +171,10 @@ class DeliveryAcceptedCheckpoint:
 
     def __post_init__(self):
         if type(self.selection) is not TerminalSelectedCheckpoint:
-            raise ValueError("Delivery acceptance requires the original selected command identity.")
+            raise TypeError(
+                f"Unexpected {type(self.selection)=}; "
+                "Delivery acceptance requires the original selected command identity."
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,7 +187,10 @@ class SuppressedCheckpoint:
     def __post_init__(self):
         _require_active(self.attempt)
         if type(self.reason) is not SuppressionReason:
-            raise ValueError("Suppression requires the owned disposition, without scientific payloads.")
+            raise TypeError(
+                f"Unexpected {type(self.reason)=}; "
+                "Suppression requires the owned disposition, without scientific payloads."
+            )
 
 
 

@@ -76,7 +76,12 @@ def read_status(path, role):
     finally:
         os.close(descriptor)
     fields = {"role", "pid", "start_ticks", "updated_monotonic", "phase"}
-    if type(value) is not dict or set(value) not in (fields, fields | {"details"}):
+    if type(value) is not dict:
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "Process status has an unsupported shape."
+        )
+    if set(value) not in (fields, fields | {"details"}):
         raise ValueError("Process status has an unsupported shape.")
     if "details" in value and type(value["details"]) is not dict:
         raise ValueError("Process status details must be an object.")
@@ -128,7 +133,7 @@ def main():
                 if details.get("queue") is not None and details["queue"].get("oldest_pending_age_seconds") is not None:
                     details["queue"]["oldest_pending_age_seconds"] += age
                 print(json.dumps({"observation_age_seconds": age, **details}, sort_keys=True, allow_nan=False))
-    except (OSError, ValueError, KeyError) as cause:
+    except (OSError, TypeError, ValueError, KeyError) as cause:
         parser.exit(1, f"Process readiness not confirmed: {cause}\n")
 
 

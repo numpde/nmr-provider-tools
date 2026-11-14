@@ -22,7 +22,12 @@ MAX_PAGE_ITEMS = 100
 def require_cursor(value):
     if value is None:
         return
-    if type(value) is not str or re.fullmatch(r"[A-Za-z0-9_-]+", value) is None:
+    if type(value) is not str:
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "Cursor must be canonical unpadded base64url text or None for the first page"
+        )
+    if re.fullmatch(r"[A-Za-z0-9_-]+", value) is None:
         raise ValueError("Cursor must be canonical unpadded base64url text or None for the first page")
     try:
         decoded = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
@@ -33,7 +38,12 @@ def require_cursor(value):
 
 
 def paging_query(*, limit, cursor):
-    if type(limit) is not int or not 1 <= limit <= MAX_PAGE_ITEMS:
+    if type(limit) is not int:
+        raise TypeError(
+            f"Unexpected {type(limit)=}; "
+            "Page limit must be an integer from 1 through 100"
+        )
+    if not (1 <= limit <= MAX_PAGE_ITEMS):
         raise ValueError("Page limit must be an integer from 1 through 100")
     require_cursor(cursor)
     query = f"limit={limit}"

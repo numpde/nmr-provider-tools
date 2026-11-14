@@ -54,6 +54,7 @@ class AttemptStartFailureTests(unittest.IsolatedAsyncioTestCase):
             {"analysis_kind_ref": "other"},
             {"provider_ref": "provider:other"},
             {"execution_attempt_ref": "bad"},
+            {"execution_attempt_ref": []},
             {"replayed": 1},
             {"state": []},
             {"extra": "private-canary"},

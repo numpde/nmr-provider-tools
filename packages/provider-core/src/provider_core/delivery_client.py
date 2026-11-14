@@ -157,7 +157,7 @@ class DeliveryClient:
         try:
             require_attempt_ref(value["execution_attempt_ref"])
             require_job_ref(value["job_ref"])
-        except ValueError as cause:
+        except (TypeError, ValueError) as cause:
             raise DeliveryRejected("Delivery metadata has an invalid Job or Attempt identity.") from cause
         if (value["operation"] not in ("complete", "fail") or value["state"] not in ("pending", "held")
                 or type(value["body_sha256"]) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", value["body_sha256"]) is None

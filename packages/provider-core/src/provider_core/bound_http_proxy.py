@@ -504,7 +504,12 @@ class ConnectionAdmission:
         self.set_limit(limit)
 
     def set_limit(self, limit):
-        if not (type(limit) is int and limit > 0):
+        if not (type(limit) is int):
+            raise TypeError(
+                f"Unexpected {type(limit)=}; "
+                "Proxy connection capacity must be a positive integer."
+            )
+        if not (limit > 0):
             raise ValueError("Proxy connection capacity must be a positive integer.")
         with self._lock:
             self._limit = limit

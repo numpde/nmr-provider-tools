@@ -52,7 +52,10 @@ class TextCorrection:
         if self.user_content is None:
             return
         if type(self.user_content) is not str:
-            raise TypeError("Text correction requires a user instruction supplied as text or None.")
+            raise TypeError(
+                f"Unexpected {type(self.user_content)=}; "
+                "Text correction requires a user instruction supplied as text or None."
+            )
         if not self.user_content:
             raise ValueError("Text correction requires a nonempty user instruction.")
 
@@ -133,7 +136,12 @@ def independent_interruption_failure(failure):
 
 def require_turn_limit(max_turns):
     """Admit the conversation budget before startup acquires model carriers."""
-    if not (type(max_turns) is int and 0 < max_turns):
+    if not (type(max_turns) is int):
+        raise TypeError(
+            f"Unexpected {type(max_turns)=}; "
+            "Cannot configure interpretation: the total model-turn limit must be a positive integer."
+        )
+    if not (0 < max_turns):
         raise ValueError("Cannot configure interpretation: the total model-turn limit must be a positive integer.")
 
 
@@ -157,15 +165,34 @@ class ToolConversation:
     """
 
     def __init__(self, endpoints, *, max_turns, secrets, text_correction=None, argument_bytes=None, max_corrections=None):
-        if type(endpoints) is not tuple or not endpoints:
+        if type(endpoints) is not tuple:
+            raise TypeError(
+                f"Unexpected {type(endpoints)=}; "
+                "Cannot configure interpretation: provide a nonempty ordered tuple of endpoints."
+            )
+        if not (endpoints):
             raise ValueError("Cannot configure interpretation: provide a nonempty ordered tuple of endpoints.")
         require_turn_limit(max_turns)
         if max_corrections is not None:
             require_turn_limit(max_corrections)
-        if type(secrets) is not tuple or any(type(secret) is not str or not secret for secret in secrets):
-            raise TypeError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
+        if type(secrets) is not tuple:
+            raise TypeError(
+                f"Unexpected {type(secrets)=}; "
+                "Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings."
+            )
+        for secret in secrets:
+            if type(secret) is not str:
+                raise TypeError(
+                    f"Unexpected {type(secret)=}; "
+                    "Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings."
+                )
+        if any(not secret for secret in secrets):
+            raise ValueError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
         if text_correction is not None and type(text_correction) is not TextCorrection:
-            raise TypeError("Cannot configure interpretation: text_correction must be TextCorrection or None.")
+            raise TypeError(
+                f"Unexpected {type(text_correction)=}; "
+                "Cannot configure interpretation: text_correction must be TextCorrection or None."
+            )
         if argument_bytes is not None and (type(argument_bytes) is not int or argument_bytes <= 0):
             raise ValueError("Cannot configure interpretation: argument_bytes must be a positive integer or None.")
         self._endpoints, self._max_turns = endpoints, max_turns
@@ -337,7 +364,10 @@ class ToolConversation:
                     outcome.reason, self._observation(), tuple(self.endpoint_failures), tuple(self.correction_failures)
                 )
             if type(outcome) is not ToolReply:
-                raise TypeError("Interpreter tool dispatch must return ToolReply, ToolFinished or ToolHandoff.")
+                raise TypeError(
+                    f"Unexpected {type(outcome)=}; "
+                    "Interpreter tool dispatch must return ToolReply, ToolFinished or ToolHandoff."
+                )
             self._feedback(call["id"], outcome.value)
         # silent-defaults: allow-contract -- Absent usable correction text reports exhaustion without choosing another endpoint or input.
         reason = self.last_rejection or "No tool submitted a supported input."

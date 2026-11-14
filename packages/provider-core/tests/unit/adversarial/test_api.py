@@ -23,9 +23,9 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_invalid_kind_never_reaches_transport(self):
-        for kind in ("kind:prediction", "a&job=elsewhere", "a" * 129, None):
+        for kind, error_type in (("kind:prediction", ValueError), ("a&job=elsewhere", ValueError), ("a" * 129, ValueError), (None, TypeError)):
             transport = Transport()
-            with self.subTest(kind=kind), self.assertRaises(ValueError):
+            with self.subTest(kind=kind), self.assertRaises(error_type):
                 await self.api(transport).job_input(facts(), analysis_kind_ref=kind)
             self.assertEqual(transport.calls, [])
 

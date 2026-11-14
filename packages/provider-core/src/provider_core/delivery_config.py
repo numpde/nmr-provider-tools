@@ -84,5 +84,5 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
         raise
     except OverflowError as cause:
         raise DeliveryConfigurationRejected("time limits must fit the runtime's finite seconds representation.", cause=cause) from None
-    except ValueError as cause:
+    except (TypeError, ValueError) as cause:
         raise DeliveryConfigurationRejected(str(cause), cause=cause) from None

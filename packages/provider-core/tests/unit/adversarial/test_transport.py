@@ -192,12 +192,12 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(write.call_count, 1)
 
     async def test_invalid_file_descriptor_refuses_before_network_effects(self):
-        for descriptor in (-1, True, None, "private path"):
+        for descriptor, error_type in ((-1, ValueError), (True, TypeError), (None, TypeError), ("private path", TypeError)):
             with (
                 self.subTest(kind=type(descriptor).__name__),
                 patch("provider_core.transport.httpcore.AsyncConnectionPool") as factory,
             ):
-                with self.assertRaises(ValueError):
+                with self.assertRaises(error_type):
                     await self.transport().exchange_file(
                         httpx.Request("GET", "https://api.example/input"), output_fd=descriptor, maximum_bytes=4
                     )
@@ -336,8 +336,11 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(transport.retirement_confirmed)
 
     async def test_invalid_unix_socket_paths_refuse_before_client_creation_without_echoing_them(self):
-        for path in ("", "PRIVATE relative", "/PRIVATE\x00socket", "/" + "x" * 107, "/PRIVATE\ud800", 7):
-            with self.subTest(kind=type(path).__name__), self.assertRaises(ValueError) as caught:
+        for path, error_type in (
+            ("", ValueError), ("PRIVATE relative", ValueError), ("/PRIVATE\x00socket", ValueError),
+            ("/" + "x" * 107, ValueError), ("/PRIVATE\ud800", ValueError), (7, TypeError),
+        ):
+            with self.subTest(kind=type(path).__name__), self.assertRaises(error_type) as caught:
                 HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=1, proxy_socket=path)
             self.assertNotIn("PRIVATE", str(caught.exception))
 

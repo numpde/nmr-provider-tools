@@ -50,7 +50,12 @@ class UploadLimits:
 
     def __post_init__(self):
         for value in (self.per_source_bytes, self.total_bytes, self.requests):
-            if not (type(value) is int and 0 < value):
+            if not (type(value) is int):
+                raise TypeError(
+                    f"Unexpected {type(value)=}; "
+                    "Cannot configure Upload acquisition: byte and request limits must be positive integers"
+                )
+            if not (0 < value):
                 raise ValueError("Cannot configure Upload acquisition: byte and request limits must be positive integers")
         if not (type(self.seconds) in (int, float) and math.isfinite(self.seconds) and 0 < self.seconds):
             raise ValueError("Cannot configure Upload acquisition: duration must be finite positive seconds")
@@ -77,7 +82,12 @@ class UploadRecovery:
     on_retry: object = field(repr=False)
 
     def __post_init__(self):
-        if not (type(self.maximum_attempts) is int and 0 < self.maximum_attempts):
+        if not (type(self.maximum_attempts) is int):
+            raise TypeError(
+                f"Unexpected {type(self.maximum_attempts)=}; "
+                "Upload recovery requires a positive integer attempt limit including the initial attempt"
+            )
+        if not (0 < self.maximum_attempts):
             raise ValueError("Upload recovery requires a positive integer attempt limit including the initial attempt")
         for seconds in (self.initial_seconds, self.maximum_seconds):
             if not (type(seconds) in (int, float) and math.isfinite(seconds) and 0 < seconds):
@@ -85,12 +95,20 @@ class UploadRecovery:
         if not (self.initial_seconds <= self.maximum_seconds):
             raise ValueError("Upload recovery initial wait cannot exceed its maximum wait")
         if not isinstance(self.stopping, asyncio.Event) or not callable(self.on_retry):
-            raise TypeError("Upload recovery requires a scientific stop Event and protected synchronous retry observer")
+            raise TypeError(
+                f"Unexpected {type(self.stopping)=}; "
+                "Upload recovery requires a scientific stop Event and protected synchronous retry observer"
+            )
 
 
 def require_store_origin(value):
     """Require an explicit canonical origin before any bearer can be attached."""
-    if type(value) is not str or any(ord(c) <= 32 or ord(c) >= 127 for c in value):
+    if type(value) is not str:
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "Cannot configure Upload store: origin must be visible ASCII HTTPS text"
+        )
+    if any(ord(c) <= 32 or ord(c) >= 127 for c in value):
         raise ValueError("Cannot configure Upload store: origin must be visible ASCII HTTPS text")
     try:
         url = httpx.URL(value)
@@ -567,9 +585,15 @@ class JobUploads:
     def __init__(self, job_ref, *, api, store, store_origin, limits, recovery=None):
         require_job_ref(job_ref)
         if type(limits) is not UploadLimits:
-            raise TypeError("Cannot configure Upload acquisition: explicit UploadLimits are required")
+            raise TypeError(
+                f"Unexpected {type(limits)=}; "
+                "Cannot configure Upload acquisition: explicit UploadLimits are required"
+            )
         if recovery is not None and type(recovery) is not UploadRecovery:
-            raise TypeError("Cannot configure Upload acquisition: recovery must be an explicit UploadRecovery policy")
+            raise TypeError(
+                f"Unexpected {type(recovery)=}; "
+                "Cannot configure Upload acquisition: recovery must be an explicit UploadRecovery policy"
+            )
         self.job_ref = job_ref
         self._api = api
         self._store = store

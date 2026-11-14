@@ -33,7 +33,10 @@ def native_config(path):
     configuration_bytes = path.read_bytes()
     document = json.loads(configuration_bytes)
     if type(document) is not dict:
-        raise ValueError("The native engine configuration must be a JSON object.")
+        raise TypeError(
+            f"Unexpected {type(document)=}; "
+            "The native engine configuration must be a JSON object."
+        )
     return configuration_bytes, document
 
 
@@ -45,12 +48,18 @@ def configured(document):
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
     builder_settings = proposed_configuration.setdefault("builder", {})
     if type(builder_settings) is not dict:
-        raise ValueError("Native builder configuration is not an object.")
+        raise TypeError(
+            f"Unexpected {type(builder_settings)=}; "
+            "Native builder configuration is not an object."
+        )
 
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
     gc_settings = builder_settings.setdefault("gc", {})
     if type(gc_settings) is not dict:
-        raise ValueError("Native builder.gc configuration is not an object.")
+        raise TypeError(
+            f"Unexpected {type(gc_settings)=}; "
+            "Native builder.gc configuration is not an object."
+        )
     gc_settings.update(DEFAULTS)
     limits(proposed_configuration)
     return proposed_configuration
@@ -58,8 +67,16 @@ def configured(document):
 
 def limits(document):
     gc_settings = document["builder"]["gc"]
-    if type(gc_settings) is not dict or type(gc_settings.get("enabled")) is not bool:
-        raise ValueError("Native builder.gc must explicitly enable or disable cache collection.")
+    if type(gc_settings) is not dict:
+        raise TypeError(
+            f"Unexpected {type(gc_settings)=}; "
+            "Native builder.gc configuration must be an object."
+        )
+    if type(gc_settings.get("enabled")) is not bool:
+        raise TypeError(
+            f"Unexpected {type(gc_settings.get('enabled'))=}; "
+            "Native builder.gc must explicitly enable or disable cache collection."
+        )
     if not gc_settings["enabled"]:
         return None
     if gc_settings.get("policy"):
@@ -188,11 +205,11 @@ def main():
             raise ValueError("Use the maintained cache-GC installation target.")
         return 0
     # silent-defaults: allow-exception-outcome -- Failed installation exits with failure; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_timer_failure_reports_saved_native_policy
-    except (ValueError, RuntimeError) as failure:
+    except (TypeError, ValueError, RuntimeError) as failure:
         print(f"Cannot configure/run engine cache GC: {failure}", file=sys.stderr)
         return 2
     # silent-defaults: allow-exception-outcome -- Host command/config failure exits unsuccessfully; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_invalid_dockerd_candidate_never_replaces_native_json_or_installs_timer
-    except (OSError, subprocess.SubprocessError, AttributeError, KeyError, TypeError):
+    except (OSError, subprocess.SubprocessError, AttributeError, KeyError):
         print("Cannot configure/run engine cache GC: a required file or command failed; inspect the native config and user timer. No engine restart was requested.", file=sys.stderr)
         return 2
 

@@ -25,20 +25,23 @@ class JobFeedFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(len(transport.calls), 1)
 
     async def test_bad_query_dispatches_nothing(self):
-        for field, bad in (("analysis_kind_ref", "wrong kind"), ("limit", True), ("limit", 0), ("limit", 101),
-                           ("has_provider_execution_attempt", 0), ("cursor", "YQ="), ("cursor", "YR"), ("cursor", "")):
+        for field, bad, error_type in (
+            ("analysis_kind_ref", "wrong kind", ValueError), ("limit", True, TypeError), ("limit", 0, ValueError),
+            ("limit", 101, ValueError), ("has_provider_execution_attempt", 0, TypeError),
+            ("cursor", "YQ=", ValueError), ("cursor", "YR", ValueError), ("cursor", "", ValueError),
+        ):
             with self.subTest(field=field, bad=bad):
                 arguments = {"analysis_kind_ref": "nmr_predict", "has_provider_execution_attempt": False, "limit": 1, "cursor": None}
                 arguments[field] = bad
                 transport = Transport()
-                with self.assertRaises(ValueError):
+                with self.assertRaises(error_type):
                     await api(transport, "https://api.example").jobs(**arguments)
                 self.assertEqual(transport.calls, [])
 
     def test_envelope_kind_view_cursor_and_schema_drift_are_rejected(self):
         for field, bad in (("schema_id", "future.v2"), ("analysis_kind_ref", "other_kind"),
                            ("has_provider_execution_attempt", True), ("has_provider_execution_attempt", 0),
-                           ("next_cursor", "YR"), ("next_cursor", "YQ="), ("next_cursor", ""),
+                           ("next_cursor", "YR"), ("next_cursor", "YQ="), ("next_cursor", ""), ("next_cursor", []),
                            ("jobs", {}), ("unexpected", "private canary")):
             with self.subTest(field=field):
                 document = page()

@@ -127,14 +127,21 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
 
         project_metadata = tomllib.loads((source / "pyproject.toml").read_text())
         release_version = project_metadata["project"]["version"]
-        if not (
-            project_metadata["project"]["name"] == "provider-core"
-            and type(release_version) is str
-            and re.fullmatch(
+        if not (project_metadata["project"]["name"] == "provider-core"):
+            raise ValueError(
+                "Cannot build provider-core release: metadata must identify "
+                "provider-core and a three-part release version."
+            )
+        if not (type(release_version) is str):
+            raise TypeError(
+                f"Unexpected {type(release_version)=}; "
+                "Cannot build provider-core release: metadata must identify "
+                "provider-core and a three-part release version."
+            )
+        if not (re.fullmatch(
                 r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",
                 release_version,
-            ) is not None
-        ):
+            ) is not None):
             raise ValueError(
                 "Cannot build provider-core release: metadata must identify "
                 "provider-core and a three-part release version."

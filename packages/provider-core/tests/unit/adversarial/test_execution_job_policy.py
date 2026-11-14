@@ -18,10 +18,13 @@ from tests.fakes.api import api
 class ExecutionJobPolicyFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_unknown_cancelled_empty_or_mutable_policies_are_refused_before_claim_ownership(self):
         store, _, claim = await live_attempt()
-        for states in (None, "open", {"open"}, ["open"], frozenset(), frozenset({"unknown"}),
-                       frozenset({"open", "unknown"}), frozenset({1}),
-                       frozenset({"cancelled"}), frozenset({"open", "cancelled"})):
-            with self.subTest(states=states), self.assertRaises(ValueError):
+        for states, error_type in (
+            (None, TypeError), ("open", TypeError), ({"open"}, TypeError), (["open"], TypeError),
+            (frozenset(), ValueError), (frozenset({"unknown"}), ValueError),
+            (frozenset({"open", "unknown"}), ValueError), (frozenset({1}), ValueError),
+            (frozenset({"cancelled"}), ValueError), (frozenset({"open", "cancelled"}), ValueError),
+        ):
+            with self.subTest(states=states), self.assertRaises(error_type):
                 live_executor(api(Transport(), store.scope.api_origin), store, claim, Session(store),
                                 delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=states, poll_seconds=0.01, task_settle_seconds=0.1)
         claim.release(owner=claim.lifecycle_owner)

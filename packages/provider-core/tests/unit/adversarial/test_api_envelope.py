@@ -29,8 +29,8 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
         transport = Transport()
         with self.assertRaises(TypeError):
             ProviderAPI(self.identity(), transport)
-        for topology in (None, "run", "PRIVATE", True, []):
-            with self.subTest(topology_type=type(topology).__name__), self.assertRaises(ValueError) as caught:
+        for topology, error_type in ((None, TypeError), ("run", ValueError), ("PRIVATE", ValueError), (True, TypeError), ([], TypeError)):
+            with self.subTest(topology_type=type(topology).__name__), self.assertRaises(error_type) as caught:
                 ProviderAPI(self.identity(), transport, expected_topology=topology)
             self.assertNotIn("PRIVATE", str(caught.exception))
         self.assertEqual(transport.calls, [])

@@ -49,7 +49,12 @@ class AttemptStarter:
 
     def __init__(self, api, scope, claim):
         claim.require_live(scope)
-        if type(scope) is not RecoveryScope or api.origin != scope.api_origin:
+        if type(scope) is not RecoveryScope:
+            raise TypeError(
+                f"Unexpected {type(scope)=}; "
+                "Cannot configure Attempt start: scope must be an admitted RecoveryScope"
+            )
+        if api.origin != scope.api_origin:
             raise ValueError("Cannot configure Attempt start: signing origin differs from the selected scope")
         self.api = api
         self.scope = scope

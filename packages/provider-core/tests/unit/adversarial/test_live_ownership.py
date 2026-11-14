@@ -148,8 +148,8 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_terminal_grants_cover_fail_and_respect_the_wire_ceiling(self):
         claims = AttemptClaims.live()
-        for allowance in (True, 0, 16383, 2097153):
-            with self.assertRaises(ValueError):
+        for allowance, error_type in ((True, TypeError), (0, ValueError), (16383, ValueError), (2097153, ValueError)):
+            with self.assertRaises(error_type):
                 claims.claim_live(record(), lifecycle_owner=Owner(), maximum_terminal_bytes=allowance)
         claim = claims.claim_live(record(), lifecycle_owner=Owner(), maximum_terminal_bytes=16384)
         self.assertEqual(16384, claim.maximum_terminal_bytes)

@@ -55,7 +55,12 @@ class ReadGrant:
 
 
 def require_job_ref(value):
-    if type(value) is not str or re.fullmatch(r"job:[A-Za-z0-9_.-]{1,124}", value) is None:
+    if type(value) is not str:
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "Job reference must be job: followed by 1 through 124 letters, digits, underscores, dots or hyphens"
+        )
+    if re.fullmatch(r"job:[A-Za-z0-9_.-]{1,124}", value) is None:
         raise ValueError("Job reference must be job: followed by 1 through 124 letters, digits, underscores, dots or hyphens")
 
 

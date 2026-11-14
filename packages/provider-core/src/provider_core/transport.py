@@ -240,7 +240,12 @@ def _positive_seconds(value):
 
 def require_unix_socket_path(path):
     """Admit the pathname limit shared by the two explicit Unix transports."""
-    if type(path) is not str or not path.startswith("/") or "\0" in path:
+    if type(path) is not str:
+        raise TypeError(
+            f"Unexpected {type(path)=}; "
+            "Cannot configure Unix socket: supply an absolute UTF-8 pathname without NUL."
+        )
+    if not (path.startswith("/")) or "\0" in path:
         raise ValueError("Cannot configure Unix socket: supply an absolute UTF-8 pathname without NUL.")
     try:
         size = len(path.encode("utf-8"))
@@ -254,10 +259,18 @@ def require_unix_socket_path(path):
 # silent-defaults: allow-contract -- Existing signed/API transports require HTTPS; direct model HTTP needs explicit opt-in.
 def require_transport_settings(*, trust, exchange_seconds, retirement_seconds, proxy_socket=None, allow_http=False):
     """Admit TLS and deadlines before composition acquires any transport."""
-    if not isinstance(trust, ssl.SSLContext) or trust.verify_mode != ssl.CERT_REQUIRED or not trust.check_hostname:
+    if not (isinstance(trust, ssl.SSLContext)):
+        raise TypeError(
+            f"Unexpected {type(trust)=}; "
+            "Cannot configure HTTPS exchange: TLS must verify the certificate and hostname"
+        )
+    if trust.verify_mode != ssl.CERT_REQUIRED or not (trust.check_hostname):
         raise ValueError("Cannot configure HTTPS exchange: TLS must verify the certificate and hostname")
     if type(allow_http) is not bool:
-        raise ValueError("Cannot configure HTTP exchange: allow_http must be a boolean")
+        raise TypeError(
+            f"Unexpected {type(allow_http)=}; "
+            "Cannot configure HTTP exchange: allow_http must be a boolean"
+        )
     if allow_http and proxy_socket is not None:
         raise ValueError("Cannot configure HTTP exchange: plain HTTP admission requires a direct transport without a proxy")
     _positive_seconds(exchange_seconds)
@@ -544,7 +557,12 @@ class HttpTransport:
         """
         require_decoded_limit(maximum_bytes)
         require_decoded_limit(error_maximum_bytes)
-        if type(success_status) is not int or not 100 <= success_status <= 599:
+        if type(success_status) is not int:
+            raise TypeError(
+                f"Unexpected {type(success_status)=}; "
+                "Cannot decode HTTP response: success_status must be an integer HTTP status from 100 through 599"
+            )
+        if not (100 <= success_status <= 599):
             raise ValueError("Cannot decode HTTP response: success_status must be an integer HTTP status from 100 through 599")
 
         def decoder_for(head):
@@ -568,7 +586,12 @@ class HttpTransport:
         their presence does not admit an Upload. Acquisition owns verification
         and finalization.
         """
-        if not (type(output_fd) is int and 0 <= output_fd):
+        if not (type(output_fd) is int):
+            raise TypeError(
+                f"Unexpected {type(output_fd)=}; "
+                "Cannot receive HTTP response in a file: output_fd must be a non-negative descriptor"
+            )
+        if not (0 <= output_fd):
             raise ValueError("Cannot receive HTTP response in a file: output_fd must be a non-negative descriptor")
         return await self._exchange(
             request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=output_fd,
@@ -578,7 +601,12 @@ class HttpTransport:
     async def _exchange(self, request, *, maximum_bytes, account_bytes, owner, output_fd, before_body, decoder_factory, not_after):
         if self._active is not None:
             raise ExchangeFailed("Cannot start HTTP exchange: an earlier exchange is active or its retirement is unconfirmed")
-        if not (type(maximum_bytes) is int and 0 <= maximum_bytes):
+        if not (type(maximum_bytes) is int):
+            raise TypeError(
+                f"Unexpected {type(maximum_bytes)=}; "
+                "Cannot receive HTTP response: byte limit must be a non-negative integer"
+            )
+        if not (0 <= maximum_bytes):
             raise ValueError("Cannot receive HTTP response: byte limit must be a non-negative integer")
         self._require_destination(request)
         if not_after is not None:

@@ -41,15 +41,28 @@ class ChatEndpointSpec:
     reasoning_effort: str | None
 
     def __post_init__(self):
-        if type(self.configuration_id) is not str or re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", self.configuration_id) is None:
+        if type(self.configuration_id) is not str:
+            raise TypeError(
+                f"Unexpected {type(self.configuration_id)=}; "
+                "Cannot configure interpreter endpoint: configuration_id must be a bounded ASCII identifier."
+            )
+        if re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", self.configuration_id) is None:
             raise ValueError("Cannot configure interpreter endpoint: configuration_id must be a bounded ASCII identifier.")
-        if (
-            not (type(self.model) is str and self.model.strip() and self.model.isprintable() and len(self.model.encode('utf-8')) <= 512)
-        ):
+        if not (type(self.model) is str):
+            raise TypeError(
+                f"Unexpected {type(self.model)=}; "
+                "Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes."
+            )
+        if not (self.model.strip() and self.model.isprintable() and len(self.model.encode('utf-8')) <= 512):
             raise ValueError(
                 "Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes."
             )
-        if type(self.api_key) is not str or not self.api_key or any(not 32 < ord(char) < 127 for char in self.api_key):
+        if type(self.api_key) is not str:
+            raise TypeError(
+                f"Unexpected {type(self.api_key)=}; "
+                "Cannot configure interpreter endpoint: an explicit header-safe API key is required."
+            )
+        if not (self.api_key) or any(not 32 < ord(char) < 127 for char in self.api_key):
             raise ValueError("Cannot configure interpreter endpoint: an explicit header-safe API key is required.")
         if self.reasoning_effort is not None and (
             type(self.reasoning_effort) is not str
@@ -58,7 +71,12 @@ class ChatEndpointSpec:
             or not self.reasoning_effort.isalnum()
         ):
             raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
-        if type(self.url) is not str or any(not 32 < ord(char) < 127 for char in self.url):
+        if type(self.url) is not str:
+            raise TypeError(
+                f"Unexpected {type(self.url)=}; "
+                "Cannot configure interpreter endpoint: URL must be canonical ASCII HTTPS text."
+            )
+        if any(not 32 < ord(char) < 127 for char in self.url):
             raise ValueError("Cannot configure interpreter endpoint: URL must be canonical ASCII HTTPS text.")
         try:
             url = httpx.URL(self.url)
@@ -192,7 +210,10 @@ class ChatEndpoint:
 
     def __init__(self, spec, *, transport, request_bytes, response_bytes, error_response_bytes=None):
         if type(spec) is not ChatEndpointSpec:
-            raise TypeError("Cannot configure interpreter carrier: explicit ChatEndpointSpec is required.")
+            raise TypeError(
+                f"Unexpected {type(spec)=}; "
+                "Cannot configure interpreter carrier: explicit ChatEndpointSpec is required."
+            )
         require_chat_limits(request_bytes=request_bytes, response_bytes=response_bytes)
         if error_response_bytes is None:
             error_response_bytes = response_bytes

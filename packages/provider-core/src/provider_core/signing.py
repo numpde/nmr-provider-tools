@@ -22,7 +22,12 @@ from http_sf import ser
 
 def _https_origin(value):
     """Admit one HTTPS origin; never reinterpret credentials or a URL path."""
-    if type(value) is not str or not value or any(ord(c) <= 32 or ord(c) >= 127 for c in value):
+    if type(value) is not str:
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "Cannot configure signing: supply one ASCII HTTPS origin without whitespace"
+        )
+    if not (value) or any(ord(c) <= 32 or ord(c) >= 127 for c in value):
         raise ValueError("Cannot configure signing: supply one ASCII HTTPS origin without whitespace")
     try:
         parsed = urlsplit(value)
@@ -73,27 +78,46 @@ class SigningIdentity:
         origin, authority = _https_origin(self.origin)
         require_credential_ref(self.credential_ref)
         if not isinstance(self.private_key, Ed25519PrivateKey):
-            raise TypeError("Cannot configure signing: an Ed25519 private key is required")
+            raise TypeError(
+                f"Unexpected {type(self.private_key)=}; "
+                "Cannot configure signing: an Ed25519 private key is required"
+            )
         object.__setattr__(self, "origin", origin)
         object.__setattr__(self, "authority", authority)
 
 
 def require_credential_ref(value):
     """Admit the reference grammar shared by issued artifacts and signed requests."""
-    if (
-        not (type(value) is str and len(value) <= 128 and re.fullmatch('credential:[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)*', value) is not None)
-    ):
+    if not (type(value) is str):
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "Cannot configure signing: credential reference must use bounded credential:name segments"
+        )
+    if not (len(value) <= 128 and re.fullmatch('credential:[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)*', value) is not None):
         raise ValueError("Cannot configure signing: credential reference must use bounded credential:name segments")
 
 
 def _request_target(method, path, query):
     """Reject ambiguous target forms before a client can normalize signed bytes."""
-    if type(method) is not str or re.fullmatch(r"[A-Z]+", method) is None:
+    if type(method) is not str:
+        raise TypeError(
+            f"Unexpected {type(method)=}; "
+            "Cannot sign request: method must be an uppercase ASCII HTTP method"
+        )
+    if re.fullmatch(r"[A-Z]+", method) is None:
         raise ValueError("Cannot sign request: method must be an uppercase ASCII HTTP method")
-    if type(path) is not str or not path.startswith("/") or path.startswith("//") or "?" in path or "#" in path:
+    if type(path) is not str:
+        raise TypeError(
+            f"Unexpected {type(path)=}; "
+            "Cannot sign request: path must be absolute, with query supplied separately and no fragment"
+        )
+    if not (path.startswith("/")) or path.startswith("//") or "?" in path or "#" in path:
         raise ValueError("Cannot sign request: path must be absolute, with query supplied separately and no fragment")
     if type(query) is not bytes:
-        raise TypeError("Cannot sign request: query must be immutable ASCII bytes")
+        raise TypeError(
+            f"Unexpected {type(query)=}; "
+            "Cannot sign request: query must be immutable ASCII bytes"
+        )
     try:
         # silent-defaults: allow-contract -- An empty query omits the delimiter; a nonempty query retains its exact signed bytes.
         target = path.encode("ascii") + (b"?" + query if query else b"")
@@ -113,10 +137,23 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
     """
     target = _request_target(method, path, query)
     if body is not None and type(body) is not bytes:
-        raise TypeError("Cannot sign request: body must be immutable bytes or None")
-    if type(created) is not int or not 0 <= created <= 999999999999699:
+        raise TypeError(
+            f"Unexpected {type(body)=}; "
+            "Cannot sign request: body must be immutable bytes or None"
+        )
+    if type(created) is not int:
+        raise TypeError(
+            f"Unexpected {type(created)=}; "
+            "Cannot sign request: timestamp and 300-second expiry must fit structured-field integers"
+        )
+    if not (0 <= created <= 999999999999699):
         raise ValueError("Cannot sign request: timestamp and 300-second expiry must fit structured-field integers")
-    if type(nonce) is not bytes or len(nonce) != 16:
+    if type(nonce) is not bytes:
+        raise TypeError(
+            f"Unexpected {type(nonce)=}; "
+            "Cannot sign request: nonce must contain exactly 16 random bytes"
+        )
+    if len(nonce) != 16:
         raise ValueError("Cannot sign request: nonce must contain exactly 16 random bytes")
     headers = {"Accept": "application/json, application/problem+json"}
     values = {"@method": method, "@authority": identity.authority, "@path": path, "@query": "?" + query.decode("ascii")}

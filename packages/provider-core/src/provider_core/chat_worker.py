@@ -59,21 +59,46 @@ def _positive_seconds(value):
 
 
 def _request(document):
-    if (type(document) is not dict or document.keys() != _REQUEST_FIELDS
-            or type(document["version"]) is not int or document["version"] != 1
-            or document["kind"] != "request"):
+    if type(document) is not dict:
+        raise TypeError(
+            f"Unexpected {type(document)=}; "
+            "Interpreter child request has an unknown schema"
+        )
+    if document.keys() != _REQUEST_FIELDS:
+        raise ValueError("Interpreter child request has an unknown schema")
+    if type(document["version"]) is not int:
+        raise TypeError(
+            f"Unexpected {type(document['version'])=}; "
+            "Interpreter child request has an unknown schema"
+        )
+    if document["version"] != 1 or document["kind"] != "request":
         raise ValueError("Interpreter child request has an unknown schema")
     for field in ("method", "url"):
         value = document[field]
-        if not (type(value) is str and 0 < len(value) <= METADATA_BYTES):
+        if not (type(value) is str):
+            raise TypeError(
+                f"Unexpected {type(value)=}; "
+                "Interpreter child request method and URL must be text"
+            )
+        if not (0 < len(value) <= METADATA_BYTES):
             raise ValueError("Interpreter child request metadata exceeds its admitted limit")
     pairs = document["headers"]
-    if not (type(pairs) is list and len(pairs) <= 65536):
+    if not (type(pairs) is list):
+        raise TypeError(
+            f"Unexpected {type(pairs)=}; "
+            "Interpreter child headers must be a list"
+        )
+    if not (len(pairs) <= 65536):
         raise ValueError("Interpreter child headers exceed their admitted limit")
     headers = []
     remaining = METADATA_BYTES
     for pair in pairs:
-        if type(pair) is not list or len(pair) != 2:
+        if type(pair) is not list:
+            raise TypeError(
+                f"Unexpected {type(pair)=}; "
+                "Interpreter child header must be a two-element list"
+            )
+        if len(pair) != 2:
             raise ValueError("Interpreter child header is malformed")
         name = decoded_bytes(pair[0], remaining)
         remaining -= len(name)
@@ -81,7 +106,12 @@ def _request(document):
         remaining -= len(value)
         headers.append((name, value))
     limit = document["request_bytes"]
-    if not (type(limit) is int and 0 <= limit):
+    if not (type(limit) is int):
+        raise TypeError(
+            f"Unexpected {type(limit)=}; "
+            "Interpreter child request byte allowance must be an integer"
+        )
+    if not (0 <= limit):
         raise ValueError("Interpreter child request byte allowance is invalid")
     body = decoded_bytes(document["body"], limit)
     if len(body) != limit:

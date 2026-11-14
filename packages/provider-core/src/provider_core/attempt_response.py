@@ -60,7 +60,12 @@ class AttemptProgress:
 
 
 def require_attempt_ref(value):
-    if type(value) is not str or re.fullmatch(r"execution_attempt:sha256:[0-9a-f]{64}", value) is None:
+    if type(value) is not str:
+        raise TypeError(
+            f"Unexpected {type(value)=}; "
+            "Execution Attempt reference must be execution_attempt:sha256: followed by 64 lowercase hexadecimal digits"
+        )
+    if re.fullmatch(r"execution_attempt:sha256:[0-9a-f]{64}", value) is None:
         raise ValueError(
             "Execution Attempt reference must be execution_attempt:sha256: followed by 64 lowercase hexadecimal digits"
         )
@@ -110,7 +115,7 @@ def read_start(raw, *, job_ref, analysis_kind_ref, provider_ref):
         raise ResponseRejected("Started Attempt Job, analysis kind or provider identity differs from the expected start")
     try:
         require_attempt_ref(document["execution_attempt_ref"])
-    except ValueError as cause:
+    except (TypeError, ValueError) as cause:
         raise ResponseRejected(str(cause)) from None
     if document["state"] not in ("in_progress", "succeeded", "failed", "expired"):
         raise ResponseRejected("Execution Attempt state must be in_progress, succeeded, failed or expired")

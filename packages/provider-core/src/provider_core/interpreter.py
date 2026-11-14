@@ -227,16 +227,37 @@ class Interpreter:
         context_bytes: int,
         secrets: tuple[str, ...],
     ):
-        if not isinstance(endpoint_factories, tuple) or not endpoint_factories:
+        if not (isinstance(endpoint_factories, tuple)):
+            raise TypeError(
+                f"Unexpected {type(endpoint_factories)=}; "
+                "Cannot configure interpretation: provide an ordered nonempty tuple of endpoint factories."
+            )
+        if not (endpoint_factories):
             raise ValueError(
                 "Cannot configure interpretation: provide an ordered nonempty tuple of endpoint factories."
             )
         if not (type(timeout_seconds) in (int, float) and math.isfinite(timeout_seconds) and 0 < timeout_seconds):
             raise ValueError("Cannot configure interpretation: timeout_seconds must be finite positive seconds.")
-        if not (type(context_bytes) is int and 0 < context_bytes):
-            raise ValueError("Cannot configure interpretation: context_bytes must be a positive byte limit.")
-        if not isinstance(secrets, tuple) or any(not isinstance(secret, str) or not secret for secret in secrets):
+        if not (type(context_bytes) is int):
             raise TypeError(
+                f"Unexpected {type(context_bytes)=}; "
+                "Cannot configure interpretation: context_bytes must be a positive byte limit."
+            )
+        if not (0 < context_bytes):
+            raise ValueError("Cannot configure interpretation: context_bytes must be a positive byte limit.")
+        if not (isinstance(secrets, tuple)):
+            raise TypeError(
+                f"Unexpected {type(secrets)=}; "
+                "Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings."
+            )
+        for secret in secrets:
+            if not isinstance(secret, str):
+                raise TypeError(
+                    f"Unexpected {type(secret)=}; "
+                    "Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings."
+                )
+        if any(not secret for secret in secrets):
+            raise ValueError(
                 "Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings."
             )
         self._factories = endpoint_factories

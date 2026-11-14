@@ -44,7 +44,10 @@ def jobs_query(*, analysis_kind_ref, has_provider_execution_attempt, limit, curs
     """Encode explicit selection choices once for the signed request target."""
     require_analysis_kind(analysis_kind_ref)
     if type(has_provider_execution_attempt) is not bool:
-        raise ValueError("Job discovery requires an explicit boolean provider-attempt view")
+        raise TypeError(
+            f"Unexpected {type(has_provider_execution_attempt)=}; "
+            "Job discovery requires an explicit boolean provider-attempt view"
+        )
     # silent-defaults: allow-contract -- Encode the caller-selected boolean as the protocol-required lowercase wire value.
     view = "true" if has_provider_execution_attempt else "false"
     query = f"analysis_kind_ref={analysis_kind_ref}&has_provider_execution_attempt={view}&"
@@ -69,7 +72,7 @@ def read_jobs_page(raw, *, analysis_kind_ref, has_provider_execution_attempt, li
         raise ResponseRejected("Job discovery page exceeds the requested or supported item count")
     try:
         require_cursor(document["next_cursor"])
-    except ValueError as cause:
+    except (TypeError, ValueError) as cause:
         raise ResponseRejected(str(cause)) from None
     return JobPage(analysis_kind_ref, has_provider_execution_attempt,
                    # repo-check: allow-tuple-generator -- The admitted JobPage retains server order in one immutable collection.

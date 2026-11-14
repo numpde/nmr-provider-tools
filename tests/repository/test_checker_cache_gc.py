@@ -12,11 +12,28 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from host.tools.engine_cache_gc import configured, install, limits, unit_files
+from host.tools.engine_cache_gc import configured, install, limits, native_config, unit_files
 from tests.repository.quality.sources import ROOT
 
 
 class EngineCacheGCTests(unittest.TestCase):
+    def test_native_policy_rejects_wrong_types_separately_from_threshold_values(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "daemon.json"
+            for document in ([], None, True):
+                path.write_text(json.dumps(document))
+                with self.subTest(document=document), self.assertRaises(TypeError):
+                    native_config(path)
+        for builder in ([], None, True):
+            with self.subTest(builder=builder), self.assertRaises(TypeError):
+                configured({"builder": builder})
+        with self.assertRaises(TypeError):
+            limits({"builder": {"gc": {"enabled": "true"}}})
+        document = configured({})
+        document["builder"]["gc"]["defaultReservedSpace"] = ""
+        with self.assertRaises(ValueError):
+            limits(document)
+
     def test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it(self):
         original = {"data-root": "/owned/engine", "log-driver": "local",
                     "builder": {"other": {"retained": True}}}
