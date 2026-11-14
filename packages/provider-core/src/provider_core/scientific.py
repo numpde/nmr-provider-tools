@@ -69,12 +69,61 @@ class _Custody:
 
 
 class Contribution:
-    """One host-managed scientific instance with provider-owned setup.
+    """Base class for one scientific object whose execution a host will own.
 
-    Construct this object before handing it to a host. Constructors capture
-    provider settings and Python bookkeeping; acquire resources in initialize.
-    close must handle never-started and partially initialized instances. Only
-    custody is fixed; models and caches belong to this object.
+    Write an ordinary subclass with your own constructor arguments and fields.
+    If you override __init__, call super().__init__() to establish ownership
+    bookkeeping. The SDK does not read, serialize, freeze or hash your settings.
+    This base class supplies that bookkeeping, empty initialize/close methods,
+    and analysis_type=None for contributions without a separate analysis session.
+
+    Construct the object without acquiring external resources, then pass it to
+    host.adopt(contribution=object, allocation=..., requirements=...). The host
+    validates the assignment before accepting ownership. Rejection leaves the
+    object with you; the host neither initializes nor closes it. Success retains
+    that exact object. It cannot be adopted again by this or another host, even
+    after retirement. Construct a new object for another allocation.
+
+    Acquire model, file or device resources in this optional override:
+
+        def initialize(self, *, assets: AssetAccess) -> None:
+            ...
+
+    The embedded host calls initialize lazily on the allocation's executor before
+    scientific work, and reuses the initialized object across analyses. assets
+    resolves deployment-provided verified files; an allocation without assets
+    refuses lookup. You may instead retain your deployment's checkpoint locator
+    in the constructor and verify its contents when loading.
+
+    Retain each partial resource owner on self before a loading step can raise.
+    Release those resources in the optional synchronous close(self) -> None
+    override. It must also handle an object that was never initialized. Retirement
+    waits for dependent work before calling close; a failed initialization still
+    uses this same object's close. Failed cleanup retains the object and original
+    error rather than retrying the disposer automatically. The caller must request
+    and observe host retirement; abandoning a Python reference does not do that.
+
+    Mark each callable scientific entrypoint with @operation(). Exported methods
+    are synchronous instance methods with keyword-only arguments and concrete
+    input/result annotations. Unmarked helpers are not exported to the host.
+    Direct Python calls stay ordinary calls: hosting does not
+    wrap them or enforce its lifecycle, permissions or resource limits.
+
+    For managed local execution, submit a bound method such as object.predict to
+    analysis.submit_method, with that object's reservation and execution limits.
+    A class member such as MyContribution.predict does not identify a receiver
+    and is rejected at local submission. Operation declarations describe optional
+    state ports, progress, interruption and resource requirements; see operation
+    for their arguments. The provider chooses scientific sequencing.
+
+    If science needs a separate session for each analysis, set analysis_type to
+    an Analysis[YourContribution] subclass. The SDK constructs and retains that
+    session before calling its initialize, and passes it to exported methods
+    through an argument annotated with that session type. Implement its initialize
+    and close rather than overriding its SDK-owned constructor. Leave
+    analysis_type=None when no separate session is needed. Session cleanup,
+    produced-state disposal, result release and contribution retirement have
+    separate owners; finishing one does not imply the others have finished.
     """
 
     analysis_type: ClassVar[type[Analysis] | None] = None
