@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
-from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
+from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
 from provider_core.hosting import (
     ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
@@ -29,13 +29,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
     async def test_two_analyses_reuse_the_index_while_results_remain_independently_owned(self):
         build = self.enterContext(patch("reference_provider.science.build_index", wraps=science.build_index))
         match = self.enterContext(patch("reference_provider.science.match", wraps=science.match))
-        binding = create_binding()
-        libraries = []
-        call = binding.call(method=ReferenceMatcher.match)
         host = EmbeddedHost(
-            (Allocation("library", binding, (
-                ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
-            )),),
             limits=HostLimits(
                 analysis_records=2, operation_records=2, input_bytes=8192,
                 result_bytes=8192, state_values=1, progress_records=1,
@@ -52,6 +46,11 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             return None
 
         try:
+            binding = create_binding(host=host, allocation=ResourceAllocation(name="library", grants=(
+                ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
+            )))
+            call = binding.call(method=ReferenceMatcher.match)
+            library = binding.contribution
             async with asyncio.timeout(15):
                 for name, values, expected in (
                     ("first", (3, 4, 0, 0), "pattern-a"),
@@ -68,9 +67,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     )
                     self.assertNotIsInstance(operation, NotAdmitted)
                     completed = await observe_completion(operation)
-                    if not libraries:
-                        libraries.append(host.residents["library"].value)
-                    self.assertIs(libraries[0], host.residents["library"].value)
+                    self.assertIs(library, host.residents["library"].value)
                     self.assertIs(Outcome.SUCCEEDED, completed.outcome)
                     self.assertEqual((), completed.failures)
                     payload = await operation.read_result(completed.result)
@@ -80,8 +77,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     operations.append((operation, completed.result, payload))
                     await observe_cleanup(analysis.close())
                     self.assertEqual(1, build.call_count)
-                    self.assertEqual(1, len(libraries))
-                    self.assertIsNotNone(libraries[0].loaded_index)
+                    self.assertIsNotNone(library.loaded_index)
 
                 first_index = match.call_args_list[0].kwargs["index"]
                 self.assertIs(first_index, match.call_args_list[1].kwargs["index"])
@@ -100,7 +96,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
         finally:
             async with asyncio.timeout(15):
                 await observe_cleanup(host.retire())
-        self.assertIsNone(libraries[0].loaded_index)
+        self.assertIsNone(library.loaded_index)
 
     async def test_second_analysis_failure_does_not_suppress_the_first_report(self):
         original_match = science.match

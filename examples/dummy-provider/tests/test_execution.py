@@ -8,11 +8,12 @@ require_container()
 
 import asyncio
 import unittest
+from unittest.mock import patch
 
 from dummy_provider import science
 from dummy_provider.binding import WeightedSum, create_weighted_sum_binding
 from provider_core.contribution import ProgressEvent
-from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
+from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
 from provider_core.hosting import (
     ExecutionLimits,
     NotAdmitted,
@@ -46,14 +47,65 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
     async def retire_host(self, host):
         await self.assert_settled(host.retire())
 
-    async def test_installed_binding_prepares_and_calculates(self):
-        weighted_binding = create_weighted_sum_binding(
+    async def test_partial_model_loading_keeps_the_original_cleanup_owner(self):
+        """A loader may fail after acquisition; retirement still owns that model."""
+        host = EmbeddedHost(limits=HostLimits(
+            analysis_records=1, operation_records=1, input_bytes=4096, result_bytes=4096,
+            state_values=1, progress_records=1, initialization_seconds=5, retirement_seconds=5,
+        ))
+        self.addAsyncCleanup(self.retire_host, host)
+        hosted = create_weighted_sum_binding(
+            host=host,
+            allocation=ResourceAllocation(name="weighted", grants=(
+                ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
+            )),
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
-        model_allocation = Allocation(
+        contribution = hosted.contribution
+        failure = OSError("Cannot finish loading model coefficients")
+        loaded_models = []
+
+        # Keep the real loader before patching the provider's module reference.
+        load_model = science.load_model
+
+        def partially_load(*, model):
+            load_model(model=model)
+            loaded_models.append(model)
+            raise failure
+
+        with (
+            patch("dummy_provider.science.load_model", side_effect=partially_load),
+            patch("dummy_provider.science.dispose_model", wraps=science.dispose_model) as dispose,
+            patch("dummy_provider.science.prepare", wraps=science.prepare) as prepare,
+        ):
+            analysis = host.open_analysis(analysis_id="failed-load", allocation_names=("weighted",))
+            reservation, = analysis.reservations
+            operation = analysis.submit_method(
+                method=contribution.prepare, operation_id="prepare",
+                scientific_input=science.PreparationInput(values=(1, 2, 3)),
+                states=(), reservation=reservation,
+                limits=ExecutionLimits(
+                    queue_seconds=5, execution_seconds=5, cleanup_seconds=5,
+                    input_bytes=4096, result_bytes=4096,
+                ),
+                dispatch_guard=lambda: None,
+            )
+            async with asyncio.timeout(10):
+                observation = await observe_completion(operation=operation)
+                self.assertTrue(any(item.cause is failure for item in observation.failures))
+                prepare.assert_not_called()
+                model, = loaded_models
+                self.assertIs(model, contribution.model)
+                self.assertIsNotNone(model.loaded_coefficients)
+                await observe_cleanup(control=analysis.close())
+                await observe_cleanup(control=host.retire())
+            dispose.assert_called_once_with(model=model)
+            self.assertIsNone(model.loaded_coefficients)
+
+    async def test_installed_binding_prepares_and_calculates(self):
+        model_allocation = ResourceAllocation(
             name="weighted",
-            binding=weighted_binding,
             grants=(
                 ResourceGrant(
                     kind="cpu",
@@ -73,8 +125,13 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             initialization_seconds=5,
             retirement_seconds=5,
         )
-        host = EmbeddedHost(allocations=(model_allocation,), limits=host_limits)
+        host = EmbeddedHost(limits=host_limits)
         self.addAsyncCleanup(self.retire_host, host)
+        weighted_binding = create_weighted_sum_binding(
+            host=host, allocation=model_allocation,
+            settings=science.WeightedSumSettings(scale=2, offset=1),
+            coefficients=science.CoefficientSet(values=(1, 2, 3)),
+        )
 
         analysis = host.open_analysis(
             analysis_id="weighted-analysis",

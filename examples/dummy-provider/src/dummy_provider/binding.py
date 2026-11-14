@@ -7,6 +7,7 @@ from importlib.resources import files
 import tomllib
 
 import provider_core.scientific as sdk
+from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
 
 from . import science
 
@@ -49,6 +50,8 @@ class WeightedSum(sdk.Contribution[WeightedSumConfig]):
         return self._model
 
     def initialize(self, *, assets: sdk.AssetAccess) -> None:
+        # Retain the empty model before loading can acquire resources or fail.
+        # close can then dispose that same partial model after a loading failure.
         self._model = science.create_model(
             settings=self.configuration.settings,
             coefficients=self.configuration.coefficients,
@@ -95,23 +98,24 @@ def _configured_cpu_resource() -> sdk.ResourceRequirement:
 
 
 def create_weighted_sum_binding(
-    *, settings: science.WeightedSumSettings, coefficients: science.CoefficientSet,
-) -> sdk.Registration[WeightedSumConfig]:
-    """Provider-owned assembly helper; registration creates no live science.
+    *, host: EmbeddedHost, allocation: ResourceAllocation,
+    settings: science.WeightedSumSettings, coefficients: science.CoefficientSet,
+) -> sdk.HostedContribution[WeightedSumConfig]:
+    """Provider-owned assembly helper; adoption creates no live science.
 
     Callers explicitly invoke this helper. Its name has no SDK meaning; the
     exported methods and lifecycle contract belong to WeightedSum.
     """
-    return sdk.Registration(
-        contribution=WeightedSum,
-        configuration=WeightedSumConfig(settings=settings, coefficients=coefficients),
+    return host.adopt(
+        contribution=WeightedSum(configuration=WeightedSumConfig(settings=settings, coefficients=coefficients)),
+        allocation=allocation,
         resources=(_configured_cpu_resource(),),
     )
 
 
-def create_sum_binding() -> sdk.Registration[None]:
+def create_sum_binding(*, host: EmbeddedHost, allocation: ResourceAllocation) -> sdk.HostedContribution[None]:
     """Provider-owned assembly for the independently callable stateless sum."""
-    return sdk.Registration(
-        contribution=Sum, configuration=None,
+    return host.adopt(
+        contribution=Sum(configuration=None), allocation=allocation,
         resources=(_configured_cpu_resource(),),
     )

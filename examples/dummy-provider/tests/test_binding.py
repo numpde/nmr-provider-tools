@@ -14,12 +14,38 @@ import unittest
 from unittest.mock import patch
 
 import provider_core.contribution as contribution
+from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.hosting import ResourceGrant, observe_cleanup
 from dummy_provider import science
 from dummy_provider.binding import Sum, WeightedSum, create_sum_binding, create_weighted_sum_binding
 
 
-class DummyBindingTests(unittest.TestCase):
-    def test_installed_distribution_contains_the_scientific_package(self) -> None:
+class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.host = EmbeddedHost(limits=HostLimits(
+            analysis_records=1, operation_records=1, input_bytes=4096, result_bytes=4096,
+            state_values=1, progress_records=1, initialization_seconds=5, retirement_seconds=5,
+        ))
+        self.addAsyncCleanup(self.retire)
+
+    async def retire(self):
+        await observe_cleanup(control=self.host.retire())
+
+    def allocation(self):
+        return ResourceAllocation(
+            name=f"example-{len(self.host.allocations)}",
+            grants=(ResourceGrant(kind="cpu", amount=4, unit="thread", selector="generic"),),
+        )
+
+    def weighted_binding(self, *, settings, coefficients):
+        return create_weighted_sum_binding(
+            host=self.host, allocation=self.allocation(), settings=settings, coefficients=coefficients,
+        )
+
+    def sum_binding(self):
+        return create_sum_binding(host=self.host, allocation=self.allocation())
+
+    async def test_installed_distribution_contains_the_scientific_package(self) -> None:
         installed_distribution = metadata.distribution("dummy-provider-example")
         installed_package = Path(resources.files("dummy_provider")).resolve()
         distribution_package = Path(
@@ -39,7 +65,7 @@ class DummyBindingTests(unittest.TestCase):
         self.assertTrue((installed_package / "resources.toml").is_file())
         self.assertIn("dummy_provider/resources.toml", {str(path) for path in installed_distribution.files})
 
-    def test_science_import_does_not_require_the_host_launcher(self) -> None:
+    async def test_science_import_does_not_require_the_host_launcher(self) -> None:
         environment = os.environ.copy()
         if "NMR_PROVIDER_TOOLS_IN_CONTAINER" in environment:
             del environment["NMR_PROVIDER_TOOLS_IN_CONTAINER"]
@@ -66,13 +92,13 @@ class DummyBindingTests(unittest.TestCase):
             msg=scientific_import.stderr,
         )
 
-    def test_binding_preserves_provider_owned_types(self) -> None:
-        weighted_binding = create_weighted_sum_binding(
+    async def test_binding_preserves_provider_owned_types(self) -> None:
+        weighted_binding = self.weighted_binding(
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
         prepare_call, calculate_call = weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate)
-        sum_call = create_sum_binding().call(method=Sum.run)
+        sum_call = self.sum_binding().call(method=Sum.run)
 
         self.assertRegex(weighted_binding.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")
         self.assertIs(science.PreparationInput, prepare_call.input_codec.value_type)
@@ -82,42 +108,42 @@ class DummyBindingTests(unittest.TestCase):
         self.assertEqual("normalized", WeightedSum.prepared_output.name)
         self.assertEqual("candidate", WeightedSum.prepared_input.name)
 
-    def test_all_calls_declare_the_packaged_cpu_requirement(self) -> None:
-        weighted = create_weighted_sum_binding(
+    async def test_all_calls_declare_the_packaged_cpu_requirement(self) -> None:
+        weighted = self.weighted_binding(
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
         expected = contribution.ResourceRequirement(
             kind="cpu", amount=1, unit="thread", selector="generic", exclusive=False,
         )
-        for binding in (weighted, create_sum_binding()):
+        for binding in (weighted, self.sum_binding()):
             for call in binding.description.calls:
                 with self.subTest(binding=binding.description.binding_id, call=call.name):
                     self.assertEqual((expected,), call.resources)
 
-    def test_resource_values_change_revision_without_changing_existing_bindings(self) -> None:
-        weighted = create_weighted_sum_binding(
+    async def test_resource_values_change_revision_without_changing_existing_bindings(self) -> None:
+        weighted = self.weighted_binding(
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
-        original_bindings = (weighted, create_sum_binding())
+        original_bindings = (weighted, self.sum_binding())
         configured = 'kind = "cpu"\namount = 2\nunit = "thread"\nselector = "generic"\nexclusive = false\n'
         with TemporaryDirectory() as directory:
             root = Path(directory)
             resource_file = root / "resources.toml"
             resource_file.write_text(configured, encoding="utf-8")
             with patch("dummy_provider.binding.files", return_value=root):
-                updated = create_weighted_sum_binding(
+                updated = self.weighted_binding(
                     settings=science.WeightedSumSettings(scale=2, offset=1),
                     coefficients=science.CoefficientSet(values=(1, 2, 3)),
                 )
-                updated_bindings = (updated, create_sum_binding())
+                updated_bindings = (updated, self.sum_binding())
                 resource_file.write_text("# Same resource values\n" + configured, encoding="utf-8")
-                reformatted = create_weighted_sum_binding(
+                reformatted = self.weighted_binding(
                     settings=science.WeightedSumSettings(scale=2, offset=1),
                     coefficients=science.CoefficientSet(values=(1, 2, 3)),
                 )
-                reformatted_bindings = (reformatted, create_sum_binding())
+                reformatted_bindings = (reformatted, self.sum_binding())
 
         for (original, changed, same_values) in zip(
             original_bindings, updated_bindings, reformatted_bindings, strict=True,
@@ -130,7 +156,7 @@ class DummyBindingTests(unittest.TestCase):
                 for call in changed.description.calls:
                     self.assertEqual(2, call.resources[0].amount)
 
-    def test_invalid_resource_values_are_rejected(self) -> None:
+    async def test_invalid_resource_values_are_rejected(self) -> None:
         with TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "resources.toml").write_text(
@@ -139,7 +165,7 @@ class DummyBindingTests(unittest.TestCase):
             )
             with patch("dummy_provider.binding.files", return_value=root):
                 with self.assertRaisesRegex(ValueError, "Resource amount must be a positive integer"):
-                    create_sum_binding()
+                    self.sum_binding()
 
 
 if __name__ == "__main__":

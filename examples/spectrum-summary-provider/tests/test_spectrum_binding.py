@@ -13,12 +13,33 @@ from unittest.mock import patch
 
 import provider_core.contribution as contribution
 import provider_core.scientific as sdk
+from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.hosting import ResourceGrant, observe_cleanup
 from spectrum_provider import science
 from spectrum_provider.binding import Baseline, Peaks, create_bindings
 
 
-class SpectrumBindingTests(unittest.TestCase):
-    def test_installed_distribution_contains_its_package_and_configuration(self) -> None:
+class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.host = EmbeddedHost(limits=HostLimits(
+            analysis_records=1, operation_records=1, input_bytes=4096, result_bytes=4096,
+            state_values=1, progress_records=1, initialization_seconds=5, retirement_seconds=5,
+        ))
+        self.addAsyncCleanup(self.retire)
+
+    async def retire(self):
+        await observe_cleanup(control=self.host.retire())
+
+    def bindings(self):
+        grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
+        suffix = len(self.host.allocations)
+        return create_bindings(
+            host=self.host,
+            baseline_allocation=ResourceAllocation(name=f"baseline-{suffix}", grants=grants),
+            peak_allocation=ResourceAllocation(name=f"peaks-{suffix}", grants=grants),
+        )
+
+    async def test_installed_distribution_contains_its_package_and_configuration(self) -> None:
         distribution = metadata.distribution("spectrum-summary-provider-example")
         package = Path(resources.files("spectrum_provider")).resolve()
         self.assertEqual(package, Path(distribution.locate_file("spectrum_provider")).resolve())
@@ -28,8 +49,8 @@ class SpectrumBindingTests(unittest.TestCase):
                 self.assertTrue(package.joinpath(name).is_file())
                 self.assertIn(f"spectrum_provider/{name}", {str(path) for path in distribution.files})
 
-    def test_independent_bindings_share_the_typed_spectrum_format(self) -> None:
-        bindings = create_bindings()
+    async def test_independent_bindings_share_the_typed_spectrum_format(self) -> None:
+        bindings = self.bindings()
         baseline, peaks = bindings.baseline, bindings.peaks
         baseline_call = baseline.call(method=Baseline.run)
         peak_call = peaks.call(method=Peaks.run)
@@ -50,14 +71,14 @@ class SpectrumBindingTests(unittest.TestCase):
             peak_call.decode_input(baseline_call.encode_result(corrected)),
         )
 
-    def test_bindings_declare_only_call_resources_and_no_scientific_lifetimes(self) -> None:
+    async def test_bindings_declare_only_call_resources_and_no_scientific_lifetimes(self) -> None:
         expected = contribution.ResourceRequirement(
             kind="cpu", amount=1, unit="thread", selector="generic", exclusive=False,
         )
-        bindings = create_bindings()
+        bindings = self.bindings()
         for binding in (bindings.baseline, bindings.peaks):
             with self.subTest(binding=binding.description.binding_id):
-                self.assertIs(binding.contribution.initialize, sdk.Contribution.initialize)
+                self.assertIs(type(binding.contribution).initialize, sdk.Contribution.initialize)
                 self.assertIsNone(binding.contribution.analysis_type)
                 self.assertEqual((), binding.description.resident_resources)
                 call = binding.call(method=binding.contribution.run)
@@ -65,8 +86,8 @@ class SpectrumBindingTests(unittest.TestCase):
                 self.assertEqual((), call.description.state_inputs)
                 self.assertEqual((), call.description.state_outputs)
 
-    def test_settings_revisions_follow_the_affected_implementation(self) -> None:
-        original = create_bindings()
+    async def test_settings_revisions_follow_the_affected_implementation(self) -> None:
+        original = self.bindings()
         original_baseline, original_peaks = original.baseline, original.peaks
         package = resources.files("spectrum_provider")
         with TemporaryDirectory() as directory:
@@ -78,19 +99,19 @@ class SpectrumBindingTests(unittest.TestCase):
             configured = "[baseline]\nbaseline = 2.0\n[peaks]\nminimum_height = 2.0\n"
             root.joinpath("settings.toml").write_text(configured, encoding="utf-8")
             with patch("spectrum_provider.binding.files", return_value=root):
-                changed = create_bindings()
+                changed = self.bindings()
                 changed_baseline, same_peaks = changed.baseline, changed.peaks
                 root.joinpath("settings.toml").write_text(
                     "# Formatting does not change scientific settings\n" + configured,
                     encoding="utf-8",
                 )
-                reformatted = create_bindings()
+                reformatted = self.bindings()
                 reformatted_baseline, reformatted_peaks = reformatted.baseline, reformatted.peaks
                 root.joinpath("settings.toml").write_text(
                     "[baseline]\nbaseline = 2.0\n[peaks]\nminimum_height = 4.0\n",
                     encoding="utf-8",
                 )
-                changed_peak_settings = create_bindings()
+                changed_peak_settings = self.bindings()
                 same_baseline, changed_peaks = changed_peak_settings.baseline, changed_peak_settings.peaks
 
         self.assertNotEqual(original_baseline.description.binding_revision, changed_baseline.description.binding_revision)
@@ -103,8 +124,8 @@ class SpectrumBindingTests(unittest.TestCase):
         sample = science.Spectrum(positions=(0, 1, 2), intensities=(1, 4, 1))
         original_call = original_baseline.call(method=Baseline.run)
         changed_call = changed_baseline.call(method=Baseline.run)
-        original_instance = original_baseline.construct_instance()
-        changed_instance = changed_baseline.construct_instance()
+        original_instance = original_baseline.contribution
+        changed_instance = changed_baseline.contribution
         self.assertEqual((0, 3, 0), original_instance.run(spectrum=sample).intensities)
         self.assertEqual((-1, 2, -1), changed_instance.run(spectrum=sample).intensities)
 

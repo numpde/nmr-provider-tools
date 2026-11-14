@@ -6,8 +6,9 @@ It complements the dummy's prepared-state flow and the spectrum provider's
 portable result transfer.
 
 `ReferenceMatcher` inherits `Contribution[ReferenceConfig]` and exports the ordinary
-keyword-only `match` method with `@operation()`. A registration combines that
-class with immutable matching settings and reference data. Local execution uses
+keyword-only `match` method with `@operation()`. Provider assembly constructs it
+with immutable matching settings and reference data, then calls `host.adopt`.
+The host retains that exact receiver before index initialization. Local execution uses
 `analysis.submit_method(method=ReferenceMatcher.match, ...)`;
 the SDK derives the configured reference and encodes the typed input internally.
 Operation ID, scientific input, state

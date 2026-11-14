@@ -5,7 +5,6 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
-from dataclasses import replace
 import io
 import json
 from pathlib import Path
@@ -17,9 +16,9 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from provider_core.contribution import ref
+from provider_core.contribution import JsonDataclassCodec, ref
 from provider_core.scientific import operation
-from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
+from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
 from provider_core.hosting import (
     CleanupObservation, DispatchState, ExecutionLimits, Failure, Invocation,
     NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
@@ -40,12 +39,9 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             async with asyncio.timeout(10):
                 await observe_cleanup(host.retire())
 
-    def workflow(self, *, operation_records, bindings=None, guard=None):
-        bindings = create_bindings() if bindings is None else bindings
-        baseline, peaks = bindings.baseline, bindings.peaks
+    def workflow(self, *, operation_records, guard=None):
         grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
         host = EmbeddedHost(
-            (Allocation("baseline", baseline, grants), Allocation("peaks", peaks, grants)),
             limits=HostLimits(
                 analysis_records=1, operation_records=operation_records,
                 input_bytes=8192, result_bytes=8192, state_values=1,
@@ -53,6 +49,12 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             ),
         )
         self.hosts.append(host)
+        bindings = create_bindings(
+            host=host,
+            baseline_allocation=ResourceAllocation(name="baseline", grants=grants),
+            peak_allocation=ResourceAllocation(name="peaks", grants=grants),
+        )
+        baseline, peaks = bindings.baseline, bindings.peaks
         analysis = host.open_analysis("test", allocation_names=("baseline", "peaks"))
         reservations = {item.allocation: item for item in analysis.reservations}
         limits = ExecutionLimits(
@@ -329,32 +331,29 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(0, calculate.call_count)
 
     async def test_successful_science_with_failed_encoding_is_not_replayed(self):
-        bindings = create_bindings()
-        baseline = bindings.baseline
-        baseline_call = baseline.call(method=baseline.contribution.run)
+        codec = JsonDataclassCodec(value_type=science.Spectrum, format="test.spectrum.v1")
         cause = OSError("Cannot encode the calculated spectrum")
 
         class BrokenCodec:
-            value_type = baseline_call.result_codec.value_type
-            format = baseline_call.result_codec.format
+            value_type = codec.value_type
+            format = codec.format
 
             def encode(self, value):
                 raise cause
 
             def decode(self, *, payload):
-                return baseline_call.result_codec.decode(payload=payload)
+                return codec.decode(payload=payload)
 
         class BrokenBaseline(Baseline):
             @operation(result_codec=BrokenCodec())
             def run(self, *, spectrum: science.Spectrum) -> science.Spectrum:
                 return super().run(spectrum=spectrum)
 
-        broken_binding = replace(baseline, contribution=BrokenBaseline)
-        with patch("spectrum_provider.science.subtract_baseline", wraps=science.subtract_baseline) as calculate:
-            workflow, _, _ = self.workflow(
-                operation_records=2,
-                bindings=replace(bindings, baseline=broken_binding),
-            )
+        with (
+            patch("spectrum_provider.science.subtract_baseline", wraps=science.subtract_baseline) as calculate,
+            patch("spectrum_provider.binding.Baseline", BrokenBaseline),
+        ):
+            workflow, _, _ = self.workflow(operation_records=2)
             async with asyncio.timeout(10):
                 completed = await workflow.finish()
                 repeated = await workflow.finish()

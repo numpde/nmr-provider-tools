@@ -7,7 +7,7 @@ import sys
 from threading import Event
 
 from provider_core.contribution import ref
-from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
+from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
 from provider_core.hosting import (
     ExecutionLimits, Invocation, NotAdmitted, ResourceGrant, ResultConsumption,
     ResultState, observe_cleanup,
@@ -20,13 +20,10 @@ from .science import Spectrum
 
 async def run_demo() -> None:
     """Print one consumed report and observe analysis and host cleanup separately."""
-    bindings = create_bindings()
-    baseline, peaks = bindings.baseline, bindings.peaks
     # This local deployment grants one generic CPU thread to each allocation.
     # Scientific resource requirements remain in resources.toml; they grant no access.
     grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
     host = EmbeddedHost(
-        allocations=(Allocation(name="baseline", binding=baseline, grants=grants), Allocation(name="peaks", binding=peaks, grants=grants)),
         limits=HostLimits(
             analysis_records=1, operation_records=2, input_bytes=8192,
             result_bytes=8192, state_values=1, progress_records=1,
@@ -49,6 +46,12 @@ async def run_demo() -> None:
         sys.stdout.buffer.flush()
 
     try:
+        bindings = create_bindings(
+            host=host,
+            baseline_allocation=ResourceAllocation(name="baseline", grants=grants),
+            peak_allocation=ResourceAllocation(name="peaks", grants=grants),
+        )
+        baseline, peaks = bindings.baseline, bindings.peaks
         analysis = host.open_analysis(analysis_id="spectrum-demo", allocation_names=("baseline", "peaks"))
         reservations = {item.allocation: item for item in analysis.reservations}
         baseline_call = baseline.call(method=Baseline.run)

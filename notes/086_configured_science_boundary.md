@@ -5,15 +5,18 @@ This replaces the earlier six-parameter callback proposal in this note. The
 execution ownership in 066 and 084 remains unchanged. This is not a release or
 deployment claim.
 
-## The three objects
+## The configured object
 
-A contribution **class** defines scientific behavior. A `Registration` fixes that
-class, its configuration and its exported execution contract. A contribution
-**instance** belongs to one allocation and owns its loaded model or index.
-Several allocations can share one registration while owning different instances.
+A contribution **class** defines scientific behavior. Provider code constructs
+an instance with immutable configuration and hands that exact object to the host.
+The returned `HostedContribution` describes its exported calls and allocation;
+it is not a recipe for constructing another instance. Independent allocations
+need separate objects, which may share immutable configuration.
 
-`Contribution[Config]` is a nominal hosting contract. Construction is SDK-owned;
-configuration is fixed for the instance's lifetime. Optional `initialize` and
+`Contribution[Config]` is a nominal hosting contract. Ordinary constructors
+capture configuration and bookkeeping; they must not acquire resources.
+Custom constructors call `super().__init__(configuration=...)`. Configuration
+is fixed for the instance's lifetime. Optional `initialize` and
 `close` methods acquire and release instance resources. Stateless contributions
 inherit empty lifecycle methods and write only their calculations.
 
@@ -39,38 +42,42 @@ implementations are in `examples/`. `calculate` is a provider-selected name;
 `@operation()` explicitly exports it. The decorator does not wrap direct calls.
 Calling an instance method directly is ordinary Python, not managed execution.
 
-## Registration and allocation
+## Handover and allocation
 
 ```python
 host = EmbeddedHost(limits=host_limits)
-registration = Registration(
-    contribution=WeightedSum,
+weighted = WeightedSum(
     configuration=WeightedConfig(settings=settings, coefficients=coefficients),
-    resources=call_requirements,
 )
-host.allocate(
-    name="worker", registration=registration, grants=resource_grants,
+hosted = host.adopt(
+    contribution=weighted,
+    allocation=ResourceAllocation(name="worker", grants=resource_grants),
+    resources=call_requirements,
 )
 ```
 
-Registration acquires no scientific resources. Component identity comes from the
+Adoption acquires no scientific resources. Component identity comes from the
 contribution's module and qualified class name. Deployment owns installed-artifact
-identity through its release and installation records; registration does not
+identity through its release and installation records; the call inventory does not
 duplicate those records or accept a manually bumped implementation label.
 Requirements describe scientific needs; allocation grants describe what deployment
 actually supplies.
 
-`Registration(...)` is host-independent assembly. Existing
-fixed `Allocation(name=..., binding=registration, grants=...)` composition uses
-that same record and execution path. The host keeps no second mutable inventory
-that could disagree with its selected allocations. Provider helpers such as
+Validation precedes ownership transfer. Rejection leaves the object with its
+caller, without initializing or closing it. Success retains the object and
+permanently claims it for this allocation. Another host cannot adopt it, including
+after retirement. A fresh allocation needs a fresh contribution.
+
+The existing `Allocation(binding=...)` constructor remains for low-level
+`ImplementationBinding` consumers; object contributions must use `adopt`.
+Both paths use the same execution owners. Provider helpers such as
 `create_binding()` are ordinary explicitly called assembly code, not SDK-discovered
 entrypoints.
 
 The registered inventory contains only effective, explicitly marked instance
 methods. Normal Python overriding applies: an unmarked override removes an
 inherited export. Aliased exports, async/generator methods and unsupported
-class/static/property operation forms fail at registration.
+class/static/property operation forms fail before handover.
 
 ## Who understands an operation
 
@@ -85,16 +92,18 @@ analysis = host.open_analysis(
 )
 reservation, = analysis.reservations
 operation = analysis.submit_method(
-    method=WeightedSum.calculate,
+    method=weighted.calculate,
     operation_id="calculate", scientific_input=numbers, states=(),
     reservation=reservation, limits=execution_limits,
     dispatch_guard=require_permission,
 )
 ```
 
-The reservation selects the already registered allocation, so submission does not
-repeat its registration. No scheduler infers that prepare
-must precede calculate from the method inventory. `Registration.reference(method=...)`
+The reservation selects the adopted contribution's allocation, so submission does not
+repeat its configuration. Both the exact receiver's bound method and its exported
+class method are accepted; another receiver's bound method is rejected.
+No scheduler infers that prepare must precede calculate from the method inventory.
+`hosted.reference(method=weighted.calculate)`
 projects the portable address for workflows using `Invocation` directly, as the
 spectrum example does. Python scientific objects do not cross that transport
 boundary. Typed methods compile to existing internal call records; there is no
@@ -111,10 +120,26 @@ scientific input remains an error before operation admission.
 
 ## Lifetimes and failures
 
-The host retains the contribution before initialization and publishes readiness
+The host retains the contribution at adoption, initializes it lazily on its
+allocation executor, and publishes readiness
 only after success. Its original initialization failure remains observable.
 Cleanup of a partially initialized instance uses that same owner; failed cleanup
-retains the owner and its failure. Retirement waits for dependent work and readers.
+retains the owner and its failure. Retirement also closes contributions that
+were never initialized, so `close` must handle that state. Retirement waits for
+dependent work and readers.
+
+An initializer must retain an empty resource owner before a loader can fail:
+
+```python
+def initialize(self, *, assets: AssetAccess) -> None:
+    self.model = science.create_empty_model(configuration=self.configuration)
+    science.load_model(model=self.model, assets=assets)
+```
+
+The empty-owner constructor must not acquire resources. If it acquires and raises
+before returning, only that constructor can clean up; the host never received
+the missing owner. The dummy example tests partial loading and retirement of the
+exact model. Process isolation does not change this ownership obligation.
 
 `Analysis[ContributionType]` is a separate optional scientific owner, selected by
 `Contribution.analysis_type`. The SDK retains it before its own initializer runs.
@@ -133,7 +158,9 @@ or establish that science stopped.
 configuration. The resolver neither downloads data nor promises filesystem
 confinement; snapshot lifetime and process/mount isolation remain deployment
 responsibilities. The current examples keep their scientific coefficients and
-reference records inline and need no file assets.
+reference records inline and need no file assets. No concrete retained snapshot
+resolver is implemented here yet. A file-backed example needs that owner first;
+hashing a path and reopening it later would not demonstrate verified acquisition.
 
 ## Identity and limits
 

@@ -11,13 +11,30 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
-import provider_core.scientific as sdk
+from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
+from provider_core.hosting import ResourceGrant, observe_cleanup
 from reference_provider import science
 from reference_provider.binding import ReferenceMatcher, create_binding
 
 
-class ReferenceBindingTests(unittest.TestCase):
-    def test_installed_distribution_contains_the_scientific_package_and_settings(self):
+class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        self.host = EmbeddedHost(limits=HostLimits(
+            analysis_records=1, operation_records=1, input_bytes=4096, result_bytes=4096,
+            state_values=1, progress_records=1, initialization_seconds=5, retirement_seconds=5,
+        ))
+        self.addAsyncCleanup(self.retire)
+
+    async def retire(self):
+        await observe_cleanup(control=self.host.retire())
+
+    def binding(self):
+        return create_binding(host=self.host, allocation=ResourceAllocation(
+            name=f"library-{len(self.host.allocations)}",
+            grants=(ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),),
+        ))
+
+    async def test_installed_distribution_contains_the_scientific_package_and_settings(self):
         distribution = metadata.distribution("reference-match-provider-example")
         package = Path(resources.files("reference_provider")).resolve()
         self.assertEqual(package, Path(distribution.locate_file("reference_provider")).resolve())
@@ -26,8 +43,8 @@ class ReferenceBindingTests(unittest.TestCase):
             self.assertTrue(package.joinpath(name).is_file())
             self.assertIn(f"reference_provider/{name}", {str(path) for path in distribution.files})
 
-    def test_one_typed_query_call_has_no_analysis_or_state_lifetime(self):
-        binding = create_binding()
+    async def test_one_typed_query_call_has_no_analysis_or_state_lifetime(self):
+        binding = self.binding()
         call = binding.call(method=ReferenceMatcher.match)
         self.assertRegex(binding.description.binding_revision, r"\Aconfigured-v3:sha256:[0-9a-f]{64}\Z")
         self.assertEqual("match", call.description.name)
@@ -38,25 +55,15 @@ class ReferenceBindingTests(unittest.TestCase):
         self.assertEqual((), call.description.state_outputs)
         self.assertEqual(1, call.description.resources[0].amount)
 
-    def test_factory_defers_index_building_to_the_instance_initializer(self):
+    async def test_factory_defers_index_building_to_the_instance_initializer(self):
         with patch("reference_provider.science.build_index", wraps=science.build_index) as build:
-            binding = create_binding()
-            library = binding.construct_instance()
+            binding = self.binding()
+            library = binding.contribution
             build.assert_not_called()
             self.assertIsNone(library.loaded_index)
-            binding.initialize_instance(instance=library, assets=sdk.NoAssets())
-            build.assert_called_once_with(reference_set=library.configuration.references)
-            index = library.loaded_index
-            returned = library.match(candidate=science.VectorInput(values=(3, 4, 0, 0)))
-            self.assertEqual("pattern-a", returned.label)
-            self.assertAlmostEqual(1, returned.score)
-            self.assertIs(index, library.loaded_index)
-            binding.close_instance(instance=library)
-            self.assertIsNone(library.loaded_index)
-            self.assertEqual("pattern-a", returned.label)
 
-    def test_settings_and_reference_assets_change_revision_without_mutating_existing_bindings(self):
-        original = create_binding()
+    async def test_settings_and_reference_assets_change_revision_without_mutating_existing_bindings(self):
+        original = self.binding()
         package = resources.files("reference_provider")
         source = package.joinpath("settings.toml").read_text(encoding="utf-8")
         with TemporaryDirectory() as directory:
@@ -64,18 +71,18 @@ class ReferenceBindingTests(unittest.TestCase):
             root.joinpath("resources.toml").write_text(package.joinpath("resources.toml").read_text(encoding="utf-8"), encoding="utf-8")
             with patch("reference_provider.binding.files", return_value=root):
                 root.joinpath("settings.toml").write_text(source.replace("minimum_score = 0.5", "minimum_score = 0.9"), encoding="utf-8")
-                changed_settings = create_binding()
+                changed_settings = self.binding()
                 root.joinpath("settings.toml").write_text(source.replace("3.0, 4.0, 0.0, 0.0", "6.0, 4.0, 0.0, 0.0"), encoding="utf-8")
-                changed_references = create_binding()
+                changed_references = self.binding()
                 root.joinpath("settings.toml").write_text("# Same values\n" + source, encoding="utf-8")
-                reformatted = create_binding()
+                reformatted = self.binding()
         self.assertNotEqual(original.description.binding_revision, changed_settings.description.binding_revision)
         self.assertNotEqual(original.description.binding_revision, changed_references.description.binding_revision)
         self.assertEqual(original.description.binding_revision, reformatted.description.binding_revision)
         self.assertEqual(original.description.assets, changed_settings.description.assets)
         self.assertNotEqual(original.description.configuration, changed_references.description.configuration)
-        self.assertEqual(0.5, original.configuration.settings.minimum_score)
-        self.assertEqual((3, 4, 0, 0), original.configuration.references.entries[0].values)
+        self.assertEqual(0.5, original.contribution.configuration.settings.minimum_score)
+        self.assertEqual((3, 4, 0, 0), original.contribution.configuration.references.entries[0].values)
 
 
 if __name__ == "__main__":

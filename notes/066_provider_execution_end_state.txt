@@ -350,11 +350,15 @@ Two views of the same registration
   The scheduler sees an immutable data description: binding identity/revision,
   declared calls, input/result formats, state requirements, resource requirements
   and supported capabilities. It does not import factories, scientific classes,
-  codecs or models. The host loads the corresponding configured factory, callable
-  table and codecs inside the permitted scientific environment.
+  codecs or models. Deployment supplies the configured scientific object inside
+  the permitted environment; the host derives its callable table and codecs
+  as described in 086.
 
-  The binding revision identifies the code, settings and assets that affect
-  scientific behavior. An operator may move an alias to a new revision for future
+  Scientific identity combines the deployed code artifact with the configured
+  contract revision. The configured-v3 revision in 086 identifies settings,
+  asset references and execution declarations; it does not hash code bytes.
+  Deployment retains the installed-artifact provenance. An operator may move
+  an alias to a new configured deployment for future
   calls; existing operations, instances and state keep the old revision. Lazy
   initialization must use immutable assets or verify the expected content when
   loading it. A mutable pathname alone cannot identify a scientific revision.

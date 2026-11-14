@@ -7,6 +7,7 @@ from importlib.resources import files
 import tomllib
 
 import provider_core.scientific as sdk
+from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
 
 from . import science
 
@@ -35,7 +36,7 @@ class ReferenceMatcher(sdk.Contribution[ReferenceConfig]):
         )
 
 
-def create_binding() -> sdk.Registration[ReferenceConfig]:
+def create_binding(*, host: EmbeddedHost, allocation: ResourceAllocation) -> sdk.HostedContribution[ReferenceConfig]:
     """Provider-owned assembly, invoked explicitly; no index is loaded here."""
     package = files(anchor=__package__)
     configured = tomllib.loads(package.joinpath("settings.toml").read_text(encoding="utf-8"))
@@ -47,8 +48,8 @@ def create_binding() -> sdk.Registration[ReferenceConfig]:
     requirement = sdk.ResourceRequirement(
         **tomllib.loads(package.joinpath("resources.toml").read_text(encoding="utf-8"))
     )
-    return sdk.Registration(
-        contribution=ReferenceMatcher,
-        configuration=ReferenceConfig(settings=settings, references=reference_set),
+    return host.adopt(
+        contribution=ReferenceMatcher(configuration=ReferenceConfig(settings=settings, references=reference_set)),
+        allocation=allocation,
         resources=(requirement,),
     )

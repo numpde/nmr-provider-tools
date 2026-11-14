@@ -12,7 +12,7 @@ src/dummy_provider/
 tests/
     test_science.py    direct calculations and scientific rejection/correction
     test_binding.py    binding declarations and installed package boundary
-    test_execution.py one prepare/calculate path through the installed host API
+    test_execution.py prepare/calculate and partial-loading cleanup through the host
 ```
 
 The weighted-sum binding holds a reusable model and per-analysis state. Its
@@ -21,8 +21,10 @@ sum binding uses the same interface for a single calculation.
 
 `WeightedSum` and `Sum` inherit the SDK's `Contribution[Config]` contract.
 Their exported methods use keyword-only scientific arguments and read settings
-from `self.configuration`. A `Registration` records the class and immutable
-configuration; each allocation creates its own instance. Local execution uses
+from `self.configuration`. Provider assembly constructs the object and calls
+`host.adopt(contribution=..., allocation=..., resources=...)`. The host retains
+that exact object before lazy initialization; the returned `HostedContribution`
+contains its derived call inventory. Local execution uses
 `analysis.submit_method(method=WeightedSum.prepare, ...)`;
 the SDK derives the data-only reference and encodes the typed input internally.
 The producer's `normalized` output connects to the consumer's
@@ -31,6 +33,11 @@ the original producer operation; the backend owns live state admission,
 consumption and cleanup. These named slot helpers are provider assembly fields;
 the call's own slot declarations remain authoritative. See
 [the contribution interface](../../notes/086_configured_science_boundary.md).
+
+The weighted initializer retains an empty model before loading it. Its installed
+test makes loading fail after populating that model, checks that preparation never
+runs, and proves retirement disposes the same partial model. Constructors only
+capture settings and bookkeeping; `close` also supports retirement before use.
 
 Each binding reads the packaged `resources.toml` and validates it through the
 SDK's resource constructor. The validated requirements enter the configured-v3

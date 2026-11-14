@@ -6,7 +6,7 @@ import asyncio
 import sys
 from threading import Event
 
-from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits
+from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
 from provider_core.hosting import (
     ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
@@ -18,11 +18,7 @@ from .science import VectorInput
 
 async def run_demo() -> None:
     """Reuse initialized science; retain results beyond each analysis lifetime."""
-    binding = create_binding()
     host = EmbeddedHost(
-        allocations=(Allocation(name="library", binding=binding, grants=(
-            ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
-        )),),
         limits=HostLimits(
             analysis_records=2, operation_records=2, input_bytes=8192,
             result_bytes=8192, state_values=1, progress_records=1,
@@ -48,6 +44,9 @@ async def run_demo() -> None:
         sys.stdout.buffer.flush()
 
     try:
+        binding = create_binding(host=host, allocation=ResourceAllocation(name="library", grants=(
+            ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
+        )))
         for name, values in (("first", (3, 4, 0, 0)), ("second", (0, 0, 1, 1))):
             analysis = host.open_analysis(analysis_id=name, allocation_names=("library",))
             cleanup_requests.append(analysis.close)

@@ -25,7 +25,7 @@ from provider_core.hosting import (
     ResourceGrant,
     positive_seconds,
 )
-from provider_core.scientific import AssetAccess, NoAssets, Registration
+from provider_core.scientific import AssetAccess, NoAssets, HostedContribution
 
 # This describes the backend's implemented features, not operator-selectable settings.
 # repo-check: allow-module-constant
@@ -92,12 +92,21 @@ def _grants_cover(grants, requirements):
     return all(any(grant.covers(requirement) for grant in grants) for requirement in requirements)
 
 
+@dataclass(frozen=True, slots=True, kw_only=True)
+class ResourceAllocation:
+    """Deployment's named resource assignment, independent of scientific code."""
+
+    name: str
+    grants: tuple[ResourceGrant, ...]
+    assets: AssetAccess = field(default_factory=NoAssets)
+
+
 @dataclass(frozen=True, slots=True)
 class Allocation:
     """Deployment explicitly assigns a configured binding and resource grants."""
 
     name: str
-    binding: ImplementationBinding | Registration
+    binding: ImplementationBinding | HostedContribution
     grants: tuple[ResourceGrant, ...]
     assets: AssetAccess = field(default_factory=NoAssets)
 
@@ -105,7 +114,7 @@ class Allocation:
         if type(self.name) is not str:
             raise TypeError("Allocation name must be a string")
         if not (
-            isinstance(self.binding, (ImplementationBinding, Registration))
+            isinstance(self.binding, (ImplementationBinding, HostedContribution))
             and type(self.grants) is tuple
             and all(type(grant) is ResourceGrant for grant in self.grants)
         ):
@@ -206,12 +215,15 @@ class _Cleanup(_Changes):
 
 class _Resident:
     def __init__(self, host_identity, allocation):
-        self.reference = AllocationRef(
-            host=host_identity,
-            allocation=allocation.name,
-            binding_id=allocation.binding.description.binding_id,
-            binding_revision=allocation.binding.description.binding_revision,
-        )
+        if isinstance(allocation.binding, HostedContribution):
+            self.reference = allocation.binding.allocation
+        else:
+            self.reference = AllocationRef(
+                host=host_identity,
+                allocation=allocation.name,
+                binding_id=allocation.binding.description.binding_id,
+                binding_revision=allocation.binding.description.binding_revision,
+            )
         self.allocation = allocation
         self.executor = ThreadPoolExecutor(
             max_workers=1,
@@ -236,8 +248,9 @@ class _Resident:
         binding = self.allocation.binding
         started_at = time.monotonic()
         try:
-            self.value = binding.construct_instance()
-            self.constructed = True
+            if not self.constructed:
+                self.value = binding.construct_instance()
+                self.constructed = True
             binding.initialize_instance(instance=self.value, assets=self.allocation.assets)
             if seconds < time.monotonic() - started_at:
                 raise TimeoutError("Instance initialization exceeded its original allowance.")

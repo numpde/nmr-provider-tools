@@ -15,8 +15,8 @@ from collections.abc import Callable
 from uuid import uuid4
 
 from provider_core.async_runner_session import await_original
-from provider_core.contribution import CallBinding, NoInput, ref
-from provider_core.scientific import NoAssets, Registration
+from provider_core.contribution import CallBinding, ImplementationBinding, IsolationRequirement, NoInput, ResourceRequirement, ref
+from provider_core.scientific import Contribution, HostedContribution
 from provider_core.hosting import (
     AdmissionCode,
     AllocationRef,
@@ -36,6 +36,7 @@ from provider_core._embedded_support import (
     EMBEDDED_CAPABILITIES,
     Allocation,
     HostLimits,
+    ResourceAllocation,
     _Cleanup,
     _Resident,
     _ScientificAnalysis,
@@ -57,6 +58,8 @@ class EmbeddedHost:
             raise TypeError("Supply explicit Allocation records and HostLimits.")
         if len({item.name for item in allocations}) != len(allocations):
             raise ValueError("Allocation names must be unique within a host.")
+        if any(not isinstance(item.binding, ImplementationBinding) for item in allocations):
+            raise TypeError("Object contributions must be handed over with host.adopt")
         self.loop = asyncio.get_running_loop()
         self.identity = uuid4().hex
         self.limits = limits
@@ -72,21 +75,44 @@ class EmbeddedHost:
         self.retirement = None
         self.retiring = False
 
-    def allocate(self, *, name, registration, grants, assets=None) -> AllocationRef:
-        """Assign a registered implementation before this fixed host starts work."""
+    # silent-defaults: allow-contract -- No resident requirements and shared-process execution describe the ordinary embedded contribution contract.
+    def adopt[ConfigT](
+        self, *, contribution: Contribution[ConfigT], allocation: ResourceAllocation,
+        resources: tuple[ResourceRequirement, ...],
+        resident_resources: tuple[ResourceRequirement, ...] = (),
+        isolation: IsolationRequirement = IsolationRequirement.SHARED_PROCESS,
+    ) -> HostedContribution[ConfigT]:
+        """Take ownership of this exact object after validating its assignment.
+
+        Rejection leaves ownership with the caller. Successful adoption retains
+        the receiver before initialization and permanently forbids re-adoption.
+        """
         self._require_loop()
         if self.retiring or self.analyses:
-            raise CapacityUnavailable("Configure fixed allocations before opening analyses.")
-        if not isinstance(registration, Registration):
-            raise TypeError("An allocation requires a compiled Registration")
-        if name in self.residents:
+            raise CapacityUnavailable("Adopt contributions before opening analyses or retiring the host.")
+        if type(allocation) is not ResourceAllocation:
+            raise TypeError(f"Unexpected {type(allocation)=}; adoption requires a ResourceAllocation")
+        if type(allocation.name) is not str:
+            raise TypeError(f"Unexpected {type(allocation.name)=}; an allocation name must be a string")
+        if allocation.name in self.residents:
             raise ValueError("Allocation names must be unique within a host.")
-        if assets is None:
-            assets = NoAssets()
-        allocation = Allocation(name=name, binding=registration, grants=grants, assets=assets)
-        resident = _Resident(self.identity, allocation)
-        self.residents[name] = resident
-        return resident.reference
+        hosted = HostedContribution(
+            contribution=contribution, host=self.identity, allocation_name=allocation.name,
+            resources=resources, resident_resources=resident_resources, isolation=isolation,
+        )
+        assignment = Allocation(
+            name=allocation.name, binding=hosted, grants=allocation.grants, assets=allocation.assets,
+        )
+        custody = contribution._custody
+        with custody.lock:
+            if custody.owner is not None:
+                raise ValueError(f"Cannot adopt this contribution again; {custody.owner=} already owns its lifetime")
+            resident = _Resident(self.identity, assignment)
+            resident.value = contribution
+            resident.constructed = True
+            self.residents[allocation.name] = resident
+            custody.owner = resident.reference
+        return hosted
 
     @property
     def allocations(self):
@@ -261,15 +287,15 @@ class EmbeddedAnalysis:
         reservation: ReservationRef, limits: ExecutionLimits,
         dispatch_guard: Callable[[], None],
     ) -> Operation | NotAdmitted:
-        """Select a method on the exact registration owned by the reservation."""
+        """Select a method on the exact contribution owned by the reservation."""
         self.host._require_loop()
         refusal = self._reservation_refusal(reservation=reservation)
         if refusal is not None:
             return refusal
-        registration = self.science[reservation.allocation].resident.allocation.binding
-        if not isinstance(registration, Registration):
-            raise TypeError(f"Unexpected {type(registration)=}; method submission requires a scientific Registration")
-        call = registration.call(method=method)
+        hosted = self.science[reservation.allocation].resident.allocation.binding
+        if not isinstance(hosted, HostedContribution):
+            raise TypeError(f"Unexpected {type(hosted)=}; method submission requires an adopted contribution")
+        call = hosted.call(method=method)
         if type(scientific_input) is NoInput and call.input_codec.value_type is not NoInput:
             raise TypeError(f"Unexpected {type(scientific_input)=}; {call.description.name=} requires {call.input_codec.value_type=}")
         return self.submit_call(
