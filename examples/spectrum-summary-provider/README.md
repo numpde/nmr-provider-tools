@@ -36,7 +36,7 @@ The workflow retains the intermediate release handle separately. Its cleanup
 failure must not hide an accepted peak operation or a usable final report; the
 composition observes that release independently during cleanup.
 
-The SDK owns generic observation waits, dispatch, guarded permission checks,
+The SDK owns generic observation waits, dispatch, execution-owned cancellation and start-deadline checks,
 result consumption, retained results and observable cleanup. The bootstrap
 chooses the scientific objects and SDK buffer and time limits. Resource
 requirements describe what science needs; they do not grant hardware access.

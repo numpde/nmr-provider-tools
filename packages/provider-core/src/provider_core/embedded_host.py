@@ -38,6 +38,7 @@ from provider_core._embedded_support import (
     EMBEDDED_CAPABILITIES,
     Allocation,
     _require_supported_binding,
+    _require_start_deadline,
     _Cleanup,
     _Resident,
     _ScientificAnalysis,
@@ -319,6 +320,7 @@ class EmbeddedAnalysis:
                 return reservation
         raise ValueError("This analysis did not reserve the supplied allocation")
 
+    # Omitted start deadlines leave the execution policy's clocks in force.
     def submit_call[InputT, StateT, OutputT](
         self,
         call: CallBinding[InputT, StateT, OutputT],
@@ -327,13 +329,14 @@ class EmbeddedAnalysis:
         states: tuple[StateArgument, ...],
         reservation: ReservationRef,
         policy: OperationPolicy,
-        dispatch_guard: Callable[[], None],
+        start_not_after: float | None = None,
     ) -> Operation | NotAdmitted:
         """Ask the SDK to execute a registered scientific method with encoded input.
 
-        Provider code supplies an owned CallBinding, its reservation, policy and
-        dispatch_guard. The SDK checks the request and capacity before creating
-        an operation handle. The guard runs later when the executor can start.
+        Provider code supplies an owned CallBinding, its reservation and policy.
+        Execution checks its own stopped/closed state and any start deadline before
+        admission and again before scientific entry. A start deadline uses this
+        backend's event-loop clock and cannot be renewed by retrying the request.
         A returned handle means the request was admitted, not that it ran or succeeded.
         """
         if type(call) is not CallBinding:
@@ -345,19 +348,19 @@ class EmbeddedAnalysis:
             states=states,
             reservation=reservation,
             policy=policy,
+            start_not_after=start_not_after,
         )
         return self._submit(
             invocation=invocation,
-            dispatch_guard=dispatch_guard,
             retain_identity=False,
         )
 
-    # silent-defaults: allow-contract -- Methods without a payload use the immutable NoInput record; required inputs are checked before encoding.
+    # silent-defaults: allow-contract -- NoInput represents absent payload; omitted start deadlines leave policy clocks in force.
     def submit_method(
         self, *, method: Callable,
         scientific_input: object = NoInput(), states: tuple[StateArgument, ...],
         reservation: ReservationRef, policy: OperationPolicy,
-        dispatch_guard: Callable[[], None],
+        start_not_after: float | None = None,
     ) -> Operation | NotAdmitted:
         """Ask the SDK to run an exported method on the reserved scientific object.
 
@@ -381,24 +384,23 @@ class EmbeddedAnalysis:
         return self.submit_call(
             call=call,
             payload=call.encode_input(value=scientific_input), states=states,
-            reservation=reservation, policy=policy, dispatch_guard=dispatch_guard,
+            reservation=reservation, policy=policy, start_not_after=start_not_after,
         )
 
     def submit(
-        self, invocation: Invocation, *, dispatch_guard: Callable[[], None],
+        self, invocation: Invocation,
     ) -> Operation | NotAdmitted:
         """Retain portable request identity until this analysis closes."""
         return self._submit(
             invocation=invocation,
-            dispatch_guard=dispatch_guard,
             retain_identity=True,
         )
 
-    def _submit(self, invocation, *, dispatch_guard, retain_identity):
+    def _submit(self, invocation, *, retain_identity):
         """Admit work and retain portable request identity for the open analysis."""
         self.host._require_loop()
-        if type(invocation) is not Invocation or not callable(dispatch_guard):
-            raise TypeError("Submit requires an Invocation and a host-side permission check.")
+        if type(invocation) is not Invocation:
+            raise TypeError(f"Unexpected {type(invocation)=}; submit requires an Invocation")
 
         operation_key = (self.identity, invocation.operation_id)
         if self.closed:
@@ -419,6 +421,7 @@ class EmbeddedAnalysis:
         if admission_refusal is not None:
             return admission_refusal
 
+        _require_start_deadline(start_not_after=invocation.start_not_after, now=self.host.loop.time())
         scientific_analysis = self.science[invocation.reservation.allocation]
         implementation_binding = scientific_analysis.resident.binding
         selected_call = next(
@@ -449,7 +452,6 @@ class EmbeddedAnalysis:
             science=scientific_analysis,
             invocation=invocation,
             call=selected_call,
-            guard=dispatch_guard,
             states=state_owners,
             retain_identity=retain_identity,
         )
@@ -550,6 +552,19 @@ class EmbeddedAnalysis:
         return state_owners
 
 
+    def request_stop(self) -> None:
+        """Refuse further science and request stops without disposing retained results.
+
+        Provider code calls this when a job is canceled. Receivers can still finish
+        using retained results. Release results and close the session separately
+        when their consumers no longer need its resources.
+        """
+        self.host._require_loop()
+        self.closed = True
+        for operation in list(self.operations.values()):
+            if not operation.finished:
+                operation.request_stop()
+
     def close(self) -> AnalysisCleanup:
         """Request cleanup of this execution session and return its retained control.
 
@@ -560,15 +575,12 @@ class EmbeddedAnalysis:
         """
         self.host._require_loop()
         if self.cleanup is None:
-            self.closed = True
+            self.request_stop()
             cleanup_overdue_flag_seconds = min(
                 (item.invocation.policy.cleanup_overdue_flag_seconds for item in self.operations.values()),
                 default=self.host.retirement_seconds,
             )
             self.cleanup = _Cleanup(cleanup_overdue_flag_seconds)
-            for operation in list(self.operations.values()):
-                if not operation.finished:
-                    operation.request_stop()
             self.cleanup.start(self._close)
         return self.cleanup
 

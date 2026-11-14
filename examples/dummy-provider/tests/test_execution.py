@@ -92,7 +92,6 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
                     reject_encoded_input_over_bytes=4096,
                     reject_encoded_result_over_bytes=4096,
                 ),
-                dispatch_guard=lambda: None,
             )
             async with asyncio.timeout(10):
                 observation = await observe_completion(operation=operation)
@@ -145,7 +144,6 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             method=weighted_binding.contribution.prepare,
              scientific_input=science.PreparationInput(values=()),
             states=(), reservation=reservation, policy=operation_policy,
-            dispatch_guard=lambda: None,
         )
         rejection = await observe_completion(operation=rejected)
         self.assertIs(Outcome.REJECTED, rejection.outcome)
@@ -158,7 +156,6 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             states=(),
             reservation=reservation,
             policy=operation_policy,
-            dispatch_guard=lambda: None,
         )
         self.assertNotIsInstance(preparation_operation, NotAdmitted)
 
@@ -193,7 +190,6 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             states=(calculation_state,),
             reservation=reservation,
             policy=operation_policy,
-            dispatch_guard=lambda: None,
         )
         self.assertNotIsInstance(calculation_operation, NotAdmitted)
 

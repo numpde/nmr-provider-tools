@@ -7,11 +7,11 @@ original operation and its retained result owned by this workflow.
 
 from __future__ import annotations
 
-from collections.abc import Callable
 
 from provider_core.contribution import CallRef
 from provider_core.hosting import (
     AnalysisExecution,
+    AdmissionCode,
     OperationPolicy,
     Invocation,
     NotAdmitted,
@@ -29,7 +29,7 @@ class PeakWorkflow:
     """Retain the two operations and transfer portable bytes between them.
 
     The application chooses this fixed scientific sequence. The execution
-    backend owns dispatch, permission enforcement and result retention. No
+    backend owns dispatch, cancellation enforcement and result retention. No
     scientific state handle crosses the two independent bindings.
     """
 
@@ -41,16 +41,15 @@ class PeakWorkflow:
         peaks: CallRef,
         peak_reservation: ReservationRef,
         policy: OperationPolicy,
-        dispatch_guard: Callable[[], None],
     ) -> None:
         self.execution = execution
         self.baseline_invocation = baseline
         self.peak_target = peaks
         self.peak_reservation = peak_reservation
         self.policy = policy
-        self.dispatch_guard = dispatch_guard
         self.baseline_operation: Operation | None = None
         self.peak_operation: Operation | None = None
+        self.peak_refusal: NotAdmitted | None = None
         self.peak_invocation: Invocation | None = None
         self.baseline_release: ResultRelease | None = None
 
@@ -59,7 +58,7 @@ class PeakWorkflow:
         if self.baseline_operation is not None:
             return self.baseline_operation
         accepted = self.execution.submit(
-            invocation=self.baseline_invocation, dispatch_guard=self.dispatch_guard,
+            invocation=self.baseline_invocation,
         )
         if not isinstance(accepted, NotAdmitted):
             self.baseline_operation = accepted
@@ -69,6 +68,8 @@ class PeakWorkflow:
         """Resume observation or downstream admission without repeating science."""
         if self.baseline_operation is None:
             raise RuntimeError("Start the baseline operation before waiting for peaks.")
+        if self.peak_refusal is not None:
+            return self.peak_refusal
         if self.peak_operation is None:
             baseline = await observe_completion(operation=self.baseline_operation)
             # Science may succeed while encoding fails. Keep both facts intact.
@@ -87,10 +88,14 @@ class PeakWorkflow:
                 )
             accepted = self.execution.submit(
                 invocation=self.peak_invocation,
-                dispatch_guard=self.dispatch_guard,
             )
             if isinstance(accepted, NotAdmitted):
-                # Admission failed before effects; the intermediate copy stays owned.
+                if accepted.code is AdmissionCode.CLOSED:
+                    # Stopping execution makes downstream admission impossible.
+                    # This workflow no longer needs the intermediate result.
+                    self.baseline_release = self.baseline_operation.release_result(result=baseline.result)
+                    self.peak_refusal = accepted
+                # A capacity refusal can still be retried using the retained input.
                 return accepted
             self.peak_operation = accepted
             # The accepted invocation now owns its input bytes. This is an

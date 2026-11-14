@@ -34,7 +34,6 @@ Local execution submits a bound method:
 analysis.submit_method(
     method=peaks.run, scientific_input=spectrum,
     states=(), reservation=reservation, limits=limits,
-    dispatch_guard=require_permission,
 )
 ```
 
@@ -119,3 +118,11 @@ resource identity are rejected. Exported arrays use a canonical order so hash
 iteration cannot change an execution-contract revision.
 Neither path discovers, reserves or validates hardware availability. Backend
 execution support is checked independently before ownership is accepted.
+
+Execution sessions own cancellation: request_stop() refuses further submissions
+and signals unfinished operations while leaving results available to receivers;
+close() requests disposal after their use. Scientific submissions have no external
+permission callback. An optional immutable Invocation.start_not_after bounds entry
+to initialization and science using the addressed backend's event-loop clock.
+Matching accepted retries return the original operation; changing the deadline
+under the same request identity conflicts rather than renewing its time window.

@@ -64,7 +64,8 @@ provider's `Prediction.dispatch`. That method decodes the proposal and submits
 SDK admission means the submission passed its ownership, input-size and capacity
 checks: the SDK creates an operation handle and queues the work. It does not mean
 `prepare` has run or validated the input. When the executor is ready, the SDK
-checks the provider's permission callback and starts scientific execution.
+checks whether that execution session or operation has been stopped and whether
+its original start deadline has passed. It then starts scientific execution.
 
 If `prepare` rejects correctable input, `Prediction` returns `ToolRejected` to the
 interpreter so the language model can propose a correction. Loading and execution
@@ -139,3 +140,11 @@ scientific results without changing the installed application.
 Adoption records resource requirements and establishes scientific-object ownership.
 It does not discover or allocate CPU/GPU hardware. The returned allocation handle
 identifies an execution owner, not a hardware grant.
+
+Execution owns cancellation. Provider code calls `execution.request_stop()` to
+refuse more work and signal unfinished operations while retaining results needed
+by receivers. It calls `execution.close()` later to dispose those resources.
+The interpreter supplies `start_not_after` for validation using the same event-loop
+clock; the SDK checks it before admission and before science, including after model
+loading. A deadline failure reaches the interpreter only after the original worker
+has settled, or when admission was refused before any worker was started.

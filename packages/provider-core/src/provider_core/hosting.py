@@ -261,7 +261,7 @@ class OperationPolicy:
     admitting it: creating an operation handle and reserving space for its work.
 
     The queue clock starts at admission. The execution clock replaces it when
-    the executor passes the provider's dispatch_guard and can begin the work;
+    the executor passes execution's cancellation and start-deadline checks;
     it includes initialization, decoding, science and result encoding. Expiry
     requests stopping but cannot force the scientific thread to exit.
 
@@ -295,13 +295,20 @@ class OperationPolicy:
             raise ValueError("Input and result allowances must be positive byte counts.")
 
 
+class StartDeadlineExpired(TimeoutError):
+    """The execution backend could not begin science within its original start window."""
+
+
 @dataclass(frozen=True, slots=True)
 class Invocation:
     """Data for one scientific-method submission, with an SDK-generated identity.
 
     Provider code submits this record through an execution session. Keep the same
     record when retrying transport delivery of that submission; constructing a new
-    Invocation asks the SDK to perform separate work.
+    Invocation asks the SDK to perform separate work. start_not_after uses the
+    addressed backend's event-loop clock, not a wall-clock or cross-host timestamp.
+    It bounds entry to initialization and science; observing or retrying the same
+    invocation cannot extend it.
     """
 
     operation_id: str = field(default_factory=lambda: uuid4().hex, kw_only=True)
@@ -310,8 +317,15 @@ class Invocation:
     states: tuple[StateArgument, ...]
     reservation: ReservationRef
     policy: OperationPolicy
+    # None adds no external start deadline to the execution policy's clocks.
+    start_not_after: float | None = field(default=None, kw_only=True)
 
     def __post_init__(self):
+        if self.start_not_after is not None:
+            if type(self.start_not_after) not in (int, float):
+                raise TypeError(f"Unexpected {type(self.start_not_after)=}; a start deadline must be a finite execution-clock value")
+            if not math.isfinite(self.start_not_after):
+                raise ValueError(f"Cannot set a start deadline with {self.start_not_after=}; expected a finite execution-clock value")
         if not (type(self.operation_id) is str):
             raise TypeError(
                 f"Unexpected {type(self.operation_id)=}; "
@@ -470,7 +484,16 @@ class Operation(Protocol):
 
 
 class AnalysisExecution(Protocol):
-    def submit(self, invocation: Invocation, *, dispatch_guard: Callable[[], None]) -> Operation | NotAdmitted: ...
+    """One execution session: stop scientific work before separately requesting cleanup.
+
+    request_stop() refuses later submissions and signals unfinished operations.
+    Retained results stay usable by receivers. close() separately requests cleanup;
+    stopping does not require a caller-supplied permission callback.
+    """
+
+    def submit(self, invocation: Invocation) -> Operation | NotAdmitted: ...
+
+    def request_stop(self) -> None: ...
 
     def close(self) -> AnalysisCleanup: ...
 

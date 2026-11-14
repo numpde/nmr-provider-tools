@@ -47,10 +47,6 @@ from tests.fakes.dummy_provider.binding import (
 )
 
 
-def _allow() -> None:
-    return None
-
-
 def _host_options(**changes) -> dict[str, int | float]:
     values = {
         "input_bytes": 32768,
@@ -209,13 +205,12 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             states=invocation.states,
             reservation=invocation.reservation,
             policy=invocation.policy,
-            dispatch_guard=_allow,
         )
         original_invocation = operation.invocation
-        self.assertIs(operation, analysis.submit(original_invocation, dispatch_guard=_allow))
+        self.assertIs(operation, analysis.submit(original_invocation))
         another = analysis.submit_call(
             binding.run, payload=b'{"values":[6]}', states=(),
-            reservation=invocation.reservation, policy=invocation.policy, dispatch_guard=_allow,
+            reservation=invocation.reservation, policy=invocation.policy,
         )
         self.assertIsNot(operation, another)
         _, result = await self.success(operation, binding.run.result_codec)
@@ -229,48 +224,41 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "before a configured binding owns it"):
             analysis.submit_call(
                 replace(binding.run),  payload=b'{"values":[1]}',
-                states=(), reservation=reservation, policy=_operation_policy(), dispatch_guard=_allow,
+                states=(), reservation=reservation, policy=_operation_policy(),
             )
         for target in ("run", ref(binding.run)):
             with self.subTest(target=target), self.assertRaises(TypeError):
                 analysis.submit_call(
                     target,  payload=b'{"values":[1]}',
-                    states=(), reservation=reservation, policy=_operation_policy(), dispatch_guard=_allow,
+                    states=(), reservation=reservation, policy=_operation_policy(),
                 )
         self.assertEqual({}, host.operations)
         self.assertEqual(0, host.input_used)
         self.assertEqual(0, host.result_reserved)
 
-    async def test_local_submission_preserves_revision_refusal_and_deferred_guard(self):
+    async def test_local_submission_preserves_revision_refusal_and_execution_stop(self):
         binding = sum_binding()
         host = self.host({"one": binding})
-        analysis = host.open_analysis("local-guard", allocation_names=("one",))
+        analysis = host.open_analysis("local-stop", allocation_names=("one",))
         reservation, = analysis.reservations
         wrong_revision = replace(binding, identity=replace(
             binding.identity, implementation="dummy.sum.another",
         ))
         foreign = analysis.submit_call(
             wrong_revision.run,  payload=b'{"values":[1]}',
-            states=(), reservation=reservation, policy=_operation_policy(), dispatch_guard=_allow,
+            states=(), reservation=reservation, policy=_operation_policy(),
         )
         self.assertIsInstance(foreign, NotAdmitted)
         self.assertEqual({}, host.operations)
-        permitted = True
-        cause = PermissionError("Local dispatch permission was withdrawn")
-
-        def guard():
-            if not permitted:
-                raise cause
-
         operation = analysis.submit_call(
             binding.run,  payload=b'{"values":[1]}',
-            states=(), reservation=reservation, policy=_operation_policy(), dispatch_guard=guard,
+            states=(), reservation=reservation, policy=_operation_policy(),
         )
-        permitted = False
+        operation.request_stop()
         observed = await self.finished(operation)
         self.assertIs(DispatchState.NOT_STARTED, observed.dispatch)
         self.assertIsNone(observed.outcome)
-        self.assertTrue(any(failure.cause is cause for failure in observed.failures))
+        self.assertTrue(any(isinstance(failure.cause, PermissionError) for failure in observed.failures))
 
     async def test_description_and_direct_science_match_hosted_calls(self):
         settings = science.WeightedSumSettings(scale=2, offset=1)
@@ -319,7 +307,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     call_name="prepare",
                     payload=b'{"values":[2,4,6]}',
                 ),
-                dispatch_guard=_allow,
             ),
             prepare_call.result_codec,
         )
@@ -333,7 +320,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     payload=b"{}",
                     states=(StateArgument("candidate", preparation.states[0].reference),),
                 ),
-                dispatch_guard=_allow,
             ),
             calculate_call.result_codec,
         )
@@ -357,13 +343,12 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     call_name="run",
                     payload=b'{"values":[2,4,6]}',
                 ),
-                dispatch_guard=_allow,
             ),
             sum_call.result_codec,
         )
         self.assertEqual(science.SumResult(total=12, count=3), ordinary_result)
 
-    async def test_permission_and_operation_identity_prevent_unowned_replay(self):
+    async def test_stop_and_operation_identity_prevent_unowned_replay(self):
         original = sum_binding()
         original_call = original.run
         entered = {"decode": 0, "invoke": 0}
@@ -385,12 +370,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         binding = replace(original, run=wrapped_call)
         host = self.host({"one": binding, "two": binding})
         analysis = host.open_analysis("permission", allocation_names=("one",))
-        permitted = True
-
-        def guard() -> None:
-            if not permitted:
-                raise PermissionError("revoked")
-
         invocation = _invocation(
             analysis,
             binding,
@@ -398,17 +377,16 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             call_name="run",
             payload=b'{"values":[1]}',
         )
-        operation = analysis.submit(invocation, dispatch_guard=guard)
-        permitted = False
+        operation = analysis.submit(invocation)
+        operation.request_stop()
         stopped = await self.finished(operation)
 
         self.assertIs(DispatchState.NOT_STARTED, stopped.dispatch)
         self.assertEqual({"decode": 0, "invoke": 0}, entered)
-        self.assertIs(operation, analysis.submit(invocation, dispatch_guard=guard))
+        self.assertIs(operation, analysis.submit(invocation))
         with self.assertRaises(RequestConflict):
             analysis.submit(
                 replace(invocation, payload=b'{"values":[2]}'),
-                dispatch_guard=guard,
             )
 
         peer_analysis = host.open_analysis(
@@ -424,7 +402,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     call_name="run",
                     payload=b'{"values":[2]}',
                 ),
-                dispatch_guard=_allow,
             ),
             wrapped_call.result_codec,
         )
@@ -452,7 +429,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     call_name="prepare",
                     payload=b'{"values":[1]}',
                 ),
-                dispatch_guard=_allow,
             )
         )
         self.assertIs(Outcome.REJECTED, rejected.outcome)
@@ -466,7 +442,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     call_name="prepare",
                     payload=b'{"values":[1,2]}',
                 ),
-                dispatch_guard=_allow,
             ),
             prepare_call.result_codec,
         )
@@ -479,7 +454,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 payload=b"{}",
                 states=(StateArgument("candidate", accepted.states[0].reference),),
             ),
-            dispatch_guard=_allow,
         )
         self.assertIsInstance(foreign, NotAdmitted)
 
@@ -493,7 +467,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     payload=b"{}",
                     states=(StateArgument("candidate", accepted.states[0].reference),),
                 ),
-                dispatch_guard=_allow,
             ),
             calculate_call.result_codec,
         )
@@ -508,7 +481,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     payload=b"{}",
                     states=(StateArgument("candidate", accepted.states[0].reference),),
                 ),
-                dispatch_guard=_allow,
             ),
             NotAdmitted,
         )
@@ -525,7 +497,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 analysis, binding, operation_id="prepare", call_name="prepare",
                 payload=b'{"values":[1,2]}',
             ),
-            dispatch_guard=_allow,
         )
         observed, _ = await self.success(operation, binding.prepare.result_codec)
         slot = binding.prepared_output
@@ -576,13 +547,12 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     analysis, binding, operation_id="calculate", call_name="calculate",
                     payload=b"{}", states=(argument,),
                 ),
-                dispatch_guard=_allow,
             ),
             binding.calculate.result_codec,
         )
         self.assertEqual(science.PredictionResult(total=8, count=2), result)
 
-    async def test_denied_consumer_dispatch_preserves_the_original_typed_state(self):
+    async def test_stopped_consumer_dispatch_preserves_the_original_typed_state(self):
         binding = weighted_sum_binding(
             settings=science.WeightedSumSettings(scale=1, offset=0),
             coefficients=science.CoefficientSet(values=(2, 3)),
@@ -594,26 +564,21 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 analysis, binding, operation_id="prepare", call_name="prepare",
                 payload=b'{"values":[1,2]}',
             ),
-            dispatch_guard=_allow,
         )
         await self.success(producer, binding.prepare.result_codec)
         handle = await binding.prepared_output.reference(binding.prepare, producer)
         argument = binding.prepared_input.bind(handle)
-        cause = PermissionError("The consumer's dispatch permission was withdrawn")
-
-        def deny():
-            raise cause
-
-        denied = await self.finished(analysis.submit(
+        consumer = analysis.submit(
             _invocation(
-                analysis, binding, operation_id="denied", call_name="calculate",
+                analysis, binding, operation_id="stopped-consumer", call_name="calculate",
                 payload=b"{}", states=(argument,),
             ),
-            dispatch_guard=deny,
-        ))
+        )
+        consumer.request_stop()
+        denied = await self.finished(consumer)
         self.assertIs(DispatchState.NOT_STARTED, denied.dispatch)
         self.assertIsNone(denied.outcome)
-        self.assertTrue(any(failure.cause is cause for failure in denied.failures))
+        self.assertTrue(any(isinstance(failure.cause, PermissionError) for failure in denied.failures))
         self.assertEqual(
             handle,
             await binding.prepared_output.reference(binding.prepare, producer),
@@ -624,7 +589,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     analysis, binding, operation_id="permitted", call_name="calculate",
                     payload=b"{}", states=(binding.prepared_input.bind(handle),),
                 ),
-                dispatch_guard=_allow,
             ),
             binding.calculate.result_codec,
         )
@@ -662,7 +626,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 analysis, binding, operation_id="prepare", call_name="prepare",
                 payload=b'{"values":[1,2]}',
             ),
-            dispatch_guard=_allow,
         )
         observed = await self.finished(operation)
         adoption_failure = next(
@@ -694,7 +657,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 call_name="run",
                 payload=b'{"values":[4,5]}',
             ),
-            dispatch_guard=_allow,
         )
         completed, expected_result = await self.success(operation, call.result_codec)
         await self.settled(analysis.close())
@@ -749,12 +711,12 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             call_name="run",
             payload=b'{"values":[7]}',
         )
-        operation = analysis.submit(invocation, dispatch_guard=_allow)
+        operation = analysis.submit(invocation)
         failed = await self.finished(operation)
 
         self.assertIs(Outcome.SUCCEEDED, failed.outcome)
         self.assertIs(ResultState.ENCODING_FAILED, failed.result_state)
-        self.assertIs(operation, analysis.submit(invocation, dispatch_guard=_allow))
+        self.assertIs(operation, analysis.submit(invocation))
         await self.settled(analysis.close())
         self.assertEqual(retained, disposed)
 
@@ -789,7 +751,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 call_name="run",
                 payload=b'{"values":[1]}',
             ),
-            dispatch_guard=_allow,
         )
         await asyncio.wait_for(entered.wait(), timeout=5)
         current = await held.observe(after=None, wait_seconds=0)
@@ -809,7 +770,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     call_name="run",
                     payload=b'{"values":[2]}',
                 ),
-                dispatch_guard=_allow,
             ),
             wrapped_call.result_codec,
         )
@@ -903,7 +863,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     call_name="prepare",
                     payload=b'{"values":[1]}',
                 ),
-                dispatch_guard=_allow,
             )
         )
         self.assertEqual("instance_initialization", failed.failures[0].phase)
@@ -955,7 +914,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                     call_name="prepare",
                     payload=b'{"values":[1]}',
                 ),
-                dispatch_guard=_allow,
             )
         )
         self.assertEqual("analysis_initialization", failed.failures[0].phase)
@@ -1006,7 +964,6 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 call_name="run",
                 payload=b'{"values":[1]}',
             ),
-            dispatch_guard=_allow,
         )
         await asyncio.wait_for(entered.wait(), timeout=5)
         operation.request_stop()

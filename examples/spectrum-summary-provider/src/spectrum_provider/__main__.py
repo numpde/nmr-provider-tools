@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from threading import Event
 
 from provider_core.contribution import ref
 from provider_core.embedded_host import EmbeddedHost
@@ -33,12 +32,8 @@ async def run_demo() -> None:
     analysis = None
     workflow = None
     consumption = None
-    revoked = Event()
     causes = []
 
-    def require_permission() -> None:
-        if revoked.is_set():
-            raise PermissionError("The local example withdrew dispatch permission.")
 
     async def print_report(payload: bytes) -> None:
         # Flushed stdout is this demo's consumer, not a durable report queue.
@@ -72,7 +67,6 @@ async def run_demo() -> None:
             ),
             peaks=peaks.reference(method=Peaks.run),
             peak_reservation=peak_reservation, policy=operation_policy,
-            dispatch_guard=require_permission,
         )
         started = workflow.start()
         if isinstance(started, NotAdmitted):
@@ -94,7 +88,8 @@ async def run_demo() -> None:
     except BaseException as cause:
         causes.append(cause)
     finally:
-        revoked.set()
+        if analysis is not None:
+            analysis.request_stop()
         if consumption is not None and consumption.acceptance is not None:
             try:
                 # Complete the original acceptance and release observation,

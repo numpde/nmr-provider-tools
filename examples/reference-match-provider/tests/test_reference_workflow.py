@@ -64,7 +64,6 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                         method=binding.contribution.match,
                         scientific_input=science.VectorInput(values=values),
                         states=(), reservation=reservation, policy=operation_policy,
-                        dispatch_guard=permitted,
                     )
                     self.assertNotIsInstance(operation, NotAdmitted)
                     completed = await observe_completion(operation)

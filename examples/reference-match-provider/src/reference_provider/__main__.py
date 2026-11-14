@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from threading import Event
 
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
@@ -33,14 +32,11 @@ async def run_demo() -> None:
         reject_encoded_input_over_bytes=4096,
         reject_encoded_result_over_bytes=4096,
     )
-    revoked = Event()
+    analysis = None
     cleanup_requests = []
     retained = []
     causes = []
 
-    def require_permission():
-        if revoked.is_set():
-            raise PermissionError("Reference example dispatch permission was withdrawn.")
 
     async def print_report(payload: bytes) -> None:
         # Receiver return means flushed local consumption, not durable delivery.
@@ -57,7 +53,6 @@ async def run_demo() -> None:
                 method=binding.contribution.match,
                 scientific_input=VectorInput(values=values),
                 states=(), reservation=reservation, policy=operation_policy,
-                dispatch_guard=require_permission,
             )
             if isinstance(operation, NotAdmitted):
                 raise RuntimeError(f"Reference match admission refused: {operation.code.value}: {operation.message}")
@@ -77,7 +72,8 @@ async def run_demo() -> None:
     except BaseException as cause:
         causes.append(cause)
     finally:
-        revoked.set()
+        if analysis is not None:
+            analysis.request_stop()
         # A later analysis failure must not suppress an earlier usable report.
         # Failed consumption keeps the result owned until this process exits.
         for operation, result in retained:

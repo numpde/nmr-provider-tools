@@ -32,7 +32,8 @@ retirement_seconds = 5
 # Apply these rules separately to each validation and generation request.
 # If requested work waits this long to start, the SDK requests a stop.
 queue_stop_request_seconds = 5
-# Once work is allowed to start, count model loading, input checking, running
+# Once execution confirms the request is not stopped or past its start deadline,
+# count model loading, input checking, running
 # the science and converting its result to bytes. After this many seconds,
 # request a stop; the running Python code may continue.
 # For slower science, replace execution_stop_request_seconds:

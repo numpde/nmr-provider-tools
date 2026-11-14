@@ -11,7 +11,7 @@ import threading
 from concurrent.futures import Future
 from uuid import uuid4
 
-from provider_core._embedded_support import _Changes, _Cleanup, _State
+from provider_core._embedded_support import _Changes, _Cleanup, _State, _require_start_deadline
 from provider_core.async_runner_session import await_original
 from provider_core.contribution import (
     ProgressEvent,
@@ -57,14 +57,13 @@ class _OperationControl:
 
 
 class _Operation(_Changes):
-    def __init__(self, analysis, science, invocation, call, guard, states, *, retain_identity):
+    def __init__(self, analysis, science, invocation, call, states, *, retain_identity):
         super().__init__()
         self.analysis = analysis
         self.retain_identity = retain_identity
         self.science = science
         self.invocation = invocation
         self.call = call
-        self.guard = guard
         self.state_owners = states
         self.reference = OperationRef(
             host=analysis.host.identity,
@@ -127,19 +126,23 @@ class _Operation(_Changes):
             self.stop_signal.set()
             self.changed()
 
-    def _guard_at_handoff(self):
+    def _check_execution_at_handoff(self):
+        """Ask the owning event loop to check execution state before scientific entry."""
         permit = Future()
-        self.loop.call_soon_threadsafe(self._admit_dispatch, permit)
+        self.loop.call_soon_threadsafe(self._check_dispatch, permit)
         permit.result()
 
-    def _admit_dispatch(self, permit):
-        """Check the provider's permission before the worker enters scientific work."""
+    def _check_dispatch(self, permit):
+        """Enforce execution's stopped/closed state and original start deadline."""
         try:
             if self.analysis.closed or self.stop_requested:
                 raise PermissionError(
                     "This operation was stopped before its next scientific entry."
                 )
-            self.guard()
+            _require_start_deadline(
+                start_not_after=self.invocation.start_not_after,
+                now=self.loop.time(),
+            )
             if self.dispatch is DispatchState.QUEUED:
                 self.dispatch = DispatchState.STARTED
                 self.resources = ResourceState.OCCUPIED
@@ -150,7 +153,7 @@ class _Operation(_Changes):
                     self.invocation.policy.execution_stop_request_seconds,
                     self._expire,
                 )
-                # Consume state only after the guarded scientific dispatch begins.
+                # Consume state only after the scientific execution begins.
                 for parameter in self.call.description.state_inputs:
                     if parameter.use is StateUse.CONSUME:
                         self.state_owners[parameter.name].available = False
@@ -161,9 +164,9 @@ class _Operation(_Changes):
             permit.set_result(None)
 
     def _run(self):
-        phase = "permission"
+        phase = "start"
         try:
-            self._guard_at_handoff()
+            self._check_execution_at_handoff()
 
             phase = "instance_initialization"
             self._initialize_instance()
@@ -171,8 +174,8 @@ class _Operation(_Changes):
             phase = "analysis_initialization"
             self.science.initialize()
 
-            phase = "permission"
-            self._guard_at_handoff()
+            phase = "start"
+            self._check_execution_at_handoff()
 
             phase = "decoding"
             scientific_input = self.call.decode_input(self.invocation.payload)

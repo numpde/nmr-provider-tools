@@ -14,11 +14,12 @@ import subprocess
 import sys
 import tomllib
 from tempfile import TemporaryDirectory
+from threading import Event
 import unittest
 from unittest.mock import patch
 
 from provider_core.embedded_host import EmbeddedHost
-from provider_core.hosting import OperationPolicy, NotAdmitted, ResultConsumption, ResultState, observe_cleanup, observe_completion
+from provider_core.hosting import OperationPolicy, NotAdmitted, StartDeadlineExpired, ResultConsumption, ResultState, observe_cleanup, observe_completion
 from provider_core.interpreter import Interpreter, ModelWindowExpired, ProseService
 from provider_core.scientific import ResourceRequirement
 
@@ -84,7 +85,6 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 reject_encoded_input_over_bytes=8192,
                 reject_encoded_result_over_bytes=8192,
             ),
-            require_permission=lambda: None,
         ), factory
 
     async def interpret(self, *, prediction, carbon):
@@ -122,13 +122,47 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_expired_interpretation_window_admits_no_scientific_work(self):
         prediction, _ = self.prediction(hosted=self.offerings.hf, proposals=(candidate(carbon=False),), name="expired")
-        with self.assertRaises(expected_exception=ModelWindowExpired):
+        with self.assertRaises(expected_exception=ModelWindowExpired) as raised:
             await prediction.dispatch(
                 name="submit_interpretation", arguments={"value": candidate(carbon=False)},
                 not_after=asyncio.get_running_loop().time() - 1,
             )
+        self.assertIsInstance(obj=raised.exception.__cause__, cls=StartDeadlineExpired)
         self.assertEqual(first=[], second=prediction.preparations)
         self.assertIsNone(obj=self.offerings.hf.contribution.model)
+
+    async def test_interpreter_deadline_waits_for_initialization_to_settle(self):
+        entered = Event()
+        release = Event()
+        load = Model.load
+
+        def held_load(model, *, checkpoint):
+            entered.set()
+            release.wait(timeout=5)
+            return load(model, checkpoint=checkpoint)
+
+        prediction, _ = self.prediction(hosted=self.offerings.hf, proposals=(candidate(carbon=False),), name="loading")
+        deadline = asyncio.get_running_loop().time() + 1
+        with patch.object(target=Model, attribute="load", new=held_load):
+            original = asyncio.create_task(coro=prediction.dispatch(
+                name="submit_interpretation",
+                arguments={"value": candidate(carbon=False)},
+                not_after=deadline,
+            ))
+            try:
+                self.assertTrue(expr=await asyncio.to_thread(entered.wait, 2))
+                await asyncio.sleep(delay=max(0, deadline - asyncio.get_running_loop().time()) + 0.01)
+                self.assertFalse(expr=original.done())
+            finally:
+                release.set()
+            with self.assertRaises(expected_exception=ModelWindowExpired) as raised:
+                await original
+        self.assertIsInstance(obj=raised.exception.__cause__, cls=StartDeadlineExpired)
+        self.assertEqual(first=1, second=len(prediction.preparations))
+        observed = await prediction.preparations[0].observe(after=None, wait_seconds=0)
+        self.assertTrue(expr=observed.finished)
+        self.assertIsNone(obj=prediction.prepared)
+        self.assertIsNotNone(obj=self.offerings.hf.contribution.model.tokenizer)
 
     async def test_hf_input_does_not_silently_accept_carbon_fields(self):
         prediction, factory = self.prediction(
@@ -157,7 +191,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         duplicate = prediction.execution.submit_method(
             method=self.offerings.hf.contribution.generate,
             states=(PeakContribution.candidate.bind(handle=prediction.prepared),),
-            reservation=reservation, policy=prediction.policy, dispatch_guard=lambda: None,
+            reservation=reservation, policy=prediction.policy,
         )
         self.assertIsInstance(obj=duplicate, cls=NotAdmitted)
 

@@ -37,21 +37,19 @@ async def run_demo() -> None:
     # generate methods to it; the SDK also tracks their results and cleanup.
     host = EmbeddedHost(**provider_config["execution"]["embedded_host"])
 
+    # Prediction passes this policy to the SDK with each prepare/generate submission.
+    operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
+
     # HF and CHF declare this full set of resource needs for prepare and generate.
     requested_requirements = frozenset(
         ResourceRequirement(**resource_requirement)
         for resource_requirement in provider_config["execution"]["resource_requirement"]
     )
 
-    # Prediction passes this policy to the SDK with each prepare/generate submission.
-    operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
-
     cleanup_requests = []
     consumptions = []
     causes = []
 
-    def require_permission():
-        return None
 
     async def receive(payload: bytes) -> None:
         # Flushed stdout stands in for the external receiver's acknowledgement.
@@ -85,7 +83,7 @@ async def run_demo() -> None:
             cleanup_requests.append(partial(close_analysis, execution=execution))
             prediction = Prediction(
                 execution=execution, hosted=hosted, interpreter=interpreter,
-                policy=operation_policy, require_permission=require_permission,
+                policy=operation_policy,
             )
             # Interpreter proposes input; Prediction submits prepare to validate it.
             await prediction.interpret(

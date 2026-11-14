@@ -21,6 +21,7 @@ from provider_core.hosting import (
     BackendCapabilities,
     CleanupObservation,
     Failure,
+    StartDeadlineExpired,
 )
 from provider_core.scientific import AssetAccess, NoAssets, HostedContribution
 
@@ -69,6 +70,12 @@ class Allocation:
         if not 0 < len(self.name) <= 160:
             raise ValueError("Allocation name must contain between 1 and 160 characters.")
         _require_supported_binding(self.binding)
+
+
+def _require_start_deadline(*, start_not_after: float | None, now: float) -> None:
+    """Refuse new scientific entry after the addressed backend's original deadline."""
+    if start_not_after is not None and not now < start_not_after:
+        raise StartDeadlineExpired(f"Cannot start scientific work: {start_not_after=} has passed at {now=}")
 
 
 class _Changes:

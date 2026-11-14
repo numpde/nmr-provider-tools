@@ -20,7 +20,7 @@ from provider_core.contribution import JsonDataclassCodec, ref
 from provider_core.scientific import operation
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
-    CleanupObservation, DispatchState, OperationPolicy, Failure, Invocation,
+    AdmissionCode, CleanupObservation, DispatchState, OperationPolicy, Failure, Invocation,
     NotAdmitted, Outcome, ResultConsumption, ResultState,
     observe_cleanup, observe_completion,
 )
@@ -37,8 +37,8 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
         accepted = []
         cause = OSError("The reply was lost after submission")
 
-        def lose_first_reply(*, invocation, dispatch_guard):
-            operation = submit(invocation=invocation, dispatch_guard=dispatch_guard)
+        def lose_first_reply(*, invocation):
+            operation = submit(invocation=invocation)
             accepted.append(operation)
             if len(accepted) == 1:
                 raise cause
@@ -60,7 +60,7 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             async with asyncio.timeout(10):
                 await observe_cleanup(host.retire())
 
-    def workflow(self, *, result_bytes, guard=None):
+    def workflow(self, *, result_bytes):
         host = EmbeddedHost(
             input_bytes=8192,
             result_bytes=result_bytes,
@@ -86,9 +86,6 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
         )
         baseline_call = baseline.call(method=baseline.contribution.run)
 
-        def permitted():
-            return None
-
         workflow = PeakWorkflow(
             execution=analysis,
             baseline=Invocation(
@@ -101,7 +98,6 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
             ),
             peaks=peaks.reference(method=Peaks.run),
             peak_reservation=peak_reservation, policy=operation_policy,
-            dispatch_guard=permitted if guard is None else guard,
         )
         self.assertNotIsInstance(workflow.start(), NotAdmitted)
         return workflow, analysis, peaks.call(method=Peaks.run).result_codec
@@ -334,24 +330,23 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 await observe_cleanup(workflow.baseline_release)
             self.assertIs(cause, raised.exception)
 
-    async def test_withdrawal_between_stages_preserves_guard_failure(self):
-        revoked = Event()
-        cause = PermissionError("Dispatch permission was withdrawn")
-
-        def guarded():
-            if revoked.is_set():
-                raise cause
-
-        workflow, _, _ = self.workflow(result_bytes=8192, guard=guarded)
+    async def test_stopping_execution_between_stages_refuses_generation(self):
+        workflow, analysis, _ = self.workflow(result_bytes=8192)
         async with asyncio.timeout(10):
             await observe_completion(workflow.baseline_operation)
-            revoked.set()
+            analysis.request_stop()
             with patch("spectrum_provider.science.detect_peaks", wraps=science.detect_peaks) as calculate:
                 completed = await workflow.finish()
-                self.assertIsNone(completed.outcome)
-                self.assertIs(DispatchState.NOT_STARTED, completed.dispatch)
-                self.assertTrue(any(failure.cause is cause for failure in completed.failures))
-                self.assertEqual(0, calculate.call_count)
+                self.assertIsInstance(obj=completed, cls=NotAdmitted)
+                self.assertIs(expr1=AdmissionCode.CLOSED, expr2=completed.code)
+                self.assertIsNone(obj=workflow.peak_operation)
+                self.assertEqual(first=0, second=calculate.call_count)
+                self.assertIsNotNone(obj=workflow.baseline_release)
+                self.assertIs(expr1=completed, expr2=await workflow.finish())
+                await observe_cleanup(control=workflow.baseline_release)
+                self.assertIs(expr1=completed, expr2=await workflow.finish())
+                self.assertEqual(first=0, second=analysis.host.result_reserved)
+
 
     async def test_successful_science_with_failed_encoding_is_not_replayed(self):
         codec = JsonDataclassCodec(value_type=science.Spectrum, format="test.spectrum.v1")

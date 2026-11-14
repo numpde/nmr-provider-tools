@@ -5,11 +5,11 @@ from __future__ import annotations
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, replace
-from threading import Barrier
+from threading import Barrier, Event
 import unittest
 
 from provider_core.embedded_host import Allocation, EmbeddedHost
-from provider_core.hosting import ResourceState, CapacityUnavailable, AdmissionCode, OperationPolicy, NotAdmitted, Outcome, observe_cleanup, observe_completion
+from provider_core.hosting import ResourceState, CapacityUnavailable, AdmissionCode, OperationPolicy, NotAdmitted, Outcome, RequestConflict, StartDeadlineExpired, DispatchState, Invocation, observe_cleanup, observe_completion
 from provider_core.scientific import AssetAccess, Contribution, HostedContribution, IsolationRequirement, NoAssets, ResourceRequirement, operation
 
 
@@ -76,6 +76,16 @@ def new_host() -> EmbeddedHost:
     )
 
 
+def deadline_policy() -> OperationPolicy:
+    return OperationPolicy(
+        queue_stop_request_seconds=5,
+        execution_stop_request_seconds=5,
+        cleanup_overdue_flag_seconds=5,
+        reject_encoded_input_over_bytes=1024,
+        reject_encoded_result_over_bytes=1024,
+    )
+
+
 # silent-defaults: allow-contract -- Tests vary the scientific CPU requirement.
 def adopt(*, host, contribution, amount=1):
     return host.adopt(
@@ -97,7 +107,6 @@ async def run_sum(*, host, hosted, operation_id):
             reject_encoded_input_over_bytes=1024,
             reject_encoded_result_over_bytes=1024,
         ),
-        dispatch_guard=lambda: None,
     )
     async with asyncio.timeout(10):
         observed = await observe_completion(operation=operation)
@@ -148,7 +157,6 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                 states=(),
                 reservation=reservation,
                 policy=operation_policy,
-                dispatch_guard=lambda: None,
             )
             completed = await observe_completion(operation=operation)
             await observe_cleanup(control=operation.release_result(result=completed.result))
@@ -222,7 +230,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         )
         operations = [analysis.submit_method(
             method=instance.calculate, scientific_input=Numbers(values=(1,)),
-            states=(), reservation=reservation, policy=operation_policy, dispatch_guard=lambda: None,
+            states=(), reservation=reservation, policy=operation_policy,
         ) for _ in range(2)]
         self.assertIsNot(expr1=operations[0], expr2=operations[1])
         for operation in operations:
@@ -288,12 +296,12 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         )
         for method in (first.contribution.calculate, Sum.calculate):
             with self.assertRaises(expected_exception=ValueError):
-                analysis.submit_method(method=method,  scientific_input=Numbers(values=(1,)), states=(), reservation=reservation, policy=operation_policy, dispatch_guard=lambda: None)
+                analysis.submit_method(method=method,  scientific_input=Numbers(values=(1,)), states=(), reservation=reservation, policy=operation_policy)
         refused = analysis.submit(invocation=Invocation(
             operation_id="portable", target=first.reference(method=first.contribution.calculate),
             payload=first.call(method=first.contribution.calculate).input_codec.encode(value=Numbers(values=(1,))),
             states=(), reservation=reservation, policy=operation_policy,
-        ), dispatch_guard=lambda: None)
+        ))
         self.assertIsInstance(obj=refused, cls=NotAdmitted)
         self.assertEqual(first=0, second=second.contribution.calls)
 
@@ -352,6 +360,189 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         hosted = adopt(host=self.host, contribution=UnrestrictedSum(configuration=Settings(scale=2)))
         self.assertEqual(first=frozenset(), second=hosted.description.calls[0].resources)
         self.assertEqual(first=1, second=len(hosted.requirements))
+
+    async def test_session_stop_preserves_results_and_prevents_more_science(self):
+        instance = Sum(configuration=Settings(scale=2))
+        hosted = adopt(host=self.host, contribution=instance)
+        execution = self.host.open_analysis(allocations=(hosted.allocation,))
+        reservation = execution.reservation(allocation=hosted.allocation)
+        first = execution.submit_method(
+            method=instance.calculate,
+            scientific_input=Numbers(values=(1,)),
+            states=(),
+            reservation=reservation,
+            policy=deadline_policy(),
+        )
+        completed = await observe_completion(operation=first)
+        retained = await first.read_result(result=completed.result)
+        waiting = execution.submit_method(
+            method=instance.calculate,
+            scientific_input=Numbers(values=(2,)),
+            states=(),
+            reservation=reservation,
+            policy=deadline_policy(),
+        )
+        execution.request_stop()
+        refused = execution.submit_method(
+            method=instance.calculate,
+            scientific_input=Numbers(values=(3,)),
+            states=(),
+            reservation=reservation,
+            policy=deadline_policy(),
+        )
+        self.assertIsInstance(obj=refused, cls=NotAdmitted)
+        self.assertIs(expr1=AdmissionCode.CLOSED, expr2=refused.code)
+        stopped = await observe_completion(operation=waiting)
+        self.assertIs(expr1=DispatchState.NOT_STARTED, expr2=stopped.dispatch)
+        self.assertEqual(first=1, second=instance.calls)
+        self.assertEqual(first=retained, second=await first.read_result(result=completed.result))
+        self.assertEqual(first=0, second=instance.closes)
+        await observe_cleanup(control=first.release_result(result=completed.result))
+        await observe_cleanup(control=execution.close())
+
+    async def test_invalid_or_expired_start_deadlines_admit_no_work(self):
+        instance = Sum(configuration=Settings(scale=2))
+        hosted = adopt(host=self.host, contribution=instance)
+        execution = self.host.open_analysis(allocations=(hosted.allocation,))
+        reservation = execution.reservation(allocation=hosted.allocation)
+        for invalid in (True, "later", float("nan"), float("inf")):
+            with self.subTest(invalid=invalid):
+                expected = TypeError if type(invalid) in (bool, str) else ValueError
+                with self.assertRaises(expected_exception=expected):
+                    execution.submit_method(
+                        method=instance.calculate,
+                        scientific_input=Numbers(values=(1,)),
+                        states=(),
+                        reservation=reservation,
+                        policy=deadline_policy(),
+                        start_not_after=invalid,
+                    )
+        with self.assertRaises(expected_exception=StartDeadlineExpired):
+            execution.submit_method(
+                method=instance.calculate,
+                scientific_input=Numbers(values=(1,)),
+                states=(),
+                reservation=reservation,
+                policy=deadline_policy(),
+                start_not_after=asyncio.get_running_loop().time() - 1,
+            )
+        self.assertEqual(first={}, second=execution.operations)
+        self.assertEqual(first=0, second=self.host.input_used)
+        self.assertEqual(first=0, second=self.host.result_reserved)
+        self.assertEqual(first=0, second=instance.initializations)
+        self.assertEqual(first=0, second=instance.calls)
+        await observe_cleanup(control=execution.close())
+
+    async def test_expired_start_deadline_is_not_masked_by_full_result_capacity(self):
+        instance = Sum(configuration=Settings(scale=2))
+        hosted = adopt(host=self.host, contribution=instance)
+        execution = self.host.open_analysis(allocations=(hosted.allocation,))
+        reservation = execution.reservation(allocation=hosted.allocation)
+        held = execution.submit_method(
+            method=instance.calculate,
+            scientific_input=Numbers(values=(1,)),
+            states=(),
+            reservation=reservation,
+            policy=replace(deadline_policy(), reject_encoded_result_over_bytes=self.host.result_bytes),
+        )
+        completed = await observe_completion(operation=held)
+        self.assertEqual(first=self.host.result_bytes, second=self.host.result_reserved)
+        with self.assertRaises(expected_exception=StartDeadlineExpired):
+            execution.submit_method(
+                method=instance.calculate,
+                scientific_input=Numbers(values=(2,)),
+                states=(),
+                reservation=reservation,
+                policy=deadline_policy(),
+                start_not_after=asyncio.get_running_loop().time() - 1,
+            )
+        self.assertEqual(first=1, second=instance.calls)
+        self.assertEqual(first=1, second=len(execution.operations))
+        await observe_cleanup(control=held.release_result(result=completed.result))
+        await observe_cleanup(control=execution.close())
+
+    async def test_queued_deadline_and_replay_keep_the_original_start_window(self):
+        entered = Event()
+        release = Event()
+
+        class HeldSum(Sum):
+            @operation()
+            def calculate(self, *, numbers: Numbers) -> Total:
+                self.calls += 1
+                if self.calls == 1:
+                    entered.set()
+                    release.wait(timeout=5)
+                return Total(value=sum(numbers.values))
+
+        instance = HeldSum(configuration=Settings(scale=2))
+        hosted = adopt(host=self.host, contribution=instance)
+        execution = self.host.open_analysis(allocations=(hosted.allocation,))
+        reservation = execution.reservation(allocation=hosted.allocation)
+        first = execution.submit_method(
+            method=instance.calculate,
+            scientific_input=Numbers(values=(1,)),
+            states=(),
+            reservation=reservation,
+            policy=deadline_policy(),
+        )
+        try:
+            self.assertTrue(expr=await asyncio.to_thread(entered.wait, 2))
+            deadline = asyncio.get_running_loop().time() + 0.05
+            waiting = execution.submit(invocation=Invocation(
+                target=hosted.reference(method=instance.calculate),
+                payload=hosted.call(method=instance.calculate).input_codec.encode(value=Numbers(values=(2,))),
+                states=(),
+                reservation=reservation,
+                policy=deadline_policy(),
+                start_not_after=deadline,
+            ))
+            await asyncio.sleep(delay=max(0, deadline - asyncio.get_running_loop().time()) + 0.01)
+        finally:
+            release.set()
+        await observe_completion(operation=first)
+        completed = await observe_completion(operation=waiting)
+        self.assertIs(expr1=DispatchState.NOT_STARTED, expr2=completed.dispatch)
+        self.assertIsInstance(obj=completed.failures[0].cause, cls=StartDeadlineExpired)
+        self.assertEqual(first=1, second=instance.calls)
+        self.assertIs(expr1=waiting, expr2=execution.submit(invocation=waiting.invocation))
+        with self.assertRaises(expected_exception=RequestConflict):
+            execution.submit(invocation=replace(waiting.invocation, start_not_after=deadline + 10))
+        await observe_cleanup(control=execution.close())
+
+    async def test_deadline_expiring_during_initialization_prevents_calculation(self):
+        entered = Event()
+        release = Event()
+
+        class LoadingSum(Sum):
+            def initialize(self, *, assets: AssetAccess) -> None:
+                self.initializations += 1
+                entered.set()
+                release.wait(timeout=5)
+
+        instance = LoadingSum(configuration=Settings(scale=2))
+        hosted = adopt(host=self.host, contribution=instance)
+        execution = self.host.open_analysis(allocations=(hosted.allocation,))
+        deadline = asyncio.get_running_loop().time() + 1
+        operation = execution.submit_method(
+            method=instance.calculate,
+            scientific_input=Numbers(values=(1,)),
+            states=(),
+            reservation=execution.reservation(allocation=hosted.allocation),
+            policy=deadline_policy(),
+            start_not_after=deadline,
+        )
+        try:
+            self.assertTrue(expr=await asyncio.to_thread(entered.wait, 2))
+            await asyncio.sleep(delay=max(0, deadline - asyncio.get_running_loop().time()) + 0.01)
+        finally:
+            release.set()
+        completed = await observe_completion(operation=operation)
+        self.assertIsInstance(obj=completed.failures[0].cause, cls=StartDeadlineExpired)
+        self.assertEqual(first=1, second=instance.initializations)
+        self.assertEqual(first=0, second=instance.calls)
+        await observe_cleanup(control=execution.close())
+        await observe_cleanup(control=self.host.retire())
+        self.assertEqual(first=1, second=instance.closes)
 
     async def test_setup_is_private_and_requirements_determine_execution_contract(self):
         original = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
@@ -539,11 +730,11 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             reject_encoded_result_over_bytes=1024,
         )
         for forged in (replace(reservation, host="other"), replace(reservation, allocation="missing"), replace(reservation, analysis="other")):
-            refused = analysis.submit_method(method=Sum.calculate,  scientific_input=Numbers(values=(1,)), states=(), reservation=forged, policy=operation_policy, dispatch_guard=lambda: None)
+            refused = analysis.submit_method(method=Sum.calculate,  scientific_input=Numbers(values=(1,)), states=(), reservation=forged, policy=operation_policy)
             self.assertIsInstance(obj=refused, cls=NotAdmitted)
             self.assertIs(expr1=AdmissionCode.INVALID_REFERENCE, expr2=refused.code)
         with self.assertRaises(expected_exception=TypeError):
-            analysis.submit_method(method=hosted.contribution.calculate,  states=(), reservation=reservation, policy=operation_policy, dispatch_guard=lambda: None)
+            analysis.submit_method(method=hosted.contribution.calculate,  states=(), reservation=reservation, policy=operation_policy)
         self.assertEqual(first=0, second=hosted.contribution.calls)
         self.assertEqual(first={}, second=self.host.operations)
 

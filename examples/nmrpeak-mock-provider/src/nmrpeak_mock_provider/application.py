@@ -6,14 +6,13 @@ an EmbeddedAnalysis execution session. The SDK runs those methods; Prediction
 retains their operation handles and chooses when generation can follow validation.
 """
 
-import asyncio
 import json
 
 from provider_core.contribution_errors import CallRejected
 from provider_core.conversation import ToolFinished, ToolRejected
 from provider_core.embedded_host import EmbeddedAnalysis
 from provider_core.hosting import (
-    OperationPolicy, NotAdmitted, Outcome, ResultState,
+    OperationPolicy, NotAdmitted, Outcome, ResultState, StartDeadlineExpired,
     observe_cleanup, observe_completion,
 )
 from provider_core.interpreter import Interpreter, ModelWindowExpired
@@ -32,13 +31,12 @@ class Prediction:
 
     def __init__(
         self, *, execution: EmbeddedAnalysis, hosted: HostedContribution,
-        interpreter: Interpreter, policy: OperationPolicy, require_permission,
+        interpreter: Interpreter, policy: OperationPolicy,
     ) -> None:
         self.execution = execution
         self.hosted = hosted
         self.interpreter = interpreter
         self.policy = policy
-        self.require_permission = require_permission
         self.preparations = []
         self.prepared = None
         self.generation = None
@@ -57,32 +55,29 @@ class Prediction:
             # Tell Interpreter which input the language model needs to correct.
             # Loading and execution failures propagate as their original exceptions.
             raise ToolRejected(cause.message) from cause
-        loop = asyncio.get_running_loop()
-
-        def permit_validation():
-            self.require_permission()
-            if not (loop.time() < not_after):
-                raise ModelWindowExpired()
-
-        # Interpreter supplies one deadline for proposing and validating input.
-        # Check it before submission and let the SDK recheck it when prepare can
-        # start. Time spent parsing or waiting does not extend that deadline.
-        permit_validation()
         reservation, = self.execution.reservations
-        operation = self.execution.submit_method(
-            method=contribution.prepare,
-            scientific_input=candidate, states=(), reservation=reservation,
-            policy=self.policy, dispatch_guard=permit_validation,
-        )
-        if isinstance(operation, NotAdmitted):
-            raise RuntimeError(f"Cannot prepare scientific input: {operation=}")
-        self.preparations.append(operation)
-        completed = await observe_completion(operation=operation)
-        if completed.outcome is Outcome.REJECTED:
-            cause, = [failure.cause for failure in completed.failures]
-            if isinstance(cause, CallRejected):
-                raise ToolRejected(cause.message) from cause
-        self.require_result(completed=completed)
+        try:
+            operation = self.execution.submit_method(
+                method=contribution.prepare,
+                scientific_input=candidate,
+                states=(),
+                reservation=reservation,
+                policy=self.policy,
+                start_not_after=not_after,
+            )
+            if isinstance(operation, NotAdmitted):
+                raise RuntimeError(f"Cannot prepare scientific input: {operation=}")
+            self.preparations.append(operation)
+            completed = await observe_completion(operation=operation)
+            if completed.outcome is Outcome.REJECTED:
+                cause, = [failure.cause for failure in completed.failures]
+                if isinstance(cause, CallRejected):
+                    raise ToolRejected(cause.message) from cause
+            self.require_result(completed=completed)
+        except StartDeadlineExpired as cause:
+            # Interpreter can change models only after the original SDK operation
+            # has finished, or when the SDK refused it before admission.
+            raise ModelWindowExpired() from cause
         self.prepared = await PeakContribution.validated.reference(call=call, operation=operation)
         # Successful prepare supplied the retained input needed by generate.
         # Release its report bytes; the SDK keeps the prepared input until generate
@@ -106,7 +101,6 @@ class Prediction:
                 method=self.hosted.contribution.generate,
                 states=(PeakContribution.candidate.bind(handle=self.prepared),),
                 reservation=reservation, policy=self.policy,
-                dispatch_guard=self.require_permission,
             )
             if isinstance(accepted, NotAdmitted):
                 raise RuntimeError(f"Cannot generate candidates: {accepted=}")
