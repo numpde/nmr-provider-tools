@@ -11,6 +11,7 @@ from provider_core.hosting import OperationPolicy, ResultConsumption, observe_cl
 from provider_core.interpreter import Interpreter, ProseService
 from provider_core.scientific import ResourceRequirement
 
+from .binding import Chf
 from .application import Prediction
 from .composition import adopt_offerings, interpretation_messages, interpretation_tools
 from .fake_services import ScriptedEndpointFactory
@@ -66,7 +67,8 @@ async def run_demo() -> None:
             chf_settings=Settings(**provider_config["science"]["chf"]["settings"]),
             create_model=Model,
         )
-        for name, hosted, carbon in (("hf", offerings.hf, False), ("chf", offerings.chf, True)):
+        for hosted in offerings:
+            carbon = isinstance(hosted.contribution, Chf)
             candidate = {
                 "formula": "C2H6O",
                 "proton_peaks": [{"centroid": "1.2", "integral": 3, "multiplicity": "triplet", "couplings": ["7"]}],

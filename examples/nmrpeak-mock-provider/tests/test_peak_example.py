@@ -24,7 +24,7 @@ from provider_core.interpreter import Interpreter, ModelWindowExpired, ProseServ
 from provider_core.scientific import ResourceRequirement
 
 from nmrpeak_mock_provider.application import Prediction
-from nmrpeak_mock_provider.binding import Hf, PeakContribution
+from nmrpeak_mock_provider.binding import Chf, Hf, PeakContribution
 from nmrpeak_mock_provider.composition import adopt_offerings, interpretation_messages, interpretation_tools
 from nmrpeak_mock_provider.fake_model import Model, Tokenizer
 from nmrpeak_mock_provider.fake_services import RecordingReceiver, ScriptedEndpointFactory
@@ -60,6 +60,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             chf_settings=Settings(**provider_config["science"]["chf"]["settings"]),
             create_model=Model,
         )
+        self.hf, = [hosted for hosted in self.offerings if isinstance(hosted.contribution, Hf)]
+        self.chf, = [hosted for hosted in self.offerings if isinstance(hosted.contribution, Chf)]
 
     async def retire(self):
         await observe_cleanup(control=self.host.retire())
@@ -92,7 +94,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             await prediction.interpret(messages=interpretation_messages(source="Recorded NMR source"), tools=interpretation_tools(carbon=carbon))
 
     async def test_both_offerings_interpret_validate_generate_and_deliver(self):
-        for hosted, carbon in ((self.offerings.hf, False), (self.offerings.chf, True)):
+        for hosted in self.offerings:
+            carbon = isinstance(hosted.contribution, Chf)
             with self.subTest(carbon=carbon):
                 prediction, factory = self.prediction(hosted=hosted, proposals=(candidate(carbon=carbon),), name=hosted.allocation.allocation)
                 await self.interpret(prediction=prediction, carbon=carbon)
@@ -113,7 +116,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_interpretation_is_corrected_before_generation(self):
         bad = candidate(carbon=False)
         bad["proton_peaks"] = []
-        prediction, factory = self.prediction(hosted=self.offerings.hf, proposals=(bad, candidate(carbon=False)), name="correction")
+        prediction, factory = self.prediction(hosted=self.hf, proposals=(bad, candidate(carbon=False)), name="correction")
         await self.interpret(prediction=prediction, carbon=False)
         self.assertEqual(first=2, second=len(prediction.preparations))
         self.assertIsNone(obj=prediction.generation)
@@ -121,7 +124,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         await prediction.finish()
 
     async def test_expired_interpretation_window_admits_no_scientific_work(self):
-        prediction, _ = self.prediction(hosted=self.offerings.hf, proposals=(candidate(carbon=False),), name="expired")
+        prediction, _ = self.prediction(hosted=self.hf, proposals=(candidate(carbon=False),), name="expired")
         with self.assertRaises(expected_exception=ModelWindowExpired) as raised:
             await prediction.dispatch(
                 name="submit_interpretation", arguments={"value": candidate(carbon=False)},
@@ -129,7 +132,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertIsInstance(obj=raised.exception.__cause__, cls=StartDeadlineExpired)
         self.assertEqual(first=[], second=prediction.preparations)
-        self.assertIsNone(obj=self.offerings.hf.contribution.model)
+        self.assertIsNone(obj=self.hf.contribution.model)
 
     async def test_interpreter_deadline_waits_for_initialization_to_settle(self):
         entered = Event()
@@ -141,7 +144,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             release.wait(timeout=5)
             return load(model, checkpoint=checkpoint)
 
-        prediction, _ = self.prediction(hosted=self.offerings.hf, proposals=(candidate(carbon=False),), name="loading")
+        prediction, _ = self.prediction(hosted=self.hf, proposals=(candidate(carbon=False),), name="loading")
         deadline = asyncio.get_running_loop().time() + 1
         with patch.object(target=Model, attribute="load", new=held_load):
             original = asyncio.create_task(coro=prediction.dispatch(
@@ -162,11 +165,11 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         observed = await prediction.preparations[0].observe(after=None, wait_seconds=0)
         self.assertTrue(expr=observed.finished)
         self.assertIsNone(obj=prediction.prepared)
-        self.assertIsNotNone(obj=self.offerings.hf.contribution.model.tokenizer)
+        self.assertIsNotNone(obj=self.hf.contribution.model.tokenizer)
 
     async def test_hf_input_does_not_silently_accept_carbon_fields(self):
         prediction, factory = self.prediction(
-            hosted=self.offerings.hf, proposals=(candidate(carbon=True), candidate(carbon=False)), name="wrong-offering",
+            hosted=self.hf, proposals=(candidate(carbon=True), candidate(carbon=False)), name="wrong-offering",
         )
         await self.interpret(prediction=prediction, carbon=False)
         self.assertEqual(first=1, second=len(prediction.preparations))
@@ -175,28 +178,28 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
     async def test_warm_model_is_reused_by_sequential_analyses(self):
         models = []
         for name in ("first", "second"):
-            prediction, _ = self.prediction(hosted=self.offerings.hf, proposals=(candidate(carbon=False),), name=name)
+            prediction, _ = self.prediction(hosted=self.hf, proposals=(candidate(carbon=False),), name=name)
             await self.interpret(prediction=prediction, carbon=False)
             await prediction.finish()
-            models.append(self.offerings.hf.contribution.model)
+            models.append(self.hf.contribution.model)
             await observe_cleanup(control=prediction.execution.close())
         self.assertIs(expr1=models[0], expr2=models[1])
 
     async def test_generation_consumes_candidate_once(self):
-        prediction, _ = self.prediction(hosted=self.offerings.hf, proposals=(candidate(carbon=False),), name="consume")
+        prediction, _ = self.prediction(hosted=self.hf, proposals=(candidate(carbon=False),), name="consume")
         await self.interpret(prediction=prediction, carbon=False)
         original = await prediction.finish()
         self.assertEqual(first=original, second=await prediction.finish())
         reservation, = prediction.execution.reservations
         duplicate = prediction.execution.submit_method(
-            method=self.offerings.hf.contribution.generate,
+            method=self.hf.contribution.generate,
             states=(PeakContribution.candidate.bind(handle=prediction.prepared),),
             reservation=reservation, policy=prediction.policy,
         )
         self.assertIsInstance(obj=duplicate, cls=NotAdmitted)
 
     async def test_failed_receiver_keeps_report_without_regenerating(self):
-        prediction, _ = self.prediction(hosted=self.offerings.hf, proposals=(candidate(carbon=False),), name="delivery")
+        prediction, _ = self.prediction(hosted=self.hf, proposals=(candidate(carbon=False),), name="delivery")
         await self.interpret(prediction=prediction, carbon=False)
         cause = OSError("Receiver did not accept the report")
         attempts = []
@@ -220,7 +223,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=1, second=len(attempts))
 
     async def test_cancelled_delivery_wait_joins_the_same_receiver(self):
-        prediction, _ = self.prediction(hosted=self.offerings.hf, proposals=(candidate(carbon=False),), name="cancelled-delivery")
+        prediction, _ = self.prediction(hosted=self.hf, proposals=(candidate(carbon=False),), name="cancelled-delivery")
         await self.interpret(prediction=prediction, carbon=False)
         result = await prediction.finish()
         entered = asyncio.Event()
@@ -250,7 +253,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_generated_candidates_fail_without_reinterpretation(self):
         for index, output in enumerate(((), ("",), ("C", "O", "CO"), ("C" * 65,))):
             with self.subTest(output=output):
-                prediction, factory = self.prediction(hosted=self.offerings.hf, proposals=(candidate(carbon=False),), name=str(index))
+                prediction, factory = self.prediction(hosted=self.hf, proposals=(candidate(carbon=False),), name=str(index))
                 await self.interpret(prediction=prediction, carbon=False)
                 with patch.object(target=Model, attribute="generate", return_value=output) as generate:
                     with self.assertRaises(expected_exception=ValueError) as raised:
@@ -266,12 +269,12 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         for field in ("beam_size", "maximum_input_tokens", "maximum_candidate_characters"):
             with self.subTest(field=field):
                 with self.assertRaises(expected_exception=ValueError):
-                    replace(self.offerings.hf.contribution.configuration, **{field: 0})
-        self.assertIsNone(obj=self.offerings.hf.contribution.model)
+                    replace(self.hf.contribution.configuration, **{field: 0})
+        self.assertIsNone(obj=self.hf.contribution.model)
 
     async def test_checkpoint_mismatch_stops_loading_and_retains_cleanup(self):
-        settings = replace(self.offerings.hf.contribution.configuration, checkpoint_sha256="0" * 64)
-        contribution = Hf(configuration=settings, checkpoint_path=self.offerings.hf.contribution.checkpoint_path, create_model=Model)
+        settings = replace(self.hf.contribution.configuration, checkpoint_sha256="0" * 64)
+        contribution = Hf(configuration=settings, checkpoint_path=self.hf.contribution.checkpoint_path, create_model=Model)
         hosted = self.host.adopt(
             contribution=contribution,
             requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread", selector="generic")}),
@@ -293,12 +296,12 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             raise cause
 
         with patch.object(target=Model, attribute="load", new=fail):
-            prediction, _ = self.prediction(hosted=self.offerings.hf, proposals=(candidate(carbon=False),), name="partial")
+            prediction, _ = self.prediction(hosted=self.hf, proposals=(candidate(carbon=False),), name="partial")
             with self.assertRaises(expected_exception=OSError) as raised:
                 await self.interpret(prediction=prediction, carbon=False)
         self.assertIs(expr1=cause, expr2=raised.exception)
         model, = models
-        self.assertIs(expr1=model, expr2=self.offerings.hf.contribution.model)
+        self.assertIs(expr1=model, expr2=self.hf.contribution.model)
         self.assertIsNotNone(obj=model.tokenizer)
         await observe_cleanup(control=prediction.execution.close())
         await self.retire()
@@ -306,8 +309,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_retirement_before_first_use_does_not_load_model(self):
         await self.retire()
-        self.assertIsNone(obj=self.offerings.hf.contribution.model)
-        self.assertIsNone(obj=self.offerings.chf.contribution.model)
+        self.assertIsNone(obj=self.hf.contribution.model)
+        self.assertIsNone(obj=self.chf.contribution.model)
 
 
 class InstalledCommandTests(unittest.TestCase):

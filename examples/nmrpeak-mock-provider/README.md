@@ -45,6 +45,8 @@ config/
 That provider-written helper builds `Hf` and `Chf` using the packaged `hf.json` and
 `chf.json` checkpoint substitutes. It asks `host.adopt` to retain each exact object
 before the SDK calls its initialize method, where provider code loads the model.
+Assembly returns an unordered `frozenset` of hosted handles. The demo iterates
+it and uses each contribution's type to choose the matching input.
 
 A real provider supplies its checkpoint locations in its own assembly code.
 The path locates a file; the expected digest determines which contents are

@@ -1,7 +1,6 @@
 """Construct the provider-selected HF/CHF objects and hand them to the SDK."""
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
 
@@ -12,12 +11,6 @@ from .binding import Chf, Hf
 from .science import Model, Settings
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class Offerings:
-    hf: HostedContribution
-    chf: HostedContribution
-
-
 def adopt_offerings(
     *,
     host: EmbeddedHost,
@@ -25,7 +18,7 @@ def adopt_offerings(
     hf_settings: Settings,
     chf_settings: Settings,
     create_model: Callable[[], Model],
-) -> Offerings:
+) -> frozenset[HostedContribution]:
     """Assemble science from the selected deployment's settings and model constructor.
 
     Provider startup supplies typed settings and create_model. This helper builds
@@ -45,10 +38,10 @@ def adopt_offerings(
         checkpoint_path=Path(str(package.joinpath("chf.json"))),
         create_model=create_model,
     )
-    return Offerings(
-        hf=host.adopt(contribution=hf, requirements=requested_requirements),
-        chf=host.adopt(contribution=chf, requirements=requested_requirements),
-    )
+    return frozenset({
+        host.adopt(contribution=hf, requirements=requested_requirements),
+        host.adopt(contribution=chf, requirements=requested_requirements),
+    })
 
 
 def interpretation_messages(*, source: str) -> list[dict]:

@@ -455,9 +455,13 @@ def _compile_method(
     )
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(frozen=True, slots=True, kw_only=True, eq=False)
 class HostedContribution:
-    """Host-derived call inventory for one adopted scientific object.
+    """SDK handle for one adopted scientific object and its exported methods.
+
+    Equality and hashing use this handle's identity, not the scientific object's
+    values. Provider-owned objects can be mutable, unhashable or define their own
+    equality; none of those choices changes a hosted handle's set membership.
 
     The revision identifies schemas and the exported
     execution contract. Deployment owns installed artifact provenance separately;

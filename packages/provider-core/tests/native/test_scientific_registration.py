@@ -361,6 +361,23 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=frozenset(), second=hosted.description.calls[0].resources)
         self.assertEqual(first=1, second=len(hosted.requirements))
 
+    async def test_hosted_handles_form_stable_sets_for_unhashable_science(self):
+        @dataclass(init=False)
+        class EqualSum(Sum):
+            configuration: Settings
+            calls: int
+
+        first = EqualSum(configuration=Settings(scale=2))
+        second = EqualSum(configuration=Settings(scale=2))
+        self.assertEqual(first=first, second=second)
+        first_handle = adopt(host=self.host, contribution=first)
+        second_handle = adopt(host=self.host, contribution=second)
+        offerings = frozenset({first_handle, second_handle})
+        first.calls += 1
+        self.assertEqual(first=2, second=len(offerings))
+        self.assertIn(member=first_handle, container=offerings)
+        self.assertIn(member=second_handle, container=offerings)
+
     async def test_session_stop_preserves_results_and_prevents_more_science(self):
         instance = Sum(configuration=Settings(scale=2))
         hosted = adopt(host=self.host, contribution=instance)
