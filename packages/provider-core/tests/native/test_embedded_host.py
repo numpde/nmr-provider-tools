@@ -850,11 +850,11 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             selector="test",
             exclusive=False,
         )
-        binding = replace(sum_binding(), resident_resources=(resident_requirement,))
+        binding = replace(sum_binding(), resident_resources=frozenset({resident_requirement}))
         host = self.host(bindings={"sum": binding})
         retained_binding = host.residents["sum"].binding
         self.assertEqual(
-            first=(resident_requirement,),
+            first=frozenset({resident_requirement}),
             second=retained_binding.description.resident_resources,
         )
 

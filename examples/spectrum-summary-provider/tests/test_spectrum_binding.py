@@ -81,9 +81,9 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(binding=binding.description.binding_id):
                 self.assertIs(type(binding.contribution).initialize, sdk.Contribution.initialize)
                 self.assertIsNone(binding.contribution.analysis_type)
-                self.assertEqual((), binding.description.resident_resources)
+                self.assertEqual(frozenset(), binding.description.resident_resources)
                 call = binding.call(method=binding.contribution.run)
-                self.assertEqual((expected,), call.description.resources)
+                self.assertEqual(frozenset({expected}), call.description.resources)
                 self.assertEqual((), call.description.state_inputs)
                 self.assertEqual((), call.description.state_outputs)
 

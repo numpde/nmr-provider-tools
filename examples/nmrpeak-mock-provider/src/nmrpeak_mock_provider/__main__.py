@@ -34,8 +34,9 @@ async def run_demo() -> None:
     # Read its capacity and time allowances from the deployment's [execution.host].
     host = EmbeddedHost(**provider_config["execution"]["host"])
 
-    # repo-check: allow-tuple-generator -- Adoption retains an immutable requirement inventory shared by both offerings.
-    requested_requirements = tuple(
+    # All requirements read from deployment configuration must be met together;
+    # their order and identical repeated entries have no meaning.
+    requested_requirements = frozenset(
         ResourceRequirement(**resource_requirement)
         for resource_requirement in provider_config["execution"]["requirements"]
     )

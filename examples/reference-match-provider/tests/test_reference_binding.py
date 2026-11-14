@@ -54,7 +54,7 @@ class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(binding.contribution.analysis_type)
         self.assertEqual((), call.description.state_inputs)
         self.assertEqual((), call.description.state_outputs)
-        self.assertEqual(1, call.description.resources[0].amount)
+        self.assertEqual(1, next(iter(call.description.resources)).amount)
 
     async def test_factory_defers_index_building_to_the_instance_initializer(self):
         with patch("reference_provider.science.build_index", wraps=science.build_index) as build:

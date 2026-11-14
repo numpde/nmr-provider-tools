@@ -27,7 +27,7 @@ from provider_core.contribution import (
     ConcurrencyRequirement, ImplementationDescription, InterruptionSupport,
     IsolationRequirement, NoInput, ProgressEvent, ResourceRequirement,
     ScientificControl, ScientificReturn, StateUse,
-    _MethodCall, _ScientificCallShape, _require_state_kinds, description_document, ref,
+    _MethodCall, _ScientificCallShape, _require_state_kinds, _require_resource_requirements, description_document, ref,
 )
 from provider_core.payload import JsonDataclassCodec, PayloadCodec
 from provider_core.hosting import AllocationRef
@@ -181,7 +181,7 @@ class Analysis[ContributionT]:
 class _Declaration:
     state_inputs: tuple[StateInputSlot, ...]
     state_outputs: tuple[StateOutputSlot, ...]
-    resources: tuple[ResourceRequirement, ...] | None
+    resources: frozenset[ResourceRequirement] | None
     concurrency: ConcurrencyRequirement
     interruption: InterruptionSupport
     progress: bool
@@ -194,7 +194,7 @@ def operation(
     *,
     state_inputs: tuple[StateInputSlot, ...] = (),
     state_outputs: tuple[StateOutputSlot, ...] = (),
-    requirements: tuple[ResourceRequirement, ...] | None = None,
+    requirements: frozenset[ResourceRequirement] | None = None,
     concurrency: ConcurrencyRequirement = ConcurrencyRequirement.INSTANCE_SERIAL,
     interruption: InterruptionSupport = InterruptionSupport.NONE,
     progress: bool = False,
@@ -366,7 +366,7 @@ def _lifecycle(*, owner: type, name: str, keywords: dict[str, type]) -> _Lifecyc
 
 def _compile_method(
     *, contribution: type[Contribution], name: str, function: Callable,
-    resources: tuple[ResourceRequirement, ...],
+    resources: frozenset[ResourceRequirement],
 ) -> CallBinding:
     _synchronous(function=function, label=f"Operation {name!r}")
     declaration = function.__scientific_operation__
@@ -467,8 +467,8 @@ class HostedContribution:
     contribution: Contribution
     host: InitVar[str]
     allocation_name: InitVar[str]
-    requirements: tuple[ResourceRequirement, ...]
-    resident_resources: tuple[ResourceRequirement, ...] = ()
+    requirements: frozenset[ResourceRequirement]
+    resident_resources: frozenset[ResourceRequirement] = frozenset()
     isolation: IsolationRequirement = IsolationRequirement.SHARED_PROCESS
     description: ImplementationDescription = field(init=False)
     allocation: AllocationRef = field(init=False)
@@ -483,10 +483,7 @@ class HostedContribution:
         if not isinstance(self.contribution, Contribution):
             raise TypeError(f"Unexpected {type(self.contribution)=}; adoption requires a configured Contribution instance")
         contribution_type = type(self.contribution)
-        if type(self.requirements) is not tuple:
-            raise TypeError(f"Unexpected {type(self.requirements)=}; contribution resources must be an immutable tuple")
-        if any(type(resource_requirement) is not ResourceRequirement for resource_requirement in self.requirements):
-            raise TypeError("Contribution resources must contain ResourceRequirement records")
+        _require_resource_requirements(resource_requirements=self.requirements)
         object.__setattr__(self, "_initialize", _lifecycle(owner=contribution_type, name="initialize", keywords={"assets": AssetAccess}))
         object.__setattr__(self, "_close", _lifecycle(owner=contribution_type, name="close", keywords={}))
         analysis_type = contribution_type.analysis_type

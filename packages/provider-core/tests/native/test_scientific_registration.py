@@ -80,7 +80,7 @@ def new_host() -> EmbeddedHost:
 def adopt(*, host, contribution, amount=1):
     return host.adopt(
         contribution=contribution,
-        requirements=(ResourceRequirement(kind="cpu", amount=amount, unit="thread"),),
+        requirements=frozenset({ResourceRequirement(kind="cpu", amount=amount, unit="thread")}),
     )
 
 
@@ -197,7 +197,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         instance = Sum(configuration=Settings(scale=2))
         hosted = self.host.adopt(
             contribution=instance,
-            requirements=(ResourceRequirement(kind="cpu", amount=1, unit="thread"),),
+            requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread")}),
         )
         analysis = self.host.open_analysis(allocations=(hosted.allocation,))
         reservation = analysis.reservation(allocation=hosted.allocation)
@@ -272,6 +272,62 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         ), dispatch_guard=lambda: None)
         self.assertIsInstance(obj=refused, cls=NotAdmitted)
         self.assertEqual(first=0, second=second.contribution.calls)
+
+    async def test_requirements_export_in_canonical_order_and_ignore_identical_repeats(self):
+        from provider_core.contribution import description_document
+
+        cpu = ResourceRequirement(kind="cpu", amount=1, unit="thread")
+        selected_cpu = ResourceRequirement(kind="cpu", amount=2, unit="thread", selector="avx")
+        memory = ResourceRequirement(kind="host-memory", amount=4096, unit="byte")
+        first = self.host.adopt(
+            contribution=Sum(configuration=Settings(scale=2)),
+            requirements=frozenset({memory, selected_cpu, cpu}),
+            resident_resources=frozenset({memory, selected_cpu, cpu}),
+        )
+        repeated = self.host.adopt(
+            contribution=Sum(configuration=Settings(scale=2)),
+            requirements=frozenset([cpu, selected_cpu, memory, cpu]),
+            resident_resources=frozenset([cpu, selected_cpu, memory, cpu]),
+        )
+        self.assertEqual(first=first.description.binding_revision, second=repeated.description.binding_revision)
+        document = description_document(description=first.description)
+        for exported in (document["resident_resources"], document["calls"][0]["resources"]):
+            self.assertEqual(
+                first=[("cpu", None), ("cpu", "avx"), ("host-memory", None)],
+                second=[(item["kind"], item["selector"]) for item in exported],
+            )
+
+    async def test_requirement_conflicts_refuse_adoption_without_claiming_the_object(self):
+        cpu = ResourceRequirement(kind="cpu", amount=1, unit="thread")
+        for conflict in (replace(cpu, amount=2), replace(cpu, exclusive=True)):
+            for field in ("requirements", "resident_resources"):
+                with self.subTest(conflict=conflict, field=field):
+                    instance = Sum(configuration=Settings(scale=2))
+                    declaration = {"requirements": frozenset({cpu}), field: frozenset({cpu, conflict})}
+                    with self.assertRaises(expected_exception=ValueError):
+                        self.host.adopt(contribution=instance, **declaration)
+                    adopted = adopt(host=self.host, contribution=instance)
+                    self.assertIs(expr1=instance, expr2=adopted.contribution)
+
+    async def test_requirements_reject_ordered_or_mutable_collections_and_wrong_records(self):
+        cpu = ResourceRequirement(kind="cpu", amount=1, unit="thread")
+        for invalid in ((cpu,), [cpu], {cpu}, frozenset({"cpu"})):
+            with self.subTest(invalid=invalid):
+                instance = Sum(configuration=Settings(scale=2))
+                with self.assertRaises(expected_exception=TypeError):
+                    self.host.adopt(contribution=instance, requirements=invalid)
+                adopted = adopt(host=self.host, contribution=instance)
+                self.assertIs(expr1=instance, expr2=adopted.contribution)
+
+    async def test_explicit_empty_operation_requirements_override_common_requirements(self):
+        class UnrestrictedSum(Sum):
+            @operation(requirements=frozenset())
+            def calculate(self, *, numbers: Numbers) -> Total:
+                return super().calculate(numbers=numbers)
+
+        hosted = adopt(host=self.host, contribution=UnrestrictedSum(configuration=Settings(scale=2)))
+        self.assertEqual(first=frozenset(), second=hosted.description.calls[0].resources)
+        self.assertEqual(first=1, second=len(hosted.requirements))
 
     async def test_setup_is_private_and_requirements_determine_execution_contract(self):
         original = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
@@ -382,7 +438,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(expected_exception=ValueError):
             self.host.adopt(
                 contribution=instance,
-                requirements=(ResourceRequirement(kind="cpu", amount=1, unit="thread"),),
+                requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread")}),
                 isolation=IsolationRequirement.DEDICATED_PROCESS,
             )
         self.assertEqual(first=0, second=instance.initializations)

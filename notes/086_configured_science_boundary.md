@@ -111,5 +111,9 @@ asset access is optional. No caller-created ResourceAllocation or capacity
 assertion is needed. The returned allocation reference identifies the hosted
 object and its executor, not a hardware grant. ResourceRequirement is the single
 resource declaration type, including on the older ImplementationBinding path.
+Requirement collections are frozensets: all declared needs must be met together,
+with no ordering or repeated identical records. Conflicting records for one
+resource identity are rejected. Exported arrays use a canonical order so hash
+iteration cannot change an execution-contract revision.
 Neither path discovers, reserves or validates hardware availability. Backend
 execution support is checked independently before ownership is accepted.

@@ -22,7 +22,7 @@ class Offerings:
 def adopt_offerings(
     *,
     host: EmbeddedHost,
-    requested_requirements: tuple[ResourceRequirement, ...],
+    requested_requirements: frozenset[ResourceRequirement],
 ) -> Offerings:
     """No SDK discovery: the provider explicitly chooses classes and model code."""
     package = files(anchor=__package__)

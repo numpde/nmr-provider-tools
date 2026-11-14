@@ -50,10 +50,10 @@ def create_bindings(
     return SpectrumBindings(
         baseline=host.adopt(
             contribution=Baseline(configuration=science.BaselineSettings(**settings["baseline"])),
-            requirements=(requirement,),
+            requirements=frozenset({requirement}),
         ),
         peaks=host.adopt(
             contribution=Peaks(configuration=science.PeakSettings(**settings["peaks"])),
-            requirements=(requirement,),
+            requirements=frozenset({requirement}),
         ),
     )

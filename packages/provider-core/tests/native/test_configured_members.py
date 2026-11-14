@@ -90,7 +90,7 @@ class ConfiguredMemberTests(unittest.TestCase):
                 identity=binding.identity,
                 instance=None,
                 analysis=None,
-                resident_resources=(),
+                resident_resources=frozenset(),
                 isolation=binding.isolation,
                 run=binding.run,
             )
@@ -105,7 +105,7 @@ class ConfiguredMemberTests(unittest.TestCase):
             identity=plain.identity,
             instance=weighted.instance,
             analysis=weighted.analysis,
-            resident_resources=(),
+            resident_resources=frozenset(),
             isolation=weighted.isolation,
             run=plain.run,
         )

@@ -54,5 +54,5 @@ def create_binding(*, host: EmbeddedHost) -> sdk.HostedContribution:
     )
     return host.adopt(
         contribution=ReferenceMatcher(configuration=ReferenceConfig(settings=settings, references=reference_set)),
-        requirements=(requirement,),
+        requirements=frozenset({requirement}),
     )

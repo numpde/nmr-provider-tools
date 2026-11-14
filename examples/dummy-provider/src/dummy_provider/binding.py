@@ -112,7 +112,7 @@ def create_weighted_sum_binding(
     """
     return host.adopt(
         contribution=WeightedSum(configuration=WeightedSumConfig(settings=settings, coefficients=coefficients)),
-        requirements=(_configured_cpu_requirement(),),
+        requirements=frozenset({_configured_cpu_requirement()}),
     )
 
 
@@ -120,5 +120,5 @@ def create_sum_binding(*, host: EmbeddedHost) -> sdk.HostedContribution:
     """Provider-owned assembly for the independently callable stateless sum."""
     return host.adopt(
         contribution=Sum(),
-        requirements=(_configured_cpu_requirement(),),
+        requirements=frozenset({_configured_cpu_requirement()}),
     )

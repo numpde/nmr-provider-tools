@@ -116,9 +116,9 @@ class EmbeddedHost:
     # silent-defaults: allow-contract -- No file assets, no resident requirements and shared-process execution describe the ordinary embedded contribution contract.
     def adopt(
         self, *, contribution: Contribution,
-        requirements: tuple[ResourceRequirement, ...],
+        requirements: frozenset[ResourceRequirement],
         assets: AssetAccess = NoAssets(),
-        resident_resources: tuple[ResourceRequirement, ...] = (),
+        resident_resources: frozenset[ResourceRequirement] = frozenset(),
         isolation: IsolationRequirement = IsolationRequirement.SHARED_PROCESS,
     ) -> HostedContribution:
         """Take ownership of this exact object after validating execution support.

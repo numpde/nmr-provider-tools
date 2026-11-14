@@ -50,7 +50,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.addAsyncCleanup(self.retire)
         self.offerings = adopt_offerings(
             host=self.host,
-            requested_requirements=(ResourceRequirement(kind="cpu", amount=1, unit="thread", selector="generic"),),
+            requested_requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread", selector="generic")}),
         )
 
     async def retire(self):
@@ -227,7 +227,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         contribution = Hf(configuration=settings, checkpoint_path=self.offerings.hf.contribution.checkpoint_path, create_model=Model)
         hosted = self.host.adopt(
             contribution=contribution,
-            requirements=(ResourceRequirement(kind="cpu", amount=1, unit="thread", selector="generic"),),
+            requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread", selector="generic")}),
         )
         prediction, _ = self.prediction(hosted=hosted, proposals=(candidate(carbon=False),), name="bad-checkpoint")
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="checkpoint"):

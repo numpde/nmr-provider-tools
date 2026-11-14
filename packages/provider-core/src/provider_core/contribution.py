@@ -15,7 +15,7 @@ import inspect
 import hashlib
 import json
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field, fields, replace
 from enum import StrEnum
 from types import NoneType
@@ -65,7 +65,7 @@ def _records(values: object, record_type: type[object], label: str) -> None:
         raise TypeError(f"{label} must be an immutable tuple of {record_type.__name__} records")
 
 
-def _unique(values: tuple[object, ...], key: Callable[[object], object], label: str) -> None:
+def _unique(values: Collection[object], key: Callable[[object], object], label: str) -> None:
     if len({key(value) for value in values}) != len(values):
         raise ValueError(f"{label} cannot contain duplicates")
 
@@ -312,7 +312,14 @@ class ConfiguredIdentity:
 
 @dataclass(frozen=True, slots=True)
 class ResourceRequirement:
-    """Resource kind, quantity and constraints required for scientific execution."""
+    """One resource need: its kind, quantity, unit and selection constraints.
+
+    A frozenset of these records describes all needs that must be met together;
+    for example, CPU threads, host memory and GPU memory for one model. Order
+    has no meaning and repeating an identical need adds nothing. Two records
+    with the same kind, unit and selector cannot specify conflicting quantities
+    or exclusivity. These declarations do not allocate or prove availability.
+    """
 
     kind: str
     amount: int
@@ -335,6 +342,20 @@ class ResourceRequirement:
     @property
     def identity(self) -> tuple[str, str, str | None]:
         return self.kind, self.unit, self.selector
+
+
+def _require_resource_requirements(resource_requirements: object) -> None:
+    """Require unordered immutable needs with one quantity per resource identity."""
+    if type(resource_requirements) is not frozenset:
+        raise TypeError(f"Unexpected {type(resource_requirements)=}; supply a frozenset of ResourceRequirement records")
+    for resource_requirement in resource_requirements:
+        if type(resource_requirement) is not ResourceRequirement:
+            raise TypeError(f"Unexpected {type(resource_requirement)=}; expected a ResourceRequirement record")
+    _unique(
+        values=resource_requirements,
+        key=lambda resource_requirement: resource_requirement.identity,
+        label="Resource requirements",
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -441,7 +462,7 @@ class CallDescription:
     result_format: str
     state_inputs: tuple[StateParameter, ...]
     state_outputs: tuple[StateOutput, ...]
-    resources: tuple[ResourceRequirement, ...]
+    resources: frozenset[ResourceRequirement]
     concurrency: ConcurrencyRequirement
     interruption: InterruptionSupport
     progress: bool
@@ -454,8 +475,7 @@ class CallDescription:
         _unique(self.state_inputs, lambda value: value.name, "State parameters")
         _records(self.state_outputs, StateOutput, "State outputs")
         _unique(self.state_outputs, lambda value: value.name, "State outputs")
-        _records(self.resources, ResourceRequirement, "Call resource requirements")
-        _unique(self.resources, lambda value: value.identity, "Call resource requirements")
+        _require_resource_requirements(resource_requirements=self.resources)
         if type(self.concurrency) is not ConcurrencyRequirement:
             raise TypeError("Call concurrency must be a declared ConcurrencyRequirement")
         if type(self.interruption) is not InterruptionSupport:
@@ -472,7 +492,7 @@ class ImplementationDescription:
     configuration: ConfigurationDescription | None
     assets: tuple[AssetDescription, ...]
     calls: tuple[CallDescription, ...]
-    resident_resources: tuple[ResourceRequirement, ...]
+    resident_resources: frozenset[ResourceRequirement]
     isolation: IsolationRequirement
 
     def __post_init__(self) -> None:
@@ -496,12 +516,7 @@ class ImplementationDescription:
         if not self.calls:
             raise ValueError("An implementation must declare at least one call")
         _unique(self.calls, lambda value: value.name, "Call descriptions")
-        _records(self.resident_resources, ResourceRequirement, "Resident resource requirements")
-        _unique(
-            self.resident_resources,
-            lambda value: value.identity,
-            "Resident resource requirements",
-        )
+        _require_resource_requirements(resource_requirements=self.resident_resources)
         if type(self.isolation) is not IsolationRequirement:
             raise TypeError("Implementation isolation must be a declared IsolationRequirement")
 
@@ -730,7 +745,7 @@ class CallBinding[InputT, StateT, OutputT]:
         input_format: str | None = None,
         result_format: str,
         state_outputs: tuple[StateOutputBinding[Any], ...],
-        resources: tuple[ResourceRequirement, ...],
+        resources: frozenset[ResourceRequirement],
         concurrency: ConcurrencyRequirement,
         interruption: InterruptionSupport,
         progress: bool,
@@ -802,7 +817,7 @@ class CallBinding[InputT, StateT, OutputT]:
         input_format: str,
         result_format: str,
         function: Callable[[InputT], OutputT],
-        resources: tuple[ResourceRequirement, ...],
+        resources: frozenset[ResourceRequirement],
         concurrency: ConcurrencyRequirement,
     ) -> CallBinding[InputT, NoState, OutputT]:
         """Bind an ordinary unary calculation with no state/control hooks."""
@@ -867,7 +882,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
     identity: ConfiguredIdentity
     instance: InstanceHooks[InstanceT] | None
     analysis: AnalysisHooks[InstanceT, AnalysisT] | None
-    resident_resources: tuple[ResourceRequirement, ...]
+    resident_resources: frozenset[ResourceRequirement]
     isolation: IsolationRequirement
     description: ImplementationDescription = field(init=False)
     _calls: tuple[CallBinding[Any, Any, Any], ...] = field(init=False, repr=False, compare=False)
@@ -1040,6 +1055,11 @@ def description_document(description: ImplementationDescription) -> dict[str, ob
     if type(description) is not ImplementationDescription:
         raise TypeError("Description export requires an ImplementationDescription")
 
+    # Requirements are unordered; canonical array order keeps exported revisions stable.
+    # Compare selector presence before its value so None never compares with a string.
+    def resource_order(requirement: ResourceRequirement):
+        return requirement.kind, requirement.unit, requirement.selector is not None, requirement.selector
+
     def resource_document(requirement: ResourceRequirement) -> dict[str, object]:
         return {
             "kind": requirement.kind,
@@ -1073,7 +1093,7 @@ def description_document(description: ImplementationDescription) -> dict[str, ob
         ],
         "resident_resources": [
             resource_document(requirement)
-            for requirement in description.resident_resources
+            for requirement in sorted(description.resident_resources, key=resource_order)
         ],
         "isolation": description.isolation.value,
         "calls": [
@@ -1091,7 +1111,7 @@ def description_document(description: ImplementationDescription) -> dict[str, ob
                 ],
                 "resources": [
                     resource_document(requirement)
-                    for requirement in call.resources
+                    for requirement in sorted(call.resources, key=resource_order)
                 ],
                 "concurrency": call.concurrency.value,
                 "interruption": call.interruption.value,

@@ -117,7 +117,7 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
         for binding in (weighted, self.sum_binding()):
             for call in binding.description.calls:
                 with self.subTest(binding=binding.description.binding_id, call=call.name):
-                    self.assertEqual((expected,), call.resources)
+                    self.assertEqual(frozenset({expected}), call.resources)
 
     async def test_resource_values_change_revision_without_changing_existing_bindings(self) -> None:
         weighted = self.weighted_binding(
@@ -150,9 +150,9 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
                 self.assertNotEqual(original.description.binding_revision, changed.description.binding_revision)
                 self.assertEqual(changed.description.binding_revision, same_values.description.binding_revision)
                 for call in original.description.calls:
-                    self.assertEqual(1, call.resources[0].amount)
+                    self.assertEqual(1, next(iter(call.resources)).amount)
                 for call in changed.description.calls:
-                    self.assertEqual(2, call.resources[0].amount)
+                    self.assertEqual(2, next(iter(call.resources)).amount)
 
     async def test_invalid_resource_values_are_rejected(self) -> None:
         with TemporaryDirectory() as directory:
