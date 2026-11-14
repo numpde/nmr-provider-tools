@@ -62,7 +62,7 @@ class Prediction:
         permit_validation()
         reservation, = self.execution.reservations
         operation = self.execution.submit_method(
-            method=contribution.prepare, operation_id=str(len(self.preparations)),
+            method=contribution.prepare,
             scientific_input=candidate, states=(), reservation=reservation,
             limits=self.limits, dispatch_guard=permit_validation,
         )
@@ -75,7 +75,7 @@ class Prediction:
             if isinstance(cause, CallRejected):
                 raise ToolRejected(cause.message) from cause
         self.require_result(completed=completed)
-        self.prepared = await PeakContribution.prepared_output.reference(call=call, operation=operation)
+        self.prepared = await PeakContribution.validated.reference(call=call, operation=operation)
         # The validation report has served its consumer. Its separate live state
         # remains owned by this analysis until generation consumes it.
         await observe_cleanup(control=operation.release_result(result=completed.result))
@@ -92,8 +92,8 @@ class Prediction:
         if self.generation is None:
             reservation, = self.execution.reservations
             accepted = self.execution.submit_method(
-                method=self.hosted.contribution.generate, operation_id="generate",
-                states=(PeakContribution.prepared_input.bind(handle=self.prepared),),
+                method=self.hosted.contribution.generate,
+                states=(PeakContribution.candidate.bind(handle=self.prepared),),
                 reservation=reservation, limits=self.limits,
                 dispatch_guard=self.require_permission,
             )

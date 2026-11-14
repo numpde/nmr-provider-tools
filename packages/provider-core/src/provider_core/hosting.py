@@ -17,6 +17,7 @@ from enum import Enum
 import math
 import re
 from typing import Protocol
+from uuid import uuid4
 
 from provider_core.contribution import (
     CallRef,
@@ -320,7 +321,13 @@ class ExecutionLimits:
 
 @dataclass(frozen=True, slots=True)
 class Invocation:
-    operation_id: str
+    """Portable submission with an SDK-generated identity.
+
+    Retain this record when resubmitting the same request across a transport.
+    Constructing another invocation requests separate work.
+    """
+
+    operation_id: str = field(default_factory=lambda: uuid4().hex, kw_only=True)
     target: CallRef
     payload: bytes = field(repr=False)
     states: tuple[StateArgument, ...]
@@ -331,10 +338,10 @@ class Invocation:
         if not (type(self.operation_id) is str):
             raise TypeError(
                 f"Unexpected {type(self.operation_id)=}; "
-                "An invocation needs an explicit operation ID of 1 through 160 characters."
+                "An invocation needs an operation ID of 1 through 160 characters."
             )
         if not (0 < len(self.operation_id) <= 160):
-            raise ValueError("An invocation needs an explicit operation ID of 1 through 160 characters.")
+            raise ValueError("An invocation needs an operation ID of 1 through 160 characters.")
         if not (
             type(self.target) is CallRef
             and type(self.payload) is bytes

@@ -44,16 +44,16 @@ async def run_demo() -> None:
         sys.stdout.buffer.flush()
 
     try:
-        binding = create_binding(host=host, allocation=ResourceAllocation(name="library", grants=(
+        binding = create_binding(host=host, allocation=ResourceAllocation(grants=(
             ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),
         )))
         for name, values in (("first", (3, 4, 0, 0)), ("second", (0, 0, 1, 1))):
-            analysis = host.open_analysis(analysis_id=name, allocation_names=("library",))
+            analysis = host.open_analysis(allocations=(binding.allocation,))
             cleanup_requests.append(analysis.close)
             reservation, = analysis.reservations
             operation = analysis.submit_method(
                 method=binding.contribution.match,
-                operation_id="match",
+
                 scientific_input=VectorInput(values=values),
                 states=(), reservation=reservation, limits=limits,
                 dispatch_guard=require_permission,

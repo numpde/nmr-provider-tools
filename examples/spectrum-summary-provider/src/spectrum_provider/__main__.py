@@ -48,12 +48,13 @@ async def run_demo() -> None:
     try:
         bindings = create_bindings(
             host=host,
-            baseline_allocation=ResourceAllocation(name="baseline", grants=grants),
-            peak_allocation=ResourceAllocation(name="peaks", grants=grants),
+            baseline_allocation=ResourceAllocation(grants=grants),
+            peak_allocation=ResourceAllocation(grants=grants),
         )
         baseline, peaks = bindings.baseline, bindings.peaks
-        analysis = host.open_analysis(analysis_id="spectrum-demo", allocation_names=("baseline", "peaks"))
-        reservations = {item.allocation: item for item in analysis.reservations}
+        analysis = host.open_analysis(allocations=(baseline.allocation, peaks.allocation))
+        baseline_reservation = analysis.reservation(allocation=baseline.allocation)
+        peak_reservation = analysis.reservation(allocation=peaks.allocation)
         baseline_call = baseline.call(method=Baseline.run)
         limits = ExecutionLimits(
             queue_seconds=5, execution_seconds=10, cleanup_seconds=5,
@@ -62,15 +63,14 @@ async def run_demo() -> None:
         workflow = PeakWorkflow(
             execution=analysis,
             baseline=Invocation(
-                operation_id="subtract-baseline",
                 target=ref(call=baseline_call),
                 payload=baseline_call.input_codec.encode(
                     value=Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
                 ),
-                states=(), reservation=reservations["baseline"], limits=limits,
+                states=(), reservation=baseline_reservation, limits=limits,
             ),
             peaks=peaks.reference(method=Peaks.run),
-            peak_reservation=reservations["peaks"], limits=limits,
+            peak_reservation=peak_reservation, limits=limits,
             dispatch_guard=require_permission,
         )
         started = workflow.start()

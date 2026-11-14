@@ -412,7 +412,7 @@ class TypedContributionTests(unittest.TestCase):
     def test_one_state_kind_cannot_mean_different_python_types(self):
         binding = _weighted_binding()
         wrong_input = StateKind(
-            binding.prepared_input.kind.name, science.SumResult,
+            name=binding.prepared_input.kind.name, value_type=science.SumResult,
         ).input(name=binding.prepared_input.name, use=contribution.StateUse.CONSUME)
         wrong_state = SlotStateBinding(
             value_type=science.CalculationState,

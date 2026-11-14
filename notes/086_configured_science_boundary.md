@@ -17,7 +17,7 @@ class Peaks(sdk.Contribution):
 peaks = Peaks(settings=settings)
 hosted = host.adopt(
     contribution=peaks,
-    allocation=ResourceAllocation(name="peaks", grants=grants),
+    allocation=ResourceAllocation(grants=grants),
     requirements=requirements,
 )
 ```
@@ -33,7 +33,7 @@ Local execution submits a bound method:
 
 ```python
 analysis.submit_method(
-    method=peaks.run, operation_id="peaks", scientific_input=spectrum,
+    method=peaks.run, scientific_input=spectrum,
     states=(), reservation=reservation, limits=limits,
     dispatch_guard=require_permission,
 )
@@ -64,3 +64,23 @@ The NMRPeak mock uses the real SDK interpreter and scientific host. Its checkpoi
 loader follows NMRPeak's same-descriptor verification and loading pattern.
 Deployment retains checkpoint files during use. Scientific provenance remains
 in provider-owned result records. No new snapshot service is required.
+
+The SDK creates allocation, analysis and operation identities. Provider code
+passes handles rather than choosing names:
+
+```python
+analysis = host.open_analysis(allocations=(hosted.allocation,))
+reservation = analysis.reservation(allocation=hosted.allocation)
+```
+
+Each local submission creates a distinct operation. Retain its returned handle
+to observe it again; resubmitting the method requests new work. Portable Invocation
+records likewise receive generated identities and can be retained for transport
+resubmission. Explicit IDs remain a low-level protocol facility, not an authoring
+requirement.
+
+StateKind(value_type=PreparedInput) derives its identity from the scientific
+Python type. Declare ports as class attributes, such as
+candidate = kind.input(use=StateUse.CONSUME). Python supplies the port name;
+that attribute matches the method's candidate parameter. Inherited ports retain
+their names; one inferred port cannot be declared under two different names.

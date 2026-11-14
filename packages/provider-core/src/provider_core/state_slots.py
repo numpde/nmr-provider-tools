@@ -12,7 +12,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 from collections.abc import Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, cast
 
 from provider_core.contribution import (
@@ -23,20 +23,27 @@ from provider_core.hosting import Operation, OperationRef, StateArgument, StateR
 
 @dataclass(frozen=True, slots=True)
 class StateKind[T]:
-    """One declared scientific kind and its actual provider-owned Python type."""
+    """A scientific state type; its qualified Python name supplies the identity.
 
-    name: str
+    Explicit names remain available for existing portable contracts. Declare
+    inferred input/output ports as class attributes so Python supplies their
+    names before the contribution is adopted.
+    """
+
+    name: str = field(default=None, kw_only=True)
     value_type: type[T]
 
     def __post_init__(self) -> None:
-        _identity(self.name, "Scientific state kind")
         if not isinstance(self.value_type, type):
             raise TypeError("A scientific state kind must name a concrete Python type")
+        if self.name is None:
+            object.__setattr__(self, "name", self.value_type.__module__ + "." + self.value_type.__qualname__)
+        _identity(self.name, "Scientific state kind")
 
-    def output(self, *, name: str, dispose: Callable[[T], None]) -> StateOutputSlot[T]:
+    def output(self, *, name: str | None = None, dispose: Callable[[T], None]) -> StateOutputSlot[T]:
         return StateOutputSlot(name=name, kind=self, dispose=dispose)
 
-    def input(self, *, name: str, use: StateUse) -> StateInputSlot[T]:
+    def input(self, *, name: str | None = None, use: StateUse) -> StateInputSlot[T]:
         return StateInputSlot(name=name, kind=self, use=use)
 
 
@@ -59,14 +66,24 @@ class StateHandle[T]:
 class StateOutputSlot[T]:
     """Own a producer's output identity and its scientific disposal callback."""
 
-    name: str
+    name: str | None = None
     kind: StateKind[T]
     dispose: Callable[[T], None]
+    _inferred: bool = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        StateOutput(name=self.name, kind=self.kind.name)
+        object.__setattr__(self, "_inferred", self.name is None)
+        if self.name is not None:
+            StateOutput(name=self.name, kind=self.kind.name)
         if not isinstance(self.kind.value_type, type) or not callable(self.dispose):
             raise TypeError("An output slot needs a concrete scientific type and disposer")
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        """Bind an omitted port name to its unambiguous Python attribute."""
+        if self._inferred and self.name is not None and self.name != name:
+            raise ValueError("An inferred state port cannot have different Python attribute names")
+        if self.name is None:
+            object.__setattr__(self, "name", name)
 
     @property
     def value_type(self) -> type[T]:
@@ -119,12 +136,22 @@ class StateOutputSlot[T]:
 class StateInputSlot[T]:
     """Name a consumer input independently of the producer's output name."""
 
-    name: str
+    name: str | None = None
     kind: StateKind[T]
     use: StateUse
+    _inferred: bool = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        StateParameter(name=self.name, kind=self.kind.name, use=self.use)
+        object.__setattr__(self, "_inferred", self.name is None)
+        if self.name is not None:
+            StateParameter(name=self.name, kind=self.kind.name, use=self.use)
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        """Bind an omitted port name to its unambiguous Python attribute."""
+        if self._inferred and self.name is not None and self.name != name:
+            raise ValueError("An inferred state port cannot have different Python attribute names")
+        if self.name is None:
+            object.__setattr__(self, "name", name)
 
     @property
     def value_type(self) -> type[T]:

@@ -81,3 +81,9 @@ serialize or hash them. Call identity refers to the adopted allocation; scientif
 provenance remains provider-owned. Local submission uses the actual receiver
 (e.g. `method=contribution.generate`). Adoption takes `requirements=...`;
 deployment supplies resource `grants`.
+
+The SDK supplies execution identities. Use allocation handles with
+`host.open_analysis(allocations=(hosted.allocation,))`, retain returned operation
+handles, and observe those handles to resume waiting. Each new submission means
+new work. State kinds and ports derive their names from Python types and class
+attributes rather than manually assigned labels.

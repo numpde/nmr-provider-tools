@@ -31,6 +31,27 @@ from spectrum_provider.binding import Baseline, Peaks, create_bindings
 
 
 class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
+    async def test_lost_submission_reply_reuses_the_generated_invocation(self):
+        workflow, _, _ = self.workflow(operation_records=2)
+        submit = workflow.execution.submit
+        accepted = []
+        cause = OSError("The reply was lost after submission")
+
+        def lose_first_reply(*, invocation, dispatch_guard):
+            operation = submit(invocation=invocation, dispatch_guard=dispatch_guard)
+            accepted.append(operation)
+            if len(accepted) == 1:
+                raise cause
+            return operation
+
+        with patch.object(target=workflow.execution, attribute="submit", side_effect=lose_first_reply):
+            with self.assertRaises(expected_exception=OSError) as raised:
+                await workflow.finish()
+            self.assertIs(expr1=cause, expr2=raised.exception)
+            completed = await workflow.finish()
+        self.assertIs(expr1=accepted[0], expr2=accepted[1])
+        self.assertIs(expr1=Outcome.SUCCEEDED, expr2=completed.outcome)
+
     async def asyncSetUp(self):
         self.hosts = []
 

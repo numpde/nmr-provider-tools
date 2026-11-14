@@ -82,7 +82,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             analysis = host.open_analysis(analysis_id="failed-load", allocation_names=("weighted",))
             reservation, = analysis.reservations
             operation = analysis.submit_method(
-                method=contribution.prepare, operation_id="prepare",
+                method=contribution.prepare,
                 scientific_input=science.PreparationInput(values=(1, 2, 3)),
                 states=(), reservation=reservation,
                 limits=ExecutionLimits(
@@ -152,7 +152,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
         rejected = analysis.submit_method(
             method=weighted_binding.contribution.prepare,
-            operation_id="rejected-prepare", scientific_input=science.PreparationInput(values=()),
+             scientific_input=science.PreparationInput(values=()),
             states=(), reservation=reservation, limits=execution_limits,
             dispatch_guard=lambda: None,
         )
@@ -163,7 +163,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
         preparation_operation = analysis.submit_method(
             method=weighted_binding.contribution.prepare,
-            operation_id="prepare",
+
             scientific_input=preparation_input,
             states=(),
             reservation=reservation,
@@ -176,10 +176,10 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(original_session, analysis.science["weighted"].value)
         self.assertEqual(1, len(preparation_observation.states))
         self.assertEqual("normalized", preparation_observation.states[0].name)
-        prepared = await WeightedSum.prepared_output.reference(
+        prepared = await WeightedSum.normalized.reference(
             call=prepare_call, operation=preparation_operation,
         )
-        calculation_state = WeightedSum.prepared_input.bind(handle=prepared)
+        calculation_state = WeightedSum.candidate.bind(handle=prepared)
         self.assertEqual("candidate", calculation_state.name)
         self.assertIs(ResultState.AVAILABLE, preparation_observation.result_state)
         self.assertIsNotNone(preparation_observation.result)
@@ -200,7 +200,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         # Result release leaves the returned scientific state available to calculate.
         calculation_operation = analysis.submit_method(
             method=weighted_binding.contribution.calculate,
-            operation_id="calculate",
+
             states=(calculation_state,),
             reservation=reservation,
             limits=execution_limits,

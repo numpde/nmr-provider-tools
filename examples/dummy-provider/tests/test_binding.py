@@ -105,8 +105,8 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(science.PreparedValues, calculate_call.state_binding.input_types["candidate"])
         self.assertIs(contribution.NoInput, calculate_call.input_codec.value_type)
         self.assertIs(science.SumInput, sum_call.input_codec.value_type)
-        self.assertEqual("normalized", WeightedSum.prepared_output.name)
-        self.assertEqual("candidate", WeightedSum.prepared_input.name)
+        self.assertEqual("normalized", WeightedSum.normalized.name)
+        self.assertEqual("candidate", WeightedSum.candidate.name)
 
     async def test_all_calls_declare_the_packaged_cpu_requirement(self) -> None:
         weighted = self.weighted_binding(

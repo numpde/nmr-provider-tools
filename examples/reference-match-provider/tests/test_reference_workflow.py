@@ -60,7 +60,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     reservation, = analysis.reservations
                     operation = analysis.submit_method(
                         method=binding.contribution.match,
-                        operation_id="match",
+
                         scientific_input=science.VectorInput(values=values),
                         states=(), reservation=reservation, limits=limits,
                         dispatch_guard=permitted,

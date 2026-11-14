@@ -51,6 +51,7 @@ class PeakWorkflow:
         self.dispatch_guard = dispatch_guard
         self.baseline_operation: Operation | None = None
         self.peak_operation: Operation | None = None
+        self.peak_invocation: Invocation | None = None
         self.baseline_release: ResultRelease | None = None
 
     def start(self) -> Operation | NotAdmitted:
@@ -74,15 +75,18 @@ class PeakWorkflow:
             if baseline.outcome is not Outcome.SUCCEEDED or baseline.result_state is not ResultState.AVAILABLE:
                 return baseline
             payload = await self.baseline_operation.read_result(result=baseline.result)
-            accepted = self.execution.submit(
-                invocation=Invocation(
-                    operation_id="detect-peaks",
+            if self.peak_invocation is None:
+                # Retain the SDK-generated request identity before submission:
+                # a lost reply must not turn a repeated request into new science.
+                self.peak_invocation = Invocation(
                     target=self.peak_target,
                     payload=payload,
                     states=(),
                     reservation=self.peak_reservation,
                     limits=self.limits,
-                ),
+                )
+            accepted = self.execution.submit(
+                invocation=self.peak_invocation,
                 dispatch_guard=self.dispatch_guard,
             )
             if isinstance(accepted, NotAdmitted):

@@ -9,7 +9,7 @@ from threading import Barrier
 import unittest
 
 from provider_core.embedded_host import Allocation, EmbeddedHost, HostLimits, ResourceAllocation
-from provider_core.hosting import AdmissionCode, ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, observe_cleanup, observe_completion
+from provider_core.hosting import CapacityUnavailable, AdmissionCode, ExecutionLimits, NotAdmitted, Outcome, ResourceGrant, observe_cleanup, observe_completion
 from provider_core.scientific import AssetAccess, Contribution, HostedContribution, NoAssets, ResourceRequirement, operation
 
 
@@ -86,7 +86,7 @@ async def run_sum(*, host, hosted, operation_id):
     analysis = host.open_analysis(analysis_id=operation_id, allocation_names=(hosted.allocation.allocation,))
     reservation, = analysis.reservations
     operation = analysis.submit_method(
-        method=hosted.contribution.calculate, operation_id=operation_id,
+        method=hosted.contribution.calculate,
         scientific_input=Numbers(values=(1, 2)), states=(), reservation=reservation,
         limits=ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024),
         dispatch_guard=lambda: None,
@@ -98,6 +98,53 @@ async def run_sum(*, host, hosted, operation_id):
 
 
 class AdoptionTests(unittest.IsolatedAsyncioTestCase):
+    async def test_state_ports_use_python_types_and_attribute_names(self):
+        from provider_core.scientific import StateKind, StateUse
+
+        kind = StateKind(value_type=Total)
+
+        class Ports:
+            produced = kind.output(dispose=lambda value: None)
+            candidate = kind.input(use=StateUse.CONSUME)
+
+        class Inherited(Ports):
+            pass
+
+        self.assertEqual(first="produced", second=Inherited.produced.description.name)
+        self.assertEqual(first="candidate", second=Inherited.candidate.description.name)
+        self.assertEqual(first=Total.__module__ + "." + Total.__qualname__, second=kind.name)
+        with self.assertRaises(expected_exception=ValueError):
+            class Ambiguous:
+                first = kind.input(use=StateUse.CONSUME)
+                second = first
+
+    async def test_sdk_creates_allocation_analysis_and_operation_identities(self):
+        instance = Sum(configuration=Settings(scale=2))
+        hosted = self.host.adopt(
+            contribution=instance,
+            allocation=ResourceAllocation(grants=(ResourceGrant(kind="cpu", amount=1, unit="thread"),)),
+            requirements=(ResourceRequirement(kind="cpu", amount=1, unit="thread"),),
+        )
+        analysis = self.host.open_analysis(allocations=(hosted.allocation,))
+        reservation = analysis.reservation(allocation=hosted.allocation)
+        limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024)
+        operations = [analysis.submit_method(
+            method=instance.calculate, scientific_input=Numbers(values=(1,)),
+            states=(), reservation=reservation, limits=limits, dispatch_guard=lambda: None,
+        ) for _ in range(2)]
+        self.assertIsNot(expr1=operations[0], expr2=operations[1])
+        for operation in operations:
+            await observe_completion(operation=operation)
+        self.assertEqual(first=2, second=instance.calls)
+        other = new_host()
+        self.addAsyncCleanup(self.retire, host=other)
+        with self.assertRaises(expected_exception=ValueError):
+            other.open_analysis(allocations=(hosted.allocation,))
+        await observe_cleanup(control=analysis.close())
+        await self.retire(host=self.host)
+        with self.assertRaises(expected_exception=CapacityUnavailable):
+            self.host.open_analysis(allocations=(hosted.allocation,))
+
     async def asyncSetUp(self):
         self.host = new_host()
         self.addAsyncCleanup(self.retire, host=self.host)
@@ -143,7 +190,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024)
         for method in (first.contribution.calculate, Sum.calculate):
             with self.assertRaises(expected_exception=ValueError):
-                analysis.submit_method(method=method, operation_id="wrong", scientific_input=Numbers(values=(1,)), states=(), reservation=reservation, limits=limits, dispatch_guard=lambda: None)
+                analysis.submit_method(method=method,  scientific_input=Numbers(values=(1,)), states=(), reservation=reservation, limits=limits, dispatch_guard=lambda: None)
         refused = analysis.submit(invocation=Invocation(
             operation_id="portable", target=first.reference(method=first.contribution.calculate),
             payload=first.call(method=first.contribution.calculate).input_codec.encode(value=Numbers(values=(1,))),
@@ -310,11 +357,11 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         reservation, = analysis.reservations
         limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024)
         for forged in (replace(reservation, host="other"), replace(reservation, allocation="missing"), replace(reservation, analysis="other")):
-            refused = analysis.submit_method(method=Sum.calculate, operation_id="forged", scientific_input=Numbers(values=(1,)), states=(), reservation=forged, limits=limits, dispatch_guard=lambda: None)
+            refused = analysis.submit_method(method=Sum.calculate,  scientific_input=Numbers(values=(1,)), states=(), reservation=forged, limits=limits, dispatch_guard=lambda: None)
             self.assertIsInstance(obj=refused, cls=NotAdmitted)
             self.assertIs(expr1=AdmissionCode.INVALID_REFERENCE, expr2=refused.code)
         with self.assertRaises(expected_exception=TypeError):
-            analysis.submit_method(method=hosted.contribution.calculate, operation_id="missing", states=(), reservation=reservation, limits=limits, dispatch_guard=lambda: None)
+            analysis.submit_method(method=hosted.contribution.calculate,  states=(), reservation=reservation, limits=limits, dispatch_guard=lambda: None)
         self.assertEqual(first=0, second=hosted.contribution.calls)
         self.assertEqual(first={}, second=self.host.operations)
 

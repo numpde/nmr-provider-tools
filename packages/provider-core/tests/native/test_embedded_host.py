@@ -237,22 +237,20 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
         operation = analysis.submit_call(
             binding.run,
-            operation_id=invocation.operation_id,
+
             payload=invocation.payload,
             states=invocation.states,
             reservation=invocation.reservation,
             limits=invocation.limits,
             dispatch_guard=_allow,
         )
-        self.assertIs(operation, analysis.submit(invocation, dispatch_guard=_allow))
-        with self.assertRaises(RequestConflict):
-            analysis.submit_call(
-                binding.run,
-                operation_id=invocation.operation_id,
-                payload=b'{"values":[6]}',
-                states=(), reservation=invocation.reservation, limits=invocation.limits,
-                dispatch_guard=_allow,
-            )
+        original_invocation = operation.invocation
+        self.assertIs(operation, analysis.submit(original_invocation, dispatch_guard=_allow))
+        another = analysis.submit_call(
+            binding.run, payload=b'{"values":[6]}', states=(),
+            reservation=invocation.reservation, limits=invocation.limits, dispatch_guard=_allow,
+        )
+        self.assertIsNot(operation, another)
         _, result = await self.success(operation, binding.run.result_codec)
         self.assertEqual(science.SumResult(total=9, count=2), result)
 
@@ -263,13 +261,13 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         reservation, = analysis.reservations
         with self.assertRaisesRegex(ValueError, "before a configured binding owns it"):
             analysis.submit_call(
-                replace(binding.run), operation_id="unbound", payload=b'{"values":[1]}',
+                replace(binding.run),  payload=b'{"values":[1]}',
                 states=(), reservation=reservation, limits=_execution_limits(), dispatch_guard=_allow,
             )
         for target in ("run", ref(binding.run)):
             with self.subTest(target=target), self.assertRaises(TypeError):
                 analysis.submit_call(
-                    target, operation_id="invalid", payload=b'{"values":[1]}',
+                    target,  payload=b'{"values":[1]}',
                     states=(), reservation=reservation, limits=_execution_limits(), dispatch_guard=_allow,
                 )
         self.assertEqual({}, host.operations)
@@ -285,7 +283,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             binding.identity, implementation="dummy.sum.another",
         ))
         foreign = analysis.submit_call(
-            wrong_revision.run, operation_id="foreign", payload=b'{"values":[1]}',
+            wrong_revision.run,  payload=b'{"values":[1]}',
             states=(), reservation=reservation, limits=_execution_limits(), dispatch_guard=_allow,
         )
         self.assertIsInstance(foreign, NotAdmitted)
@@ -298,7 +296,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
                 raise cause
 
         operation = analysis.submit_call(
-            binding.run, operation_id="revoked", payload=b'{"values":[1]}',
+            binding.run,  payload=b'{"values":[1]}',
             states=(), reservation=reservation, limits=_execution_limits(), dispatch_guard=guard,
         )
         permitted = False

@@ -124,10 +124,27 @@ class EmbeddedHost:
             raise RuntimeError("The embedded host belongs to its original event loop.")
 
     def open_analysis(
-        self, analysis_id: str, *, allocation_names: tuple[str, ...],
+        self, analysis_id: str | None = None, *, allocation_names: tuple[str, ...] | None = None,
+        allocations: tuple[AllocationRef, ...] | None = None,
     ) -> EmbeddedAnalysis:
-        """Reserve all named allocations together, without running any science."""
+        """Reserve exact allocation handles and create an analysis identity.
+
+        Explicit analysis_id/allocation_names are the legacy protocol form.
+        Handle-based callers retain the returned analysis instead of naming it.
+        """
         self._require_loop()
+        if allocations is not None:
+            if analysis_id is not None or allocation_names is not None:
+                raise TypeError("Choose allocation handles or the legacy named analysis arguments")
+            if type(allocations) is not tuple or any(type(item) is not AllocationRef for item in allocations):
+                raise TypeError(f"Unexpected {type(allocations)=}; supply a tuple containing allocation handles")
+            for reference in allocations:
+                resident = self.residents.get(reference.allocation)
+                if resident is None or resident.reference != reference:
+                    raise ValueError("The allocation handle does not belong to this host")
+            names = [reference.allocation for reference in allocations]
+            allocation_names = tuple(names)
+            analysis_id = uuid4().hex
         if self.retiring:
             raise CapacityUnavailable("The host is retiring and refuses new analyses.")
         if type(analysis_id) is not str:
@@ -251,11 +268,23 @@ class EmbeddedAnalysis:
         self.closed = False
         self.cleanup = None
 
+    def reservation(self, *, allocation: AllocationRef) -> ReservationRef:
+        """Return this analysis's reservation for an exact allocation handle."""
+        self.host._require_loop()
+        if type(allocation) is not AllocationRef:
+            raise TypeError(f"Unexpected {type(allocation)=}; supply an allocation handle")
+        resident = self.host.residents.get(allocation.allocation)
+        if resident is None or resident.reference != allocation:
+            raise ValueError("The allocation handle does not belong to this host")
+        for reservation in self.reservations:
+            if reservation.allocation == allocation.allocation:
+                return reservation
+        raise ValueError("This analysis did not reserve the supplied allocation")
+
     def submit_call[InputT, StateT, OutputT](
         self,
         call: CallBinding[InputT, StateT, OutputT],
         *,
-        operation_id: str,
         payload: bytes,
         states: tuple[StateArgument, ...],
         reservation: ReservationRef,
@@ -271,7 +300,7 @@ class EmbeddedAnalysis:
         if type(call) is not CallBinding:
             raise TypeError("Local call submission requires a bound CallBinding member")
         invocation = Invocation(
-            operation_id=operation_id,
+            operation_id=uuid4().hex,
             target=ref(call),
             payload=payload,
             states=states,
@@ -282,7 +311,7 @@ class EmbeddedAnalysis:
 
     # silent-defaults: allow-contract -- Methods without a payload use the immutable NoInput record; required inputs are checked before encoding.
     def submit_method(
-        self, *, method: Callable, operation_id: str,
+        self, *, method: Callable,
         scientific_input: object = NoInput(), states: tuple[StateArgument, ...],
         reservation: ReservationRef, limits: ExecutionLimits,
         dispatch_guard: Callable[[], None],
@@ -301,7 +330,7 @@ class EmbeddedAnalysis:
         if type(scientific_input) is NoInput and call.input_codec.value_type is not NoInput:
             raise TypeError(f"Unexpected {type(scientific_input)=}; {call.description.name=} requires {call.input_codec.value_type=}")
         return self.submit_call(
-            call=call, operation_id=operation_id,
+            call=call,
             payload=call.encode_input(value=scientific_input), states=states,
             reservation=reservation, limits=limits, dispatch_guard=dispatch_guard,
         )

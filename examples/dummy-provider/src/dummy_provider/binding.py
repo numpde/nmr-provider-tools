@@ -43,9 +43,9 @@ class WeightedSum(sdk.Contribution):
 
     analysis_type = WeightedAnalysis
     _model: science.WeightedSumModel | None = None
-    prepared_kind = sdk.StateKind(name="dummy.prepared-values.v1", value_type=science.PreparedValues)
-    prepared_output = prepared_kind.output(name="normalized", dispose=science.dispose_prepared)
-    prepared_input = prepared_kind.input(name="candidate", use=sdk.StateUse.CONSUME)
+    prepared_kind = sdk.StateKind(value_type=science.PreparedValues)
+    normalized = prepared_kind.output(dispose=science.dispose_prepared)
+    candidate = prepared_kind.input(use=sdk.StateUse.CONSUME)
 
     @property
     def model(self) -> science.WeightedSumModel:
@@ -66,17 +66,17 @@ class WeightedSum(sdk.Contribution):
         if self._model is not None:
             science.dispose_model(model=self._model)
 
-    @sdk.operation(state_outputs=(prepared_output,))
+    @sdk.operation(state_outputs=(normalized,))
     def prepare(
         self, *, analysis: WeightedAnalysis, candidate: science.PreparationInput,
     ) -> sdk.ScientificReturn[science.PreparationResult]:
         prepared = science.prepare(analysis=analysis.value, candidate=candidate)
         return sdk.ScientificReturn(
             value=science.PreparationResult(count=prepared.value_count),
-            states=(self.prepared_output.returned(value=prepared),),
+            states=(self.normalized.returned(value=prepared),),
         )
 
-    @sdk.operation(state_inputs=(prepared_input,), progress=True)
+    @sdk.operation(state_inputs=(candidate,), progress=True)
     def calculate(
         self, *, analysis: WeightedAnalysis, candidate: science.PreparedValues,
         control: sdk.ScientificControl,

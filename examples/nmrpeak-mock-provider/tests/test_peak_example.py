@@ -132,15 +132,15 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             await observe_cleanup(control=prediction.execution.close())
         self.assertIs(expr1=models[0], expr2=models[1])
 
-    async def test_generation_consumes_prepared_input_once(self):
+    async def test_generation_consumes_candidate_once(self):
         prediction, _ = self.prediction(hosted=self.offerings.hf, proposals=(candidate(carbon=False),), name="consume")
         await self.interpret(prediction=prediction, carbon=False)
         original = await prediction.finish()
         self.assertEqual(first=original, second=await prediction.finish())
         reservation, = prediction.execution.reservations
         duplicate = prediction.execution.submit_method(
-            method=self.offerings.hf.contribution.generate, operation_id="second-generation",
-            states=(PeakContribution.prepared_input.bind(handle=prediction.prepared),),
+            method=self.offerings.hf.contribution.generate,
+            states=(PeakContribution.candidate.bind(handle=prediction.prepared),),
             reservation=reservation, limits=prediction.limits, dispatch_guard=lambda: None,
         )
         self.assertIsInstance(obj=duplicate, cls=NotAdmitted)

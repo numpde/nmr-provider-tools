@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 import math
 import time
+from uuid import uuid4
 
 from provider_core.contribution import (
     ConcurrencyRequirement,
@@ -94,9 +95,9 @@ def _grants_cover(grants, requirements):
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class ResourceAllocation:
-    """Deployment's named resource assignment, independent of scientific code."""
+    """Deployment resource assignment; the SDK supplies its internal identity."""
 
-    name: str
+    name: str = field(default_factory=lambda: uuid4().hex)
     grants: tuple[ResourceGrant, ...]
     assets: AssetAccess = field(default_factory=NoAssets)
 

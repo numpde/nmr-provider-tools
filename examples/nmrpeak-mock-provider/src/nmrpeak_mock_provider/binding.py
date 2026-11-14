@@ -10,9 +10,9 @@ from .checkpoint import open_checkpoint
 
 
 class PeakContribution(sdk.Contribution):
-    prepared_kind = sdk.StateKind(name="nmrpeak.validated-input.v1", value_type=science.PreparedInput)
-    prepared_output = prepared_kind.output(name="validated", dispose=science.dispose_prepared)
-    prepared_input = prepared_kind.input(name="candidate", use=sdk.StateUse.CONSUME)
+    prepared_kind = sdk.StateKind(value_type=science.PreparedInput)
+    validated = prepared_kind.output(dispose=science.dispose_prepared)
+    candidate = prepared_kind.input(use=sdk.StateUse.CONSUME)
 
     def __init__(
         self, *, configuration: science.Settings, checkpoint_path: Path,
@@ -41,10 +41,10 @@ class PeakContribution(sdk.Contribution):
         prepared = science.prepare(model=self.model, candidate=candidate, settings=self.configuration)
         return sdk.ScientificReturn(
             value=science.Validation(token_count=len(prepared.tokens)),
-            states=(self.prepared_output.returned(value=prepared),),
+            states=(self.validated.returned(value=prepared),),
         )
 
-    @sdk.operation(state_inputs=(prepared_input,))
+    @sdk.operation(state_inputs=(candidate,))
     def generate(self, *, candidate: science.PreparedInput) -> science.Candidates:
         tokens = candidate.consume()
         generated = self.model.generate(tokens=tokens, beam_size=self.configuration.beam_size)
@@ -56,12 +56,12 @@ class PeakContribution(sdk.Contribution):
 
 
 class Hf(PeakContribution):
-    @sdk.operation(state_outputs=(PeakContribution.prepared_output,))
+    @sdk.operation(state_outputs=(PeakContribution.validated,))
     def prepare(self, *, candidate: science.HfInput) -> sdk.ScientificReturn[science.Validation]:
         return self.prepare_input(candidate=candidate)
 
 
 class Chf(PeakContribution):
-    @sdk.operation(state_outputs=(PeakContribution.prepared_output,))
+    @sdk.operation(state_outputs=(PeakContribution.validated,))
     def prepare(self, *, candidate: science.ChfInput) -> sdk.ScientificReturn[science.Validation]:
         return self.prepare_input(candidate=candidate)

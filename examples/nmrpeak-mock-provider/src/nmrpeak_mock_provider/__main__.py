@@ -39,8 +39,8 @@ async def run_demo() -> None:
     try:
         offerings = adopt_offerings(
             host=host,
-            hf_allocation=ResourceAllocation(name="hf", grants=grants),
-            chf_allocation=ResourceAllocation(name="chf", grants=grants),
+            hf_allocation=ResourceAllocation(grants=grants),
+            chf_allocation=ResourceAllocation(grants=grants),
         )
         for name, hosted, carbon in (("hf", offerings.hf, False), ("chf", offerings.chf, True)):
             candidate = {
@@ -55,7 +55,7 @@ async def run_demo() -> None:
                 timeout_seconds=15, context_bytes=factory.context_bytes, secrets=(),
             )
             cleanup_requests.append(interpreter.retire)
-            execution = host.open_analysis(analysis_id=name, allocation_names=(name,))
+            execution = host.open_analysis(allocations=(hosted.allocation,))
             cleanup_requests.append(partial(close_analysis, execution=execution))
             prediction = Prediction(
                 execution=execution, hosted=hosted, interpreter=interpreter,

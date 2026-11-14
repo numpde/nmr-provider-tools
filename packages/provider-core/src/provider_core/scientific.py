@@ -116,6 +116,8 @@ class Contribution:
 
     For managed local execution, submit a bound method such as object.predict to
     analysis.submit_method, with that object's reservation and execution limits.
+    The SDK assigns operation identities; retain the returned operation handle
+    to observe it again. Submitting the method again requests new work.
     A class member such as MyContribution.predict does not identify a receiver
     and is rejected at local submission. Operation declarations describe optional
     state ports, progress, interruption and resource requirements; see operation

@@ -49,7 +49,7 @@ def weighted_sum_binding(
     coefficients: science.CoefficientSet,
 ) -> WeightedSumBinding:
     """Bind immutable settings and coefficients to one weighted model revision."""
-    prepared_kind = StateKind("dummy.prepared-values.v1", science.PreparedValues)
+    prepared_kind = StateKind(name="dummy.prepared-values.v1", value_type=science.PreparedValues)
     prepared_output = prepared_kind.output(
         name="normalized", dispose=science.dispose_prepared,
     )
