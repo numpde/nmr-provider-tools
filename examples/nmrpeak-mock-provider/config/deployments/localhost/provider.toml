@@ -1,49 +1,55 @@
-# Local mock deployment policy. Scientific model settings remain in settings.toml.
+# Settings for this local mock deployment. Model settings stay in settings.toml.
 [execution.embedded_host]
-# In-flight input and owned result capacity, measured in bytes.
-# Retained caller handles can still contain completed request bytes.
-# For larger spectra or reports, replace either budget independently:
+# Across accepted calls, cap total encoded input bytes and reserved result bytes.
+# Caller-held operation handles can still retain completed input bytes.
+# For larger inputs or reports, replace either value:
 # input_bytes = 131072
 # result_bytes = 65536
 input_bytes = 32768
 result_bytes = 32768
-# Retain validated scientific inputs and bounded progress history.
-# More retained preparations require a larger state budget:
+# Allow space for this many scientific state values, such as prepared inputs.
+# To retain more preparations, replace state_values:
 # state_values = 8
-# A method that emits progress can retain more of its history:
-# progress_records = 32
 state_values = 2
+# Keep the latest progress updates for each operation; discard older updates.
+# To keep more updates, replace progress_records:
+# progress_records = 32
 progress_records = 1
-# Loading and retirement allowances, measured in seconds.
-# For a slower checkpoint loader or cleanup, replace the relevant allowance:
+# Request a stop if model initialization takes this many seconds.
+# The Python thread can continue running after the request.
+# For a slower loader, replace initialization_seconds:
 # initialization_seconds = 60
-# retirement_seconds = 30
-# Expiry is observable; it does not forcibly stop an executor thread.
 initialization_seconds = 5
+# Mark provider cleanup overdue after this many seconds; cleanup continues.
+# For slower cleanup, replace retirement_seconds:
+# retirement_seconds = 30
 retirement_seconds = 5
 
 [execution.operation_policy]
-# Policy for each submitted operation, not total host capacity.
-# Queue time starts when the SDK accepts the call.
-# Execution time starts at guarded dispatch.
-# Queue/execution expiry requests stopping but does not prove work has exited.
-# For slower science, replace execution_stop_request_seconds below:
-# execution_stop_request_seconds = 60
+# Apply these rules separately to each submitted prepare or generate call.
+# Ask the call to stop if it waits this long after the SDK accepts it.
 queue_stop_request_seconds = 5
+# Start this clock when the SDK allows the call to enter scientific work.
+# Count model loading, input decoding, science and result encoding.
+# Expiry requests a stop; it does not force the Python thread to exit.
+# For slower science, replace execution_stop_request_seconds:
+# execution_stop_request_seconds = 60
 execution_stop_request_seconds = 5
-# Flag unfinished cleanup after this many seconds; do not cancel it.
+# Start this clock when result release or analysis cleanup begins.
+# If cleanup remains unfinished, expose an overdue flag and keep cleaning up.
 cleanup_overdue_flag_seconds = 5
-# Maximum encoded input and result size for one operation, measured in bytes.
-# For larger inputs, replace reject_encoded_input_over_bytes below:
+# Count bytes after encoding. Reject oversized input before starting the call.
+# For larger inputs, replace reject_encoded_input_over_bytes:
 # reject_encoded_input_over_bytes = 16384
 reject_encoded_input_over_bytes = 8192
+# Reserve this much result space before starting; fail if the encoded result
+# exceeds it after the scientific method has run. Exactly this size is allowed.
 reject_encoded_result_over_bytes = 8192
 
-# Resource requirements requested for each offering, not granted capacity.
-# To request two CPU threads, replace amount below:
+# Declare what each offering needs; the SDK does not reserve or pin hardware.
+# Run the provider in an environment that can meet these requirements.
+# To request two CPU threads, replace amount:
 # amount = 2
-# This declares a requirement. EmbeddedHost does not discover, reserve or pin
-# hardware; the environment running the provider must satisfy it.
 [[execution.resource_requirement]]
 kind = "cpu"
 amount = 1
