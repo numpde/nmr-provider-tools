@@ -64,6 +64,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/contribution_errors.py",
                 "provider_core/hosting.py",
                 "provider_core/state_slots.py",
+                "provider_core/scientific.py",
                 "provider_core/embedded_host.py",
                 "provider_core/_embedded_operation.py",
                 "provider_core/_embedded_support.py",
