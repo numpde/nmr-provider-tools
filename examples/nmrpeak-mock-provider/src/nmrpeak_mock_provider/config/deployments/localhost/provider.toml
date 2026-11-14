@@ -1,4 +1,5 @@
-# Settings for this local mock deployment. Model settings stay in settings.toml.
+# Execution settings for the local mock deployment.
+# Scientific settings are in the package's config/settings.toml.
 [execution.embedded_host]
 # Across accepted calls, cap total encoded input bytes and reserved result bytes.
 # Caller-held operation handles can still retain completed input bytes.

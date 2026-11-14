@@ -210,13 +210,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                 )
                 namespace = "example_" + name.replace("-", "_")
                 shutil.copytree(source / "tests", test_tree / "tests/integration" / namespace)
-                # Deployment configuration is an external input to the installed
-                # provider, retained beside its tests rather than inside its wheel.
-                if (source / "config").is_dir():
-                    shutil.copytree(
-                        src=source / "config",
-                        dst=test_tree / "tests/integration" / namespace / "config",
-                    )
+
 
         # silent-defaults: allow-contract -- Fuzz selects both owned suites; every other admitted selector names one suite.
         selections = ("integration", "unit") if suite == "fuzz" else (suite,)

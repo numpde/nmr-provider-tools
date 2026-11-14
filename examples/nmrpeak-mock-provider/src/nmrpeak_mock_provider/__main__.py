@@ -16,9 +16,9 @@ from .composition import adopt_offerings, interpretation_messages, interpretatio
 from .fake_services import ScriptedEndpointFactory
 
 
-# The example selects one deployment; startup reads its operator-owned policy.
+# Select the mock deployment configuration shipped inside this package.
 # repo-check: allow-module-constant
-PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
+PROVIDER_CONFIG_PATH = Path(__file__).parent / "config/deployments/localhost/provider.toml"
 
 
 async def close_analysis(*, execution) -> None:

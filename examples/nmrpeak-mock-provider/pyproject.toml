@@ -19,4 +19,4 @@ namespaces = false
 include-package-data = false
 
 [tool.setuptools.package-data]
-nmrpeak_mock_provider = ["*.toml", "*.json", "interpreter.md"]
+nmrpeak_mock_provider = ["config/*.toml", "config/deployments/*/*.toml", "*.json", "interpreter.md"]

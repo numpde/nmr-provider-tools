@@ -31,11 +31,12 @@ src/nmrpeak_mock_provider/
     fake_model.py    stand-in tokenizer and neural model
     fake_services.py stand-in LLM endpoint and report receiver
     interpreter.md   source-faithful extraction instructions
-    settings.toml    checkpoint digests and scientific limits
     hf.json/chf.json tiny checkpoint substitutes
     __main__.py      run both offerings and settle their owners
-config/deployments/localhost/
-    provider.toml    execution limits and requested resource requirements
+    config/
+        settings.toml    checkpoint digests and scientific limits
+        deployments/localhost/
+            provider.toml    execution policy and resource requirements
 ```
 
 Assembly constructs `Hf` and `Chf` with scientific settings, a deployment-owned
@@ -94,17 +95,17 @@ handles, and observe those handles to resume waiting. Each new submission means
 new work. State kinds and ports derive their names from Python types and class
 attributes rather than manually assigned labels.
 
-Runtime policy follows the real providers' layout:
-`config/deployments/<name>/provider.toml`. The `[execution.embedded_host]` table supplies
-the execution host directly; `[execution.operation_policy]` supplies the stop-request thresholds,
-cleanup overdue threshold and encoded byte caps for each submitted operation. `[[execution.resource_requirement]]`
-supplies the resource requirements requested for each offering. The top-level `PROVIDER_CONFIG_PATH` in `__main__.py` selects that
-file relative to the deployment working directory; no command-line arguments
-are required. This operator-owned policy is not packaged into the application
-wheel. The installed-test lane copies the maintained config into a temporary
-deployment directory and runs the installed executable there. Real NMRPeak,
-NMRNet, Magnet and SECS use this directory convention; this example's host table
-belongs to the proposed SDK execution runtime rather than their current schemas.
+Both configuration files ship under `nmrpeak_mock_provider/config/` in the installed
+package. `settings.toml` configures HF/CHF scientific behaviour and accepted
+checkpoints. `deployments/localhost/provider.toml` configures execution: host
+capacity, per-call stop requests, cleanup overdue flags, encoded byte caps and
+resource requirements. Keeping them separate lets a deployment change execution
+policy without editing scientific settings.
+
+The top-level `PROVIDER_CONFIG_PATH` in `__main__.py` selects the packaged deployment
+file relative to the module. Startup needs no command-line arguments or files in
+the working directory. The installed-command test runs from an empty directory
+and reads both configuration files from the wheel.
 
 Adoption records resource requirements and establishes scientific-object ownership.
 It does not discover or allocate CPU/GPU hardware. The returned allocation handle

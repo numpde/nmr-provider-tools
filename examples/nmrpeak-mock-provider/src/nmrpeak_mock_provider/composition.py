@@ -26,7 +26,7 @@ def adopt_offerings(
 ) -> Offerings:
     """No SDK discovery: the provider explicitly chooses classes and model code."""
     package = files(anchor=__package__)
-    settings = tomllib.loads(package.joinpath("settings.toml").read_text(encoding="utf-8"))
+    settings = tomllib.loads(package.joinpath("config", "settings.toml").read_text(encoding="utf-8"))
     # Installed-wheel files remain available for this deployment's whole lifetime.
     # Real NMRPeak supplies its admitted checkpoint mount here instead.
     hf = Hf(configuration=Settings(**settings["hf"]), checkpoint_path=Path(str(package.joinpath("hf.json"))), create_model=Model)
