@@ -8,9 +8,11 @@ import asyncio
 from dataclasses import replace
 from importlib import metadata, resources
 import json
+import shutil
 from pathlib import Path
 import subprocess
 import sys
+import tomllib
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -25,6 +27,7 @@ from nmrpeak_mock_provider.binding import Hf, PeakContribution
 from nmrpeak_mock_provider.composition import adopt_offerings, interpretation_messages, interpretation_tools
 from nmrpeak_mock_provider.fake_model import Model, Tokenizer
 from nmrpeak_mock_provider.fake_services import RecordingReceiver, ScriptedEndpointFactory
+from nmrpeak_mock_provider.science import Settings
 
 
 def candidate(*, carbon):
@@ -47,9 +50,14 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             retirement_seconds=5,
         )
         self.addAsyncCleanup(self.retire)
+        with (Path(__file__).parent / "config/deployments/localhost/provider.toml").open(mode="rb") as source:
+            provider_config = tomllib.load(source)
         self.offerings = adopt_offerings(
             host=self.host,
             requested_requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread", selector="generic")}),
+            hf_settings=Settings(**provider_config["science"]["hf"]["settings"]),
+            chf_settings=Settings(**provider_config["science"]["chf"]["settings"]),
+            create_model=Model,
         )
 
     async def retire(self):
@@ -273,20 +281,24 @@ class InstalledCommandTests(unittest.TestCase):
         package = Path(str(resources.files(anchor="nmrpeak_mock_provider")))
         distribution = metadata.distribution(distribution_name="nmrpeak-mock-provider-example")
         self.assertEqual(first=package, second=Path(distribution.locate_file(path="nmrpeak_mock_provider")))
-        with TemporaryDirectory() as directory:
-            # Read both configuration files from the installed package, not this empty directory.
-            result = subprocess.run(
-                args=[
-                    sys.executable,
-                    "-I",
-                    "-B",
-                    "-m",
-                    "nmrpeak_mock_provider",
-                ],
-                cwd=directory,
-                capture_output=True, text=True, timeout=30,
-            )
-        self.assertEqual(first=0, second=result.returncode, msg=result.stderr)
-        reports = [json.loads(s=line) for line in result.stdout.splitlines()]
-        self.assertEqual(first=2, second=len(reports))
-        self.assertNotEqual(first=reports[0]["checkpoint_sha256"], second=reports[1]["checkpoint_sha256"])
+        for beam_size in (1, 2):
+            with self.subTest(beam_size=beam_size), TemporaryDirectory() as directory:
+                shutil.copytree(src=Path(__file__).parent / "config", dst=Path(directory) / "config")
+                configuration = Path(directory) / "config/deployments/localhost/provider.toml"
+                configuration.write_text(
+                    data=configuration.read_text(encoding="utf-8").replace("beam_size = 2", f"{beam_size=}"),
+                    encoding="utf-8",
+                )
+                result = subprocess.run(
+                    args=[sys.executable, "-I", "-B", "-m", "nmrpeak_mock_provider"],
+                    cwd=directory,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                self.assertEqual(first=0, second=result.returncode, msg=result.stderr)
+                reports = [json.loads(s=line) for line in result.stdout.splitlines()]
+                self.assertEqual(first=2, second=len(reports))
+                self.assertNotEqual(first=reports[0]["checkpoint_sha256"], second=reports[1]["checkpoint_sha256"])
+                for report in reports:
+                    self.assertEqual(first=beam_size, second=len(report["generated_smiles"]))

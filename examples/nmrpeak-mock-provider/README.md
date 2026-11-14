@@ -34,9 +34,8 @@ src/nmrpeak_mock_provider/
     hf.json/chf.json tiny checkpoint substitutes
     __main__.py      run both offerings and settle their owners
     config/
-        settings.toml    checkpoint digests and scientific limits
         deployments/localhost/
-            provider.toml    execution policy and resource requirements
+            provider.toml    scientific settings and execution policy
 ```
 
 Assembly constructs `Hf` and `Chf` with scientific settings, a deployment-owned
@@ -73,9 +72,11 @@ make tests/integration/provider-core DOCKER_CONTEXT=science \
   WHEELHOUSE=/home/ra/Downloads/wheelhouse TEST_PATTERN=test_peak_example.py
 ```
 
-With both installed inside a permitted container, run from this example project:
+With both installed inside a permitted container, start from this example project
+and enter the directory containing its maintained `config/` tree:
 
 ```sh
+cd src/nmrpeak_mock_provider
 python -I -B -m nmrpeak_mock_provider
 ```
 
@@ -95,17 +96,23 @@ handles, and observe those handles to resume waiting. Each new submission means
 new work. State kinds and ports derive their names from Python types and class
 attributes rather than manually assigned labels.
 
-Both configuration files ship under `nmrpeak_mock_provider/config/` in the installed
-package. `settings.toml` configures HF/CHF scientific behaviour and accepted
-checkpoints. `deployments/localhost/provider.toml` configures execution: host
-capacity, per-call stop requests, cleanup overdue flags, encoded byte caps and
-resource requirements. Keeping them separate lets a deployment change execution
-policy without editing scientific settings.
+Each deployment's `provider.toml` supplies both scientific settings and execution
+policy. The maintained example lives under
+`src/nmrpeak_mock_provider/config/deployments/localhost/`, but configuration is
+excluded from the wheel. Supply its `config/` tree in the working directory;
+the top-level `PROVIDER_CONFIG_PATH` in `__main__.py` selects the deployment file.
+No command-line arguments are required.
 
-The top-level `PROVIDER_CONFIG_PATH` in `__main__.py` selects the packaged deployment
-file relative to the module. Startup needs no command-line arguments or files in
-the working directory. The installed-command test runs from an empty directory
-and reads both configuration files from the wheel.
+Startup reads that file once, constructs HF/CHF `Settings` from its science
+sections, and passes them and an explicit model constructor to `adopt_offerings`.
+That provider-owned helper reads no configuration and chooses no model code.
+The SDK receives the resulting scientific objects and their requirements.
+A provider can choose another constructor in its own startup composition without
+adding model discovery or imports to the SDK.
+
+The installed-command test supplies configuration outside the wheel and changes
+beam size between runs, verifying that deployment configuration changes the
+scientific results without changing the installed application.
 
 Adoption records resource requirements and establishes scientific-object ownership.
 It does not discover or allocate CPU/GPU hardware. The returned allocation handle

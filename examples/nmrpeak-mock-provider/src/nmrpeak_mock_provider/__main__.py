@@ -14,11 +14,13 @@ from provider_core.scientific import ResourceRequirement
 from .application import Prediction
 from .composition import adopt_offerings, interpretation_messages, interpretation_tools
 from .fake_services import ScriptedEndpointFactory
+from .fake_model import Model
+from .science import Settings
 
 
-# Select the mock deployment configuration shipped inside this package.
+# Read the selected deployment configuration from the working directory.
 # repo-check: allow-module-constant
-PROVIDER_CONFIG_PATH = Path(__file__).parent / "config/deployments/localhost/provider.toml"
+PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
 
 
 async def close_analysis(*, execution) -> None:
@@ -59,6 +61,9 @@ async def run_demo() -> None:
         offerings = adopt_offerings(
             host=host,
             requested_requirements=requested_requirements,
+            hf_settings=Settings(**provider_config["science"]["hf"]["settings"]),
+            chf_settings=Settings(**provider_config["science"]["chf"]["settings"]),
+            create_model=Model,
         )
         for name, hosted, carbon in (("hf", offerings.hf, False), ("chf", offerings.chf, True)):
             candidate = {

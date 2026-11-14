@@ -1,16 +1,15 @@
 """Provider-owned assembly of scientific objects and their execution requirements."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-import tomllib
 
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.scientific import HostedContribution, ResourceRequirement
 
 from .binding import Chf, Hf
-from .fake_model import Model
-from .science import Settings
+from .science import Model, Settings
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
@@ -23,14 +22,28 @@ def adopt_offerings(
     *,
     host: EmbeddedHost,
     requested_requirements: frozenset[ResourceRequirement],
+    hf_settings: Settings,
+    chf_settings: Settings,
+    create_model: Callable[[], Model],
 ) -> Offerings:
-    """No SDK discovery: the provider explicitly chooses classes and model code."""
+    """Assemble science from the selected deployment's settings and model constructor.
+
+    Startup reads configuration; this helper neither opens configuration files
+    nor chooses the model implementation for its caller.
+    """
     package = files(anchor=__package__)
-    settings = tomllib.loads(package.joinpath("config", "settings.toml").read_text(encoding="utf-8"))
     # Installed-wheel files remain available for this deployment's whole lifetime.
     # Real NMRPeak supplies its admitted checkpoint mount here instead.
-    hf = Hf(configuration=Settings(**settings["hf"]), checkpoint_path=Path(str(package.joinpath("hf.json"))), create_model=Model)
-    chf = Chf(configuration=Settings(**settings["chf"]), checkpoint_path=Path(str(package.joinpath("chf.json"))), create_model=Model)
+    hf = Hf(
+        configuration=hf_settings,
+        checkpoint_path=Path(str(package.joinpath("hf.json"))),
+        create_model=create_model,
+    )
+    chf = Chf(
+        configuration=chf_settings,
+        checkpoint_path=Path(str(package.joinpath("chf.json"))),
+        create_model=create_model,
+    )
     return Offerings(
         hf=host.adopt(contribution=hf, requirements=requested_requirements),
         chf=host.adopt(contribution=chf, requirements=requested_requirements),
