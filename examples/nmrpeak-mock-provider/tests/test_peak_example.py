@@ -9,6 +9,7 @@ from dataclasses import replace
 from importlib import metadata, resources
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 from tempfile import TemporaryDirectory
@@ -266,8 +267,19 @@ class InstalledCommandTests(unittest.TestCase):
         distribution = metadata.distribution(distribution_name="nmrpeak-mock-provider-example")
         self.assertEqual(first=package, second=Path(distribution.locate_file(path="nmrpeak_mock_provider")))
         with TemporaryDirectory() as directory:
+            shutil.copytree(
+                src=Path(__file__).parent / "config",
+                dst=Path(directory) / "config",
+            )
             result = subprocess.run(
-                args=[sys.executable, "-I", "-B", "-m", "nmrpeak_mock_provider"], cwd=directory,
+                args=[
+                    sys.executable,
+                    "-I",
+                    "-B",
+                    "-m",
+                    "nmrpeak_mock_provider",
+                ],
+                cwd=directory,
                 capture_output=True, text=True, timeout=30,
             )
         self.assertEqual(first=0, second=result.returncode, msg=result.stderr)

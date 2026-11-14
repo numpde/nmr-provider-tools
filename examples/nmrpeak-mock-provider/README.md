@@ -71,8 +71,13 @@ make tests/integration/provider-core DOCKER_CONTEXT=science \
   WHEELHOUSE=/home/ra/Downloads/wheelhouse TEST_PATTERN=test_peak_example.py
 ```
 
-With both installed inside a permitted container, `python -I -B -m nmrpeak_mock_provider`
-prints an HF report and a CHF report. Process placement remains deployment-owned;
+With both installed inside a permitted container, run from this example project:
+
+```sh
+python -I -B -m nmrpeak_mock_provider
+```
+
+It prints an HF report and a CHF report. Process placement remains deployment-owned;
 the example does not copy NMRPeak's private worker frames into the scientific API.
 
 
@@ -87,3 +92,14 @@ The SDK supplies execution identities. Use allocation handles with
 handles, and observe those handles to resume waiting. Each new submission means
 new work. State kinds and ports derive their names from Python types and class
 attributes rather than manually assigned labels.
+
+Runtime policy follows the real providers' layout:
+`config/deployments/<name>/provider.toml`. The `[execution.host]` table supplies
+HostLimits; `[[execution.grants]]` supplies the resource grants assigned to
+each offering. The top-level `PROVIDER_CONFIG_PATH` in `__main__.py` selects that
+file relative to the deployment working directory; no command-line arguments
+are required. This operator-owned policy is not packaged into the application
+wheel. The installed-test lane copies the maintained config into a temporary
+deployment directory and runs the installed executable there. Real NMRPeak,
+NMRNet, Magnet and SECS use this directory convention; this example's host table
+belongs to the proposed SDK execution runtime rather than their current schemas.

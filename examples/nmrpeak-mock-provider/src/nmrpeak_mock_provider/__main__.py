@@ -2,7 +2,9 @@
 
 import asyncio
 from functools import partial
+from pathlib import Path
 import sys
+import tomllib
 
 from provider_core.embedded_host import EmbeddedHost, HostLimits, ResourceAllocation
 from provider_core.hosting import ExecutionLimits, ResourceGrant, ResultConsumption, observe_cleanup
@@ -13,16 +15,28 @@ from .composition import adopt_offerings, interpretation_messages, interpretatio
 from .fake_services import ScriptedEndpointFactory
 
 
+# The example selects one deployment; startup reads its operator-owned policy.
+# repo-check: allow-module-constant
+PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
+
+
 async def close_analysis(*, execution) -> None:
     await observe_cleanup(control=execution.close())
 
 
 async def run_demo() -> None:
-    host = EmbeddedHost(limits=HostLimits(
-        analysis_records=2, operation_records=6, input_bytes=32768, result_bytes=32768,
-        state_values=2, progress_records=1, initialization_seconds=5, retirement_seconds=5,
-    ))
-    grants = (ResourceGrant(kind="cpu", amount=1, unit="thread", selector="generic"),)
+    with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
+        policy = tomllib.load(source)
+    host = EmbeddedHost(
+        limits=HostLimits(
+            **policy["execution"]["host"],
+        ),
+    )
+    configured_grants = [
+        ResourceGrant(**grant)
+        for grant in policy["execution"]["grants"]
+    ]
+    grants = tuple(configured_grants)
     limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=8192, result_bytes=8192)
     cleanup_requests = []
     consumptions = []
@@ -92,4 +106,6 @@ async def run_demo() -> None:
 
 
 if __name__ == "__main__":
-    asyncio.run(main=run_demo())
+    asyncio.run(
+        main=run_demo(),
+    )
