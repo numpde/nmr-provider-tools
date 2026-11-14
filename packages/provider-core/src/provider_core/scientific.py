@@ -69,7 +69,12 @@ class _Custody:
 
 
 class Contribution:
-    """Base class for one scientific object whose execution a host will own.
+    """Base class for a scientific object that the SDK runs and cleans up.
+
+    Your application creates an SDK execution manager, such as EmbeddedHost,
+    and gives it this object. That manager is called the host below. It retains
+    the object, initializes it before scientific work, runs admitted operations,
+    and calls its cleanup method when the application retires it.
 
     Write an ordinary subclass with your own constructor arguments and fields.
     If you override __init__, call super().__init__() to establish ownership
