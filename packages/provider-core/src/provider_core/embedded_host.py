@@ -248,7 +248,11 @@ class EmbeddedHost:
         resident.retired = True
 
     def retire(self):
-        """Seal admission and retire every original allocation."""
+        """Request cleanup of all hosted scientific objects and refuse new analyses.
+
+        Provider shutdown code retains and observes the returned control. Exceeding
+        retirement_seconds marks cleanup overdue but does not stop its thread.
+        """
         self._require_loop()
         if self.retirement is None:
             self.retiring = True
@@ -325,11 +329,12 @@ class EmbeddedAnalysis:
         policy: OperationPolicy,
         dispatch_guard: Callable[[], None],
     ) -> Operation | NotAdmitted:
-        """Submit a local bound member through the ordinary data-only path.
+        """Ask the SDK to execute a registered scientific method with encoded input.
 
-        Project the configured address, then let submit own admission,
-        identity and dispatch. The retained invocation is data-only; the
-        reservation and guard remain explicit caller inputs.
+        Provider code supplies an owned CallBinding, its reservation, policy and
+        dispatch_guard. The SDK checks the request and capacity before creating
+        an operation handle. The guard runs later when the executor can start.
+        A returned handle means the request was admitted, not that it ran or succeeded.
         """
         if type(call) is not CallBinding:
             raise TypeError("Local call submission requires a bound CallBinding member")
@@ -354,7 +359,13 @@ class EmbeddedAnalysis:
         reservation: ReservationRef, policy: OperationPolicy,
         dispatch_guard: Callable[[], None],
     ) -> Operation | NotAdmitted:
-        """Select a method on the exact contribution owned by the reservation."""
+        """Ask the SDK to run an exported method on the reserved scientific object.
+
+        Provider application code passes a bound method such as object.prepare.
+        Encode its input, then use submit_call for admission and execution. The
+        returned operation handle tracks this submission through completion;
+        submitting the method again requests new work.
+        """
         self.host._require_loop()
         refusal = self._reservation_refusal(reservation=reservation)
         if refusal is not None:
@@ -431,6 +442,8 @@ class EmbeddedAnalysis:
                 message="Input, result or scientific-state capacity is full.",
             )
 
+        # These checks admitted one scientific-method submission from provider code.
+        # Reserve its capacity and queue its worker; it has not begun science yet.
         operation = _Operation(
             analysis=self,
             science=scientific_analysis,
@@ -538,6 +551,13 @@ class EmbeddedAnalysis:
 
 
     def close(self) -> AnalysisCleanup:
+        """Request cleanup of this execution session and return its retained control.
+
+        Provider code closes the session after its scientific work or during
+        shutdown. Refuse later submissions, request stops for unfinished methods,
+        then wait for them before disposing retained science state. The cleanup
+        timer only reports overdue status; it does not cancel that cleanup.
+        """
         self.host._require_loop()
         if self.cleanup is None:
             self.closed = True

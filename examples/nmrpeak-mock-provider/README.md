@@ -1,12 +1,14 @@
 # NMRPeak mock provider
 
-This example shows how NMRPeak's components fit the configured-object SDK
-boundary. It uses no ML libraries, credentials or network services. It starts
-with a selected request and ends with report acceptance; it does not replace
-the API's Job/START protocol, durable delivery or deployment supervision.
+This example runs one HF and one CHF prediction. Provider startup reads deployment
+configuration and creates the scientific objects and SDK execution manager.
+`Prediction`, the provider application, asks the SDK to validate interpreted
+input and generate candidates. Startup then consumes the resulting reports.
 
-Every boundary is intended for the real NMRPeak migration. The model, tokenizer
-and language-model carrier are stand-ins; the SDK ownership machinery is real.
+The model, tokenizer and language-model endpoint are small stand-ins. The SDK
+interpreter, scientific execution and cleanup are real. The example uses no ML
+libraries, credentials or network services; Job discovery and durable API delivery
+remain responsibilities of the surrounding provider.
 
 | Component | Example | NMRPeak counterpart |
 |---|---|---|
@@ -15,10 +17,10 @@ and language-model carrier are stand-ins; the SDK ownership machinery is real.
 | LLM service | `ScriptedEndpointFactory` | HTTP endpoint factory implementing the same SDK protocol |
 | Scientific validation | Loaded tokenizer, required spectra and token limit | Runner validation before generation |
 | Prepared input | SDK state, consumed once | Validated request retained until generation |
-| Model loading | Empty owner, verified checkpoint stream, `load` | Split the current loader so partial ownership survives failure |
+| Model loading | Retain the model before verifying and loading its checkpoint | Keep partially loaded components available for cleanup |
 | Model/tokenizer | Small deterministic Python implementations | Loaded neural model and NMR tokenizer |
 | Output admission | Candidate count and string bounds | Provider-owned candidate validation |
-| Execution | SDK `EmbeddedHost` and adopted contributions | Scientific execution owner inside the chosen deployment |
+| Execution | SDK `EmbeddedHost` runs submitted scientific methods | Execution and cleanup inside the chosen deployment |
 | Report consumption | SDK `ResultConsumption`, stdout or recording receiver | Retained result passed to the external delivery receiver |
 
 ```text
@@ -38,31 +40,52 @@ config/
         provider.toml    scientific settings and execution policy
 ```
 
-Assembly constructs `Hf` and `Chf` with scientific settings, a deployment-owned
-checkpoint path and an empty-model constructor. These are ordinary constructor
-arguments. `host.adopt` retains each exact receiver before initialization opens
-the checkpoint or loads the model. The content digest enters scientific
-configuration; a deployment path is only its locator. Replacing the stand-in
-model requires an implementation of the same model interface, not a second
-workflow or test-only execution mode.
+`run_demo` is provider startup. It reads the deployment file, constructs the HF/CHF
+`Settings`, and passes them and the selected `Model` constructor to `adopt_offerings`.
+That provider-written helper builds `Hf` and `Chf` using the packaged `hf.json` and
+`chf.json` checkpoint substitutes. It asks `host.adopt` to retain each exact object
+before the SDK calls its initialize method, where provider code loads the model.
+
+A real provider supplies its checkpoint locations in its own assembly code.
+The path locates a file; the expected digest determines which contents are
+accepted. A replacement model implements the same scientific interface, so the
+provider can keep the same validation, generation and cleanup sequence.
 
 `checkpoint.py` follows NMRPeak's `families/nmrpeak/checkpoint_file.py`: verification
 and deserialization use the same descriptor. Deployment must not overwrite an
 installed file during use. This example does not invent a snapshot service or
 claim that an open descriptor prevents in-place mutation.
 
-The SDK interpreter receives recorded assistant tool calls. Its real dispatcher
-decodes each proposed scientific input and runs the contribution's validation.
-Correctable input rejections return through `ToolRejected`; checkpoint, loading
-and generation failures retain their original exceptions and are not sent to
-the model as user corrections. Accepted input remains bound to its analysis and
-allocation until generation consumes it.
+`Prediction.interpret` asks the SDK `Interpreter` to turn text into structured
+input. When the scripted language model proposes input, `Interpreter` invokes the
+provider's `Prediction.dispatch`. That method decodes the proposal and submits
+`prepare` through `EmbeddedAnalysis.submit_method`.
 
-The caller retains one `ResultConsumption` and resumes that same owner after
-cancellation. Consumer failure leaves the result available; it does not regenerate
-science or automatically retry delivery. The executable's flushed stdout means
-local acceptance only, not durable API publication. All checkpoint contents,
-tokenization and candidate rankings here are synthetic; no chemistry claim is made.
+SDK admission means the submission passed its ownership, input-size and capacity
+checks: the SDK creates an operation handle and queues the work. It does not mean
+`prepare` has run or validated the input. When the executor is ready, the SDK
+checks the provider's permission callback and starts scientific execution.
+
+If `prepare` rejects correctable input, `Prediction` returns `ToolRejected` to the
+interpreter so the language model can propose a correction. Loading and execution
+failures propagate as their original exceptions. Once `prepare` succeeds,
+`Prediction` retains the prepared-input reference and releases its validation
+report bytes. It then submits `generate` using that prepared input. Repeated waits
+observe the saved operation; submitting a method again would request more work.
+
+`run_demo` retains a `ResultConsumption` for each generated report. That SDK object
+passes result bytes to the provider's receiver, then releases them after the
+receiver returns successfully. A canceled wait can resume the same consumption.
+Receiver failure leaves the result available without rerunning science or
+resending automatically. This example's receiver flushes stdout; that establishes
+local acceptance only. The synthetic checkpoints and rankings make no chemistry
+claim.
+
+Provider code requests cleanup by releasing results, closing execution sessions
+and retiring the host. Cleanup timers only make an overdue flag observable; they
+do not cancel cleanup. The example uses `observe_cleanup`, which keeps waiting
+after that flag and raises any original cleanup failures. It does not log an
+overdue warning by itself.
 
 From this repository, build the SDK and example wheels and run the installed
 tests outside the checkout:

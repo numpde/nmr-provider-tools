@@ -254,17 +254,25 @@ class StateResult:
 
 @dataclass(frozen=True, slots=True)
 class OperationPolicy:
-    """Stop-request thresholds, cleanup reporting and encoded byte rejection.
+    """Rules the SDK applies to scientific methods submitted by provider code.
 
-    Queue time starts at admitted submission; execution time starts at guarded
-    dispatch, including initialization, decoding, science and result encoding.
-    Expiry requests stopping without forcing the scientific thread to exit.
-    Cleanup time starts when release or analysis close begins; expiry only marks
-    that cleanup overdue, without canceling it or issuing another stop request.
+    Provider code passes this record to submit_method or submit_call, or includes
+    it in an Invocation. The SDK checks the request and available capacity before
+    admitting it: creating an operation handle and reserving space for its work.
 
-    Reject oversized encoded input before admission. Reserve the encoded result
-    allowance at admission and fail if the encoded result exceeds it. Observing
-    an operation does not renew its thresholds or authorize another submission.
+    The queue clock starts at admission. The execution clock replaces it when
+    the executor passes the provider's dispatch_guard and can begin the work;
+    it includes initialization, decoding, science and result encoding. Expiry
+    requests stopping but cannot force the scientific thread to exit.
+
+    Provider code starts cleanup by releasing a result or closing an analysis.
+    Its cleanup clock only marks unfinished cleanup overdue; cleanup continues.
+    Analysis close uses the shortest cleanup threshold among retained operations,
+    or the host retirement threshold when it retains no operations.
+
+    Oversized encoded input is refused before admission. The SDK reserves result
+    space at admission and fails the operation if its encoded result exceeds it.
+    Re-observing an operation neither restarts work nor renews its clocks.
     """
 
     queue_stop_request_seconds: float
@@ -289,10 +297,11 @@ class OperationPolicy:
 
 @dataclass(frozen=True, slots=True)
 class Invocation:
-    """Portable submission with an SDK-generated identity.
+    """Data for one scientific-method submission, with an SDK-generated identity.
 
-    Retain this record when resubmitting the same request across a transport.
-    Constructing another invocation requests separate work.
+    Provider code submits this record through an execution session. Keep the same
+    record when retrying transport delivery of that submission; constructing a new
+    Invocation asks the SDK to perform separate work.
     """
 
     operation_id: str = field(default_factory=lambda: uuid4().hex, kw_only=True)
@@ -497,12 +506,17 @@ async def observe_completion(operation: Operation) -> Observation:
 async def observe_cleanup(
     control: AnalysisCleanup | InstanceRetirement | ResultRelease,
 ) -> CleanupObservation:
-    """Wait on an existing cleanup request, propagating its original causes.
+    """Wait for cleanup already requested by provider code; raise its original failures.
 
-    Cancellation only ends this wait. An allowance expiring does not prove
-    settlement, so observation continues until settlement or a reported failure.
-    One failure propagates directly; independent failures retain their causes
-    together. This helper never initiates or repeats cleanup itself.
+    Pass the control returned by analysis.close(), operation.release_result() or
+    host.retire(). This helper keeps waiting if cleanup becomes overdue: the flag
+    alone does not end the wait or emit a warning. To react before cleanup finishes,
+    call control.observe(...) and inspect the returned observation's
+    allowance_expired field.
+
+    Canceling this wait leaves cleanup running. A single cleanup failure is raised
+    directly; independent failures keep their original causes together. Waiting
+    again observes the same cleanup rather than starting it again.
     """
     observation = await control.observe(after=None, wait_seconds=0)
     while not observation.settled and not observation.failures:

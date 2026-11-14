@@ -1,53 +1,61 @@
-# Scientific choices and execution policy for this local mock deployment.
+# Provider startup reads this file to configure HF/CHF science and SDK execution.
 [execution.embedded_host]
-# Across accepted calls, cap total encoded input bytes and reserved result bytes.
-# Caller-held operation handles can still retain completed input bytes.
+# Across scientific-method submissions, cap total encoded input bytes and
+# reserved result space. Saved operation handles can retain completed input bytes.
 # For larger inputs or reports, replace either value:
 # input_bytes = 131072
 # result_bytes = 65536
 input_bytes = 32768
 result_bytes = 32768
-# Allow space for this many scientific state values, such as prepared inputs.
+# Reserve space for this many intermediate scientific values, such as prepared inputs.
 # To retain more preparations, replace state_values:
 # state_values = 8
 state_values = 2
-# Keep the latest progress updates for each operation; discard older updates.
+# Keep this many recent progress updates per submitted method; discard older ones.
 # To keep more updates, replace progress_records:
 # progress_records = 32
 progress_records = 1
-# Request a stop if model initialization takes this many seconds.
-# The Python thread can continue running after the request.
+# The SDK requests a stop if the scientific object's initialize method takes
+# this many seconds. The Python thread can continue running after the request.
 # For a slower loader, replace initialization_seconds:
 # initialization_seconds = 60
 initialization_seconds = 5
-# Mark provider cleanup overdue after this many seconds; cleanup continues.
+# When provider code calls host.retire(), mark unfinished SDK cleanup overdue
+# after this many seconds. Cleanup continues.
 # For slower cleanup, replace retirement_seconds:
 # retirement_seconds = 30
 retirement_seconds = 5
 
 [execution.operation_policy]
-# Apply these rules separately to each submitted prepare or generate call.
-# Ask the call to stop if it waits this long after the SDK accepts it.
+# This mock provider asks the SDK to validate proposed spectrum data.
+# When validation succeeds, it asks the SDK to generate candidate structures.
+# Apply these rules separately to each validation and generation request.
+# If requested work waits this long to start, the SDK requests a stop.
 queue_stop_request_seconds = 5
-# Start this clock when the SDK allows the call to enter scientific work.
-# Count model loading, input decoding, science and result encoding.
-# Expiry requests a stop; it does not force the Python thread to exit.
+# Once work is allowed to start, count model loading, input checking, running
+# the science and converting its result to bytes. After this many seconds,
+# request a stop; the running Python code may continue.
 # For slower science, replace execution_stop_request_seconds:
 # execution_stop_request_seconds = 60
 execution_stop_request_seconds = 5
-# Start this clock when result release or analysis cleanup begins.
-# If cleanup remains unfinished, expose an overdue flag and keep cleaning up.
+# Cleanup begins when the provider releases a result or closes the SDK session
+# used to validate and generate one prediction.
+# Mark unfinished cleanup overdue after this many seconds and keep cleaning up.
+# This example keeps waiting; the overdue flag does not print a warning by itself.
 cleanup_overdue_flag_seconds = 5
-# Count bytes after encoding. Reject oversized input before starting the call.
+# Measure input size after converting it to bytes. If it exceeds this size,
+# refuse the request before starting the scientific work.
 # For larger inputs, replace reject_encoded_input_over_bytes:
 # reject_encoded_input_over_bytes = 16384
 reject_encoded_input_over_bytes = 8192
-# Reserve this much result space before starting; fail if the encoded result
-# exceeds it after the scientific method has run. Exactly this size is allowed.
+# Before starting work, count this many result bytes against the total budget above.
+# If the result exceeds this size after conversion to bytes, fail the request;
+# the scientific work has already happened. Exactly this size is allowed.
 reject_encoded_result_over_bytes = 8192
 
-# Declare what each offering needs; the SDK does not reserve or pin hardware.
-# Run the provider in an environment that can meet these requirements.
+# Resource needs declared for checking spectrum data and generating candidates.
+# Whoever runs the provider must make these resources available; declaring them
+# here does not reserve hardware or pin work to particular processors.
 # To request two CPU threads, replace amount:
 # amount = 2
 [[execution.resource_requirement]]
@@ -56,7 +64,9 @@ amount = 1
 unit = "thread"
 selector = "generic"
 
-# Each offering selects its accepted checkpoint and scientific behaviour.
+# Configure HF and CHF separately. Before loading, check each checkpoint's
+# contents against the expected digest. Limit the number of input tokens,
+# generated candidates and characters in each candidate string.
 [science.hf.settings]
 checkpoint_sha256 = "f0cd7060781da0663e8ab6f8ed9df357b5acae8528f349291e8f4cc6a9721825"
 maximum_input_tokens = 64

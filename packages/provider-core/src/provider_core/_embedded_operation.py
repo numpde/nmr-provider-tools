@@ -97,6 +97,7 @@ class _Operation(_Changes):
         self.control = _OperationControl(self)
 
     def start(self):
+        """Start the admitted submission's queue clock and enqueue its worker."""
         self.queue_timer = self.loop.call_later(
             self.invocation.policy.queue_stop_request_seconds,
             self._expire,
@@ -119,6 +120,7 @@ class _Operation(_Changes):
         self.request_stop()
 
     def request_stop(self):
+        """Set the stop signal checked before science starts and by cooperative code."""
         self.require_loop()
         if not self.stop_requested:
             self.stop_requested = True
@@ -131,6 +133,7 @@ class _Operation(_Changes):
         permit.result()
 
     def _admit_dispatch(self, permit):
+        """Check the provider's permission before the worker enters scientific work."""
         try:
             if self.analysis.closed or self.stop_requested:
                 raise PermissionError(
@@ -140,6 +143,8 @@ class _Operation(_Changes):
             if self.dispatch is DispatchState.QUEUED:
                 self.dispatch = DispatchState.STARTED
                 self.resources = ResourceState.OCCUPIED
+                # The worker may now initialize the scientific object and run its
+                # method. Replace the waiting clock with the execution clock.
                 self.queue_timer.cancel()
                 self.execution_timer = self.loop.call_later(
                     self.invocation.policy.execution_stop_request_seconds,

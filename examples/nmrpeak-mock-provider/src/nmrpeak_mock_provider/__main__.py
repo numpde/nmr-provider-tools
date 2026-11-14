@@ -1,4 +1,4 @@
-"""Compose two selected requests using real SDK owners and external stand-ins."""
+"""Read deployment settings, run HF and CHF predictions, and clean up started work."""
 
 import asyncio
 from functools import partial
@@ -24,27 +24,28 @@ PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
 
 
 async def close_analysis(*, execution) -> None:
+    """Wait for SDK analysis cleanup; an overdue flag does not end this wait."""
     await observe_cleanup(control=execution.close())
 
 
 async def run_demo() -> None:
+    """Run one HF and one CHF request, writing their consumed reports to stdout."""
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         provider_config = tomllib.load(source)
 
-    # Create the SDK runtime that executes submitted methods, such as prepare
-    # and generate, and coordinates cleanup of their models and analysis state.
-    # Read its capacity and time allowances from the deployment's [execution.embedded_host].
+    # Create the SDK execution manager. Prediction submits scientific prepare and
+    # generate methods to it; the SDK also tracks their results and cleanup.
     host = EmbeddedHost(**provider_config["execution"]["embedded_host"])
 
-    # All requirements read from deployment configuration must be met together;
-    # their order and identical repeated entries have no meaning.
+    # HF and CHF declare this full set of resource needs for prepare and generate.
     requested_requirements = frozenset(
         ResourceRequirement(**resource_requirement)
         for resource_requirement in provider_config["execution"]["resource_requirement"]
     )
 
-    # Read the deployment's stop-request thresholds, cleanup flag threshold and byte caps.
+    # Prediction passes this policy to the SDK with each prepare/generate submission.
     operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
+
     cleanup_requests = []
     consumptions = []
     causes = []
@@ -58,6 +59,8 @@ async def run_demo() -> None:
         sys.stdout.buffer.flush()
 
     try:
+        # Startup selects the stand-in Model implementation and scientific settings.
+        # Assembly gives the HF/CHF objects to the SDK before initialize loads their models.
         offerings = adopt_offerings(
             host=host,
             requested_requirements=requested_requirements,
@@ -84,11 +87,14 @@ async def run_demo() -> None:
                 execution=execution, hosted=hosted, interpreter=interpreter,
                 policy=operation_policy, require_permission=require_permission,
             )
+            # Interpreter proposes input; Prediction submits prepare to validate it.
             await prediction.interpret(
                 messages=interpretation_messages(source="Formula C2H6O. Proton peak: 1.2 ppm, 3H, triplet, coupling 7 Hz. Carbon peaks: 18 and 58 ppm."),
                 tools=interpretation_tools(carbon=carbon),
             )
+            # Prediction submits generate once and waits on its retained operation.
             result = await prediction.finish()
+            # Retain delivery and result release together so cancellation cannot lose them.
             consumption = ResultConsumption(operation=prediction.generation, result=result, receive=receive)
             consumptions.append(consumption)
             await consumption.consume()

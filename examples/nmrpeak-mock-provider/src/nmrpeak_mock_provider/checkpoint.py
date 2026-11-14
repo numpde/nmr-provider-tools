@@ -1,7 +1,8 @@
-"""Verify and load through the same descriptor, following NMRPeak's loader.
+"""Verify checkpoint bytes and let the model load through the same open file.
 
-Deployment supplies an installed checkpoint that it does not overwrite while
-the host is alive. This does not provide protection against in-place writers.
+Provider assembly supplies the path; this example uses packaged JSON substitutes.
+Whoever maintains that file must leave its contents unchanged during verification
+and loading. Holding it open does not prevent another process from rewriting it.
 """
 
 from hashlib import sha256
@@ -10,6 +11,7 @@ from typing import BinaryIO
 
 
 def open_checkpoint(*, path: Path, expected_sha256: str) -> BinaryIO:
+    """Return the verified file at byte zero; the caller must close it after loading."""
     checkpoint = path.open(mode="rb")
     try:
         measured = sha256()

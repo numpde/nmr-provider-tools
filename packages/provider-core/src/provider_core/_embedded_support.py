@@ -105,6 +105,8 @@ class _Changes:
 
 
 class _Cleanup(_Changes):
+    """Run one cleanup request and report its completion, failures and overdue status."""
+
     def __init__(self, seconds):
         super().__init__()
         self.seconds = seconds
@@ -117,6 +119,7 @@ class _Cleanup(_Changes):
         self.task = self.loop.create_task(self._run(action))
 
     def _expire(self):
+        # Observers can see allowance_expired; the cleanup task keeps running.
         self.expired = True
         self.changed()
 

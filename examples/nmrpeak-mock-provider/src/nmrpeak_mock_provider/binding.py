@@ -1,4 +1,8 @@
-"""Host the two NMRPeak input contracts on the same scientific implementation."""
+"""Expose HF/CHF prepare and generate methods for the SDK to execute.
+
+Each object retains its model and any partially loaded components so SDK-requested
+cleanup can close them even when initialization fails.
+"""
 
 from collections.abc import Callable
 from pathlib import Path
@@ -20,13 +24,14 @@ class PeakContribution(sdk.Contribution):
     ) -> None:
         super().__init__()
         self.configuration = configuration
-        # The deployment path locates the configured content; it is not its identity.
-        # Capturing a path/factory opens no file and loads no scientific resource.
+        # Assembly supplies the file location; configuration supplies its expected digest.
+        # Saving this path and constructor does not open the file or create the model.
         self.checkpoint_path = checkpoint_path
         self.create_model = create_model
         self.model: science.Model | None = None
 
     def initialize(self, *, assets: sdk.AssetAccess) -> None:
+        """SDK calls this before science; retain the model before loading can fail."""
         self.model = self.create_model()
         with open_checkpoint(
             path=self.checkpoint_path, expected_sha256=self.configuration.checkpoint_sha256,
@@ -34,6 +39,7 @@ class PeakContribution(sdk.Contribution):
             self.model.load(checkpoint=checkpoint)
 
     def close(self) -> None:
+        """Close any model created by initialize, including a partially loaded one."""
         if self.model is not None:
             self.model.close()
 
