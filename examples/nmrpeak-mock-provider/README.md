@@ -1,4 +1,4 @@
-# NMRPeak-shaped provider
+# NMRPeak mock provider
 
 This example shows how NMRPeak's components fit the configured-object SDK
 boundary. It uses no ML libraries, credentials or network services. It starts
@@ -22,7 +22,7 @@ and language-model carrier are stand-ins; the SDK ownership machinery is real.
 | Report consumption | SDK `ResultConsumption`, stdout or recording receiver | Retained result passed to the external delivery receiver |
 
 ```text
-src/peak_provider/
+src/nmrpeak_mock_provider/
     science.py       scientific records, model interface and result admission
     binding.py       HF/CHF contributions, initialization and prepared-state ports
     checkpoint.py    verify and load through one open file
@@ -71,6 +71,6 @@ make tests/integration/provider-core DOCKER_CONTEXT=science \
   WHEELHOUSE=/home/ra/Downloads/wheelhouse TEST_PATTERN=test_peak_example.py
 ```
 
-With both installed inside a permitted container, `python -I -B -m peak_provider`
+With both installed inside a permitted container, `python -I -B -m nmrpeak_mock_provider`
 prints an HF report and a CHF report. Process placement remains deployment-owned;
 the example does not copy NMRPeak's private worker frames into the scientific API.

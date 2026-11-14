@@ -3,7 +3,7 @@ requires = ["setuptools==84.1.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "nmrpeak-provider-example"
+name = "nmrpeak-mock-provider-example"
 version = "0.1.0"
 description = "NMRPeak-shaped scientific hosting with lightweight model and service stand-ins"
 readme = "README.md"
@@ -12,11 +12,11 @@ dependencies = ["provider-core==0.6.19"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["peak_provider", "peak_provider.*"]
+include = ["nmrpeak_mock_provider", "nmrpeak_mock_provider.*"]
 namespaces = false
 
 [tool.setuptools]
 include-package-data = false
 
 [tool.setuptools.package-data]
-peak_provider = ["*.toml", "*.json", "interpreter.md"]
+nmrpeak_mock_provider = ["*.toml", "*.json", "interpreter.md"]

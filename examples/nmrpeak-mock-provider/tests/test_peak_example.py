@@ -20,11 +20,11 @@ from provider_core.hosting import ExecutionLimits, NotAdmitted, ResourceGrant, R
 from provider_core.interpreter import Interpreter, ModelWindowExpired, ProseService
 from provider_core.scientific import ResourceRequirement
 
-from peak_provider.application import Prediction
-from peak_provider.binding import Hf, PeakContribution
-from peak_provider.composition import adopt_offerings, interpretation_messages, interpretation_tools
-from peak_provider.fake_model import Model, Tokenizer
-from peak_provider.fake_services import RecordingReceiver, ScriptedEndpointFactory
+from nmrpeak_mock_provider.application import Prediction
+from nmrpeak_mock_provider.binding import Hf, PeakContribution
+from nmrpeak_mock_provider.composition import adopt_offerings, interpretation_messages, interpretation_tools
+from nmrpeak_mock_provider.fake_model import Model, Tokenizer
+from nmrpeak_mock_provider.fake_services import RecordingReceiver, ScriptedEndpointFactory
 
 
 def candidate(*, carbon):
@@ -262,12 +262,12 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
 class InstalledCommandTests(unittest.TestCase):
     def test_installed_command_runs_both_offerings(self):
-        package = Path(str(resources.files(anchor="peak_provider")))
-        distribution = metadata.distribution(distribution_name="nmrpeak-provider-example")
-        self.assertEqual(first=package, second=Path(distribution.locate_file(path="peak_provider")))
+        package = Path(str(resources.files(anchor="nmrpeak_mock_provider")))
+        distribution = metadata.distribution(distribution_name="nmrpeak-mock-provider-example")
+        self.assertEqual(first=package, second=Path(distribution.locate_file(path="nmrpeak_mock_provider")))
         with TemporaryDirectory() as directory:
             result = subprocess.run(
-                args=[sys.executable, "-I", "-B", "-m", "peak_provider"], cwd=directory,
+                args=[sys.executable, "-I", "-B", "-m", "nmrpeak_mock_provider"], cwd=directory,
                 capture_output=True, text=True, timeout=30,
             )
         self.assertEqual(first=0, second=result.returncode, msg=result.stderr)
