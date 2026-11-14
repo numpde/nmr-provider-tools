@@ -62,7 +62,7 @@ class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
             build.assert_not_called()
             self.assertIsNone(library.loaded_index)
 
-    async def test_settings_and_reference_assets_change_revision_without_mutating_existing_bindings(self):
+    async def test_provider_settings_change_without_becoming_sdk_configuration(self):
         original = self.binding()
         package = resources.files("reference_provider")
         source = package.joinpath("settings.toml").read_text(encoding="utf-8")
@@ -76,11 +76,11 @@ class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
                 changed_references = self.binding()
                 root.joinpath("settings.toml").write_text("# Same values\n" + source, encoding="utf-8")
                 reformatted = self.binding()
-        self.assertNotEqual(original.description.binding_revision, changed_settings.description.binding_revision)
-        self.assertNotEqual(original.description.binding_revision, changed_references.description.binding_revision)
+        self.assertEqual(original.description.binding_revision, changed_settings.description.binding_revision)
+        self.assertEqual(original.description.binding_revision, changed_references.description.binding_revision)
         self.assertEqual(original.description.binding_revision, reformatted.description.binding_revision)
         self.assertEqual(original.description.assets, changed_settings.description.assets)
-        self.assertNotEqual(original.description.configuration, changed_references.description.configuration)
+        self.assertNotEqual(original.contribution.configuration, changed_references.contribution.configuration)
         self.assertEqual(0.5, original.contribution.configuration.settings.minimum_score)
         self.assertEqual((3, 4, 0, 0), original.contribution.configuration.references.entries[0].values)
 

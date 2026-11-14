@@ -18,7 +18,11 @@ class ReferenceConfig:
     references: science.ReferenceSet
 
 
-class ReferenceMatcher(sdk.Contribution[ReferenceConfig]):
+class ReferenceMatcher(sdk.Contribution):
+    def __init__(self, *, configuration: ReferenceConfig) -> None:
+        super().__init__()
+        self.configuration = configuration
+
     loaded_index: science.ReferenceIndex | None = None
 
     def initialize(self, *, assets: sdk.AssetAccess) -> None:
@@ -36,7 +40,7 @@ class ReferenceMatcher(sdk.Contribution[ReferenceConfig]):
         )
 
 
-def create_binding(*, host: EmbeddedHost, allocation: ResourceAllocation) -> sdk.HostedContribution[ReferenceConfig]:
+def create_binding(*, host: EmbeddedHost, allocation: ResourceAllocation) -> sdk.HostedContribution:
     """Provider-owned assembly, invoked explicitly; no index is loaded here."""
     package = files(anchor=__package__)
     configured = tomllib.loads(package.joinpath("settings.toml").read_text(encoding="utf-8"))
@@ -51,5 +55,5 @@ def create_binding(*, host: EmbeddedHost, allocation: ResourceAllocation) -> sdk
     return host.adopt(
         contribution=ReferenceMatcher(configuration=ReferenceConfig(settings=settings, references=reference_set)),
         allocation=allocation,
-        resources=(requirement,),
+        requirements=(requirement,),
     )

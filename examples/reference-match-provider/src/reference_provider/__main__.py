@@ -52,7 +52,7 @@ async def run_demo() -> None:
             cleanup_requests.append(analysis.close)
             reservation, = analysis.reservations
             operation = analysis.submit_method(
-                method=ReferenceMatcher.match,
+                method=binding.contribution.match,
                 operation_id="match",
                 scientific_input=VectorInput(values=values),
                 states=(), reservation=reservation, limits=limits,

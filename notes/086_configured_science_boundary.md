@@ -1,188 +1,66 @@
-# Configured scientific contributions
+# Scientific objects and execution ownership
 
-2026-11-14 — Implemented authoring boundary in `provider_core.scientific`.
-This replaces the earlier six-parameter callback proposal in this note. The
-execution ownership in 066 and 084 remains unchanged. This is not a release or
-deployment claim.
-
-## The configured object
-
-A contribution **class** defines scientific behavior. Provider code constructs
-an instance with immutable configuration and hands that exact object to the host.
-The returned `HostedContribution` describes its exported calls and allocation;
-it is not a recipe for constructing another instance. Independent allocations
-need separate objects, which may share immutable configuration.
-
-`Contribution[Config]` is a nominal hosting contract. Ordinary constructors
-capture configuration and bookkeeping; they must not acquire resources.
-Custom constructors call `super().__init__(configuration=...)`. Configuration
-is fixed for the instance's lifetime. Optional `initialize` and
-`close` methods acquire and release instance resources. Stateless contributions
-inherit empty lifecycle methods and write only their calculations.
+Provider code constructs ordinary scientific objects and hands each exact object
+to the SDK. Settings, model selection and scientific provenance belong to the
+provider. Contribution has no configuration type parameter or settings storage.
 
 ```python
-@dataclass(frozen=True, slots=True, kw_only=True)
-class WeightedConfig:
-    settings: science.WeightedSumSettings
-    coefficients: science.CoefficientSet
+class Peaks(sdk.Contribution):
+    def __init__(self, *, settings):
+        super().__init__()
+        self.settings = settings
 
+    @sdk.operation()
+    def run(self, *, spectrum: Spectrum) -> PeakReport:
+        return detect_peaks(spectrum=spectrum, settings=self.settings)
 
-class WeightedSum(Contribution[WeightedConfig]):
-    @operation()
-    def calculate(self, *, numbers: Numbers) -> Total:
-        return science.weighted_sum(
-            numbers=numbers,
-            settings=self.configuration.settings,
-            coefficients=self.configuration.coefficients,
-        )
-```
-
-The illustration uses provider-defined scientific types/functions. The runnable
-implementations are in `examples/`. `calculate` is a provider-selected name;
-`@operation()` explicitly exports it. The decorator does not wrap direct calls.
-Calling an instance method directly is ordinary Python, not managed execution.
-
-## Handover and allocation
-
-```python
-host = EmbeddedHost(limits=host_limits)
-weighted = WeightedSum(
-    configuration=WeightedConfig(settings=settings, coefficients=coefficients),
-)
+peaks = Peaks(settings=settings)
 hosted = host.adopt(
-    contribution=weighted,
-    allocation=ResourceAllocation(name="worker", grants=resource_grants),
-    resources=call_requirements,
+    contribution=peaks,
+    allocation=ResourceAllocation(name="peaks", grants=grants),
+    requirements=requirements,
 )
 ```
 
-Adoption acquires no scientific resources. Component identity comes from the
-contribution's module and qualified class name. Deployment owns installed-artifact
-identity through its release and installation records; the call inventory does not
-duplicate those records or accept a manually bumped implementation label.
-Requirements describe scientific needs; allocation grants describe what deployment
-actually supplies.
+Constructor arguments are ordinary provider-owned values. The SDK does not
+serialize, freeze or hash them. Constructors retain bookkeeping; initialize
+acquires resources after adoption establishes custody. Close handles never-used
+and partially initialized objects. Adoption rejects duplicate ownership, even
+across hosts and after retirement. Rejected adoption leaves the caller owning
+the object. A fresh allocation requires a fresh object.
 
-Validation precedes ownership transfer. Rejection leaves the object with its
-caller, without initializing or closing it. Success retains the object and
-permanently claims it for this allocation. Another host cannot adopt it, including
-after retirement. A fresh allocation needs a fresh contribution.
-
-The existing `Allocation(binding=...)` constructor remains for low-level
-`ImplementationBinding` consumers; object contributions must use `adopt`.
-Both paths use the same execution owners. Provider helpers such as
-`create_binding()` are ordinary explicitly called assembly code, not SDK-discovered
-entrypoints.
-
-The registered inventory contains only effective, explicitly marked instance
-methods. Normal Python overriding applies: an unmarked override removes an
-inherited export. Aliased exports, async/generator methods and unsupported
-class/static/property operation forms fail before handover.
-
-## Who understands an operation
-
-The provider's workflow understands scientific meaning and ordering. It chooses
-an actual method and its input. The shared host understands declarations,
-resources, permission, state ownership and execution; it invokes the method on
-the selected instance after admission.
+Local execution submits a bound method:
 
 ```python
-analysis = host.open_analysis(
-    analysis_id="example", allocation_names=("worker",),
-)
-reservation, = analysis.reservations
-operation = analysis.submit_method(
-    method=weighted.calculate,
-    operation_id="calculate", scientific_input=numbers, states=(),
-    reservation=reservation, limits=execution_limits,
+analysis.submit_method(
+    method=peaks.run, operation_id="peaks", scientific_input=spectrum,
+    states=(), reservation=reservation, limits=limits,
     dispatch_guard=require_permission,
 )
 ```
 
-The reservation selects the adopted contribution's allocation, so submission does not
-repeat its configuration. Both the exact receiver's bound method and its exported
-class method are accepted; another receiver's bound method is rejected.
-No scheduler infers that prepare must precede calculate from the method inventory.
-`hosted.reference(method=weighted.calculate)`
-projects the portable address for workflows using `Invocation` directly, as the
-spectrum example does. Python scientific objects do not cross that transport
-boundary. Typed methods compile to existing internal call records; there is no
-second admission engine or generated method-proxy class.
+The SDK compares the bound receiver with the object retained by the reservation,
+using Python identity. Class methods cannot identify the receiver at submission.
+The host also checks explicit exports, capacity, permission and state ownership.
 
-Arguments after the receiver are keyword-only. Annotations identify one portable
-input, an optional analysis session and optional control capability. Declared
-state-input slots name exact live-state arguments. Ordinary methods return their
-scientific result directly. Stateful producers retain `ScientificReturn` so the
-existing host takes custody before validating outputs or encoding results.
-When the method has no portable input argument, omit `scientific_input` at
-submission; the SDK supplies its empty transport payload. Omitting a required
-scientific input remains an error before operation admission.
+HostedContribution supplies derived call codecs and portable references. Its
+binding identity encodes the existing host and allocation identity. Its revision
+summarizes the declared execution contract and schemas, not scientific settings,
+model provenance or code bytes. Portable calls from another allocation are
+refused even when class, settings and execution contracts match. The existing
+legacy ImplementationBinding path keeps its original reference semantics.
 
-## Lifetimes and failures
+Requirements describe what execution needs; grants describe deployment's
+assignment. Resident requirements and operation requirements retain their
+existing distinct lifetimes. Neither declarations nor Python identity grant
+execution authority; the reservation and dispatch guard do that.
 
-The host retains the contribution at adoption, initializes it lazily on its
-allocation executor, and publishes readiness
-only after success. Its original initialization failure remains observable.
-Cleanup of a partially initialized instance uses that same owner; failed cleanup
-retains the owner and its failure. Retirement also closes contributions that
-were never initialized, so `close` must handle that state. Retirement waits for
-dependent work and readers.
+Analysis sessions and produced state retain their existing ownership. State is
+allocation-local, consumed only after guarded dispatch. Operation observation,
+analysis cleanup, result release and host retirement remain separate. Cancelled
+waits never authorize scientific replay.
 
-An initializer must retain an empty resource owner before a loader can fail:
-
-```python
-def initialize(self, *, assets: AssetAccess) -> None:
-    self.model = science.create_empty_model(configuration=self.configuration)
-    science.load_model(model=self.model, assets=assets)
-```
-
-The empty-owner constructor must not acquire resources. If it acquires and raises
-before returning, only that constructor can clean up; the host never received
-the missing owner. The dummy example tests partial loading and retirement of the
-exact model. Process isolation does not change this ownership obligation.
-
-`Analysis[ContributionType]` is a separate optional scientific owner, selected by
-`Contribution.analysis_type`. The SDK retains it before its own initializer runs.
-The dummy's `WeightedAnalysis` exists before preparation succeeds and survives a
-rejected candidate. Per-analysis sessions are not shared contribution fields and
-are not replaced by produced state objects.
-
-Returned state belongs to its exact analysis and allocation. Guarded dispatch
-controls consumption; releasing a result does not dispose separate prepared
-state. Analysis close, allocation retirement, result release and durable delivery
-remain distinct operations. Observation cancellation does not authorize replay
-or establish that science stopped.
-
-`AssetAccess` resolves verified deployment-owned snapshots during initialization.
-`NoAssets` refuses file lookup. Content references may be fields of immutable
-configuration. The resolver neither downloads data nor promises filesystem
-confinement; snapshot lifetime and process/mount isolation remain deployment
-responsibilities. Dummy and reference keep scientific coefficients and reference
-records inline. The NMRPeak-shaped example instead follows the real provider's
-existing verified-stream loader: deployment supplies a checkpoint path, and the
-initializer verifies and loads through the same open descriptor. Its content
-digest is configuration; its deployment path is constructor bookkeeping. The
-deployment must not overwrite installed checkpoint files during use. This needs
-no new shared snapshot service and does not promise protection from in-place
-mutation. `AssetAccess` remains available for deployments that already own
-verified snapshots.
-
-## Identity and limits
-
-The configured-v3 revision covers immutable configuration, its schema, the
-contribution/session identities, exported input/result
-schemas, state ports, resource requirements, concurrency, progress/interruption
-and isolation declarations. Changing configuration or declared execution
-requirements changes the revision. Code changes with unchanged class, configuration
-and execution contracts may preserve it: this revision is not evidence of identical
-installed code. Physical allocation identity is separate:
-equal configured revisions never allow exchanging allocation-local state.
-
-Legacy configured-v2 and sha256 references keep their original meaning. There is
-no conversion, reattachment or replay implied by admitting the new scheme.
-
-The SDK validates supported immutable configuration and uses it directly in each
-embedded instance. It cannot prove that arbitrary provider methods avoid globals
-or other ambient state. Deployment and provider tests still own those scientific
-behavior guarantees. Custom codec behavior remains the provider's declared
-format/code contract.
+The NMRPeak mock uses the real SDK interpreter and scientific host. Its checkpoint
+loader follows NMRPeak's same-descriptor verification and loading pattern.
+Deployment retains checkpoint files during use. Scientific provenance remains
+in provider-owned result records. No new snapshot service is required.

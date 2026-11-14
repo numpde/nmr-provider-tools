@@ -5,18 +5,11 @@ across independent analyses** in [the end-state boundary](../../notes/066_provid
 It complements the dummy's prepared-state flow and the spectrum provider's
 portable result transfer.
 
-`ReferenceMatcher` inherits `Contribution[ReferenceConfig]` and exports the ordinary
-keyword-only `match` method with `@operation()`. Provider assembly constructs it
-with immutable matching settings and reference data, then calls `host.adopt`.
-The host retains that exact receiver before index initialization. Local execution uses
-`analysis.submit_method(method=ReferenceMatcher.match, ...)`;
-the SDK derives the configured reference and encodes the typed input internally.
-Operation ID, scientific input, state
-arguments, reservation, limits and dispatch guard remain explicit.
-`create_binding()` is ordinary provider assembly code; the SDK does not discover it or prescribe
-its name or signature. The SDK derives the configured-v3 revision from the
-class, configuration, schemas and operation contracts. Installed-artifact
-provenance remains deployment-owned.
+`ReferenceMatcher` inherits `Contribution` and exports its keyword-only `match`
+method. Its constructor retains the provider's settings and reference records.
+`create_binding()` is explicitly called provider assembly, which adopts that
+object before index initialization. Local execution submits
+`method=binding.contribution.match`. The helper name has no SDK meaning.
 
 ```text
 src/reference_provider/
@@ -36,8 +29,8 @@ Values must be finite and nonnegative. Zero queries, dimension mismatches, no
 overlap and scores below the configured threshold are explicit rejections.
 Exact score ties choose the lexicographically smallest label.
 
-`create_binding()` captures immutable settings and the reference asset in the
-binding revision. It exports `ReferenceMatcher.match`. The instance
+`create_binding()` passes settings and reference data to the provider-owned
+constructor. It exports `ReferenceMatcher.match`. The instance
 initializer builds the actual index once; retirement disposes that retained
 index. Each query is self-contained, so there are no analysis hooks, scratch
 workspace or prepared-state handles. A completed report contains only a label
@@ -76,3 +69,10 @@ container, run `python -I -B -m reference_provider`. It prints two JSON reports:
 `pattern-a` for `(3, 4, 0, 0)` and `pattern-b` for `(0, 0, 1, 1)`, each scoring
 approximately `1`. Flushed stdout is the local consumer; it is not a durable
 report queue or proof of central API publication.
+
+
+Provider constructor settings are ordinary object attributes. The SDK does not
+serialize or hash them. Call identity refers to the adopted allocation; scientific
+provenance remains provider-owned. Local submission uses the actual receiver
+(e.g. `method=contribution.generate`). Adoption takes `requirements=...`;
+deployment supplies resource `grants`.

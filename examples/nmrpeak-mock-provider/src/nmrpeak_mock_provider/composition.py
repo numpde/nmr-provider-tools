@@ -15,8 +15,8 @@ from .science import Settings
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Offerings:
-    hf: HostedContribution[Settings]
-    chf: HostedContribution[Settings]
+    hf: HostedContribution
+    chf: HostedContribution
 
 
 def adopt_offerings(
@@ -31,8 +31,8 @@ def adopt_offerings(
     hf = Hf(configuration=Settings(**settings["hf"]), checkpoint_path=Path(str(package.joinpath("hf.json"))), create_model=Model)
     chf = Chf(configuration=Settings(**settings["chf"]), checkpoint_path=Path(str(package.joinpath("chf.json"))), create_model=Model)
     return Offerings(
-        hf=host.adopt(contribution=hf, allocation=hf_allocation, resources=(requirement,)),
-        chf=host.adopt(contribution=chf, allocation=chf_allocation, resources=(requirement,)),
+        hf=host.adopt(contribution=hf, allocation=hf_allocation, requirements=(requirement,)),
+        chf=host.adopt(contribution=chf, allocation=chf_allocation, requirements=(requirement,)),
     )
 
 

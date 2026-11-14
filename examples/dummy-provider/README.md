@@ -19,13 +19,13 @@ The weighted-sum binding holds a reusable model and per-analysis state. Its
 prepare call returns worker-local state that calculate consumes. The stateless
 sum binding uses the same interface for a single calculation.
 
-`WeightedSum` and `Sum` inherit the SDK's `Contribution[Config]` contract.
+`WeightedSum` and `Sum` inherit the SDK's `Contribution` contract.
 Their exported methods use keyword-only scientific arguments and read settings
 from `self.configuration`. Provider assembly constructs the object and calls
-`host.adopt(contribution=..., allocation=..., resources=...)`. The host retains
+`host.adopt(contribution=..., allocation=..., requirements=...)`. The host retains
 that exact object before lazy initialization; the returned `HostedContribution`
 contains its derived call inventory. Local execution uses
-`analysis.submit_method(method=WeightedSum.prepare, ...)`;
+`analysis.submit_method(method=weighted.prepare, ...)`;
 the SDK derives the data-only reference and encodes the typed input internally.
 The producer's `normalized` output connects to the consumer's
 independently named `candidate` input through typed slots. Projection observes
@@ -38,12 +38,6 @@ The weighted initializer retains an empty model before loading it. Its installed
 test makes loading fail after populating that model, checks that preparation never
 runs, and proves retirement disposes the same partial model. Constructors only
 capture settings and bookkeeping; `close` also supports retirement before use.
-
-Each binding reads the packaged `resources.toml` and validates it through the
-SDK's resource constructor. The validated requirements enter the configured-v3
-revision together with configuration and operation contracts. Changing a resource value changes that revision;
-TOML whitespace and comments do not. Existing bindings retain their captured
-requirements.
 
 ## Starting another provider
 
@@ -75,3 +69,10 @@ reports, releasing each exact result only after its typed consumer succeeds.
 Releasing the preparation report leaves its separate worker-local state available
 to calculate. Worker-process and deployed-service tests belong to their respective
 backend and provider repositories.
+
+
+Provider constructor settings are ordinary object attributes. The SDK does not
+serialize or hash them. Call identity refers to the adopted allocation; scientific
+provenance remains provider-owned. Local submission uses the actual receiver
+(e.g. `method=contribution.generate`). Adoption takes `requirements=...`;
+deployment supplies resource `grants`.

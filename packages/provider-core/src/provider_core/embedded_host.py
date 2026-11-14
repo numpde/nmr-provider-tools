@@ -76,12 +76,12 @@ class EmbeddedHost:
         self.retiring = False
 
     # silent-defaults: allow-contract -- No resident requirements and shared-process execution describe the ordinary embedded contribution contract.
-    def adopt[ConfigT](
-        self, *, contribution: Contribution[ConfigT], allocation: ResourceAllocation,
-        resources: tuple[ResourceRequirement, ...],
+    def adopt(
+        self, *, contribution: Contribution, allocation: ResourceAllocation,
+        requirements: tuple[ResourceRequirement, ...],
         resident_resources: tuple[ResourceRequirement, ...] = (),
         isolation: IsolationRequirement = IsolationRequirement.SHARED_PROCESS,
-    ) -> HostedContribution[ConfigT]:
+    ) -> HostedContribution:
         """Take ownership of this exact object after validating its assignment.
 
         Rejection leaves ownership with the caller. Successful adoption retains
@@ -98,7 +98,7 @@ class EmbeddedHost:
             raise ValueError("Allocation names must be unique within a host.")
         hosted = HostedContribution(
             contribution=contribution, host=self.identity, allocation_name=allocation.name,
-            resources=resources, resident_resources=resident_resources, isolation=isolation,
+            requirements=requirements, resident_resources=resident_resources, isolation=isolation,
         )
         assignment = Allocation(
             name=allocation.name, binding=hosted, grants=allocation.grants, assets=allocation.assets,
@@ -295,6 +295,8 @@ class EmbeddedAnalysis:
         hosted = self.science[reservation.allocation].resident.allocation.binding
         if not isinstance(hosted, HostedContribution):
             raise TypeError(f"Unexpected {type(hosted)=}; method submission requires an adopted contribution")
+        if getattr(method, "__self__", None) is not hosted.contribution:
+            raise ValueError("Submit an exported bound method of the reserved contribution")
         call = hosted.call(method=method)
         if type(scientific_input) is NoInput and call.input_codec.value_type is not NoInput:
             raise TypeError(f"Unexpected {type(scientific_input)=}; {call.description.name=} requires {call.input_codec.value_type=}")

@@ -59,7 +59,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     analysis = host.open_analysis(name, allocation_names=("library",))
                     reservation, = analysis.reservations
                     operation = analysis.submit_method(
-                        method=ReferenceMatcher.match,
+                        method=binding.contribution.match,
                         operation_id="match",
                         scientific_input=science.VectorInput(values=values),
                         states=(), reservation=reservation, limits=limits,

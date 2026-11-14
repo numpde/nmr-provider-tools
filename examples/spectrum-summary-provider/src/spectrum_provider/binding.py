@@ -12,13 +12,21 @@ from provider_core.embedded_host import EmbeddedHost, ResourceAllocation
 from . import science
 
 
-class Baseline(sdk.Contribution[science.BaselineSettings]):
+class Baseline(sdk.Contribution):
+    def __init__(self, *, configuration: science.BaselineSettings) -> None:
+        super().__init__()
+        self.configuration = configuration
+
     @sdk.operation(concurrency=sdk.ConcurrencyRequirement.PARALLEL)
     def run(self, *, spectrum: science.Spectrum) -> science.Spectrum:
         return science.subtract_baseline(spectrum=spectrum, settings=self.configuration)
 
 
-class Peaks(sdk.Contribution[science.PeakSettings]):
+class Peaks(sdk.Contribution):
+    def __init__(self, *, configuration: science.PeakSettings) -> None:
+        super().__init__()
+        self.configuration = configuration
+
     @sdk.operation(concurrency=sdk.ConcurrencyRequirement.PARALLEL)
     def run(self, *, spectrum: science.Spectrum) -> science.PeakReport:
         return science.detect_peaks(spectrum=spectrum, settings=self.configuration)
@@ -26,8 +34,8 @@ class Peaks(sdk.Contribution[science.PeakSettings]):
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class SpectrumBindings:
-    baseline: sdk.HostedContribution[science.BaselineSettings]
-    peaks: sdk.HostedContribution[science.PeakSettings]
+    baseline: sdk.HostedContribution
+    peaks: sdk.HostedContribution
 
 
 def create_bindings(
@@ -43,11 +51,11 @@ def create_bindings(
         baseline=host.adopt(
             contribution=Baseline(configuration=science.BaselineSettings(**settings["baseline"])),
             allocation=baseline_allocation,
-            resources=(requirement,),
+            requirements=(requirement,),
         ),
         peaks=host.adopt(
             contribution=Peaks(configuration=science.PeakSettings(**settings["peaks"])),
             allocation=peak_allocation,
-            resources=(requirement,),
+            requirements=(requirement,),
         ),
     )

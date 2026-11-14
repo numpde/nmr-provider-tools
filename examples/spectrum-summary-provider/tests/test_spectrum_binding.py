@@ -86,7 +86,7 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual((), call.description.state_inputs)
                 self.assertEqual((), call.description.state_outputs)
 
-    async def test_settings_revisions_follow_the_affected_implementation(self) -> None:
+    async def test_provider_settings_remain_local_to_each_implementation(self) -> None:
         original = self.bindings()
         original_baseline, original_peaks = original.baseline, original.peaks
         package = resources.files("spectrum_provider")
@@ -114,12 +114,12 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
                 changed_peak_settings = self.bindings()
                 same_baseline, changed_peaks = changed_peak_settings.baseline, changed_peak_settings.peaks
 
-        self.assertNotEqual(original_baseline.description.binding_revision, changed_baseline.description.binding_revision)
+        self.assertNotEqual(original_baseline.contribution.configuration, changed_baseline.contribution.configuration)
         self.assertEqual(original_peaks.description.binding_revision, same_peaks.description.binding_revision)
         self.assertEqual(changed_baseline.description.binding_revision, reformatted_baseline.description.binding_revision)
         self.assertEqual(same_peaks.description.binding_revision, reformatted_peaks.description.binding_revision)
         self.assertEqual(changed_baseline.description.binding_revision, same_baseline.description.binding_revision)
-        self.assertNotEqual(same_peaks.description.binding_revision, changed_peaks.description.binding_revision)
+        self.assertNotEqual(same_peaks.contribution.configuration, changed_peaks.contribution.configuration)
 
         sample = science.Spectrum(positions=(0, 1, 2), intensities=(1, 4, 1))
         original_call = original_baseline.call(method=Baseline.run)

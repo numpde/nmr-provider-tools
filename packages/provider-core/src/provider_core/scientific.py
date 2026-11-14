@@ -15,15 +15,15 @@ import hashlib
 import inspect
 import json
 from collections.abc import Callable, Mapping
-from dataclasses import InitVar, dataclass, field, fields, is_dataclass, replace
 from enum import Enum
+from dataclasses import InitVar, dataclass, field, fields, is_dataclass, replace
 from pathlib import Path
 from threading import Lock
 from types import NoneType
 from typing import Any, ClassVar, Protocol, get_args, get_origin, get_type_hints
 
 from provider_core.contribution import (
-    CallBinding, CallDescription, CallRef, ConfigurationDescription,
+    CallBinding, CallDescription, CallRef,
     ConcurrencyRequirement, ImplementationDescription, InterruptionSupport,
     IsolationRequirement, NoInput, ProgressEvent, ResourceRequirement,
     ScientificControl, ScientificReturn, StateUse,
@@ -68,34 +68,29 @@ class _Custody:
         self.owner: AllocationRef | None = None
 
 
-class Contribution[ConfigT]:
-    """One host-managed scientific instance with fixed configuration.
+class Contribution:
+    """One host-managed scientific instance with provider-owned setup.
 
     Construct this object before handing it to a host. Constructors capture
-    configuration and Python bookkeeping; acquire resources in initialize.
+    provider settings and Python bookkeeping; acquire resources in initialize.
     close must handle never-started and partially initialized instances. Only
-    configuration and custody are fixed; models and caches belong to this object.
+    custody is fixed; models and caches belong to this object.
     """
 
     analysis_type: ClassVar[type[Analysis] | None] = None
 
-    def __init__(self, *, configuration: ConfigT) -> None:
-        self._configuration = configuration
+    def __init__(self) -> None:
         self._custody = _Custody()
 
     def __setattr__(self, name: str, value: object) -> None:
-        if name in ("_configuration", "_custody") and hasattr(self, name):
-            raise AttributeError(f"Cannot replace {name=}; configuration and custody are fixed for this object's lifetime")
+        if name == "_custody" and hasattr(self, name):
+            raise AttributeError(f"Cannot replace {name=}; custody is fixed for this object's lifetime")
         object.__setattr__(self, name, value)
 
     def __delattr__(self, name: str) -> None:
-        if name in ("_configuration", "_custody"):
-            raise AttributeError(f"Cannot delete {name=}; configuration and custody are fixed for this object's lifetime")
+        if name == "_custody":
+            raise AttributeError(f"Cannot delete {name=}; custody is fixed for this object's lifetime")
         object.__delattr__(self, name)
-
-    @property
-    def configuration(self) -> ConfigT:
-        return self._configuration
 
     def initialize(self, *, assets: AssetAccess) -> None:
         """Initialize owned resources; stateless contributions need no override."""
@@ -142,7 +137,7 @@ def operation(
     *,
     state_inputs: tuple[StateInputSlot, ...] = (),
     state_outputs: tuple[StateOutputSlot, ...] = (),
-    resources: tuple[ResourceRequirement, ...] | None = None,
+    requirements: tuple[ResourceRequirement, ...] | None = None,
     concurrency: ConcurrencyRequirement = ConcurrencyRequirement.INSTANCE_SERIAL,
     interruption: InterruptionSupport = InterruptionSupport.NONE,
     progress: bool = False,
@@ -157,7 +152,7 @@ def operation(
     empty resources mean that this operation has no call resource requirements.
     """
     declaration = _Declaration(
-        state_inputs=state_inputs, state_outputs=state_outputs, resources=resources,
+        state_inputs=state_inputs, state_outputs=state_outputs, resources=requirements,
         concurrency=concurrency, interruption=interruption, progress=progress,
         input_codec=input_codec, result_codec=result_codec,
     )
@@ -233,22 +228,8 @@ def _members(*, contribution: type[Contribution]) -> tuple[tuple[str, Callable],
     return tuple(result)
 
 
-def _configuration_type(*, contribution: type[Contribution]) -> type:
-    for parent in contribution.__mro__:
-        if "__orig_bases__" not in vars(parent):
-            continue
-        for base in parent.__orig_bases__:
-            if get_origin(tp=base) is Contribution:
-                configuration_type, = get_args(tp=base)
-                if configuration_type is None:
-                    return NoneType
-                if isinstance(configuration_type, type):
-                    return configuration_type
-    raise TypeError("A contribution must specialize Contribution with its concrete configuration type")
-
-
 def _schema(*, annotation: object, seen: frozenset[type]) -> object:
-    """Describe supported codec types without repr-based configuration identity."""
+    """Describe portable operation values for the execution contract."""
     origin = get_origin(tp=annotation)
     if origin is not None:
         return {
@@ -324,19 +305,6 @@ def _lifecycle(*, owner: type, name: str, keywords: dict[str, type]) -> _Lifecyc
     if annotations.get("return") is not NoneType:
         raise TypeError(f"Lifecycle method {name!r} must declare a None return")
     return _LifecycleMethod(function=function, receiver=parameters[0].name)
-
-
-def _immutable_configuration(*, value: object) -> None:
-    if isinstance(value, Enum):
-        _immutable_configuration(value=value.value)
-    elif is_dataclass(obj=value):
-        for member in fields(class_or_instance=value):
-            _immutable_configuration(value=getattr(value, member.name))
-    elif type(value) is tuple:
-        for member in value:
-            _immutable_configuration(value=member)
-    elif type(value) not in (str, bool, int, float, NoneType):
-        raise TypeError(f"Configuration contains unsupported mutable value {type(value).__qualname__}")
 
 
 def _compile_method(
@@ -431,18 +399,18 @@ def _compile_method(
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
-class HostedContribution[ConfigT]:
+class HostedContribution:
     """Host-derived call inventory for one adopted scientific object.
 
-    The v3 revision identifies the class, configuration, schemas and exported
+    The revision identifies schemas and the exported
     execution contract. Deployment owns installed artifact provenance separately;
     this contract neither identifies code bytes nor proves method purity.
     """
 
-    contribution: Contribution[ConfigT]
+    contribution: Contribution
     host: InitVar[str]
     allocation_name: InitVar[str]
-    resources: tuple[ResourceRequirement, ...]
+    requirements: tuple[ResourceRequirement, ...]
     resident_resources: tuple[ResourceRequirement, ...] = ()
     isolation: IsolationRequirement = IsolationRequirement.SHARED_PROCESS
     description: ImplementationDescription = field(init=False)
@@ -458,15 +426,9 @@ class HostedContribution[ConfigT]:
         if not isinstance(self.contribution, Contribution):
             raise TypeError(f"Unexpected {type(self.contribution)=}; adoption requires a configured Contribution instance")
         contribution_type = type(self.contribution)
-        if (
-            contribution_type.configuration is not Contribution.configuration
-            or contribution_type.__setattr__ is not Contribution.__setattr__
-            or contribution_type.__delattr__ is not Contribution.__delattr__
-        ):
-            raise TypeError("Contribution configuration storage is SDK-owned")
-        if type(self.resources) is not tuple:
-            raise TypeError(f"Unexpected {type(self.resources)=}; contribution resources must be an immutable tuple")
-        if any(type(resource) is not ResourceRequirement for resource in self.resources):
+        if type(self.requirements) is not tuple:
+            raise TypeError(f"Unexpected {type(self.requirements)=}; contribution resources must be an immutable tuple")
+        if any(type(resource) is not ResourceRequirement for resource in self.requirements):
             raise TypeError("Contribution resources must contain ResourceRequirement records")
         object.__setattr__(self, "_initialize", _lifecycle(owner=contribution_type, name="initialize", keywords={"assets": AssetAccess}))
         object.__setattr__(self, "_close", _lifecycle(owner=contribution_type, name="close", keywords={}))
@@ -483,24 +445,12 @@ class HostedContribution[ConfigT]:
                 raise TypeError("Analysis construction is SDK-owned; acquire resources in initialize")
             object.__setattr__(self, "_analysis_initialize", _lifecycle(owner=analysis_type, name="initialize", keywords={}))
             object.__setattr__(self, "_analysis_close", _lifecycle(owner=analysis_type, name="close", keywords={}))
-        configuration = self.contribution.configuration
-        configuration_type = _configuration_type(contribution=contribution_type)
-        if type(configuration) is not configuration_type:
-            raise TypeError(f"Unexpected {type(configuration)=}; the contribution requires {configuration_type=}")
-        configuration_description = None
-        if configuration_type is not NoneType:
-            _immutable_configuration(value=configuration)
-            codec = _codec(value_type=configuration_type, supplied=None)
-            encoded = codec.encode(value=configuration)
-            configuration_description = ConfigurationDescription(
-                format=codec.format, digest="sha256:" + hashlib.sha256(string=encoded).hexdigest(),
-            )
         members = _members(contribution=contribution_type)
         calls = []
         for name, function in members:
             call = _compile_method(
                 contribution=contribution_type, name=name, function=function,
-                resources=self.resources,
+                resources=self.requirements,
             )
             object.__setattr__(call, "_owner", self)
             calls.append(call)
@@ -508,18 +458,18 @@ class HostedContribution[ConfigT]:
         _require_state_kinds(calls=self._calls)
         call_descriptions = [call.description for call in calls]
         description = ImplementationDescription(
-            binding_id=f"{contribution_type.__module__}.{contribution_type.__qualname__}",
+            binding_id="allocation:" + host + ":" + allocation_name.encode(encoding="utf-8").hex(),
             binding_revision="configured-v3:sha256:" + "0" * 64,
-            contract_version=1, configuration=configuration_description, assets=(),
+            contract_version=1, configuration=None, assets=(),
             calls=tuple(call_descriptions),
             resident_resources=self.resident_resources, isolation=self.isolation,
         )
         document = description_document(description=description)
         del document["binding_revision"]
+        del document["binding_id"]
         document["analysis"] = None
         if self._analysis_type is not None:
             document["analysis"] = f"{self._analysis_type.__module__}.{self._analysis_type.__qualname__}"
-        document["configuration_schema"] = _schema(annotation=configuration_type, seen=frozenset())
         document["operation_schemas"] = [
             {"input": _schema(annotation=call.input_codec.value_type, seen=frozenset()),
              "result": _schema(annotation=call.result_codec.value_type, seen=frozenset())}

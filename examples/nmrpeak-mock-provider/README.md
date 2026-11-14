@@ -74,3 +74,10 @@ make tests/integration/provider-core DOCKER_CONTEXT=science \
 With both installed inside a permitted container, `python -I -B -m nmrpeak_mock_provider`
 prints an HF report and a CHF report. Process placement remains deployment-owned;
 the example does not copy NMRPeak's private worker frames into the scientific API.
+
+
+Provider constructor settings are ordinary object attributes. The SDK does not
+serialize or hash them. Call identity refers to the adopted allocation; scientific
+provenance remains provider-owned. Local submission uses the actual receiver
+(e.g. `method=contribution.generate`). Adoption takes `requirements=...`;
+deployment supplies resource `grants`.

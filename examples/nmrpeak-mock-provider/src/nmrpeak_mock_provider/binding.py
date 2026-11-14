@@ -9,7 +9,7 @@ from . import science
 from .checkpoint import open_checkpoint
 
 
-class PeakContribution(sdk.Contribution[science.Settings]):
+class PeakContribution(sdk.Contribution):
     prepared_kind = sdk.StateKind(name="nmrpeak.validated-input.v1", value_type=science.PreparedInput)
     prepared_output = prepared_kind.output(name="validated", dispose=science.dispose_prepared)
     prepared_input = prepared_kind.input(name="candidate", use=sdk.StateUse.CONSUME)
@@ -18,7 +18,8 @@ class PeakContribution(sdk.Contribution[science.Settings]):
         self, *, configuration: science.Settings, checkpoint_path: Path,
         create_model: Callable[[], science.Model],
     ) -> None:
-        super().__init__(configuration=configuration)
+        super().__init__()
+        self.configuration = configuration
         # The deployment path locates the configured content; it is not its identity.
         # Capturing a path/factory opens no file and loads no scientific resource.
         self.checkpoint_path = checkpoint_path

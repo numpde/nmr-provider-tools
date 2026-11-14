@@ -28,9 +28,10 @@ class Total:
     value: int
 
 
-class Sum(Contribution[Settings]):
+class Sum(Contribution):
     def __init__(self, *, configuration: Settings) -> None:
-        super().__init__(configuration=configuration)
+        super().__init__()
+        self.configuration = configuration
         self.calls = 0
         self.initializations = 0
         self.closes = 0
@@ -77,7 +78,7 @@ def adopt(*, host, contribution, name="sum", amount=1, grant=4):
     return host.adopt(
         contribution=contribution,
         allocation=ResourceAllocation(name=name, grants=(ResourceGrant(kind="cpu", amount=grant, unit="thread"),)),
-        resources=(ResourceRequirement(kind="cpu", amount=amount, unit="thread"),),
+        requirements=(ResourceRequirement(kind="cpu", amount=amount, unit="thread"),),
     )
 
 
@@ -125,15 +126,44 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(first=Total(value=12), second=instance.calculate(numbers=Numbers(values=(1, 2, 3))))
         instance.close()
 
-    async def test_configuration_and_requirements_determine_contract_not_allocation(self):
+    async def test_provider_setup_can_contain_ordinary_mutable_and_nonserializable_values(self):
+        instance = Sum(configuration={"loader": lambda: None, "cache": []})
+        hosted = adopt(host=self.host, contribution=instance)
+        self.assertIs(expr1=instance, expr2=hosted.contribution)
+        instance.configuration["cache"].append(object())
+        self.assertIsNone(obj=hosted.description.configuration)
+
+    async def test_identical_objects_cannot_exchange_bound_methods_or_portable_targets(self):
+        from provider_core.hosting import Invocation
+
+        first = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), name="first")
+        second = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), name="second")
+        analysis = self.host.open_analysis(analysis_id="identical", allocation_names=("first", "second"))
+        reservation = next(item for item in analysis.reservations if item.allocation == "second")
+        limits = ExecutionLimits(queue_seconds=5, execution_seconds=5, cleanup_seconds=5, input_bytes=1024, result_bytes=1024)
+        for method in (first.contribution.calculate, Sum.calculate):
+            with self.assertRaises(expected_exception=ValueError):
+                analysis.submit_method(method=method, operation_id="wrong", scientific_input=Numbers(values=(1,)), states=(), reservation=reservation, limits=limits, dispatch_guard=lambda: None)
+        refused = analysis.submit(invocation=Invocation(
+            operation_id="portable", target=first.reference(method=first.contribution.calculate),
+            payload=first.call(method=first.contribution.calculate).input_codec.encode(value=Numbers(values=(1,))),
+            states=(), reservation=reservation, limits=limits,
+        ), dispatch_guard=lambda: None)
+        self.assertIsInstance(obj=refused, cls=NotAdmitted)
+        self.assertEqual(first=0, second=second.contribution.calls)
+
+    async def test_setup_is_private_and_requirements_determine_execution_contract(self):
         original = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), name="original")
         same = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), name="same")
         changed = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=3)), name="changed")
         requirements = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)), name="requirements", amount=2)
-        self.assertEqual(first=original.description, second=same.description)
+        self.assertNotEqual(first=original.description.binding_id, second=same.description.binding_id)
         self.assertNotEqual(first=original.allocation, second=same.allocation)
+        self.assertEqual(first=original.description.binding_revision, second=changed.description.binding_revision)
+        self.assertEqual(first=original.description.binding_revision, second=same.description.binding_revision)
+        self.assertNotEqual(first=original.description.binding_revision, second=requirements.description.binding_revision)
         for other in (changed, requirements):
-            self.assertNotEqual(first=original.description.binding_revision, second=other.description.binding_revision)
+            self.assertNotEqual(first=original.description.binding_id, second=other.description.binding_id)
 
     async def test_only_this_receiver_or_its_exported_class_method_can_select_a_call(self):
         instance = Sum(configuration=Settings(scale=2))
@@ -144,9 +174,9 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaises(expected_exception=ValueError):
                     hosted.call(method=method)
 
-    async def test_configuration_and_custody_cannot_be_replaced_or_deleted(self):
+    async def test_custody_cannot_be_replaced_or_deleted(self):
         instance = Sum(configuration=Settings(scale=2))
-        for name in ("configuration", "_configuration", "_custody"):
+        for name in ("_custody",):
             with self.subTest(name=name):
                 with self.assertRaises(expected_exception=AttributeError):
                     setattr(instance, name, object())
@@ -284,7 +314,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(obj=refused, cls=NotAdmitted)
             self.assertIs(expr1=AdmissionCode.INVALID_REFERENCE, expr2=refused.code)
         with self.assertRaises(expected_exception=TypeError):
-            analysis.submit_method(method=Sum.calculate, operation_id="missing", states=(), reservation=reservation, limits=limits, dispatch_guard=lambda: None)
+            analysis.submit_method(method=hosted.contribution.calculate, operation_id="missing", states=(), reservation=reservation, limits=limits, dispatch_guard=lambda: None)
         self.assertEqual(first=0, second=hosted.contribution.calls)
         self.assertEqual(first={}, second=self.host.operations)
 

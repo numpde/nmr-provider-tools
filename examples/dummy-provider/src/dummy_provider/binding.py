@@ -36,7 +36,11 @@ class WeightedAnalysis(sdk.Analysis["WeightedSum"]):
             science.dispose_analysis(analysis=self._value)
 
 
-class WeightedSum(sdk.Contribution[WeightedSumConfig]):
+class WeightedSum(sdk.Contribution):
+    def __init__(self, *, configuration: WeightedSumConfig) -> None:
+        super().__init__()
+        self.configuration = configuration
+
     analysis_type = WeightedAnalysis
     _model: science.WeightedSumModel | None = None
     prepared_kind = sdk.StateKind(name="dummy.prepared-values.v1", value_type=science.PreparedValues)
@@ -86,7 +90,7 @@ class WeightedSum(sdk.Contribution[WeightedSumConfig]):
         return result
 
 
-class Sum(sdk.Contribution[None]):
+class Sum(sdk.Contribution):
     @sdk.operation(concurrency=sdk.ConcurrencyRequirement.PARALLEL)
     def run(self, *, summation: science.SumInput) -> science.SumResult:
         return science.sum_values(summation=summation)
@@ -100,7 +104,7 @@ def _configured_cpu_resource() -> sdk.ResourceRequirement:
 def create_weighted_sum_binding(
     *, host: EmbeddedHost, allocation: ResourceAllocation,
     settings: science.WeightedSumSettings, coefficients: science.CoefficientSet,
-) -> sdk.HostedContribution[WeightedSumConfig]:
+) -> sdk.HostedContribution:
     """Provider-owned assembly helper; adoption creates no live science.
 
     Callers explicitly invoke this helper. Its name has no SDK meaning; the
@@ -109,13 +113,13 @@ def create_weighted_sum_binding(
     return host.adopt(
         contribution=WeightedSum(configuration=WeightedSumConfig(settings=settings, coefficients=coefficients)),
         allocation=allocation,
-        resources=(_configured_cpu_resource(),),
+        requirements=(_configured_cpu_resource(),),
     )
 
 
-def create_sum_binding(*, host: EmbeddedHost, allocation: ResourceAllocation) -> sdk.HostedContribution[None]:
+def create_sum_binding(*, host: EmbeddedHost, allocation: ResourceAllocation) -> sdk.HostedContribution:
     """Provider-owned assembly for the independently callable stateless sum."""
     return host.adopt(
-        contribution=Sum(configuration=None), allocation=allocation,
-        resources=(_configured_cpu_resource(),),
+        contribution=Sum(), allocation=allocation,
+        requirements=(_configured_cpu_resource(),),
     )

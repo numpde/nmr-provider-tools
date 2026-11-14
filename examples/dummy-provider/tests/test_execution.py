@@ -151,7 +151,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         preparation_input = science.PreparationInput(values=(1, 2, 3))
 
         rejected = analysis.submit_method(
-            method=WeightedSum.prepare,
+            method=weighted_binding.contribution.prepare,
             operation_id="rejected-prepare", scientific_input=science.PreparationInput(values=()),
             states=(), reservation=reservation, limits=execution_limits,
             dispatch_guard=lambda: None,
@@ -162,7 +162,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(original_session.value.is_open)
 
         preparation_operation = analysis.submit_method(
-            method=WeightedSum.prepare,
+            method=weighted_binding.contribution.prepare,
             operation_id="prepare",
             scientific_input=preparation_input,
             states=(),
@@ -199,7 +199,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
         # Result release leaves the returned scientific state available to calculate.
         calculation_operation = analysis.submit_method(
-            method=WeightedSum.calculate,
+            method=weighted_binding.contribution.calculate,
             operation_id="calculate",
             states=(calculation_state,),
             reservation=reservation,

@@ -17,21 +17,12 @@ src/spectrum_provider/
 └── __main__.py      local deployment, permission and stdout consumption
 ```
 
-`science.py` can be called directly. It knows no Jobs, allocations, operation
-handles, execution backend or report publisher. `create_bindings()` explicitly
-loads packaged settings, constructs two independent stateless objects, and hands
-them to `host.adopt`, exporting `Baseline.run` and `Peaks.run`. Configuration is
-immutable and contributes to each configured revision. Neither call needs loaded model
-resources or per-analysis scientific state. The helper returns an ordinary
-`SpectrumBindings` record containing the SDK's derived `HostedContribution`
-inventories. `Baseline` and `Peaks`
-inherit `Contribution[Settings]` and export keyword-only `run` methods with
-`@operation()`. Each instance reads its own fixed `self.configuration`.
-`bindings.baseline.reference(method=Baseline.run)` projects the configured wire
-reference used by the data-only workflow. The helper's
-name and signature have no special SDK meaning.
-The bootstrap owns host cleanup before calling this helper: if the second adoption
-fails, the first object remains owned by the host and is retired normally.
+`create_bindings()` is provider-owned assembly: it reads settings, constructs
+`Baseline` and `Peaks`, and adopts them on separate allocations with explicit
+`requirements`. Their exported methods read their own ordinary attributes. The
+returned call inventories supply codecs and portable references to those exact
+allocations. Assembly belongs inside the host cleanup scope so a failure while
+adopting the second object still retires the first.
 
 `PeakWorkflow` chooses the scientific sequence using only the public execution
 contract. It does not import scientific types, codecs or the local backend.
@@ -109,3 +100,10 @@ analysis/host teardown. It finishes acceptance and the exact release observation
 even if shutdown is cancelled again, then propagates the recorded interruptions
 and failures. This join has no new timeout; the demo receiver is a local stdout
 write. A caller needing a bounded wait must retain the owner and its resources.
+
+
+Provider constructor settings are ordinary object attributes. The SDK does not
+serialize or hash them. Call identity refers to the adopted allocation; scientific
+provenance remains provider-owned. Local submission uses the actual receiver
+(e.g. `method=contribution.generate`). Adoption takes `requirements=...`;
+deployment supplies resource `grants`.
