@@ -23,7 +23,6 @@ from unittest.mock import Mock, patch
 
 import tomli_w
 
-from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import AdmissionCode, CapacityUnavailable, NotAdmitted, ResultState, StartDeadlineExpired
 from provider_core.interpreter import ModelWindowExpired, ProseService
 
@@ -103,31 +102,26 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(first=beam_size, second=len(report["generated_smiles"]))
 
     async def test_partial_assembly_failure_retires_the_already_adopted_object(self):
-        original = OSError("Cannot adopt the second scientific offering")
-        adopted = []
         closed = []
-        adopt = EmbeddedHost.adopt
         close = Hf.close
 
-        def fail_second(owner, *, contribution, requirements):
-            if adopted:
-                raise original
-            hosted = adopt(self=owner, contribution=contribution, requirements=requirements)
-            adopted.append(hosted)
-            return hosted
+        class InvalidChf(Chf):
+            def close(self):
+                pass
 
         def record_close(contribution) -> None:
             closed.append(contribution)
             close(self=contribution)
 
-        # Fault the real acquisition boundary; keep the provider's actual assembly.
-        with patch.object(target=EmbeddedHost, attribute="adopt", new=fail_second):
+        # The real host rejects the malformed second declaration. Provider startup
+        # must still retire the valid first object that it already handed over.
+        with patch(target="nmrpeak_mock_provider.composition.Chf", new=InvalidChf):
             with patch.object(target=Hf, attribute="close", new=record_close):
-                with self.assertRaises(expected_exception=OSError) as raised:
+                with self.assertRaises(expected_exception=TypeError):
                     async with self.open_provider():
                         self.fail(msg="Partial assembly must not yield a provider")
-        self.assertIs(expr1=original, expr2=raised.exception)
-        self.assertEqual(first=[adopted[0].contribution], second=closed)
+        first, = closed
+        self.assertIsInstance(obj=first, cls=Hf)
 
     async def test_invalid_deployment_model_limits_fail_before_model_creation(self):
         original = self.configuration.read_text(encoding="utf-8")
@@ -146,13 +140,13 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             hf, = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
             async with provider.open_prediction(offering=hf, receive=RecordingReceiver()) as prediction:
                 with self.assertRaises(expected_exception=ModelWindowExpired) as raised:
-                    await prediction.dispatch(
-                        name=prediction.input_tool.name,
+                    await prediction.preparation.dispatch(
+                        name=prediction.preparation.name,
                         arguments=candidate(carbon=False),
                         not_after=asyncio.get_running_loop().time() - 1,
                     )
                 self.assertIsInstance(obj=raised.exception.__cause__, cls=StartDeadlineExpired)
-                self.assertEqual(first=[], second=prediction.preparations)
+                self.assertIsNone(obj=prediction.preparation.operation)
                 self.assertIsNone(obj=hf.contribution.model)
 
     async def test_interpreter_deadline_waits_for_original_loading_to_settle(self):
@@ -169,8 +163,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             hf, = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
             async with provider.open_prediction(offering=hf, receive=RecordingReceiver()) as prediction:
                 deadline = asyncio.get_running_loop().time() + 1
-                task = asyncio.create_task(coro=prediction.dispatch(
-                    name=prediction.input_tool.name,
+                task = asyncio.create_task(coro=prediction.preparation.dispatch(
+                    name=prediction.preparation.name,
                     arguments=candidate(carbon=False),
                     not_after=deadline,
                 ))
@@ -183,10 +177,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                         with self.assertRaises(expected_exception=ModelWindowExpired) as raised:
                             await task
                     self.assertIsInstance(obj=raised.exception.__cause__, cls=StartDeadlineExpired)
-                    self.assertEqual(first=1, second=len(prediction.preparations))
-                    observed = await prediction.preparations[0].observe(after=None, wait_seconds=0)
+                    self.assertIsNotNone(obj=prediction.preparation.operation)
+                    observed = await prediction.preparation.operation.observe(after=None, wait_seconds=0)
                     self.assertTrue(expr=observed.finished)
-                    self.assertIsNone(obj=prediction.prepared)
+                    self.assertIsNone(obj=prediction.preparation.prepared)
                 finally:
                     release.set()
                     await asyncio.gather(task, return_exceptions=True)
@@ -197,7 +191,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             hf, = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
             async with provider.open_prediction(offering=hf, receive=RecordingReceiver()) as prediction:
                 await prediction.interpret(source="Formula and proton spectrum")
-                self.assertEqual(first=1, second=len(prediction.preparations))
+                self.assertIsNotNone(obj=prediction.preparation.operation)
                 self.assertEqual(first=2, second=len(self.factory.endpoints[0].requests))
 
     async def test_generation_declares_consuming_input_and_does_not_run_twice(self):
@@ -213,7 +207,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 # submission must be refused before trying to reuse consumed input.
                 duplicate = prediction.execution.submit_method(
                     method=hf.contribution.generate,
-                    states=(PeakContribution.candidate.bind(handle=prediction.prepared),),
+                    states=(PeakContribution.candidate.bind(handle=prediction.preparation.prepared),),
                     reservation=reservation,
                     policy=prediction.policy,
                 )
@@ -313,7 +307,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 consumption = prediction.consumption
                 await prediction.deliver()
                 self.assertIs(expr1=consumption, expr2=prediction.consumption)
-                self.assertEqual(first=2, second=len(prediction.preparations))
+                self.assertEqual(first=2, second=len(self.factory.endpoints[0].requests))
                 self.assertEqual(first=1, second=len(receiver.payloads))
             self.assertTrue(expr=prediction.execution.closed)
             self.assertTrue(expr=self.factory.endpoints[0].retirement_confirmed)

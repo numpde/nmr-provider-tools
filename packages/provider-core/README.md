@@ -84,17 +84,30 @@ writing a second input schema. Install `provider-core[api]`; scientific records
 remain ordinary frozen/slotted dataclasses.
 
 ```python
-from provider_core.input_tool import InputTool
+from provider_core.preparation_tool import PreparationTool
 
-tool = InputTool(
+tool = PreparationTool(
     call=hosted.call(method=hosted.contribution.prepare),
+    output=ScientificContribution.validated,
+    execution=analysis,
+    reservation=analysis.reservation(allocation=hosted.allocation),
+    policy=operation_policy,
     description="Submit source-faithful spectrum data for validation.",
 )
 ```
 
-Pass `[tool.definition]` to `Interpreter.run`. In dispatch, use
-`tool.decode(name=name, arguments=arguments)` to construct the declared input,
-then submit scientific validation through execution. The tool derives its name
+Pass `tools=[tool.definition]` and `dispatch=tool.dispatch` to `Interpreter.run`.
+The SDK decodes proposals, executes preparation, retains `tool.prepared` for the
+provider's next scientific method, and releases the temporary validation report.
+Input rejection permits model correction; operator failures retain their original
+causes. A confirmed start-window expiry permits the next model to try after the
+original work settles. `tool.resume()` resumes the original request or release
+after cancellation or a lost reply, without submitting new science.
+
+The provider selects the preparation method and its output port; the SDK does not
+choose the subsequent scientific sequence. For tools that only advertise and
+decode input, `provider_core.input_tool.InputTool` remains available independently.
+The tool derives its name
 from the compiled method and uses the input record's fields as parameters;
 providers supply no protocol name, wrapper field or duplicate record definition.
 

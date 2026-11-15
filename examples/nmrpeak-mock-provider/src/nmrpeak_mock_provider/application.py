@@ -9,15 +9,12 @@ It retains one report receiver attempt; provider.py owns the request lifetime.
 
 from collections.abc import Awaitable, Callable
 
-from provider_core.contribution_errors import CallRejected
-from provider_core.conversation import ToolFinished, ToolRejected
 from provider_core.embedded_host import EmbeddedAnalysis
 from provider_core.hosting import (
-    OperationPolicy, NotAdmitted, Outcome, ResultConsumption, StartDeadlineExpired,
-    observe_cleanup, observe_completion,
+    OperationPolicy, NotAdmitted, ResultConsumption, observe_completion,
 )
-from provider_core.interpreter import Interpreter, ModelWindowExpired
-from provider_core.input_tool import InputTool
+from provider_core.interpreter import Interpreter
+from provider_core.preparation_tool import PreparationTool
 from provider_core.scientific import HostedContribution
 
 from .binding import PeakContribution
@@ -41,59 +38,18 @@ class Prediction:
         self.hosted = hosted
         self.interpreter = interpreter
         self.policy = policy
-        self.input_tool = InputTool(
+        reservation, = execution.reservations
+        self.preparation = PreparationTool(
             call=hosted.call(method=hosted.contribution.prepare),
+            output=PeakContribution.validated,
+            execution=execution,
+            reservation=reservation,
+            policy=policy,
             description="Submit the formula and source-faithful NMR peaks for validation.",
         )
         self.receive = receive
         self.consumption: ResultConsumption | None = None
-        self.preparations = []
-        self.prepared = None
         self.generation = None
-
-    async def dispatch(self, name: str, arguments: dict, *, not_after: float) -> ToolFinished:
-        """Handle Interpreter's input proposal by submitting prepare to the SDK."""
-        if self.prepared is not None:
-            raise RuntimeError("This request already has an accepted interpretation")
-        call = self.input_tool.call
-        try:
-            candidate = self.input_tool.decode(name=name, arguments=arguments)
-        except CallRejected as cause:
-            # Tell Interpreter which input the language model needs to correct.
-            # Loading and execution failures propagate as their original exceptions.
-            raise ToolRejected(cause.message) from cause
-        reservation, = self.execution.reservations
-        try:
-            operation = self.execution.submit_method(
-                method=self.hosted.contribution.prepare,
-                scientific_input=candidate,
-                states=(),
-                reservation=reservation,
-                policy=self.policy,
-                start_not_after=not_after,
-            )
-            if isinstance(operation, NotAdmitted):
-                raise RuntimeError(f"Cannot prepare scientific input: {operation=}")
-            self.preparations.append(operation)
-            completed = await observe_completion(operation=operation)
-            try:
-                completed.require_result()
-            except CallRejected as cause:
-                # Only scientific input rejection permits language-model repair.
-                # A result-encoding rejection is an operator failure instead.
-                if completed.outcome is not Outcome.REJECTED:
-                    raise
-                raise ToolRejected(cause.message) from cause
-        except StartDeadlineExpired as cause:
-            # Interpreter can change models only after the original SDK operation
-            # has finished, or when the SDK refused it before admission.
-            raise ModelWindowExpired() from cause
-        self.prepared = await PeakContribution.validated.reference(call=call, operation=operation)
-        # Successful prepare supplied the retained input needed by generate.
-        # Release its report bytes; the SDK keeps the prepared input until generate
-        # consumes it or analysis cleanup disposes it.
-        await observe_cleanup(control=operation.release_result(result=completed.result))
-        return ToolFinished(value="Scientific input validated")
 
     async def interpret(self, *, source: str) -> None:
         """Extract this offering's scientific input from the supplied source text.
@@ -103,8 +59,8 @@ class Prediction:
         """
         await self.interpreter.run(
             messages=interpretation_messages(source=source),
-            tools=[self.input_tool.definition],
-            dispatch=self.dispatch,
+            tools=[self.preparation.definition],
+            dispatch=self.preparation.dispatch,
         )
 
     async def deliver(self) -> None:
@@ -133,13 +89,13 @@ class Prediction:
 
     async def finish(self):
         """Submit generate once, then wait on the same operation and return its result."""
-        if self.prepared is None:
+        if self.preparation.prepared is None:
             raise RuntimeError("Accept an interpretation before generating candidates")
         if self.generation is None:
             reservation, = self.execution.reservations
             accepted = self.execution.submit_method(
                 method=self.hosted.contribution.generate,
-                states=(PeakContribution.candidate.bind(handle=self.prepared),),
+                states=(PeakContribution.candidate.bind(handle=self.preparation.prepared),),
                 reservation=reservation, policy=self.policy,
             )
             if isinstance(accepted, NotAdmitted):
