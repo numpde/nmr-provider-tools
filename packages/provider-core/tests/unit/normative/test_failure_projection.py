@@ -62,9 +62,11 @@ class CoreFailureProjectionTests(unittest.TestCase):
             ((b"x-request-id", b"request:received"), (b"authorization", b"PRIVATE_HEADER")),
             b"PRIVATE_BODY",
         )
+
         failure = ApiFailure("read owned state", "the API could not admit this read", response=response)
         failure.issuance_may_have_committed = True
         details = owned_details(failure)
+
         self.assertEqual(
             details,
             {
@@ -77,6 +79,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
                 "attempt_mutation_may_have_committed": False,
             },
         )
+
         self.assertNotIn("PRIVATE", repr(details))
         details["status"] = 200
         self.assertEqual(owned_details(failure)["status"], 503)
@@ -98,6 +101,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
     def test_transport_edges_preserve_original_identity_order_and_independent_cleanup(self):
         primary, cleanup, interrupted = TimeoutError(), OSError(), asyncio.CancelledError()
         failure = ExchangeFailed("Interrupted response", primary=primary, cleanup_failures=(cleanup,), interruption=interrupted)
+
         self.assertEqual(
             list(owned_relationships(failure)),
             [
@@ -110,13 +114,16 @@ class CoreFailureProjectionTests(unittest.TestCase):
     def test_conversation_edges_preserve_endpoint_corrections_primary_and_interruption(self):
         endpoint, cleanup, cause, previous = TimeoutError(), OSError(), RuntimeError(), asyncio.CancelledError()
         correction = ToolRejected("Choose an advertised operation")
+
         failure = ConversationRetirementFailed(
             ((2, cleanup),),
             cause=cause,
             endpoint_failures=((0, endpoint),),
             correction_failures=((1, correction),),
         )
+
         failure.interruption_cause = previous
+
         self.assertEqual(
             list(owned_relationships(failure)),
             [
@@ -130,13 +137,16 @@ class CoreFailureProjectionTests(unittest.TestCase):
 
     def test_acquisition_and_reader_failures_keep_separate_grant_and_interruption_facts(self):
         cause, cleanup, interrupted = OSError(), OSError(), asyncio.CancelledError()
+
         for kind in (UploadFailed, UploadInputRejected, UploadRecoveryExhausted):
             with self.subTest(kind=kind):
                 failure = kind(
                     "Source transfer did not finish", cause=cause, cleanup_failures=(cleanup,), interruption=interrupted
                 )
+
                 failure.grant_issued = True
                 self.assertTrue(owned_details(failure)["grant_issued"])
+
                 self.assertEqual(
                     list(owned_relationships(failure)),
                     [
@@ -145,10 +155,13 @@ class CoreFailureProjectionTests(unittest.TestCase):
                         ("acquisition interruption", interrupted),
                     ],
                 )
+
         reader = UploadFileReadFailed(
             "The acquired source changed", cause=cause, cleanup_failures=(cleanup,), interruption=interrupted
         )
+
         self.assertNotIn("grant_issued", owned_details(reader))
+
         self.assertEqual(
             list(owned_relationships(reader)),
             [
@@ -162,6 +175,7 @@ class CoreFailureProjectionTests(unittest.TestCase):
         active = acknowledge_start(record(), admission())
         candidate = AnalysisSuccess("result.v1", b"PRIVATE_RESULT", ProtectedEvidence("evidence.v1", b"PRIVATE_EVIDENCE"))
         checkpoint = AcknowledgedCheckpoint(active.start, active.admission)
+
         for acknowledgement in (None, active):
             failure = StartFailed(
                 "Start storage is unconfirmed",
@@ -170,17 +184,21 @@ class CoreFailureProjectionTests(unittest.TestCase):
                 api_failure=None,
                 settlement_failures=(),
             )
+
             details = owned_details(failure)
             self.assertEqual(details["acknowledgement_received"], acknowledgement is active)
             self.assertEqual("observed_attempt_state" in details, acknowledgement is active)
+
         for received in (False, True):
             failure = DeliveryWorkerFailed(cause=OSError(), api_failure=None, cleanup_failures=(), api_receipt_received=received)
             details = owned_details(failure)
             self.assertEqual(details["api_receipt_received"], received)
             self.assertNotIn("PRIVATE", repr(details))
+
         execution = ExecutionFailed(
             cause=OSError(), outcome=candidate, api_failure=None, cleanup_failures=(), attempt=active
         )
+
         details = owned_details(execution)
         self.assertTrue(details["outcome_in_memory"])
         self.assertIs(execution.attempt, active)
@@ -192,8 +210,10 @@ class CoreFailureProjectionTests(unittest.TestCase):
     def test_execution_distinguishes_relay_acceptance_from_api_receipt_and_preserves_delivery_cause(self):
         active = acknowledge_start(record(), admission())
         cause, interruption = OSError(), asyncio.CancelledError()
+
         failure = ExecutionFailed(cause=cause, outcome=None,
                                   api_failure=None, cleanup_failures=(), attempt=active)
+
         self.assertFalse(owned_details(failure)["delivery_acceptance_received"])
         failure.delivery_acceptance = {"body_sha256": "sha256:" + "b" * 64}
         failure.delivery_failure, failure.handoff_interruption = cause, interruption

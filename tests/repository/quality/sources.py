@@ -15,6 +15,7 @@ ROOT = Path("/workspace")
 REPOSITORY_ROOT = ROOT
 PYTHON_ROOTS = ("host", "tools", "tests")
 OPTIONAL_PYTHON_ROOTS = ("src",)
+
 SKIP_DIRS = {
     ".git",
     ".agents",
@@ -44,9 +45,11 @@ def python_sources(*, production_only):
     directories = [ROOT / name for name in (*roots, *OPTIONAL_PYTHON_ROOTS)]
     directories.extend(ROOT.glob("packages/*/src"))
     directories.extend(ROOT.glob("examples/*/src"))
+
     if not production_only:
         directories.extend(ROOT.glob("packages/*/tests"))
         directories.extend(ROOT.glob("examples/*/tests"))
+
     return sorted(path for directory in directories for path in directory.rglob("*.py"))
 
 
@@ -56,8 +59,10 @@ def repo_path(path):
 
 def is_skipped(path):
     parts = path.relative_to(ROOT).parts
+
     if parts and parts[0] in {"release-artifacts", "bootstrap"}:
         return True
+
     return any(part in SKIP_DIRS for part in parts)
 
 
@@ -68,6 +73,7 @@ def read_text(path):
 def iter_repo_text_files():
     suffixes = {".py", ".sh", ".toml", ".json", ".txt", ".md", ".yaml", ".yml", ".in", ".lock"}
     names = {"Makefile", "Dockerfile", "Dockerfile.lock", ".dockerignore", ".gitignore"}
+
     return sorted(
         path
         for path in ROOT.rglob("*")

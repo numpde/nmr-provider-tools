@@ -23,10 +23,13 @@ BODY = b"geometry"
 class ResetPeer(TlsPeer):
     async def handle(self, reader, writer):
         self.handlers.add(asyncio.current_task())
+
         try:
             await reader.readuntil(b"\r\n\r\n")
+
             writer.write(b"HTTP/1.1 200 OK\r\n" + b"".join(name+b": "+value+b"\r\n" for name,value in store_headers(BODY))
                          + b"\r\ng")
+
             await writer.drain()
             await asyncio.sleep(0.02)
             writer.get_extra_info("socket").setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, struct.pack("ii",1,0))
@@ -39,16 +42,21 @@ class ResetPeer(TlsPeer):
 class UploadNetworkResetTests(unittest.IsolatedAsyncioTestCase):
     async def failure(self, peer, account):
         store = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.2)
+
         transfer = UploadTransfer("job:example", store=store, store_origin=peer.origin, remaining=lambda:1,
                                   before_request=lambda:None, account=account)
+
         grant = ReadGrant("job:example", UPLOAD_REF, 8, "sha256:"+sha256(BODY).hexdigest(),
                           peer.origin+"/upload/v1/uploads/"+UPLOAD_REF+"/bytes", "protected-bearer",
                           datetime.now(UTC)+timedelta(minutes=1))
+
         async def fresh():
             return grant
+
         with private_source_directory() as (_, directory):
             with self.assertRaises(UploadFailed) as caught:
                 await transfer.acquire_file(fresh, directory_fd=directory, retirement_seconds=0.2)
+
         self.assertTrue(store.retirement_confirmed)
         self.assertFalse(transfer.file_cleanup_pending)
         await asyncio.wait_for(peer.closed.wait(),1)
@@ -63,9 +71,12 @@ class UploadNetworkResetTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNone(original.__cause__)
             self.assertFalse(temporary_io_failure(original,8))
             self.assertTrue(transfer.can_retry_transfer(failure))
+
         def account(_count):
             raise original
+
         headers = [(name,value) for name,value in store_headers(BODY) if name!=b"content-length"]
+
         async with TlsPeer("success",response_body=BODY,response_headers=headers) as peer:
             transfer, failure = await self.failure(peer,account)
             self.assertIs(failure.cause.primary,original)

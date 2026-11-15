@@ -64,18 +64,24 @@ def decoded_bytes(value, maximum):
             f"Unexpected {type(value)=}; "
             "Interpreter child byte field must be base64 text"
         )
+
     if not (len(value) <= 4 * ((maximum + 2) // 3)):
         raise ValueError("Interpreter child byte field exceeds its admitted limit")
+
     result = base64.b64decode(value, validate=True)
+
     if not len(result) <= maximum:
         raise ValueError("Interpreter child byte field exceeds its admitted limit")
+
     return result
 
 
 def message_bytes(document):
     raw = json.dumps(document, ensure_ascii=True, allow_nan=False, separators=(",", ":")).encode("ascii")
+
     if not len(raw) <= 0xffffffff:
         raise ValueError("Interpreter child message exceeds its framing limit")
+
     return raw
 
 
@@ -91,30 +97,39 @@ def write_message(stream, document):
 def _size(header, maximum):
     if len(header) != 4:
         raise ValueError("Interpreter child message ended before its length")
+
     size, = struct.unpack("!I", header)
+
     if not 0 < size <= maximum:
         raise ValueError("Interpreter child message exceeds its admitted limit")
+
     return size
 
 
 def read_request(stream, maximum_bytes):
     size = _size(stream.read(4), maximum_bytes)
     raw = stream.read(size)
+
     if len(raw) != size or stream.read(1):
         raise ValueError("Interpreter child requires one complete request message")
+
     document = read_document(raw, maximum_bytes)
+
     if type(document) is not dict:
         raise TypeError(
             f"Unexpected {type(document)=}; "
             "Interpreter child request must be a JSON object"
         )
+
     if type(document.get("version")) is not int:
         raise TypeError(
             f"Unexpected {type(document.get('version'))=}; "
             "Interpreter child request has an unknown schema"
         )
+
     if document["version"] != 1 or document.get("kind") != "request":
         raise ValueError("Interpreter child request has an unknown schema")
+
     return document
 
 
@@ -133,23 +148,31 @@ def _read_headers(headers):
             f"Unexpected {type(headers)=}; "
             "Interpreter child headers must be a list"
         )
+
     if not (len(headers) <= 65536):
         raise ValueError("Interpreter child headers exceed their admitted limit")
+
     result = []
     remaining = METADATA_BYTES
+
     for pair in headers:
         if type(pair) is not list:
             raise TypeError(
                 f"Unexpected {type(pair)=}; "
                 "Interpreter child header must be a two-element list"
             )
+
         if len(pair) != 2:
             raise ValueError("Interpreter child header is malformed")
+
         name, value = (decoded_bytes(part, remaining) for part in pair)
         remaining -= len(name) + len(value)
+
         if not 0 <= remaining:
             raise ValueError("Interpreter child headers exceed their admitted limit")
+
         result.append((name, value))
+
     return tuple(result)
 
 
@@ -159,8 +182,10 @@ def _status(value):
             f"Unexpected {type(value)=}; "
             "Interpreter child HTTP status must be an integer"
         )
+
     if not (100 <= value <= 599):
         raise ValueError("Interpreter child returned an invalid HTTP status")
+
     return value
 
 
@@ -176,37 +201,51 @@ def failure_message(failure):
     def reference(error):
         if error is None:
             return None
+
         identity = id(error)
+
         if identity in seen:
             return seen[identity]
+
         if not len(nodes) < _ERROR_NODES:
             raise ValueError("Interpreter child failure evidence exceeds its graph limit")
+
         index = seen[identity] = len(nodes)
         kind = type(error).__module__ + "." + type(error).__qualname__
+
         node = {"type": kind, "text": str(error)[:_ERROR_TEXT],
                 # silent-defaults: allow-contract -- Only a real integer OSError errno is portable native evidence; None records its absence.
                 "errno": error.errno if isinstance(error, OSError) and type(error.errno) is int else None}
+
         nodes.append(node)
+
         if type(error) is DecodedBodyRejected:
             node["reason"] = error.reason
+
         node["cause"], node["context"] = reference(error.__cause__), reference(error.__context__)
         node["suppress_context"] = error.__suppress_context__
+
         if isinstance(error, BaseExceptionGroup):
             node["children"] = [reference(child) for child in error.exceptions]
+
         return index
 
     primary = reference(failure.primary)
     cleanup = [reference(error) for error in failure.cleanup_failures]
     interruption, network_failure = reference(failure.interruption), reference(failure.network_failure)
     network = failure.network_io
+
     if network is not None:
         network = {"stage": network.stage, "error": reference(network.error),
                    "cause": reference(network.cause), "context": reference(network.context),
                    "unix_path": network.unix_path, "configured_unix_path": network.configured_unix_path,
                    "eof": network.eof, "deadline_cancelled": network.deadline_cancelled}
+
     head = failure.response_head
+
     if head is not None:
         head = {"status": head.status, "headers": _headers(head.headers)}
+
     return {"version": 1, "kind": "failure", "message": str(failure)[:_ERROR_TEXT],
             "nodes": nodes, "primary": primary, "cleanup": cleanup, "interruption": interruption,
             "head": head, "proxy_status": failure.proxy_connect_status,
@@ -216,115 +255,151 @@ def failure_message(failure):
 
 def _read_failure(document):
     nodes = document["nodes"]
+
     if not (type(nodes) is list):
         raise TypeError(
             f"Unexpected {type(nodes)=}; "
             "Interpreter child failure evidence must be a list of graph nodes"
         )
+
     if not (len(nodes) <= _ERROR_NODES):
         raise ValueError("Interpreter child failure evidence exceeds its graph limit")
+
     errors = [None] * len(nodes)
     constructing = set()
 
     def error(index):
         if index is None:
             return None
+
         if type(index) is not int:
             raise TypeError(
                 f"Unexpected {type(index)=}; "
                 "Interpreter child failure reference must be an integer graph index"
             )
+
         if not (0 <= index < len(nodes)):
             raise ValueError("Interpreter child failure reference is malformed")
+
         if errors[index] is not None:
             return errors[index]
+
         if index in constructing:
             raise ValueError("Interpreter child exception group is cyclic")
+
         constructing.add(index)
         node = nodes[index]
         kind, text = node["type"], node["text"]
+
         if not (type(kind) is str and type(text) is str):
             raise TypeError(
                 f"Unexpected {type(kind)=}, {type(text)=}; "
                 "Interpreter child failure kind and description must be text"
             )
+
         if not (len(text) <= _ERROR_TEXT):
             raise ValueError("Interpreter child failure description is malformed")
+
         if kind == "provider_core.decoded_body.DecodedBodyRejected":
             result = DecodedBodyRejected(node["reason"])
         elif kind in ("builtins.ExceptionGroup", "builtins.BaseExceptionGroup"):
             children = node["children"]
+
             if type(children) is not list:
                 raise TypeError(
                     f"Unexpected {type(children)=}; "
                     "Interpreter child exception group must contain a list of graph references"
                 )
+
             if not (0 < len(children) <= _ERROR_NODES):
                 raise ValueError("Interpreter child exception group is malformed")
+
             result = BaseExceptionGroup(text, [error(child) for child in children])
         else:
             # silent-defaults: allow-contract -- Unreviewed child error types retain protected evidence without acquiring retry authority.
             constructor = _ERROR_TYPES.get(kind, RemoteExchangeError)
             number = node["errno"]
+
             if number is not None and (type(number) is not int or not (
                     issubclass(constructor, OSError) or constructor is RemoteExchangeError)):
                 raise ValueError("Interpreter child error number is malformed")
+
             result = constructor(number, text) if number is not None and issubclass(constructor, OSError) else constructor(text)
+
             if constructor is RemoteExchangeError:
                 result.remote_type = kind
                 result.remote_errno = number
+
         errors[index] = result
         constructing.remove(index)
         return result
 
     for index in range(len(nodes)):
         error(index)
+
     for current, node in zip(errors, nodes):
         current.__cause__, current.__context__ = error(node["cause"]), error(node["context"])
+
         if type(node["suppress_context"]) is not bool:
             raise TypeError(
                 f"Unexpected {type(node['suppress_context'])=}; "
                 "Interpreter child failure context flag is malformed"
             )
+
         current.__suppress_context__ = node["suppress_context"]
+
     head = document["head"]
+
     if head is not None:
         head = HttpResponseHead(_status(head["status"]), _read_headers(head["headers"]))
+
     network = document["network"]
+
     if network is not None:
         for name in ("stage", "unix_path", "configured_unix_path"):
             if network[name] is not None and type(network[name]) is not str:
                 raise ValueError("Interpreter child network description is malformed")
+
         if type(network["eof"]) is not bool or type(network["deadline_cancelled"]) is not bool:
             raise TypeError(
                 f"Unexpected {type(network['eof'])=}, {type(network['deadline_cancelled'])=}; "
                 "Interpreter child network flags are malformed"
             )
+
         network = NetworkIOObservation(
             stage=network["stage"], error=error(network["error"]), cause=error(network["cause"]),
             context=error(network["context"]), unix_path=network["unix_path"],
             configured_unix_path=network["configured_unix_path"], eof=network["eof"],
             deadline_cancelled=network["deadline_cancelled"],
         )
+
     proxy_status = document["proxy_status"]
+
     if proxy_status is not None:
         _status(proxy_status)
+
     message = document["message"]
+
     if not (type(message) is str):
         raise TypeError(
             f"Unexpected {type(message)=}; "
             "Interpreter child failure message must be text"
         )
+
     if not (len(message) <= _ERROR_TEXT):
         raise ValueError("Interpreter child failure message is malformed")
+
     cleanup = document["cleanup"]
+
     if type(cleanup) is not list:
         raise TypeError(
             f"Unexpected {type(cleanup)=}; "
             "Interpreter child cleanup obligations must be a list of graph references"
         )
+
     if len(cleanup) > _ERROR_NODES or any(index is None for index in cleanup):
         raise ValueError("Interpreter child cleanup obligations are malformed")
+
     return ExchangeFailed(
         message, primary=error(document["primary"]), cleanup_failures=[error(index) for index in cleanup],
         interruption=error(document["interruption"]), response_head=head, proxy_connect_status=proxy_status,
@@ -339,17 +414,22 @@ def read_reply(document, *, maximum_bytes, error_maximum_bytes):
             f"Unexpected {type(document)=}; "
             "Interpreter child reply must be a JSON object"
         )
+
     if type(document.get("version")) is not int:
         raise TypeError(
             f"Unexpected {type(document.get('version'))=}; "
             "Interpreter child reply has an unknown schema"
         )
+
     if document["version"] != 1:
         raise ValueError("Interpreter child reply has an unknown schema")
+
     if document.get("kind") == "failure":
         return _read_failure(document)
+
     if document.get("kind") != "response":
         raise ValueError("Interpreter child reply has an unknown outcome")
+
     status = _status(document["status"])
     body = decoded_bytes(document["body"], maximum_bytes if status == 200 else error_maximum_bytes)
     return HttpResponse(status, _read_headers(document["headers"]), body)

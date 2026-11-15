@@ -17,6 +17,7 @@ class ReportingSession(Session):
 
     async def report(self, phase, report_condition):
         self.reporters[phase] = report_condition
+
         for condition in self.conditions[phase]:
             await report_condition(condition)
 
@@ -54,24 +55,33 @@ class ConditionTransport(Transport):
     async def exchange(self, request, *, maximum_bytes, owner=None):
         if not self.retirement_confirmed:
             self.pending_owner = owner
+
         self.calls.append((request, maximum_bytes))
         self.in_flight += 1
         self.maximum_in_flight = max(self.maximum_in_flight, self.in_flight)
+
         try:
             if request.method == "PUT":
                 command = json.loads(request.content)
+
                 if command["condition_code"] == self.block_condition:
                     self.blocked.set()
                     await self.release.wait()
+
                     if self.failure is not None:
                         raise self.failure
+
                 return reply(progress_response(phase=command["phase"], condition_code=command["condition_code"]))
+
             if request.url.path.endswith("/input"):
                 return reply(response())
+
             self.reads += 1
+
             if self.reads == self.block_read:
                 self.read_blocked.set()
                 await self.release_read.wait()
+
             return reply(observation())
         finally:
             self.in_flight -= 1

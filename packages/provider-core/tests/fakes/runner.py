@@ -68,11 +68,13 @@ class RunningSupervisor:
         self.path = self.endpoint / "runner.sock"
         # silent-defaults: allow-contract -- This fixture's explicit None selects owner-session lifetime; numeric budgets select the finite CLI.
         lifetime = ["--owner-session-lifetime"] if operation_seconds is None else ["--operation-seconds", str(operation_seconds)]
+
         # silent-defaults: allow-contract -- Absent synthetic worker argv selects this fixture worker; nonempty argv injects an explicit fault.
         self.command = [sys.executable, "-m", "provider_core.runner", "--role", self.role, "--socket", str(self.path),
              "--scratch", str(self.scratch), "--status-directory", str(self.status), *lifetime,
              "--startup-seconds", "1", "--terminate-seconds", "0.1", "--kill-seconds", "1", "--cleanup-seconds", "1",
              "--", *(worker_argv or [sys.executable, "-c", WORKER])]
+
         self._start()
 
     def _start(self):
@@ -80,11 +82,14 @@ class RunningSupervisor:
             self.command,
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
         )
+
         deadline = time.monotonic() + 5
+
         while not self.path.exists():
             if self.process.poll() is not None or time.monotonic() > deadline:
                 self.close()
                 raise RuntimeError("Disposable supervisor did not open its endpoint")
+
             time.sleep(0.01)
 
     def restart_with_fresh_scratch(self):
@@ -103,9 +108,12 @@ class RunningSupervisor:
     def close(self):
         if self._closed:
             return
+
         self._closed = True
+
         if self.process.poll() is None:
             self.process.terminate()
+
         try:
             _, self.diagnostic = self.process.communicate(timeout=3)
         except subprocess.TimeoutExpired:
@@ -121,9 +129,13 @@ def worker_pid(channel, command=b"S"):
     channel.settimeout(2)
     channel.sendall(command)
     reply = bytearray()
+
     while not reply.endswith(b"\n"):
         part = channel.recv(1)
+
         if not part:
             raise RuntimeError("Scientific child closed before reporting its process identity")
+
         reply.extend(part)
+
     return int(reply)

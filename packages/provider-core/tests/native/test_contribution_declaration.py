@@ -8,6 +8,7 @@ from dataclasses import dataclass, replace
 from provider_core.contribution import CallRef, ConfiguredIdentity, description_document
 import provider_core.contribution_declaration as declaration
 from tests.fakes.dummy_provider import science
+
 from tests.fakes.dummy_provider.binding import (
     sum_binding,
     weighted_sum_binding,
@@ -25,6 +26,7 @@ class ContributionDeclarationTests(unittest.TestCase):
             scale=2,
             offset=1,
         )
+
         coefficients = science.CoefficientSet(
             values=(1, 2, 3),
         )
@@ -33,10 +35,12 @@ class ContributionDeclarationTests(unittest.TestCase):
             settings=settings,
             coefficients=coefficients,
         )
+
         configuration = declaration.json_configuration(
             settings,
             format_id="dummy.settings.v1",
         )
+
         coefficient_asset = declaration.json_asset(
             coefficients,
             name="coefficients",
@@ -46,6 +50,7 @@ class ContributionDeclarationTests(unittest.TestCase):
 
         self.assertEqual(configuration, binding.description.configuration)
         self.assertEqual(frozenset({coefficient_asset}), binding.description.assets)
+
         self.assertEqual(
             ConfiguredIdentity(
                 binding_id="dummy.weighted-sum",
@@ -61,6 +66,7 @@ class ContributionDeclarationTests(unittest.TestCase):
         binding = sum_binding()
 
         self.assertIsNone(binding.description.configuration)
+
         self.assertEqual(
             ConfiguredIdentity(
                 binding_id="dummy.sum",
@@ -80,6 +86,7 @@ class ContributionDeclarationTests(unittest.TestCase):
             ),
             format_id="dummy.settings.v1",
         )
+
         second = declaration.json_configuration(
             science.WeightedSumSettings(
                 scale=2,
@@ -133,12 +140,14 @@ class ContributionDeclarationTests(unittest.TestCase):
             science.WeightedSumSettings(scale=2, offset=1),
             format_id="dummy.settings.v1",
         )
+
         asset = declaration.json_asset(
             science.CoefficientSet(values=(1, 2, 3)),
             name="coefficients",
             format_id="dummy.coefficients.v1",
             media_type="application/json",
         )
+
         identity = ConfiguredIdentity(
             binding_id="dummy.weighted-sum",
             implementation="dummy.weighted-sum.v2",
@@ -146,6 +155,7 @@ class ContributionDeclarationTests(unittest.TestCase):
             configuration=configuration,
             assets=frozenset({asset}),
         )
+
         variants = {
             "configuration format": replace(
                 identity,
@@ -160,13 +170,16 @@ class ContributionDeclarationTests(unittest.TestCase):
             ),
             "contract version": replace(identity, contract_version=2),
         }
+
         for label, changed in variants.items():
             with self.subTest(changed=label):
                 self.assertNotEqual(identity.revision, changed.revision)
+
         self.assertRegex(identity.revision, r"\Aconfigured-v2:sha256:[0-9a-f]{64}\Z")
         self.assertRegex(configuration.digest, r"\Asha256:[0-9a-f]{64}\Z")
         self.assertRegex(asset.digest, r"\Asha256:[0-9a-f]{64}\Z")
         self.assertEqual(configuration.digest, variants["configuration format"].configuration.digest)
+
         for label in ("asset name", "asset media type", "asset byte count"):
             changed_asset, = variants[label].assets
             self.assertEqual(asset.digest, changed_asset.digest)
@@ -178,23 +191,28 @@ class ContributionDeclarationTests(unittest.TestCase):
             format_id="test.asset.v1",
             media_type="application/json",
         )
+
         other_asset = replace(asset, name="alpha")
         binding = sum_binding()
         first = replace(binding.identity, assets=frozenset({asset, other_asset}))
         second = replace(binding.identity, assets=frozenset([other_asset, asset]))
         self.assertEqual(first=first.revision, second=second.revision)
         call, = binding.description.calls
+
         description = replace(
             binding.description,
             binding_revision=first.revision,
             assets=first.assets,
             calls=frozenset({replace(call, name="zeta"), replace(call, name="alpha")}),
         )
+
         document = description_document(description=description)
         self.assertEqual(first=["alpha", "zeta"], second=[item["name"] for item in document["assets"]])
         self.assertEqual(first=["alpha", "zeta"], second=[item["name"] for item in document["calls"]])
+
         with self.assertRaises(expected_exception=ValueError):
             replace(first, assets=frozenset({asset, replace(asset, size_bytes=asset.size_bytes + 1)}))
+
         with self.assertRaises(expected_exception=ValueError):
             replace(description, calls=frozenset({call, replace(call, progress=not call.progress)}))
 

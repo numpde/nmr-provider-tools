@@ -19,6 +19,7 @@ class TerminalQueueTests(unittest.TestCase):
     def test_maximum_completion_and_failure_requests_survive_queue_reopen_exactly(self):
         text = "\U0001f600" * 1024
         result = b"x" * 786432
+
         for operation in (TerminalOperation.COMPLETE, TerminalOperation.FAIL):
             if operation is TerminalOperation.COMPLETE:
                 body = complete_body(ATTEMPT_REF, text, result)
@@ -28,16 +29,21 @@ class TerminalQueueTests(unittest.TestCase):
                 body = fail_body(ATTEMPT_REF, "input_rejected", text)
                 body += b" " * (16384 - len(body))
                 self.assertEqual(len(body), 16384)
+
             item = DeliveryOutcome(scope().api_origin, scope().provider_ref, "job:example", ATTEMPT_REF, operation, body)
+
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 queue = DeliveryQueue(root, limits=QueueLimits(1, 2097152, 1, 2097152))
+
                 try:
                     accepted = queue.enqueue(item)
                     self.assertEqual(accepted, item.acceptance())
                 finally:
                     queue.close()
+
                 queue = DeliveryQueue(root, limits=QueueLimits(1, 2097152, 1, 2097152))
+
                 try:
                     self.assertEqual(queue.next_pending(item.api_origin, item.provider_ref), item)
                     self.assertEqual(queue.enqueue(item), accepted)

@@ -16,7 +16,9 @@ def run():
     def held_reply(stream, document):
         if document["kind"] != "response":
             raise AssertionError("The reply fault requires a successful real HTTP exchange")
+
         frame = framed(message_bytes(document))
+
         if mode == "header":
             count = 2
         elif mode == "payload":
@@ -25,11 +27,15 @@ def run():
             count = len(frame)
         else:
             raise AssertionError("Unknown child reply fault")
+
         stream.write(frame[:count])
         stream.flush()
+
         if mode == "exit":
             stream.close()
+
         Path(marker).write_text(json.dumps({"written": count, "length": len(frame)}))
+
         # The parent must reject partial bytes or an unretired complete reply.
         # This synchronous fault cannot finish through asyncio cancellation.
         while True:

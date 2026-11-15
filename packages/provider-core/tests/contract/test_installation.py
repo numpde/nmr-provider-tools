@@ -16,11 +16,13 @@ class InstallationContractTests(unittest.TestCase):
             path = Path(directory) / "binding.toml"
             path.write_text('["PRIVATE_BINDING_KEY_CANARY"]\nx=1\n["PRIVATE_BINDING_KEY_CANARY"]\nx=2\n')
             path.chmod(0o600)
+
             result = subprocess.run(
                 [sys.executable, "-I", "-B", "-m", "provider_core.deployment_binding", "paths",
                  "--definition", str(path), "--all"],
                 capture_output=True, text=True, check=False,
             )
+
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertEqual("", result.stdout)
         self.assertNotIn("PRIVATE_BINDING_KEY_CANARY", result.stderr)
@@ -32,6 +34,7 @@ class InstallationContractTests(unittest.TestCase):
             [sys.executable, "-I", "-B", str(Path(__file__).with_name("client_only.py"))],
             capture_output=True, text=True, check=False,
         )
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
 
     def test_runtime_dependencies_load_and_perform_native_signing(self):
@@ -50,11 +53,13 @@ class InstallationContractTests(unittest.TestCase):
             text=True,
             check=False,
         )
+
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_runtime_wheel_contains_only_the_declared_core(self):
         distribution = importlib.metadata.distribution("provider-core")
         payload = {str(path) for path in distribution.files if ".dist-info/" not in str(path)}
+
         self.assertEqual(
             payload,
             {
@@ -140,6 +145,7 @@ class InstallationContractTests(unittest.TestCase):
                 "provider_core/upload_file.py",
             },
         )
+
         self.assertEqual(
             set(distribution.requires), {f'{requirement}; extra == "api"' for requirement in (
                 "cryptography==50.0.0", "http-sf==1.2.1", "httpx==0.28.1", "httpcore==1.0.9", "h11==0.16.0", "tomli-w==1.2.0",
@@ -164,12 +170,14 @@ class InstallationContractTests(unittest.TestCase):
             text=True,
             check=False,
         )
+
         self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_missing_container_marker_rejects_operational_import(self):
         environment = dict(os.environ)
         # silent-defaults: allow-pop-default -- Remove the inherited marker only to prove the missing-marker refusal.
         environment.pop("PROVIDER_CORE_IN_CONTAINER", None)
+
         for module in ("job_input", "chat", "chat_process", "chat_tls", "chat_wire", "chat_worker", "conversation", "credential", "hello", "failure_projection", "runner", "runner_protocol", "runner_session", "process_status"):
             with self.subTest(module=module):
                 result = subprocess.run(
@@ -179,6 +187,7 @@ class InstallationContractTests(unittest.TestCase):
                     text=True,
                     check=False,
                 )
+
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn("contained launcher", result.stderr)
 
@@ -187,9 +196,12 @@ class InstallationContractTests(unittest.TestCase):
             root = Path(directory)
             tests = root / "tests"
             (tests / "unit").mkdir(parents=True)
+
             for path in (tests / "__init__.py", tests / "unit/__init__.py"):
                 path.write_text("")
+
             shutil.copyfile(Path(__file__).parents[1] / "run_suite.py", tests / "run_suite.py")
+
             result = subprocess.run(
                 [sys.executable, "-I", "-B", str(tests / "run_suite.py"), "unit", "test*.py"],
                 cwd=root,
@@ -197,5 +209,6 @@ class InstallationContractTests(unittest.TestCase):
                 text=True,
                 check=False,
             )
+
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("contains no tests", result.stderr)

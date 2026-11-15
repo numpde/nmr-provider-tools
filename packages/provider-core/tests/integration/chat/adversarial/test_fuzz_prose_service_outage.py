@@ -22,20 +22,25 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertLessEqual(result["peak_claims"], result["maximum_attempts"], msg=evidence)
         self.assertLessEqual(result["peak_prose_connections"], result["maximum_attempts"], msg=evidence)
         self.assertTrue(unavailable_requests, msg=evidence)
+
         self.assertTrue(
             post_restoration,
             msg="No Job remained for the SDK driver to start after restoration; "
                 "the test cannot establish recovery from an empty backlog: " + evidence,
         )
+
         self.assertTrue(
             successful,
             msg="Jobs started after service restoration but none completed successfully "
                 "(check per-Job deadline, peer availability and diagnostic causes): " + evidence,
         )
+
         first_success = min(successful, key=lambda job: job["finished_at"])
         self.assertGreaterEqual(first_success["finished_at"], result["restored_at"], msg=evidence)
+
         self.assertLessEqual(result["publication_times"][first_success["attempt_ref"]] - result["restored_at"],
                              result["recovery_seconds"], msg=evidence)
+
         self.assertLessEqual(len(unavailable_requests), result["request_ceiling"],
                              msg="The unavailable prose service received more requests than the fixed policy permits: " + evidence)
 
@@ -47,10 +52,13 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertLess(release["at"], healthy["at"], msg=evidence)
         self.assertLess(healthy["at"], result["restored_at"], msg=evidence)
         self.assertTrue(result["original_report_bytes_sent_once"], msg=evidence)
+
         self.assertEqual(result["original_report_acceptance"]["execution_attempt_ref"],
                          result["original_report_receipt"]["execution_attempt_ref"], msg=evidence)
+
         self.assertEqual("analysis_result:sha256:" + result["original_report_sha256"],
                          result["original_report_receipt"]["analysis_result_ref"], msg=evidence)
+
         self.assertTrue(result["all_report_bytes_preserved"], msg=evidence)
         self.assertEqual(len(jobs), result["submitted_reports"], msg=evidence)
         self.assertEqual(len(jobs), result["published_reports"], msg=evidence)
@@ -71,15 +79,21 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(result["provider_pid"], after["pid"], msg=evidence)
         self.assertEqual(1, after["model_loads"], msg=evidence)
         executed = sum(not job["failed"] for job in jobs)
+
         self.assertEqual((executed, executed, len(jobs)),
                          (after["preparations"], after["executions"], after["retirements"]), msg=evidence)
+
         for job in jobs:
             science_count = 1
+
             if job["failed"]:
                 science_count = 0
+
             self.assertEqual((1, 1, science_count, science_count),
                              (job["starts"], job["prepare_calls"], job["scientific_prepare_calls"], job["execute_calls"]), msg=evidence)
+
             self.assertTrue(job["shutdown_ready"], msg=evidence)
+
             if job["failed"]:
                 self.assertIsNotNone(job["diagnostic"], msg=evidence)
                 self.assertNotIn("B4_TEST_CREDENTIAL", json.dumps(job["diagnostic"]), msg=evidence)
@@ -90,6 +104,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
                 result = await run_outage(Path(directory) / "outbox", mode="retry_after", backlog=backlog, seed=17)
                 self.assert_outage_recovered(result)
                 evidence = json.dumps(result, sort_keys=True)
+
                 # The peer seeing a request does not establish that the client
                 # received its complete 503 and Retry-After. In particular, an
                 # exchange that times out before the HTTP response is available
@@ -98,11 +113,14 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
                 for observation in result["retry_observations"]:
                     if observation["status"] != 503:
                         continue
+
                     self.assertEqual(observation["retry_after"], ["1"], msg=evidence)
+
                     following = next(
                         (request for request in result["requests"]
                          if request["at"] > observation["at"]), None
                     )
+
                     if following is not None:
                         self.assertGreaterEqual(following["at"] - observation["at"], 1, msg=evidence)
 
@@ -111,6 +129,7 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(mode=mode, seed=seed), tempfile.TemporaryDirectory() as directory:
                 result = await run_outage(Path(directory) / "outbox", mode=mode, backlog=12, seed=seed)
                 self.assert_outage_recovered(result)
+
                 if mode == "blocked":
                     diagnostics = json.dumps([job["diagnostic"] for job in result["jobs"] if job["failed"]])
                     self.assertIn('"exception_type": "TimeoutError"', diagnostics)

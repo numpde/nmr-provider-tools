@@ -39,12 +39,14 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
 
         def notice(error, facts):
             self.notices.append((error, facts))
+
             if facts["event"] == stop_on:
                 worker.request_stop()
 
         worker = DeliveryWorker(
             self.inbox, endpoint, client, retry_initial_seconds=0.01, retry_max_seconds=0.02, on_notice=notice
         )
+
         return worker
 
     async def test_matching_signed_api_receipt_removes_payload_without_a_completed_archive(self):
@@ -72,8 +74,10 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             worker = self.worker(peer)
             await asyncio.wait_for(worker.run(), 2)
             self.assertEqual(peer.request_bodies, [item.body, item.body])
+
             for request in peer.requests:
                 verify_signed_request(request, item.body, origin=peer.origin, key=worker.api.identity.private_key)
+
             signatures = [request.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request in peer.requests]
             self.assertNotEqual(signatures[0], signatures[1])
             self.assertEqual([facts["event"] for _, facts in self.notices], ["delivery_retry", "delivery_published"])
@@ -85,12 +89,15 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
                 peer.response_status = 429
                 peer.response_headers = ((b"content-type", b"text/html"),)
                 return b"rate limited"
+
             if len(peer.requests) == 2:
                 peer.response_status = 401
                 peer.response_headers = response_headers(status=401, request_id=b"request:test")
                 return signature_window_problem(code="authentication_failed")
+
             peer.response_status = 200
             peer.response_headers = response_headers()
+
             return fail_response(execution_attempt_ref=outcome().execution_attempt_ref,
                                  failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
 
@@ -100,8 +107,10 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             worker = self.worker(peer)
             await asyncio.wait_for(worker.run(), 2)
             self.assertEqual(peer.request_bodies, [item.body] * 3)
+
             for request in peer.requests:
                 verify_signed_request(request, item.body, origin=peer.origin, key=worker.api.identity.private_key)
+
             signatures = [request.split(b"Signature-Input: ")[1].split(b"\r\n")[0] for request in peer.requests]
             self.assertEqual(len(set(signatures)), 3)
             self.assertEqual([error.status for error, facts in self.notices if facts["event"] == "delivery_retry"], [429, 401])
@@ -110,6 +119,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_retry_after_above_backoff_cap_preserves_other_binding_progress_and_prompt_stop(self):
         retry_seen = asyncio.Event()
+
         async with api_tls_peer("success", response_status=429, response_body=b"rate limited",
                                 response_headers=((b"content-type", b"text/html"), (b"retry-after", b"120"))) as limited:
             async with api_tls_peer("success", response_body=fail_response(
@@ -124,11 +134,13 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
 
                 def notice(error, facts):
                     original_notice(error, facts)
+
                     if facts["event"] == "delivery_retry":
                         retry_seen.set()
 
                 worker.on_notice = notice
                 original = asyncio.create_task(worker.run())
+
                 try:
                     await asyncio.wait_for(retry_seen.wait(), 1)
                     self.assertGreater(self.notices[0][1]["retry_seconds"], 120)
@@ -140,11 +152,13 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
                 finally:
                     worker.request_stop()
                     await asyncio.wait_for(original, 1)
+
                 self.assertFalse(worker.paused)
                 self.assertEqual(self.queue.next_pending(first.api_origin, first.provider_ref), first)
 
     async def test_unmatched_receipt_holds_one_item_and_next_item_can_publish(self):
         second = outcome(suffix="1")
+
         async with api_tls_peer("success", response_bodies=[fail_response(failure_message="WRONG_RECEIPT"), fail_response(
             execution_attempt_ref=second.execution_attempt_ref,
             failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
@@ -180,6 +194,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
         # silent-defaults: allow-contract -- Change only the topology header to exercise the wrong-environment refusal.
         headers = [(name, b"web" if name.lower() == b"nmr-api-topology" else value)
                    for name, value in response_headers()]
+
         async with api_tls_peer("success", response_headers=headers) as peer:
             first, second = replace(outcome(), api_origin=peer.origin), replace(outcome(suffix="1"), api_origin=peer.origin)
             self.queue.enqueue(first)
@@ -196,6 +211,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
 
         async def delayed_response(request, body):
             await release.wait()
+
             return fail_response(execution_attempt_ref=outcome().execution_attempt_ref,
                                  failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
 
@@ -209,6 +225,7 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
                 self.queue.enqueue(second)
                 slow_worker = self.worker(slow)
                 original = asyncio.create_task(slow_worker.run())
+
                 try:
                     await asyncio.wait_for(slow.received.wait(), 1)
                     await asyncio.wait_for(self.worker(healthy).run(), 1)
@@ -227,8 +244,10 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             original = asyncio.create_task(worker.run())
             await asyncio.wait_for(peer.received.wait(), 1)
             original.cancel()
+
             with self.assertRaises(asyncio.CancelledError):
                 await original
+
             self.assertEqual(peer.request_bodies, [item.body])
             self.assertEqual(self.queue.next_pending(item.api_origin, item.provider_ref), item)
             self.assertTrue(worker.api.retirement_confirmed)
@@ -244,9 +263,11 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.queue.enqueue(item)
             worker = self.worker(peer)
             failure = DeliveryStorageFailed("Synthetic storage write refusal.")
+
             with patch.object(self.queue, "remove_published", side_effect=failure):
                 with self.assertRaises(DeliveryWorkerFailed) as stopped:
                     await asyncio.wait_for(worker.run(), 2)
+
             self.assertIs(stopped.exception.cause, failure)
             self.assertTrue(owned_details(stopped.exception)["api_receipt_received"])
             self.assertEqual(peer.request_bodies, [item.body])
@@ -261,9 +282,11 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
             self.queue.enqueue(item)
             worker = self.worker(peer, stop_on="delivery_worker_failed")
             failure = DeliveryStorageFailed("Synthetic next-item read refusal.")
+
             with patch.object(self.queue, "next_pending", side_effect=[item, failure]):
                 with self.assertRaises(DeliveryWorkerFailed) as stopped:
                     await asyncio.wait_for(worker.run(), 2)
+
             self.assertIs(stopped.exception.cause, failure)
             self.assertFalse(owned_details(stopped.exception)["api_receipt_received"])
             self.assertEqual(peer.request_bodies, [item.body])
@@ -285,8 +308,10 @@ class DeliveryWorkerTests(unittest.IsolatedAsyncioTestCase):
                 original = asyncio.create_task(worker.run())
                 await asyncio.wait_for(entered.wait(), 1)
                 original.cancel()
+
                 with self.assertRaises(asyncio.CancelledError) as cancelled:
                     await original
+
             self.assertIs(cancelled.exception.__cause__, worker.failure)
             self.assertIsInstance(worker.failure.cleanup_failures[0], asyncio.CancelledError)
             self.assertEqual(peer.requests, [])

@@ -19,6 +19,7 @@ from pathlib import Path
 from .sources import REPOSITORY_ROOT
 
 PYTHON_CACHE_ROOTS = ("host", "tools", "tests")
+
 PYTHON_TOOL_CACHE_DIRS = (
     ".pytest_cache",
     ".mypy_cache",
@@ -28,18 +29,23 @@ PYTHON_TOOL_CACHE_DIRS = (
 
 def _python_cache_artifacts() -> list[str]:
     artifacts: list[Path] = []
+
     for cache_name in PYTHON_TOOL_CACHE_DIRS:
         cache_path = REPOSITORY_ROOT / cache_name
+
         if cache_path.exists():
             artifacts.append(cache_path)
 
     for root_name in (*PYTHON_CACHE_ROOTS, "src", "packages"):
         root = REPOSITORY_ROOT / root_name
+
         if not root.exists():
             continue
+
         artifacts.extend(root.rglob("__pycache__"))
         artifacts.extend(root.rglob("*.pyc"))
         artifacts.extend(root.rglob("*.pyo"))
+
         for cache_name in PYTHON_TOOL_CACHE_DIRS:
             artifacts.extend(root.rglob(cache_name))
 

@@ -60,6 +60,7 @@ def require_job_ref(value):
             f"Unexpected {type(value)=}; "
             "Job reference must be job: followed by 1 through 124 letters, digits, underscores, dots or hyphens"
         )
+
     if re.fullmatch(r"job:[A-Za-z0-9_.-]{1,124}", value) is None:
         raise ValueError("Job reference must be job: followed by 1 through 124 letters, digits, underscores, dots or hyphens")
 
@@ -77,11 +78,15 @@ def _fields(document, names):
 def _byte_facts(document, *, pending_allowed):
     require_upload_ref(document["upload_ref"])
     length = document["byte_length"]
+
     if type(length) is not int or not 1 <= length <= 9223372036854775807:
         raise ResponseRejected("Upload byte_length must be a positive signed 64-bit integer")
+
     fingerprint = document["content_hash"]
+
     if pending_allowed and fingerprint is None:
         return
+
     if type(fingerprint) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint) is None:
         raise ResponseRejected("Upload content_hash must be a lowercase SHA-256 fingerprint")
 
@@ -89,6 +94,7 @@ def _byte_facts(document, *, pending_allowed):
 def _grant_target_and_token(url, token):
     if type(url) is not str or not url.startswith("https://") or len(url) > 359:
         raise ResponseRejected("Grant download_url must be an HTTPS URL of at most 359 characters")
+
     if type(token) is not str or not 1 <= len(token) <= 2048:
         raise ResponseRejected("Grant capability must contain 1 through 2048 characters")
 
@@ -96,11 +102,15 @@ def _grant_target_and_token(url, token):
 def require_read_grant(grant, *, job_ref):
     """Admit a caller-supplied grant's facts without claiming API issuance."""
     require_job_ref(job_ref)
+
     if type(grant) is not ReadGrant or grant.job_ref != job_ref:
         raise ResponseRejected("Read grant must belong to the selected Job")
+
     _byte_facts({"upload_ref": grant.upload_ref, "byte_length": grant.byte_length,
                  "content_hash": grant.content_hash}, pending_allowed=False)
+
     _grant_target_and_token(grant.download_url, grant.capability)
+
     if type(grant.expires_at) is not datetime or grant.expires_at.tzinfo is None or grant.expires_at.utcoffset() != timedelta(0):
         raise ResponseRejected("Read grant expiry must be a UTC datetime")
 
@@ -109,25 +119,34 @@ def read_membership(raw, *, job_ref):
     """Preserve ordered descriptions and pending hashes after exact Job binding."""
     document = read_document(raw, MEMBERSHIP_RESPONSE_BYTES)
     _fields(document, {"schema_id", "job_ref", "uploads"})
+
     if document["schema_id"] != "nmr.provider.job_upload_set.read.response.v1" or document["job_ref"] != job_ref:
         raise ResponseRejected("Membership response schema or Job identity differs from the request")
+
     members = document["uploads"]
+
     if type(members) is not list or len(members) > 64:
         raise ResponseRejected("Membership must contain an array of at most 64 Uploads")
+
     admitted = []
+
     for member in members:
         _fields(member, {"upload_ref", "description", "byte_length", "content_hash"})
         _byte_facts(member, pending_allowed=True)
         description = member["description"]
+
         if (
             type(description) is not str
             or len(description) > 4096
             or any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in description)
         ):
             raise ResponseRejected("Upload description must contain at most 4096 Unicode scalar values without NUL")
+
         if admitted and member["upload_ref"] <= admitted[-1].upload_ref:
             raise ResponseRejected("Membership must contain unique Upload references in ascending order")
+
         admitted.append(UploadMember(member["upload_ref"], description, member["byte_length"], member["content_hash"]))
+
     return UploadSet(job_ref, tuple(admitted))
 
 
@@ -138,6 +157,7 @@ def _expiry(value):
         or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.(?!000000)[0-9]{6})?Z", value) is None
     ):
         raise ResponseRejected("Grant expiry must be canonical UTC seconds or six nonzero fractional digits")
+
     try:
         return datetime.fromisoformat(value)
     except ValueError:
@@ -147,17 +167,22 @@ def _expiry(value):
 def read_grant(raw, *, job_ref, upload_ref):
     """Bind the returned resource; access scope and byte verification follow later."""
     document = read_document(raw, GRANT_RESPONSE_BYTES)
+
     _fields(
         document, {"schema_id", "upload_ref", "method", "download_url", "byte_length", "content_hash", "capability", "expires_at"}
     )
+
     if document["schema_id"] != "nmr.upload.read_capability.response.v1" or document["upload_ref"] != upload_ref:
         raise ResponseRejected("Grant response schema or Upload identity differs from the request")
+
     if document["method"] != "GET":
         raise ResponseRejected("Download grant must authorize GET")
+
     _byte_facts(document, pending_allowed=False)
     url = document["download_url"]
     token = document["capability"]
     _grant_target_and_token(url, token)
+
     return ReadGrant(
         job_ref, upload_ref, document["byte_length"], document["content_hash"], url, token, _expiry(document["expires_at"])
     )

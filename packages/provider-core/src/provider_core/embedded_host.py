@@ -86,6 +86,7 @@ class InProcessExecutionHost:
         ):
             if type(value) is not int:
                 raise TypeError(f"Unexpected {type(value)=}; {name=} requires an integer")
+
             if not (0 < value):
                 raise ValueError(f"Expected a positive capacity for {name=}; received {value=}")
 
@@ -95,6 +96,7 @@ class InProcessExecutionHost:
         ):
             if type(value) not in (int, float):
                 raise TypeError(f"Unexpected {type(value)=}; {name=} requires a number of seconds")
+
             positive_seconds(value=value)
 
         if not (
@@ -102,10 +104,13 @@ class InProcessExecutionHost:
             and all(type(item) is Allocation for item in allocations)
         ):
             raise TypeError(f"Unexpected {type(allocations)=}; supply a tuple of Allocation records")
+
         if len({item.name for item in allocations}) != len(allocations):
             raise ValueError("Allocation names must be unique within a host.")
+
         if any(not isinstance(item.binding, ImplementationBinding) for item in allocations):
             raise TypeError("Object contributions must be handed over with host.adopt")
+
         self.loop = asyncio.get_running_loop()
         self.identity = uuid4().hex
         self.input_bytes = input_bytes
@@ -140,6 +145,7 @@ class InProcessExecutionHost:
         Cancellation is deferred while SDK cleanup is pending, not used to force
         scientific threads to stop. Failure does not claim all resources retired.
         """
+
         try:
             await settle_cleanup(control=self.retire())
         except BaseException as cleanup:
@@ -159,8 +165,10 @@ class InProcessExecutionHost:
         the receiver before initialization and permanently forbids re-adoption.
         """
         self._require_loop()
+
         if self.retiring or self.allocations_fixed:
             raise CapacityUnavailable("Adopt contributions before opening analyses or retiring the host.")
+
         allocation_name = uuid4().hex
 
         hosted = HostedContribution(
@@ -170,14 +178,17 @@ class InProcessExecutionHost:
 
         _require_supported_binding(hosted)
         custody = contribution._custody
+
         with custody.lock:
             if custody.owner is not None:
                 raise ValueError(f"Cannot adopt this contribution again; {custody.owner=} already owns its lifetime")
+
             resident = _Resident(host_identity=self.identity, name=allocation_name, binding=hosted, assets=assets)
             resident.value = contribution
             resident.constructed = True
             self.residents[allocation_name] = resident
             custody.owner = resident.reference
+
         return hosted
 
     @property
@@ -199,22 +210,30 @@ class InProcessExecutionHost:
         Handle-based callers retain the returned analysis instead of naming it.
         """
         self._require_loop()
+
         if allocations is not None:
             if analysis_id is not None or allocation_names is not None:
                 raise TypeError("Choose allocation handles or the legacy named analysis arguments")
+
             if type(allocations) is not frozenset or any(type(item) is not AllocationRef for item in allocations):
                 raise TypeError(f"Unexpected {type(allocations)=}; supply a frozenset containing allocation handles")
+
             for reference in allocations:
                 resident = self.residents.get(reference.allocation)
+
                 if resident is None or resident.reference != reference:
                     raise ValueError("The allocation handle does not belong to this host")
+
             names = [reference.allocation for reference in allocations]
             allocation_names = tuple(names)
             analysis_id = uuid4().hex
+
         if self.retiring:
             raise CapacityUnavailable("The host is retiring and refuses new analyses.")
+
         if type(analysis_id) is not str:
             raise TypeError(f"Unexpected {type(analysis_id)=}; an analysis identity must be a string")
+
         if type(allocation_names) is not tuple:
             raise TypeError(f"Unexpected {type(allocation_names)=}; supply an immutable tuple of allocation names")
 
@@ -224,8 +243,10 @@ class InProcessExecutionHost:
             and len(set(allocation_names)) == len(allocation_names)
         ):
             raise ValueError("An analysis needs a name and distinct explicit allocation names.")
+
         if analysis_id in self.analyses:
             raise RequestConflict("This analysis identity already has an owner.")
+
         if any(name not in self.residents for name in allocation_names):
             raise CapacityUnavailable("A requested allocation does not belong to this host.")
 
@@ -248,29 +269,38 @@ class InProcessExecutionHost:
 
         self.allocations_fixed = True
         self.analyses[analysis_id] = analysis_executor
+
         for resident in selected_residents:
             resident.analysis = analysis_executor
+
         return analysis_executor
 
     def retire_allocation(self, reference):
         """Pool administration retires one exact allocation and its current analysis."""
         self._require_loop()
+
         if type(reference) is not AllocationRef:
             raise TypeError(f"Unexpected {type(reference)=}; allocation retirement requires an AllocationRef")
+
         if reference.host != self.identity:
             raise ValueError("Allocation retirement requires this host's exact AllocationRef.")
+
         resident = self.residents.get(reference.allocation)
+
         if resident is None or resident.reference != reference:
             raise ValueError("Allocation reference does not name this host's current instance.")
+
         if resident.retirement is None:
             resident.retirement = _Cleanup(self.retirement_seconds)
             resident.retirement.start(lambda: self._retire_resident(resident))
+
         return resident.retirement
 
     async def _retire_resident(self, resident):
         if resident.analysis is not None:
             analysis_cleanup = resident.analysis.close()
             await asyncio.shield(analysis_cleanup.task)
+
             if analysis_cleanup.failures:
                 raise BaseExceptionGroup(
                     "The allocation's analysis did not settle.",
@@ -297,6 +327,7 @@ class InProcessExecutionHost:
         retirement_seconds marks cleanup overdue but does not stop its thread.
         """
         self._require_loop()
+
         if self.retirement is None:
             self.retiring = True
             self.retirement = _Cleanup(self.retirement_seconds)
@@ -307,13 +338,16 @@ class InProcessExecutionHost:
             ]
 
             self.retirement.start(lambda: self._retire(retirements))
+
         return self.retirement
 
     async def _retire(self, retirements):
         failures = []
+
         for retirement in retirements:
             await asyncio.shield(retirement.task)
             failures.extend(failure.cause for failure in retirement.failures)
+
         if failures:
             raise BaseExceptionGroup("Some original resources remain unretired.", failures)
 
@@ -356,14 +390,19 @@ class InProcessAnalysisExecutor:
     def reservation(self, *, allocation: AllocationRef) -> ReservationRef:
         """Return this analysis's reservation for an exact allocation handle."""
         self.host._require_loop()
+
         if type(allocation) is not AllocationRef:
             raise TypeError(f"Unexpected {type(allocation)=}; supply an allocation handle")
+
         resident = self.host.residents.get(allocation.allocation)
+
         if resident is None or resident.reference != allocation:
             raise ValueError("The allocation handle does not belong to this host")
+
         for reservation in self.reservations:
             if reservation.allocation == allocation.allocation:
                 return reservation
+
         raise ValueError("This analysis did not reserve the supplied allocation")
 
     # Omitted start deadlines leave the execution policy's clocks in force.
@@ -385,6 +424,7 @@ class InProcessAnalysisExecutor:
         backend's event-loop clock and cannot be renewed by retrying the request.
         A returned handle means the request was admitted, not that it ran or succeeded.
         """
+
         if type(call) is not CallBinding:
             raise TypeError("Local call submission requires a bound CallBinding member")
 
@@ -419,14 +459,20 @@ class InProcessAnalysisExecutor:
         """
         self.host._require_loop()
         refusal = self._reservation_refusal(reservation=reservation)
+
         if refusal is not None:
             return refusal
+
         hosted = self.science[reservation.allocation].resident.binding
+
         if not isinstance(hosted, HostedContribution):
             raise TypeError(f"Unexpected {type(hosted)=}; method submission requires an adopted contribution")
+
         if getattr(method, "__self__", None) is not hosted.contribution:
             raise ValueError("Submit an exported bound method of the reserved contribution")
+
         call = hosted.call(method=method)
+
         if type(scientific_input) is NoInput and call.input_codec.value_type is not NoInput:
             raise TypeError(f"Unexpected {type(scientific_input)=}; {call.description.name=} requires {call.input_codec.value_type=}")
 
@@ -449,25 +495,32 @@ class InProcessAnalysisExecutor:
     def _submit(self, invocation, *, retain_identity):
         """Admit work and retain portable request identity for the open analysis."""
         self.host._require_loop()
+
         if type(invocation) is not Invocation:
             raise TypeError(f"Unexpected {type(invocation)=}; submit requires an Invocation")
 
         operation_key = (self.identity, invocation.operation_id)
+
         if self.closed:
             return NotAdmitted(AdmissionCode.CLOSED, "This analysis is closed to new calls.")
+
         existing_operation = self.operations.get(invocation.operation_id)
+
         if existing_operation is not None:
             if (
                 existing_operation.analysis is not self
                 or existing_operation.invocation != invocation
             ):
                 raise RequestConflict("This operation ID already identifies different work.")
+
             existing_operation.retain_identity |= retain_identity
             return existing_operation
 
         if operation_key in self.host.operations:
             raise RequestConflict("An earlier analysis still owns this operation identity.")
+
         admission_refusal = self._refusal(invocation)
+
         if admission_refusal is not None:
             return admission_refusal
 
@@ -482,6 +535,7 @@ class InProcessAnalysisExecutor:
         )
 
         state_owners = self._state_owners(invocation, selected_call)
+
         if isinstance(state_owners, NotAdmitted):
             return state_owners
 
@@ -515,8 +569,10 @@ class InProcessAnalysisExecutor:
         host.input_used += len(invocation.payload)
         host.result_reserved += invocation.policy.reject_encoded_result_over_bytes
         host.state_reserved += returned_state_count
+
         for owner in state_owners.values():
             owner.claim = operation.reference
+
         operation.start()
         return operation
 
@@ -533,9 +589,12 @@ class InProcessAnalysisExecutor:
     def _refusal(self, invocation):
         if self.closed:
             return NotAdmitted(AdmissionCode.CLOSED, "This analysis is closed to new calls.")
+
         refusal = self._reservation_refusal(reservation=invocation.reservation)
+
         if refusal is not None:
             return refusal
+
         reservation = invocation.reservation
 
         if (invocation.target.binding_id, invocation.target.binding_revision) != (
@@ -595,6 +654,7 @@ class InProcessAnalysisExecutor:
             )
 
         state_owners = {}
+
         for (name, reference) in state_arguments.items():
             owner = self.states.get(reference)
 
@@ -614,6 +674,7 @@ class InProcessAnalysisExecutor:
                 )
 
             state_owners[name] = owner
+
         return state_owners
 
 
@@ -626,6 +687,7 @@ class InProcessAnalysisExecutor:
         """
         self.host._require_loop()
         self.closed = True
+
         for operation in list(self.operations.values()):
             if not operation.finished:
                 operation.request_stop()
@@ -639,6 +701,7 @@ class InProcessAnalysisExecutor:
         timer only reports overdue status; it does not cancel that cleanup.
         """
         self.host._require_loop()
+
         if self.cleanup is None:
             self.request_stop()
 
@@ -649,16 +712,19 @@ class InProcessAnalysisExecutor:
 
             self.cleanup = _Cleanup(cleanup_overdue_flag_seconds)
             self.cleanup.start(self._close)
+
         return self.cleanup
 
     async def _close(self):
         for operation in list(self.operations.values()):
             await await_original(operation.original, deadline=None)
             await operation.completion.wait()
+
             if operation.release is not None:
                 await asyncio.shield(operation.release.task)
 
         cleanup_failures = []
+
         for (allocation_name, scientific_analysis) in self.science.items():
             try:
                 disposal_future = scientific_analysis.resident.executor.submit(
@@ -672,22 +738,26 @@ class InProcessAnalysisExecutor:
                 cleanup_failures.append(cause)
             else:
                 scientific_analysis.resident.analysis = None
+
                 for operation in list(self.observed_operations):
                     if operation.invocation.reservation.allocation == allocation_name:
                         self.host.state_reserved -= operation.state_allowance
                         operation.state_allowance = 0
                         operation.resources = ResourceState.RELEASED
                         operation.changed()
+
                         if operation.result is None:
                             operation._release_capacity()
 
         if cleanup_failures:
             raise BaseExceptionGroup("Some scientific analyses still need cleanup.", cleanup_failures)
+
         # Portable request deduplication lasts only while this analysis is open.
         # Result handles keep their payloads; the host separately retains any
         # unreleased result or failed cleanup obligation.
         for operation in list(self.operations.values()):
             operation._forget_settled()
+
         self.operations.clear()
         self.observed_operations.clear()
         self.states.clear()
@@ -696,6 +766,7 @@ class InProcessAnalysisExecutor:
 
     def _dispose_science(self, allocation_name, scientific_analysis):
         cleanup_failures = []
+
         for operation in list(self.operations.values()):
             if operation.invocation.reservation.allocation == allocation_name:
                 try:
@@ -718,5 +789,6 @@ class InProcessAnalysisExecutor:
 
         if scientific_analysis.constructed:
             scientific_analysis.resident.binding.close_analysis(analysis=scientific_analysis.value)
+
         scientific_analysis.value = None
         scientific_analysis.ready = False

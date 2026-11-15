@@ -16,8 +16,10 @@ from provider_core.contribution_errors import ScientificRejection
 def _finite_float(value: object, *, label: str) -> float:
     if type(value) not in (int, float):
         raise TypeError(f"{label} must be a number")
+
     if not math.isfinite(value):
         raise ValueError(f"{label} must be a finite number")
+
     return float(value)
 
 
@@ -55,8 +57,10 @@ class CoefficientSet:
             self.values,
             label="coefficient values",
         )
+
         if not normalized_values:
             raise ValueError("coefficient values must not be empty")
+
         object.__setattr__(self, "values", normalized_values)
 
 
@@ -83,6 +87,7 @@ class PreparationResult:
     def __post_init__(self) -> None:
         if type(self.count) is not int:
             raise TypeError("count must be an integer")
+
         if not 0 < self.count:
             raise ValueError("count must be a positive integer")
 
@@ -94,8 +99,10 @@ class PredictionResult:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "total", _finite_float(self.total, label="prediction total"))
+
         if type(self.count) is not int:
             raise TypeError("count must be an integer")
+
         if not 0 < self.count:
             raise ValueError("count must be a positive integer")
 
@@ -107,8 +114,10 @@ class SumResult:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "total", _finite_float(self.total, label="sum total"))
+
         if type(self.count) is not int:
             raise TypeError("count must be an integer")
+
         if not 0 < self.count:
             raise ValueError("count must be a positive integer")
 
@@ -136,21 +145,26 @@ class PreparedValues:
 
     def __post_init__(self) -> None:
         normalized_values = _finite_values(self.values, label="prepared values")
+
         if not normalized_values:
             raise ValueError("prepared values must not be empty")
+
         self.values = normalized_values
 
     @property
     def value_count(self) -> int:
         if self.values is None:
             raise RuntimeError("The prepared values have already been consumed or disposed")
+
         return len(self.values)
 
     def consume(self, *, analysis: WeightedSumAnalysis) -> tuple[float, ...]:
         if self.analysis is not analysis:
             raise RuntimeError("The prepared values belong to another analysis")
+
         if analysis.accepted_preparation is not self:
             raise RuntimeError("The prepared values are not this analysis's accepted preparation")
+
         if self.values is None:
             raise RuntimeError("The prepared values have already been consumed or disposed")
 
@@ -162,6 +176,7 @@ class PreparedValues:
     def dispose(self) -> None:
         if self.analysis.accepted_preparation is self:
             self.analysis.accepted_preparation = None
+
         self.values = None
 
 
@@ -181,6 +196,7 @@ def create_model(
 def load_model(model: WeightedSumModel) -> None:
     if model.loaded_coefficients is not None:
         raise RuntimeError("The model coefficients are already loaded")
+
     model.loaded_coefficients = model.coefficients.values
 
 
@@ -195,8 +211,10 @@ def create_analysis(model: WeightedSumModel) -> WeightedSumAnalysis:
 def initialize_analysis(analysis: WeightedSumAnalysis) -> None:
     if analysis.is_open:
         raise RuntimeError("The analysis is already initialized")
+
     if analysis.model.loaded_coefficients is None:
         raise RuntimeError("Cannot initialize an analysis before loading model coefficients")
+
     analysis.is_open = True
 
 
@@ -205,15 +223,19 @@ def prepare(
     candidate: PreparationInput,
 ) -> PreparedValues:
     """Reject one candidate without discarding the analysis itself."""
+
     if type(candidate) is not PreparationInput:
         raise TypeError("Preparation requires PreparationInput")
+
     if not analysis.is_open:
         raise RuntimeError("Cannot prepare input for a closed analysis")
+
     if not candidate.values:
         raise ScientificInputRejected(
             "empty_input",
             "Preparation input must contain at least one value",
         )
+
     if analysis.accepted_preparation is not None:
         raise ScientificInputRejected(
             "already_prepared",
@@ -221,6 +243,7 @@ def prepare(
         )
 
     loaded_coefficients = analysis.model.loaded_coefficients
+
     if loaded_coefficients is None:
         raise RuntimeError("Cannot prepare input because model coefficients are not loaded")
 
@@ -244,10 +267,12 @@ def calculate(
 ) -> PredictionResult:
     if type(state) is not CalculationState:
         raise TypeError("Calculation requires CalculationState")
+
     if not analysis.is_open:
         raise RuntimeError("Cannot calculate for a closed analysis")
 
     loaded_coefficients = analysis.model.loaded_coefficients
+
     if loaded_coefficients is None:
         raise RuntimeError("Cannot calculate because model coefficients are not loaded")
 
@@ -263,6 +288,7 @@ def calculate(
             strict=True,
         )
     )
+
     prediction_total = analysis.model.settings.offset + analysis.model.settings.scale * weighted_sum
 
     if not math.isfinite(prediction_total):
@@ -274,6 +300,7 @@ def calculate(
 def sum_values(summation: SumInput) -> SumResult:
     if type(summation) is not SumInput:
         raise TypeError("Summation requires SumInput")
+
     if not summation.values:
         raise ScientificInputRejected(
             "empty_input",
@@ -281,6 +308,7 @@ def sum_values(summation: SumInput) -> SumResult:
         )
 
     total = math.fsum(summation.values)
+
     if not math.isfinite(total):
         raise ArithmeticError("The sum total is not finite")
 
@@ -294,6 +322,8 @@ def dispose_prepared(prepared: PreparedValues) -> None:
 
 def dispose_analysis(analysis: WeightedSumAnalysis) -> None:
     accepted_preparation = analysis.accepted_preparation
+
     if accepted_preparation is not None:
         dispose_prepared(accepted_preparation)
+
     analysis.is_open = False

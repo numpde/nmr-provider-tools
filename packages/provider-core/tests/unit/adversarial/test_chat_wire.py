@@ -11,6 +11,7 @@ import unittest
 import httpcore
 
 from provider_core.chat_errors import ChatFailed
+
 from provider_core.chat_wire import (
     failure_message,
     framed,
@@ -20,6 +21,7 @@ from provider_core.chat_wire import (
     read_request,
     response_message,
 )
+
 from provider_core.decoded_body import DecodedBodyRejected
 from provider_core.interpreter import _retryable
 from provider_core.network import NetworkIOObservation
@@ -52,11 +54,13 @@ class ChatWireAvailabilityTests(unittest.TestCase):
             with self.subTest(shared_original_cancellation=shared):
                 cancellation = asyncio.CancelledError("same spelling does not establish ownership")
                 native = cancellation if shared else asyncio.CancelledError(str(cancellation))
+
                 original = ExchangeFailed(
                     "Original absolute deadline expired.", primary=TimeoutError("original deadline"),
                     network_failure=native,
                     network_io=NetworkIOObservation(stage="read", error=cancellation, deadline_cancelled=True),
                 )
+
                 self.assertEqual(shared, retry_allowed(original))
                 received = transferred(original)
                 self.assertEqual(shared, received.network_failure is received.network_io.error)
@@ -71,15 +75,18 @@ class ChatWireAvailabilityTests(unittest.TestCase):
                 cleanup_failures = (cleanup,) if obligation == "cleanup" else ()
                 # silent-defaults: allow-contract -- The cleanup-only subcase has no caller cancellation.
                 caller_interruption = cancellation if obligation == "caller" else None
+
                 original = observed_failure(
                     httpcore.ReadTimeout("response read timed out"),
                     cleanup_failures=cleanup_failures,
                     caller_interruption=caller_interruption,
                     proxy_connect_status=503,
                 )
+
                 self.assertFalse(retry_allowed(original))
                 received = transferred(original)
                 self.assertFalse(retry_allowed(received))
+
                 if obligation == "cleanup":
                     self.assertEqual(errno.EIO, received.cleanup_failures[0].errno)
                 else:
@@ -93,6 +100,7 @@ class ChatWireAvailabilityTests(unittest.TestCase):
             PermissionError(errno.EACCES, "local permission refusal"),
             RuntimeError("looks like a retryable httpcore.ReadTimeout"),
         )
+
         for primary in failures:
             with self.subTest(kind=type(primary).__name__):
                 original = observed_failure(primary)
@@ -101,11 +109,14 @@ class ChatWireAvailabilityTests(unittest.TestCase):
 
     def test_actual_eof_and_proxy_status_preserve_existing_classification(self):
         primary = httpcore.RemoteProtocolError("peer disconnected without response headers")
+
         eof = ExchangeFailed(
             "Reply lost after dispatch.", primary=primary, network_failure=primary,
             network_io=NetworkIOObservation(stage="read", eof=True),
         )
+
         without_eof = observed_failure(httpcore.RemoteProtocolError(str(primary)))
+
         for expected, original in (
             (True, eof), (False, without_eof),
             (True, observed_failure(httpcore.ConnectError("proxy refusal"), proxy_connect_status=503)),
@@ -121,11 +132,13 @@ class ChatWireAvailabilityTests(unittest.TestCase):
         for path in ("/private/model.sock", "/private/other.sock"):
             with self.subTest(path=path):
                 primary = FileNotFoundError(errno.ENOENT, "configured proxy is absent")
+
                 original = ExchangeFailed(
                     "Cannot connect to the selected proxy.", primary=primary, network_failure=primary,
                     network_io=NetworkIOObservation(stage="connect_unix", error=primary, unix_path=path,
                                                     configured_unix_path="/private/model.sock"),
                 )
+
                 expected = path == "/private/model.sock"
                 self.assertEqual(expected, retry_allowed(original))
                 self.assertEqual(expected, retry_allowed(transferred(original)))
@@ -135,9 +148,11 @@ class ChatWireAvailabilityTests(unittest.TestCase):
                                (ssl.SSLCertVerificationError(1, "untrusted certificate"), False)):
             with self.subTest(expected_retry=expected):
                 primary = httpcore.ConnectError("both address attempts failed")
+
                 primary.__cause__ = ExceptionGroup("original connection attempts", (
                     ConnectionRefusedError(errno.ECONNREFUSED, "refused"), last,
                 ))
+
                 original = observed_failure(primary, stage="connect_tcp")
                 self.assertEqual(expected, retry_allowed(original))
                 received = transferred(original)
@@ -165,10 +180,12 @@ class ChatWireAvailabilityTests(unittest.TestCase):
 
     def test_malformed_cleanup_cannot_be_read_as_no_retirement_obligation(self):
         original = observed_failure(httpcore.ReadTimeout("response read timed out"))
+
         for cleanup in ("", {}, [None], [True]):
             with self.subTest(cleanup=cleanup):
                 document = failure_message(original)
                 document["cleanup"] = cleanup
+
                 with self.assertRaises((ValueError, TypeError)):
                     read_reply(document, maximum_bytes=32, error_maximum_bytes=16)
 
@@ -177,6 +194,7 @@ class ChatWireAvailabilityTests(unittest.TestCase):
             with self.subTest(version=version):
                 document = response_message(HttpResponse(200, (), b"{}"))
                 document["version"] = version
+
                 with self.assertRaises(TypeError):
                     read_reply(document, maximum_bytes=32, error_maximum_bytes=16)
 
@@ -185,6 +203,7 @@ class ChatWireFramingTests(unittest.IsolatedAsyncioTestCase):
     async def test_oversized_length_is_rejected_before_waiting_for_body(self):
         reader = asyncio.StreamReader()
         reader.feed_data(struct.pack("!I", 1025))
+
         # No body and no EOF: a parser that starts reading the unadmitted body
         # would wait until this independent test watchdog expires.
         async with asyncio.timeout(0.2):
@@ -194,11 +213,13 @@ class ChatWireFramingTests(unittest.IsolatedAsyncioTestCase):
     async def test_partial_reply_cannot_produce_a_response(self):
         raw = message_bytes(response_message(HttpResponse(200, (), b'{"choices":[]}')))
         wire = framed(raw)
+
         for partial in (wire[:2], wire[:-1]):
             with self.subTest(received_bytes=len(partial)):
                 reader = asyncio.StreamReader()
                 reader.feed_data(partial)
                 reader.feed_eof()
+
                 with self.assertRaises(asyncio.IncompleteReadError):
                     document = await read_message(reader, 4096)
                     read_reply(document, maximum_bytes=32, error_maximum_bytes=16)
@@ -208,11 +229,13 @@ class ChatWireFramingTests(unittest.IsolatedAsyncioTestCase):
         reader = asyncio.StreamReader()
         reader.feed_data(framed(raw))
         reader.feed_eof()
+
         with self.assertRaises(ResponseRejected):
             await read_message(reader, 4096)
 
     def test_request_requires_one_complete_frame_and_no_trailing_bytes(self):
         wire = framed(message_bytes({"version": 1, "kind": "request"}))
+
         for raw in (wire[:-1], wire + b"x", wire + wire):
             with self.subTest(received_bytes=len(raw)):
                 with self.assertRaises(ValueError):

@@ -13,9 +13,11 @@ from contextlib import contextmanager
 @contextmanager
 def regular_file(path):
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+
     try:
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             raise ValueError(f"Cannot read artifact {path}: expected a regular file without a symlink.")
+
         with os.fdopen(descriptor, "rb", closefd=False) as stream:
             yield stream
     finally:
@@ -24,6 +26,7 @@ def regular_file(path):
 
 def fsync_directory(path):
     descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+
     try:
         os.fsync(descriptor)
     finally:
@@ -33,6 +36,7 @@ def fsync_directory(path):
 def require_download_proxy():
     """Refuse ambient direct-network and proxy-bypass choices in fetch workers."""
     proxy = os.environ.get("HTTPS_PROXY")
+
     if not (
         proxy is not None
         and (match := re.fullmatch(r"http://127\.0\.0\.1:([0-9]+)", proxy)) is not None

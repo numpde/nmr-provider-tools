@@ -21,10 +21,12 @@ class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         directory = Path(self.enterContext(TemporaryDirectory()))
         self.configuration = directory / "provider.toml"
+
         shutil.copyfile(
             src=Path(__file__).parent / "config/deployments/localhost/provider.toml",
             dst=self.configuration,
         )
+
         self.enterContext(patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=self.configuration))
 
     async def binding(self):
@@ -36,6 +38,7 @@ class ReferenceBindingTests(unittest.IsolatedAsyncioTestCase):
         package = Path(resources.files("reference_provider")).resolve()
         self.assertEqual(package, Path(distribution.locate_file("reference_provider")).resolve())
         self.assertTrue(package.is_relative_to(Path(sys.prefix).resolve()))
+
         for name in ("science.py", "binding.py", "provider.py"):
             self.assertTrue(package.joinpath(name).is_file())
             self.assertIn(f"reference_provider/{name}", {str(path) for path in distribution.files})

@@ -37,8 +37,10 @@ async def _receive_notice(process, event, notices):
         while line := await process.stderr.readline():
             report = json.loads(line)
             notices.append(report)
+
             if report["event"] == event:
                 return report
+
     raise AssertionError("Installed daemon exited before " + event)
 
 
@@ -65,14 +67,17 @@ async def _reap_daemon(process):
     Ports tests/fakes/runner.py::close's TERM/KILL and original-handle wait;
     communicate drains the two pipes while waiting for this same process.
     """
+
     if process.returncode is None:
         with suppress(ProcessLookupError):
             process.terminate()
+
     try:
         await asyncio.wait_for(process.communicate(), 3)
     except TimeoutError:
         with suppress(ProcessLookupError):
             process.kill()
+
         await asyncio.wait_for(process.communicate(), 3)
 
 
@@ -86,17 +91,21 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 root = Path(directory)
                 queue = root / "PRIVATE_QUEUE"
                 config = root / "PRIVATE_CONFIG.toml"
+
                 config.write_text(
                     f'schema_id = "{schema}"\nbindings = []\nstate_directory = "{queue}"\n'
                     'private_canary = "PRIVATE_CONFIGURATION_VALUE"\n'
                 )
+
                 config.chmod(0o600)
+
                 process = await asyncio.create_subprocess_exec(
                     sys.executable, "-I", "-B", "-m", "provider_core.delivery_discard",
                     "--config", str(config), "--api-origin", "https://PRIVATE_ORIGIN.example",
                     "--provider-ref", "provider:PRIVATE_PROVIDER", "--list-held",
                     stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
                 )
+
                 try:
                     stdout, stderr = await asyncio.wait_for(process.communicate(), 3)
                     self.assertEqual(process.returncode, 2)
@@ -123,10 +132,12 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     raw = raw.replace(json.dumps(str(root / "api/http.sock")).encode(), json.dumps(proxy.path).encode())
                     raw += b"ca_file = " + json.dumps(str(Path(peer.scratch.name) / "cert.pem")).encode() + b"\n"
                     files.write(raw)
+
                     process = await asyncio.create_subprocess_exec(
                         sys.executable, "-I", "-B", "-m", "provider_core.delivery_main", "--config", str(files.path),
                         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
                     )
+
                     endpoint = DeliveryEndpoint(peer.origin, "provider:example", root / "ipc/http.sock")
                     client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
                     notices = []
@@ -136,8 +147,10 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                             while line := await process.stderr.readline():
                                 report = json.loads(line)
                                 notices.append(report)
+
                                 if report["event"] == event:
                                     return report
+
                         self.fail(f"Daemon exited before {event}.")
 
                     try:
@@ -159,6 +172,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         self.assertNotIn("SCIENTIFIC_PAYLOAD_NEEDLE", json.dumps(notices))
                         self.assertFalse(endpoint.socket_path.exists())
                         reopened = DeliveryQueue(root / "state", limits=QueueLimits(4, 16384, 8, 32768))
+
                         try:
                             self.assertEqual(reopened.inventory(item.api_origin, item.provider_ref), [])
                         finally:
@@ -173,10 +187,12 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
         with tempfile.TemporaryDirectory() as directory:
             files = DeliveryConfigFiles(directory)
             files.write(b"PRIVATE_CANARY malformed TOML")
+
             process = await asyncio.create_subprocess_exec(
                 sys.executable, "-I", "-B", "-m", "provider_core.delivery_main", "--config", str(files.path),
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
             )
+
             try:
                 stdout, stderr = await asyncio.wait_for(process.communicate(), 3)
                 self.assertEqual(process.returncode, 2)
@@ -204,11 +220,13 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
             verify_signed_request(request, body, origin=peer.origin, key=credential.private_key)
             received.append(request)
             replayed = item.key in effects
+
             if replayed:
                 self.assertEqual(effects[item.key], body)
             else:
                 effects[item.key] = body
                 return None  # Full body received; lose only this API acknowledgement.
+
             return complete_response(execution_attempt_ref=item.execution_attempt_ref,
                                      result_schema_id="fixture.result", replayed=True)
 
@@ -217,17 +235,22 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 with tempfile.TemporaryDirectory() as directory:
                     files, endpoint, credential = _configured_binding(Path(directory) / "binding", peer, proxy,
                         provider="provider:example")
+
                     # The minimum jittered retry wait is 15s, longer than bounded
                     # receipt observation and original-process reaping below.
                     files.write(files.path.read_bytes().replace(b"retry_initial_seconds = 0.01", b"retry_initial_seconds = 30")
                         .replace(b"retry_max_seconds = 0.1", b"retry_max_seconds = 30"))
+
                     configured = files.path.read_bytes()
                     item = replace(outcome(provider=endpoint.provider_ref), api_origin=peer.origin)
+
                     item = replace(item, operation=TerminalOperation.COMPLETE,
                                    body=complete_body(item.execution_attempt_ref, "fixture.result", b"result bytes") + b"\n")
+
                     client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
                     first = second = None
                     notices = []
+
                     try:
                         first = await _launch_daemon(files.path)
                         await _receive_notice(first, "delivery_ready", notices)
@@ -240,11 +263,13 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         await asyncio.wait_for(first.communicate(), 3)
                         self.assertEqual(first.returncode, -signal.SIGKILL)
                         retained = DeliveryQueue(files.root / "state", limits=QueueLimits(4, 16384, 8, 32768))
+
                         try:
                             self.assertEqual(retained.next_pending(item.api_origin, item.provider_ref), item)
                             self.assertEqual(len(retained.inventory(item.api_origin, item.provider_ref)), 1)
                         finally:
                             retained.close()
+
                         self.assertEqual(peer.request_bodies, [item.body])
                         self.assertEqual(files.path.read_bytes(), configured)
                         second = await _launch_daemon(files.path)
@@ -277,15 +302,19 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(request.split(b"\r\n", 1)[0], b"POST /provider/v1/execution-attempts/fail HTTP/1.1")
             self.assertEqual(body, first.body)
             verify_signed_request(request, body, origin=peer_a.origin, key=credential_a.private_key)
+
             if not recover.is_set():
                 peer_a.response_status = 503
                 peer_a.response_headers = response_headers(status=503, request_id=b"request:api-a-outage")
+
                 return json.dumps({"type": "urn:nmr-api:problem:service-unavailable", "title": "Service unavailable",
                     "status": 503, "instance": "urn:nmr-api:request:api-a-outage",
                     "request_id": "request:api-a-outage", "code": "service_unavailable"}).encode()
+
             peer_a.response_status = 200
             peer_a.response_headers = response_headers()
             effects["a"] += 1
+
             return fail_response(execution_attempt_ref=first.execution_attempt_ref,
                 failure_code="provider_interrupted", failure_message="PRIVATE_BINDING_A_PAYLOAD")
 
@@ -294,6 +323,7 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(body, second.body)
             verify_signed_request(request, body, origin=peer_b.origin, key=credential_b.private_key)
             effects["b"] += 1
+
             return fail_response(execution_attempt_ref=second.execution_attempt_ref,
                 failure_code="provider_interrupted", failure_message="PRIVATE_BINDING_B_PAYLOAD")
 
@@ -303,18 +333,23 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     root = Path(directory)
                     files, endpoint_a, credential_a = _configured_binding(root / "first", peer_a, proxy_a, provider="provider:example")
                     other, endpoint_b, credential_b = _configured_binding(root / "second", peer_b, proxy_b, provider="provider:other")
+
                     self.assertNotEqual(credential_a.private_key.public_key().public_bytes_raw(),
                                         credential_b.private_key.public_key().public_bytes_raw())
+
                     files.write(files.path.read_bytes() + b"[[bindings]]" + other.path.read_bytes().split(b"[[bindings]]", 1)[1])
                     first = replace(outcome(provider=endpoint_a.provider_ref, message="PRIVATE_BINDING_A_PAYLOAD"), api_origin=peer_a.origin)
                     second = replace(outcome(provider=endpoint_b.provider_ref, message="PRIVATE_BINDING_B_PAYLOAD"), api_origin=peer_b.origin)
                     clients = [DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2) for endpoint in (endpoint_a, endpoint_b)]
                     foreign = DeliveryClient(replace(endpoint_b, socket_path=endpoint_a.socket_path), exchange_seconds=1, retirement_seconds=0.2)
                     process, notices = await _launch_daemon(files.path), []
+
                     try:
                         self.assertEqual((await _receive_notice(process, "delivery_ready", notices))["binding_count"], 2)
+
                         with self.assertRaises(DeliveryRejected):
                             await foreign.submit(second)
+
                         self.assertEqual((await clients[0].pending())["items"], [])
                         self.assertEqual((await clients[1].pending())["items"], [])
                         self.assertEqual(peer_a.requests, [])
@@ -341,8 +376,10 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(peer_b.request_bodies, [second.body])
                         self.assertEqual(effects, {"a": 1, "b": 1})
                         self.assertIsNone(process.returncode)
+
                         for private in ("PRIVATE_BINDING_A_PAYLOAD", "PRIVATE_BINDING_B_PAYLOAD"):
                             self.assertNotIn(private, json.dumps(notices))
+
                         process.send_signal(signal.SIGTERM)
                         self.assertTrue((await _receive_notice(process, "delivery_stopped", notices))["retirement_confirmed"])
                         self.assertEqual(await asyncio.wait_for(process.wait(), 3), 0)

@@ -43,17 +43,21 @@ class InstalledDeploymentTests(unittest.TestCase):
 
     def test_long_derived_daemon_socket_refuses_before_recipe_or_secret_reads(self):
         self.write_definition(self.raw.replace(b"delivery.sock", b"s" * 40 + b".sock"))
+
         with patch.object(freezer, "read_startup_file", wraps=freezer.read_startup_file) as read:
             with self.assertRaisesRegex(freezer.DeliveryDeploymentRejected, "107-byte"):
                 freezer.read_definition(self.binding_file)
+
         self.assertEqual([self.binding_file], [call.args[0] for call in read.call_args_list])
         self.assertEqual([self.binding_file], list(self.root.iterdir()))
 
     def test_render_reads_no_credentials_and_grants_only_config_files_and_named_runtime_volumes(self):
         self.write_definition(self.raw)
+
         with patch.object(freezer, "read_startup_file", wraps=freezer.read_startup_file) as read:
             selected, checksum = freezer.read_definition(self.binding_file)
             plan = freezer.render(selected, self.binding_file, self.image, checksum)
+
         self.assertEqual([self.binding_file], [call.args[0] for call in read.call_args_list])
         self.assertEqual([self.binding_file], list(self.root.iterdir()))
         daemon, initializer = plan["services"]["delivery"], plan["services"]["init"]
@@ -99,8 +103,10 @@ class InstalledDeploymentTests(unittest.TestCase):
                     raw = raw.replace(b"api.example=127.0.0.1", b"api.example=172.18.0.5")
                 else:
                     raw = self.raw.replace(b'mode = "mapped"', b'mode = "external"').replace(b'addresses = ["api.example=127.0.0.1"]', b'resolver_file = "/synthetic/resolver"')
+
                 plan = self.render(raw)
                 proxy = next(service for name, service in plan["services"].items() if name.startswith("api-") and not name.startswith("api-init-"))
+
                 if mode == "local":
                     self.assertNotIn("network_mode", proxy)
                     self.assertEqual([{"external": True, "name": "b" * 64}], list(plan["networks"].values()))
@@ -110,16 +116,21 @@ class InstalledDeploymentTests(unittest.TestCase):
 
     def test_initializer_preserves_correct_nonempty_queue_and_ipc_roots(self):
         queue, ipc = self.root / "queue", self.root / "ipc"
+
         for path, mode in ((queue, 0o700), (ipc, 0o710)):
             path.mkdir(mode=mode)
             (path / "retained").write_bytes(b"retained state")
+
         with patch.object(freezer.os, "geteuid", return_value=0), patch.object(freezer.os, "fchown") as chown:
             freezer.initialize(self.uid, self.gid, queue, [ipc])
+
         chown.assert_not_called()
         ipc.chmod(0o700)
+
         with patch.object(freezer.os, "geteuid", return_value=0):
             with self.assertRaisesRegex(freezer.DeliveryDeploymentRejected, "Refusing to change"):
                 freezer.initialize(self.uid, self.gid, queue, [ipc])
+
         for path in (queue, ipc):
             self.assertEqual(b"retained state", (path / "retained").read_bytes())
 
@@ -127,6 +138,7 @@ class InstalledDeploymentTests(unittest.TestCase):
         self.write_definition(self.raw)
         expected = hashlib.sha256(self.raw).hexdigest()
         self.write_definition(self.raw.replace(b"request_seconds = 1", b"request_seconds = 2"))
+
         with self.assertRaisesRegex(freezer.DeliveryDeploymentRejected, "changed after rendering"):
             freezer.runtime_configuration(self.binding_file, expected)
 

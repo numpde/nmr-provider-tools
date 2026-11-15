@@ -37,24 +37,29 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
         claim = claims.claim_live(pending, lifecycle_owner=owner, maximum_terminal_bytes=terminal_bytes)
         replies = [reply(start_response()), reply(observation())]
         verified = None
+
         if preverified:
             verified = verify_job_input(response(), feed=pending.input)
         else:
             replies.append(reply(response()))
+
         replies.extend([
             reply(progress_response()), reply(observation()), reply(progress_response(phase="running")),
             reply(observation()), reply(observation()),
         ])
+
         transport = Transport(*replies)
         client = api(transport, scope().api_origin)
         acknowledged = await AttemptStarter.live(client, claim, scope=scope()).start(pending)
         session, delivery = LiveSession(), RecordingDelivery()
+
         executor = AttemptExecutor.live(
             client, claim, session, scope=scope(), preverified_input=verified,
             delivery=delivery, on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
             delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
             poll_seconds=1, task_settle_seconds=0.05,
         )
+
         owner.executor = executor
         return claims, claim, acknowledged, executor, session, delivery, verified
 
@@ -65,8 +70,10 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
                 accepted = await executor.run(acknowledged)
                 self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
                 self.assertEqual(["prepare", "execute", "retire"], session.events)
+
                 if preverified:
                     self.assertIs(verified, session.instructions)
+
                 self.assertEqual(delivery.items[0].body_sha256, accepted.selection.body_sha256)
                 self.assertIsNone(claim.operation_owner)
                 self.assertTrue(claims.owns_job(scope(), acknowledged.start.input.job_ref))
@@ -75,22 +82,27 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
     async def test_replacement_executor_cannot_run_the_original_admission_again(self):
         claims, claim, acknowledged, executor, session, delivery, verified = await self.setup_execution(True)
         await executor.run(acknowledged)
+
         replacement = AttemptExecutor.live(
             executor.api, claim, LiveSession(), scope=scope(), preverified_input=verified,
             delivery=delivery, on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
             delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
             poll_seconds=1, task_settle_seconds=0.05,
         )
+
         with self.assertRaises(ExecutionRefused):
             await replacement.run(acknowledged)
+
         self.assertEqual(1, session.events.count("execute"))
         self.assertEqual(1, len(delivery.items))
 
     async def test_oversized_result_keeps_scientific_outcome_without_retaining_a_pending_report(self):
         claims, claim, acknowledged, executor, session, delivery, verified = await self.setup_execution(True, terminal_bytes=16384)
         session.content = b"x" * 20000
+
         with self.assertRaises(ExecutionFailed):
             await executor.run(acknowledged)
+
         self.assertEqual([], delivery.items)
         self.assertIsNone(executor._delivery_outcome)
         self.assertEqual(session.content, executor._outcome.content)
@@ -100,17 +112,22 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
         claims, claim, acknowledged, executor, session, delivery, verified = await self.setup_execution(True)
         session.release.clear()
         task = asyncio.create_task(executor.run(acknowledged))
+
         try:
             await asyncio.wait_for(delivery.accepted.wait(), 1)
             await asyncio.sleep(0)
             self.assertIs(executor, claim.operation_owner)
             self.assertTrue(claims.owns_job(scope(), acknowledged.start.input.job_ref))
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             self.assertFalse(executor.retirement_confirmed)
             pending = record("key:other")
+
             other = replace(pending, input=replace(pending.input, job_ref="job:other"),
                             body=start_body("job:other", "key:other"))
+
             self.assertTrue(claims.claim_live(other, lifecycle_owner=object()).active)
         finally:
             session.release.set()

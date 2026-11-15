@@ -24,6 +24,7 @@ class SharedDeliveryService(DeliveryService):
                  status_directory=None):
         if not (type(request_seconds) in (int, float) and math.isfinite(request_seconds) and request_seconds > 0):
             raise ValueError("Delivery IPC request deadline must be finite positive seconds.")
+
         require_delivery_retry_settings(retry_initial_seconds, retry_max_seconds)
         self.directory, self.limits, self.socket, self.proxy_socket = directory, limits, socket, proxy_socket
         self.request_seconds = request_seconds
@@ -45,27 +46,38 @@ class SharedDeliveryService(DeliveryService):
 
     def _accepted(self, outcome):
         worker = self.workers.get(outcome.key[:2])
+
         if worker is not None:
             worker.wake()
+
         self.changed.set()
 
     async def _start(self):
         if self.live_configuration is not None:
             self._apply_settings(self.live_configuration.read())
+
         self.queue = DeliveryQueue(self.directory, limits=self.limits)
+
         for material in self.legacy_material:
             self.queue.associate_legacy_material(material)
+
         held = self.queue.hold_legacy_rows()
+
         if held:
             self.on_notice(None, {"event": "delivery_legacy_rows_held", "count": held})
+
         self.inbox = SharedDeliveryInbox(self.queue, self.socket, request_seconds=self.request_seconds,
                                          on_accepted=self._accepted, on_failure=self.on_notice)
+
         await self.inbox.start()
+
         if self.stopping.is_set():
             return
+
         if self.status_directory is not None:
             self.process_status = ProcessStatus(self.status_directory, "delivery")
             self.process_status.refresh("ready")
+
         self._manager_task = asyncio.create_task(self._manage())
         self._manager_task.add_done_callback(self._manager_done)
         self.on_notice(None, {"event": "delivery_ready"})
@@ -74,24 +86,31 @@ class SharedDeliveryService(DeliveryService):
     def _apply_settings(self, settings):
         self.limits = settings.limits
         self.retry_initial_seconds, self.retry_max_seconds = settings.retry_initial_seconds, settings.retry_max_seconds
+
         if self.queue is not None:
             self.queue.limits = settings.limits
+
         for worker in self.workers.values():
             changed = (worker.retry_initial_seconds, worker.retry_max_seconds) != (settings.retry_initial_seconds, settings.retry_max_seconds)
             worker.retry_initial_seconds, worker.retry_max_seconds = settings.retry_initial_seconds, settings.retry_max_seconds
+
             if changed:
                 worker.policy_changed.set()
+
         self.on_notice.set_level(settings.log_level)
 
     def _reload(self):
         if self.live_configuration is None or time.monotonic() < self.next_reload:
             return
+
         self.next_reload = time.monotonic() + 5
+
         try:
             settings = self.live_configuration.read()
         except (OSError, ValueError) as error:
             self.on_notice(error, {"event": "delivery_reload_failed", "failure_type": type(error).__name__})
             return
+
         self._apply_settings(settings)
 
     def _manager_done(self, task):
@@ -99,7 +118,9 @@ class SharedDeliveryService(DeliveryService):
             self.inbox.failure = RuntimeError("The delivery manager was cancelled; preserve pending work and restart the service.")
             self.inbox.failed.set()
             return
+
         error = task.exception()
+
         if error is not None:
             self.inbox.failure = error
             self.inbox.failed.set()
@@ -110,7 +131,9 @@ class SharedDeliveryService(DeliveryService):
             self.inbox.failure = RuntimeError("A delivery worker was cancelled; preserve pending work and settle its API owner.")
             self.inbox.failed.set()
             return
+
         error = task.exception()
+
         if error is not None:
             self.inbox.failure = error
             self.inbox.failed.set()
@@ -123,37 +146,47 @@ class SharedDeliveryService(DeliveryService):
         while not self.stopping.is_set():
             self._reload()
             self.changed.clear()
+
             if self.process_status is not None and time.monotonic() - self.overview_at >= 5:
                 bindings, self.overview, failure = await self.inbox.storage(self.queue.pending_overview)
                 self.overview_at = time.monotonic()
+
                 if failure is not None:
                     self.on_notice(failure, {"event": "delivery_overview_failed"})
             else:
                 bindings = await self.inbox.storage(self.queue.pending_bindings)
+
             for origin, provider in bindings:
                 key = (origin, provider)
+
                 if key in self.workers:
                     self.workers[key].wake()
                     continue
+
                 endpoint = DeliveryEndpoint(origin, provider, self.socket.socket_path, self.socket.socket_group_id)
+
                 worker = SharedDeliveryWorker(self.inbox, endpoint, self.proxy_socket,
                     retry_initial_seconds=self.retry_initial_seconds, retry_max_seconds=self.retry_max_seconds,
                     on_notice=self.on_notice)
+
                 self.workers[key] = worker
                 task = asyncio.create_task(worker.run())
                 self._worker_tasks[key] = task
                 task.add_done_callback(lambda completed, selected=key: self._worker_done(selected, completed))
+
             if self.process_status is not None:
                 try:
                     self.process_status.refresh("ready", details=self._operator_details(bindings))
                 except (OSError, ValueError, TypeError) as error:
                     self.on_notice(error, {"event": "delivery_status_failed", "failure_type": type(error).__name__})
+
                     try:
                         self.process_status.refresh("ready")
                     # silent-defaults: allow-contract -- Failed optional status must not retire delivery; the last observation expires.
                     except (OSError, ValueError, TypeError):
                         # The previous observation expires on its own; delivery continues.
                         pass
+
             try:
                 async with asyncio.timeout(5):
                     await self.changed.wait()
@@ -165,12 +198,14 @@ class SharedDeliveryService(DeliveryService):
     def _operator_details(self, bindings):
         # silent-defaults: allow-contract -- A failed optional observation is unknown rather than an empty queue.
         overview = None if self.overview is None else dict(self.overview)
+
         if overview is not None:
             oldest = overview.pop("oldest_pending_created_at")
             # silent-defaults: allow-contract -- Invalid stored times have no reliable age.
             age = time.time() - oldest if type(oldest) in (int, float) and math.isfinite(oldest) else None
             # silent-defaults: allow-contract -- A future timestamp does not establish a nonnegative age.
             overview["oldest_pending_age_seconds"] = age if age is not None and age >= 0 else None
+
         return {"queue": overview, "queue_observation_age_seconds": time.monotonic() - self.overview_at,
                 "pending_publishers": len(bindings),
                 "paused_publishers": sum(worker.paused for worker in self.workers.values()),
@@ -178,38 +213,49 @@ class SharedDeliveryService(DeliveryService):
 
     async def _shutdown(self):
         failures = []
+
         if self._startup_task is not None:
             await asyncio.gather(asyncio.shield(self._startup_task), return_exceptions=True)
+
         if self.inbox is not None:
             try:
                 await self.inbox.stop_accepting()
             except BaseException as cause:
                 failures.append(cause)
+
         if self._manager_task is not None:
             await asyncio.gather(asyncio.shield(self._manager_task), return_exceptions=True)
+
         if self.process_status is not None:
             try:
                 self.process_status.refresh("stopping")
             except OSError as cause:
                 failures.append(cause)
+
         for worker in tuple(self.workers.values()):
             worker.request_stop()
+
         settled = await asyncio.gather(*(asyncio.shield(task) for task in tuple(self._worker_tasks.values())), return_exceptions=True)
         # repo-check: allow-tuple-generator -- Retain the final independent worker failures as immutable shutdown evidence.
         self.worker_failures = tuple(value for value in settled if isinstance(value, BaseException))
+
         for worker in tuple(self.workers.values()):
             if worker.api is not None and not worker.api.retirement_confirmed:
                 try:
                     await worker.api.retire(owner=worker)
                 except BaseException as cause:
                     failures.append(cause)
+
         if self.inbox is not None:
             try:
                 await self.inbox.close()
             except BaseException as cause:
                 failures.append(cause)
+
         if failures:
             raise BaseExceptionGroup("Delivery shutdown could not settle all original resources; the database owner remains held.", failures)
+
         if self.queue is not None:
             self.queue.close()
+
         self.retirement_confirmed = True

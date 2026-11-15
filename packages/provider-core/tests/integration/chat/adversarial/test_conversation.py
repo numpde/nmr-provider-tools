@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 from tests.fakes.conversation import call, endpoint
 
 from provider_core.chat import ChatFailed
+
 from provider_core.conversation import (
     ConversationFailed,
     ConversationRetirementFailed,
@@ -24,24 +25,32 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(primary=type(primary).__name__):
                 rejection = ToolRejected("Select another record.")
                 previous = ValueError("PRIVATE earlier cause")
+
                 if primary is not None:
                     primary.__cause__ = previous
+
                 model = endpoint("fixture", call("bad", "prepare", {}), call("next", "prepare", {}))
                 # silent-defaults: allow-contract -- One turn reaches exhaustion; the two-turn specimen reaches the injected later failure.
                 conversation = ToolConversation((model,), max_turns=1 if primary is None else 2, secrets=())
                 dispatch = AsyncMock(side_effect=[rejection, primary])
                 expected = ConversationFailed if primary is None else type(primary)
+
                 with self.assertRaises(expected) as caught:
                     await conversation.run([], [], dispatch)
+
                 failure = caught.exception
+
                 if primary is not None:
                     self.assertIs(failure, primary)
                     failure = failure.__cause__
                     self.assertIs(failure.cause, previous)
+
                 self.assertEqual(failure.correction_failures, ((1, rejection),))
                 model.retire.side_effect = OSError("PRIVATE cleanup")
+
                 with self.assertRaises(ConversationRetirementFailed) as cleanup:
                     await conversation.retire()
+
                 self.assertEqual(cleanup.exception.correction_failures, ((1, rejection),))
                 self.assertIs(cleanup.exception.cause, caught.exception)
                 model.retire.side_effect = None
@@ -50,11 +59,14 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
     async def test_exhausted_endpoints_retain_each_original_failure_with_its_index(self):
         first_failure = ChatFailed("request_limit", "Request did not fit; it was not sent.")
         second_failure = ChatFailed("http_status", "Model service returned HTTP 503.")
+
         conversation = ToolConversation(
             (endpoint("first", first_failure), endpoint("second", second_failure)), max_turns=2, secrets=()
         )
+
         with self.assertRaises(ConversationFailed) as caught:
             await conversation.run([], [], AsyncMock())
+
         self.assertEqual(caught.exception.endpoint_failures, ((0, first_failure), (1, second_failure)))
         self.assertIs(caught.exception.cause, second_failure)
         await conversation.retire()
@@ -67,8 +79,10 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         models = (endpoint("first", first_failure), endpoint("second", call("prepare", "prepare", {})))
         conversation = ToolConversation(models, max_turns=2, secrets=())
         dispatch = AsyncMock(side_effect=primary)
+
         with self.assertRaises(OSError) as caught:
             await conversation.run([], [], dispatch)
+
         self.assertIs(caught.exception, primary)
         context = primary.__cause__
         self.assertIs(type(context), ConversationFailed)
@@ -85,8 +99,10 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         first, second = endpoint("first", first_failure), endpoint("second", second_failure)
         second.retire.side_effect = cleanup
         conversation = ToolConversation((first, second), max_turns=2, secrets=())
+
         with self.assertRaises(ConversationRetirementFailed) as caught:
             await conversation.run([], [], AsyncMock())
+
         self.assertEqual(caught.exception.endpoint_failures, ((0, first_failure), (1, second_failure)))
         self.assertIs(caught.exception.cause, second_failure)
         self.assertEqual(caught.exception.failures, ((1, cleanup),))
@@ -103,8 +119,10 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         unused = endpoint("unused", call("unused", "prepare", {}))
         conversation = ToolConversation((first, second, unused), max_turns=3, secrets=())
         dispatch = AsyncMock(side_effect=interruption)
+
         with self.assertRaises(asyncio.CancelledError) as caught:
             await conversation.run([], [], dispatch)
+
         self.assertIs(caught.exception, interruption)
         self.assertIs(type(interruption.__cause__), ConversationFailed)
         self.assertIs(interruption.__cause__.cause, earlier)
@@ -146,8 +164,10 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         model = endpoint("fixture", call("same", "prepare", {}), call("same", "prepare", {}))
         dispatch = AsyncMock(return_value=ToolReply({"reference": "retained"}))
         conversation = ToolConversation((model,), max_turns=2, secrets=())
+
         with self.assertRaises(ConversationFailed):
             await conversation.run([], [], dispatch)
+
         dispatch.assert_awaited_once()
         await conversation.retire()
 
@@ -156,8 +176,10 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         first = endpoint("first", call("prepare", "prepare", {}))
         second = endpoint("second", call("other", "prepare", {}))
         conversation = ToolConversation((first, second), max_turns=4, secrets=())
+
         with self.assertRaises(OSError) as caught:
             await conversation.run([], [], AsyncMock(side_effect=failure))
+
         self.assertIs(caught.exception, failure)
         second.complete.assert_not_awaited()
         await conversation.retire()
@@ -167,14 +189,18 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
     ):
         primary = ChatFailed("exchange_failed", "Fixture reply lost.")
         cleanup = OSError("PRIVATE socket cleanup")
+
         first, second = (
             endpoint("first", primary),
             endpoint("second", call("unused", "submit", {})),
         )
+
         first.retire.side_effect = cleanup
         conversation = ToolConversation((first, second), max_turns=3, secrets=())
+
         with self.assertRaises(ConversationRetirementFailed) as caught:
             await conversation.run([], [], AsyncMock())
+
         self.assertIs(caught.exception.cause, primary)
         self.assertIs(caught.exception.failures[0][1], cleanup)
         second.complete.assert_not_awaited()
@@ -183,13 +209,17 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cancellation_never_starts_another_endpoint(self):
         primary = asyncio.CancelledError()
+
         first, second = (
             endpoint("first", primary),
             endpoint("second", call("unused", "submit", {})),
         )
+
         conversation = ToolConversation((first, second), max_turns=3, secrets=())
+
         with self.assertRaises(asyncio.CancelledError) as caught:
             await conversation.run([], [], AsyncMock())
+
         self.assertIs(caught.exception, primary)
         second.complete.assert_not_awaited()
         await conversation.retire()
@@ -210,22 +240,30 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         await entered.wait()
         await conversation.retire()
         release.set()
+
         with self.assertRaisesRegex(ConversationFailed, "retired"):
             await running
+
         dispatch.assert_not_awaited()
 
     async def test_later_cleanup_keeps_the_original_tool_failure(self):
         primary, cleanup = OSError("PRIVATE reader"), OSError("PRIVATE cleanup")
+
         first, second = (
             endpoint("first", call("prepare", "prepare", {})),
             endpoint("second"),
         )
+
         conversation = ToolConversation((first, second), max_turns=2, secrets=())
+
         with self.assertRaises(OSError):
             await conversation.run([], [], AsyncMock(side_effect=primary))
+
         first.retire.side_effect = cleanup
+
         with self.assertRaises(ConversationRetirementFailed) as caught:
             await conversation.retire()
+
         self.assertIs(caught.exception.cause, primary)
         self.assertIs(caught.exception.failures[0][1], cleanup)
         second.retire.assert_awaited_once()
@@ -246,11 +284,13 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(secret=secret):
                 model = endpoint("fixture", call("submit", "submit", {}))
                 conversation = ToolConversation((model,), max_turns=1, secrets=(secret,))
+
                 result = await conversation.run(
                     [{"role": "user", "content": "safe request"}],
                     [],
                     AsyncMock(return_value=ToolFinished(None)),
                 )
+
                 identity = json.loads(result.observation)["routes"][0]["endpoint"]
                 self.assertEqual(identity["model"], "fixture")
                 await conversation.retire()
@@ -258,8 +298,10 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
     async def test_credentials_in_tool_declarations_never_reach_the_endpoint(self):
         model = endpoint("fixture")
         conversation = ToolConversation((model,), max_turns=1, secrets=("PRIVATE key",))
+
         with self.assertRaisesRegex(ConversationFailed, "configured credential"):
             await conversation.run([], [{"description": "PRIVATE key"}], AsyncMock())
+
         model.complete.assert_not_awaited()
         await conversation.retire()
 
@@ -271,8 +313,10 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 first, second = endpoint("first", message), endpoint("second", call("unused", "submit", {}))
                 conversation = ToolConversation((first, second), max_turns=3, secrets=("PRIVATE_MODEL_KEY",))
                 dispatch = AsyncMock()
+
                 with self.assertRaisesRegex(ConversationFailed, "configured credential"):
                     await conversation.run([], [], dispatch)
+
                 self.assertEqual(first.complete.await_count, 1)
                 second.complete.assert_not_awaited()
                 dispatch.assert_not_awaited()
@@ -283,11 +327,13 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
             ChatFailed("exchange_failed", "First reply lost.", cause=OSError("PRIVATE first")),
             ChatFailed("exchange_failed", "Second reply lost.", cause=OSError("PRIVATE second")),
         )
+
         models = (
             endpoint("first", failures[0]),
             endpoint("second", failures[1]),
             endpoint("third", call("submit", "submit", {})),
         )
+
         conversation = ToolConversation(models, max_turns=3, secrets=())
         result = await conversation.run([], [], AsyncMock(return_value=ToolFinished(None)))
         await conversation.retire()
@@ -298,8 +344,10 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         failure = ChatFailed("exchange_failed", "Fixture reply lost.")
         first, second = endpoint("first", failure), endpoint("second", call("unused", "submit", {}))
         conversation = ToolConversation((first, second), max_turns=1, secrets=())
+
         with self.assertRaises(ConversationFailed) as caught:
             await conversation.run([], [], AsyncMock())
+
         self.assertIs(caught.exception.cause, failure)
         second.complete.assert_not_awaited()
         first.retire.assert_awaited_once()

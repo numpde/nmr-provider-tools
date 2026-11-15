@@ -17,6 +17,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_verified_file_handoff_preserves_exact_facts_and_releases_acquisition_owner(self):
         owner, api, store, client = file_sources()
         await owner.inspect()
+
         with (
             private_source_directory() as (root, directory),
             patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
@@ -41,6 +42,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         owner, api, _, file_client = file_sources(total_bytes=16)
         byte_client = Client(Stream([b"geometry"]), headers=store_headers(b"geometry"))
         await owner.inspect()
+
         with (
             private_source_directory() as (root, directory),
             patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=[file_client, byte_client]) as clients,
@@ -56,13 +58,16 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_explicit_private_mode_survives_a_restrictive_creation_umask(self):
         owner, _, _, client = file_sources()
         await owner.inspect()
+
         with (
             private_source_directory() as (root, directory),
             patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
         ):
             previous = os.umask(0o777)
+
             try:
                 result = await owner.acquire_file(UPLOAD_REF, directory_fd=directory, retirement_seconds=0.1)
             finally:
                 os.umask(previous)
+
             self.assertEqual(stat.S_IMODE(Path(root, result.name).stat().st_mode), 0o600)

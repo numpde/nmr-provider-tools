@@ -22,10 +22,12 @@ from provider_core.attempt_request import (
     require_provider_ref,
     require_start_body,
 )
+
 from provider_core.attempt_response import (
     AttemptAdmission,
     read_start,
 )
+
 from provider_core.job_input import FeedInputFacts
 from provider_core.response_json import ResponseRejected
 from provider_core.signing import _https_origin
@@ -54,15 +56,19 @@ class RecoveryScope:
 
     def __post_init__(self):
         origin, _authority = _https_origin(self.api_origin)
+
         if origin != self.api_origin:
             raise ValueError("Cannot bind recovery scope: API origin must be canonical HTTPS")
+
         require_provider_ref(self.provider_ref)
+
         for value in (self.consumer_id, self.generation_id):
             if type(value) is not str:
                 raise TypeError(
                     f"Unexpected {type(value)=}; "
                     "Cannot bind recovery scope: consumer and generation identities require 1 through 1024 Unicode scalar values without NUL"
                 )
+
             if not (1 <= len(value) <= 1024) or any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value):
                 raise ValueError(
                     "Cannot bind recovery scope: consumer and generation identities require 1 through 1024 Unicode scalar values without NUL"
@@ -84,6 +90,7 @@ class StartPending:
                 f"Unexpected {type(self.scope)=}, {type(self.input)=}; "
                 "Cannot retain pending start: recovery scope and admitted input identity are required"
             )
+
         require_analysis_kind(self.analysis_kind_ref)
         require_start_body(self.body, job_ref=self.input.job_ref)
 
@@ -99,14 +106,18 @@ def _admission_bytes(admission):
             f"Unexpected {type(admission)=}; "
             "Cannot retain acknowledgement: an admitted Attempt response is required"
         )
+
     timestamp = admission.started_at
+
     if type(timestamp) is not datetime:
         raise TypeError(
             f"Unexpected {type(timestamp)=}; "
             "Cannot retain acknowledgement: its start timestamp must be a UTC datetime"
         )
+
     if timestamp.utcoffset() != timedelta(0):
         raise ValueError("Cannot retain acknowledgement: its start timestamp must be UTC")
+
     document = asdict(admission)
     document["started_at"] = timestamp.isoformat().replace("+00:00", "Z")
     document["schema_id"] = "nmr.provider.execution_attempt_start_response.v1"
@@ -134,10 +145,12 @@ class AcknowledgedAttempt:
                 f"Unexpected {type(self.start)=}, {type(self.local_phase)=}; "
                 "Cannot retain acknowledgement: original start and explicit local execution phase are required"
             )
+
         if self.prepared_identity is not None and (
             type(self.prepared_identity) is not ProtectedEvidence or self.local_phase is not LocalExecutionPhase.EXECUTION_ENTERED
         ):
             raise ValueError("Cannot retain prepared identity: protected evidence belongs to the execution-entry transition.")
+
         try:
             read_start(
                 _admission_bytes(self.admission),
@@ -147,6 +160,7 @@ class AcknowledgedAttempt:
             )
         except ResponseRejected as cause:
             raise ValueError(f"Cannot retain acknowledgement: {cause}") from None
+
         if self.local_phase is LocalExecutionPhase.EXECUTION_ENTERED and self.admission.state != "in_progress":
             raise ValueError("Cannot record execution entry from a terminal start acknowledgement")
 
@@ -169,11 +183,13 @@ class ProtectedEvidence:
 
     def __post_init__(self):
         _scalar_text(self.schema_id, "evidence schema identity")
+
         if type(self.content) is not bytes:
             raise TypeError(
                 f"Unexpected {type(self.content)=}; "
                 "Cannot retain required evidence: immutable content must contain 1 through 262144 bytes; evidence is never truncated"
             )
+
         if not (1 <= len(self.content) <= MAX_EVIDENCE_BYTES):
             raise ValueError(
                 "Cannot retain required evidence: immutable content must contain 1 through 262144 bytes; evidence is never truncated"
@@ -192,18 +208,22 @@ def acknowledge_start(start, admission):
 
 def mark_execution_entered(record, prepared_identity):
     """Record intent before invoking a prepared handle; never infer actual execution."""
+
     if type(record) is not AcknowledgedAttempt:
         raise TypeError(
             f"Unexpected {type(record)=}; "
             "Cannot enter execution: an acknowledged Attempt that has not entered is required"
         )
+
     if record.local_phase is not LocalExecutionPhase.NOT_ENTERED:
         raise ValueError("Cannot enter execution: an acknowledged Attempt that has not entered is required")
+
     if type(prepared_identity) is not ProtectedEvidence:
         raise TypeError(
             f"Unexpected {type(prepared_identity)=}; "
             "Cannot enter execution: protected identity of the prepared candidate is required."
         )
+
     return replace(record, local_phase=LocalExecutionPhase.EXECUTION_ENTERED, prepared_identity=prepared_identity)
 
 
@@ -219,8 +239,10 @@ def _encode_pending(record):
         sort_keys=True,
         separators=(",", ":"),
     ).encode("utf-8")
+
     if not (len(raw) <= MAX_PENDING_RECORD_BYTES):
         raise ValueError(
             f"Cannot encode pending start: record requires {len(raw)} bytes, exceeding the {MAX_PENDING_RECORD_BYTES}-byte limit"
         )
+
     return raw

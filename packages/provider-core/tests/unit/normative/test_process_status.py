@@ -21,12 +21,15 @@ class ProcessStatusTests(unittest.TestCase):
             status.refresh("ready", details=details)
             before = (root / "status.json").read_bytes()
             written = json.loads(before)["updated_monotonic"]
+
             with patch("provider_core.process_status.time.monotonic", return_value=written + 3):
                 status.refresh("ready", details={"queue": None, "queue_observation_age_seconds": 0})
                 self.assertEqual((root / "status.json").read_bytes(), before)
                 output = io.StringIO()
+
                 with patch("sys.argv", ["status", str(root / "status.json"), "delivery", "--details"]), redirect_stdout(output):
                     main()
+
                 value = json.loads(output.getvalue())
                 self.assertEqual(value["observation_age_seconds"], 3)
                 self.assertEqual(value["queue_observation_age_seconds"], 5)
@@ -38,14 +41,19 @@ class ProcessStatusTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             status = ProcessStatus(Path(root), "reader")
             status.refresh("starting")
+
             with self.assertRaisesRegex(ValueError, "starting"):
                 check_status(Path(root) / "status.json", "reader")
+
             for phase in ("ready", "working"):
                 status.refresh(phase)
                 check_status(Path(root) / "status.json", "reader")
+
             status.refresh("stopping")
+
             with self.assertRaisesRegex(ValueError, "stopping"):
                 check_status(Path(root) / "status.json", "reader")
+
             self.assertEqual((Path(root) / "status.json").stat().st_mode & 0o777, 0o600)
 
     def test_stale_observation_and_reused_pid_are_not_ready(self):
@@ -54,11 +62,14 @@ class ProcessStatusTests(unittest.TestCase):
             status = ProcessStatus(Path(root), "provider")
             status.refresh("ready")
             value = json.loads(path.read_bytes())
+
             with patch("provider_core.process_status.time.monotonic", return_value=value["updated_monotonic"] + 31):
                 with self.assertRaisesRegex(ValueError, "expired"):
                     check_status(path, "provider")
+
             value["start_ticks"] += 1
             path.write_text(json.dumps(value))
+
             with self.assertRaisesRegex(ValueError, "process identity"):
                 check_status(path, "provider")
 
@@ -68,8 +79,10 @@ class ProcessStatusTests(unittest.TestCase):
             victim = root / "victim"
             victim.write_text("unchanged")
             (root / ".status.pending").symlink_to(victim)
+
             with self.assertRaises(OSError):
                 ProcessStatus(root, "proxy").refresh("ready")
+
             self.assertEqual(victim.read_text(), "unchanged")
 
     def test_failed_replacement_leaves_previous_observation_only_until_expiry(self):
@@ -78,11 +91,14 @@ class ProcessStatusTests(unittest.TestCase):
             status = ProcessStatus(root, "reader")
             status.refresh("ready")
             before = (root / "status.json").read_bytes()
+
             with patch("provider_core.process_status.os.replace", side_effect=OSError("authored replacement failure")):
                 with self.assertRaises(OSError):
                     status.refresh("stopping")
+
             self.assertEqual((root / "status.json").read_bytes(), before)
             check_status(root / "status.json", "reader")
+
             with patch("provider_core.process_status.time.monotonic", return_value=json.loads(before)["updated_monotonic"] + 31):
                 with self.assertRaisesRegex(ValueError, "expired"):
                     check_status(root / "status.json", "reader")

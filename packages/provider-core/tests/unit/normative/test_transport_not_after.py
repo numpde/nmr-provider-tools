@@ -17,10 +17,13 @@ from tests.fakes.transport import Client, Stream
 class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
     async def exchange(self, transport, mode, descriptor, **kwargs):
         request = httpx.Request("GET", "https://model.example/turn")
+
         if mode == "file":
             return await transport.exchange_file(request, output_fd=descriptor, maximum_bytes=8, **kwargs)
+
         if mode == "decoded":
             return await transport.exchange_decoded(request, maximum_bytes=8, error_maximum_bytes=4, **kwargs)
+
         return await transport.exchange(request, maximum_bytes=8, **kwargs)
 
     async def test_expired_cap_cannot_dispatch_network_or_file_work(self):
@@ -29,11 +32,13 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                 output.write(b"sentinel")
                 output.flush()
                 transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.3)
+
                 with patch("provider_core.transport.httpcore.AsyncConnectionPool") as pool, patch(
                     "provider_core.transport._FileBody"
                 ) as file_body:
                     with self.assertRaises(ExchangeFailed) as caught:
                         await self.exchange(transport, mode, output.fileno(), not_after=asyncio.get_running_loop().time()-1)
+
                 pool.assert_not_called()
                 file_body.assert_not_called()
                 self.assertIs(transport.last_failure, caught.exception)
@@ -64,6 +69,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(ExchangeFailed) as caught:
                 await transport.exchange(httpx.Request("GET", "https://model.example/turn"),
                                          maximum_bytes=8, not_after=cap)
+
         self.assertIsInstance(caught.exception.primary, TimeoutError)
         self.assertEqual(caught.exception.response_head.status, 200)
         self.assertTrue(transport.retirement_confirmed)
@@ -76,12 +82,15 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(mode=mode), tempfile.TemporaryFile() as output:
                 loop = asyncio.get_running_loop()
                 transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.3)
+
                 with patch("provider_core.transport.httpcore.AsyncConnectionPool") as pool, patch(
                     "provider_core.transport._FileBody"
                 ) as file_body:
                     loop.call_soon(time.sleep, 0.03)
+
                     with self.assertRaises(ExchangeFailed):
                         await self.exchange(transport, mode, output.fileno(), not_after=loop.time()+0.01)
+
                 pool.assert_not_called()
                 file_body.assert_not_called()
                 self.assertTrue(transport.retirement_confirmed)
@@ -89,36 +98,45 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
     async def test_cleanup_allowance_is_not_renewed_and_late_failure_stays_original(self):
         release, entered, heads = asyncio.Event(), asyncio.Event(), []
         original = httpcore.ReadError("protected original late failure")
+
         class LateRead(Stream):
             async def __aiter__(self):
                 entered.set()
+
                 try:
                     await asyncio.Event().wait()
                 except asyncio.CancelledError:
                     await release.wait()
                     raise original
+
                 yield b"unreachable"
+
         client = Client(LateRead([]))
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.05)
         owner = object()
         loop = asyncio.get_running_loop()
         started = loop.time()
+
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
             try:
                 with self.assertRaises(ExchangeFailed) as caught:
                     await transport.exchange(httpx.Request("GET", "https://model.example/turn"), maximum_bytes=8,
                                              owner=owner, before_body=heads.append, not_after=started+0.03)
+
                 self.assertGreaterEqual(loop.time()-started, 0.05)
                 self.assertLess(loop.time()-started, 0.5)
                 self.assertTrue(entered.is_set())
                 self.assertFalse(transport.retirement_confirmed)
                 self.assertIs(transport.pending_owner, owner)
                 exchange = transport._active
+
                 for _ in range(2):
                     with self.assertRaises(ExchangeFailed) as repeated:
                         await asyncio.wait_for(transport.retire(owner=owner), 0.05)
+
                     self.assertIs(repeated.exception, caught.exception)
                     self.assertIs(transport._active, exchange)
+
                 release.set()
                 await asyncio.wait_for(asyncio.gather(exchange.task), 0.2)
                 await transport.retire(owner=owner)
@@ -131,20 +149,24 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(client.closed)
             finally:
                 release.set()
+
                 if transport._active is not None:
                     await asyncio.gather(transport._active.task, return_exceptions=True)
                     await transport.retire(owner=owner)
 
     async def test_actual_cancellation_keeps_identity_and_owner_after_absolute_cap(self):
         release, entered, cancellations = asyncio.Event(), asyncio.Event(), []
+
         class HeldClose(Stream):
             async def aclose(self):
                 entered.set()
                 await release.wait()
                 await super().aclose()
+
         client = Client(HeldClose([], stall=asyncio.Event()))
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.05)
         owner = object()
+
         async def call():
             try:
                 await transport.exchange(httpx.Request("GET", "https://model.example/turn"), maximum_bytes=8,
@@ -152,13 +174,17 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
             except asyncio.CancelledError as cancellation:
                 cancellations.append(cancellation)
                 raise
+
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
             task = asyncio.create_task(call())
+
             try:
                 await asyncio.wait_for(client.sent.wait(), 0.2)
                 task.cancel("original caller interruption")
+
                 with self.assertRaises(asyncio.CancelledError) as caught:
                     await asyncio.wait_for(task,0.5)
+
                 self.assertIs(caught.exception,cancellations[0])
                 self.assertIs(transport.pending_owner,owner)
                 self.assertFalse(transport.retirement_confirmed)
@@ -167,33 +193,40 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 release.set()
                 await asyncio.gather(task,return_exceptions=True)
+
                 if transport._active is not None:
                     await asyncio.gather(transport._active.task,return_exceptions=True)
                     await transport.retire(owner=owner)
+
             self.assertTrue(original_task.done())
             self.assertTrue(transport.retirement_confirmed)
 
     async def test_outer_cancellation_still_observes_one_bounded_original_cleanup(self):
         release = asyncio.Event()
+
         class HeldClose(Stream):
             async def aclose(self):
                 await release.wait()
                 await super().aclose()
+
         client = Client(HeldClose([],stall=asyncio.Event()))
         transport = HttpTransport(trust=ssl.create_default_context(),exchange_seconds=1,retirement_seconds=0.05)
         loop=asyncio.get_running_loop()
         started=loop.time()
+
         with patch("provider_core.transport.httpcore.AsyncConnectionPool",return_value=client):
             try:
                 with self.assertRaises((TimeoutError,ExchangeFailed)):
                     async with asyncio.timeout_at(started+0.02):
                         await transport.exchange(httpx.Request("GET","https://model.example/turn"),maximum_bytes=8,
                                                  not_after=started+0.02)
+
                 self.assertGreaterEqual(loop.time()-started,0.05)
                 self.assertLess(loop.time()-started,0.5)
                 self.assertFalse(transport.retirement_confirmed)
             finally:
                 release.set()
+
                 if transport._active is not None:
                     await asyncio.gather(transport._active.task,return_exceptions=True)
                     await transport.retire()
@@ -218,6 +251,7 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.Event().wait()
                 except asyncio.CancelledError:
                     raise native_failure
+
                 yield b"unreachable"
 
             async def aclose(self):
@@ -227,10 +261,13 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
 
         client = Client(HeldClose([]), close_failure=close_failure)
         seconds = 1
+
         if not first_during_request:
             seconds = 0.01
+
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=seconds,
                                   retirement_seconds=0.08)
+
         loop = asyncio.get_running_loop()
         owner = object()
         cap = loop.time() + 0.08
@@ -245,26 +282,34 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                     if not cancellations:
                         cancellation.__cause__ = prior_cause
                         first_seen.set()
+
                     cancellations.append(cancellation)
+
                 raise
 
         request = httpx.Request("GET", "https://model.example/turn")
+
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client), patch(
             "provider_core.transport.asyncio.wait", side_effect=observe_cancellation,
         ):
             caller = asyncio.create_task(transport.exchange(request, maximum_bytes=8, owner=owner, not_after=cap))
+
             try:
                 await asyncio.wait_for(client.sent.wait(), 0.2)
+
                 if not first_during_request:
                     await asyncio.wait_for(close_entered.wait(), 0.2)
+
                 caller.cancel("first actual caller cancellation")
                 await asyncio.wait_for(first_seen.wait(), 0.2)
                 await asyncio.wait_for(close_entered.wait(), 0.2)
                 await asyncio.sleep(0)
                 original = transport._active
                 caller.cancel("second actual caller cancellation")
+
                 with self.assertRaises(asyncio.CancelledError) as caught:
                     await asyncio.wait_for(caller, 0.5)
+
                 self.assertEqual(len(cancellations), 2)
                 self.assertIs(caught.exception, cancellations[0])
                 self.assertIs(caught.exception.__cause__, prior_cause)
@@ -277,12 +322,16 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIs(retained.primary, native_failure)
                 self.assertEqual(retained.cleanup_failures, ())
                 self.assertNotIn(cancellations[1], retained.cleanup_failures)
+
                 with self.assertRaises(ExchangeFailed):
                     await transport.retire(owner=object())
+
                 release_close.set()
                 await asyncio.wait_for(asyncio.gather(original.task), 0.2)
+
                 with self.assertRaises(ExchangeFailed) as late:
                     await transport.retire(owner=owner)
+
                 self.assertIs(late.exception, retained)
                 self.assertIs(transport.last_failure, retained)
                 self.assertIs(retained.primary, native_failure)
@@ -292,5 +341,6 @@ class TransportNotAfterTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 release_close.set()
                 await asyncio.gather(caller, return_exceptions=True)
+
                 if transport._active is not None:
                     await asyncio.gather(transport._active.task, return_exceptions=True)

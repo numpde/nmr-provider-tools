@@ -29,6 +29,7 @@ def late_module_imports(source, *, package=None):
     guarded = has_early_guard(source, package=package) or has_early_guard(source, guard_module="provider_core.container_guard", package=package)
     imports_ended = False
     findings = []
+
     for index, statement in enumerate(statements):
         if (
             index == 0
@@ -37,10 +38,13 @@ def late_module_imports(source, *, package=None):
             and isinstance(statement.value.value, str)
         ):
             continue
+
         if isinstance(statement, (ast.Import, ast.ImportFrom)):
             if imports_ended:
                 findings.append(statement.lineno)
+
             continue
+
         if (
             guarded
             and isinstance(statement, ast.Expr)
@@ -51,7 +55,9 @@ def late_module_imports(source, *, package=None):
         ):
             guarded = False
             continue
+
         imports_ended = True
+
     return findings
 
 
@@ -75,11 +81,13 @@ class ImportOrderDetectionTests(unittest.TestCase):
 class ScientificLintTests(unittest.TestCase):
     def test_provider_core_import_order(self):
         paths = sorted((ROOT / "src").rglob("*.py"))
+
         findings = [
             f"{path.relative_to(ROOT)}:{line}: module import follows operational statements"
             for path in paths
             for line in late_module_imports(path.read_text(), package=".".join(path.parent.relative_to(ROOT).parts))
         ]
+
         self.assertEqual([], findings, msg="\n".join(findings))
 
     def test_guard_exception_retains_late_module_import_rejection(self):
@@ -91,4 +99,5 @@ class ScientificLintTests(unittest.TestCase):
             for path in sorted((ROOT / name).rglob("*.py"))
             for line in late_module_imports(path.read_text(), package=".".join(path.parent.relative_to(ROOT).parts))
         ]
+
         self.assertEqual([], findings, msg="\n".join(findings))

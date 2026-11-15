@@ -79,8 +79,10 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_science_import_does_not_require_the_host_launcher(self) -> None:
         environment = os.environ.copy()
+
         if "NMR_PROVIDER_TOOLS_IN_CONTAINER" in environment:
             del environment["NMR_PROVIDER_TOOLS_IN_CONTAINER"]
+
         if "PROVIDER_CORE_IN_CONTAINER" in environment:
             del environment["PROVIDER_CORE_IN_CONTAINER"]
 
@@ -144,10 +146,12 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
 
         original_bindings = (weighted, self.sum_binding())
         configured = '[[execution.resource_requirement]]\nkind = "cpu"\namount = 2\nunit = "thread"\nselector = "generic"\nexclusive = false\n'
+
         with TemporaryDirectory() as directory:
             root = Path(directory)
             resource_file = root / "provider.toml"
             resource_file.write_text(configured, encoding="utf-8")
+
             with patch.object(target=binding_setup, attribute="PROVIDER_CONFIG_PATH", new=root / "provider.toml"):
                 updated = self.weighted_binding(
                     settings=science.WeightedSumSettings(scale=2, offset=1),
@@ -170,8 +174,10 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(binding=original.description.binding_id):
                 self.assertNotEqual(original.description.binding_revision, changed.description.binding_revision)
                 self.assertEqual(changed.description.binding_revision, same_values.description.binding_revision)
+
                 for call in original.description.calls:
                     self.assertEqual(1, next(iter(call.resources)).amount)
+
                 for call in changed.description.calls:
                     self.assertEqual(2, next(iter(call.resources)).amount)
 

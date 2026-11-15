@@ -38,10 +38,13 @@ class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     await session.paused.wait()
                     session.release.set()
                     await session.produced.wait()
+
                 received = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+
                 if len(self.calls) == 7:
                     self.retirement_confirmed = False
                     self.pending_owner = owner
+
                 return received
 
         transport = OutageTransport(
@@ -77,6 +80,7 @@ class ObservationRecoveryTests(unittest.IsolatedAsyncioTestCase):
             task_settle_seconds=0.1,
             observation_recovery=ObservationRecovery(1, 0.02, retry, recovered),
         )
+
         try:
             terminal = await asyncio.wait_for(executor.run(acknowledged), 3)
             self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)

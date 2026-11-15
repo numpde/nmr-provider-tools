@@ -29,18 +29,22 @@ class AttemptInventoryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(item.state, "in_progress")
         self.assertEqual(item.started_at.tzinfo, UTC)
         self.assertEqual(result.next_cursor, "YQ")
+
         with self.assertRaises(FrozenInstanceError):
             item.job_ref = "job:replacement"
 
     def test_mixed_analysis_kinds_and_order_survive_as_immutable_observations(self):
         first = attempt()
+
         second = attempt(analysis_kind_ref="nmr_rank", job_ref="job:other",
                          execution_attempt_ref="execution_attempt:sha256:" + "b" * 64,
                          provider_attempt_key="other-start:02", started_at="2026-10-18T00:00:01Z")
+
         for order in ((first, second), (second, first)):
             with self.subTest(order=order[0]["job_ref"]):
                 page = read_attempt_inventory(response(attempts=order), limit=2)
                 self.assertIsInstance(page.attempts, tuple)
+
                 self.assertEqual([(item.analysis_kind_ref, item.execution_attempt_ref, item.job_ref, item.provider_attempt_key)
                                   for item in page.attempts],
                                  [(item["analysis_kind_ref"], item["execution_attempt_ref"], item["job_ref"], item["provider_attempt_key"])
@@ -54,13 +58,16 @@ class AttemptInventoryTests(unittest.IsolatedAsyncioTestCase):
     def test_maximum_items_and_exact_byte_ceiling(self):
         items = [attempt(job_ref=f"job:item-{index}", execution_attempt_ref=f"execution_attempt:sha256:{index:064x}")
                  for index in range(100)]
+
         raw = response(attempts=items)
         padded = raw + b" " * (65536 - len(raw))
         self.assertEqual(len(padded), 65536)
         result = read_attempt_inventory(padded, limit=100)
         self.assertEqual([item.job_ref for item in result.attempts], [item["job_ref"] for item in items])
+
         with self.assertRaises(ResponseRejected):
             read_attempt_inventory(padded + b" ", limit=100)
+
         with self.assertRaises(ResponseRejected):
             read_attempt_inventory(response(attempts=[*items, items[0]]), limit=100)
 

@@ -34,10 +34,12 @@ class ConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         def retry(attempt, phase, condition, failure, seconds):
             self.assertEqual(attempt.start, acknowledged.start)
             self.assertIs(attempt.admission, acknowledged.admission)
+
             self.assertIs(
                 attempt.local_phase,
                 LocalExecutionPhase.NOT_ENTERED if failed_put < 4 else LocalExecutionPhase.EXECUTION_ENTERED,
             )
+
             self.assertIn(phase, ("preparing", "running"))
             self.assertEqual(condition, transport.condition)
             self.assertEqual(failure.status, 503)
@@ -59,9 +61,11 @@ class ConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
             task_settle_seconds=0.1,
             condition_recovery=ConditionRecovery(1, 0.04, retry, recovered),
         )
+
         terminal = await asyncio.wait_for(executor.run(acknowledged), 3)
         self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
         self.assertEqual(len(notices), 2)
+
         # silent-defaults: allow-contract -- The injected fault point determines which phases have already happened.
         recovered.assert_called_once_with(
             acknowledged if failed_put < 4 else executor._record,
@@ -69,6 +73,7 @@ class ConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
             transport.condition,
             notices[0],
         )
+
         self.assertTrue(transport.read_after_failure.is_set())
         requests = transport.condition_requests
         self.assertEqual(len(requests), 3)
@@ -77,10 +82,12 @@ class ConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len({request.headers["signature"] for request in requests}), 3)
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
         self.assertEqual(store.records, (terminal,))
+
         # silent-defaults: allow-contract -- Only an observed condition acknowledgement is retained; absence remains None.
         self.assertEqual(
             json.loads(requests[0].content)["condition_code"], None if failed_put in (3, 6) else "waiting_capacity"
         )
+
         self.assertIsNone(executor.last_failure)
         claim.release(owner=claim.lifecycle_owner)
 
@@ -88,8 +95,10 @@ class ConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         for seconds in (0, -1, float("inf"), float("nan"), True, "1"):
             with self.subTest(seconds=seconds), self.assertRaises(ValueError):
                 ConditionRecovery(seconds, 1, Mock(), Mock())
+
             with self.subTest(backoff=seconds), self.assertRaises(ValueError):
                 ConditionRecovery(1, seconds, Mock(), Mock())
+
         for observers in ((None, Mock()), (Mock(), None)):
             with self.subTest(observers=observers), self.assertRaises(ValueError):
                 ConditionRecovery(1, 1, *observers)

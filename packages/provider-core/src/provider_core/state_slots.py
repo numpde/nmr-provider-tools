@@ -37,8 +37,10 @@ class StateType[T]:
     def __post_init__(self) -> None:
         if not isinstance(self.value_type, type):
             raise TypeError("A scientific state kind must name a concrete Python type")
+
         if self.name is None:
             object.__setattr__(self, "name", self.value_type.__module__ + "." + self.value_type.__qualname__)
+
         _identity(self.name, "Scientific state kind")
 
     def output(self, *, name: str | None = None, dispose: Callable[[T], None]) -> StateOutputSlot[T]:
@@ -54,6 +56,7 @@ class StateHandle[T]:
 
     kind: StateType[T]
     reference: StateRef
+
     def __post_init__(self) -> None:
         if self.reference.kind != self.kind.name:
             raise ValueError("State reference kind differs from its typed handle")
@@ -74,15 +77,19 @@ class StateOutputSlot[T]:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_inferred", self.name is None)
+
         if self.name is not None:
             StateOutput(name=self.name, kind=self.kind.name)
+
         if not isinstance(self.kind.value_type, type) or not callable(self.dispose):
             raise TypeError("An output slot needs a concrete scientific type and disposer")
 
     def __set_name__(self, owner: type, name: str) -> None:
         """Bind an omitted port name to its unambiguous Python attribute."""
+
         if self._inferred and self.name is not None and self.name != name:
             raise ValueError("An inferred state port cannot have different Python attribute names")
+
         if self.name is None:
             object.__setattr__(self, "name", name)
 
@@ -107,16 +114,22 @@ class StateOutputSlot[T]:
         A fabricated record cannot replace the backend's live StateRef checks.
         """
         target = ref(call)
+
         if not any(slot is self for slot in call._output_slots):
             raise ValueError("Output slot is not declared by this exact call")
+
         observation = await operation.observe(after=None, wait_seconds=0)
+
         if observation.operation != operation.reference:
             raise ValueError("Observation belongs to another producer operation")
+
         if observation.target != target:
             raise ValueError("Observation belongs to another producer call or configured revision")
+
         for failure in observation.failures:
             if failure.phase == "state_adoption":
                 raise failure.cause
+
         for output in observation.states:
             if output.name == self.name:
                 reference = output.reference
@@ -130,7 +143,9 @@ class StateOutputSlot[T]:
                     or reference.producer != operation.reference
                 ):
                     raise ValueError("State output provenance differs from its producer observation")
+
                 return StateHandle(kind=self.kind, reference=reference)
+
         raise ValueError(f"Producer observation contains no output {self.name!r}")
 
 
@@ -145,13 +160,16 @@ class StateInputSlot[T]:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_inferred", self.name is None)
+
         if self.name is not None:
             StateParameter(name=self.name, kind=self.kind.name, use=self.use)
 
     def __set_name__(self, owner: type, name: str) -> None:
         """Bind an omitted port name to its unambiguous Python attribute."""
+
         if self._inferred and self.name is not None and self.name != name:
             raise ValueError("An inferred state port cannot have different Python attribute names")
+
         if self.name is None:
             object.__setattr__(self, "name", name)
 
@@ -165,15 +183,19 @@ class StateInputSlot[T]:
 
     def bind(self, handle: StateHandle[T]) -> StateArgument:
         """Describe a connection; actual guarded dispatch decides state use."""
+
         if handle.kind.name != self.kind.name or handle.reference.kind != self.kind.name or handle.kind.value_type is not self.kind.value_type:
             raise ValueError("State handle has a different scientific kind or Python type")
+
         return StateArgument(name=self.name, reference=handle.reference)
 
     def read(self, values: Mapping[str, object]) -> T:
         """Read a host-admitted live value while preserving its concrete type."""
         value = values[self.name]
+
         if type(value) is not self.kind.value_type:
             raise TypeError(f"State input {self.name!r} requires {self.kind.value_type.__qualname__}")
+
         return cast(T, value)
 
 
@@ -188,23 +210,29 @@ class SlotStateBinding[T]:
     def __post_init__(self) -> None:
         if not isinstance(self.value_type, type) or not callable(self.assemble):
             raise TypeError("A scientific state binding needs a concrete type and assembler")
+
         if type(self.inputs) is not tuple or any(type(slot) is not StateInputSlot for slot in self.inputs):
             raise TypeError("State inputs must be an immutable tuple of StateInputSlot objects")
+
         if len(set(self.names)) != len(self.inputs):
             raise ValueError("Consumer input slot names must be unique")
 
     @property
     def names(self) -> tuple[str, ...]:
         names = []
+
         for slot in self.inputs:
             names.append(slot.name)
+
         return tuple(names)
 
     @property
     def parameters(self) -> tuple[StateParameter, ...]:
         parameters = []
+
         for slot in self.inputs:
             parameters.append(slot.description)
+
         return tuple(parameters)
 
     @property
@@ -214,9 +242,13 @@ class SlotStateBinding[T]:
     def bind(self, values: Mapping[str, object]) -> T:
         if set(values) != set(self.names):
             raise ValueError("Live state values differ from the declared consumer inputs")
+
         for slot in self.inputs:
             slot.read(values)
+
         state = self.assemble(values)
+
         if type(state) is not self.value_type:
             raise TypeError(f"Scientific state assembler must return {self.value_type.__qualname__}")
+
         return state

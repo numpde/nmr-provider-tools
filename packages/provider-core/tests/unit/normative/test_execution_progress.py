@@ -39,6 +39,7 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
             notices.append(failure)
 
         client = api(transport, store.scope.api_origin)
+
         executor = live_executor(
             client,
             store,
@@ -49,6 +50,7 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
             task_settle_seconds=0.1,
             on_unconfirmed_phase_progress=unconfirmed,
         )
+
         terminal = await executor.run(acknowledged)
         self.assertEqual(len(notices), 1)
         self.assertEqual(transport.fresh_reads, 1)
@@ -59,9 +61,11 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(executor._outcome)
         self.assertEqual(store.records, (terminal,))
         commands = [json.loads(request.content) for request, _ in transport.calls if request.method == "PUT"]
+
         self.assertEqual(
             [(item["phase"], item["condition_code"]) for item in commands], [("preparing", None), ("running", None)]
         )
+
         self.assertIsNone(executor.last_failure)
         claim.release(owner=claim.lifecycle_owner)
 
@@ -69,6 +73,7 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
         store, _acknowledged, claim = await live_attempt()
         transport = PhaseProgressTransport("preparing")
         session = Session(store)
+
         with self.assertRaises(ValueError):
             live_executor(
                 api(transport, store.scope.api_origin),
@@ -80,6 +85,7 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
                 task_settle_seconds=0.1,
                 on_unconfirmed_phase_progress=False,
             )
+
         self.assertEqual(transport.calls, [])
         self.assertEqual(session.events, [])
         claim.release(owner=claim.lifecycle_owner)

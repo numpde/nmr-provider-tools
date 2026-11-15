@@ -15,10 +15,12 @@ class MakeHelpTests(unittest.TestCase):
     def test_every_maintained_target_is_documented(self):
         content = (ROOT / "Makefile").read_text()
         declared = set(re.findall(r"(?m)^([A-Za-z][A-Za-z0-9/._-]+):(?:\s|$)", content))
+
         result = subprocess.run(
             ("make", "--no-print-directory", "help"),
             cwd=ROOT, capture_output=True, text=True, timeout=10, check=False,
         )
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         documented = set(re.findall(r"\bmake ([A-Za-z][A-Za-z0-9/._-]+)", result.stdout))
         self.assertEqual(declared, documented)
@@ -29,7 +31,9 @@ class MakeHelpTests(unittest.TestCase):
             ("make", "--no-print-directory", "help"),
             cwd=ROOT, capture_output=True, text=True, timeout=10, check=False,
         )
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
+
         for phrase in (
             "publish/prepare", "publish/release", "WHEELHOUSE=", "OUTPUT=",
             "ARTIFACTS=", "mkdir -m 700", "release-artifacts/",

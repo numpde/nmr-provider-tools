@@ -38,10 +38,13 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         original = unavailable()
         first, second = endpoint("same-service", original), endpoint("same-service")
         service = service_with(first, second)
+
         for owner in (interpreter(service), interpreter(service)):
             with self.assertRaises(InterpretationFailed):
                 await asyncio.wait_for(owner.run([], TOOLS, AsyncMock()), timeout=0.2)
+
             await owner.retire()
+
         first.complete.assert_awaited_once()
         second.complete.assert_not_awaited()
         waiting_failure = next(failure for _, failure in owner.failures if isinstance(failure, ChatFailed))
@@ -53,14 +56,18 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_stopping_a_waiting_interpretation_does_not_send_or_prepare(self):
         first, waiting = endpoint("same-service", unavailable()), endpoint("same-service")
         service = service_with(first, waiting)
+
         with self.assertRaises(InterpretationFailed):
             await interpreter(service).run([], TOOLS, AsyncMock())
+
         owner, prepare = interpreter(service, seconds=10), AsyncMock()
         task = asyncio.create_task(owner.run([], TOOLS, prepare))
         await asyncio.sleep(0)
         await owner.retire()
+
         with self.assertRaises(ConversationFailed):
             await asyncio.wait_for(task, timeout=0.2)
+
         waiting.complete.assert_not_awaited()
         prepare.assert_not_awaited()
         self.assertTrue(owner.retirement_confirmed)
@@ -80,15 +87,20 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         service = service_with(old, refused, following)
         old_owner = interpreter(service, seconds=2)
         old_task = asyncio.create_task(old_owner.run([], TOOLS, AsyncMock(return_value=ToolFinished("old"))))
+
         try:
             await asyncio.wait_for(received.wait(), timeout=0.2)
+
             with self.assertRaises(InterpretationFailed):
                 await interpreter(service).run([], TOOLS, AsyncMock())
+
             release.set()
             self.assertEqual("old", (await old_task).value)
             self.assertGreater(service.retry_seconds, 0)
+
             with self.assertRaises(InterpretationFailed):
                 await interpreter(service).run([], TOOLS, AsyncMock())
+
             following.complete.assert_not_awaited()
         finally:
             release.set()
@@ -100,8 +112,10 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         healthy = endpoint("same-label", call("healthy-preparation", "prepare", {}))
         unavailable_service = service_with(failed, waiting)
         healthy_service = service_with(healthy)
+
         with self.assertRaises(InterpretationFailed):
             await interpreter(unavailable_service).run([], TOOLS, AsyncMock())
+
         prepare = AsyncMock(return_value=ToolFinished("prepared"))
         result = await interpreter(unavailable_service, healthy_service, seconds=0.08).run([], TOOLS, prepare)
         self.assertEqual("prepared", result.value)
@@ -115,8 +129,10 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         carrier = endpoint("recovering-service", unavailable(b"0"), call("prepare-once", "prepare", {}))
         service = service_with(carrier)
         prepare = AsyncMock(return_value=ToolFinished("prepared"))
+
         with patch("provider_core.interpreter.random.uniform", return_value=0.03) as jitter:
             result = await interpreter(service, seconds=0.3).run([], TOOLS, prepare)
+
         self.assertEqual("prepared", result.value)
         jitter.assert_called_once_with(0.25, 0.75)
         self.assertEqual(2, carrier.complete.await_count)
@@ -131,10 +147,13 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
     async def test_authentication_refusal_does_not_become_temporary_unavailability(self):
         denied = ChatFailed("http_status", "Prose service authentication was refused.",
                             response=SimpleNamespace(status=401, headers=((b"Retry-After", b"60"),)))
+
         carrier = endpoint("protected-service", denied)
         service = service_with(carrier)
+
         with self.assertRaises(InterpretationFailed):
             await interpreter(service).run([], TOOLS, AsyncMock())
+
         self.assertEqual(0, service.retry_seconds)
         carrier.complete.assert_awaited_once()
 
@@ -144,8 +163,10 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         unsettled.retirement_confirmed = False
         owner = interpreter(service_with(unsettled), service_with(fallback))
         prepare = AsyncMock()
+
         with self.assertRaises(ConversationRetirementFailed):
             await owner.run([], TOOLS, prepare)
+
         unsettled.complete.assert_awaited_once()
         fallback.complete.assert_not_awaited()
         prepare.assert_not_awaited()

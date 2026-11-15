@@ -15,6 +15,7 @@ import re
 # Redaction recognizes only this reviewed credential grammar.
 # repo-check: allow-module-constant
 _CREDENTIAL = re.compile(r"(?i)\b(?:Bearer|Basic)\s+[^\s\"'<>;,]+|\bsk-[A-Za-z0-9_.-]+")
+
 # Match entire quoted secrets, including escaped quotes, so their suffixes
 # cannot escape redaction. Preserve the existing diagnostic field grammar.
 # repo-check: allow-module-constant

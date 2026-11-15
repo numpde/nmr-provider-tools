@@ -16,5 +16,6 @@ class JobInputTests(unittest.TestCase):
                 self.assertEqual(verified.job_ref, "job:example")
                 self.assertEqual(verified.specification_text, payload.decode())
                 self.assertNotIn("private", repr(verified))
+
                 with self.assertRaises(FrozenInstanceError):
                     verified.specification_bytes = b"replacement"

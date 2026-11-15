@@ -21,21 +21,27 @@ class UploadHeadAdmissionTests(unittest.IsolatedAsyncioTestCase):
         _, api, _, _ = file_sources()
         grant = replace(api.grant, byte_length=1, content_hash="sha256:"+sha256(b"x").hexdigest())
         observed, consumed = [], []
+
         class ErrorBody(Stream):
             async def __aiter__(self):
                 consumed.append(True)
                 yield b'{"error":"temporarily unavailable"}'
+
         client = Client(ErrorBody([]), status=503, headers=[(b"content-type", b"application/json")])
         store = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.1)
+
         transfer = UploadTransfer("job:example", store=store, store_origin="https://store.example",
                                   remaining=lambda:1, before_request=lambda:None, account=observed.append)
+
         async def fresh():
             return grant
+
         with private_source_directory() as (_, directory), patch(
             "provider_core.transport.httpcore.AsyncConnectionPool", return_value=client
         ):
             with self.assertRaises(UploadFailed) as caught:
                 await transfer.acquire_file(fresh, directory_fd=directory, retirement_seconds=0.1)
+
         self.assertTrue(transfer.can_retry_transfer(caught.exception))
         self.assertEqual(consumed, [])
         self.assertEqual(observed, [])

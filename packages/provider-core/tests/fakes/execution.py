@@ -38,14 +38,19 @@ class LiveAttemptProbe:
     def records(self):
         if self.controller is not None:
             claim = self.controller._claim
+
             if claim is None or not claim.active:
                 return ()
+
             operation = self.controller.operation
         else:
             operation = self.executor
+
         checkpoint = getattr(operation, "_checkpoint", None)
+
         if checkpoint is None:
             return ()
+
         return (checkpoint,)
 
     def require_execution_ready(self, claim, executor, acknowledged):
@@ -85,6 +90,7 @@ def live_controller(api, probe, claims, session, **settings):
         api, claims, session, scope=probe.scope, stopping=asyncio.Event(),
         start_policy=LiveStartPolicy(0.001, Mock(), Mock()), **settings,
     )
+
     probe.controller = controller
     return controller
 
@@ -101,19 +107,23 @@ class Session:
     # Match the required session port; this recording fixture emits no conditions.
     async def prepare(self, acknowledged, instructions, *, report_condition):  # noqa: ARG002
         self.events.append(("prepare", self.probe.records[0], instructions))
+
         if acknowledged.start.input != instructions.identity:
             raise AssertionError("substituted input")
+
         return self.preparation
 
     # Match the required session port; this recording fixture emits no conditions.
     async def execute(self, prepared, *, report_condition):  # noqa: ARG002
         if prepared is not self.handle:
             raise AssertionError("foreign prepared handle")
+
         self.events.append(("execute", self.probe.records[0]))
         return self.outcome
 
     async def retire(self):
         self.events.append(("retire",))
+
         if self.retirement_failure is not None:
             raise self.retirement_failure
 
@@ -146,16 +156,21 @@ class PausedSession(Session):
 async def execute_with_watchdog(executor, acknowledged):
     """Keep a polling regression from hanging tests on a paused session."""
     task = asyncio.create_task(executor.run(acknowledged))
+
     try:
         await asyncio.wait((task,), timeout=3)
+
         if not task.done():
             raise TimeoutError("Test executor did not finish; cancel and settle its original task")
+
         return task.result()
     finally:
         if not task.done():
             task.cancel()
             await asyncio.wait((task,), timeout=1)
+
         if not task.done():
             raise TimeoutError("Test executor did not settle after cancellation")
+
         if not task.cancelled():
             task.exception()

@@ -20,6 +20,7 @@ class PythonBytecodePostureTests(unittest.TestCase):
                        "export PYTHONDONTWRITEBYTECODE=1\npython3 -E identity.py"):
             with self.subTest(source=source):
                 self.assertEqual(1, len(findings(Path("launcher.sh"), source)))
+
         self.assertEqual(1, len(findings(Path("Makefile"), "run:\n\t@python3 -I helper.py\n")))
 
     def test_effective_literal_environment_and_flags_are_accepted(self):
@@ -30,8 +31,10 @@ class PythonBytecodePostureTests(unittest.TestCase):
                        "docker run --env PYTHONDONTWRITEBYTECODE=1 --entrypoint python3 image helper.py"):
             with self.subTest(source=source):
                 self.assertEqual([], findings(Path("launcher.sh"), source))
+
         self.assertEqual(1, len(findings(Path("launcher.sh"),
             "env PYTHONDONTWRITEBYTECODE=1 -u PYTHONDONTWRITEBYTECODE python3 helper.py")))
+
         self.assertEqual(1, len(findings(Path("launcher.sh"),
             "PYTHONDONTWRITEBYTECODE=1 docker run --entrypoint python3 image helper.py")))
 
@@ -44,6 +47,7 @@ class PythonBytecodePostureTests(unittest.TestCase):
                        '"$python" "${arguments[@]}"', 'python3 "${arguments[@]}"'):
             with self.subTest(source=source):
                 self.assertEqual([], findings(Path("launcher.sh"), source))
+
         self.assertEqual(1, len(findings(Path("launcher.sh"),
             'run "${worker[@]}" --entrypoint python3 "$image" -I -S identity.py')))
 
@@ -54,6 +58,7 @@ class PythonBytecodePostureTests(unittest.TestCase):
             'subprocess.run(["python3", "helper.py", "-B"])',
             'subprocess.run(["python3", "helper.py"], env={"PYTHONDONTWRITEBYTECODE":"1", **other})',
         ]
+
         good = [
             'subprocess.run([sys.executable, "-I", "-B", "identity.py"])',
             'subprocess.run(["python3", "helper.py"], env={"PYTHONDONTWRITEBYTECODE":"1"})',
@@ -61,21 +66,26 @@ class PythonBytecodePostureTests(unittest.TestCase):
             'subprocess.run([sys.executable, "-I", "-m", "pip", "install", "wheel"])',
             'subprocess.run([executable, *arguments])',
         ]
+
         for source in bad:
             self.assertEqual(1, len(findings(Path("driver.py"), source)), msg=source)
+
         for source in good:
             self.assertEqual([], findings(Path("driver.py"), source), msg=source)
 
     def test_inventory_is_automatic_and_diagnostics_do_not_echo_payload(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             for name in ("host/tools/run.sh", "new_component/driver.py", "Makefile", "tests/fixtures/run.sh",
                          "bootstrap/generated/run.sh", "vendor/run.py", "docs/example.sh", ".git/hooks/run.sh"):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("# fixture\n")
+
             self.assertEqual({"host/tools/run.sh", "new_component/driver.py", "Makefile"},
                              {path.relative_to(root).as_posix() for path in production_files(root)})
+
         issue, = findings(Path("safe.sh"), "python3 -I secret-private-path.py")
         self.assertNotIn("secret-private-path", issue.diagnostic())
         self.assertIn("safe.sh:1:", issue.diagnostic())

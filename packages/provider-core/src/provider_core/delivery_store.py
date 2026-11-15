@@ -81,14 +81,17 @@ class DeliveryOutcome:
     def __post_init__(self):
         if _https_origin(self.api_origin)[0] != self.api_origin:
             raise ValueError("Delivery requires the configured canonical API origin.")
+
         require_provider_ref(self.provider_ref)
         require_job_ref(self.job_ref)
         require_attempt_ref(self.execution_attempt_ref)
+
         if type(self.operation) is not TerminalOperation:
             raise TypeError(
                 f"Unexpected {type(self.operation)=}; "
                 "Delivery requires an explicit complete or fail operation."
             )
+
         parser = read_complete_body if self.operation is TerminalOperation.COMPLETE else read_fail_body
         parser(self.body, execution_attempt_ref=self.execution_attempt_ref)
 
@@ -102,6 +105,7 @@ class DeliveryOutcome:
 
     def acceptance(self):
         """Durable enqueue identity; this is not an API acceptance receipt."""
+
         return {
             "api_origin": self.api_origin, "provider_ref": self.provider_ref,
             "job_ref": self.job_ref, "execution_attempt_ref": self.execution_attempt_ref,
@@ -121,8 +125,10 @@ class QueueLimits:
             self.provider_items, self.provider_bytes, self.total_items, self.total_bytes
         )):
             raise ValueError("Delivery queue item and byte limits must be positive integers.")
+
         if not self.provider_items <= MAX_PROVIDER_ITEMS:
             raise ValueError("Delivery provider_items cannot exceed 256: the complete pending inventory must fit the supported IPC response envelope.")
+
         if not (self.provider_items <= self.total_items and self.provider_bytes <= self.total_bytes):
             raise ValueError("A provider's delivery allowance cannot exceed the host allowance.")
 
@@ -136,15 +142,19 @@ class DeliveryQueue:
                 f"Unexpected {type(limits)=}; "
                 "Delivery storage requires explicit queue limits."
             )
+
         self.limits, self.directory = limits, directory
         self._serial = threading.RLock()
         self._db, self._lock, self._failure = None, None, None
+
         try:
             facts = directory.lstat()
+
             if (not directory.is_absolute() or directory.resolve() != directory
                     or not stat.S_ISDIR(facts.st_mode) or facts.st_uid != os.geteuid()
                     or stat.S_IMODE(facts.st_mode) != 0o700):
                 raise DeliveryStorageFailed("Cannot open delivery storage: its directory must be canonical, caller-owned and mode 0700.")
+
             self._lock = self._private_file(directory / ".owner.lock")
             fcntl.flock(self._lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             descriptor = self._private_file(directory / "delivery.sqlite3")
@@ -156,17 +166,21 @@ class DeliveryQueue:
             self._initialize()
         except (OSError, sqlite3.Error, DeliveryStorageFailed) as cause:
             self.close()
+
             if type(cause) is DeliveryStorageFailed:
                 raise
+
             raise DeliveryStorageFailed("Cannot open delivery storage; restore its private database and single-writer ownership.", cause=cause) from None
 
     def _private_file(self, path):
         descriptor = os.open(path, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
+
         try:
             try:
                 facts = os.fstat(descriptor)
             except OSError as cause:
                 raise DeliveryStorageFailed(f"Cannot inspect private delivery file {path.name} before acquiring it.", cause=cause) from None
+
             if (not stat.S_ISREG(facts.st_mode) or facts.st_uid != os.geteuid()
                     or stat.S_IMODE(facts.st_mode) != 0o600):
                 raise DeliveryStorageFailed(
@@ -178,15 +192,19 @@ class DeliveryQueue:
             # or SQLite. A close failure retains the admission failure as context.
             os.close(descriptor)
             raise
+
         return descriptor
 
     def _initialize(self):
         version = self._db.execute("PRAGMA user_version").fetchone()[0]
+
         if version not in (0, 1, 2):
             raise DeliveryStorageFailed("Cannot open delivery storage: its database version is unsupported.")
+
         if version == 0:
             if self._db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchone() is not None:
                 raise DeliveryStorageFailed("Cannot adopt another application's database as the delivery queue.")
+
             with self._transaction("initialize"):
                 self._db.execute("""CREATE TABLE outstanding (
                     api_origin TEXT NOT NULL, provider_ref TEXT NOT NULL, attempt_ref TEXT NOT NULL,
@@ -195,12 +213,16 @@ class DeliveryQueue:
                     state TEXT NOT NULL CHECK(state IN ('pending','held')),
                     created_at REAL NOT NULL, held_reason TEXT,
                     PRIMARY KEY(api_origin, provider_ref, attempt_ref))""")
+
                 self._db.execute("PRAGMA user_version=1")
+
             version = 1
+
         if version == 1:
             with self._transaction("upgrade"):
                 self._db.execute("ALTER TABLE outstanding ADD COLUMN publication BLOB")
                 self._db.execute("PRAGMA user_version=2")
+
         # Detect incompatible/corrupt schema before serving any publication.
         self._db.execute("SELECT api_origin,provider_ref,attempt_ref,job_ref,operation,body,digest,state,created_at,held_reason,publication FROM outstanding LIMIT 0")
 
@@ -209,8 +231,10 @@ class DeliveryQueue:
         with self._serial:
             if self._failure is not None:
                 raise self._failure
+
             if self._db is None:
                 raise DeliveryStorageFailed("Cannot use delivery storage after it closed.")
+
             try:
                 yield
             except sqlite3.Error as cause:
@@ -218,6 +242,7 @@ class DeliveryQueue:
                     f"Cannot {operation} delivery storage. Preserve the database and restore storage before continuing; earlier delivery acknowledgements and API receipts are unchanged.",
                     cause=cause,
                 )
+
                 raise self._failure from None
 
     @contextmanager
@@ -231,62 +256,81 @@ class DeliveryQueue:
 
     def enqueue_handoff(self, handoff):
         from provider_core.delivery_handoff import DeliveryHandoff
+
         if type(handoff) is not DeliveryHandoff:
             raise TypeError(
                 f"Unexpected {type(handoff)=}; "
                 "Delivery requires a complete publication handoff."
             )
+
         return self._enqueue(handoff.outcome, handoff.publication_bytes(), handoff.acceptance())
 
     def _enqueue(self, item, publication, acceptance):
         with self._transaction("enqueue into"):
             limits = self.limits
+
             existing = self._db.execute(
                 "SELECT job_ref,operation,body,publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?", item.key
             ).fetchone()
+
             if existing is not None:
                 if existing != (item.job_ref, item.operation.value, item.body, publication):
                     raise DeliveryConflict("This Attempt already has a different outstanding terminal request; the original remains unchanged.")
+
                 return acceptance
+
             for where, parameters, maximum_items, maximum_bytes in (
                 (" WHERE api_origin=? AND provider_ref=?", item.key[:2], limits.provider_items, limits.provider_bytes),
                 ("", (), limits.total_items, limits.total_bytes),
             ):
                 count, size = self._db.execute("SELECT COUNT(*),COALESCE(SUM(length(body)),0) FROM outstanding" + where, parameters).fetchone()
+
                 if count >= maximum_items or size + len(item.body) > maximum_bytes:
                     raise DeliveryFull("Delivery capacity is full. Keep this outcome, wait for space and stop admitting more computation.")
+
             self._db.execute("INSERT INTO outstanding (api_origin,provider_ref,attempt_ref,job_ref,operation,body,digest,state,created_at,held_reason,publication) VALUES (?,?,?,?,?,?,?,'pending',?,NULL,?)",
                              (*item.key, item.job_ref, item.operation.value, item.body, item.body_sha256, time.time(), publication))
+
         return acceptance
 
     def next_pending_handoff(self, api_origin, provider_ref):
         """Return the oldest publishable row with its own original signing material."""
         from provider_core.delivery_handoff import DeliveryHandoffRejected, read_delivery_handoff
+
         with self._access("read a publication from"):
             item = self.next_pending(api_origin, provider_ref)
+
             if item is None:
                 return None
+
             publication = self._db.execute(
                 "SELECT publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?", item.key
             ).fetchone()[0]
+
             if publication is None:
                 raise DeliveryStorageFailed("Cannot publish a legacy delivery without its original publication material; preserve and hold the row for reconciliation.")
+
             try:
                 document = json.loads(publication)
                 # Reuse the wire admission path to validate retained inputs and identity.
                 import base64
+
                 document["outcome"] = {"api_origin": item.api_origin, "provider_ref": item.provider_ref,
                     "job_ref": item.job_ref, "execution_attempt_ref": item.execution_attempt_ref,
                     "operation": item.operation.value, "body": base64.b64encode(item.body).decode("ascii")}
+
                 handoff = read_delivery_handoff(json.dumps(document, sort_keys=True, separators=(",", ":")).encode("ascii"))
+
                 if handoff.publication_bytes() != publication:
                     raise ValueError("Noncanonical publication material")
+
                 return handoff
             except (DeliveryHandoffRejected, TypeError, ValueError, UnicodeError):
                 raise DeliveryStorageFailed("Cannot publish corrupted retained publication material; preserve the row for operator reconciliation.") from None
 
     def hold_legacy_rows(self):
         """Retain old rows without material while allowing other work to publish."""
+
         with self._transaction("hold legacy requests in"):
             return self._db.execute(
                 "UPDATE outstanding SET state='held',held_reason=? WHERE publication IS NULL AND state='pending'",
@@ -297,14 +341,17 @@ class DeliveryQueue:
         """Attach the original binding inputs supplied by the old deployment owner."""
         from provider_core.api_config import ApiPublicationMaterial, api_settings_from_material
         from provider_core.delivery_handoff import publication_bytes
+
         if type(material) is not ApiPublicationMaterial:
             raise TypeError(
                 f"Unexpected {type(material)=}; "
                 "Legacy delivery requires its original publication material."
             )
+
         settings, provider_ref = api_settings_from_material(
             material.api_fields(), credential_bytes=material.credential_bytes, ca_bytes=material.ca_bytes
         )
+
         with self._transaction("associate original publication material in"):
             return self._db.execute(
                 "UPDATE outstanding SET publication=?, state=CASE WHEN state='held' AND held_reason=? THEN 'pending' ELSE state END, "
@@ -319,18 +366,23 @@ class DeliveryQueue:
                 "SELECT job_ref,attempt_ref,operation,body,digest FROM outstanding WHERE api_origin=? AND provider_ref=? AND state='pending' ORDER BY created_at,attempt_ref LIMIT 1",
                 (api_origin, provider_ref),
             ).fetchone()
+
             if row is None:
                 return None
+
             try:
                 item = DeliveryOutcome(api_origin, provider_ref, row[0], row[1], TerminalOperation(row[2]), row[3])
+
                 if item.body_sha256 != row[4]:
                     raise ValueError("Stored delivery body does not match its retained SHA-256.")
             except (TypeError, ValueError) as cause:
                 raise DeliveryStorageFailed("Cannot publish corrupted delivery storage; preserve the row for operator reconciliation.", cause=cause) from None
+
             return item
 
     def outstanding_bindings(self):
         """Derive current obligations from rows; keep no separate binding registry."""
+
         with self._access("inspect binding obligations in"):
             return tuple(self._db.execute("SELECT DISTINCT api_origin,provider_ref FROM outstanding ORDER BY api_origin,provider_ref"))
 
@@ -340,9 +392,11 @@ class DeliveryQueue:
 
     def pending_overview(self):
         """Observe aggregate queue usage with the pending publisher identities."""
+
         with self._access("inspect pending publication in"):
             bindings = tuple(self._db.execute("SELECT DISTINCT api_origin,provider_ref FROM outstanding WHERE state='pending' ORDER BY api_origin,provider_ref"))
             overview, failure = None, None
+
             try:
                 pending, held, bodies, material, oldest = self._db.execute("""
                     SELECT COALESCE(SUM(state='pending'),0), COALESCE(SUM(state='held'),0),
@@ -350,14 +404,17 @@ class DeliveryQueue:
                            MIN(CASE WHEN state='pending' THEN created_at END)
                     FROM outstanding
                 """).fetchone()
+
                 overview = {"pending": pending, "held": held, "body_bytes": bodies,
                             "publication_bytes": material, "oldest_pending_created_at": oldest}
             except sqlite3.Error as error:
                 # Do not carry SQLite text, traceback or causal context across the diagnostic boundary.
                 failure = type(error)()
                 code = getattr(error, "sqlite_errorcode", None)
+
                 if type(code) is int:
                     failure.sqlite_errorcode = code
+
             return bindings, overview, failure
 
     def inventory(self, api_origin, provider_ref):
@@ -365,30 +422,39 @@ class DeliveryQueue:
 
     def ipc_inventory(self, api_origin, provider_ref):
         rows = self._inventory(api_origin, provider_ref, MAX_PROVIDER_ITEMS + 1, None)
+
         if len(rows) > MAX_PROVIDER_ITEMS:
             raise DeliveryInventoryUnavailable()
+
         return rows
 
     def status(self, api_origin, provider_ref, attempt_ref):
         """Read one bound Attempt without allocating a complete legacy inventory."""
         require_attempt_ref(attempt_ref)
         rows = self._inventory(api_origin, provider_ref, 1, attempt_ref)
+
         if rows:
             return rows[0]
+
         return None
 
     def _inventory(self, api_origin, provider_ref, limit, attempt_ref):
         with self._access("inspect"):
             query = "SELECT job_ref,attempt_ref,operation,digest,length(body),state,created_at,held_reason FROM outstanding WHERE api_origin=? AND provider_ref=?"
             parameters = (api_origin, provider_ref)
+
             if attempt_ref is not None:
                 query += " AND attempt_ref=?"
                 parameters += (attempt_ref,)
+
             query += " ORDER BY created_at,attempt_ref"
+
             if limit is not None:
                 query += " LIMIT ?"
                 parameters += (limit,)
+
             rows = self._db.execute(query, parameters).fetchall()
+
             return [
                 {
                     "job_ref": job_ref,
@@ -412,43 +478,55 @@ class DeliveryQueue:
         This internal method has no producer IPC endpoint. Receipt verification
         stays with ProviderAPI; the transaction protects exact queued identity.
         """
+
         with self._transaction("remove published data from"):
             cursor = self._db.execute("DELETE FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=? AND job_ref=? AND operation=? AND body=?", self._match(item))
+
             if cursor.rowcount != 1:
                 raise DeliveryConflict("The queued request changed before publication settlement; no different row was removed.")
 
     def hold(self, item, reason):
         """Retain a reviewed operator explanation, never raw remote response text."""
+
         if type(reason) is not str:
             raise TypeError(
                 f"Unexpected {type(reason)=}; "
                 "A held delivery requires a bounded operator explanation."
             )
+
         if not (1 <= len(reason) <= 512):
             raise ValueError("A held delivery requires a bounded operator explanation.")
+
         with self._transaction("hold a request in"):
             cursor = self._db.execute("UPDATE outstanding SET state='held',held_reason=? WHERE api_origin=? AND provider_ref=? AND attempt_ref=? AND job_ref=? AND operation=? AND body=?", (reason, *self._match(item)))
+
             if cursor.rowcount != 1:
                 raise DeliveryConflict("The queued request changed before the hold; its current owner must reconcile it.")
 
     def discard_held(self, api_origin, provider_ref, attempt_ref, body_sha256):
         """Operator disposition only; removing held bytes proves no API receipt."""
+
         if _https_origin(api_origin)[0] != api_origin:
             raise ValueError("Discard requires the configured canonical API origin.")
+
         require_provider_ref(provider_ref)
         require_attempt_ref(attempt_ref)
+
         if type(body_sha256) is not str:
             raise TypeError(
                 f"Unexpected {type(body_sha256)=}; "
                 "Discard requires the held payload's exact SHA-256 from its metadata."
             )
+
         if re.fullmatch(r"sha256:[0-9a-f]{64}", body_sha256) is None:
             raise ValueError("Discard requires the held payload's exact SHA-256 from its metadata.")
+
         with self._transaction("discard a held request from"):
             cursor = self._db.execute(
                 "DELETE FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=? AND digest=? AND state='held'",
                 (api_origin, provider_ref, attempt_ref, body_sha256),
             )
+
             if cursor.rowcount != 1:
                 raise DeliveryConflict("No matching held payload was removed. Check its binding, Attempt and digest; pending requests cannot be discarded.")
 
@@ -457,6 +535,7 @@ class DeliveryQueue:
             if self._db is not None:
                 self._db.close()
                 self._db = None
+
             if self._lock is not None:
                 os.close(self._lock)
                 self._lock = None

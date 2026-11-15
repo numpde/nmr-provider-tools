@@ -24,6 +24,7 @@ from tools.core_environment import (
     install_environment,
     install_locked,
 )
+
 from tools.installer import pip_command
 from tools.wheelhouse import digest
 
@@ -31,16 +32,19 @@ from tools.wheelhouse import digest
 def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, str, str]]:
     projects = []
     names = set()
+
     for metadata in sorted(examples.glob("*/pyproject.toml")):
         project = tomllib.loads(metadata.read_text())["project"]
         distribution_name = project["name"]
         distribution_version = project["version"]
+
         if not (isinstance(distribution_name, str)):
             raise TypeError(
                 f"Unexpected {type(distribution_name)=}; "
                 f"Cannot install example {metadata.parent.name!r}: distribution "
                 "name must use lowercase letters, digits and single hyphens."
             )
+
         if re.fullmatch(
             r"[a-z0-9]+(?:-[a-z0-9]+)*", distribution_name
         ) is None:
@@ -48,17 +52,20 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
                 f"Cannot install example {metadata.parent.name!r}: distribution "
                 "name must use lowercase letters, digits and single hyphens."
             )
+
         if distribution_name == "provider-core" or distribution_name in names:
             raise ValueError(
                 f"Cannot install example {distribution_name!r}: distribution "
                 "names must be unique and must not shadow provider-core."
             )
+
         if not (isinstance(distribution_version, str)):
             raise TypeError(
                 f"Unexpected {type(distribution_version)=}; "
                 f"Cannot install example {distribution_name!r}: "
                 "a three-part version is required."
             )
+
         if re.fullmatch(
             r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",
             distribution_version,
@@ -67,6 +74,7 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
                 f"Cannot install example {distribution_name!r}: "
                 "a three-part version is required."
             )
+
         if project.get("dependencies") not in (
             [f"provider-core=={core_version}"],
             [f"provider-core[api]=={core_version}"],
@@ -75,11 +83,13 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
                 f"Cannot install example {distribution_name!r}: its only dependency "
                 f"must be provider-core=={core_version} or its [api] extra."
             )
+
         names.add(distribution_name)
         projects.append((metadata.parent, distribution_name, distribution_version))
 
     if not projects:
         raise ValueError("Cannot qualify installed examples: /examples contains no standalone projects.")
+
     return projects
 
 
@@ -95,6 +105,7 @@ def _build_and_install_example(
 ) -> None:
     example_output = root / "release"
     example_output.mkdir(parents=True)
+
     build_source_wheel(
         source=source,
         staged_source=root / "source",
@@ -114,10 +125,12 @@ def _build_and_install_example(
 
     example_install_lock = root / "example-install.lock"
     continuation = "\\"
+
     example_install_lock.write_text(
         f"{distribution_name}=={distribution_version} {continuation}\n"
         f"    --hash=sha256:{digest(example_wheel)}\n"
     )
+
     install_locked(
         python,
         example_install_lock,
@@ -126,6 +139,7 @@ def _build_and_install_example(
         extra_pools=(example_output,),
         required_files={example_wheel.name: example_wheel},
     )
+
     subprocess.run([*pip_command(python), "--no-cache-dir", "check"], check=True)
 
 
@@ -148,6 +162,7 @@ def _run_installed_suite(
         cwd=run,
         check=False,
     )
+
     if test_process.returncode:
         raise SystemExit(
             f"Installed provider-core {selection} tests failed "
@@ -174,6 +189,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
         # Behavioral suites need their pinned test closure. Contract and native
         # installation proofs remain dependency-pure.
         install_lock = candidate_lock
+
         if suite in ("unit", "integration", "integration/delivery", "fuzz"):
             install_lock = behavioral_install_lock(
                 candidate_lock,
@@ -191,16 +207,20 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
 
         test_tree = scratch / "run"
         shutil.copytree(Path("/package/tests"), test_tree / "tests")
+
         if suite == "integration":
             core_version = tomllib.loads(
                 (Path("/package") / "pyproject.toml").read_text()
             )["project"]["version"]
+
             examples = _discover_examples(Path("/examples"), core_version)
+
             builder_python = install_environment(
                 Path("/runtime/example-builder"),
                 Path("/core-build.lock"),
                 wheelhouse,
             )
+
             for source, name, version in examples:
                 _build_and_install_example(
                     root=scratch / "examples" / name,
@@ -211,12 +231,15 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                     python=runtime_python,
                     pool=wheelhouse,
                 )
+
                 namespace = "example_" + name.replace("-", "_")
                 shutil.copytree(source / "tests", test_tree / "tests/integration" / namespace)
+
                 # Deployment configuration and model data stay outside wheels.
                 # Preserve their relative layout when exercising installed code.
                 for directory_name in ("config", "models"):
                     directory = source / directory_name
+
                     if directory.is_dir():
                         shutil.copytree(
                             src=directory,
@@ -225,6 +248,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
 
         # silent-defaults: allow-contract -- Fuzz selects both owned suites; every other admitted selector names one suite.
         selections = ("integration", "unit") if suite == "fuzz" else (suite,)
+
         for selection in selections:
             _run_installed_suite(
                 python=runtime_python,
@@ -238,6 +262,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                 "-py3-none-any.whl",
                 "-native-install.lock",
             )
+
             native_python = install_environment(
                 Path("/runtime/native-proof"),
                 native_lock,
@@ -245,6 +270,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                 extra_pools=(candidate_output,),
                 required_files={candidate_wheel.name: candidate_wheel},
             )
+
             _run_installed_suite(
                 python=native_python,
                 run=test_tree,
@@ -255,6 +281,7 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
+
     parser.add_argument(
         "suite",
         choices=(
@@ -265,12 +292,15 @@ if __name__ == "__main__":
             "fuzz",
         ),
     )
+
     parser.add_argument(
         "--pattern",
         action="append",
         required=True,
     )
+
     arguments = parser.parse_args()
+
     run_suite(
         arguments.suite,
         tuple(arguments.pattern),

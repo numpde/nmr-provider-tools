@@ -44,12 +44,16 @@ def read_workflow(path: Path) -> str:
 
 def unpinned_external_uses(workflow: str) -> list[str]:
     offenders: list[str] = []
+
     for match in ACTION_USES_LINE.finditer(workflow):
         target = match.group("target")
+
         if target.startswith("./"):
             continue
+
         if PINNED_EXTERNAL_USES.fullmatch(target) is None:
             offenders.append(match.group(0).strip())
+
     return offenders
 
 
@@ -67,30 +71,35 @@ class WorkflowPostureTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "unreviewed.yml").write_text("name: unreviewed\n", encoding="utf-8")
+
             with patch(f"{__name__}.WORKFLOW_ROOT", root), self.assertRaises(AssertionError):
                 self.test_workflow_inventory_matches_reviewed_ci_scope()
 
     def test_external_workflow_actions_are_commit_pinned(self) -> None:
         for path in workflow_files():
             workflow = read_workflow(path)
+
             with self.subTest(workflow=path.name):
                 self.assertEqual([], unpinned_external_uses(workflow))
 
     def test_workflows_do_not_define_silent_dispatch_defaults(self) -> None:
         for path in workflow_files():
             workflow = read_workflow(path)
+
             with self.subTest(workflow=path.name):
                 self.assertNotRegex(workflow, r"(?m)^\s+default:\s*")
 
     def test_workflows_do_not_define_blank_environment_entries(self) -> None:
         for path in workflow_files():
             workflow = read_workflow(path)
+
             with self.subTest(workflow=path.name):
                 self.assertNotRegex(workflow, r"(?m)^\s+[A-Z][A-Z0-9_]*:\s*$")
 
     def test_workflows_pin_github_hosted_runner_images(self) -> None:
         for path in workflow_files():
             workflow = read_workflow(path)
+
             with self.subTest(workflow=path.name):
                 self.assertNotIn("ubuntu-latest", workflow)
                 self.assertRegex(workflow, r"(?m)^\s+runs-on:\s+ubuntu-24\.04$")

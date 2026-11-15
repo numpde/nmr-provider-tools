@@ -47,6 +47,7 @@ class DeliveryAvailabilityTests(unittest.TestCase):
                 primary.__cause__ = cause
                 primary.__context__ = FileNotFoundError(errno.ENOENT, "PRIVATE_PATH")
                 self.assertFalse(self.client.can_retry(self.failure(primary)))
+
         unrelated = RuntimeError("PRIVATE_UNREVIEWED_WRAPPER")
         unrelated.__context__ = FileNotFoundError(errno.ENOENT, "PRIVATE_PATH")
         self.assertFalse(self.client.can_retry(self.failure(unrelated)))

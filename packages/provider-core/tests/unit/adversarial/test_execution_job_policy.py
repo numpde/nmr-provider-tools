@@ -18,6 +18,7 @@ from tests.fakes.api import api
 class ExecutionJobPolicyFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_unknown_cancelled_empty_or_mutable_policies_are_refused_before_claim_ownership(self):
         store, _, claim = await live_attempt()
+
         for states, error_type in (
             (None, TypeError), ("open", TypeError), ({"open"}, TypeError), (["open"], TypeError),
             (frozenset(), ValueError), (frozenset({"unknown"}), ValueError),
@@ -27,6 +28,7 @@ class ExecutionJobPolicyFailureTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(states=states), self.assertRaises(error_type):
                 live_executor(api(Transport(), store.scope.api_origin), store, claim, Session(store),
                                 delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=states, poll_seconds=0.01, task_settle_seconds=0.1)
+
         claim.release(owner=claim.lifecycle_owner)
 
     async def test_every_terminal_attempt_stops_even_when_consumer_permits_closed_jobs(self):
@@ -36,11 +38,14 @@ class ExecutionJobPolicyFailureTests(unittest.IsolatedAsyncioTestCase):
                     store, acknowledged, claim = await live_attempt()
                     session = Session(store)
                     transport = Transport(reply(observation(state=state, job_state=job_state)))
+
                     executor = live_executor(api(transport, store.scope.api_origin), store, claim, session,
                                                delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open", "closed"}),
                                                poll_seconds=0.01, task_settle_seconds=0.1)
+
                     with self.assertRaises(ExecutionFailed) as failed:
                         await executor.run(acknowledged)
+
                     self.assertIsInstance(failed.exception.cause, ExecutionStopped)
                     self.assertEqual([event[0] for event in session.events], ["retire"])
                     self.assertEqual(store.records, (AcknowledgedCheckpoint(acknowledged.start, acknowledged.admission),))
@@ -65,17 +70,22 @@ class ExecutionJobPolicyFailureTests(unittest.IsolatedAsyncioTestCase):
             return AttemptObservation(ATTEMPT_REF, "job:example", "in_progress", job_state)
 
         client.read_attempt = read_attempt
+
         executor = live_executor(client, store, claim, session, delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=states,
                                    poll_seconds=0.01, task_settle_seconds=0.1)
+
         try:
             with self.assertRaises(ExecutionFailed) as failed:
                 await execute_with_watchdog(executor, acknowledged)
+
             self.assertIsInstance(failed.exception.cause, ExecutionStopped)
             self.assertEqual(failed.exception.cause.observation.job_state, stopped_state)
             self.assertIsNone(failed.exception.outcome)
+
             # silent-defaults: allow-contract -- The stopped phase determines which events have already happened.
             self.assertEqual([event[0] for event in session.events],
                              ["prepare", "retire"] if phase == "prepare" else ["prepare", "execute", "retire"])
+
             claim.release(owner=claim.lifecycle_owner)
         finally:
             session.release.set()

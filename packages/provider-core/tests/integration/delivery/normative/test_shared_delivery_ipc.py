@@ -25,8 +25,10 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.queue = DeliveryQueue(root / "state", limits=QueueLimits(2, 8192, 4, 16384))
         self.addCleanup(self.queue.close)
         self.socket = root / "ipc/http.sock"
+
         self.inbox = SharedDeliveryInbox(self.queue, SharedDeliverySocket(self.socket, None), request_seconds=1,
                                          on_accepted=Mock(), on_failure=Mock())
+
         await self.inbox.start()
         self.addAsyncCleanup(self.inbox.close)
 
@@ -34,6 +36,7 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         fields = {"origin": "https://api.example", "profile": "dev-local", "topology": "dev-local",
                   "provider_ref": provider, "exchange_seconds": 10, "retirement_seconds": 5,
                   "credential_file": "/private/credential"}
+
         _, _, material = api_settings_with_material(fields, Mock(return_value=encoded(document(principal_ref=provider))))
         endpoint = DeliveryEndpoint("https://api.example", provider, self.socket)
         client = SharedDeliveryClient(endpoint, material, exchange_seconds=1, retirement_seconds=0.2)
@@ -47,13 +50,17 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await second.submit(item2), DeliveryHandoff(item2, second.publication).acceptance())
         reader = DeliveryClient(first.endpoint, exchange_seconds=1, retirement_seconds=0.2)
         self.addAsyncCleanup(reader.retire)
+
         with self.assertRaises(DeliveryRejected):
             await reader.pending()
+
         with self.assertRaises(DeliveryRejected):
             await reader.status(item2.execution_attempt_ref)
+
         self.assertEqual(self.queue.next_pending_handoff(item1.api_origin, item1.provider_ref).outcome, item1)
         self.assertEqual(self.queue.next_pending_handoff(item2.api_origin, item2.provider_ref).outcome, item2)
         another = self.client("provider:first")
+
         with self.assertRaises(DeliveryConflict):
             await another.submit(item1)
 
@@ -75,16 +82,20 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
 
         async def lose_first(connection, writer, status, document):
             nonlocal dropped
+
             if not dropped and status == 200 and document == expected.acceptance():
                 dropped = True
                 writer.close()
                 await writer.wait_closed()
                 return
+
             await respond(connection, writer, status, document)
 
         self.inbox._respond = lose_first
+
         with self.assertRaises(DeliveryUnavailable):
             await client.submit(item)
+
         await client.retire()
         self.assertEqual(expected.acceptance(), await client.submit(item))
         retained = self.queue.next_pending_handoff(item.api_origin, item.provider_ref)
@@ -97,7 +108,9 @@ class SharedDeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         first, second, third = (outcome(provider="provider:first", suffix=suffix) for suffix in ("0", "1", "2"))
         accepted = await client.submit(first)
         await client.submit(second)
+
         with self.assertRaises(DeliveryFull):
             await client.submit(third)
+
         self.assertEqual(accepted, await client.submit(first))
         self.assertEqual(2, len(self.queue.inventory(first.api_origin, first.provider_ref)))

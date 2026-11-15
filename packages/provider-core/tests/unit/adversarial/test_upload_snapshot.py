@@ -17,18 +17,23 @@ class UploadSnapshotTests(unittest.TestCase):
     def test_invalid_locator_and_worker_bound_refuse_before_open(self):
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, b"original")
+
             cases = [
                 (replace(receipt, name=name), directory, 8)
                 for name in ("", ".", "..", "../outside", "/absolute", "sub/source", "source\0")
             ]
+
             cases.extend((receipt, descriptor, 8) for descriptor in (None, True, -1))
             cases.extend((receipt, directory, limit) for limit in (0, -1, True, 1.5, 7))
             cases.extend((replace(receipt, byte_length=length), directory, 8) for length in (-1, True, "8"))
+
             for candidate, descriptor, limit in cases:
                 with self.subTest(name=candidate.name, descriptor=descriptor, limit=limit):
                     with patch("provider_core.uploads.os.open") as opened, self.assertRaises(UploadFileReadFailed):
                         read_upload_file(candidate, directory_fd=descriptor, maximum_bytes=limit)
+
                     opened.assert_not_called()
+
             self.assertEqual(Path(root, receipt.name).read_bytes(), b"original")
 
     def test_symlink_directory_and_fifo_never_return_a_snapshot(self):
@@ -37,6 +42,7 @@ class UploadSnapshotTests(unittest.TestCase):
                 receipt = snapshot_source(root, b"original")
                 path = Path(root, receipt.name)
                 path.unlink()
+
                 if kind == "symlink":
                     target = Path(root, "target")
                     target.write_bytes(b"original")
@@ -45,8 +51,10 @@ class UploadSnapshotTests(unittest.TestCase):
                     path.mkdir()
                 else:
                     os.mkfifo(path)
+
                 with observe_source_files(directory) as calls, self.assertRaises(UploadFileReadFailed):
                     read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
+
                 self.assertEqual(calls.closed, calls.descriptors)
                 self.assertEqual(calls.removed, [])
 
@@ -66,11 +74,14 @@ class UploadSnapshotTests(unittest.TestCase):
 
             with patch("provider_core.uploads.os.open", side_effect=replace_entry) as opening:
                 snapshot = read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
+
             opening.assert_called_once()
             self.assertEqual(snapshot.data, b"original")
             self.assertEqual(path.read_bytes(), b"replaced")
+
             with self.assertRaises(OSError) as closed:
                 os.fstat(descriptors[0])
+
             self.assertEqual(closed.exception.errno, errno.EBADF)
 
     def test_same_length_replacement_before_open_cannot_reach_the_parser(self):
@@ -78,14 +89,17 @@ class UploadSnapshotTests(unittest.TestCase):
             receipt = snapshot_source(root, b"original")
             Path(root, receipt.name).write_bytes(b"replaced")
             parser = Mock()
+
             with observe_source_files(directory) as calls, self.assertRaisesRegex(UploadFileReadFailed, "SHA-256"):
                 parser(read_upload_file(receipt, directory_fd=directory, maximum_bytes=8).data)
+
             parser.assert_not_called()
             self.assertEqual(calls.closed, calls.descriptors)
             self.assertEqual(calls.removed, [])
 
     def test_mutation_between_chunks_never_admits_hybrid_bytes(self):
         original = b"a" * 65536 + b"b" * 65536
+
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, original)
             read = os.read
@@ -94,8 +108,10 @@ class UploadSnapshotTests(unittest.TestCase):
             def mutate_after_read(descriptor, count):
                 chunk = read(descriptor, count)
                 observed.append(len(chunk))
+
                 if len(observed) == 1:
                     Path(root, receipt.name).write_bytes(b"c" * len(original))
+
                 return chunk
 
             with (
@@ -103,6 +119,7 @@ class UploadSnapshotTests(unittest.TestCase):
                 self.assertRaisesRegex(UploadFileReadFailed, "SHA-256"),
             ):
                 read_upload_file(receipt, directory_fd=directory, maximum_bytes=len(original))
+
             self.assertGreater(len(observed), 1)
             self.assertEqual(sum(observed), len(original))
 
@@ -133,11 +150,13 @@ class UploadSnapshotTests(unittest.TestCase):
                 self.assertRaisesRegex(UploadFileReadFailed, "length"),
             ):
                 read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
+
             self.assertLessEqual(sum(consumed), receipt.byte_length + 1)
 
     def test_read_and_independent_close_failures_both_survive_without_retry_or_unlink(self):
         primary = OSError(errno.EIO, "PRIVATE_SOURCE_PATH")
         cleanup = OSError(errno.EBADF, "PRIVATE_CLOSE_PATH")
+
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, b"original")
             close = os.close
@@ -154,6 +173,7 @@ class UploadSnapshotTests(unittest.TestCase):
                 self.assertRaises(UploadFileReadFailed) as caught,
             ):
                 read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
+
             self.assertIs(caught.exception.cause, primary)
             (close_failure,) = caught.exception.cleanup_failures
             self.assertIs(close_failure.cause, cleanup)
@@ -165,6 +185,7 @@ class UploadSnapshotTests(unittest.TestCase):
 
     def test_a_complete_copy_with_unconfirmed_close_is_not_handed_off(self):
         cleanup = OSError(errno.EIO, "PRIVATE_CLOSE_PATH")
+
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, b"original")
             close = os.close
@@ -178,6 +199,7 @@ class UploadSnapshotTests(unittest.TestCase):
                 self.assertRaises(UploadFileReadFailed) as caught,
             ):
                 read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
+
             self.assertIs(caught.exception.cause, cleanup)
             self.assertIn("retire", str(caught.exception).lower())
             closing.assert_called_once()
@@ -185,23 +207,29 @@ class UploadSnapshotTests(unittest.TestCase):
 
     def test_open_failure_keeps_private_cause_out_of_the_ordinary_traceback(self):
         primary = OSError(errno.EACCES, "PRIVATE_PERMISSION_PATH")
+
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, b"original")
+
             with patch("provider_core.uploads.os.open", side_effect=primary), self.assertRaises(UploadFileReadFailed) as caught:
                 read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
+
             self.assertIs(caught.exception.cause, primary)
             self.assertNotIn("PRIVATE", "".join(traceback.format_exception(caught.exception)))
 
     def test_interruption_stays_the_original_exception_when_closure_succeeds(self):
         interruption = asyncio.CancelledError("PRIVATE_INTERRUPTION")
+
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, b"original")
+
             with (
                 observe_source_files(directory) as calls,
                 patch("provider_core.uploads.os.read", side_effect=interruption),
                 self.assertRaises(asyncio.CancelledError) as caught,
             ):
                 read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
+
             self.assertIs(caught.exception, interruption)
             self.assertEqual(calls.closed, calls.descriptors)
 
@@ -210,6 +238,7 @@ class UploadSnapshotTests(unittest.TestCase):
         previous = OSError(errno.ENOSPC, "PRIVATE_PREVIOUS_PATH")
         interruption.__cause__ = previous
         cleanup = OSError(errno.EIO, "PRIVATE_CLOSE_PATH")
+
         with private_source_directory() as (root, directory):
             receipt = snapshot_source(root, b"original")
             close = os.close
@@ -224,6 +253,7 @@ class UploadSnapshotTests(unittest.TestCase):
                 self.assertRaises(asyncio.CancelledError) as caught,
             ):
                 read_upload_file(receipt, directory_fd=directory, maximum_bytes=8)
+
             self.assertIs(caught.exception, interruption)
             retained = interruption.__cause__
             self.assertIs(type(retained), UploadFileReadFailed)

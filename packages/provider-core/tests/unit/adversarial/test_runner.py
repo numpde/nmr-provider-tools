@@ -29,17 +29,21 @@ class RunnerRefusalTests(unittest.TestCase):
                 session = RunnerSession(
                     "unused", role="fixture", expected_lock_identity=(0, 0), startup_seconds=1, retirement_seconds=1,
                 )
+
                 self.addCleanup(session.close)
                 session.control.close()
                 sender, session.control = socket.socketpair()
                 session.generation, session.operation = "generation", "operation"
+
                 with sender:
                     send_document(sender, {
                         "kind": "retired", "generation": session.generation, "operation": session.operation,
                         "returncode": status, "scratch_released": True, "reason": "exited",
                     }, deadline=time.monotonic() + 1)
+
                     with self.assertRaises(LifecycleRejected):
                         session.observe_retirement()
+
                 self.assertIsNone(session.original_exit)
 
     def test_a_second_retirement_reader_cannot_consume_the_original_frame(self):
@@ -54,20 +58,26 @@ class RunnerRefusalTests(unittest.TestCase):
 
         def original_read(deadline):
             entered.set()
+
             if not release.wait(2):
                 raise TimeoutError("Original lifecycle read was not released by its test owner")
+
             return receive(deadline)
 
         with ThreadPoolExecutor(max_workers=1) as pool, patch.object(session, "_receive_retirement", side_effect=original_read):
             original = pool.submit(session.observe_retirement)
+
             try:
                 self.assertTrue(entered.wait(1))
+
                 with self.assertRaises(LifecycleRejected):
                     session.observe_retirement()
             finally:
                 os.kill(pid, signal.SIGKILL)
                 release.set()
+
             original.result(timeout=3)
+
         self.assertEqual(-9, session.original_exit.returncode)
 
     def test_retirement_without_a_reason_or_with_an_invented_reason_is_refused(self):
@@ -77,20 +87,27 @@ class RunnerRefusalTests(unittest.TestCase):
                     "unused", role="fixture", expected_lock_identity=(0, 0),
                     startup_seconds=1, retirement_seconds=1,
                 )
+
                 self.addCleanup(session.close)
                 session.control.close()
                 sender, session.control = socket.socketpair()
+
                 with sender:
                     session.generation, session.operation = "generation", "operation"
+
                     reply = {
                         "kind": "retired", "generation": "generation", "operation": "operation",
                         "returncode": -9, "scratch_released": True,
                     }
+
                     if reason is not None:
                         reply["reason"] = reason
+
                     send_document(sender, reply, deadline=time.monotonic() + 1)
+
                     with self.assertRaises(LifecycleRejected):
                         session.observe_retirement()
+
                     self.assertIsNone(session.retirement)
                     self.assertIsNone(session.original_exit)
 
@@ -99,22 +116,30 @@ class RunnerRefusalTests(unittest.TestCase):
             with self.subTest(condition=condition), tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 endpoint, scratch, status = (root / name for name in ("endpoint", "scratch", "status"))
+
                 for directory in (endpoint, scratch, status):
                     directory.mkdir(mode=0o700)
+
                 (endpoint / ".owner-session.lock").touch(mode=0o600)
                 selected = status
+
                 if condition == "mode":
                     status.chmod(0o777)
                 else:
                     selected = root / "status-alias"
                     selected.symlink_to(status, target_is_directory=True)
+
                 options = SimpleNamespace(socket=endpoint / "runner.sock", scratch=scratch,
                                           status_directory=selected, role="fixture")
+
                 read_fd, write_fd = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+
                 try:
                     os.write(write_fd, b"x")
+
                     with self.assertRaises(failure_type):
                         serve(options, [sys.executable, "-c", "raise SystemExit(77)"], read_fd)
+
                     self.assertEqual([], list(status.iterdir()))
                     self.assertFalse(options.socket.exists())
                 finally:
@@ -124,6 +149,7 @@ class RunnerRefusalTests(unittest.TestCase):
     def test_cli_requires_exactly_one_explicit_operation_lifetime(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
+
             for lifetime in ([], ["--operation-seconds", "1", "--owner-session-lifetime"]):
                 with self.subTest(lifetime=lifetime):
                     result = subprocess.run([
@@ -133,6 +159,7 @@ class RunnerRefusalTests(unittest.TestCase):
                         "--terminate-seconds", "0.1", "--kill-seconds", "1", "--cleanup-seconds", "1",
                         *lifetime, "--", sys.executable, "-c", "raise SystemExit(77)",
                     ], capture_output=True, timeout=2)
+
                     self.assertEqual(2, result.returncode)
                     self.assertEqual([], list(root.iterdir()))
 
@@ -142,30 +169,41 @@ class RunnerRefusalTests(unittest.TestCase):
             listener.bind(path)
             listener.listen()
             listener.settimeout(1)
+
             session = RunnerSession(
                 path, role="fixture", expected_lock_identity=(0, 0), startup_seconds=1, retirement_seconds=1,
             )
+
             self.addCleanup(session.close)
             science, remote = socket.socketpair()
+
             with science, remote:
                 def reply():
                     peer, _ = listener.accept()
+
                     with peer:
                         send_greeting(peer, {"kind": "malformed"}, science, deadline=time.monotonic() + 1)
+
                         send_document(peer, {
                             "kind": "retired", "generation": None, "operation": None,
                             "returncode": 0, "scratch_released": True, "reason": "exited",
                         }, deadline=time.monotonic() + 1)
+
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     original = executor.submit(reply)
+
                     with self.assertRaises(LifecycleRejected) as setup:
                         session.connect()
+
                     original.result(timeout=2)
+
                 science.close()
                 remote.settimeout(1)
                 self.assertEqual(b"", remote.recv(1))
+
                 with self.assertRaises(LifecycleRejected) as observation:
                     session.observe_retirement()
+
                 self.assertIs(setup.exception, observation.exception.__cause__)
                 self.assertIsNone(session.retirement)
 
@@ -175,33 +213,44 @@ class RunnerRefusalTests(unittest.TestCase):
             listener.bind(path)
             listener.listen()
             listener.settimeout(1)
+
             session = RunnerSession(
                 path, role="fixture", expected_lock_identity=(0, 0), startup_seconds=0.2, retirement_seconds=1,
             )
+
             self.addCleanup(session.close)
+
             with ThreadPoolExecutor(max_workers=1) as executor:
                 original = executor.submit(session.connect)
                 peer, _ = listener.accept()
                 science, remote = socket.socketpair()
+
                 with peer, science, remote:
                     peer.sendmsg([b"\0\0\0"], [
                         (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [science.fileno()])),
                     ])
+
                     science.close()
+
                     with self.assertRaises(TimeoutError) as setup:
                         original.result(timeout=1)
+
                     self.assertIs(TimeoutError, type(setup.exception))
                     self.assertTrue(session.control_connected)
                     self.assertIsNone(session.operation)
                     remote.settimeout(1)
                     self.assertEqual(b"", remote.recv(1))
+
                     retired = {
                         "kind": "retired", "generation": None, "operation": None,
                         "returncode": 0, "scratch_released": True, "reason": "exited",
                     }
+
                     send_document(peer, retired, deadline=time.monotonic() + 1)
+
                     with self.assertRaises(LifecycleRejected) as observation:
                         session.observe_retirement()
+
                     self.assertIs(setup.exception, observation.exception.__cause__)
                     self.assertIsNone(session.retirement)
                     self.assertEqual(retired, receive_document(session.control, deadline=time.monotonic() + 1))
@@ -209,15 +258,19 @@ class RunnerRefusalTests(unittest.TestCase):
     def test_extra_received_descriptors_are_closed_on_rejection(self):
         sender, receiver = socket.socketpair()
         one, two = socket.socketpair()
+
         with sender, receiver, one, two:
             before = len(os.listdir("/proc/self/fd"))
             sender.sendmsg([b"\0"], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [one.fileno(), two.fileno()]))])
+
             with self.assertRaises(LifecycleRejected):
                 receive_greeting(receiver, deadline=time.monotonic() + 1)
+
             self.assertEqual(len(os.listdir("/proc/self/fd")), before)
 
     def test_partial_control_delivery_cannot_reset_the_absolute_phase_deadline(self):
         sender, receiver = socket.socketpair()
+
         with sender, receiver:
             def drip():
                 try:
@@ -227,15 +280,18 @@ class RunnerRefusalTests(unittest.TestCase):
                 # silent-defaults: allow-contract -- The deadline fixture may close its peer before the drip thread settles.
                 except OSError:
                     pass
+
             thread = threading.Thread(target=drip)
             thread.start()
             started = time.monotonic()
+
             try:
                 with self.assertRaises(TimeoutError):
                     receive_document(receiver, deadline=started + 0.09)
             finally:
                 receiver.close()
                 thread.join(timeout=1)
+
             self.assertFalse(thread.is_alive())
 
     def test_child_holds_lock_after_supervisor_death_until_child_exit(self):
@@ -248,11 +304,14 @@ class RunnerRefusalTests(unittest.TestCase):
         self.addCleanup(self._kill_if_live, pid)
         runner.process.kill()
         runner.process.wait(timeout=2)
+
         with (runner.endpoint / ".owner-session.lock").open("rb") as contender:
             with self.assertRaises(BlockingIOError):
                 fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
+
             os.kill(pid, signal.SIGKILL)
             deadline = time.monotonic() + 2
+
             while True:
                 try:
                     fcntl.flock(contender, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -260,7 +319,9 @@ class RunnerRefusalTests(unittest.TestCase):
                 except BlockingIOError:
                     if time.monotonic() >= deadline:
                         self.fail("Child exit did not release the inherited lifetime lease")
+
                     time.sleep(0.01)
+
         runner.restart_with_fresh_scratch()
         successor = runner.session(startup_seconds=2, retirement_seconds=2)
         self.addCleanup(successor.close)
@@ -276,13 +337,17 @@ class RunnerRefusalTests(unittest.TestCase):
                 runner = RunningSupervisor()
                 self.addCleanup(runner.close)
                 observed = (runner.endpoint / ".owner-session.lock").stat()
+
                 session = RunnerSession(
                     runner.path, role=role, expected_lock_identity=(observed.st_dev, observed.st_ino + inode_delta),
                     startup_seconds=2, retirement_seconds=2,
                 )
+
                 self.addCleanup(session.close)
+
                 with self.assertRaises(LifecycleRejected):
                     session.connect()
+
                 self.assertIsNone(session.science)
 
     def test_received_cleanup_failure_keeps_reaped_child_facts_and_stops_admission(self):
@@ -292,13 +357,17 @@ class RunnerRefusalTests(unittest.TestCase):
         self.addCleanup(session.close)
         session.connect()
         worker_pid(session.science, b"C")
+
         with self.assertRaises(LifecycleRejected):
             session.observe_retirement()
+
         self.assertEqual(session.retirement.returncode, 0)
         self.assertFalse(session.retirement.scratch_released)
         self.assertEqual("exited", session.retirement.reason)
+
         with self.assertRaises(LifecycleRejected):
             session.retire()
+
         self.assertNotEqual(runner.process.wait(timeout=2), 0)
 
     @staticmethod
@@ -311,8 +380,10 @@ class RunnerRefusalTests(unittest.TestCase):
 
     def test_peer_without_transferred_scientific_descriptor_is_rejected(self):
         sender, receiver = socket.socketpair()
+
         with sender, receiver:
             sender.sendall(b"x")
+
             with self.assertRaises(LifecycleRejected):
                 receive_greeting(receiver, deadline=time.monotonic() + 1)
 
@@ -336,8 +407,10 @@ class RunnerRefusalTests(unittest.TestCase):
         worker_pid(first.science, b"H")
         second = runner.session(startup_seconds=0.05, retirement_seconds=2)
         self.addCleanup(second.close)
+
         with self.assertRaises(TimeoutError):
             second.connect()
+
         second.close()
         first.retire()
         third = runner.session(startup_seconds=2, retirement_seconds=2)

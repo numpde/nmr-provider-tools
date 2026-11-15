@@ -16,6 +16,7 @@ class RawStream:
     async def aclose(self):
         if self.close_failure is not None:
             raise self.close_failure
+
         self.closed = True
 
 
@@ -33,16 +34,22 @@ class NetworkOwnershipTests(unittest.IsolatedAsyncioTestCase):
         native = Backend(raw)
         native.connect_unix_socket = AsyncMock(return_value=raw)
         native.connect_tcp = AsyncMock(side_effect=AssertionError("direct TCP attempted"))
+
         with patch("provider_core.network.httpcore.AnyIOBackend", return_value=native):
             backend = OwnedNetworkBackend(proxy_socket="/egress/proxy.sock")
+
         stream = await backend.connect_tcp("proxy-metadata.invalid", 80, timeout=0.5)
         native.connect_unix_socket.assert_awaited_once_with(path="/egress/proxy.sock", timeout=0.5, socket_options=None)
+
         with patch("provider_core.network.TLSStream.wrap", new=AsyncMock(side_effect=asyncio.CancelledError)), \
                 self.assertRaises(asyncio.CancelledError):
             await stream.start_tls(ssl.create_default_context(), "api.example")
+
         raw.close_failure = OSError("PRIVATE close")
+
         with self.assertRaises(OSError):
             await backend.aclose()
+
         self.assertFalse(raw.closed)
         raw.close_failure = None
         await backend.aclose()
@@ -51,16 +58,22 @@ class NetworkOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cancelled_tls_upgrade_keeps_raw_stream_until_close_succeeds(self):
         raw = RawStream()
+
         with patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(raw)):
             backend = OwnedNetworkBackend()
+
         stream = await backend.connect_tcp("127.0.0.1", 443)
+
         with patch("provider_core.network.TLSStream.wrap", new=AsyncMock(side_effect=asyncio.CancelledError)), \
                 self.assertRaises(asyncio.CancelledError):
             await stream.start_tls(ssl.create_default_context(), "localhost")
+
         failure = RuntimeError("close failed")
         raw.close_failure = failure
+
         with self.assertRaises(RuntimeError) as caught:
             await backend.aclose()
+
         self.assertIs(caught.exception, failure)
         self.assertFalse(raw.closed)
         raw.close_failure = None

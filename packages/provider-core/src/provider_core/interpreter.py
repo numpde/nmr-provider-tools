@@ -25,6 +25,7 @@ from email.utils import parsedate_to_datetime
 from typing import Any, Literal, Protocol
 
 from provider_core.chat_errors import ChatFailed
+
 from provider_core.conversation import (
     ConversationFailed,
     ConversationHandoff,
@@ -37,6 +38,7 @@ from provider_core.conversation import (
     ToolRejected,
     ToolReply,
 )
+
 from provider_core.transport_errors import ExchangeFailed
 
 # SDK policy, not a second provider configuration surface.
@@ -133,15 +135,19 @@ class ProseService:
         while True:
             if stopped.is_set():
                 raise ConversationFailed("Prose interpretation was retired; no HTTP request may start.")
+
             now = _now()
+
             if now >= deadline:
                 raise ChatFailed(
                     "service_wait_deadline",
                     "Cannot contact the prose interpretation service: this Job's time allowance for that service expired while waiting; no request was sent.",
                     cause=self.last_failure,
                 )
+
             if now >= self._not_before:
                 return self._revision
+
             try:
                 await asyncio.wait_for(stopped.wait(), timeout=min(self._not_before, deadline) - now)
             except TimeoutError:
@@ -232,34 +238,42 @@ class Interpreter:
                 f"Unexpected {type(endpoint_factories)=}; "
                 "Cannot configure interpretation: provide an ordered nonempty tuple of endpoint factories."
             )
+
         if not (endpoint_factories):
             raise ValueError(
                 "Cannot configure interpretation: provide an ordered nonempty tuple of endpoint factories."
             )
+
         if not (type(timeout_seconds) in (int, float) and math.isfinite(timeout_seconds) and 0 < timeout_seconds):
             raise ValueError("Cannot configure interpretation: timeout_seconds must be finite positive seconds.")
+
         if not (type(context_bytes) is int):
             raise TypeError(
                 f"Unexpected {type(context_bytes)=}; "
                 "Cannot configure interpretation: context_bytes must be a positive byte limit."
             )
+
         if not (0 < context_bytes):
             raise ValueError("Cannot configure interpretation: context_bytes must be a positive byte limit.")
+
         if not (isinstance(secrets, tuple)):
             raise TypeError(
                 f"Unexpected {type(secrets)=}; "
                 "Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings."
             )
+
         for secret in secrets:
             if not isinstance(secret, str):
                 raise TypeError(
                     f"Unexpected {type(secret)=}; "
                     "Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings."
                 )
+
         if any(not secret for secret in secrets):
             raise ValueError(
                 "Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings."
             )
+
         self._factories = endpoint_factories
         self.timeout_seconds = timeout_seconds
         self.context_bytes = context_bytes
@@ -283,6 +297,7 @@ class Interpreter:
     @property
     def correction_failures(self) -> tuple[CorrectionFailure, ...]:
         """Protected model-visit, logical-turn and original-error facts, even after retirement."""
+
         # repo-check: allow-tuple-generator -- Return an immutable snapshot of original correction failures, not a live iterator over mutable visit state.
         return tuple(
             (visit.number, turn, error)
@@ -297,11 +312,15 @@ class Interpreter:
         This is a protected result handoff, not proof of model-I/O retirement or
         permission to execute. The caller still owns resource settlement.
         """
+
         if not self._visits:
             return None
+
         outcome = self._visits[-1].outcome
+
         if type(outcome) is not ConversationResult:
             return None
+
         return self._result(outcome)
 
     def _result(self, result: ConversationResult) -> InterpretationResult:
@@ -316,12 +335,16 @@ class Interpreter:
 
     def _failures(self) -> tuple[ModelFailure, ...]:
         failures = []
+
         for visit in self._visits:
             if visit.failure is not None:
                 failures.append((visit.number, visit.failure))
+
             if type(visit.outcome) is ConversationHandoff:
                 failures.append((visit.number, visit.outcome.reason))
+
             failures.extend((visit.number, error) for error in visit.http_failures)
+
         return tuple(failures)
 
     async def run(
@@ -334,14 +357,19 @@ class Interpreter:
         describe_constraints: ConstraintReader | None = None,
     ) -> InterpretationResult:
         """Use original inputs per model, with optional provider-owned dynamic constraints."""
+
         if self._used or self._stopped.is_set():
             raise ValueError("This interpretation already ran or retired; create a new interpretation for another Attempt.")
+
         self._used = True
         deadline = _now() + self.timeout_seconds
+
         if not_after is not None:
             if type(not_after) not in (int, float) or not math.isfinite(not_after):
                 raise ValueError("Cannot start interpretation: not_after must be a finite monotonic deadline.")
+
             deadline = min(deadline, not_after)
+
         try:
             try:
                 _no_secrets((messages, tools), self._secrets)
@@ -350,17 +378,23 @@ class Interpreter:
                     "Cannot start interpretation: initial context contains a configured credential.",
                     cause=cause,
                 ) from cause
+
             original = json.loads(_encode(messages))
             provider_tools = _ProviderTools(tools, dispatch=dispatch, describe=describe_constraints)
+
             for index, factory in enumerate(self._factories):
                 if self._stopped.is_set():
                     raise ConversationFailed("Interpretation was retired; no successor model may start.")
+
                 now = _now()
                 remaining = deadline - now
+
                 if remaining <= 0:
                     break
+
                 window = remaining / (len(self._factories) - index)
                 model_deadline = now + window
+
                 visit = _ModelVisit(
                     factory,
                     exchange_seconds=window,
@@ -372,26 +406,35 @@ class Interpreter:
                     context_bytes=self.context_bytes,
                     secrets=self._secrets,
                 )
+
                 self._visits.append(visit)
+
                 try:
                     outcome = await visit.run(original)
                 except ConversationFailed as failure:
                     if failure is visit.provider_failure:
                         raise
+
                     continue
+
                 if type(outcome) is ConversationHandoff:
                     continue
+
                 return self._result(outcome)
+
             raise InterpretationFailed(self._failures(), self.correction_failures)
         except BaseException as failure:
             self.last_failure = failure
             failures = self._failures()
+
             if failures and not isinstance(failure, InterpretationFailed):
                 context = ConversationFailed(
                     "Earlier interpreter model failures preceded this operation failure.",
                     cause=failure.__cause__, endpoint_failures=failures,
                 )
+
                 raise failure from context
+
             raise
 
     async def retire(self) -> None:
@@ -399,6 +442,7 @@ class Interpreter:
         self._stopped.set()
         failures: list[ModelFailure] = []
         interruption = None
+
         for visit in self._visits:
             try:
                 await visit.conversation.retire()
@@ -406,12 +450,16 @@ class Interpreter:
                 failures.append((visit.number, failure))
             except asyncio.CancelledError as failure:
                 failures.append((visit.number, failure))
+
                 if interruption is None:
                     interruption = failure
+
         if failures:
             retained = ConversationRetirementFailed(failures, cause=self.last_failure)
+
             if interruption is not None:
                 raise interruption from retained
+
             raise retained
 
 
@@ -485,8 +533,10 @@ class _HistoryRecord:
             "json_text": self.data[start:stop].decode("ascii"),
             "complete": stop == len(self.data),
         }
+
         if not result["complete"]:
             result["next_cursor"] = stop
+
         return result
 
 
@@ -505,18 +555,22 @@ class _History:
         _no_secrets(value, self._secrets)
         data = _encode(value)
         self._sequence += 1
+
         if len(data) > HISTORY_BYTES:
             self._unavailable += 1
             return
+
         while self._records and (
             self._bytes + len(data) > HISTORY_BYTES or len(self._records) >= HISTORY_RECORDS
         ):
             _, oldest = self._records.popitem(last=False)
             self._bytes -= len(oldest.data)
             self._unavailable += 1
+
         record = _HistoryRecord(
             ref=f"record-{self._sequence}", visit=visit, kind=kind, tool=tool, data=data
         )
+
         self._records[record.ref] = record
         self._bytes += len(data)
 
@@ -528,11 +582,14 @@ class _History:
 
     def read(self, arguments: Document, fits: Callable[[Document], bool]) -> Document:
         queries = arguments.get("records")
+
         if set(arguments) != {"records"} or not isinstance(queries, list) or not 1 <= len(queries) <= 8:
             raise ToolRejected(
                 "Provide records as a list of one to eight catalogue references with optional cursors."
             )
+
         results: list[Document] = []
+
         for query in queries:
             if (
                 not isinstance(query, dict)
@@ -540,31 +597,40 @@ class _History:
                 or not isinstance(query.get("ref"), str)
             ):
                 raise ToolRejected("Each record request needs a ref and an optional integer cursor.")
+
             # silent-defaults: allow-contract -- The input schema explicitly permits omitted cursors; zero selects the start of the captured history record.
             cursor = query["cursor"] if "cursor" in query else 0
+
             if type(cursor) is not int or cursor < 0:
                 raise ToolRejected(
                     "A history cursor must be a nonnegative integer offset in that record's JSON text."
                 )
+
             record = self._records.get(query["ref"])
             status = "deferred"
+
             if record is None:
                 status = "unavailable"
+
             results.append({
                 "ref": query["ref"],
                 "status": status,
             })
+
         # Every requested reference needs a status even when an earlier page
         # consumes the data allowance. Fill pages around those reserved entries.
         if not fits({"records": results}):
             raise ToolRejected("History reply cannot fit the remaining context; request fewer records.")
+
         for index, query in enumerate(queries):
             record = self._records.get(query["ref"])
+
             if record is not None:
                 # silent-defaults: allow-contract -- A missing optional cursor means the beginning of this already-validated record's content.
                 results[index] = self._read_page(
                     record, query["cursor"] if "cursor" in query else 0, results[:index], results[index + 1:], fits,
                 )
+
         return {"records": results}
 
     @staticmethod
@@ -575,21 +641,27 @@ class _History:
     ) -> Document:
         if cursor > len(record.data):
             raise ToolRejected("The history cursor is beyond the referenced record's JSON text.")
+
         complete = record.page(cursor, len(record.data))
+
         if fits({"records": [*previous, complete, *following]}):
             return complete
 
         # Find a prefix that fits the encoded envelope, including JSON escaping.
         low, high = cursor, len(record.data)
+
         while low < high:
             middle = (low + high + 1) // 2
             page = record.page(cursor, middle)
+
             if fits({"records": [*previous, page, *following]}):
                 low = middle
             else:
                 high = middle - 1
+
         if low == cursor:
             return {"ref": record.ref, "status": "deferred"}
+
         return record.page(cursor, low)
 
 
@@ -626,6 +698,7 @@ class _DescribeInputConstraints:
 
     async def invoke(self, arguments: Document, *, not_after: float) -> ToolReply:
         name, path = arguments.get("tool"), arguments.get("field")
+
         if (
             set(arguments) - {"tool", "field"}
             or not isinstance(name, str)
@@ -633,31 +706,41 @@ class _DescribeInputConstraints:
             or (path is not None and (not isinstance(path, str) or not path))
         ):
             raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
+
         if self._reader is not None:
             metadata = await self._reader(name, path, not_after=not_after)
+
             if metadata is not NotImplemented:
                 return ToolReply(metadata)
 
         schema = self._schemas[name]
+
         result = {
             "tool": name,
             "scope": "declared schema; additional provider rules may apply",
         }
+
         if path is None:
             return ToolReply({**result, "schema": schema})
+
         parent = schema
         required = False
+
         for part in path.split("."):
             parent = schema
             properties = {}
+
             if isinstance(parent, dict) and "properties" in parent:
                 properties = parent["properties"]
+
             if part not in properties:
                 raise ToolRejected(
                     "The requested field is not declared at that property path; read the full tool schema."
                 )
+
             schema = properties[part]
             required = "required" in parent and part in parent["required"]
+
         return ToolReply({
             **result,
             "field": path,
@@ -707,9 +790,11 @@ class _ProviderTools:
         self, definitions: list[Document], dispatch: ToolDispatch, describe: ConstraintReader | None
     ):
         self.definitions = json.loads(_encode(definitions))
+
         self.schemas = {
             tool["function"]["name"]: tool["function"]["parameters"] for tool in self.definitions
         }
+
         self.dispatch = dispatch
         self.describe = describe
 
@@ -721,31 +806,40 @@ class _Tools:
         self.provider = provider
         self.information: dict[str, _InformationTool] = {}
         self.definitions = list(provider.definitions)
+
         for tool in information:
             definition = tool.definition
             name = definition["function"]["name"]
+
             if name in provider.schemas or name in self.information:
                 raise ValueError(
                     "Cannot compose interpreter tools: an information-tool name is already in use."
                 )
+
             self.information[name] = tool
             self.definitions.append(definition)
 
     async def dispatch(self, name: str, arguments: Document, *, not_after: float) -> ToolReply | ToolFinished:
         if name not in self.provider.schemas:
             raise ToolRejected("Choose a tool from the supplied definitions; this tool was not run.")
+
         return await self.provider.dispatch(name, arguments, not_after=not_after)
 
 
 def _retryable(failure: ChatFailed) -> bool:
     if failure.reason == "http_status" and failure.response is not None:
         return failure.response.status in _RETRYABLE_STATUSES
+
     if failure.reason != "exchange_failed" or type(failure.cause) is not ExchangeFailed:
         return False
+
     exchange = failure.cause
+
     if exchange.cleanup_failures or exchange.caller_interruption is not None:
         return False
+
     status = exchange.proxy_connect_status
+
     if status is not None and not 200 <= status < 300:
         return status in _RETRYABLE_STATUSES
 
@@ -760,25 +854,34 @@ def _retryable(failure: ChatFailed) -> bool:
 
 def _retry_after(failure: ChatFailed) -> float:
     response = failure.response
+
     if response is None:
         return 0.0
+
     values = [value for name, value in response.headers if name.lower() == b"retry-after"]
+
     if len(values) != 1:
         return 0.0
+
     try:
         value = values[0].decode("ascii").strip()
+
         if value.isascii() and value.isdecimal():
             seconds = float(value)
         else:
             date = parsedate_to_datetime(value)
+
             if date.tzinfo is None:
                 date = date.replace(tzinfo=timezone.utc)
+
             seconds = max(0, date.timestamp() - time.time())
     except (ValueError, OverflowError, TypeError, UnicodeError):
         # Invalid optional advice grants no server-directed delay.
         seconds = 0.0
+
     if not math.isfinite(seconds):
         return 0.0
+
     return seconds
 
 
@@ -809,6 +912,7 @@ class _ModelVisit:
         self.http_failures: list[ChatFailed] = []
         reader = tools.describe
         guarded_reader = None
+
         if reader is not None:
             async def guarded_reader(name: str, field: str | None, *, not_after: float) -> object:
                 try:
@@ -823,10 +927,14 @@ class _ModelVisit:
             _DescribeInputConstraints(tools.schemas, guarded_reader),
             _ReadInterpretationRecords(self._read_history),
         ))
+
         self._service = None
+
         if isinstance(factory, ProseService):
             self._service = factory
+
         self._endpoint = factory(exchange_seconds=exchange_seconds, connect_seconds=CONNECT_SECONDS)
+
         self.conversation = ToolConversation(
             (self,),
             max_turns=MODEL_TURNS,
@@ -857,22 +965,26 @@ class _ModelVisit:
         except ConversationFailed as failure:
             if failure is not self.provider_failure:
                 self.failure = failure
+
             raise
         finally:
             # A positive native crash must reach its provider promptly. That
             # caller retains this visit through Interpreter and owns retirement.
             if self.provider_failure is None:
                 primary = self.conversation.last_failure
+
                 try:
                     await self.conversation.retire()
                 except BaseException as cleanup:
                     if isinstance(primary, asyncio.CancelledError):
                         raise primary from cleanup
+
                     raise
 
     async def retire(self) -> None:
         """The endpoint port used by ToolConversation between HTTP attempts."""
         await self._endpoint.retire()
+
         if not self.retirement_confirmed:
             raise ConversationRetirementFailed(
                 ((self.number, RuntimeError("Model HTTP cleanup remains unconfirmed.")),)
@@ -882,14 +994,18 @@ class _ModelVisit:
         for attempt in range(HTTP_ATTEMPTS):
             if self._stopped.is_set():
                 raise ConversationFailed("Interpretation was retired; no model HTTP retry may start.")
+
             if _now() >= self._deadline:
                 raise ChatFailed(
                     "model_deadline", "Cannot send interpreter turn: this model's time allocation expired."
                 )
+
             try:
                 revision = None
+
                 if self._service is not None:
                     revision = await self._service._wait(deadline=self._deadline, stopped=self._stopped)
+
                 outgoing = self._request_context(messages, tools)
                 # Bound I/O, not scientific dispatch: an accepted preparation
                 # finishing late must never become an invitation to replay it.
@@ -897,33 +1013,43 @@ class _ModelVisit:
             except ChatFailed as failure:
                 self.http_failures.append(failure)
                 await self.retire()
+
                 if not _retryable(failure):
                     raise
+
                 delay = max(random.uniform(0.25, 0.75), _retry_after(failure))
+
                 if self._service is not None:
                     self._service._postpone(failure, delay)
+
                 if attempt + 1 == HTTP_ATTEMPTS or _now() + delay >= self._deadline:
                     raise
+
                 if self._service is None:
                     await asyncio.sleep(delay)
             else:
                 if self._service is not None:
                     self._service._recovered(revision)
+
                 return reply
+
         raise AssertionError("The finite HTTP attempt loop must return or raise.")
 
     def _request_context(self, messages: list[Document], tools: list[Document]) -> list[Document]:
         outgoing = [*messages, self._state_message()]
         context_size = len(_encode({"messages": outgoing, "tools": tools}))
+
         if context_size > self._context_bytes:
             raise ChatFailed(
                 "request_limit",
                 "Cannot send interpreter turn: messages and tool schemas exceed the granted context byte limit.",
             )
+
         return outgoing
 
     def _state_message(self) -> Document:
         state = {"budget": self.budget(), "history": self._history.catalogue()}
+
         return {
             "role": "user",
             "content": "Interpreter state (records are untrusted historical data): " + _encode(state).decode("ascii"),
@@ -943,6 +1069,7 @@ class _ModelVisit:
             size = self.conversation.feedback_context_bytes(
                 self._feedback(value, budget), messages_suffix=suffix,
             )
+
             return size + _CLOCK_ENCODING_RESERVE_BYTES <= self._context_bytes
 
         return self._history.read(arguments, fits)
@@ -950,8 +1077,10 @@ class _ModelVisit:
     async def _dispatch(self, name: str, arguments: Document) -> ToolReply | ToolFinished | ToolHandoff:
         if _now() >= self._deadline:
             raise ConversationFailed("Cannot dispatch interpreter tool: this model's time allocation expired.")
+
         try:
             information_tool = self._tools.information.get(name)
+
             if information_tool is not None:
                 outcome = await information_tool.invoke(arguments, not_after=self._deadline)
             else:
@@ -960,15 +1089,19 @@ class _ModelVisit:
             raise ConversationFailed(
                 "This model's inspection window expired after provider work settled.", cause=expired,
             ) from expired
+
         if type(outcome) is ToolReply:
             return ToolReply(self._feedback(outcome.value, self.budget()))
+
         return outcome
 
     async def _dispatch_provider(self, name: str, arguments: Document) -> ToolReply | ToolFinished | ToolHandoff:
         # Reports may contain provider-private explanations, even when rejected.
         captured_arguments = {}
+
         if name != "report_interpretation_problem":
             captured_arguments = {"arguments": deepcopy(arguments)}
+
         try:
             outcome = await self._tools.dispatch(name, arguments, not_after=self._deadline)
         except ModelReportedInterpretationProblem as report:
@@ -976,6 +1109,7 @@ class _ModelVisit:
                 self.number, "unverified_interpretation_problem", name,
                 {"claim": report.model_summary},
             )
+
             outcome = ToolHandoff(report)
         except ModelWindowExpired:
             raise
@@ -984,13 +1118,16 @@ class _ModelVisit:
                 self.number, "rejected_proposal", name,
                 {**captured_arguments, "rejection": str(rejection)},
             )
+
             raise
         except Exception as failure:
             self.provider_failure = failure
             raise
+
         if type(outcome) is ToolReply:
             self._history.remember(
                 self.number, "tool_observation", name,
                 {**captured_arguments, "value": outcome.value},
             )
+
         return outcome

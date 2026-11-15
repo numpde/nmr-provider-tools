@@ -11,13 +11,18 @@ class ResultVerbosityRejectionTests(unittest.TestCase):
             with self.subTest(value=value):
                 with self.assertRaises(TypeError) as caught:
                     ResultVerbosity.parse(value)
+
                 self.assertIn(str(type(value)), str(caught.exception))
+
         for value in ("", "compact", "full", "MAX", " medium", "PRIVATE_CANARY"):
             with self.subTest(value=value):
                 with self.assertRaises(ValueError) as caught:
                     ResultVerbosity.parse(value)
+
                 message = str(caught.exception)
+
                 for member in ResultVerbosity:
                     self.assertIn(member.value, message)
+
                 self.assertNotIn("PRIVATE_CANARY", message)
                 self.assertTrue(caught.exception.__suppress_context__)

@@ -62,6 +62,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
                 database.execute('SELECT * FROM "PRIVATE_SQL_TABLE"')
             except sqlite3.Error as cause:
                 failure = DeliveryStorageFailed("Cannot inspect delivery storage.", cause=cause)
+
         report = failure_evidence(failure, secrets=())
         rendered = json.dumps(report)
         self.assertIn('"sqlite_errorcode": 1', rendered)
@@ -73,10 +74,12 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
         with sqlite3.connect(":memory:") as database:
             database.execute("CREATE TABLE private_values(value UNIQUE)")
             database.execute("INSERT INTO private_values VALUES (1)")
+
             try:
                 database.execute("INSERT INTO private_values VALUES (1)")
             except sqlite3.IntegrityError as failure:
                 report = failure_evidence(failure, secrets=())
+
         self.assertEqual(report["sqlite_errorcode"], sqlite3.SQLITE_CONSTRAINT_UNIQUE)
         self.assertEqual(report["sqlite_errorname"], "SQLITE_CONSTRAINT_UNIQUE")
         unreported = failure_evidence(sqlite3.OperationalError("PRIVATE_SQL_TEXT"), secrets=())
@@ -88,6 +91,7 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
         api = ApiFailure("publish Attempt failure", "received API refusal", response=HttpResponse(
             429, ((b"x-request-id", b"request:delivery"), (b"authorization", b"Bearer PRIVATE_HEADER")), b"PRIVATE_BODY"
         ))
+
         api.attempt_mutation_may_have_committed = True
         cleanup = OSError(errno.EIO, "PRIVATE_NATIVE")
         failure = DeliveryWorkerFailed(cause=api, api_failure=api, cleanup_failures=(cleanup,), api_receipt_received=False)
@@ -108,17 +112,22 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
 
     def test_full_stderr_pipe_refuses_without_blocking_or_changing_descriptor_policy(self):
         reader, writer = os.pipe()
+
         try:
             os.set_blocking(writer, False)
+
             while True:
                 try:
                     os.write(writer, b"x" * 4096)
                 except BlockingIOError:
                     break
+
             os.set_blocking(writer, True)
+
             with os.fdopen(writer, "w", closefd=False) as output, redirect_stderr(output):
                 with self.assertRaises(BlockingIOError):
                     write_stderr(b"owned diagnostic\n")
+
             self.assertTrue(os.get_blocking(writer))
         finally:
             os.close(writer)

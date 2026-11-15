@@ -171,6 +171,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
     async def settled(self, control):
         async with asyncio.timeout(10):
             observation = await control.observe(after=None, wait_seconds=0)
+
             while not observation.settled and not observation.failures:
                 observation = await control.observe(
                     after=observation.revision,
@@ -183,8 +184,10 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
     async def finished(self, operation):
         self.assertNotIsInstance(operation, NotAdmitted)
+
         async with asyncio.timeout(10):
             observation = await operation.observe(after=None, wait_seconds=0)
+
             while not observation.finished:
                 observation = await operation.observe(
                     after=observation.revision,
@@ -236,6 +239,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         host = self.host({"one": binding})
         analysis = host.open_analysis("unbound", allocation_names=("one",))
         reservation, = analysis.reservations
+
         with self.assertRaisesRegex(ValueError, "before a configured binding owns it"):
             analysis.submit_call(
                 replace(binding.run),  payload=b'{"values":[1]}',
@@ -422,6 +426,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(DispatchState.NOT_STARTED, stopped.dispatch)
         self.assertEqual({"decode": 0, "invoke": 0}, entered)
         self.assertIs(operation, analysis.submit(invocation))
+
         with self.assertRaises(RequestConflict):
             analysis.submit(
                 replace(invocation, payload=b'{"values":[2]}'),
@@ -707,8 +712,10 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(1, len(observed.states))
         self.assertEqual("normalized", observed.states[0].name)
         self.assertEqual([], disposed)
+
         with self.assertRaises(ExceptionGroup) as raised:
             await binding.prepared_output.reference(binding.prepare, operation)
+
         self.assertIs(adoption_failure, raised.exception)
 
         await self.settled(analysis.close())
@@ -739,10 +746,13 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(release, operation.release_result(completed.result))
         await self.settled(release)
         self.assertIs(release, operation.release_result(completed.result))
+
         with self.assertRaises(ValueError):
             await operation.read_result(completed.result)
+
         with self.assertRaises(ValueError):
             operation.release_result(replace(completed.result, result_id="another-result"))
+
         with self.assertRaises(ValueError):
             operation.release_result(ResultRef(
                 operation=replace(operation.reference, operation_id="another-operation"),
@@ -809,9 +819,11 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         ) -> ScientificReturn[science.SumResult]:
             first_value = context.scientific_input.values[0]
             workers[first_value] = threading.current_thread()
+
             if first_value == 1.0:
                 loop.call_soon_threadsafe(entered.set)
                 release.wait(10)
+
             return original_call.scientific_call(context)
 
         wrapped_call = replace(original_call, scientific_call=scientific_call)
@@ -838,6 +850,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         )
 
         waiter.cancel()
+
         with self.assertRaises(asyncio.CancelledError):
             await waiter
 
@@ -1034,8 +1047,10 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         ) -> ScientificReturn[science.SumResult]:
             control = context.require_control()
             loop.call_soon_threadsafe(entered.set)
+
             while not control.stop_requested:
                 pass
+
             control.report_progress(ProgressEvent(stage="stopping"))
 
             return ScientificReturn(

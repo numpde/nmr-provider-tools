@@ -24,11 +24,13 @@ class ApiEnvironmentTests(unittest.IsolatedAsyncioTestCase):
                         ),
                     )
                 )
+
                 api = ProviderAPI(
                     SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
                     transport,
                     expected_topology=topology,
                 )
+
                 observed = await api.job_input(facts(), analysis_kind_ref="nmr_predict")
                 self.assertEqual(observed.specification_bytes, b"private instructions")
                 self.assertEqual(api.expected_topology, topology)

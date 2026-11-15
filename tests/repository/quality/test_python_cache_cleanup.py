@@ -15,6 +15,7 @@ from .sources import ROOT
 class PythonCacheCleanupTests(unittest.TestCase):
     def clean(self, root):
         script = ROOT / "host/tools/python_cache_clean.sh"
+
         return subprocess.run(
             ["bash", "-c", 'source "$1"; clean_first_party_bytecode "$2"', "bash", str(script), str(root)],
             capture_output=True, text=True, check=False,
@@ -26,6 +27,7 @@ class PythonCacheCleanupTests(unittest.TestCase):
             outside = Path(directory) / "outside"
             outside.mkdir()
             (outside / "unrelated.pyc").write_bytes(b"outside")
+
             for name in ("tools", "tests", "packages", "src", "containers"):
                 source = root / name
                 source.mkdir(parents=True)
@@ -38,10 +40,12 @@ class PythonCacheCleanupTests(unittest.TestCase):
                 empty = source / "other/__pycache__"
                 empty.mkdir(parents=True)
                 (empty / "only.pyo").write_bytes(b"compiled")
+
             (root / "tools/external-link").symlink_to(outside, target_is_directory=True)
 
             result = self.clean(root)
             self.assertEqual(0, result.returncode, msg=result.stderr)
+
             for name in ("tools", "tests", "packages", "src", "containers"):
                 source = root / name
                 self.assertFalse((source / "top_level.pyc").exists())
@@ -49,6 +53,7 @@ class PythonCacheCleanupTests(unittest.TestCase):
                 self.assertFalse((source / "nested/__pycache__/code.cpython-312.pyc").exists())
                 self.assertTrue((source / "nested/__pycache__/preserve.txt").exists())
                 self.assertFalse((source / "other/__pycache__").exists())
+
             self.assertTrue((root / "tools/external-link").is_symlink())
             self.assertEqual(b"outside", (outside / "unrelated.pyc").read_bytes())
 
@@ -71,9 +76,11 @@ class PythonCacheCleanupTests(unittest.TestCase):
             ["make", "--no-print-directory", "--dry-run", "checks/python-cache/clean"],
             cwd=ROOT, capture_output=True, text=True, check=False,
         )
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertIn("host/tools/python_cache_clean.sh", result.stdout)
         self.assertNotIn("Select a local Docker context", result.stderr)
+
         self.assertIn(
             "tests/repository/quality:\n\tbash host/tools/repository.sh tests/repository/quality",
             (ROOT / "Makefile").read_text(encoding="utf-8"),

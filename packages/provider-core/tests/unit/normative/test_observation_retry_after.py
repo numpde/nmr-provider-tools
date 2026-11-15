@@ -28,6 +28,7 @@ class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
 
         def retry(_attempt, failure, seconds):
             notices.append((failure, seconds))
+
             if observer is not None:
                 observer(clock)
 
@@ -35,6 +36,7 @@ class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
             delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=.01,
             delivery_retry_max_seconds=.04, allowed_job_states=frozenset({"open"}), poll_seconds=.1,
             task_settle_seconds=.1, observation_recovery=ObservationRecovery(gap, .2, retry, Mock()))
+
         executor._record = executor._acknowledged = acknowledged
         return executor, clock, reads, waits, notices
 
@@ -53,8 +55,10 @@ class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_retry_after_floor_precedes_the_next_actual_read(self):
         executor, clock, reads, waits, notices = await self.fixture(gap=3)
+
         with self.clock(clock, waits), patch("provider_core.execution.random.uniform", return_value=.1):
             result = await executor._observe_until_available(clock.now + 3)
+
         self.assertEqual(result.state, "in_progress")
         self.assertEqual(reads, [100.0, 101.0])
         self.assertEqual(waits, [1.0])
@@ -63,9 +67,11 @@ class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unfit_floor_waits_for_original_gap_without_retry_or_notice(self):
         executor, clock, reads, waits, notices = await self.fixture(gap=.5)
+
         with self.clock(clock, waits), patch("provider_core.execution.random.uniform", return_value=.1):
             with self.assertRaises(ObservationGapExpired) as caught:
                 await executor._observe_until_available(clock.now + .5)
+
         self.assertEqual(clock.now, 100.5)
         self.assertEqual(reads, [100.0])
         self.assertEqual(waits, [.5])
@@ -78,9 +84,11 @@ class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
             clock.now += 3
 
         executor, clock, reads, waits, notices = await self.fixture(gap=2, observer=consume_gap)
+
         with self.clock(clock, waits), patch("provider_core.execution.random.uniform", return_value=.1):
             with self.assertRaises(ObservationGapExpired) as caught:
                 await executor._observe_until_available(102.0)
+
         self.assertEqual(reads, [100.0])
         self.assertEqual(waits, [])
         self.assertEqual(len(notices), 1)

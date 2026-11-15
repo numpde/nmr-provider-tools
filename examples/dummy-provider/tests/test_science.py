@@ -15,6 +15,7 @@ class DummyScienceTests(unittest.TestCase):
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
+
         self.addCleanup(science.dispose_model, model)
         science.load_model(model)
 
@@ -26,6 +27,7 @@ class DummyScienceTests(unittest.TestCase):
             analysis=analysis,
             candidate=science.PreparationInput(values=(2, 4, 6)),
         )
+
         actual_prediction = science.calculate(
             analysis=analysis,
             state=science.CalculationState(prepared=prepared_values),
@@ -38,6 +40,7 @@ class DummyScienceTests(unittest.TestCase):
             settings=science.WeightedSumSettings(scale=1, offset=0),
             coefficients=science.CoefficientSet(values=(2, 3)),
         )
+
         self.addCleanup(science.dispose_model, model)
         science.load_model(model)
 
@@ -57,6 +60,7 @@ class DummyScienceTests(unittest.TestCase):
             analysis=analysis,
             candidate=science.PreparationInput(values=(1, 2)),
         )
+
         self.assertEqual(2, corrected_preparation.value_count)
 
     def test_stateless_sum_needs_no_model_or_analysis(self) -> None:
@@ -69,6 +73,7 @@ class DummyScienceTests(unittest.TestCase):
             settings=science.WeightedSumSettings(scale=1, offset=0),
             coefficients=science.CoefficientSet(values=(2, 3)),
         )
+
         self.addCleanup(science.dispose_model, model)
         science.load_model(model)
 
@@ -98,10 +103,12 @@ class DummyScienceTests(unittest.TestCase):
             settings=science.WeightedSumSettings(scale=1, offset=0),
             coefficients=science.CoefficientSet(values=(1,)),
         )
+
         analysis = science.create_analysis(model)
 
         with self.assertRaises(TypeError):
             science.PreparedValues(analysis=analysis, values=[])
+
         with self.assertRaises(ValueError):
             science.PreparedValues(analysis=analysis, values=())
 

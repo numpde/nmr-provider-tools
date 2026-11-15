@@ -21,16 +21,21 @@ class JobFeedTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(len(padded), PAGE_RESPONSE_BYTES)
         result = read_jobs_page(padded, analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=100)
         self.assertEqual([item.input.job_ref for item in result.jobs], [item["job_ref"] for item in document["jobs"]])
+
         with self.assertRaises(ResponseRejected):
             read_jobs_page(padded + b" ", analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=100)
+
         document["jobs"].append(document["jobs"][0])
+
         with self.assertRaises(ResponseRejected):
             read_jobs_page(json.dumps(document).encode(), analysis_kind_ref="nmr_predict", has_provider_execution_attempt=False, limit=100)
 
     async def test_signed_query_is_explicit_and_page_does_not_auto_follow_cursor(self):
         transport = Transport(reply(response()))
+
         result = await api(transport, "https://api.example").jobs(analysis_kind_ref="nmr_predict",
                                                               has_provider_execution_attempt=False, limit=2, cursor="Yg")
+
         self.assertEqual(len(transport.calls), 1)
         request, bound = transport.calls[0]
         self.assertEqual(request.method, "GET")
@@ -48,8 +53,10 @@ class JobFeedTests(unittest.IsolatedAsyncioTestCase):
     def test_empty_page_and_presence_view_are_retained(self):
         document = page()
         document.update(jobs=[], next_cursor=None, has_provider_execution_attempt=True)
+
         result = read_jobs_page(json.dumps(document).encode(), analysis_kind_ref="nmr_predict",
                                 has_provider_execution_attempt=True, limit=1)
+
         self.assertEqual(result.jobs, ())
         self.assertIsNone(result.next_cursor)
         self.assertTrue(result.has_provider_execution_attempt)

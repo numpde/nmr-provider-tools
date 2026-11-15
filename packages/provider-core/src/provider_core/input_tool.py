@@ -60,6 +60,8 @@ class ScientificInputToolDefinition:
         Structural rejection retains the codec's original exception. The provider
         decides whether a rejected proposal is correctable or ends its request.
         """
+
         if name != self.name:
             raise ToolRejected(f"Cannot accept {name=}; submit scientific input using {self.name=}")
+
         return self.call_binding.input_codec.decode(payload=json.dumps(obj=arguments).encode(encoding="utf-8"))

@@ -20,6 +20,7 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
     async def run_fault(self, mode):
         body = json.dumps({"choices": [{"message": call("selected", "prepare", {}),
                                        "finish_reason": "tool_calls"}]}).encode()
+
         children, endpoints = [], []
         launch = asyncio.create_subprocess_exec
 
@@ -32,6 +33,7 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
             marker = Path(directory) / "reply.json"
             fixture = Path(__file__).resolve().parents[3] / "fakes/chat_reply_fault.py"
             command = (sys.executable, "-I", "-B", str(fixture), mode, str(marker))
+
             async with TlsPeer("success", response_body=body) as peer:
                 factory = ChatEndpointFactory(
                     spec=ChatEndpointSpec(configuration_id="reply-boundary", model="fixture",
@@ -48,19 +50,25 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
                 interpreter = Interpreter((observe_endpoint,), timeout_seconds=10,
                                           context_bytes=16384, secrets=("PRIVATE_FIXTURE_KEY",))
+
                 tools = [{"type": "function", "function": {
                     "name": "prepare", "parameters": {"type": "object", "properties": {}}}}]
+
                 dispatch = AsyncMock(return_value=ToolFinished("prepared"))
                 deadline = asyncio.get_running_loop().time() + 3
+
                 with patch("provider_core.chat_process._worker_command", return_value=command), \
                         patch("provider_core.chat_process.asyncio.create_subprocess_exec", observe_launch):
                     running = asyncio.create_task(interpreter.run([], tools, dispatch, not_after=deadline))
+
                     try:
                         async with asyncio.timeout(2.5):
                             while not marker.exists():
                                 if running.done():
                                     self.fail("The child failed before returning its real HTTP reply")
+
                                 await asyncio.sleep(0.005)
+
                         evidence = json.loads(marker.read_text())
                         self.assertEqual(1, len(peer.requests))
                         self.assertEqual(1, len(children))
@@ -68,14 +76,18 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
                         self.assertLess(asyncio.get_running_loop().time(), deadline)
                         self.assertIsNone(children[0].returncode)
                         dispatch.assert_not_awaited()
+
                         if mode != "exit":
                             self.assertLess(evidence["written"], evidence["length"])
                             children[0].kill()
                         else:
                             self.assertEqual(evidence["length"], evidence["written"])
+
                         with self.assertRaises(InterpretationFailed):
                             await asyncio.wait_for(running, 4)
+
                         failure = endpoints[0]._transport.last_failure
+
                         if mode == "exit":
                             self.assertIsInstance(failure.primary, TimeoutError)
                             self.assertLess(asyncio.get_running_loop().time(), deadline + 1)
@@ -84,6 +96,7 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
                             expected = evidence["written"] if mode == "header" else evidence["written"] - 4
                             self.assertEqual(expected, len(failure.primary.partial))
                             self.assertEqual(-signal.SIGKILL, children[0].returncode)
+
                         dispatch.assert_not_awaited()
                         self.assertTrue(interpreter.retirement_confirmed)
                         self.assertIsNotNone(children[0].returncode)
@@ -93,9 +106,12 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
                         for child in children:
                             if child.returncode is None:
                                 child.kill()
+
                             await child.wait()
+
                         if not running.done():
                             running.cancel()
+
                         await asyncio.gather(running, return_exceptions=True)
                         await interpreter.retire()
 

@@ -36,6 +36,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         transport = LateReply(reply(observation()))
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -51,8 +52,10 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 lambda _attempt, _failure: self.fail("Late reply is not admitted"),
             ),
         )
+
         with self.assertRaises(ExecutionFailed) as failed:
             await executor.run(acknowledged)
+
         self.assertIs(type(failed.exception.cause), ObservationGapExpired)
         self.assertTrue(failed.exception.cause.read_started)
         self.assertIsNone(failed.exception.cause.cause)
@@ -84,15 +87,19 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             async def exchange(self, request, *, maximum_bytes, owner=None):
                 if len(self.calls) != 6:
                     return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+
                 self.calls.append((request, maximum_bytes))
                 self.pending_owner, self.retirement_confirmed = owner, False
                 entered.set()
+
                 try:
                     await asyncio.Event().wait()
                 except asyncio.CancelledError as interruption:
                     interruptions.append(interruption)
+
                     if delayed_read_cleanup:
                         await cleanup_release.wait()
+
                     self.last_failure = ExchangeFailed("Authored interrupted read", primary=interruption)
                     raise
 
@@ -104,6 +111,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             reply(progress_response(phase="running")),
             reply(observation()),
         )
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -119,27 +127,37 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 lambda _attempt, _failure: self.fail("No read recovered"),
             ),
         )
+
         task = asyncio.create_task(executor.run(acknowledged))
+
         try:
             await asyncio.wait_for(entered.wait(), 1)
             session.release.set()
             await asyncio.wait_for(retired.wait(), 1)
             self.assertFalse(cleanup_release.is_set())
+
             with self.assertRaises(ExecutionFailed) as failed:
                 await asyncio.wait_for(task, 1)
+
             expired = failed.exception.cause
             self.assertIs(type(expired), ObservationGapExpired)
             self.assertTrue(expired.read_started)
+
             if delayed_read_cleanup:
                 self.assertIsNone(expired.cause)
                 self.assertTrue(expired.observation_pending)
+
                 with self.assertRaises(OwnershipRefused):
                     claim.release(owner=claim.lifecycle_owner)
+
                 with self.assertRaises(ExecutionRefused):
                     await executor.retain_suppressed_disposition()
+
             cleanup_release.set()
+
             with self.assertRaises(ExecutionFailed):
                 await executor.settle()
+
             self.assertIs(expired.cause, failed.exception.api_failure)
             self.assertIs(expired.cause.cause, transport.last_failure)
             self.assertIs(transport.last_failure.primary, interruptions[0])
@@ -160,8 +178,10 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         finally:
             session.release.set()
             cleanup_release.set()
+
             if not task.done():
                 task.cancel()
+
             await asyncio.gather(task, return_exceptions=True)
 
     async def test_lock_wait_expiry_has_no_invented_read_cause_after_an_earlier_recovery(self):
@@ -175,9 +195,11 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             async def exchange(self, request, *, maximum_bytes, owner=None):
                 if request.method != "PUT" or json.loads(request.content)["condition_code"] is None:
                     return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+
                 self.calls.append((request, maximum_bytes))
                 self.pending_owner, self.retirement_confirmed = owner, False
                 condition_sent.set()
+
                 try:
                     await asyncio.Event().wait()
                 except asyncio.CancelledError as interruption:
@@ -187,6 +209,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         transport = BlockedCondition(
             reply(b"maintenance", status=503), reply(observation()), reply(response()), reply(progress_response())
         )
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -202,11 +225,15 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 lambda _attempt, failure: recovered.append(failure),
             ),
         )
+
         task = asyncio.create_task(executor.run(acknowledged))
+
         try:
             await asyncio.wait_for(condition_sent.wait(), 1)
+
             with self.assertRaises(ExecutionFailed) as failed:
                 await asyncio.wait_for(task, 1)
+
             expired = failed.exception.cause
             self.assertIs(type(expired), ObservationGapExpired)
             self.assertFalse(expired.read_started)
@@ -223,6 +250,7 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         finally:
             if not task.done():
                 task.cancel()
+
             await asyncio.gather(task, return_exceptions=True)
 
     def test_policy_rejects_unbounded_windows_or_missing_protected_observers(self):
@@ -235,8 +263,10 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         for seconds in (0, -1, float("inf"), float("nan"), True):
             with self.subTest(seconds=seconds), self.assertRaises(ValueError):
                 ObservationRecovery(seconds, 1, retry, recovered)
+
             with self.subTest(backoff=seconds), self.assertRaises(ValueError):
                 ObservationRecovery(1, seconds, retry, recovered)
+
         for observers in ((None, recovered), (retry, None)):
             with self.subTest(observers=observers), self.assertRaises(ValueError):
                 ObservationRecovery(1, 1, *observers)
@@ -258,9 +288,11 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                     await cleanup_release.wait()
                 except asyncio.CancelledError as interruption:
                     raise interruption from cleanup
+
                 await super().retire(owner=owner)
 
         transport = InterruptedRetirement(reply(b"maintenance", status=503))
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -276,15 +308,19 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                 lambda _attempt, _failure: self.fail("No recovery"),
             ),
         )
+
         try:
             with self.assertRaises(ExecutionFailed) as failed:
                 await asyncio.wait_for(executor.run(acknowledged), 1)
+
             self.assertIs(type(failed.exception.cause), ObservationGapExpired)
             self.assertEqual(failed.exception.cause.cause.status, 503)
             self.assertTrue(any(cause.__cause__ is cleanup for cause in failed.exception.cleanup_failures))
             self.assertEqual([item[0] for item in session.events], ["retire"])
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             cleanup_release.set()
             await executor.settle()
             self.assertEqual(len(transport.calls), 1)

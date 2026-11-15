@@ -47,15 +47,19 @@ class _PositionalMessageFinding:
 def _is_literal(expression: ast.expr) -> bool:
     if isinstance(expression, ast.Constant):
         return True
+
     if isinstance(expression, (ast.List, ast.Tuple, ast.Set)):
         return all(_is_literal(element) for element in expression.elts)
+
     if isinstance(expression, ast.Dict):
         return all(
             key is not None and _is_literal(key) and _is_literal(value)
             for key, value in zip(expression.keys, expression.values, strict=True)
         )
+
     if isinstance(expression, ast.UnaryOp) and isinstance(expression.op, (ast.Invert, ast.UAdd, ast.USub)):
         return _is_literal(expression.operand)
+
     return False
 
 
@@ -71,6 +75,7 @@ def _is_assert_equal(call: ast.Call) -> bool:
 
 def _findings(path: Path, source: str) -> list[_Finding]:
     tree = ast.parse(source, filename=str(path))
+
     return sorted(
         [
             _Finding(path=path, line=call.lineno)
@@ -86,12 +91,16 @@ def _findings(path: Path, source: str) -> list[_Finding]:
 
 def _message_positions() -> dict[str, int]:
     positions: dict[str, int] = {}
+
     for method_name in dir(unittest.TestCase):
         if not method_name.startswith("assert"):
             continue
+
         method = getattr(unittest.TestCase, method_name)
+
         if not callable(method):
             continue
+
         positional_parameters = [
             parameter
             for parameter in inspect.signature(method).parameters.values()
@@ -102,10 +111,12 @@ def _message_positions() -> dict[str, int]:
                 inspect.Parameter.POSITIONAL_OR_KEYWORD,
             )
         ]
+
         for position, parameter in enumerate(positional_parameters):
             if parameter.name == "msg":
                 positions[method_name] = position
                 break
+
     return positions
 
 
@@ -118,6 +129,7 @@ def _positional_message_findings(
 ) -> list[_PositionalMessageFinding]:
     tree = ast.parse(source, filename=str(path))
     findings: list[_PositionalMessageFinding] = []
+
     for call in ast.walk(tree):
         if not (
             isinstance(call, ast.Call)
@@ -126,7 +138,9 @@ def _positional_message_findings(
             and call.func.value.id == "self"
         ):
             continue
+
         message_position = _message_position_by_method.get(call.func.attr)
+
         if message_position is not None and len(call.args) > message_position:
             findings.append(
                 _PositionalMessageFinding(
@@ -135,6 +149,7 @@ def _positional_message_findings(
                     method=call.func.attr,
                 )
             )
+
     return sorted(findings, key=lambda finding: finding.line)
 
 
@@ -209,6 +224,7 @@ class AssertEqualArgumentOrderPostureTests(unittest.TestCase):
             ],
             key=lambda finding: (finding.path, finding.line),
         )
+
         if findings:
             self.fail(
                 "assertEqual() calls with visibly reversed arguments:\n" + "\n".join(finding.diagnostic() for finding in findings)
@@ -226,6 +242,7 @@ class AssertEqualArgumentOrderPostureTests(unittest.TestCase):
             ],
             key=lambda finding: (finding.path, finding.line, finding.method),
         )
+
         if findings:
             self.fail(
                 "unittest assertion calls with positional diagnostic messages:\n"

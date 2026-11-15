@@ -49,8 +49,10 @@ def _require_text(value, name, maximum):
             f"Unexpected {type(value)=}; "
             f"Cannot announce provider: {name} must be Unicode text"
         )
+
     if not 1 <= len(value) <= maximum:
         raise ValueError(f"Cannot announce provider: {name} has {len(value)} characters; expected 1 through {maximum} Unicode scalars")
+
     if "\0" in value or any(0xD800 <= ord(character) <= 0xDFFF for character in value):
         raise ValueError(f"Cannot announce provider: {name} must not contain NUL or surrogate characters")
 
@@ -64,24 +66,31 @@ def hello_body(*, display_name, description, analysis_offerings):
     """
     _require_text(display_name, "display name", 128)
     _require_text(description, "description", 1024)
+
     if not (type(analysis_offerings) is tuple):
         raise TypeError(
             f"Unexpected {type(analysis_offerings)=}; "
             "Cannot announce provider: analysis offerings must be a tuple of at most 64 entries"
         )
+
     if not (len(analysis_offerings) <= 64):
         raise ValueError("Cannot announce provider: analysis offerings must be a tuple of at most 64 entries")
+
     offerings, kinds = [], set()
+
     for offering in analysis_offerings:
         if type(offering) is not AnalysisOffering:
             raise TypeError(
                 f"Unexpected {type(offering)=}; "
                 "Cannot announce provider: each entry must be an AnalysisOffering"
             )
+
         if offering.analysis_kind_ref in kinds:
             raise ValueError("Cannot announce provider: analysis kinds must not repeat")
+
         kinds.add(offering.analysis_kind_ref)
         offerings.append({"analysis_kind_ref": offering.analysis_kind_ref, "description": offering.description})
+
     body = json.dumps(
         {
             "schema_id": "nmr.provider.hello_request.v1",
@@ -92,18 +101,24 @@ def hello_body(*, display_name, description, analysis_offerings):
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode("utf-8")
+
     if not (len(body) <= 512 * 1024):
         raise ValueError("Cannot announce provider: encoded Hello exceeds the 524288-byte route limit")
+
     return body
 
 
 def read_hello(raw, *, provider_ref):
     """Bind a closed receipt to composition's expected provider, never to key spelling."""
     document = read_document(raw, HELLO_RESPONSE_BYTES)
+
     if type(document) is not dict or set(document) != {"schema_id", "provider_ref", "accepted_at"}:
         raise ResponseRejected("Response fields do not match the supported Hello receipt schema")
+
     if document["schema_id"] != "nmr.provider.hello_response.v1":
         raise ResponseRejected("Response schema does not match the Hello receipt contract")
+
     if document["provider_ref"] != provider_ref:
         raise ResponseRejected("Hello receipt provider differs from the configured provider")
+
     return HelloAccepted(provider_ref, read_timestamp(document["accepted_at"]))

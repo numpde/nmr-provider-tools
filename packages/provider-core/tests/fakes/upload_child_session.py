@@ -36,9 +36,11 @@ class UploadChildSession(ChildSession):
     async def prepare(self, acknowledged, instructions, *, report_condition):  # noqa: ARG002
         if acknowledged.start.input != instructions.identity or self.source.job_ref != instructions.job_ref:
             raise ValueError("Upload child preparation requires this Job's admitted instructions and source receipt")
+
         self.phases.append(type(self.store.records[0]))
         self._launch = asyncio.create_task(self.child.start(self.mode, pass_fds=(self.directory_fd,)))
         await asyncio.shield(self._launch)
+
         await self.child.send(
             {
                 "operation": "prepare",
@@ -47,17 +49,21 @@ class UploadChildSession(ChildSession):
                 "directory_fd": self.directory_fd,
             }
         )
+
         reply = await self.child.receive()
+
         if reply.get("state") == "reading":
             self.source_read_reply = reply
             self.reading_started.set()
             reply = await self.child.receive()
+
         if (
             reply.get("state") != "prepared"
             or reply.get("source_fingerprint") != instructions.identity.input_fingerprint
             or reply.get("content_hash") != self.source.content_hash
         ):
             raise ValueError("Upload child did not acknowledge its exact admitted input and verified source")
+
         self.source_reply = reply
         identity = json.dumps({"upload": asdict(self.source), "input": reply}, sort_keys=True).encode()
         self._prepared = PreparedAnalysis(ProtectedEvidence("fixture.upload_child.input.v1", identity))
@@ -65,8 +71,10 @@ class UploadChildSession(ChildSession):
 
     async def stop_child(self):
         """Test teardown must join a pending launch before releasing its lent fd."""
+
         if self._launch is not None:
             await asyncio.shield(self._launch)
+
         await self.child.stop()
 
     async def retire(self):
@@ -75,10 +83,13 @@ class UploadChildSession(ChildSession):
             # launch before borrowing its exact process-exit confirmation.
             await asyncio.shield(self._launch)
             await super().retire()
+
         if self.source_removals == 0:
             if self._launch is not None:
                 self.source_cleanup_observed_stopped_child = self.child.process.returncode is not None and self.child.pipes_closed
+
                 if not self.source_cleanup_observed_stopped_child:
                     raise AssertionError("Test binding attempted source cleanup before its exact child stopped")
+
             os.unlink(self.source.name, dir_fd=self.directory_fd)
             self.source_removals += 1

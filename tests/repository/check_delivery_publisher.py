@@ -18,8 +18,10 @@ from tools.wheelhouse import read_json
 pool = Path("/wheelhouse")
 release, _ = release_inputs(Path("/release.json"), Path("/core-runtime.lock"))
 tool = read_json(Path("/wheelhouse-tool-release.json"))
+
 if not tool_present(pool, tool):
     raise FileNotFoundError("The pinned wheelhouse tool is missing from the pool.")
+
 name = f"provider_core-{release['version']}-py3-none-any.whl"
 url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{release['version']}/{name}"
 publish_release_wheels(pool / tool["name"], pool, [(name, release["wheel_sha256"], url)])
@@ -45,6 +47,7 @@ class Handler(BaseHTTPRequestHandler):
 server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
 thread = Thread(target=server.serve_forever)
 thread.start()
+
 try:
     with tempfile.TemporaryDirectory() as temporary:
         test_pool = Path(temporary)
@@ -52,6 +55,7 @@ try:
         test_url = f"http://127.0.0.1:{server.server_port}/{test_name}"
         publish_release_wheels(pool / tool["name"], test_pool, [(test_name, checksum, test_url)])
         publish_release_wheels(pool / tool["name"], test_pool, [(test_name, checksum, test_url)])
+
         if (test_pool / test_name).read_bytes() != content or requests != [f"/{test_name}"]:
             raise AssertionError("The publisher did not acquire once and reuse the locked wheel.")
 finally:

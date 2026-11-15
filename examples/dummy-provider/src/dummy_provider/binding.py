@@ -24,6 +24,7 @@ class WeightedAnalysis(sdk.Analysis["WeightedSum"]):
     def value(self) -> science.WeightedSumAnalysis:
         if self._value is None:
             raise RuntimeError("Initialize the weighted analysis before using its scientific session")
+
         return self._value
 
     def initialize(self) -> None:
@@ -50,6 +51,7 @@ class WeightedSum(sdk.Contribution):
     def model(self) -> science.WeightedSumModel:
         if self._model is None:
             raise RuntimeError("Initialize the weighted contribution before using its model")
+
         return self._model
 
     def initialize(self, *, assets: sdk.AssetAccess) -> None:
@@ -106,6 +108,7 @@ PROVIDER_CONFIG_PATH = Path("config/deployments/localhost/provider.toml")
 
 def read_resource_requirements() -> frozenset[sdk.ResourceRequirement]:
     """Read this deployment's declared scientific call requirements."""
+
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         configuration = tomllib.load(source)
 

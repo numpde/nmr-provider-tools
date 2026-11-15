@@ -51,11 +51,13 @@ class TextCorrection:
     def __post_init__(self):
         if self.user_content is None:
             return
+
         if type(self.user_content) is not str:
             raise TypeError(
                 f"Unexpected {type(self.user_content)=}; "
                 "Text correction requires a user instruction supplied as text or None."
             )
+
         if not self.user_content:
             raise ValueError("Text correction requires a nonempty user instruction.")
 
@@ -114,16 +116,21 @@ def independent_interruption_failure(failure):
     about scientific effects or their outcome; this observation has no independent
     fault.
     """
+
     if not isinstance(failure, asyncio.CancelledError):
         return failure
+
     retained = failure.__cause__
     # This owner can add earlier endpoint/correction history around the original
     # cause. Unwrap that one known carrier, never arbitrary exception graphs.
     cause = retained.cause if type(retained) is ConversationFailed else retained
+
     if cause is None:
         return None
+
     if type(cause) is ChatFailed and cause.reason == "request_cancelled" and cause.interruption_cause is None:
         exchange = cause.cause
+
         if (
             type(exchange) is ExchangeFailed
             and exchange.primary is failure
@@ -131,16 +138,19 @@ def independent_interruption_failure(failure):
             and (exchange.response_head is None or exchange.response_head.status == 200)
         ):
             return None
+
     return retained
 
 
 def require_turn_limit(max_turns):
     """Admit the conversation budget before startup acquires model carriers."""
+
     if not (type(max_turns) is int):
         raise TypeError(
             f"Unexpected {type(max_turns)=}; "
             "Cannot configure interpretation: the total model-turn limit must be a positive integer."
         )
+
     if not (0 < max_turns):
         raise ValueError("Cannot configure interpretation: the total model-turn limit must be a positive integer.")
 
@@ -170,31 +180,40 @@ class ToolConversation:
                 f"Unexpected {type(endpoints)=}; "
                 "Cannot configure interpretation: provide a nonempty ordered tuple of endpoints."
             )
+
         if not (endpoints):
             raise ValueError("Cannot configure interpretation: provide a nonempty ordered tuple of endpoints.")
+
         require_turn_limit(max_turns)
+
         if max_corrections is not None:
             require_turn_limit(max_corrections)
+
         if type(secrets) is not tuple:
             raise TypeError(
                 f"Unexpected {type(secrets)=}; "
                 "Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings."
             )
+
         for secret in secrets:
             if type(secret) is not str:
                 raise TypeError(
                     f"Unexpected {type(secret)=}; "
                     "Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings."
                 )
+
         if any(not secret for secret in secrets):
             raise ValueError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
+
         if text_correction is not None and type(text_correction) is not TextCorrection:
             raise TypeError(
                 f"Unexpected {type(text_correction)=}; "
                 "Cannot configure interpretation: text_correction must be TextCorrection or None."
             )
+
         if argument_bytes is not None and (type(argument_bytes) is not int or argument_bytes <= 0):
             raise ValueError("Cannot configure interpretation: argument_bytes must be a positive integer or None.")
+
         self._endpoints, self._max_turns = endpoints, max_turns
         self._argument_bytes = argument_bytes
         self._max_corrections = max_corrections
@@ -215,8 +234,10 @@ class ToolConversation:
 
     def redact(self, text):
         """Remove configured keys; this does not classify arbitrary private data."""
+
         for secret in self._secrets:
             text = text.replace(secret, "[redacted]")
+
         return text
 
     @property
@@ -243,6 +264,7 @@ class ToolConversation:
         """
         identifier = self._messages[-1]["tool_calls"][0]["id"]
         feedback = self._tool_message(identifier, _encode(value).decode("ascii"))
+
         return len(_encode({
             "messages": [*self._messages, feedback, *messages_suffix],
             "tools": self._tools,
@@ -263,7 +285,9 @@ class ToolConversation:
     async def run(self, messages, tools, dispatch):
         if self._used or self._retired:
             raise ValueError("This interpreter conversation already ran or retired; create a new owned conversation.")
+
         self._used = True
+
         try:
             return await self._run(messages, tools, dispatch)
         except BaseException as failure:
@@ -272,6 +296,7 @@ class ToolConversation:
             self.last_failure = failure
             history = tuple(self.endpoint_failures)
             corrections = tuple(self.correction_failures)
+
             if type(failure) in (ConversationFailed, ConversationRetirementFailed):
                 failure.endpoint_failures = history
                 failure.correction_failures = corrections
@@ -285,27 +310,35 @@ class ToolConversation:
                     endpoint_failures=history,
                     correction_failures=corrections,
                 )
+
                 raise failure from context
+
             raise
 
     async def _run(self, messages, tools, dispatch):
         self._require_no_secrets(messages)
         self._require_no_secrets(tools)
+
         if self._text_correction is not None:
             self._require_no_secrets(self._text_correction.user_content)
+
         self._messages, self._tools = (
             json.loads(_encode(messages)),
             json.loads(_encode(tools)),
         )
+
         self._tools_sha256 = hashlib.sha256(_encode(tools)).hexdigest()
         index = 0
         self._route(self._endpoints[index])
+
         while self._turns < self._max_turns:
             if self._retired:
                 raise ConversationFailed("Interpretation retired before a decision could be accepted.")
+
             endpoint = self._endpoints[index]
             self._turns += 1
             self._routes[-1]["turns_started"] += 1
+
             try:
                 message = await endpoint.complete(self._messages, self._tools)
                 message, calls = self._admit_carrier(message)
@@ -315,27 +348,37 @@ class ToolConversation:
                 # before a successful fallback. Public routes contain no body.
                 self.endpoint_failures.append((index, failure))
                 self._routes[-1]["failure"] = "invalid_tool_carrier"
+
                 if isinstance(failure, ChatFailed):
                     self._routes[-1]["failure"] = failure.reason
+
                     if failure.response is not None:
                         self._routes[-1]["http_status"] = failure.response.status
+
                 await self._retire_endpoint(index, cause=failure)
+
                 if index + 1 == len(self._endpoints) or self._turns == self._max_turns:
                     raise ConversationFailed(
                         "Cannot interpret the request: no usable model reply was obtained within the configured endpoints and turn budget.",
                         cause=failure,
                     ) from None
+
                 index += 1
                 self._route(self._endpoints[index])
                 continue
+
             self._require_active()
             self._messages.append(message)
+
             if len(calls) != 1:
                 for call in calls:
                     call["function"]["arguments"] = "{}"
+
                 self._correct_turn(calls, ToolRejected("Choose exactly one tool per turn; no operations were performed."))
                 continue
+
             call = calls[0]
+
             try:
                 arguments = self._arguments(call["function"]["arguments"])
             except ToolRejected as rejection:
@@ -344,33 +387,43 @@ class ToolConversation:
                 call["function"]["arguments"] = "{}"
                 self._correct_turn(calls, rejection)
                 continue
+
             call["function"]["arguments"] = _encode(arguments).decode("ascii")
+
             try:
                 outcome = await dispatch(call["function"]["name"], arguments)
             except ToolRejected as rejection:
                 if self._text_correction is None:
                     call["function"]["arguments"] = "{}"
+
                 self._correct_turn(calls, rejection)
                 continue
+
             if type(outcome) is ToolFinished:
                 # Retirement stops new work, not acceptance from an already
                 # admitted dispatch. Its caller still owns scientific settlement.
                 return ConversationResult(
                     outcome.value, self._observation(), tuple(self.endpoint_failures), tuple(self.correction_failures)
                 )
+
             self._require_active()
+
             if type(outcome) is ToolHandoff:
                 return ConversationHandoff(
                     outcome.reason, self._observation(), tuple(self.endpoint_failures), tuple(self.correction_failures)
                 )
+
             if type(outcome) is not ToolReply:
                 raise TypeError(
                     f"Unexpected {type(outcome)=}; "
                     "Interpreter tool dispatch must return ToolReply, ToolFinished or ToolHandoff."
                 )
+
             self._feedback(call["id"], outcome.value)
+
         # silent-defaults: allow-contract -- Absent usable correction text reports exhaustion without choosing another endpoint or input.
         reason = self.last_rejection or "No tool submitted a supported input."
+
         raise ConversationFailed(
             f"Cannot interpret the request: the {self._max_turns}-turn budget was exhausted. Last correction: {reason}"
         )
@@ -388,21 +441,29 @@ class ToolConversation:
     def _admit_carrier(self, message):
         if type(message) is not dict or message.get("role") != "assistant":
             raise ConversationFailed("Cannot interpret model action: the reply is not an assistant message.")
+
         canonical = {"role": "assistant"}
+
         for text_field in ("content", "reasoning_content"):
             if text_field in message:
                 if message[text_field] is not None and type(message[text_field]) is not str:
                     raise ConversationFailed("Cannot interpret model action: assistant text has a malformed carrier.")
+
                 self._require_no_secrets(message[text_field])
                 canonical[text_field] = message[text_field]
+
         calls = message.get("tool_calls")
+
         if (calls is None and self._text_correction is not None
                 and self._text_correction.user_content is not None):
             return canonical, []
+
         if type(calls) is not list or not calls:
             raise ConversationFailed("Cannot interpret model action: the reply supplies no identifiable tool call.")
+
         identifiers = set()
         admitted = []
+
         for call in calls:
             if (
                 type(call) is not dict
@@ -419,8 +480,10 @@ class ToolConversation:
                 raise ConversationFailed(
                     "Cannot interpret model action: tool identity, function or argument carrier is malformed or repeated."
                 )
+
             identifiers.add(call["id"])
             self._require_no_secrets((call["id"], call["function"]["name"]))
+
             admitted.append(
                 {
                     "id": call["id"],
@@ -431,6 +494,7 @@ class ToolConversation:
                     },
                 }
             )
+
         canonical["tool_calls"] = admitted
         self._seen_ids.update(identifiers)
         return canonical, admitted
@@ -440,8 +504,10 @@ class ToolConversation:
             raw = text.encode("utf-8")
         except UnicodeError as cause:
             raise ToolRejected("Tool arguments must be valid UTF-8 JSON text.") from cause
+
         if self._argument_bytes is not None and len(raw) > self._argument_bytes:
             raise ToolRejected(f"Tool arguments exceed the {self._argument_bytes}-byte limit; submit a smaller JSON object.")
+
         try:
             # The consumed response and any caller-supplied tighter bound own size.
             arguments = read_document(raw, len(raw))
@@ -454,8 +520,10 @@ class ToolConversation:
             RecursionError,
         ) as cause:
             raise ToolRejected("Tool arguments must be one JSON object with unique fields and finite values.") from cause
+
         if type(arguments) is not dict:
             raise ToolRejected("Tool arguments must be one JSON object.")
+
         self._require_no_secrets(arguments)
         return arguments
 
@@ -473,15 +541,20 @@ class ToolConversation:
         self.last_rejection = reason
         self._corrections += 1
         self.correction_failures.append((self._turns, rejection))
+
         if self._max_corrections is not None and self._corrections >= self._max_corrections:
             raise ConversationFailed(
                 f"Cannot interpret the request: the {self._max_corrections}-correction budget was exhausted."
             )
+
         content = reason
+
         if self._text_correction is None:
             content = _encode({"rejected": reason}).decode("ascii")
+
         for call in calls:
             self._messages.append(self._tool_message(call["id"], content))
+
         if self._text_correction is not None and self._text_correction.user_content is not None:
             self._messages.append({"role": "user", "content": self._text_correction.user_content})
 
@@ -498,8 +571,10 @@ class ToolConversation:
 
     async def _retire_endpoint(self, index, *, cause=None):
         endpoint = self._endpoints[index]
+
         try:
             await endpoint.retire()
+
             if not endpoint.retirement_confirmed:
                 raise RuntimeError("Interpreter endpoint has not confirmed resource retirement.")
         except (Exception, asyncio.CancelledError) as cleanup:
@@ -509,9 +584,11 @@ class ToolConversation:
                 endpoint_failures=self.endpoint_failures,
                 correction_failures=self.correction_failures,
             )
+
             if isinstance(cleanup, asyncio.CancelledError):
                 failure.interruption_cause = cleanup.__cause__
                 raise cleanup from failure
+
             raise failure from None
 
     async def retire(self):
@@ -519,6 +596,7 @@ class ToolConversation:
         primary = self.last_failure
         failures = []
         interruption = None
+
         for index in range(len(self._endpoints)):
             try:
                 await self._retire_endpoint(index)
@@ -526,8 +604,10 @@ class ToolConversation:
                 failures.extend(failure.failures)
             except asyncio.CancelledError as cause:
                 failures.append((index, cause))
+
                 if interruption is None:
                     interruption = cause
+
         if failures:
             failure = ConversationRetirementFailed(
                 failures,
@@ -535,8 +615,11 @@ class ToolConversation:
                 endpoint_failures=self.endpoint_failures,
                 correction_failures=self.correction_failures,
             )
+
             self.last_failure = failure
+
             if interruption is not None:
                 failure.interruption_cause = interruption.__cause__
                 raise interruption from failure
+
             raise failure from None

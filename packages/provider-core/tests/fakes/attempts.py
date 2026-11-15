@@ -14,6 +14,7 @@ def observation(**changes):
         "state": "in_progress",
         "job_state": "open",
     }
+
     document.update(changes)
     return json.dumps(document).encode()
 

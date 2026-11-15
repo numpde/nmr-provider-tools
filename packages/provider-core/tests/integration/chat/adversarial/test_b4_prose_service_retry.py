@@ -25,12 +25,15 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
         async def response(_request, body):
             job = json.loads(body)["messages"][0]["content"]
             requests.append({"job": job, "at": loop.time(), "available": restored.is_set()})
+
             if restored.is_set():
                 peer.response_status, peer.response_headers = 200, None
+
                 return json.dumps({"choices": [{
                     "message": call("prepare", "prepare_scientific_input", {}),
                     "finish_reason": "tool_calls",
                 }]}).encode()
+
             peer.response_status = 503
             peer.response_headers = ((b"Content-Type", b"application/json"), (b"Retry-After", b"2"))
             unavailable_reply_sent.set()
@@ -50,22 +53,26 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                 ),
                 trust=peer.trust, retirement_seconds=0.3, request_bytes=32768, response_bytes=8192,
             ))
+
             restoration = asyncio.create_task(restore_only_the_prose_service())
 
             async def interpret(job, seconds):
                 interpreter = Interpreter((service,), timeout_seconds=seconds,
                                           context_bytes=16384, secrets=("B4_TEST_CREDENTIAL",))
+
                 interpreters.append(interpreter)
 
                 async def prepare(name, arguments, *, not_after):
                     if name != "prepare_scientific_input" or arguments:
                         raise AssertionError("The test prose service proposed an unexpected scientific operation")
+
                     tool_calls.append(job)
                     return ToolFinished(job)
 
                 tools = [{"type": "function", "function": {
                     "name": "prepare_scientific_input", "parameters": {"type": "object", "properties": {}},
                 }}]
+
                 try:
                     return (await interpreter.run([{"role": "user", "content": job}], tools, prepare)).value
                 finally:
@@ -78,6 +85,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                 for job, seconds in (("job:b4-first", 2.0), ("job:b4-second", 0.55)):
                     with self.assertRaises(InterpretationFailed):
                         await interpret(job, seconds)
+
                     if job == "job:b4-first":
                         self.assertEqual(
                             ["job:b4-first"], [request["job"] for request in requests],
@@ -85,6 +93,7 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                                 "service could supply Retry-After; no cross-Job delay "
                                 "was actually established: " + json.dumps(requests),
                         )
+
                 try:
                     result = await interpret("job:b4-third", 5)
                 except InterpretationFailed as failure:
@@ -93,19 +102,24 @@ class ProseServiceRetryTests(unittest.IsolatedAsyncioTestCase):
                         "the test's model budget; compare accepted HTTP exchanges "
                         "and startup/response time: " + json.dumps(requests)
                     ) from failure
+
                 await restoration
                 active = {task for task in peer.handlers if not task.done()}
+
                 if active:
                     await asyncio.wait(active, timeout=1)
+
                 evidence = json.dumps(requests, sort_keys=True)
                 self.assertEqual("job:b4-third", result, msg=evidence)
                 self.assertEqual(["job:b4-third"], tool_calls, msg=evidence)
                 self.assertTrue(all(owner.retirement_confirmed for owner in interpreters), msg=evidence)
                 self.assertFalse(any(not task.done() for task in peer.handlers), msg=evidence)
+
                 self.assertGreaterEqual(
                     requests[1]["at"] - requests[0]["at"], 2,
                     msg="A later Job bypassed the prose service's two-second Retry-After: " + evidence,
                 )
+
                 self.assertEqual(["job:b4-first", "job:b4-third"], [request["job"] for request in requests],
                                  msg=evidence)
             finally:

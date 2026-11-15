@@ -30,6 +30,7 @@ class PreparedHandleSession(LiveSession):
         self.returned_handle = await super().prepare(
             acknowledged, instructions, report_condition=report_condition,
         )
+
         return self.returned_handle
 
     async def retire(self):
@@ -40,6 +41,7 @@ class PreparedHandleSession(LiveSession):
 
 def controller_for(transport, claims, session):
     """Give the real controller explicit API, relay, preparation and stop owners."""
+
     return AttemptController.live(
         api(transport, scope().api_origin), claims, session,
         scope=scope(), stopping=asyncio.Event(),
@@ -60,12 +62,15 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
                     claims, session = AttemptClaims.live(), PreparedHandleSession()
                     session.release.clear()
                     revoked = reply(observation(**stop))
+
                     transport = Transport(
                         reply(start_response()), reply(observation()),
                         reply(progress_response()), revoked,
                     )
+
                     controller = controller_for(transport, claims, session)
                     run = asyncio.create_task(controller.run(record()))
+
                     try:
                         await asyncio.wait_for(session.retiring.wait(), 1)
                         # The fourth exchange is the acceptance read following
@@ -78,6 +83,7 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
                         self.assertTrue(claims.owns_job(scope(), record().input.job_ref))
                         self.assertFalse(controller.work_settled)
                         self.assertIsNone(controller.operation.settled_revocation)
+
                         if delayed:
                             await asyncio.wait((run,), timeout=1)
                             self.assertTrue(run.done(), "The original stop must remain observable during cleanup")
@@ -102,19 +108,25 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
         for stop in ({"job_state": "cancelled"}, {"state": "expired"}):
             with self.subTest(stop=stop):
                 claims, session = AttemptClaims.live(), PreparedHandleSession()
+
                 transport = Transport(
                     reply(start_response()), reply(observation()), reply(progress_response()),
                     reply(observation()), reply(progress_response(phase="running")),
                     reply(observation(**stop)),
                 )
+
                 controller = controller_for(transport, claims, session)
+
                 with self.assertRaises(ControllerFailed) as stopped:
                     await controller.run(record())
+
                 self.assertIs(type(stopped.exception.cause.cause), ExecutionStopped)
                 self.assertIs(type(controller.operation._checkpoint), EnteredCheckpoint)
+
                 for _ in range(2):
                     with self.assertRaises(ControllerFailed):
                         await controller.settle()
+
                 self.assertIsNone(controller.operation.settled_revocation)
                 self.assertIs(session.handle, session.returned_handle)
                 self.assertIs(session.handle, session.retired_handle)

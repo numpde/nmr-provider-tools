@@ -17,6 +17,7 @@ def response(payload=b"private instructions", **changes):
         "input_byte_length": len(payload),
         "canonical_input_base64": base64.b64encode(payload).decode("ascii"),
     }
+
     document.update(changes)
     return json.dumps(document, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
 

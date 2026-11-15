@@ -30,6 +30,7 @@ class LauncherTests(unittest.TestCase):
             "MAKEFLAGS": "SHELL=malicious .DEFAULT_GOAL=unreviewed",
             "PATH": f"{ROOT / 'tests/repository/fixtures/docker-context'}:{os.environ['PATH']}",
         }
+
         result = subprocess.run(
             ["make", "--no-print-directory", "tests/repository/command", "DOCKER_CONTEXT=default"],
             cwd=ROOT,
@@ -38,6 +39,7 @@ class LauncherTests(unittest.TestCase):
             text=True,
             check=False,
         )
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         arguments = shlex.split(result.stdout.splitlines()[-1])
         self.assertNotIn("unreviewed", " ".join(arguments))
@@ -50,11 +52,13 @@ class LauncherTests(unittest.TestCase):
 
     def test_missing_context_without_terminal_refuses_before_engine_use(self):
         environment = os.environ | {"DOCKER_CONTEXT": "unreviewed", "NMR_SELECTED_DOCKER_ENDPOINT": "unix:///tmp/poison.sock", "DOCKER_CONTEXT_INPUT_ORIGIN": "command line", "DOCKER_CONTEXT_INPUT": "local-test", "MAKELEVEL": "1"}
+
         result = subprocess.run(
             ["make", "--no-print-directory", "tests/repository/command"],
             cwd=ROOT, env=environment, stdin=subprocess.DEVNULL, start_new_session=True,
             capture_output=True, text=True, check=False,
         )
+
         self.assertNotEqual(0, result.returncode)
         self.assertIn("DOCKER_CONTEXT", result.stderr)
         self.assertNotIn("docker --config", result.stdout)
@@ -74,33 +78,44 @@ class LauncherTests(unittest.TestCase):
 
     def test_interactive_menu_offers_only_local_contexts(self):
         fixture = ROOT / "tests/repository/fixtures/docker-context"
+
         environment = {key: value for key, value in os.environ.items()
                        if key not in {"DOCKER_CONTEXT_INPUT_ORIGIN", "DOCKER_CONTEXT_INPUT", "NMR_SELECTED_DOCKER_CONTEXT", "NMR_SELECTED_DOCKER_ENDPOINT"}}
+
         environment["PATH"] = f"{fixture}:{os.environ['PATH']}"
         pid, terminal = pty.fork()
+
         if pid == 0:
             os.chdir(ROOT)
             os.execvpe("make", ["make", "--no-print-directory", "tests/repository/command"], environment)
+
         output = b""
         sent = False
         deadline = time.monotonic() + 10
+
         try:
             while time.monotonic() < deadline:
                 readable, _, _ = select.select([terminal], [], [], 0.2)
+
                 if readable:
                     try:
                         part = os.read(terminal, 4096)
                     except OSError:
                         break
+
                     output += part
+
                     if not sent and b"Choice [" in output:
                         os.write(terminal, b"1\n")
                         sent = True
+
             if not sent:
                 os.kill(pid, signal.SIGKILL)
+
             _, status = os.waitpid(pid, 0)
         finally:
             os.close(terminal)
+
         self.assertTrue(sent, msg=output.decode(errors="replace"))
         self.assertTrue(os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, msg=output.decode(errors="replace"))
         self.assertIn(b"local-test", output)
@@ -112,18 +127,22 @@ class LauncherTests(unittest.TestCase):
             log = Path(directory) / "context-inspections"
             fixture = ROOT / "tests/repository/fixtures/docker-context"
             environment = os.environ | {"PATH": f"{fixture}:{os.environ['PATH']}", "FAKE_CONTEXT_LOG": str(log)}
+
             result = subprocess.run(
                 ["make", "--no-print-directory", "--dry-run", "tests/repository/command", "checks/image/build", "DOCKER_CONTEXT=local-test"],
                 cwd=ROOT, env=environment, capture_output=True, text=True, check=False,
             )
+
             self.assertEqual(0, result.returncode, msg=result.stderr)
             self.assertEqual(["inspect"], log.read_text().splitlines())
 
     def test_preview_discovers_new_public_roots_and_rejects_hidden_links(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             for name in ("tools", "host", "requirements", "containers"):
                 shutil.copytree(ROOT / name, root / name)
+
             (root / "future-source").mkdir()
             (root / ".work").mkdir()
             (root / ".aws").mkdir()
@@ -151,6 +170,7 @@ class LauncherTests(unittest.TestCase):
             (root / "host/tools").mkdir(parents=True)
             launcher = root / "host/tools/repository.sh"
             launcher.write_bytes((ROOT / "host/tools/repository.sh").read_bytes())
+
             for target, message in (
                 ("tests/repository", "checker_inputs.sh"),
                 ("unreviewed", "unknown target"),
@@ -161,6 +181,7 @@ class LauncherTests(unittest.TestCase):
                     text=True,
                     check=False,
                 )
+
                 self.assertNotEqual(0, result.returncode)
                 self.assertEqual("", result.stdout)
                 self.assertIn(message, result.stderr)
@@ -173,5 +194,6 @@ class LauncherTests(unittest.TestCase):
                 text=True,
                 check=False,
             )
+
             self.assertNotEqual(0, result.returncode)
             self.assertIn("NO TESTS RAN", result.stderr)

@@ -26,6 +26,7 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
                     transport = PhaseProgressTransport(phase)
                     transport.fresh_observation = reply(observation(**state))
                     session, notice = Session(store), Mock()
+
                     executor = live_executor(
                         api(transport, store.scope.api_origin),
                         store,
@@ -36,8 +37,10 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
                         task_settle_seconds=0.1,
                         on_unconfirmed_phase_progress=notice,
                     )
+
                     with self.assertRaises(ExecutionFailed) as caught:
                         await executor.run(acknowledged)
+
                     self.assertIs(type(caught.exception.cause), ExecutionStopped)
                     self.assertIs(caught.exception.cause.__context__, notice.call_args.args[2])
                     # silent-defaults: allow-contract -- Only phases reached before the injected stop belong in the expected event order.
@@ -52,6 +55,7 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
         transport = PhaseProgressTransport("preparing")
         transport.fresh_observation = reply(b"PRIVATE read response", status=503)
         session, notice = Session(store), Mock()
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -62,8 +66,10 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
             task_settle_seconds=0.1,
             on_unconfirmed_phase_progress=notice,
         )
+
         with self.assertRaises(ExecutionFailed) as caught:
             await executor.run(acknowledged)
+
         progress_failure = notice.call_args.args[2]
         read_failure = caught.exception.cause
         self.assertIs(type(read_failure), ApiFailure)
@@ -82,6 +88,7 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
                 fault = OSError("Authored independent sink/cleanup failure")
                 notice = Mock(side_effect=fault) if failing_owner == "notice" else Mock()
                 client = api(transport, store.scope.api_origin)
+
                 executor = live_executor(
                     client,
                     store,
@@ -92,17 +99,22 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
                     task_settle_seconds=0.1,
                     on_unconfirmed_phase_progress=notice,
                 )
+
                 with patch.object(client, "retire", wraps=client.retire) as retire:
                     if failing_owner == "retirement":
                         retire.side_effect = fault
+
                     with self.assertRaises(ExecutionFailed) as caught:
                         await executor.run(acknowledged)
+
                 self.assertIs(caught.exception.cause, fault)
                 self.assertIs(fault.__context__, client.last_failure)
                 self.assertEqual(transport.fresh_reads, 0)
                 self.assertEqual([event[0] for event in session.events], ["retire"])
+
                 if not transport.retirement_confirmed:
                     await executor.settle()
+
                 claim.release(owner=claim.lifecycle_owner)
 
     async def test_unreviewed_phase_failure_and_default_policy_remain_fail_stop(self):
@@ -112,6 +124,7 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
                 transport = PhaseProgressTransport("preparing")
                 transport.phase_failure = reply(b"PRIVATE refusal", status=status)
                 session = Session(store)
+
                 executor = live_executor(
                     api(transport, store.scope.api_origin),
                     store,
@@ -122,14 +135,19 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
                     task_settle_seconds=0.1,
                     on_unconfirmed_phase_progress=observer,
                 )
+
                 with self.assertRaises(ExecutionFailed):
                     await executor.run(acknowledged)
+
                 if observer is not None:
                     observer.assert_not_called()
+
                 self.assertEqual(transport.fresh_reads, 0)
                 self.assertEqual([event[0] for event in session.events], ["retire"])
+
                 if not transport.retirement_confirmed:
                     await executor.settle()
+
                 claim.release(owner=claim.lifecycle_owner)
 
     async def test_condition_report_still_requires_its_matching_acknowledgement(self):
@@ -138,6 +156,7 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
         transport.release.set()
         transport.failure = ExchangeFailed("Condition receipt unavailable", primary=TimeoutError())
         session, notice = ReportingSession(store), Mock()
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -148,8 +167,10 @@ class PhaseProgressFailureTests(unittest.IsolatedAsyncioTestCase):
             task_settle_seconds=0.1,
             on_unconfirmed_phase_progress=notice,
         )
+
         with self.assertRaises(ExecutionFailed):
             await executor.run(acknowledged)
+
         notice.assert_not_called()
         self.assertEqual([event[0] for event in session.events], ["retire"])
         self.assertEqual(store.records, (AcknowledgedCheckpoint(acknowledged.start, acknowledged.admission),))

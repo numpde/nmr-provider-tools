@@ -44,6 +44,7 @@ class Settings:
         for value in (self.maximum_input_tokens, self.beam_size, self.maximum_candidate_characters):
             if type(value) is not int:
                 raise TypeError(f"Unexpected {type(value)=}; model limits require integers")
+
             if not (0 < value):
                 raise ValueError(f"Model limits must be positive; received {value=}")
 
@@ -77,6 +78,7 @@ class PreparedInput:
     def consume(self) -> tuple[str, ...]:
         if self.tokens is None:
             raise RuntimeError("Validated input was already consumed or disposed")
+
         tokens = self.tokens
         self.tokens = None
         return tokens
@@ -87,12 +89,16 @@ class PreparedInput:
 
 def prepare(*, model: Model, candidate: HfInput | ChfInput, settings: Settings) -> PreparedInput:
     """Use the loaded tokenizer to reject an input before generation starts."""
+
     if not candidate.formula or not candidate.proton_peaks:
         raise ScientificRejection(code="missing_science", message="Supply a formula and proton peaks")
+
     if isinstance(candidate, ChfInput) and not candidate.carbon_peaks:
         raise ScientificRejection(code="missing_carbon", message="CHF requires carbon peaks")
+
     tokens = model.tokenize(candidate=candidate)
     token_count = len(tokens)
+
     if not tokens or token_count > settings.maximum_input_tokens:
         raise ScientificRejection(
             code="token_limit",
@@ -108,14 +114,20 @@ def dispose_prepared(value: PreparedInput) -> None:
 
 def validate_candidates(*, candidates: tuple[str, ...], settings: Settings) -> None:
     """Bad model output is an operational failure, never a user correction."""
+
     if type(candidates) is not tuple:
         raise TypeError(f"Unexpected {type(candidates)=}; model output must be a tuple")
+
     candidate_count = len(candidates)
+
     if not 1 <= candidate_count <= settings.beam_size:
         raise ValueError(f"Invalid model output: {candidate_count=} exceeds the range 1 through {settings.beam_size=}")
+
     for candidate in candidates:
         if type(candidate) is not str:
             raise TypeError(f"Unexpected {type(candidate)=}; generated candidates must be strings")
+
         character_count = len(candidate)
+
         if not 1 <= character_count <= settings.maximum_candidate_characters:
             raise ValueError(f"Invalid model output: {character_count=} exceeds the range 1 through {settings.maximum_candidate_characters=}")

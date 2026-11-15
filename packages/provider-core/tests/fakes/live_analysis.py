@@ -22,8 +22,10 @@ class LiveSession:
 
     async def execute(self, prepared, *, report_condition):
         self.events.append("execute")
+
         if prepared is not self.handle:
             raise AssertionError("Foreign scientific handle")
+
         return AnalysisSuccess("result.v1", self.content, ProtectedEvidence("fixture.outcome.v1", b"evidence"))
 
     async def retire(self):

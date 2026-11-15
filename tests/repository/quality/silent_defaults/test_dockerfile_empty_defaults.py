@@ -16,6 +16,7 @@ DOCKERFILE_GLOBS = (
     "**/*.Dockerfile",
     "containers/**/Dockerfile.lock",
 )
+
 DOCKER_ARG_DEFAULT_RE = re.compile(r"^\s*ARG\s+(?P<name>[A-Za-z_][A-Za-z0-9_]*)(?:=(?P<value>.*))?\s*$")
 DOCKER_ENV_ASSIGNMENT_RE = re.compile(r"^\s*ENV\s+(?P<body>.+)$")
 DOCKER_ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
@@ -26,8 +27,10 @@ EMPTY_QUOTED_VALUE_TOKENS = frozenset({"''", '""'})
 def _blank_docker_env_entries(body: str) -> list[str]:
     tokens = body.split()
     findings = [token for token in tokens if DOCKER_EMPTY_ENV_ASSIGNMENT_RE.match(token)]
+
     if len(tokens) == 2 and DOCKER_ENV_NAME_RE.match(tokens[0]) and tokens[1] in EMPTY_QUOTED_VALUE_TOKENS:
         findings.append(f"{tokens[0]} {tokens[1]}")
+
     return findings
 
 
@@ -50,11 +53,13 @@ class DockerfileEmptyDefaultsTest(unittest.TestCase):
 
     def test_dockerfiles_do_not_define_arg_defaults(self) -> None:
         findings: list[str] = []
+
         for source, line_number, line in surface_lines(
             surface_files(DOCKERFILE_GLOBS),
             skip_comments=True,
         ):
             match = DOCKER_ARG_DEFAULT_RE.match(line)
+
             if match and match.group("value") is not None:
                 findings.append(f"{source}:{line_number}: ARG {match.group('name')}={match.group('value')!r}")
 
@@ -62,13 +67,16 @@ class DockerfileEmptyDefaultsTest(unittest.TestCase):
 
     def test_dockerfiles_do_not_publish_blank_env_values(self) -> None:
         findings: list[str] = []
+
         for source, line_number, line in surface_lines(
             surface_files(DOCKERFILE_GLOBS),
             skip_comments=True,
         ):
             match = DOCKER_ENV_ASSIGNMENT_RE.match(line)
+
             if not match:
                 continue
+
             for entry in _blank_docker_env_entries(match.group("body")):
                 findings.append(f"{source}:{line_number}: ENV {entry}")
 

@@ -29,6 +29,7 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
     cannot start work. An initializer with imports or other statements must guard.
     """
     statements = ast.parse(source).body
+
     if (
         statements
         and isinstance(statements[0], ast.Expr)
@@ -36,8 +37,10 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
         and isinstance(statements[0].value.value, str)
     ):
         statements = statements[1:]
+
     if package_marker and not statements:
         return True
+
     while (
         statements
         and isinstance(statements[0], ast.ImportFrom)
@@ -45,9 +48,12 @@ def has_early_guard(source, *, package_marker=False, guard_module="tools.contain
         and statements[0].module == "__future__"
     ):
         statements = statements[1:]
+
     if len(statements) < 2:
         return False
+
     imported, called = statements[:2]
+
     return (
         isinstance(imported, ast.ImportFrom)
         and (
@@ -70,27 +76,33 @@ def unguarded_sources(root):
     """Include new production files automatically, without scanning upstream or fixtures."""
     sources = {path for name in ("tools", "tests/repository", "src") for path in (root / name).rglob("*.py")}
     core_root = root / "packages/provider-core/src/provider_core"
+
     portable_sources = {
         path for directory in (core_root, root / "containers/delivery", root / "tests/deployment")
         for path in directory.rglob("*.py")
     }
+
     # This finite tool is installed into the shared image, which deliberately
     # has no repository tools package. Its guard belongs to the installed core.
     installed_entrypoint = root / "tools/delivery_deployment.py"
+
     if installed_entrypoint.is_file():
         portable_sources.add(installed_entrypoint)
+
     sources.difference_update(portable_sources)
     # The shared guard must be importable before its caller checks the marker.
     sources.discard(root / "tools" / "container_guard.py")
     # The scientific rejection contract is portable: it must be importable by
     # scientific code before any container execution boundary exists.
     portable_sources.discard(core_root / "contribution_errors.py")
+
     failures = [
         str(path.relative_to(root))
         for path in sorted(sources)
         if not has_early_guard(path.read_text(), package_marker=path.name == "__init__.py",
                                package=".".join(path.parent.relative_to(root).parts))
     ]
+
     failures.extend(
         str(path.relative_to(root))
         for path in sorted(portable_sources)
@@ -99,23 +111,28 @@ def unguarded_sources(root):
             path.read_text(), package_marker=path.name == "__init__.py", guard_module="provider_core.container_guard"
         )
     )
+
     return failures
 
 
 def make_targets(source):
     """Read literal root-Makefile targets; recipes and variable assignments are excluded."""
     targets = {}
+
     for line in source.splitlines():
         match = re.match(r"^([A-Za-z0-9_./% -]+):(?!=)(.*)$", line)
+
         if match and not match[1].startswith("."):
             for name in match[1].split():
                 targets[name] = match[2].split("#", 1)[0].split()
+
     return targets
 
 
 def boundary_imports(root):
     """Report host imports of contained code and reverse production imports."""
     violations = []
+
     for directory, forbidden in ((root / "host", "tools"), (root / "tools", "host")):
         for path in sorted(directory.rglob("*.py")):
             for statement in ast.walk(ast.parse(path.read_text())):
@@ -125,8 +142,10 @@ def boundary_imports(root):
                     modules = [alias.name for alias in statement.names]
                 else:
                     continue
+
                 if any(module is not None and module.split(".", 1)[0] == forbidden for module in modules):
                     violations.append(str(path.relative_to(root)))
+
     return sorted(set(violations))
 
 
@@ -145,9 +164,11 @@ class RepositoryConventionTests(unittest.TestCase):
     def test_public_make_targets_are_hierarchical_and_test_aggregates_both_suites(self):
         targets = make_targets((ROOT / "Makefile").read_text())
         self.assertTrue(targets, msg="Makefile target inventory is empty")
+
         for name in targets:
             if name not in ("tests", "help"):
                 self.assertRegex(name, r"^[a-z][a-z0-9_-]*(/[a-z][a-z0-9_-]*)+$")
+
         self.assertTrue({"tests/repository"} <= targets.keys())
         self.assertTrue({"tests/repository"} <= set(targets["tests"]))
 
@@ -160,6 +181,7 @@ class ConventionDetectionTests(unittest.TestCase):
         self.assertTrue(has_early_guard(source, package="tools"))
         self.assertFalse(has_early_guard(source))
         self.assertFalse(has_early_guard(source, package="tools.nested"))
+
         for invalid in (
             source.replace("from .", "from .."),
             source.replace("import require_container", "import require_container as guard"),
@@ -183,17 +205,21 @@ class ConventionDetectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             portable = ("tools/delivery_deployment.py", "containers/delivery/check_runtime.py", "tests/deployment/test_freezer.py")
+
             for name in portable:
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(self.GUARD)
+
             ordinary = root / "tools/nested/worker.py"
             ordinary.parent.mkdir()
             core_guard = "from provider_core.container_guard import require_container\nrequire_container()\n"
             ordinary.write_text(core_guard)
             self.assertEqual(set(portable) | {str(ordinary.relative_to(root))}, set(unguarded_sources(root)))
+
             for name in portable:
                 (root / name).write_text(core_guard)
+
             ordinary.write_text(self.GUARD)
             self.assertEqual([], unguarded_sources(root))
 
@@ -227,12 +253,14 @@ class ConventionDetectionTests(unittest.TestCase):
         for source in ("", '"""Package marker."""\n'):
             self.assertTrue(has_early_guard(source, package_marker=True))
             self.assertFalse(has_early_guard(source))
+
         self.assertFalse(has_early_guard("import pickle\n", package_marker=True))
         self.assertTrue(has_early_guard(self.GUARD + "import pickle\n", package_marker=True))
 
     def test_new_nested_workers_and_future_package_enter_inventory(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             for name in (
                 "tools/container_guard.py",
                 "tools/new/worker.py",
@@ -243,6 +271,7 @@ class ConventionDetectionTests(unittest.TestCase):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("import pickle\n")
+
             self.assertEqual(
                 [
                     "src/input_geometry.py",
@@ -252,7 +281,9 @@ class ConventionDetectionTests(unittest.TestCase):
                 ],
                 unguarded_sources(root),
             )
+
             (root / "tools/new/worker.py").write_text(self.GUARD)
+
             self.assertEqual(
                 ["src/input_geometry.py", "src/model.py", "tests/repository/nested/test_new.py"],
                 unguarded_sources(root),
@@ -262,6 +293,7 @@ class ConventionDetectionTests(unittest.TestCase):
         targets = make_targets(
             ".PHONY: test test/unit\nROOT := /workspace\ntest: test/unit test/repository\n\techo unexpected: text\ntest/unit test/repository:\n"
         )
+
         self.assertEqual({"test": ["test/unit", "test/repository"], "test/unit": [], "test/repository": []}, targets)
 
 

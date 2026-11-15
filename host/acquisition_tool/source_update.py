@@ -42,13 +42,16 @@ def read_pin(path):
     """Read the consumer's expected release; downloads never rewrite this pin."""
     data, _metadata = _regular_bytes(Path(path))
     pin = _json(data, f"release pin {path}")
+
     if type(pin) is not dict:
         raise TypeError(
             f"Unexpected {type(pin)=}; "
             f"Cannot read release pin {path}: require version and archive_sha256."
         )
+
     if set(pin) != {"version", "archive_sha256"} or not (_version(pin["version"])) or not (_checksum(pin["archive_sha256"])):
         raise ValueError(f"Cannot read release pin {path}: require version and archive_sha256.")
+
     return pin
 
 
@@ -58,92 +61,120 @@ def _relative_name(name):
             f"Unexpected {type(name)=}; "
             "Acquisition inventory contains an empty or non-text file path."
         )
+
     if not (name) or "\0" in name:
         raise ValueError("Acquisition inventory contains an empty or non-text file path.")
+
     path = PurePosixPath(name)
+
     if not path.parts or path.is_absolute() or ".." in path.parts or path.as_posix() != name:
         raise ValueError(f"Acquisition inventory path is not a canonical relative file: {name!r}.")
+
     return path
 
 
 def read_manifest(data):
     """Admit the recorded inventory, excluding only the manifest's own bytes."""
     manifest = _json(data, "acquisition-manifest.json")
+
     if type(manifest) is not dict:
         raise TypeError(
             f"Unexpected {type(manifest)=}; "
             "Acquisition manifest must identify its release, source, payload and dependency inputs."
         )
+
     if set(manifest) != {
         "release_version", "source_revision", "payload_files", "dependency_inputs",
     }:
         raise ValueError("Acquisition manifest must identify its release, source, payload and dependency inputs.")
+
     if not (_version(manifest["release_version"])):
         raise ValueError("Acquisition manifest has no exact release version or Git source revision.")
+
     if not (type(manifest["source_revision"]) is str):
         raise TypeError(
             f"Unexpected {type(manifest['source_revision'])=}; "
             "Acquisition manifest has no exact release version or Git source revision."
         )
+
     if not (re.fullmatch(r"[0-9a-f]{40}", manifest["source_revision"])):
         raise ValueError("Acquisition manifest has no exact release version or Git source revision.")
+
     entries = manifest["payload_files"]
+
     if type(entries) is not dict:
         raise TypeError(
             f"Unexpected {type(entries)=}; "
             "Acquisition manifest must inventory its payload without hashing itself."
         )
+
     if not (entries) or "acquisition-manifest.json" in entries:
         raise ValueError("Acquisition manifest must inventory its payload without hashing itself.")
+
     for name, entry in entries.items():
         path = _relative_name(name)
+
         if any(parent.as_posix() in entries for parent in path.parents):
             raise ValueError(f"Acquisition payload file conflicts with a parent path: {name!r}.")
+
         if not (type(entry) is dict):
             raise TypeError(
                 f"Unexpected {type(entry)=}; "
                 f"Acquisition payload has invalid file metadata: {name!r}."
             )
+
         if not (set(entry) == {"sha256", "size", "mode"} and _checksum(entry["sha256"])):
             raise ValueError(f"Acquisition payload has invalid file metadata: {name!r}.")
+
         if not (type(entry["size"]) is int):
             raise TypeError(
                 f"Unexpected {type(entry['size'])=}; "
                 f"Acquisition payload has invalid file metadata: {name!r}."
             )
+
         if not (0 <= entry["size"]):
             raise ValueError(f"Acquisition payload has invalid file metadata: {name!r}.")
+
         if not (type(entry["mode"]) is int):
             raise TypeError(
                 f"Unexpected {type(entry['mode'])=}; "
                 f"Acquisition payload has invalid file metadata: {name!r}."
             )
+
         if not (entry["mode"] in (0o644, 0o755)):
             raise ValueError(f"Acquisition payload has invalid file metadata: {name!r}.")
+
     dependencies = manifest["dependency_inputs"]
+
     if type(dependencies) is not dict:
         raise TypeError(
             f"Unexpected {type(dependencies)=}; "
             "Acquisition dependency inputs must map artifact names to SHA-256 checksums."
         )
+
     for name, checksum in dependencies.items():
         if type(name) is not str or type(checksum) is not str:
             raise TypeError(
                 f"Unexpected {type(name)=}, {type(checksum)=}; "
                 "Acquisition dependency inputs must map artifact names to SHA-256 checksums."
             )
+
         if not name or not _checksum(checksum):
             raise ValueError("Acquisition dependency inputs must map artifact names to SHA-256 checksums.")
+
     return manifest
 
 
 def _regular_bytes(path):
     """Read one opened regular file, without following links or blocking on a FIFO."""
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+
     try:
         metadata = os.fstat(descriptor)
+
         if not stat.S_ISREG(metadata.st_mode):
             raise ValueError(f"Cannot read acquisition input {path}: require a regular file.")
+
         with os.fdopen(descriptor, "rb", closefd=False) as stream:
             return stream.read(), metadata
     finally:
@@ -163,77 +194,113 @@ def verify(source_dir):
     boundary for coordinated changes to metadata, payload or this updater.
     """
     source = Path(source_dir).absolute()
+
     if source.resolve() != source or source.is_symlink() or not source.is_dir():
         raise ValueError(f"Cannot verify acquisition source {source}: require a real directory without symlink parents.")
+
     data, metadata = _regular_bytes(source / "acquisition-manifest.json")
+
     if metadata.st_mode & 0o111 or metadata.st_nlink != 1:
         raise ValueError("The acquisition manifest must not be executable or have extra hard links.")
+
     manifest = read_manifest(data)
     entries = manifest["payload_files"]
+
     expected_dirs = {parent.as_posix() for name in entries
                      for parent in PurePosixPath(name).parents if parent != PurePosixPath(".")}
+
     actual = set()
+
     for root, directories, files in os.walk(source, followlinks=False):
         for name in directories:
             directory = Path(root) / name
+
             if directory.is_symlink() or directory.relative_to(source).as_posix() not in expected_dirs:
                 raise ValueError(f"Acquisition source contains an unrecorded or symlink directory: {directory}.")
+
         for name in files:
             path = Path(root) / name
             relative = path.relative_to(source).as_posix()
+
             if relative == "acquisition-manifest.json":
                 actual.add(relative)
                 continue
+
             if relative not in entries:
                 raise ValueError(f"Acquisition source contains an unrecorded file: {relative}.")
+
             content, metadata = _regular_bytes(path)
+
             if metadata.st_nlink != 1:
                 raise ValueError(f"Acquisition source file has extra hard links: {relative}.")
+
             _check_bytes(relative, content, entries[relative])
+
             # Git records executable bits, not checkout read/write permissions.
             if (metadata.st_mode & 0o111) != (entries[relative]["mode"] & 0o111):
                 raise ValueError(f"Acquisition file executable bits differ from its recorded release: {relative}.")
+
             actual.add(relative)
+
     if actual != set(entries) | {"acquisition-manifest.json"}:
         raise ValueError("Acquisition source is missing files from its recorded release.")
+
     return manifest
 
 
 def _admit_archive(data, pin):
     # The manifest is inside the download. It cannot authenticate that download.
     observed = hashlib.sha256(data).hexdigest()
+
     if observed != pin["archive_sha256"]:
         raise ValueError(f"Acquisition archive checksum mismatch: expected {pin['archive_sha256']}, received {observed}.")
+
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
         members = archive.getmembers()
         names = [member.name for member in members]
+
         if len(set(names)) != len(names):
             raise ValueError("Acquisition archive contains duplicate members.")
+
         for member in members:
             path = _relative_name(member.name)
+
             if any(parent.as_posix() in names for parent in path.parents):
                 raise ValueError(f"Acquisition archive member conflicts with its parent: {member.name!r}.")
+
             if not member.isfile():
                 raise ValueError(f"Acquisition archive contains a link or special member: {member.name!r}.")
+
         if names.count("acquisition-manifest.json") != 1:
             raise ValueError("Acquisition archive must contain one acquisition-manifest.json.")
+
         manifest_member = archive.getmember("acquisition-manifest.json")
+
         if manifest_member.mode != 0o644:
             raise ValueError("Acquisition archive manifest must have mode 0644.")
+
         payload = {member.name: archive.extractfile(member).read() for member in members}
         manifest = read_manifest(payload["acquisition-manifest.json"])
+
         if manifest["release_version"] != pin["version"]:
             raise ValueError("Acquisition archive version differs from the reviewed release pin.")
+
         entries = manifest["payload_files"]
+
         if set(payload) != set(entries) | {"acquisition-manifest.json"}:
             raise ValueError("Acquisition archive members differ from its embedded inventory.")
+
         for member in members:
             if member.name == "acquisition-manifest.json":
                 continue
+
             entry = entries[member.name]
+
             if member.size != entry["size"] or member.mode != entry["mode"]:
                 raise ValueError(f"Acquisition archive member metadata differs: {member.name}.")
+
             _check_bytes(member.name, payload[member.name], entry)
+
     return payload, manifest
 
 
@@ -243,6 +310,7 @@ def _exchange_directories(first, second):
     exchange = libc.renameat2
     exchange.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
     exchange.restype = ctypes.c_int
+
     if exchange(-100, os.fsencode(first), -100, os.fsencode(second), 2) != 0:
         number = ctypes.get_errno()
         raise OSError(number, os.strerror(number), f"{first} <-> {second}")
@@ -256,6 +324,7 @@ def _publish(source, stage):
     except BaseException as error:
         error.add_note(f"Snapshot exchange did not complete normally; retain and inspect {source} and {stage}.")
         raise
+
     try:
         shutil.rmtree(stage)
     except BaseException as error:
@@ -267,19 +336,27 @@ def _import_verified_old(source, pin, archive):
     data, _metadata = _regular_bytes(Path(archive))
     payload, manifest = _admit_archive(data, pin)
     stage = Path(tempfile.mkdtemp(prefix=".acquisition-next-", dir=source.parent))
+
     try:
         manifest_path = stage / "acquisition-manifest.json"
+
         with manifest_path.open("xb") as stream:
             stream.write(payload["acquisition-manifest.json"])
+
         manifest_path.chmod(0o644)
+
         for name, entry in manifest["payload_files"].items():
             path = stage / name
             path.parent.mkdir(parents=True, exist_ok=True)
+
             with path.open("xb") as stream:
                 stream.write(payload[name])
+
             path.chmod(entry["mode"])
+
         for root, _directories, _files in os.walk(stage):
             Path(root).chmod(0o755)
+
         verify(stage)
         # A download or staging can take time. Refuse an old-source edit made
         # while this command was preparing the replacement, before exchanging.
@@ -289,7 +366,9 @@ def _import_verified_old(source, pin, archive):
             shutil.rmtree(stage)
         except OSError as cleanup:
             raise BaseExceptionGroup("Acquisition staging failed and its cleanup also failed", [primary, cleanup])
+
         raise
+
     _publish(source, stage)
     return manifest
 
@@ -308,18 +387,22 @@ def update(source_dir, pin_file):
     pin = read_pin(pin_file)
     name = f"acquisition-owner-{pin['version']}.tar.gz"
     published = False
+
     try:
         with tempfile.TemporaryDirectory(prefix="provider-tools-release-") as temporary:
             subprocess.run([
                 "gh", "release", "download", f"v{pin['version']}",
                 "--repo", "numpde/nmr-provider-tools", "--dir", temporary, "--pattern", name,
             ], check=True)
+
             manifest = _import_verified_old(source, pin, Path(temporary) / name)
             published = True
     except BaseException as error:
         if published:
             error.add_note(f"Acquisition source was published at {source}; release-download cleanup failed.")
+
         raise
+
     return manifest
 
 
@@ -327,14 +410,19 @@ def main():
     """Expose source verification, pinned remote update and offline import."""
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="operation", required=True)
+
     for operation in ("verify", "update", "import"):
         command = commands.add_parser(operation)
         command.add_argument("--source-dir", type=Path, required=True)
+
         if operation != "verify":
             command.add_argument("--pin-file", type=Path, required=True)
+
         if operation == "import":
             command.add_argument("--archive", type=Path, required=True)
+
     args = parser.parse_args()
+
     if args.operation == "verify":
         verify(args.source_dir)
     elif args.operation == "update":

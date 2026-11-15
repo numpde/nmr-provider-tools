@@ -10,6 +10,7 @@ from provider_core.signing import SigningIdentity, signed_request
 class SigningRejectionTests(unittest.TestCase):
     def test_origin_and_credential_cannot_inject_or_redirect(self):
         key = Ed25519PrivateKey.generate()
+
         for origin in (
             "http://api.example",
             "https://user:secret@api.example",
@@ -23,6 +24,7 @@ class SigningRejectionTests(unittest.TestCase):
         ):
             with self.subTest(origin=origin), self.assertRaises(ValueError):
                 SigningIdentity(origin, "credential:test", key)
+
         for credential in ("wrong", "credential:", "credential:x\n", "credential:" + "x" * 128):
             with self.subTest(credential=credential), self.assertRaises(ValueError):
                 SigningIdentity("https://api.example", credential, key)
@@ -30,6 +32,7 @@ class SigningRejectionTests(unittest.TestCase):
     def test_rewritten_or_ambiguous_targets_and_invalid_signature_inputs_fail(self):
         identity = SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate())
         defaults = {"method": "GET", "path": "/input", "query": b"", "body": None, "created": 1, "nonce": bytes(16)}
+
         for changes in (
             {"method": "get"},
             {"method": "GET\r\nInjected: yes"},

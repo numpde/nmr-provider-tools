@@ -13,6 +13,7 @@ from cryptography.hazmat.primitives.serialization import Encoding, NoEncryption,
 
 def document(*, key=None, **changes):
     key = Ed25519PrivateKey.generate() if key is None else key
+
     return {
         "schema_id": "nmr.provider.private_signing_credential.v1",
         "profile": "dev-local",

@@ -22,8 +22,10 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_pending_or_finalized_source_returns_exact_immutable_bytes_without_signing_store_request(self):
         for pending in (False, True):
             owner, api, store = sources()
+
             if pending:
                 api.member = replace(api.member, content_hash=None)
+
             store.headers = store_headers(store.body)
             await owner.inspect()
             verified = await owner.acquire(UPLOAD_REF)
@@ -36,5 +38,6 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(api.calls, ["membership", "membership", "grant"])
             request = store.calls[0]
             self.assertEqual(request.headers["Authorization"], "Bearer private-bearer")
+
             for forbidden in ("Signature", "Signature-Input", "Content-Type", "Content-Length", "Range"):
                 self.assertNotIn(forbidden, request.headers)

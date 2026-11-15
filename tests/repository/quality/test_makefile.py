@@ -52,10 +52,12 @@ class MakeSourceInspectionTests(unittest.TestCase):
         for separator in (": ", ":"):
             with self.subTest(separator=separator):
                 makefile = f"owner{separator}prerequisite\n\t@printf owner\n"
+
                 self.assertEqual(
                     "\t@printf owner\n",
                     make_target_body(makefile, "owner"),
                 )
+
                 with self.assertRaisesRegex(
                     AssertionError,
                     "target 'prerequisite' is missing",
@@ -102,12 +104,14 @@ class MakeSourceInspectionTests(unittest.TestCase):
                 "must have one plain literal rule",
             ),
         )
+
         for makefile, target, message in cases:
             with self.subTest(target=target), self.assertRaisesRegex(AssertionError, message):
                 make_target_body(makefile, target)
 
     def test_recipe_includes_lines_after_blank_lines_and_comments(self) -> None:
         makefile = "split:\n\t@printf first\n\n# explanation\n\t@printf second\n"
+
         self.assertEqual(
             "\t@printf first\n\n# explanation\n\t@printf second\n",
             make_target_body(makefile, "split"),
@@ -115,6 +119,7 @@ class MakeSourceInspectionTests(unittest.TestCase):
 
     def test_invocation_inventory_names_every_direct_owner(self) -> None:
         makefile = "override define SHARED\n\t$(COMMAND)\nendef\nfirst:\n\t$(COMMAND)\nsecond:prerequisite\n\t$(COMMAND)\n"
+
         self.assertEqual(
             ["define SHARED", "target first", "target second"],
             make_invocation_owners(makefile, "$(COMMAND)"),
@@ -137,6 +142,7 @@ class MakeHelpTests(unittest.TestCase):
         help_recipe = make_target_body(makefile, "help")
         literal_targets = set(re.findall(r"\bmake ([a-z0-9][a-z0-9/-]*)(?=\s|')", help_recipe))
         self.assertTrue(literal_targets)
+
         for target in sorted(literal_targets):
             with self.subTest(target=target):
                 self.assertRegex(makefile, rf"(?m)^{re.escape(target)}:")
@@ -145,12 +151,14 @@ class MakeHelpTests(unittest.TestCase):
 class MakeRecipeOwnershipTests(unittest.TestCase):
     def setUp(self) -> None:
         self.make = shutil.which("make")
+
         if self.make is None:
             self.fail("make must be installed in the repository-check image")
 
     def test_recipe_macros_ignore_makeflags_assignments(self) -> None:
         makefile = (REPOSITORY_ROOT / "Makefile").read_text(encoding="utf-8")
         self.assertNotRegex(makefile, r"(?m)^define ")
+
         for assignment in (
             "override SHELL := bash",
             "override .SHELLFLAGS := -eu -o pipefail -c",
@@ -162,8 +170,10 @@ class MakeRecipeOwnershipTests(unittest.TestCase):
             "tests/repository",
             makeflags="SHELL=malicious",
         )
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertNotIn("malicious", result.stdout)
+
         self.assertIn(
             "host/tools/repository.sh",
             result.stdout,
@@ -173,6 +183,7 @@ class MakeRecipeOwnershipTests(unittest.TestCase):
             None,
             makeflags=".DEFAULT_GOAL=tests/repository",
         )
+
         self.assertEqual(0, default_goal.returncode, msg=default_goal.stderr)
         self.assertIn("make tests", default_goal.stdout)
         self.assertNotIn("bash host/tools/repository.sh tests/repository", default_goal.stdout)
@@ -185,11 +196,15 @@ class MakeRecipeOwnershipTests(unittest.TestCase):
     ) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
         environment["PATH"] = f"{REPOSITORY_ROOT / 'tests/repository/fixtures/docker-context'}:{environment['PATH']}"
+
         if makeflags is not None:
             environment["MAKEFLAGS"] = makeflags
+
         command = [self.make, "--no-print-directory", "--dry-run"]
+
         if target is not None:
             command.extend((target, "DOCKER_CONTEXT=default"))
+
         return subprocess.run(
             command,
             cwd=REPOSITORY_ROOT,

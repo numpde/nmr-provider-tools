@@ -42,6 +42,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         interruption.__cause__ = previous
         session.retirement_failure = interruption
         transport = Transport(reply(start_response(state="failed", replayed=True)))
+
         controller = live_controller(
             api(transport, store.scope.api_origin),
             store,
@@ -51,11 +52,15 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=1,
             task_settle_seconds=0.1,
         )
+
         with self.assertRaises(asyncio.CancelledError) as first:
             await controller.run(record())
+
         self.assertIs(first.exception, interruption)
+
         with self.assertRaises(asyncio.CancelledError) as second:
             await controller.settle()
+
         self.assertIs(second.exception, interruption)
         self.assertIs(interruption.__cause__, controller.last_failure)
         self.assertIs(controller.last_failure.interruption_cause, previous)
@@ -73,6 +78,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         # Keep the required named port while this patch isolates task cancellation.
         async def prepare(_acknowledged, _instructions, *, report_condition):  # noqa: ARG001
             entered.set()
+
             try:
                 await asyncio.Event().wait()
             except asyncio.CancelledError as interruption:
@@ -90,13 +96,16 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=1,
             task_settle_seconds=0.01,
         )
+
         try:
             with patch.object(session, "prepare", prepare):
                 task = asyncio.create_task(executor.run(acknowledged))
                 await asyncio.wait_for(entered.wait(), 1)
                 task.cancel()
+
                 with self.assertRaises(asyncio.CancelledError) as caught:
                     await task
+
                 await asyncio.wait_for(cancelled.wait(), 1)
                 retained = executor.last_failure
                 self.assertIs(caught.exception.__cause__, retained)
@@ -118,31 +127,40 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         store, acknowledged, claim = await live_attempt()
         session = Session(store)
         entered, release = asyncio.Event(), asyncio.Event()
+
         async def retire():
             session.events.append(("retire",))
             entered.set()
             await release.wait()
+
         session.retire = retire
         transport = Transport(reply(observation()), ExchangeFailed("Authored input-response failure"))
         client = api(transport, store.scope.api_origin)
+
         executor = live_executor(client, store, claim, session,
             delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
             delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=1)
+
         task = asyncio.create_task(executor.run(acknowledged))
+
         try:
             await asyncio.wait_for(entered.wait(), 1)
             original_retirement = executor._retirement_task
             task.cancel()
+
             with self.assertRaises(asyncio.CancelledError) as caught:
                 await task
+
             retained = executor.last_failure
             self.assertIs(retained.cause, client.last_failure)
             self.assertEqual(retained.cleanup_failures, (caught.exception,))
             self.assertIs(executor._retirement_task, original_retirement)
             self.assertFalse(original_retirement.done())
             self.assertEqual([event[0] for event in session.events], ["retire"])
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             release.set()
             await executor.settle()
             self.assertIs(executor.last_failure, retained)
@@ -152,6 +170,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             claim.release(owner=claim.lifecycle_owner)
         finally:
             release.set()
+
             if not task.done():
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
@@ -165,11 +184,14 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         session.retirement_failure = cleanup
         transport = Transport(reply(observation()), ExchangeFailed("Authored input-response failure"))
         client = api(transport, store.scope.api_origin)
+
         executor = live_executor(
             client, store, claim, session, delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1
         )
+
         with self.assertRaises(asyncio.CancelledError) as caught:
             await executor.run(acknowledged)
+
         self.assertIs(caught.exception, cleanup)
         retained = caught.exception.__cause__
         self.assertIs(retained, executor.last_failure)
@@ -192,8 +214,10 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             reply(observation()),
             ExchangeFailed("running reply lost"),
         )
+
         store, acknowledged, claim = await live_attempt()
         session = Session(store)
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -203,8 +227,10 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=1,
             task_settle_seconds=0.1,
         )
+
         with self.assertRaises(ExecutionFailed):
             await executor.run(acknowledged)
+
         self.assertEqual(store.records, (AcknowledgedCheckpoint(acknowledged.start, acknowledged.admission),))
         self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
         self.assertTrue(executor.last_failure.api_failure.attempt_mutation_may_have_committed)
@@ -214,6 +240,7 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         store, acknowledged, claim = await live_attempt()
         session = Session(store)
         session.outcome = replace(session.outcome, content=b"x" * 786433)
+
         executor = live_executor(
             api(normal_transport(), store.scope.api_origin),
             store,
@@ -223,15 +250,20 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=1,
             task_settle_seconds=0.1,
         )
+
         with self.assertRaises(ExecutionFailed) as failed:
             await executor.run(acknowledged)
+
         self.assertIs(failed.exception.outcome, session.outcome)
         self.assertIsInstance(failed.exception.cause, ValueError)
         self.assertEqual([event[0] for event in session.events], ["prepare", "execute", "retire"])
+
         with self.assertRaises(OwnershipRefused):
             claim.release(owner=claim.lifecycle_owner)
+
         with self.assertRaises(ExecutionFailed):
             await executor.settle()
+
         (retained,) = store.records
         self.assertIs(type(retained), EnteredCheckpoint)
 
@@ -239,14 +271,17 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
     async def test_closed_job_before_execution_prevents_science_and_publication(self):
         store, acknowledged, claim = await live_attempt()
         session = Session(store)
+
         executor = live_executor(
             api(normal_transport(last_observation=observation(job_state="closed")), store.scope.api_origin),
             store, claim, session, delivery=RecordingDelivery(), on_delivery_retry=Mock(),
             delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
             allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1,
         )
+
         with self.assertRaises(ExecutionFailed) as failed:
             await executor.run(acknowledged)
+
         self.assertIsInstance(failed.exception.cause, ExecutionStopped)
         self.assertIs(type(store.records[0]), EnteredCheckpoint)
         self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
@@ -258,11 +293,14 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         session, delivery = Session(store), RecordingDelivery()
         cleanup = RuntimeError("private retirement cause")
         session.retirement_failure = cleanup
+
         executor = live_executor(api(normal_transport(), store.scope.api_origin), store, claim, session,
             delivery=delivery, on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
             delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+
         with self.assertRaises(ExecutionFailed) as failed:
             await executor.run(acknowledged)
+
         self.assertIs(failed.exception.cause, cleanup)
         self.assertIsNone(failed.exception.outcome)
         self.assertIsNotNone(failed.exception.delivery_acceptance)
@@ -273,8 +311,10 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(type(retained), DeliveryAcceptedCheckpoint)
         self.assertEqual(len(delivery.items), 1)
         self.assertEqual(retained.selection.body_sha256, delivery.items[0].body_sha256)
+
         with self.assertRaises(OwnershipRefused):
             claim.release(owner=claim.lifecycle_owner)
+
         session.retirement_failure = None
         self.assertEqual(await executor.settle(), retained)
         self.assertEqual(len(delivery.items), 1)

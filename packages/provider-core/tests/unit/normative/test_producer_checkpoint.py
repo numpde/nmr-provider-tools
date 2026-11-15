@@ -5,10 +5,12 @@ import json
 import unittest
 
 from provider_core.attempt_record import ProtectedEvidence, SuppressionReason, TerminalOperation
+
 from provider_core.producer_checkpoint import (
     AcknowledgedCheckpoint, DeliveryAcceptedCheckpoint, EnteredCheckpoint, EvidenceDigest,
     SuppressedCheckpoint, TerminalSelectedCheckpoint, encode_checkpoint,
 )
+
 from tests.fakes.attempt_store import admission, record
 
 

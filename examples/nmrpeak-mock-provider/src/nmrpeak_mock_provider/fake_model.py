@@ -13,10 +13,13 @@ from .science import ChfInput, HfInput
 class Tokenizer:
     def tokenize(self, *, candidate: HfInput | ChfInput) -> tuple[str, ...]:
         tokens = [candidate.formula]
+
         for peak in candidate.proton_peaks:
             tokens.extend((peak.centroid, str(peak.integral), peak.multiplicity, *peak.couplings))
+
         if isinstance(candidate, ChfInput):
             tokens.extend(candidate.carbon_peaks)
+
         return tuple(tokens)
 
 
@@ -35,11 +38,13 @@ class Model:
     def tokenize(self, *, candidate: HfInput | ChfInput) -> tuple[str, ...]:
         if self.tokenizer is None:
             raise RuntimeError("Load the tokenizer before validating scientific input")
+
         return self.tokenizer.tokenize(candidate=candidate)
 
     def generate(self, *, tokens: tuple[str, ...], beam_size: int) -> tuple[str, ...]:
         if self.candidates is None:
             raise RuntimeError("Load the model before generating candidates")
+
         offset = sum(len(token) for token in tokens) % len(self.candidates)
         ordered = self.candidates[offset:] + self.candidates[:offset]
         return ordered[:beam_size]

@@ -17,13 +17,16 @@ class CallRejected(Exception):
                 f"Unexpected {type(code)=}; "
                 "A rejection code must match [a-z][a-z0-9_]{0,63}"
             )
+
         if re.fullmatch(r"[a-z][a-z0-9_]{0,63}\Z", code) is None:
             raise ValueError("A rejection code must match [a-z][a-z0-9_]{0,63}")
+
         if not (type(message) is str):
             raise TypeError(
                 f"Unexpected {type(message)=}; "
                 "A rejection needs a nonempty explanatory message"
             )
+
         if not (message):
             raise ValueError("A rejection needs a nonempty explanatory message")
 

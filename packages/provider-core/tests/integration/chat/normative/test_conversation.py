@@ -20,6 +20,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         async def dispatch(_name, arguments):
             if arguments:
                 raise rejection
+
             self.assertEqual(conversation.correction_failures, [(1, rejection)])
             return ToolFinished("selected")
 
@@ -33,6 +34,7 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_success_hands_off_original_endpoint_failures_separately_from_public_observation(self):
         failure = ChatFailed("request_limit", "Earlier request did not fit; not sent.")
+
         conversation = ToolConversation(
             (endpoint("first", failure), endpoint("second", call("done", "prepare", {}))), max_turns=2, secrets=()
         )
@@ -55,13 +57,16 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
             call("prepare-1", "prepare", {}),
             ChatFailed("exchange_failed", "Fixture reply lost."),
         )
+
         second = endpoint("second", call("submit-1", "submit", {"reference": "owned-reference"}))
         effects = []
 
         async def dispatch(name, arguments):
             effects.append(name)
+
             if name == "prepare":
                 return ToolReply({"reference": "owned-reference"})
+
             first.retire.assert_awaited_once()
             self.assertEqual(arguments, {"reference": "owned-reference"})
             return ToolFinished("submitted")
@@ -75,10 +80,12 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(json.loads(transcript[2]["content"]), {"reference": "owned-reference"})
         observed = json.loads(result.observation)
         self.assertEqual(observed["turns_started"], 3)
+
         self.assertEqual(
             [route["endpoint"]["configuration_id"] for route in observed["routes"]],
             ["first", "second"],
         )
+
         self.assertEqual(observed["routes"][0]["failure"], "exchange_failed")
         self.assertNotIn(b"owned-reference", result.observation)
         await conversation.retire()

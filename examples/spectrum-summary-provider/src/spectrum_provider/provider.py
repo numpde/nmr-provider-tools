@@ -60,8 +60,10 @@ class Provider:
 @asynccontextmanager
 async def open_provider() -> AsyncIterator[Provider]:
     """Read deployment choices once and own the adopted science until retirement."""
+
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         provider_config = tomllib.load(source)
+
     operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
 
     resource_requirements = frozenset(

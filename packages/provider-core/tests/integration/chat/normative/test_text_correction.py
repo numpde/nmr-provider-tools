@@ -12,9 +12,11 @@ from tests.fakes.conversation import call, recording_endpoint
 class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_plain_tool_feedback_does_not_add_a_user_instruction(self):
         model = recording_endpoint("only", call("bad", "submit", {"record": 1}), call("good", "submit", {}))
+
         conversation = ToolConversation(
             (model,), max_turns=2, secrets=(), text_correction=conversation_api.TextCorrection(),
         )
+
         await conversation.run([], [], AsyncMock(side_effect=[ToolRejected("Choose another record."), ToolFinished("selected")]))
         assistant, tool = model.requests[1]
         self.assertEqual({"record": 1}, json.loads(assistant["tool_calls"][0]["function"]["arguments"]))
@@ -26,10 +28,12 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(extra=extra):
                 plain = {"role": "assistant", "content": "I need to correct that.", "reasoning_content": "Retained reasoning"}
                 model = recording_endpoint("only", plain | extra, call("done", "submit", {}))
+
                 conversation = ToolConversation(
                     (model,), max_turns=2, secrets=(),
                     text_correction=conversation_api.TextCorrection(user_content="correction-v1\n"),
                 )
+
                 dispatch = AsyncMock(return_value=ToolFinished("selected"))
                 result = await conversation.run([], [], dispatch)
                 self.assertEqual([plain, {"role": "user", "content": "correction-v1\n"}], model.requests[1])
@@ -45,10 +49,12 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
         rejection.__cause__ = ValueError("PRIVATE scientific admission cause")
         value = {"z": 1, "a": "5.801"}
         model = recording_endpoint("only", call("bad", "submit", value), call("good", "submit", {}))
+
         conversation = ToolConversation(
             (model,), max_turns=2, secrets=(),
             text_correction=conversation_api.TextCorrection(user_content="correction-v1\n"),
         )
+
         result = await conversation.run([], [], AsyncMock(side_effect=[rejection, ToolFinished("selected")]))
         assistant, tool, user = model.requests[1]
         self.assertEqual("assistant", assistant["role"])

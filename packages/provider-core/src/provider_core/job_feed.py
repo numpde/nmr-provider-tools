@@ -43,11 +43,13 @@ class JobPage:
 def jobs_query(*, analysis_kind_ref, has_provider_execution_attempt, limit, cursor):
     """Encode explicit selection choices once for the signed request target."""
     require_analysis_kind(analysis_kind_ref)
+
     if type(has_provider_execution_attempt) is not bool:
         raise TypeError(
             f"Unexpected {type(has_provider_execution_attempt)=}; "
             "Job discovery requires an explicit boolean provider-attempt view"
         )
+
     # silent-defaults: allow-contract -- Encode the caller-selected boolean as the protocol-required lowercase wire value.
     view = "true" if has_provider_execution_attempt else "false"
     query = f"analysis_kind_ref={analysis_kind_ref}&has_provider_execution_attempt={view}&"
@@ -57,23 +59,30 @@ def jobs_query(*, analysis_kind_ref, has_provider_execution_attempt, limit, curs
 def read_jobs_page(raw, *, analysis_kind_ref, has_provider_execution_attempt, limit):
     """Bind a complete page to admitted request facts; preserve server ordering."""
     document = read_document(raw, PAGE_RESPONSE_BYTES)
+
     if type(document) is not dict or set(document) != {
         "schema_id", "analysis_kind_ref", "has_provider_execution_attempt", "jobs", "next_cursor",
     }:
         raise ResponseRejected("Job discovery response fields do not match the supported page schema")
+
     if document["schema_id"] != "nmr.provider.jobs.list.response.v1":
         raise ResponseRejected("Job discovery response schema is not the supported version")
+
     if (document["analysis_kind_ref"] != analysis_kind_ref
             or type(document["has_provider_execution_attempt"]) is not bool
             or document["has_provider_execution_attempt"] != has_provider_execution_attempt):
         raise ResponseRejected("Job discovery analysis kind or provider-attempt view differs from the request")
+
     jobs = document["jobs"]
+
     if type(jobs) is not list or len(jobs) > MAX_PAGE_ITEMS or len(jobs) > limit:
         raise ResponseRejected("Job discovery page exceeds the requested or supported item count")
+
     try:
         require_cursor(document["next_cursor"])
     except (TypeError, ValueError) as cause:
         raise ResponseRejected(str(cause)) from None
+
     return JobPage(analysis_kind_ref, has_provider_execution_attempt,
                    # repo-check: allow-tuple-generator -- The admitted JobPage retains server order in one immutable collection.
                    tuple(_read_job(item, analysis_kind_ref) for item in jobs), document["next_cursor"])
@@ -84,10 +93,13 @@ def _read_job(item, analysis_kind_ref):
         "job_ref", "analysis_kind_ref", "input_fingerprint", "input_schema_id", "input_byte_length", "created_at",
     }:
         raise ResponseRejected("Discovered Job fields do not match the supported item schema")
+
     if item["analysis_kind_ref"] != analysis_kind_ref:
         raise ResponseRejected("Discovered Job analysis kind differs from the requested page")
+
     try:
         identity = FeedInputFacts(item["job_ref"], item["input_schema_id"], item["input_fingerprint"], item["input_byte_length"])
     except JobInputRejected as cause:
         raise ResponseRejected(str(cause)) from None
+
     return DiscoveredJob(identity, analysis_kind_ref, read_timestamp(item["created_at"]))

@@ -374,6 +374,7 @@ class TypedContributionTests(unittest.TestCase):
             return call.scientific_call(values)
 
         adapted = replace(call, scientific_call=controlled)
+
         with self.assertRaises(RuntimeError):
             adapted.invoke(None, None, science.SumInput(values=(1,)), {}, _Control())
 
@@ -419,6 +420,7 @@ class TypedContributionTests(unittest.TestCase):
 
     def test_output_slot_inventory_cannot_be_mutated_after_construction(self):
         call = _weighted_binding().prepare
+
         with self.assertRaisesRegex(TypeError, "immutable tuple"):
             replace(call, _output_slots=list(call._output_slots))
 
@@ -449,6 +451,7 @@ class TypedContributionTests(unittest.TestCase):
         )
 
         wrong_call = replace(binding.calculate, state_binding=wrong_state)
+
         with self.assertRaisesRegex(TypeError, "different Python types"):
             replace(binding, calculate=wrong_call)
 

@@ -58,12 +58,15 @@ class Provider:
         joins an already started receiver before closing its execution session.
         Independent work and cleanup errors propagate together without resending.
         """
+
         if offering not in self.offerings:
             raise ValueError("Cannot open a prediction for an offering outside this provider")
+
         input_interpreter = self.create_interpreter()
         analysis_executor = None
         prediction_workflow = None
         failure_collector = FailureCollector(message="Prediction work and cleanup failed independently")
+
         with failure_collector.capture():
             analysis_executor = self.execution_host.open_analysis(allocations=frozenset({offering.allocation}))
 
@@ -76,16 +79,20 @@ class Provider:
             )
 
             yield prediction_workflow
+
         # Join the receiver before science and interpretation release resources it
         # may still use. Each owner settles its work; collection only preserves errors.
         if prediction_workflow is not None:
             with failure_collector.capture():
                 await prediction_workflow.settle_receiver()
+
         if analysis_executor is not None:
             with failure_collector.capture():
                 await settle_cleanup(control=analysis_executor.close())
+
         with failure_collector.capture():
             await input_interpreter.retire()
+
         failure_collector.raise_if_any()
 
 
@@ -104,8 +111,10 @@ async def open_provider(
     is requested. Setup failure, body failure and independent cleanup failure
     retain their original causes.
     """
+
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         provider_config = tomllib.load(source)
+
     async with InProcessExecutionHost(**provider_config["execution"]["in_process_execution_host"]) as execution_host:
         operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
 
@@ -116,12 +125,15 @@ async def open_provider(
 
         predictor_classes = {"hf": Hf, "chf": Chf}
         offerings = set()
+
         # Family selects a scientific input shape. Each entry is an independently
         # configured model; several entries can use the same contribution class.
         for family, offering_configs in provider_config["science"].items():
             if family not in predictor_classes:
                 raise ValueError(f"Cannot configure scientific offerings: unsupported {family=}")
+
             predictor_class = predictor_classes[family]
+
             for offering_config in offering_configs:
                 predictor = predictor_class(
                     configuration=Settings(**offering_config["settings"]),

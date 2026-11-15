@@ -36,11 +36,13 @@ _PRIVATE = "private-request-query-or-header-marker"
 class ImageBuildProxyInputTests(unittest.TestCase):
     def setUp(self):
         required = {"test_generic_interface_admission_uses_native_lookup": "require_interface"}.get(self._testMethodName)
+
         if self._testMethodName in {
             "test_complete_headers_preserve_the_received_remainder",
             "test_header_drip_and_late_complete_fragment_do_not_reset_deadline",
         }:
             required = "time"
+
         if required:
             self.assertTrue(
                 hasattr(_PROXY, required),
@@ -50,23 +52,29 @@ class ImageBuildProxyInputTests(unittest.TestCase):
     def test_generic_interface_admission_uses_native_lookup(self):
         with patch.object(_PROXY.socket, "if_nametoindex", return_value=1) as lookup:
             _PROXY.require_interface("eth0")
+
         lookup.assert_called_once_with("eth0")
+
         with patch.object(_PROXY.socket, "if_nametoindex") as lookup:
             for invalid in ("", ".", "..", "../eth0", "eth0:1", "eth 0", "éth0", "x" * 16):
                 with self.subTest(interface=invalid), self.assertRaises(ValueError):
                     _PROXY.require_interface(invalid)
+
             lookup.assert_not_called()
+
         with (
             patch.object(_PROXY.socket, "if_nametoindex", side_effect=OSError(_PRIVATE)),
             self.assertRaises(ValueError) as caught,
         ):
             _PROXY.require_interface("eth0")
+
         self.assertNotIn(_PRIVATE, str(caught.exception))
 
     def test_connect_ports_are_admitted_before_socket_use(self):
         for port in ("0", "65536", "-1", "not-a-port"):
             with self.subTest(port=port), self.assertRaises(ValueError):
                 _PROXY.parse_destination(f"CONNECT example.invalid:{port} HTTP/1.1\r\n\r\n".encode())
+
         self.assertEqual(
             ("CONNECT", "example.invalid", 443), _PROXY.parse_destination(b"CONNECT example.invalid:443 HTTP/1.1\r\n\r\n")[:3]
         )
@@ -74,8 +82,10 @@ class ImageBuildProxyInputTests(unittest.TestCase):
     def test_complete_headers_preserve_the_received_remainder(self):
         client = Mock()
         client.recv.return_value = b"GET http://example.invalid/ HTTP/1.1\r\n\r\nbody"
+
         with patch.object(_PROXY.time, "monotonic", return_value=0):
             self.assertEqual((b"GET http://example.invalid/ HTTP/1.1\r\n\r\n", b"body"), _PROXY.receive_headers(client))
+
         client.settimeout.assert_called_once_with(30)
 
     def test_header_drip_and_late_complete_fragment_do_not_reset_deadline(self):
@@ -90,13 +100,17 @@ class ImageBuildProxyInputTests(unittest.TestCase):
 
         def receive(_size):
             clock[0], fragment = next(fragments)
+
             if fragment is None:
                 raise TimeoutError("scripted socket deadline")
+
             return fragment
 
         client.recv.side_effect = receive
+
         with patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]), self.assertRaises(TimeoutError):
             _PROXY.receive_headers(client)
+
         self.assertEqual([call.args[0] for call in client.settimeout.call_args_list], [30, 16, 2])
 
     def test_header_limit_accepts_exact_boundary_and_rejects_one_byte_more(self):
@@ -110,8 +124,10 @@ class ImageBuildProxyInputTests(unittest.TestCase):
         oversized = Mock()
         raw = b"x" * (_PROXY.MAX_HEADER_BYTES + 1)
         oversized.recv.side_effect = [raw[index : index + 8192] for index in range(0, len(raw), 8192)]
+
         with self.assertRaises(ValueError):
             _PROXY.receive_headers(oversized)
+
         self.assertEqual(9, oversized.recv.call_count)
 
     def test_header_limit_excludes_a_coalesced_body_remainder(self):
@@ -126,6 +142,7 @@ class ImageBuildProxyInputTests(unittest.TestCase):
 class ImageBuildProxyTransportTests(unittest.TestCase):
     def setUp(self):
         name = self._testMethodName
+
         # silent-defaults: allow-contract -- DNS, TCP and relay probes require their own production primitive before injecting transport behavior; this chooses a prerequisite name, not a fallback implementation; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyTransportTests.test_dns_binds_device_and_shares_one_query_budget
         required = (
             "_query_ipv4"
@@ -134,10 +151,12 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             if name == "test_expired_dns_budget_does_not_start_the_next_server" or name.startswith("test_tcp_")
             else "relay"
         )
+
         self.assertTrue(
             hasattr(_PROXY, required),
             msg=f"Interface-bound transport cannot prove {name}: provider_core.bound_http_proxy does not own {required}.",
         )
+
         self.assertTrue(
             hasattr(_PROXY, "time"),
             msg=f"Interface-bound transport cannot prove {name}: provider_core.bound_http_proxy does not own monotonic deadline accounting.",
@@ -150,12 +169,14 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         resolver.connect.side_effect = lambda _address: clock.__setitem__(0, 0.2)
         resolver.send.side_effect = lambda _data: clock.__setitem__(0, 0.6)
         resolver.recv.return_value = _dns_response("example.invalid")
+
         with (
             patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
             patch.object(_PROXY.secrets, "randbits", return_value=111),
             patch.object(_PROXY.socket, "socket", return_value=resolver),
         ):
             addresses, aliases = _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
+
         self.assertEqual(addresses, {"example.invalid": ["203.0.113.1"]})
         self.assertEqual(aliases, {})
         resolver.setsockopt.assert_called_once_with(_PROXY.socket.SOL_SOCKET, _PROXY.socket.SO_BINDTODEVICE, b"eth0\0")
@@ -165,6 +186,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
     def test_dns_groups_only_received_a_records_by_owner(self):
         """Keep repeated A records in one bucket without inventing absent owners."""
+
         for records, expected in (
             ((), {}),
             (
@@ -182,17 +204,21 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
                     + _PROXY._dns_name("example.invalid")
                     + struct.pack("!HH", 1, 1)
                 )
+
                 for owner, address in records:
                     response += _PROXY._dns_name(owner) + struct.pack("!HHIH", 1, 1, 60, 4) + _PROXY.socket.inet_aton(address)
+
                 resolver = MagicMock()
                 resolver.__enter__.return_value = resolver
                 resolver.recv.return_value = response
+
                 with (
                     patch.object(_PROXY.time, "monotonic", return_value=0),
                     patch.object(_PROXY.secrets, "randbits", return_value=111),
                     patch.object(_PROXY.socket, "socket", return_value=resolver),
                 ):
                     addresses, aliases = _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
+
                 self.assertEqual(expected, addresses)
                 self.assertEqual({}, aliases)
 
@@ -200,6 +226,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         resolver = MagicMock()
         resolver.__enter__.return_value = resolver
         resolver.recv.return_value = _dns_response("other.invalid")
+
         with (
             patch.object(_PROXY.time, "monotonic", return_value=0),
             patch.object(_PROXY.secrets, "randbits", return_value=111),
@@ -223,6 +250,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             return _dns_response("example.invalid")
 
         resolver.recv.side_effect = late_reply
+
         with (
             patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
             patch.object(_PROXY.secrets, "randbits", return_value=111),
@@ -230,6 +258,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             self.assertRaises(TimeoutError),
         ):
             _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
+
         resolver.__exit__.assert_called_once()
 
     def test_dns_query_deadline_caps_wait_at_three_seconds(self):
@@ -239,6 +268,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
         resolver.connect.side_effect = lambda _address: clock.__setitem__(0, 1)
         resolver.send.side_effect = lambda _data: clock.__setitem__(0, 3)
+
         with (
             patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
             patch.object(_PROXY.secrets, "randbits", return_value=111),
@@ -246,6 +276,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             self.assertRaises(TimeoutError),
         ):
             _PROXY._query_ipv4("example.invalid", "203.0.113.53", "eth0", deadline=30)
+
         self.assertEqual([call.args[0] for call in resolver.settimeout.call_args_list], [3, 2])
         resolver.recv.assert_not_called()
         self.assertEqual(3, clock[0])
@@ -264,6 +295,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             self.assertRaises(TimeoutError),
         ):
             _PROXY.resolve_ipv4_bound("example.invalid", "eth0", deadline=30)
+
         self.assertEqual(1, query.call_count)
 
     def test_tcp_binds_device_and_expiry_closes_before_the_next_address(self):
@@ -275,6 +307,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             raise TimeoutError("scripted connect deadline")
 
         connection.connect.side_effect = expire
+
         with (
             patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
             patch.object(_PROXY, "resolve_ipv4_bound", return_value=("203.0.113.1", "203.0.113.2")),
@@ -282,6 +315,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             self.assertRaises(TimeoutError),
         ):
             _PROXY.connect_bound("example.invalid", 443, "eth0")
+
         connection.setsockopt.assert_called_once_with(_PROXY.socket.SOL_SOCKET, _PROXY.socket.SO_BINDTODEVICE, b"eth0\0")
         connection.close.assert_called_once()
         created.assert_called_once()
@@ -296,17 +330,21 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
         first.connect.side_effect = fail_first
         second.connect.side_effect = lambda _address: clock.__setitem__(0, 11)
+
         with (
             patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
             patch.object(_PROXY, "resolve_ipv4_bound", return_value=("203.0.113.1", "203.0.113.2")),
             patch.object(_PROXY.socket, "socket", side_effect=(first, second)) as created,
         ):
             result = _PROXY.connect_bound("example.invalid", 443, "eth0")
+
         self.assertIs(result, second)
         self.assertEqual([call.args[0] for call in first.settimeout.call_args_list], [30])
         self.assertEqual([call.args[0] for call in second.settimeout.call_args_list], [20])
+
         for connection in (first, second):
             connection.setsockopt.assert_called_once_with(_PROXY.socket.SOL_SOCKET, _PROXY.socket.SO_BINDTODEVICE, b"eth0\0")
+
         first.connect.assert_called_once_with(("203.0.113.1", 443))
         second.connect.assert_called_once_with(("203.0.113.2", 443))
         first.close.assert_called_once()
@@ -321,6 +359,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         clock = [0]
         connection = Mock()
         connection.connect.side_effect = lambda _address: clock.__setitem__(0, 30.1)
+
         with (
             patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
             patch.object(_PROXY, "resolve_ipv4_bound", return_value=("203.0.113.1",)),
@@ -328,6 +367,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             self.assertRaises(TimeoutError),
         ):
             _PROXY.connect_bound("example.invalid", 443, "eth0")
+
         connection.close.assert_called_once()
 
     def test_relay_resets_inactivity_only_after_a_completed_bounded_write(self):
@@ -343,6 +383,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         def send(_data):
             # silent-defaults: allow-contract -- The blocked write reaches the original inactivity deadline; the completed write finishes at second three; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyTransportTests.test_relay_resets_inactivity_only_after_a_completed_bounded_write
             clock[0] = 120 if blocked else 3
+
             if blocked:
                 raise TimeoutError("scripted write deadline")
 
@@ -351,8 +392,10 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 
         def select(_read, _write, _errors, timeout):
             ready = next(readiness)
+
             if not ready:
                 clock[0] += timeout
+
             return ready, [], []
 
         with (
@@ -361,6 +404,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             self.assertRaises(TimeoutError),
         ):
             _PROXY.relay(left, right)
+
         right.settimeout.assert_called_once_with(118)
         # silent-defaults: allow-contract -- A blocked first write stops after one select; a completed write reaches the next select before inactivity expires; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyTransportTests.test_relay_resets_inactivity_only_after_a_completed_bounded_write
         self.assertEqual(selected.call_count, 1 if blocked else 2)
@@ -382,6 +426,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             if clock[0] == 1:
                 clock[0] = 2
                 return b"response"
+
             clock[0] = 4
             events.append("server EOF")
             return b""
@@ -400,14 +445,17 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         right.shutdown.side_effect = lambda _how: events.append("server write shutdown")
         left.sendall.side_effect = forward_response
         left.shutdown.side_effect = lambda _how: events.append("client write shutdown")
+
         with (
             patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
             patch.object(_PROXY.select, "select", side_effect=select),
         ):
             _PROXY.relay(left, right)
+
         self.assertEqual(
             events, ["client EOF", "server write shutdown", "response forwarded", "server EOF", "client write shutdown"]
         )
+
         self.assertEqual(snapshots, [([left, right], 120), ([right], 119), ([right], 120)])
         left.sendall.assert_called_once_with(b"response")
         right.shutdown.assert_called_once_with(_PROXY.socket.SHUT_WR)
@@ -423,12 +471,14 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
         left, right = Mock(), Mock()
         left.recv.side_effect = lambda _size: (clock.__setitem__(0, 1), b"data")[1]
         right.sendall.side_effect = lambda _data: clock.__setitem__(0, 120.1)
+
         with (
             patch.object(_PROXY.time, "monotonic", side_effect=lambda: clock[0]),
             patch.object(_PROXY.select, "select", return_value=([left], [], [])) as selected,
             self.assertRaises(TimeoutError),
         ):
             _PROXY.relay(left, right)
+
         right.sendall.assert_called_once_with(b"data")
         selected.assert_called_once()
 
@@ -436,6 +486,7 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
 class ImageBuildProxyWorkerTests(unittest.TestCase):
     def setUp(self):
         name = self._testMethodName
+
         # silent-defaults: allow-contract -- Capacity, readiness and forwarding probes require their corresponding production feature before injected worker behavior; no substitute feature is supplied; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_startup_failure_and_thread_completion_restore_capacity
         required = (
             "MAX_CONNECTIONS"
@@ -444,18 +495,23 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             if name.startswith("test_readiness_")
             else "ProxyHandler"
         )
+
         self.assertTrue(
             hasattr(_PROXY, required), msg=f"Proxy worker cannot prove {name}: provider_core.bound_http_proxy does not own {required}."
         )
 
     def test_overload_does_not_start_a_thread(self):
         server = _server_without_listener()
+
         for _ in range(_PROXY.MAX_CONNECTIONS):
             self.assertTrue(server._slots.acquire())
+
         server.shutdown_request = Mock()
         request = Mock()
+
         with patch.object(_PROXY.socketserver.ThreadingTCPServer, "process_request") as start:
             server.process_request(request, ("127.0.0.1", 1))
+
         start.assert_not_called()
         server.shutdown_request.assert_called_once_with(request)
 
@@ -463,8 +519,10 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         for startup_failure in (False, True):
             with self.subTest(startup_failure=startup_failure):
                 server = _server_without_listener()
+
                 for _ in range(_PROXY.MAX_CONNECTIONS - 1):
                     self.assertTrue(server._slots.acquire())
+
                 if startup_failure:
                     with (
                         patch.object(
@@ -477,20 +535,24 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                         server.process_request(Mock(), ("127.0.0.1", 1))
                 else:
                     self.assertTrue(server._slots.acquire())
+
                     with patch.object(_PROXY.socketserver.ThreadingTCPServer, "process_request_thread"):
                         server.process_request_thread(Mock(), ("127.0.0.1", 1))
+
                 self.assertTrue(server._slots.acquire())
                 self.assertFalse(server._slots.acquire())
 
     def test_private_pre_forwarding_error_has_fixed_http_and_safe_log(self):
         request = Mock()
         stderr = io.StringIO()
+
         with (
             patch.object(_PROXY, "receive_headers", return_value=(b"headers", b"")),
             patch.object(_PROXY, "parse_destination", side_effect=ValueError(_PRIVATE)),
             redirect_stderr(stderr),
         ):
             _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
+
         request.sendall.assert_called_once_with(b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\n\r\n")
         self.assertIn("request admission", stderr.getvalue())
         self.assertIn("ValueError", stderr.getvalue())
@@ -500,6 +562,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         request, connection = Mock(), MagicMock()
         connection.__enter__.return_value = connection
         stderr, stdout = io.StringIO(), io.StringIO()
+
         with (
             patch.object(_PROXY, "receive_headers", return_value=(b"CONNECT example.invalid:443 HTTP/1.1\r\n\r\n", b"")),
             patch.object(_PROXY, "connect_bound", return_value=connection),
@@ -508,6 +571,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             redirect_stdout(stdout),
         ):
             _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
+
         request.sendall.assert_called_once_with(b"HTTP/1.1 200 Connection Established\r\n\r\n")
         self.assertNotIn(_PRIVATE, stderr.getvalue() + stdout.getvalue())
 
@@ -516,17 +580,20 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             with self.subTest(phase=phase):
                 request, connection = Mock(), MagicMock()
                 connection.__enter__.return_value = connection
+
                 # silent-defaults: allow-contract -- The HTTP-header failure uses GET; the two CONNECT write failures use tunnel admission bytes; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure
                 header = (
                     b"GET http://example.invalid/ HTTP/1.1\r\n\r\n"
                     if phase == "http_header"
                     else b"CONNECT example.invalid:443 HTTP/1.1\r\n\r\n"
                 )
+
                 # silent-defaults: allow-contract -- Only the CONNECT-remainder scenario supplies body bytes so that its initial forwarding write is exercised; proof=tests/deployment/test_proxy_posture.py::ImageBuildProxyWorkerTests.test_initial_forwarding_write_failure_does_not_append_http_failure
                 remainder = b"body" if phase == "connect_remainder" else b""
                 writer = request if phase == "connect_status" else connection
                 writer.sendall.side_effect = OSError(_PRIVATE)
                 stderr, stdout = io.StringIO(), io.StringIO()
+
                 with (
                     patch.object(_PROXY, "receive_headers", return_value=(header, remainder)),
                     patch.object(_PROXY, "connect_bound", return_value=connection),
@@ -535,10 +602,12 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                     redirect_stdout(stdout),
                 ):
                     _PROXY.ProxyHandler(request, ("127.0.0.1", 1), SimpleNamespace(outbound_interface="eth0", dns_servers=None))
+
                 if phase == "http_header":
                     request.sendall.assert_not_called()
                 else:
                     request.sendall.assert_called_once_with(b"HTTP/1.1 200 Connection Established\r\n\r\n")
+
                 relay.assert_not_called()
                 self.assertNotIn(_PRIVATE, stderr.getvalue() + stdout.getvalue())
                 self.assertIn("forwarding", stderr.getvalue())
@@ -550,12 +619,16 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
             _run_main(server, ready)
             self.assertEqual("12345\n", ready.read_text(encoding="ascii"))
             self.assertEqual(0o600, stat.S_IMODE(ready.stat().st_mode))
+
             for path in (ready, Path(temporary) / "symlink.port"):
                 if path != ready:
                     path.symlink_to(ready)
+
                 server.serve_forever.reset_mock()
+
                 with self.subTest(path=path.name), self.assertRaises(SystemExit):
                     _run_main(server, path)
+
                 server.serve_forever.assert_not_called()
                 self.assertEqual("12345\n", ready.read_text(encoding="ascii"))
 
@@ -572,6 +645,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
 
             with patch.object(_PROXY.os, "link", side_effect=inspect_publication):
                 _run_main(server, ready)
+
             self.assertEqual([], list(Path(temporary).glob(".proxy-ready.*")))
 
     def test_readiness_publication_failure_survives_temporary_cleanup_failure(self):
@@ -580,11 +654,13 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         This closes the inherited cleanup masking at:
         https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L406-L410
         """
+
         with tempfile.TemporaryDirectory() as temporary:
             ready = Path(temporary) / "proxy.port"
             ready.write_text("prior receipt\n", encoding="ascii")
             server = MagicMock(server_address=("127.0.0.1", 12345))
             stderr = io.StringIO()
+
             with (
                 patch.object(_PROXY.os, "link", side_effect=FileExistsError(_PRIVATE)),
                 patch.object(_PROXY.Path, "unlink", side_effect=PermissionError(_PRIVATE)),
@@ -592,6 +668,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                 self.assertRaises(SystemExit) as rejected,
             ):
                 _run_main(server, ready)
+
             self.assertIn("readiness publication failed (FileExistsError)", str(rejected.exception))
             self.assertIn("Readiness publication did not complete", stderr.getvalue())
             self.assertIn("Cannot confirm temporary readiness cleanup", stderr.getvalue())
@@ -608,12 +685,14 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         This closes the inherited false creation failure at:
         https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L406-L410
         """
+
         for replaced in (False, True):
             with self.subTest(replaced=replaced):
                 self._assert_published_readiness_cleanup_failure(replaced)
 
     def _assert_published_readiness_cleanup_failure(self, replaced):
         """Observe continued serving without ever unlinking a receipt path."""
+
         with tempfile.TemporaryDirectory() as temporary:
             ready = Path(temporary) / "proxy.port"
             server = MagicMock(server_address=("127.0.0.1", 12345))
@@ -622,6 +701,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
 
             def publish(source, destination, **kwargs):
                 link(source, destination, **kwargs)
+
                 if replaced:
                     _PROXY.os.unlink(destination)
                     Path(destination).write_text("replacement receipt\n", encoding="ascii")
@@ -632,6 +712,7 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
                 redirect_stderr(stderr),
             ):
                 _run_main(server, ready)
+
             server.serve_forever.assert_called_once()
             self.assertIn("Readiness was published; serving will continue", stderr.getvalue())
             self.assertIn("Cannot confirm temporary readiness cleanup", stderr.getvalue())
@@ -666,6 +747,7 @@ def _server_without_listener():
 
 def _run_main(server, ready):
     """Inject the local startup-binding probe without opening a real socket."""
+
     with (
         patch.object(_PROXY, "ProxyServer") as factory,
         patch.object(_PROXY, "require_interface"),
@@ -676,6 +758,7 @@ def _run_main(server, ready):
     ):
         factory.return_value.__enter__.return_value = server
         _PROXY.main()
+
     probe_factory.assert_called_once_with(_PROXY.socket.AF_INET, _PROXY.socket.SOCK_STREAM)
     probe = probe_factory.return_value.__enter__.return_value
     probe.setsockopt.assert_called_once_with(_PROXY.socket.SOL_SOCKET, _PROXY.socket.SO_BINDTODEVICE, b"eth0\0")

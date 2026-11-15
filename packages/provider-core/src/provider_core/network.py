@@ -51,15 +51,20 @@ class NetworkIOObservation:
 def _availability(cause, remaining, observation, *, timeout_cancellation=False):
     if remaining == 0 or cause is None:
         return False
+
     explicit = observation.cause if cause is observation.error else cause.__cause__
+
     if type(cause) in (ExceptionGroup, BaseExceptionGroup):
         return all(_availability(child, remaining - 1, observation, timeout_cancellation=timeout_cancellation)
                    for child in cause.exceptions)
+
     if type(cause) is asyncio.CancelledError:
         return timeout_cancellation and (
             explicit is None or _availability(explicit, remaining - 1, observation, timeout_cancellation=True)
         )
+
     timeout = type(cause) in (TimeoutError, httpcore.ConnectTimeout, httpcore.ReadTimeout, httpcore.WriteTimeout)
+
     # Terminal native types do not borrow incidental handler context. Explicit
     # causes still matter: a timeout or EOF cannot hide an independent defect.
     # Every DNS errno describes resolver availability; exact ConnectionError is
@@ -71,8 +76,10 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
         return explicit is None or _availability(
             explicit, remaining - 1, observation, timeout_cancellation=timeout_cancellation or timeout
         )
+
     if isinstance(cause, ssl.SSLError):
         return False
+
     if type(cause) in (OSError, FileNotFoundError):
         if cause.errno is not None:
             available = cause.errno in {
@@ -84,6 +91,7 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
                 and observation.unix_path is not None
                 and observation.unix_path == observation.configured_unix_path
             )
+
             return available and (explicit is None or _availability(
                 explicit, remaining - 1, observation, timeout_cancellation=timeout_cancellation
             ))
@@ -92,12 +100,15 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
         anyio.BrokenResourceError, anyio.EndOfStream,
     ):
         return False
+
     context = observation.context if cause is observation.error else cause.__context__
     # AnyIO's grouped address failure uses an explicit OSError cause. An
     # errno-less local setup error cannot borrow incidental handler context.
     preceding = explicit if explicit is not None or type(cause) is OSError else context
+
     if preceding is not None:
         return _availability(preceding, remaining - 1, observation, timeout_cancellation=timeout_cancellation)
+
     return type(cause) in (anyio.BrokenResourceError, anyio.EndOfStream)
 
 
@@ -108,17 +119,22 @@ def network_availability(primary, observation, *, network_failure):
     caller interruption cannot become an SDK-authored pending-I/O timeout.
     Status, environment, operation effects and retirement remain API decisions.
     """
+
     if type(observation) is not NetworkIOObservation:
         return False
+
     if observation.deadline_cancelled and type(primary) is TimeoutError:
         return (
             observation.error is network_failure and isinstance(observation.error, asyncio.CancelledError)
             and _availability(observation.error, 8, observation, timeout_cancellation=True)
         )
+
     if primary is not network_failure:
         return False
+
     if observation.error is not None:
         return primary is observation.error and _availability(primary, 8, observation)
+
     return observation.eof and type(primary) is httpcore.RemoteProtocolError
 
 
@@ -135,16 +151,19 @@ class OwnedNetworkBackend(httpcore.AsyncNetworkBackend):
     @contextmanager
     def io(self, stage, *, path=None):
         self._pending_stage = stage
+
         try:
             yield
         except BaseException as error:
             facts = self.observation
+
             if facts.error is None or isinstance(facts.error, asyncio.CancelledError) and not isinstance(error, asyncio.CancelledError):
                 facts.stage = stage
                 facts.unix_path = path
                 facts.error = error
                 facts.cause = error.__cause__
                 facts.context = error.__context__
+
             raise
         finally:
             self._pending_stage = None
@@ -159,15 +178,18 @@ class OwnedNetworkBackend(httpcore.AsyncNetworkBackend):
             # the proxy's uds argument (_async/http_proxy.py:146-166). Its fixed
             # metadata host must never cause DNS, TCP or direct fallback here.
             return await self.connect_unix_socket(self._proxy_socket, timeout=timeout, socket_options=socket_options)
+
         with self.io("connect_tcp"):
             raw = await self._backend.connect_tcp(
                 host=host, port=port, timeout=timeout, local_address=local_address, socket_options=socket_options
             )
+
         return self._own(raw)
 
     async def connect_unix_socket(self, path, timeout=None, socket_options=None):
         with self.io("connect_unix", path=path):
             raw = await self._backend.connect_unix_socket(path=path, timeout=timeout, socket_options=socket_options)
+
         return self._own(raw)
 
     def _own(self, raw):
@@ -185,6 +207,7 @@ class OwnedNetworkBackend(httpcore.AsyncNetworkBackend):
 
     def abort_tls_shutdown(self):
         """Close interrupted exchanges without reading the unfinished response."""
+
         for stream in self._streams:
             stream._stream = stream._raw_stream
 
@@ -207,8 +230,10 @@ class _NetworkByteStream(anyio.abc.ByteStream):
     # silent-defaults: allow-contract -- AnyIO ByteReceiveStream.receive specifies this optional 64 KiB bound; TLS callers may omit it.
     async def receive(self, max_bytes=65536):
         data = await self.stream.read(max_bytes)
+
         if not data:
             raise anyio.EndOfStream
+
         return data
 
     async def send(self, item):
@@ -232,11 +257,14 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
     async def read(self, max_bytes, timeout=None):
         with self._network.io("read"):
             data = await self._stream.read(max_bytes, timeout)
+
         if max_bytes > 0 and data == b"":
             facts = self._network.observation
             facts.eof = True
+
             if facts.error is None:
                 facts.stage = "read"
+
         return data
 
     async def write(self, buffer, timeout=None):
@@ -248,6 +276,7 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
 
     async def start_tls(self, ssl_context, server_hostname=None, timeout=None):
         """Keep the raw stream owned until the TLS handshake succeeds."""
+
         # Assignment happens only after a successful upgrade: cancellation must
         # leave the raw connection reachable by the final cleanup owner.
         with self._network.io("start_tls"):
@@ -272,7 +301,9 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
                         hostname=server_hostname, server_side=False,
                         standard_compatible=True,
                     )
+
             self._stream = AnyIOStream(stream)
+
         return self
 
     async def aclose(self):
@@ -292,22 +323,27 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
                     # raw close to establish its completion, never SSL unwrap.
                     self._stream = self._raw_stream
                     await self._close_raw()
+
                     peer_eof = type(failure) is ssl.SSLEOFError or (
                         type(failure) is anyio.BrokenResourceError
                         and type(failure.__cause__) is ssl.SSLEOFError
                     )
+
                     # Only a successful raw close releases this owner; an
                     # EOF-shaped raw-close failure above must still fail.
                     if not peer_eof or failure is self._raw_close_failure:
                         raise
+
                     logging.getLogger("provider_core.transport").warning(
                         "TLS peer omitted close_notify; local socket closure confirmed",
                         exc_info=failure,
                     )
+
             self._owners.discard(self)
 
     async def _close_raw(self):
         """Record physical retirement even when AnyIO closes inside unwrap."""
+
         if self in self._owners:
             try:
                 await self._raw_stream.aclose()
@@ -316,4 +352,5 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
                 # close error into a benign peer TLS goodbye with the same type.
                 self._raw_close_failure = failure
                 raise
+
             self._owners.remove(self)

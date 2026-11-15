@@ -24,11 +24,14 @@ class PublicationTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+
         for name in ("host/tools/publish.sh", "host/tools/inference_native.sh", "host/tools/wheelhouse_path.sh"):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(name, target)
+
         (self.root / "host/tools/docker_context.sh").write_text("select_docker_context() { :; }\n")
+
         (self.root / "host/tools/provider_core.sh").write_text(
             '#!/usr/bin/env bash\nset -euo pipefail\n'
             'if [[ $1 == build ]]; then\n'
@@ -37,6 +40,7 @@ class PublicationTests(unittest.TestCase):
             '  make --no-print-directory tests/package "WHEELHOUSE=$WHEELHOUSE_INPUT" "ARTIFACTS=$ARTIFACTS_INPUT"\n'
             'fi\n'
         )
+
         self.note = self.root / "notes/005_release_v0.2.0.md"
         self.note.parent.mkdir()
         self.note.write_text("# Authored fixture release\n\nThe reader-facing change.\n")
@@ -44,6 +48,7 @@ class PublicationTests(unittest.TestCase):
         self.inputs.mkdir(mode=0o700)
         artifacts = self.inputs / "artifacts"
         artifacts.mkdir()
+
         contents = {
             "provider_core-0.2.0-py3-none-any.whl": b"qualified wheel",
             "provider_core-0.2.0.tar.gz": b"qualified source",
@@ -54,8 +59,10 @@ class PublicationTests(unittest.TestCase):
             "provider_core-0.2.0-release.json": json.dumps({"source_revision": "0" * 39 + "1"}).encode(),
             "provider_core-0.2.0-sha256.json": b"{}",
         }
+
         for name, content in contents.items():
             (artifacts / name).write_bytes(content)
+
         self.receipts = "".join(f"QUALIFIED_SHA256 {hashlib.sha256(content).hexdigest()} {name}\n" for name, content in contents.items())
         (self.inputs / "release-test.log").write_text(self.receipts)
         (self.inputs / "release-build.log").write_text("qualified build\n")
@@ -65,8 +72,10 @@ class PublicationTests(unittest.TestCase):
 
     def run_publisher(self, scenario, action, *, environment=None):
         selected_environment = {}
+
         if environment is not None:
             selected_environment.update(environment)
+
         return subprocess.run(
             ["bash", str(self.root / "host/tools/publish.sh"), action], cwd=self.root,
             env={"PATH": str(self.bin) + os.pathsep + os.defpath, "TMPDIR": str(self.root),
@@ -92,6 +101,7 @@ class PublicationTests(unittest.TestCase):
         result = self.run_publisher("publish", "prepare", environment={
             "OUTPUT_INPUT_ORIGIN": "undefined", "OUTPUT_INPUT": "",
         })
+
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertIn("OUTPUT=", result.stderr)
         self.assertIn("mkdir -m 700", result.stderr)
@@ -116,6 +126,7 @@ class PublicationTests(unittest.TestCase):
         result = self.run_publisher("publish", "release", environment={
             "ARTIFACTS_INPUT_ORIGIN": "undefined", "ARTIFACTS_INPUT": "",
         })
+
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertIn("ARTIFACTS=", result.stderr)
         self.assertIn("publish/prepare", result.stderr)
@@ -125,9 +136,11 @@ class PublicationTests(unittest.TestCase):
     def test_release_rejects_artifacts_child_before_publication(self):
         selected = self.inputs / "artifacts"
         selected.chmod(0o700)
+
         result = self.run_publisher("publish", "release", environment={
             "ARTIFACTS_INPUT": str(selected),
         })
+
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertIn("whole reviewed publish/prepare OUTPUT root", result.stderr)
         self.assertIn("artifacts/ child", result.stderr)
@@ -226,6 +239,7 @@ class PublicationTests(unittest.TestCase):
     return "$status"
 }
 """)
+
         result = self.run_publisher("publish", "release")
         self.assertEqual(1, result.returncode, msg=result.stderr)
         calls = self.trace.read_text()

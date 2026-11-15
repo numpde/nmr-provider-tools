@@ -22,6 +22,7 @@ from email.utils import parsedate_to_datetime
 import httpcore
 
 from provider_core.attempt_inventory import inventory_query, read_attempt_inventory
+
 from provider_core.attempt_request import (
     progress_body,
     read_complete_body,
@@ -30,6 +31,7 @@ from provider_core.attempt_request import (
     require_provider_ref,
     require_start_body,
 )
+
 from provider_core.attempt_response import (
     ATTEMPT_RESPONSE_BYTES,
     read_attempt,
@@ -39,6 +41,7 @@ from provider_core.attempt_response import (
     read_start,
     require_attempt_ref,
 )
+
 from provider_core.hello import HELLO_RESPONSE_BYTES, hello_body, read_hello
 from provider_core.job_feed import PAGE_RESPONSE_BYTES, jobs_query, read_jobs_page
 from provider_core.job_input import MAX_RESPONSE_BYTES, FeedInputFacts, JobInputRejected, verify_job_input
@@ -46,6 +49,7 @@ from provider_core.response_json import ResponseRejected
 from provider_core.signing import signed_request
 from provider_core.transport import ExchangeFailed, response_request_id
 from provider_core.network import network_availability
+
 from provider_core.upload_response import (
     GRANT_RESPONSE_BYTES,
     MEMBERSHIP_RESPONSE_BYTES,
@@ -79,6 +83,7 @@ class ApiFailure(RuntimeError):
         # diagnostic facts from that owner; never copy them into stale API state.
         if self.response is not None:
             return self.response
+
         # silent-defaults: allow-contract -- Only a received transport head supplies response evidence; other failures leave it absent.
         return self.cause.response_head if isinstance(self.cause, ExchangeFailed) else None
 
@@ -104,20 +109,26 @@ class ApiFailure(RuntimeError):
         head = self._received_head()
         # silent-defaults: allow-contract -- Absent or ambiguous server timing advice grants no Retry-After floor.
         values = [] if head is None else [value for name, value in head.headers if name.lower() == b"retry-after"]
+
         if len(values) != 1:
             return None
+
         try:
             value = values[0].decode("ascii").strip()
+
             if re.fullmatch(r"[0-9]+", value):
                 seconds = float(value)
             else:
                 date = parsedate_to_datetime(value)
+
                 if date.tzinfo is None:
                     # The obsolete asctime HTTP-date form also denotes GMT.
                     date = date.replace(tzinfo=timezone.utc)
+
                 seconds = max(0.0, date.timestamp() - time.time())
         except (ValueError, OverflowError, TypeError):
             return None
+
         # silent-defaults: allow-contract -- Nonfinite server timing advice is unavailable; local retry pacing remains authoritative.
         return seconds if math.isfinite(seconds) else None
 
@@ -128,13 +139,16 @@ def require_api_topology(value):
     API pin above, nmr_api/edge_topology.py::EdgeTopology. In particular, the
     credential profile 'run' is not the response topology 'web'. No default.
     """
+
     if type(value) is not str:
         raise TypeError(
             f"Unexpected {type(value)=}; "
             "Cannot configure Provider API: expected topology must be dev-local, dev or web"
         )
+
     if value not in {"dev-local", "dev", "web"}:
         raise ValueError("Cannot configure Provider API: expected topology must be dev-local, dev or web")
+
     return value
 
 
@@ -229,10 +243,13 @@ _PROBLEM_REASONS = {
 
 def _unique_problem_fields(pairs):
     document = {}
+
     for key, value in pairs:
         if key in document:
             raise ValueError("Duplicate problem field")
+
         document[key] = value
+
     return document
 
 
@@ -249,8 +266,10 @@ def _http_failure(response, operation):
     """
     failure = ApiFailure(operation, f"API returned HTTP {response.status}; no verified response was obtained", response=response)
     content_types = [value for key, value in response.headers if key.lower() == b"content-type"]
+
     if content_types != [b"application/problem+json"] or len(response.body) > 4096:
         return failure
+
     try:
         problem = json.loads(
             response.body.decode("utf-8"), object_pairs_hook=_unique_problem_fields, parse_constant=_reject_problem_constant
@@ -260,17 +279,24 @@ def _http_failure(response, operation):
         # The original response remains evidence; malformed diagnostics must not
         # replace the HTTP failure with a parser error or leak its private text.
         return failure
+
     if type(problem) is not dict or set(problem) != {"type", "title", "status", "instance", "request_id", "code", "detail"}:
         return failure
+
     if type(problem["status"]) is not int or problem["status"] != response.status:
         return failure
+
     if any(type(problem[name]) is not str for name in ("type", "title", "instance", "request_id", "code", "detail")):
         return failure
+
     if failure.request_id is None or problem["request_id"] != failure.request_id:
         return failure
+
     reason = _PROBLEM_REASONS.get((response.status, problem["type"].removeprefix("urn:nmr-api:problem:"), problem["code"]))
+
     if not problem["type"].startswith("urn:nmr-api:problem:") or reason is None:
         return failure
+
     failure = ApiFailure(operation, f"{reason} (HTTP {response.status})", response=response)
     failure.problem_code = problem["code"]
     return failure
@@ -285,20 +311,27 @@ def _require_api_headers(response, operation, expected_topology):
     """
     # silent-defaults: allow-contract -- The pinned protocol selects JSON for success and problem JSON for refusal.
     content_type = b"application/json" if response.status == 200 else b"application/problem+json"
+
     for name, expected in ((b"content-type", content_type), (b"cache-control", b"no-store")):
         values = [value for key, value in response.headers if key.lower() == name]
+
         if values != [expected]:
             raise ApiFailure(
                 operation,
                 f"HTTP {response.status} response must contain one {name.decode()} header with value {expected.decode()}",
                 response=response,
             )
+
     if any(name.lower() == b"content-encoding" for name, _ in response.headers):
         raise ApiFailure(operation, "encoded response bodies are not supported by the API contract", response=response)
+
     markers = [value for name, value in response.headers if name.lower() == b"nmr-api-topology"]
+
     if markers != [expected_topology.encode("ascii")]:
         raise ApiFailure(operation, "response must identify exactly the configured Nmr-Api-Topology", response=response)
+
     request_ids = [value for name, value in response.headers if name.lower() == b"x-request-id"]
+
     if len(request_ids) > 1 or (response.status != 200 and response_request_id(response.headers) is None):
         raise ApiFailure(operation, "response request correlation is missing or ambiguous", response=response)
 
@@ -306,6 +339,7 @@ def _require_api_headers(response, operation, expected_topology):
 def _require_api_envelope(response, operation, expected_topology):
     """Admit headers before interpreting a complete response's problem body."""
     _require_api_headers(response, operation, expected_topology)
+
     if response.status != 200:
         raise _http_failure(response, operation)
 
@@ -367,6 +401,7 @@ class ProviderAPI:
         Consult after retirement: it can reveal late evidence. Mutations never
         acquire retry permission here, including Hello and capability issuance.
         """
+
         return (
             (self._retryable_failure(failure) or self._settled_status_failure(failure, 500)
              or self._settled_status_failure(failure, 429))
@@ -381,6 +416,7 @@ class ProviderAPI:
         """
         require_job_ref(job_ref)
         require_upload_ref(upload_ref)
+
         if (
             type(failure) is not ApiFailure or failure is not self.last_failure
             or not self.retirement_confirmed or failure.request_method != "POST"
@@ -389,6 +425,7 @@ class ProviderAPI:
             )
         ):
             return False
+
         return self._retryable_failure(failure) or (
             failure.response is not None and failure.status == 409
             and failure.problem_code == "upload_read_not_finalized"
@@ -402,12 +439,14 @@ class ProviderAPI:
         recovery. The consumer owns stop checks, pacing and selection, and no
         returned page grants scientific execution.
         """
+
         if (
             type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed
             or failure.request_method != "GET" or failure.request_target is None
             or failure.request_target.partition(b"?")[0] != b"/provider/v1/jobs"
         ):
             return False
+
         return self.can_retry_read(failure) or self._access_refusal(failure)
 
     def can_refresh_hello(self, failure):
@@ -421,6 +460,7 @@ class ProviderAPI:
         announcement with fresh signing. A settled rate limit likewise permits
         a paced current announcement, without promising service recovery.
         """
+
         return (
             (self._retryable_failure(failure) or self._settled_status_failure(failure, 500)
              or self._settled_status_failure(failure, 429))
@@ -445,6 +485,7 @@ class ProviderAPI:
         security/problems.py::RequestBodyTimeout establishes no domain change.
         This describes this send, never an earlier unacknowledged request.
         """
+
         return (
             type(failure) is ApiFailure
             and failure is self.last_failure
@@ -465,6 +506,7 @@ class ProviderAPI:
         /x-nmr-attempt-recovery/start, START x-nmr-recovery and HTTP500 response;
         source 12a53e720fc87e1a4144c76203f8853d5afaf753 (fixture manifest).
         """
+
         return (
             self._recoverable_attempt_failure(failure)
             and failure.request_method == "POST"
@@ -496,6 +538,7 @@ class ProviderAPI:
 
     def _recoverable_progress_failure(self, failure, execution_attempt_ref):
         require_attempt_ref(execution_attempt_ref)
+
         return (
             self._recoverable_attempt_failure(failure)
             and failure.request_method == "PUT"
@@ -516,36 +559,46 @@ class ProviderAPI:
         /x-nmr-attempt-recovery/terminal and each terminal POST's x-nmr-recovery;
         source 12a53e720fc87e1a4144c76203f8853d5afaf753 (fixture manifest).
         """
+
         if type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed:
             return False
+
         if failure.request_method != "POST" or failure.request_target not in (
             b"/provider/v1/execution-attempts/complete",
             b"/provider/v1/execution-attempts/fail",
         ):
             return False
+
         if self._recoverable_attempt_failure(failure):
             return True
+
         return self._settled_status_failure(failure, 429) or self._access_refusal(failure)
 
     def _settled_status_failure(self, failure, status):
         """Recognize one settled origin/edge status, not operation permission."""
+
         if type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed:
             return False
+
         head = failure._received_head()
+
         if head is not None and head.status == status and self._gateway_environment_matches(head):
             # Error/rate replies may come from an edge with a non-API body.
             # An interrupted body still needs settled, clean transport evidence.
             exchange = failure.cause
+
             return failure.response is not None or (
                 type(exchange) is ExchangeFailed and not exchange.cleanup_failures
                 and not isinstance(exchange.interruption, asyncio.CancelledError)
                 and exchange.caller_interruption is None
                 and network_availability(exchange.primary, exchange.network_io, network_failure=exchange.network_failure)
             )
+
         return False
 
     def _access_refusal(self, failure):
         """Classify complete correlated refusals after the caller admits ownership."""
+
         # These refusals can persist. Each operation owns whether another
         # request is safe; this evidence does not establish absence of effects.
         return failure.response is not None and (
@@ -558,15 +611,20 @@ class ProviderAPI:
 
     def _recoverable_attempt_failure(self, failure):
         """Share settled send evidence; public methods own exact route permission."""
+
         if type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed:
             return False
+
         if self._retryable_failure(failure) or self._settled_status_failure(failure, 500):
             return True
+
         # Pinned Attempt recovery admits HTTP500 under its exact retained
         # request and operation-specific replay rules.
         if failure.response is not None:
             return False
+
         exchange = failure.cause
+
         if (
             type(exchange) is not ExchangeFailed
             or exchange.cleanup_failures
@@ -574,15 +632,20 @@ class ProviderAPI:
             or exchange.caller_interruption is not None
         ):
             return False
+
         return exchange.response_head is None and type(exchange.primary) is httpcore.RemoteProtocolError
 
     def _retryable_failure(self, failure):
         """Share settled failure evidence, not operation retry authority."""
+
         if type(failure) is not ApiFailure or failure is not self.last_failure or not self.retirement_confirmed:
             return False
+
         if failure.response is not None:
             return self.can_refresh_signature(failure) or self._retryable_gateway(failure.response)
+
         exchange = failure.cause
+
         if (
             type(exchange) is not ExchangeFailed
             or exchange.cleanup_failures
@@ -590,22 +653,27 @@ class ProviderAPI:
             or exchange.caller_interruption is not None
         ):
             return False
+
         if exchange.response_head is not None:
             if exchange.response_head.status in (502, 503, 504):
                 return self._retryable_gateway(exchange.response_head) and network_availability(exchange.primary, exchange.network_io, network_failure=exchange.network_failure)
+
             try:
                 _require_api_headers(exchange.response_head, failure.operation, self._expected_topology)
             # silent-defaults: allow-exception-outcome -- Unadmitted response headers grant no read retry
             except ApiFailure:
                 return False
+
             if exchange.response_head.status != 200:
                 return False
+
         if type(exchange.primary) is httpcore.ProxyError:
             # CONNECT gateway failures are availability evidence, not origin
             # responses or proof their underlying DNS/dial cause is temporary.
             # Missing status and policy refusal grant no retry permission;
             # successful CONNECT cannot authorize retry of a later TLS failure.
             return exchange.proxy_connect_status in (502, 503, 504)
+
         return network_availability(exchange.primary, exchange.network_io, network_failure=exchange.network_failure)
 
     def _retryable_gateway(self, response):
@@ -632,6 +700,7 @@ class ProviderAPI:
         require_provider_ref(provider_ref)
         body = hello_body(display_name=display_name, description=description, analysis_offerings=analysis_offerings)
         operation = "confirm provider Hello acceptance"
+
         try:
             response = await self._exchange(
                 operation,
@@ -642,6 +711,7 @@ class ProviderAPI:
                 maximum_bytes=HELLO_RESPONSE_BYTES,
                 owner=owner,
             )
+
             try:
                 return read_hello(response.body, provider_ref=provider_ref)
             except ResponseRejected as cause:
@@ -653,19 +723,23 @@ class ProviderAPI:
                 "Hello acceptance is unconfirmed; the directory snapshot may already have changed. "
                 "No retry was attempted. Send only the current complete announcement if still intended."
             )
+
             raise
 
     async def jobs(self, *, analysis_kind_ref, has_provider_execution_attempt, limit, cursor, owner=None):
         """Read one discovery page; composition owns selection and pagination."""
+
         query = jobs_query(
             analysis_kind_ref=analysis_kind_ref,
             has_provider_execution_attempt=has_provider_execution_attempt,
             limit=limit,
             cursor=cursor,
         )
+
         response = await self._exchange(
             "list Jobs", owner=owner, method="GET", path="/provider/v1/jobs", query=query, maximum_bytes=PAGE_RESPONSE_BYTES
         )
+
         try:
             return read_jobs_page(
                 response.body,
@@ -679,6 +753,7 @@ class ProviderAPI:
     async def execution_attempts(self, *, state, limit, cursor, owner=None):
         """Read one provider-wide inventory page; composition owns reconciliation."""
         query = inventory_query(state=state, limit=limit, cursor=cursor)
+
         response = await self._exchange(
             "list in-progress Attempts",
             owner=owner,
@@ -687,6 +762,7 @@ class ProviderAPI:
             query=query,
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
         )
+
         try:
             return read_attempt_inventory(response.body, limit=limit)
         except ResponseRejected as cause:
@@ -700,20 +776,24 @@ class ProviderAPI:
         FeedInputFacts validates shape, not provenance. Composition must obtain
         these observations from its authenticated feed before calling this method.
         """
+
         if type(feed) is not FeedInputFacts:
             raise TypeError(
                 f"Unexpected {type(feed)=}; "
                 "Cannot read Job input: admitted feed identity is required"
             )
+
         if not (type(analysis_kind_ref) is str):
             raise TypeError(
                 f"Unexpected {type(analysis_kind_ref)=}; "
                 "Cannot read Job input: analysis kind must be a lower snake-case catalog key of at most 128 characters"
             )
+
         if not (len(analysis_kind_ref) <= 128 and re.fullmatch('[a-z][a-z0-9]*(?:_[a-z0-9]+)*', analysis_kind_ref) is not None):
             raise ValueError(
                 "Cannot read Job input: analysis kind must be a lower snake-case catalog key of at most 128 characters"
             )
+
         response = await self._exchange(
             "read Job input",
             owner=owner,
@@ -722,6 +802,7 @@ class ProviderAPI:
             query=b"analysis_kind_ref=" + analysis_kind_ref.encode("ascii"),
             maximum_bytes=MAX_RESPONSE_BYTES,
         )
+
         try:
             return verify_job_input(response.body, feed=feed)
         except JobInputRejected as cause:
@@ -730,6 +811,7 @@ class ProviderAPI:
     async def uploads(self, job_ref):
         """Observe current membership once; no historical or cached authority."""
         require_job_ref(job_ref)
+
         response = await self._exchange(
             "read Job Upload membership",
             method="GET",
@@ -737,6 +819,7 @@ class ProviderAPI:
             query=b"",
             maximum_bytes=MEMBERSHIP_RESPONSE_BYTES,
         )
+
         try:
             return read_membership(response.body, job_ref=job_ref)
         except ResponseRejected as cause:
@@ -754,6 +837,7 @@ class ProviderAPI:
         """
         require_job_ref(job_ref)
         require_upload_ref(upload_ref)
+
         response = await self._exchange(
             "issue Upload read grant",
             method="POST",
@@ -762,6 +846,7 @@ class ProviderAPI:
             maximum_bytes=GRANT_RESPONSE_BYTES,
             issuance=True,
         )
+
         try:
             return read_grant(response.body, job_ref=job_ref, upload_ref=upload_ref)
         except ResponseRejected as cause:
@@ -778,6 +863,7 @@ class ProviderAPI:
         """
         require_attempt_ref(execution_attempt_ref)
         require_job_ref(job_ref)
+
         response = await self._exchange(
             "read Execution Attempt",
             owner=owner,
@@ -786,6 +872,7 @@ class ProviderAPI:
             query=b"",
             maximum_bytes=ATTEMPT_RESPONSE_BYTES,
         )
+
         try:
             return read_attempt(response.body, execution_attempt_ref=execution_attempt_ref, job_ref=job_ref)
         except ResponseRejected as cause:
@@ -804,6 +891,7 @@ class ProviderAPI:
         require_analysis_kind(analysis_kind_ref)
         require_provider_ref(provider_ref)
         require_start_body(body, job_ref=job_ref)
+
         response = await self._exchange(
             "start Execution Attempt",
             method="POST",
@@ -814,6 +902,7 @@ class ProviderAPI:
             body=body,
             attempt_mutation=True,
         )
+
         try:
             return read_start(response.body, job_ref=job_ref, analysis_kind_ref=analysis_kind_ref, provider_ref=provider_ref)
         except ResponseRejected as cause:
@@ -830,6 +919,7 @@ class ProviderAPI:
         """
         require_attempt_ref(execution_attempt_ref)
         body = progress_body(phase, condition_code)
+
         response = await self._exchange(
             "report Attempt progress",
             owner=owner,
@@ -840,6 +930,7 @@ class ProviderAPI:
             body=body,
             attempt_mutation=True,
         )
+
         try:
             return read_progress(
                 response.body, execution_attempt_ref=execution_attempt_ref, phase=phase, condition_code=condition_code
@@ -857,6 +948,7 @@ class ProviderAPI:
         """
         require_attempt_ref(execution_attempt_ref)
         result_schema_id, result = read_complete_body(body, execution_attempt_ref=execution_attempt_ref)
+
         response = await self._exchange(
             "complete Execution Attempt",
             method="POST",
@@ -867,6 +959,7 @@ class ProviderAPI:
             body=body,
             attempt_mutation=True,
         )
+
         try:
             return read_complete(
                 response.body, execution_attempt_ref=execution_attempt_ref, result_schema_id=result_schema_id, result=result
@@ -884,6 +977,7 @@ class ProviderAPI:
         """
         require_attempt_ref(execution_attempt_ref)
         failure_code, failure_message = read_fail_body(body, execution_attempt_ref=execution_attempt_ref)
+
         response = await self._exchange(
             "publish Attempt failure",
             method="POST",
@@ -894,6 +988,7 @@ class ProviderAPI:
             body=body,
             attempt_mutation=True,
         )
+
         try:
             return read_fail(
                 response.body,
@@ -910,6 +1005,7 @@ class ProviderAPI:
     def _remember_failure(self, failure, *, issuance=False, attempt_mutation=False, request_method=None, request_target=None):
         failure.request_method = request_method
         failure.request_target = request_target
+
         # Reviewed 401 and request-body timeout meanings establish no domain
         # change for this send (security/problems.py).
         # These two grant-specific 409 branches precede issuance in operations/
@@ -919,14 +1015,18 @@ class ProviderAPI:
             failure.status == 401
             or (failure.status == 408 and failure.problem_code == "request_body_timeout")
         )
+
         refused = no_domain_change or (
             failure.status == 409 and failure.problem_code in {"upload_read_not_finalized", "project_purge_in_progress"}
         )
+
         if issuance and not refused:
             failure.issuance_may_have_committed = True
+
             failure.add_note(
                 "Download access may already have been issued and extended Upload retention; no retry was attempted."
             )
+
         # security/problems.py explicitly establishes no domain change for these
         # start refusals. operations/errors.py also explicitly establishes no
         # progress change for the two progress conflicts. These facts describe
@@ -945,11 +1045,14 @@ class ProviderAPI:
                 "execution_attempt_failure_replay_mismatch",
             }
         )
+
         if attempt_mutation and not attempt_refused:
             failure.attempt_mutation_may_have_committed = True
+
             failure.add_note(
                 "The Attempt change may already have committed; retain the original request for reconciliation. No retry was attempted."
             )
+
         self.last_failure = failure
         return failure
 
@@ -966,7 +1069,9 @@ class ProviderAPI:
             created=int(time.time()),
             nonce=secrets.token_bytes(16),
         )
+
         self.last_failure = None
+
         try:
             response = await self._transport.exchange(request, maximum_bytes=maximum_bytes, owner=owner)
         except asyncio.CancelledError:
@@ -981,6 +1086,7 @@ class ProviderAPI:
                 request_method=method,
                 request_target=request.url.raw_path,
             )
+
             raise
         except ExchangeFailed as cause:
             raise self._remember_failure(
@@ -990,6 +1096,7 @@ class ProviderAPI:
                 request_method=method,
                 request_target=request.url.raw_path,
             ) from None
+
         try:
             _require_api_envelope(response, operation, self._expected_topology)
         except ApiFailure as failure:
@@ -1000,5 +1107,7 @@ class ProviderAPI:
                 request_method=method,
                 request_target=request.url.raw_path,
             )
+
             raise
+
         return response

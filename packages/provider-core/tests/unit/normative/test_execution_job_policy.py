@@ -23,21 +23,27 @@ class ExecutionJobPolicyTests(unittest.IsolatedAsyncioTestCase):
     async def _continue_closed_job(self, phase):
         store, acknowledged, claim = await live_attempt()
         session = PausedSession(store, phase)
+
         client = api(Transport(reply(response()), reply(progress_response()), reply(progress_response(phase="running"))),
                      store.scope.api_origin)
+
         observed = []
 
         async def read_attempt(*_args, **_kwargs):
             # silent-defaults: allow-contract -- The fixture Job changes state only after its observed pause.
             state = "closed" if session.paused.is_set() else "open"
             observed.append(state)
+
             if state == "closed":
                 session.release.set()
+
             return AttemptObservation(ATTEMPT_REF, "job:example", "in_progress", state)
 
         client.read_attempt = read_attempt
+
         executor = live_executor(client, store, claim, session, delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open", "closed"}),
                                    poll_seconds=0.01, task_settle_seconds=0.1)
+
         try:
             terminal = await execute_with_watchdog(executor, acknowledged)
             self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)

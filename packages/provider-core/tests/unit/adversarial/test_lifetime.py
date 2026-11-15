@@ -24,6 +24,7 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
             sys.executable, "-I", "-B", str(Path(__file__).parents[2] / "fakes/lifetime_contender.py"),
             mode, str(self.root),
         ], capture_output=True, text=True, timeout=5)
+
         self.assertEqual(0, result.returncode, result.stderr)
         return result.stdout.strip()
 
@@ -33,8 +34,10 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
         inode = (self.root / ".checkpoint-owner.lock").stat().st_ino
         self.assertEqual("blocked", self.contender("live"))
         self.assertFalse((self.root / "checkpoints.sqlite3").exists())
+
         with self.assertRaises(LifetimeRefused):
             lifetime.open()
+
         self.assertEqual("blocked", self.contender("live"))
         lifetime.close()
         self.assertEqual("acquired", self.contender("live"))
@@ -45,6 +48,7 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
             sys.executable, "-I", "-B", str(Path(__file__).parents[2] / "fakes/lifetime_contender.py"),
             "hold", str(self.root),
         ], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
         try:
             self.assertTrue(select.select([child.stdout], [], [], 5)[0], "Lifetime child did not report readiness")
             self.assertEqual("acquired", child.stdout.readline().strip())
@@ -53,17 +57,21 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
         finally:
             child.kill()
             child.communicate(timeout=5)
+
         self.assertEqual("acquired", self.contender("live"))
         self.assertEqual(inode, (self.root / ".checkpoint-owner.lock").stat().st_ino)
 
     async def test_nonprivate_root_or_lock_is_refused(self):
         self.root.chmod(0o755)
+
         with self.assertRaises(LifetimeRefused):
             ProviderLifetime(self.root).open()
+
         self.assertEqual([], list(self.root.iterdir()))
         self.root.chmod(0o700)
         lock = self.root / ".checkpoint-owner.lock"
         lock.touch(mode=0o644)
+
         with self.assertRaises(LifetimeRefused):
             ProviderLifetime(self.root).open()
 
@@ -84,15 +92,21 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
             with patch("provider_core.lifetime.os.close", side_effect=close_then_reuse):
                 with self.assertRaises(OSError) as first:
                     lifetime.close()
+
             self.assertIs(close_failure, first.exception)
+
             with patch("provider_core.lifetime.os.close", wraps=real_close) as close:
                 with self.assertRaises(OSError) as repeated:
                     lifetime.close()
+
                 self.assertIs(close_failure, repeated.exception)
                 close.assert_not_called()
+
             os.fstat(reused)
+
             with self.assertRaises(LifetimeRefused) as reopened:
                 lifetime.open()
+
             self.assertIs(close_failure, reopened.exception.__cause__)
             os.fstat(reused)
         finally:
@@ -117,7 +131,10 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
               patch("provider_core.lifetime.os.close", side_effect=close_then_fail)):
             with self.assertRaises(BaseExceptionGroup) as failed:
                 lifetime.open()
+
         self.assertEqual((admission_failure, close_failure), failed.exception.exceptions)
+
         with self.assertRaises(LifetimeRefused) as reopened:
             lifetime.open()
+
         self.assertIs(close_failure, reopened.exception.__cause__)

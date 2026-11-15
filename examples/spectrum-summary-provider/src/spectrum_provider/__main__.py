@@ -23,6 +23,7 @@ async def run_demo() -> None:
     host context joins original retirement instead of abandoning pending cleanup
     when an observer cap expires.
     """
+
     async with open_provider() as provider:
         analysis_executor = None
         workflow = None
@@ -40,10 +41,13 @@ async def run_demo() -> None:
 
             analysis_executor = workflow.analysis_executor
             started = workflow.start()
+
             if isinstance(started, NotAdmitted):
                 raise RuntimeError(f"Baseline admission refused: {started.code.value}: {started.message}")
+
             async with asyncio.timeout(15):
                 result = await workflow.finish()
+
             if isinstance(result, NotAdmitted):
                 raise RuntimeError(f"Peak admission refused: {result.code.value}: {result.message}")
 
@@ -56,19 +60,24 @@ async def run_demo() -> None:
             async with result_consumer:
                 async with asyncio.timeout(15):
                     await result_consumer.consume()
+
         if analysis_executor is not None:
             with failure_collector.capture():
                 analysis_executor.request_stop()
+
         if workflow is not None and workflow.baseline_report_release is not None:
             with failure_collector.capture():
                 async with asyncio.timeout(15):
                     await observe_cleanup(control=workflow.baseline_report_release)
+
         # Preserve analysis cleanup failures; host retirement follows on scope exit.
         if analysis_executor is not None:
             with failure_collector.capture():
                 control = analysis_executor.close()
+
                 async with asyncio.timeout(15):
                     await observe_cleanup(control=control)
+
         failure_collector.raise_if_any()
 
 

@@ -19,6 +19,7 @@ class ObservedExecutor(AttemptExecutor):
     async def _observe_active(self):
         if self.condition_transport.blocked.is_set() and not self.condition_transport.release.is_set():
             self.poll_attempted.set()
+
         await super()._observe_active()
 
 
@@ -28,6 +29,7 @@ class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
         transport = ConditionTransport()
         transport.release.set()
         session = ReportingSession(store)
+
         terminal = await live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -37,7 +39,9 @@ class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=1,
             task_settle_seconds=0.1,
         ).run(acknowledged)
+
         commands = [json.loads(request.content) for request, _ in transport.calls if request.method == "PUT"]
+
         self.assertEqual(
             [(command["phase"], command["condition_code"]) for command in commands],
             [
@@ -49,6 +53,7 @@ class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
                 ("running", None),
             ],
         )
+
         self.assertIs(type(session.events[0][1]), AcknowledgedCheckpoint)
         self.assertIs(type(session.events[1][1]), EnteredCheckpoint)
         self.assertIs(terminal.selection.operation, TerminalOperation.COMPLETE)
@@ -63,6 +68,7 @@ class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
                 # silent-defaults: allow-contract -- Disable only the other phase so this fixture reaches the selected phase failure.
                 other_phase = "execute" if phase == "prepare" else "prepare"
                 session.conditions[other_phase] = ()
+
                 executor = ObservedExecutor.live(
                     api(transport, store.scope.api_origin),
                     claim,
@@ -73,10 +79,12 @@ class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
                     poll_seconds=0.005,
                     task_settle_seconds=0.1,
                 )
+
                 store.executor = executor
                 executor.condition_transport = transport
                 executor.poll_attempted = asyncio.Event()
                 task = asyncio.create_task(executor.run(acknowledged))
+
                 try:
                     await asyncio.wait_for(transport.blocked.wait(), 1)
                     reads = transport.reads
@@ -90,6 +98,8 @@ class ExecutionConditionTests(unittest.IsolatedAsyncioTestCase):
                     claim.release(owner=claim.lifecycle_owner)
                 finally:
                     transport.release.set()
+
                     if not task.done():
                         task.cancel()
+
                     await asyncio.gather(task, return_exceptions=True)

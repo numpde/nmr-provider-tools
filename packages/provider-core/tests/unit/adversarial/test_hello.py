@@ -26,11 +26,13 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(kind_valid=kind == "nmr_predict"):
                 with self.assertRaises(error_type) as caught:
                     AnalysisOffering(kind, description)
+
                 self.assertNotIn("PRIVATE", str(caught.exception))
 
     def test_offering_length_refusal_supplies_counts_without_description_content(self):
         with self.assertRaises(ValueError) as caught:
             AnalysisOffering("nmr_predict", "PRIVATE" + "x" * 1330)
+
         self.assertIn("1337", str(caught.exception))
         self.assertIn("1024", str(caught.exception))
         self.assertNotIn("PRIVATE", str(caught.exception))
@@ -59,8 +61,10 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.subTest(field=next(iter(change))):
                 transport = Transport()
+
                 with self.assertRaises((ValueError, TypeError)) as caught:
                     await self.api(transport).publish_hello(**announcement(**change))
+
                 self.assertNotIn("PRIVATE", str(caught.exception))
                 self.assertEqual(transport.calls, [])
 
@@ -83,8 +87,10 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
                 response = reply(body)
                 transport = Transport(response)
                 api = self.api(transport)
+
                 with self.assertRaises(ApiFailure) as caught:
                     await api.publish_hello(**announcement())
+
                 failure = caught.exception
                 self.assertIs(api.last_failure, failure)
                 self.assertIs(failure.response, response)
@@ -96,23 +102,30 @@ class HelloBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_http_or_transport_failure_is_one_send_with_protected_cause(self):
         cause = ExchangeFailed("Cannot obtain a response", primary=OSError("PRIVATE transport"))
+
         for outcome in (reply(b"PRIVATE", status=503), reply(receipt(), headers=()), cause):
             transport = Transport(outcome)
             api = self.api(transport)
+
             with self.assertRaises(ApiFailure) as caught:
                 await api.publish_hello(**announcement())
+
             self.assertNotIn("PRIVATE", str(caught.exception))
             self.assertIn("directory snapshot may already have changed", " ".join(caught.exception.__notes__))
+
             if outcome is cause:
                 self.assertIs(caught.exception.cause, cause)
+
             self.assertEqual(len(transport.calls), 1)
 
     async def test_cancellation_keeps_same_exception_and_operation_evidence(self):
         cancellation = asyncio.CancelledError()
         transport = Transport(cancellation)
         api = self.api(transport)
+
         with self.assertRaises(asyncio.CancelledError) as caught:
             await api.publish_hello(**announcement())
+
         self.assertIs(caught.exception, cancellation)
         self.assertIn("Hello", api.last_failure.operation)
         self.assertIn("acceptance is unconfirmed", " ".join(api.last_failure.__notes__))

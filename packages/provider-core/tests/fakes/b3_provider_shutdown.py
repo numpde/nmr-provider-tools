@@ -32,6 +32,7 @@ class ShutdownSchedule:
 def seeded_schedule(seed):
     randomizer = random.Random(seed)
     stage = randomizer.choice(("startup", "https_wait", "late_startup", "late_exit_observation"))
+
     return ShutdownSchedule(
         stage=stage,
         ignore_stop_signals=stage in {"https_wait", "late_exit_observation"} and randomizer.choice((False, True)),
@@ -49,12 +50,15 @@ def failure_types(error):
     def visit(current):
         if current is None or id(current) in seen:
             return
+
         seen.add(id(current))
         names.add(type(current).__name__)
         visit(current.__cause__)
         visit(current.__context__)
+
         for _, child in owned_relationships(current):
             visit(child)
+
         if isinstance(current, BaseExceptionGroup):
             for child in current.exceptions:
                 visit(child)
@@ -69,6 +73,7 @@ def process_is_alive(pid):
     # silent-defaults: allow-exception-outcome -- ESRCH is a definitive negative liveness observation for the selected child process.
     except ProcessLookupError:
         return False
+
     return True
 
 
@@ -79,6 +84,7 @@ def selected_start(label):
 
     job = "job:" + label
     base = record("shutdown:" + label)
+
     return StartPending(
         scope(), base.analysis_kind_ref, replace(base.input, job_ref=job),
         retained_start(job_ref=job, provider_attempt_key="shutdown:" + label),
@@ -97,6 +103,7 @@ def uncooperative_http_child(marker):
         _event(marker, "term_ignored")
 
     signal.signal(signal.SIGTERM, ignore_termination)
+
     with patch.object(_Cancellation, "request", ignore_stop_request):
         main()
 
@@ -134,14 +141,19 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
         async def exchange(self, request, *, maximum_bytes, owner=None):
             self.calls.append((request, maximum_bytes))
+
             if request.url.path.endswith("/start"):
                 return reply(start_response(job_ref=self.job, execution_attempt_ref=self.attempt))
+
             if request.url.path.endswith("/progress"):
                 progress = json.loads(request.content)
+
                 return reply(progress_response(execution_attempt_ref=self.attempt, phase=progress["phase"],
                                                condition_code=progress["condition_code"]))
+
             if request.method == "GET":
                 return reply(observation(job_ref=self.job, execution_attempt_ref=self.attempt))
+
             raise AssertionError("The shutdown fixture received an unexpected Jobs API request")
 
     class ProseInterpretationSession:
@@ -149,6 +161,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             self.prepare_calls = self.execute_calls = self.tool_dispatches = self.retire_calls = 0
             self.endpoint = None
             self.retired = False
+
             factory = ChatEndpointFactory(
                 spec=ChatEndpointSpec(
                     configuration_id="prose-interpreter-shutdown-test", model="local-test-peer",
@@ -161,6 +174,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             def observed_factory(**settings):
                 if self.endpoint is not None:
                     raise AssertionError("Stopping interpretation created a second HTTP endpoint")
+
                 self.endpoint = factory(**settings)
                 return self.endpoint
 
@@ -170,6 +184,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
         async def prepare(self, acknowledged, instructions, *, report_condition):
             self.prepare_calls += 1
+
             if acknowledged.start.input != instructions.identity:
                 raise AssertionError("Stopping preparation replaced the selected Job input")
 
@@ -181,6 +196,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             tools = [{"type": "function", "function": {
                 "name": "prepare", "parameters": {"type": "object", "properties": {}},
             }}]
+
             return (await self.interpreter.run([], tools, dispatch)).value
 
         async def execute(self, prepared, *, report_condition):
@@ -190,8 +206,10 @@ async def shutdown_scenario(schedule, seed, directory, facts):
         async def retire(self):
             self.retire_calls += 1
             await self.interpreter.retire()
+
             if not self.interpreter.retirement_confirmed:
                 raise AssertionError("The session declared cleanup complete while its HTTP child was still owned")
+
             self.retired = True
             note("session_retirement_confirmed")
 
@@ -208,19 +226,23 @@ async def shutdown_scenario(schedule, seed, directory, facts):
     startup_held = schedule.stage in {"startup", "late_startup"}
     concurrent = schedule.stage == "concurrent_late_exit_observation"
     exit_observation_held = schedule.stage in {"late_exit_observation", "concurrent_late_exit_observation"}
+
     if not startup_held:
         allow_creation_return.set()
+
     if not exit_observation_held:
         allow_exit_observation.set()
 
     async def observed_launch(*args, **kwargs):
         child = await original_launch(*args, **kwargs)
+
         if concurrent and children:
             # This second real supervised child is not the original's delayed
             # exit observer. Observe and reap it normally.
             independent_children.append(child)
             note("independent_operating_system_child_created", pid=child.pid)
             return child
+
         children.append(child)
         original_wait = child.wait
         original_signal = child.send_signal
@@ -252,9 +274,11 @@ async def shutdown_scenario(schedule, seed, directory, facts):
     pending = selected_start(f"{schedule.stage}-{seed}")
     # silent-defaults: allow-contract -- The concurrent scenario needs capacity for the original held Attempt and one independent successor.
     claims = AttemptClaims.live(limits=LiveAttemptLimits(maximum_attempts=2 if concurrent else 1))
+
     async with TlsPeer("headers-stall") as peer, AsyncExitStack() as patches:
         session = ProseInterpretationSession(peer)
         jobs_api_replies = JobsApiReplies(pending)
+
         controller = AttemptController.live(
             api(jobs_api_replies, scope().api_origin), claims, session,
             scope=scope(), stopping=asyncio.Event(), start_policy=LiveStartPolicy(1, Mock(), Mock()),
@@ -263,19 +287,24 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
             poll_seconds=0.01, task_settle_seconds=0.05,
         )
+
         patches.enter_context(patch.object(chat_process.asyncio, "create_subprocess_exec", side_effect=observed_launch))
+
         if schedule.ignore_stop_signals:
             fault_entrypoint = Path(__file__).resolve()
             command = (sys.executable, "-I", "-B", str(fault_entrypoint), "http-child", str(marker))
             patches.enter_context(patch.object(chat_process, "_worker_command", return_value=command))
+
         descriptors_before_launch = len(os.listdir("/proc/self/fd"))
         running = asyncio.create_task(controller.run(pending))
+
         try:
             if startup_held:
                 await asyncio.wait_for(helper_created.wait(), 4)
             else:
                 await asyncio.wait_for(peer.received.wait(), 4)
                 note("test_https_server_received_interpretation_request")
+
             http_transport = session.endpoint._transport
             original_exchange = http_transport._active
             original_owner = http_transport.pending_owner
@@ -286,27 +315,36 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             for request_number in range(schedule.stop_requests):
                 controller.request_stop()
                 note("provider_requested_active_attempt_stop", request_number=request_number + 1)
+
                 for _ in range(schedule.scheduling_turns):
                     await asyncio.sleep(0)
 
             cancelled_observers = 0
+
             for observer_number in range(schedule.cancelled_join_observers):
                 observer = asyncio.create_task(controller.join())
+
                 for _ in range(schedule.scheduling_turns):
                     await asyncio.sleep(0)
+
                 if not observer.done():
                     observer.cancel()
+
                 result, = await asyncio.gather(observer, return_exceptions=True)
+
                 if isinstance(result, asyncio.CancelledError):
                     cancelled_observers += 1
+
                 note("join_observer_finished", observer_number=observer_number + 1,
                      cancelled=isinstance(result, asyncio.CancelledError))
 
             await asyncio.wait_for(original_exchange.stop.wait(), 2)
             original_stop_time = original_exchange.stopped_at
             note("sdk_stopped_original_http_exchange")
+
             if exit_observation_held:
                 await asyncio.wait_for(actual_child_exit.wait(), 2)
+
             if schedule.stage in {"late_startup", "late_exit_observation", "concurrent_late_exit_observation"}:
                 allowance_elapsed = asyncio.Event()
                 loop.call_at(original_stop_time + cleanup_seconds + 0.05, allowance_elapsed.set)
@@ -320,19 +358,25 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 # through its own actual subprocess and delivery handoff.
                 if not actual_child_exit.is_set() or allow_exit_observation.is_set():
                     raise AssertionError("No held original child-exit observation")
+
                 completion = json.dumps({
                     "choices": [{"message": call("completed", "prepare", {}),
                                  "finish_reason": "tool_calls"}]
                 }).encode()
+
                 async with TlsPeer("success", response_body=completion) as independent_peer:
                     independent = ReplyRun(
                         independent_peer, claims, f"job:independent-{seed}",
                         InterpretedSession,
                     )
+
                     independent.session.science.release.set()
+
                     independent_result = await asyncio.wait_for(
                         independent.controller.run(independent.pending), 6)
+
                     original_waiter = exit_observer_tasks[0]
+
                     facts["independent"] = {
                         "result_type": type(independent_result).__name__,
                         "start_count": independent.start_count,
@@ -354,6 +398,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                             independent.pending.scope, independent.pending.input.job_ref),
                         "live_claim_count": len(claims.live_owners()),
                     }
+
                     note("independent_real_child_and_science_settled",
                          pid=independent_children[0].pid,
                          original_waiter_unfinished=not original_waiter.done())
@@ -370,6 +415,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                     "actual_child_exit_observed": actual_child_exit.is_set(),
                     "trust_directory_exists": trust_directory.is_dir(),
                 }
+
                 if concurrent:
                     # There is room for B, but never another owner of A's
                     # still-held original START key and Job.
@@ -381,12 +427,14 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                         facts["held"]["original_job_refused"] = False
                 else:
                     replacement = selected_start(f"replacement-{schedule.stage}-{seed}")
+
                     try:
                         claims.claim_live(replacement, lifecycle_owner=object(), maximum_terminal_bytes=16384)
                     except LiveCapacityFull:
                         facts["held"]["replacement_job_refused"] = True
                     else:
                         facts["held"]["replacement_job_refused"] = False
+
                 try:
                     await asyncio.wait_for(http_transport.exchange_decoded(
                         httpx.Request("POST", peer.origin + "/replacement", content=b"{}"),
@@ -404,6 +452,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 await asyncio.wait({probe}, timeout=cleanup_seconds / 2)
                 facts["held"]["repeated_retirement_finished_without_new_allowance"] = probe.done()
                 facts["held"]["repeated_retirement_seconds"] = loop.time() - probe_started
+
                 if probe.done():
                     probe_result, = await asyncio.gather(probe, return_exceptions=True)
                     facts["held"]["retirement_failure_types"] = failure_types(probe_result)
@@ -419,20 +468,26 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             note("original_controller_run_finished", result_type=type(result).__name__)
             settlement_failures = []
             settle_deadline = loop.time() + 2
+
             while not controller.shutdown_ready and loop.time() < settle_deadline:
                 try:
                     await controller.settle()
                 except ControllerFailed as failure:
                     settlement_failures.append(failure)
+
                 if not controller.shutdown_ready:
                     await asyncio.sleep(0.01)
+
             if peer.requests:
                 await asyncio.wait_for(peer.closed.wait(), 1)
                 await asyncio.wait_for(asyncio.gather(*peer.handlers), 1)
+
             await asyncio.sleep(0)
             faults = []
+
             if marker.exists():
                 faults = [json.loads(line) for line in marker.read_text().splitlines()]
+
             facts.update({
                 "controller_failure_types": failure_types(result),
                 "settlement_failure_types": sorted({name for failure in settlement_failures
@@ -471,36 +526,47 @@ async def shutdown_scenario(schedule, seed, directory, facts):
         finally:
             allow_creation_return.set()
             allow_exit_observation.set()
+
             # A failing behavioral verdict must not be made green by this
             # fixture's teardown. The outer process group contains any survivor.
             if running.done():
                 await asyncio.gather(running, return_exceptions=True)
+
     return facts
 
 
 async def main(report, mode, seed):
     completed = []
     current = None
+
     try:
         case_seeds = (seed,)
+
         if mode == "seeded":
             case_seeds = range(seed)
+
         for case_seed in case_seeds:
             if mode == "seeded":
                 schedule = seeded_schedule(case_seed)
             else:
                 stage = mode
+
                 if mode == "uncooperative_https":
                     stage = "https_wait"
+
                 schedule = ShutdownSchedule(stage, mode == "uncooperative_https", 1, 0, 0)
+
             current = {"seed": case_seed, "schedule": asdict(schedule), "trace": []}
             await shutdown_scenario(schedule, case_seed, report.parent, current)
             completed.append(current)
+
         verdict = {"scenarios": completed}
     except BaseException as failure:
         import traceback
+
         verdict = {"fixture_failure": type(failure).__name__, "traceback": traceback.format_exc(),
                    "current_scenario": current, "completed_scenarios": completed}
+
     temporary = report.with_suffix(".pending")
     temporary.write_text(json.dumps(verdict, sort_keys=True))
     temporary.replace(report)
@@ -509,6 +575,7 @@ async def main(report, mode, seed):
 
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
     if sys.argv[1] == "http-child":
         uncooperative_http_child(Path(sys.argv[2]))
     else:

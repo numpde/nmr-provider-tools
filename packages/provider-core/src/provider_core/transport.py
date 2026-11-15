@@ -39,14 +39,19 @@ def temporary_io_failure(cause, remaining, *, network_failure=None):
     exact BrokenResourceError context and its explicit native cause. Other
     unknown wrappers, TLS/protocol defects and excessive nesting remain fatal.
     """
+
     if remaining == 0:
         return False
+
     if type(cause) in (TimeoutError, httpcore.ConnectTimeout, httpcore.ReadTimeout, httpcore.WriteTimeout):
         return True
+
     if type(cause) is socket.gaierror:
         return cause.errno == socket.EAI_AGAIN
+
     if type(cause) is ExceptionGroup:
         return all(temporary_io_failure(child, remaining - 1) for child in cause.exceptions)
+
     if type(cause) in (OSError, ConnectionRefusedError, ConnectionResetError, ConnectionAbortedError, BrokenPipeError):
         if cause.errno in {
             errno.ECONNREFUSED,
@@ -59,19 +64,26 @@ def temporary_io_failure(cause, remaining, *, network_failure=None):
             errno.EPIPE,
         }:
             return True
+
         if cause.errno is not None:
             return False
     elif type(cause) not in (httpcore.ConnectError, httpcore.ReadError, httpcore.WriteError):
         return False
+
     preceding = cause.__cause__
+
     if preceding is None and cause is network_failure and type(cause) is httpcore.ReadError:
         context = cause.__context__
+
         if type(context) is anyio.BrokenResourceError:
             if remaining <= 2:
                 return False
+
             return temporary_io_failure(context.__cause__, remaining - 2)
+
     if preceding is None and type(cause) is httpcore.ConnectError:
         preceding = cause.__context__
+
     return temporary_io_failure(preceding, remaining - 1)
 
 
@@ -127,7 +139,9 @@ def _require_output_file(descriptor):
             "Cannot receive HTTP response in a file: output descriptor inspection failed before sending the request",
             primary=cause,
         ) from None
+
     access_mode = flags & os.O_ACCMODE
+
     if not stat.S_ISREG(facts.st_mode) or access_mode not in (os.O_WRONLY, os.O_RDWR) or flags & os.O_APPEND:
         raise ExchangeFailed(
             "Cannot receive HTTP response in a file: output must be a writable regular file without append mode; request was not sent"
@@ -136,10 +150,13 @@ def _require_output_file(descriptor):
 
 def _write_file_chunk(descriptor, chunk):
     remaining = memoryview(chunk)
+
     while remaining:
         written = os.write(descriptor, remaining)
+
         if written <= 0:
             raise OSError(errno.EIO, "Cannot write HTTP response: file write made no progress")
+
         remaining = remaining[written:]
 
 
@@ -173,6 +190,7 @@ class _FileBody:
     async def write(self, chunk):
         for offset in range(0, len(chunk), 65536):
             await self._run(_write_file_chunk, self._descriptor, memoryview(chunk)[offset : offset + 65536])
+
         self.byte_length += len(chunk)
         self.digest.update(chunk)
 
@@ -204,8 +222,10 @@ def response_request_id(headers):
     api.py, nmr_api/request_ids.py. A received ID proves no API/model effect.
     """
     values = [value for name, value in headers if name.lower() == b"x-request-id"]
+
     if len(values) == 1 and re.fullmatch(rb"[!-~]{1,128}", values[0]) is not None:
         return values[0].decode("ascii")
+
     return None
 
 
@@ -235,22 +255,27 @@ class _Exchange:
 def _positive_seconds(value):
     if not (type(value) in (int, float) and math.isfinite(value) and 0 < value):
         raise ValueError("Cannot configure HTTP exchange: time limits must be finite positive seconds")
+
     return value
 
 
 def require_unix_socket_path(path):
     """Admit the pathname limit shared by the two explicit Unix transports."""
+
     if type(path) is not str:
         raise TypeError(
             f"Unexpected {type(path)=}; "
             "Cannot configure Unix socket: supply an absolute UTF-8 pathname without NUL."
         )
+
     if not (path.startswith("/")) or "\0" in path:
         raise ValueError("Cannot configure Unix socket: supply an absolute UTF-8 pathname without NUL.")
+
     try:
         size = len(path.encode("utf-8"))
     except UnicodeError:
         raise ValueError("Cannot configure Unix socket: its pathname must be valid UTF-8.") from None
+
     # Linux sun_path[108] includes its terminating NUL.
     if not 1 <= size <= 107:
         raise ValueError("Cannot configure Unix socket: its pathname must fit Linux's 107-byte limit.")
@@ -259,22 +284,28 @@ def require_unix_socket_path(path):
 # silent-defaults: allow-contract -- Existing signed/API transports require HTTPS; direct model HTTP needs explicit opt-in.
 def require_transport_settings(*, trust, exchange_seconds, retirement_seconds, proxy_socket=None, allow_http=False):
     """Admit TLS and deadlines before composition acquires any transport."""
+
     if not (isinstance(trust, ssl.SSLContext)):
         raise TypeError(
             f"Unexpected {type(trust)=}; "
             "Cannot configure HTTPS exchange: TLS must verify the certificate and hostname"
         )
+
     if trust.verify_mode != ssl.CERT_REQUIRED or not (trust.check_hostname):
         raise ValueError("Cannot configure HTTPS exchange: TLS must verify the certificate and hostname")
+
     if type(allow_http) is not bool:
         raise TypeError(
             f"Unexpected {type(allow_http)=}; "
             "Cannot configure HTTP exchange: allow_http must be a boolean"
         )
+
     if allow_http and proxy_socket is not None:
         raise ValueError("Cannot configure HTTP exchange: plain HTTP admission requires a direct transport without a proxy")
+
     _positive_seconds(exchange_seconds)
     _positive_seconds(retirement_seconds)
+
     if proxy_socket is not None:
         require_unix_socket_path(proxy_socket)
 
@@ -299,11 +330,14 @@ class HttpTransport:
         require_transport_settings(
             trust=trust, exchange_seconds=exchange_seconds, retirement_seconds=retirement_seconds, proxy_socket=proxy_socket, allow_http=allow_http
         )
+
         self._trust = trust
         self._allow_http = allow_http
         self._exchange_seconds = exchange_seconds
+
         if connect_seconds is not None:
             _positive_seconds(connect_seconds)
+
         self._connect_seconds = connect_seconds
         self._retirement_seconds = retirement_seconds
         self._proxy_socket = proxy_socket
@@ -332,6 +366,7 @@ class HttpTransport:
     def _connection_pool(self, options):
         if self._proxy_socket is None:
             return httpcore.AsyncConnectionPool(**options)
+
         # Fixed httpcore metadata; OwnedNetworkBackend admits only the Unix
         # proxy. CONNECT and TLS retain the destination's original authority.
         return httpcore.AsyncHTTPProxy(proxy_url="http://unix-proxy.invalid", **options)
@@ -339,8 +374,10 @@ class HttpTransport:
     def _require_destination(self, request):
         if request.url.scheme == "http" and self._allow_http:
             return
+
         if request.url.scheme != "https":
             raise ValueError("Cannot start HTTPS exchange: destination must use HTTPS")
+
         # httpcore 1.0.9 emits an unbracketed IPv6 CONNECT authority.
         if self._proxy_socket is not None and b":" in request.url.raw_host:
             raise ValueError(
@@ -351,19 +388,24 @@ class HttpTransport:
         if not_after is not None and asyncio.get_running_loop().time() >= not_after:
             outcome.primary = TimeoutError("HTTP exchange absolute deadline expired before task entry")
             return outcome
+
         client = None
         response = None
         # silent-defaults: allow-contract -- No output descriptor selects the buffered response; a supplied descriptor selects file output.
         file_body = None if output_fd is None else _FileBody(output_fd)
         network = None
+
         try:
             if file_body is not None:
                 await file_body.validate()
+
             if not_after is not None and asyncio.get_running_loop().time() >= not_after:
                 raise TimeoutError("HTTP exchange absolute deadline expired before request dispatch")
+
             network = OwnedNetworkBackend(proxy_socket=self._proxy_socket)
             outcome.network_io = network.observation
             outcome.network_backend = network
+
             options = {
                 "ssl_context": self._trust,
                 "network_backend": network,
@@ -371,8 +413,10 @@ class HttpTransport:
                 "max_keepalive_connections": 0,
                 "retries": 0,
             }
+
             client = self._connection_pool(options)
             extensions = {"timeout": dict.fromkeys(("connect", "read", "write", "pool"), self._exchange_seconds)}
+
             if self._connect_seconds is not None:
                 extensions["timeout"]["connect"] = min(self._connect_seconds, self._exchange_seconds)
 
@@ -383,11 +427,13 @@ class HttpTransport:
                 # synthesized request is a different object (httpcore 1.0.9).
                 if name == "http11.send_request_headers.started" and info["request"] is wire_request:
                     setup.reschedule(None)
+
                 if (self._proxy_socket is not None and name == "http11.receive_response_headers.complete"
                         and outcome.proxy_connect_status is None):
                     outcome.proxy_connect_status = info["return_value"][1]
 
             extensions["trace"] = observe_setup
+
             wire_request = httpcore.Request(
                 method=request.method,
                 url=httpcore.URL(
@@ -397,6 +443,7 @@ class HttpTransport:
                 content=request.content,
                 extensions=extensions,
             )
+
             try:
                 async with asyncio.timeout(self._connect_seconds) as setup:
                     response = await client.handle_async_request(wire_request)
@@ -407,16 +454,21 @@ class HttpTransport:
                     raise TimeoutError("HTTP connection setup exceeded its configured deadline") from failure
                 else:
                     outcome.network_failure = failure
+
                 raise
+
             outcome.response_head = HttpResponseHead(response.status, tuple(response.headers))
+
             if before_body is not None:
                 before_body(outcome.response_head)
+
             # silent-defaults: allow-contract -- Raw/file exchanges have no decoder; only exchange_decoded supplies one.
             decoder = None if decoder_factory is None else decoder_factory(outcome.response_head)
             # silent-defaults: allow-contract -- Only a buffered response owns an in-memory body; file mode does not buffer it.
             body = bytearray() if file_body is None else None
             received_bytes = 0
             iterator = response.aiter_stream().__aiter__()
+
             while True:
                 try:
                     chunk = await anext(iterator)
@@ -425,22 +477,30 @@ class HttpTransport:
                 except BaseException as failure:
                     outcome.network_failure = failure
                     raise
+
                 # Acquisition charges consumed work even if this chunk makes
                 # the response unusable. Accounting is synchronous and bounded.
                 if account_bytes is not None:
                     account_bytes(len(chunk))
+
                 received_bytes += len(chunk)
+
                 if received_bytes > maximum_bytes:
                     if decoder is not None:
                         raise DecodedBodyRejected("size_limit")
+
                     raise ExchangeFailed(f"Cannot receive HTTP response: raw body exceeds the {maximum_bytes}-byte limit")
+
                 if file_body is None:
                     body.extend(chunk if decoder is None else decoder.feed(chunk))
                 else:
                     await file_body.write(chunk)
+
             if decoder is not None:
                 decoder.finish()
+
             head = outcome.response_head
+
             if file_body is None:
                 outcome.response = HttpResponse(head.status, head.headers, bytes(body))
             else:
@@ -451,6 +511,7 @@ class HttpTransport:
             # The owner observes this task separately, so cancellation cannot
             # discard either the primary cause or ownership of unfinished I/O.
             outcome.primary = failure
+
             if network is not None:
                 network.abort_tls_shutdown()
         finally:
@@ -466,16 +527,19 @@ class HttpTransport:
                             outcome.primary = failure
                     else:
                         outcome.cleanup_failures.append(failure)
+
             if network is not None:
                 try:
                     await network.aclose()
                 except BaseException as failure:
                     outcome.cleanup_failures.append(failure)
+
             if client is not None:
                 try:
                     await client.aclose()
                 except BaseException as failure:
                     outcome.cleanup_failures.append(failure)
+
             if file_body is not None:
                 # Stop network I/O first, then observe the same disk future. A
                 # blocked write keeps _perform and this transport's owner alive.
@@ -490,38 +554,51 @@ class HttpTransport:
                             outcome.primary = failure
                         else:
                             outcome.cleanup_failures.append(failure)
+
                 file_body.shutdown()
+
         return outcome
 
     async def _observe_retirement(self, exchange):
         """Observe original cleanup; an inherited cap gets one fixed grace period."""
         task = exchange.task
         deadline = asyncio.get_running_loop().time() + self._retirement_seconds
+
         if exchange.not_after is not None:
             if exchange.retirement_deadline is None:
                 exchange.retirement_deadline = deadline
+
             deadline = exchange.retirement_deadline
+
         cancellation = None
+
         while not task.done():
             remaining = deadline - asyncio.get_running_loop().time()
+
             if remaining <= 0:
                 break
+
             try:
                 await asyncio.wait({task}, timeout=remaining)
             except asyncio.CancelledError as failure:
                 if cancellation is None:
                     cancellation = failure
+
         return cancellation
 
     def _completed(self, exchange):
         task = exchange.task
+
         if not task.done():
             return None
+
         # _perform catches cancellation after entry. A cancelled task here
         # therefore never entered its body and acquired no client or response.
         outcome = _Outcome(primary=asyncio.CancelledError()) if task.cancelled() else task.result()
+
         if not outcome.cleanup_failures and self._active is exchange:
             self._active = None
+
         return outcome
 
     async def exchange(self, request, *, maximum_bytes, account_bytes=None, owner=None, before_body=None, not_after=None):
@@ -537,6 +614,7 @@ class HttpTransport:
         Without not_after, each retirement observation retains its configured
         bounded wait; the caller owns its overall recovery/shutdown deadline.
         """
+
         return await self._exchange(
             request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=None,
             before_body=before_body, decoder_factory=None, not_after=not_after,
@@ -557,11 +635,13 @@ class HttpTransport:
         """
         require_decoded_limit(maximum_bytes)
         require_decoded_limit(error_maximum_bytes)
+
         if type(success_status) is not int:
             raise TypeError(
                 f"Unexpected {type(success_status)=}; "
                 "Cannot decode HTTP response: success_status must be an integer HTTP status from 100 through 599"
             )
+
         if not (100 <= success_status <= 599):
             raise ValueError("Cannot decode HTTP response: success_status must be an integer HTTP status from 100 through 599")
 
@@ -586,13 +666,16 @@ class HttpTransport:
         their presence does not admit an Upload. Acquisition owns verification
         and finalization.
         """
+
         if not (type(output_fd) is int):
             raise TypeError(
                 f"Unexpected {type(output_fd)=}; "
                 "Cannot receive HTTP response in a file: output_fd must be a non-negative descriptor"
             )
+
         if not (0 <= output_fd):
             raise ValueError("Cannot receive HTTP response in a file: output_fd must be a non-negative descriptor")
+
         return await self._exchange(
             request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=output_fd,
             before_body=before_body, decoder_factory=None, not_after=not_after,
@@ -601,60 +684,84 @@ class HttpTransport:
     async def _exchange(self, request, *, maximum_bytes, account_bytes, owner, output_fd, before_body, decoder_factory, not_after):
         if self._active is not None:
             raise ExchangeFailed("Cannot start HTTP exchange: an earlier exchange is active or its retirement is unconfirmed")
+
         if not (type(maximum_bytes) is int):
             raise TypeError(
                 f"Unexpected {type(maximum_bytes)=}; "
                 "Cannot receive HTTP response: byte limit must be a non-negative integer"
             )
+
         if not (0 <= maximum_bytes):
             raise ValueError("Cannot receive HTTP response: byte limit must be a non-negative integer")
+
         self._require_destination(request)
+
         if not_after is not None:
             _positive_seconds(not_after)
+
         self.last_failure = None
         loop = asyncio.get_running_loop()
+
         if not_after is not None and loop.time() >= not_after:
             failure = ExchangeFailed(
                 "Cannot start HTTP exchange: the original absolute deadline expired before dispatch",
                 primary=TimeoutError("HTTP exchange absolute deadline expired before dispatch"),
             )
+
             self.last_failure = failure
             raise failure from None
+
         received = _Outcome()
+
         task = asyncio.create_task(
             self._perform(request, maximum_bytes, account_bytes, received, output_fd, before_body, decoder_factory, not_after), name="provider-core-http-exchange"
         )
+
         exchange = _Exchange(task, received, owner, not_after)
         self._active = exchange
         primary = None
         cancellation = None
+
         try:
             seconds = self._exchange_seconds
+
             if not_after is not None:
                 seconds = max(0, min(seconds, not_after - loop.time()))
+
             done, _ = await asyncio.wait({task}, timeout=seconds)
+
             if not done or not_after is not None and loop.time() >= not_after:
                 primary = TimeoutError("HTTP exchange exceeded its aggregate deadline")
         except asyncio.CancelledError as failure:
             primary = cancellation = failure
+
         if not task.done():
             if not task.cancelling():
                 if type(primary) is TimeoutError and received.network_backend is not None:
                     received.network_backend.cancel_pending_for_deadline()
+
                 task.cancel()
+
             later_cancellation = await self._observe_retirement(exchange)
+
             if cancellation is None and later_cancellation is not None:
                 cancellation = later_cancellation
+
         outcome = self._completed(exchange)
         interruption = None
+
         if received.primary is not None and not isinstance(received.primary, asyncio.CancelledError):
             interruption = primary
             primary = received.primary
+
         if outcome is not None and primary is None:
             primary = outcome.primary
+
         cleanup_failures = received.cleanup_failures
+
         if primary is None and outcome is not None and not cleanup_failures:
             return outcome.response
+
         if outcome is None or cleanup_failures:
             message = "Cannot complete HTTP exchange: resource retirement is unconfirmed; this transport cannot accept more work"
         elif isinstance(primary, TimeoutError):
@@ -665,8 +772,10 @@ class HttpTransport:
             message = str(primary)
         else:
             message = "Cannot complete HTTP exchange: request or response I/O failed; resources were retired"
+
         if isinstance(interruption, TimeoutError):
             message += "; the aggregate deadline also expired"
+
         failure = ExchangeFailed(
             message,
             primary=primary,
@@ -678,31 +787,42 @@ class HttpTransport:
             network_io=received.network_io,
             caller_interruption=cancellation,
         )
+
         self.last_failure = failure
+
         if cancellation is not None or isinstance(primary, asyncio.CancelledError):
             raise cancellation if cancellation is not None else primary
+
         if isinstance(primary, (KeyboardInterrupt, SystemExit)):
             raise primary
+
         raise failure from None
 
     async def retire(self, *, owner=None):
         """Stop outstanding I/O and confirm closure; retain failed obligations."""
         exchange = self._active
+
         if exchange is None:
             return
+
         if exchange.owner is not owner:
             raise ExchangeFailed("Cannot retire HTTP exchange: the outstanding operation belongs to another caller")
+
         task = exchange.task
+
         if not task.done() and not task.cancelling():
             task.cancel()
+
         cancellation = await self._observe_retirement(exchange)
         outcome = self._completed(exchange)
         observed = outcome if outcome is not None else exchange.outcome
+
         if self.last_failure is not None:
             self.last_failure.response_head = observed.response_head
             self.last_failure.proxy_connect_status = observed.proxy_connect_status
             self.last_failure.network_failure = observed.network_failure
             self.last_failure.network_io = observed.network_io
+
             # Late retirement augments the retained exchange evidence; a pending
             # task or its expected cancellation must not erase the original cause.
             if (
@@ -712,7 +832,9 @@ class HttpTransport:
             ):
                 self.last_failure.interruption = self.last_failure.primary
                 self.last_failure.primary = observed.primary
+
             self.last_failure.cleanup_failures = tuple(observed.cleanup_failures)
+
         if outcome is None or outcome.cleanup_failures:
             if self.last_failure is None:
                 self.last_failure = ExchangeFailed(
@@ -724,9 +846,12 @@ class HttpTransport:
                     network_failure=observed.network_failure,
                     network_io=observed.network_io,
                 )
+
             if cancellation is None:
                 raise self.last_failure from None
+
         if cancellation is not None:
             if self.last_failure is not None and self.last_failure.caller_interruption is None:
                 self.last_failure.caller_interruption = cancellation
+
             raise cancellation

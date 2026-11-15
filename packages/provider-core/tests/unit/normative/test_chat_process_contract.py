@@ -86,19 +86,24 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             url = peer.origin.replace("127.0.0.1", "localhost") + "/configured/chat"
             factory = self.factory(url, peer.trust, error_response_bytes=128)
             endpoint = factory(exchange_seconds=3, connect_seconds=1)
+
             reference = ChatEndpoint(factory.spec, transport=object(), request_bytes=32768,
                                      response_bytes=8192, error_response_bytes=128)
+
             self.assertEqual(reference.identity, endpoint.identity)
             self.assertTrue(endpoint.retirement_confirmed)
             self.assertEqual([], children)
             messages = [{"role": "user", "content": "Authored scientific input"}]
             tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
+
             try:
                 started = loop.time()
+
                 try:
                     result = await endpoint.complete(messages, tools, not_after=started + 3)
                 except ChatFailed as error:
                     evidence = failure_evidence(error, secrets=(factory.spec.api_key, "Authored scientific input"))
+
                     evidence["fixture_progress"] = {
                         "elapsed_seconds": round(loop.time() - started, 3),
                         "child_started": bool(children),
@@ -108,33 +113,42 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                         "response_ready_seconds": response_ready,
                         "connection_closed": peer.closed.is_set(),
                     }
+
                     error.add_note(json.dumps(evidence))
                     raise
+
                 self.assertEqual(json.loads(completion())["choices"][0]["message"], result)
                 self.assertEqual(1, len(peer.requests))
                 self.assertTrue(peer.requests[0].startswith(b"POST /configured/chat HTTP/1.1\r\n"))
                 headers = dict(line.split(b": ", 1) for line in peer.requests[0].split(b"\r\n")[1:] if b": " in line)
+
                 self.assertEqual(b"Bearer PRIVATE_FIXTURE_KEY",
                                  {name.lower(): value for name, value in headers.items()}[b"authorization"])
+
                 self.assertEqual(["localhost"], peer.server_names)
+
                 self.assertEqual({
                     "model": "fixture-model", "messages": messages, "tools": tools,
                     "tool_choice": "required", "parallel_tool_calls": False,
                     "stream": False, "reasoning_effort": "high",
                 }, json.loads(peer.request_bodies[0]))
+
                 self.assertEqual(reference.identity, endpoint.identity)
                 self.assertTrue(endpoint.retirement_confirmed)
                 self.assert_reaped(children, 1)
             finally:
                 await endpoint.retire()
+
             await asyncio.wait_for(peer.closed.wait(), 1)
 
     async def test_request_limit_refuses_before_any_child_is_started(self):
         async with TlsPeer("success", response_body=completion()) as peer, launched_children() as children:
             factory = self.factory(peer.origin + "/chat", peer.trust, request_bytes=1)
             endpoint = factory(exchange_seconds=3, connect_seconds=1)
+
             with self.assertRaises(ChatFailed) as caught:
                 await endpoint.complete([], [], not_after=asyncio.get_running_loop().time() + 3)
+
             self.assertEqual("request_limit", caught.exception.reason)
             self.assertEqual([], children)
             self.assertEqual([], peer.requests)
@@ -144,8 +158,10 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
     async def test_expired_original_deadline_refuses_before_child_launch(self):
         async with TlsPeer("success", response_body=completion()) as peer, launched_children() as children:
             endpoint = self.factory(peer.origin + "/chat", peer.trust)(exchange_seconds=3, connect_seconds=1)
+
             with self.assertRaises(ChatFailed) as caught:
                 await endpoint.complete([], [], not_after=asyncio.get_running_loop().time() - 0.01)
+
             self.assertEqual("exchange_failed", caught.exception.reason)
             self.assertIs(type(caught.exception.cause), ExchangeFailed)
             self.assertIsInstance(caught.exception.cause.primary, TimeoutError)
@@ -160,14 +176,17 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                 async with TlsPeer("success", response_body=body, response_status=status) as peer, launched_children() as children:
                     endpoint = self.factory(peer.origin + "/chat", peer.trust,
                                             error_response_bytes=error_bytes)(exchange_seconds=3, connect_seconds=1)
+
                     try:
                         if status == 200:
                             await endpoint.complete([], [], not_after=asyncio.get_running_loop().time() + 3)
                         else:
                             with self.assertRaises(ChatFailed) as caught:
                                 await endpoint.complete([], [], not_after=asyncio.get_running_loop().time() + 3)
+
                             self.assertEqual("http_status", caught.exception.reason)
                             self.assertEqual(503, caught.exception.response.status)
+
                         self.assertEqual(1, len(peer.requests))
                         self.assertTrue(endpoint.retirement_confirmed)
                         self.assert_reaped(children, 1)
@@ -178,19 +197,23 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
         expanded = json.dumps({"content": "x" * 4096}).encode()
         compressed = gzip.compress(expanded)
         self.assertLess(len(compressed), 512)
+
         cases = (
             (503, b'{"error":{"message":"' + b"x" * 256 + b'"}}', None, 4096, 64),
             (200, compressed, ((b"Content-Encoding", b"gzip"),), 512, 512),
         )
+
         for status, body, headers, response_bytes, error_bytes in cases:
             with self.subTest(status=status):
                 async with TlsPeer("success", response_status=status, response_body=body,
                                    response_headers=headers) as peer, launched_children() as children:
                     endpoint = self.factory(peer.origin + "/chat", peer.trust, response_bytes=response_bytes,
                                             error_response_bytes=error_bytes)(exchange_seconds=3, connect_seconds=1)
+
                     try:
                         with self.assertRaises(ChatFailed) as caught:
                             await endpoint.complete([], [], not_after=asyncio.get_running_loop().time() + 3)
+
                         self.assertEqual("exchange_failed", caught.exception.reason)
                         self.assertIs(type(caught.exception.cause.primary), DecodedBodyRejected)
                         self.assertEqual(1, len(peer.requests))
@@ -202,12 +225,15 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
     async def test_unavailable_fixed_unix_proxy_never_falls_back_to_direct_tls(self):
         with tempfile.TemporaryDirectory() as directory:
             proxy = str(Path(directory) / "absent-proxy.sock")
+
             async with TlsPeer("success", response_body=completion()) as peer, launched_children() as children:
                 endpoint = self.factory(peer.origin + "/chat", peer.trust,
                                         proxy_socket=proxy)(exchange_seconds=3, connect_seconds=1)
+
                 try:
                     with self.assertRaises(ChatFailed) as caught:
                         await endpoint.complete([], [], not_after=asyncio.get_running_loop().time() + 3)
+
                     self.assertEqual("exchange_failed", caught.exception.reason)
                     observation = caught.exception.cause.network_io
                     self.assertEqual(proxy, observation.configured_unix_path)
@@ -224,11 +250,14 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
         async with TlsPeer("headers-stall") as peer, launched_children() as children:
             endpoint = self.factory(peer.origin + "/chat", peer.trust)(exchange_seconds=5, connect_seconds=1)
             running = asyncio.create_task(endpoint.complete([], [], not_after=asyncio.get_running_loop().time() + 5))
+
             try:
                 await asyncio.wait_for(peer.received.wait(), 3)
                 running.cancel()
+
                 with self.assertRaises(asyncio.CancelledError) as caught:
                     await asyncio.wait_for(running, 2)
+
                 diagnostic = caught.exception.__cause__
                 self.assertIs(type(diagnostic), ChatFailed)
                 self.assertEqual("request_cancelled", diagnostic.reason)
@@ -241,6 +270,7 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 if not running.done():
                     running.cancel()
+
                 await asyncio.gather(running, return_exceptions=True)
                 await endpoint.retire()
 
@@ -265,17 +295,21 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             async def held_wait():
                 returncode = await original_wait()
                 actual_exit.set()
+
                 try:
                     await allow_observation.wait()
                 except asyncio.CancelledError:
                     observation_cancelled.set()
                     raise
+
                 return returncode
 
             async def observed_read(size):
                 value = await original_read(size)
+
                 if size == 1 and not value:
                     reply_eof.set()
+
                 return value
 
             child.wait, child.stdout.read = held_wait, observed_read
@@ -283,9 +317,11 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
 
         async with TlsPeer("success", response_body=completion()) as peer:
             endpoint = self.factory(peer.origin + "/chat", peer.trust)(exchange_seconds=5, connect_seconds=1)
+
             with patch("provider_core.chat_process.asyncio.create_subprocess_exec", side_effect=observe_exit), \
                     patch("provider_core.chat_process.tempfile.TemporaryDirectory", side_effect=observe_directory):
                 running = asyncio.create_task(endpoint.complete([], [], not_after=asyncio.get_running_loop().time() + 5))
+
                 try:
                     await asyncio.wait_for(asyncio.gather(actual_exit.wait(), reply_eof.wait()), 3)
                     self.assertTrue(all(child.returncode == 0 for child in children))
@@ -296,8 +332,10 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                     self.assertFalse(observation_cancelled.is_set())
                     self.assertTrue(trust_directories[0].is_dir())
                     allow_observation.set()
+
                     with self.assertRaises(asyncio.CancelledError) as caught:
                         await asyncio.wait_for(running, 2)
+
                     diagnostic = caught.exception.__cause__
                     self.assertEqual("request_cancelled", diagnostic.reason)
                     self.assertIs(diagnostic.cause.caller_interruption, caught.exception)
@@ -307,8 +345,10 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                     self.assertFalse(trust_directories[0].exists())
                 finally:
                     allow_observation.set()
+
                     if not running.done():
                         running.cancel()
+
                     await asyncio.gather(running, return_exceptions=True)
                     await endpoint.retire()
 
@@ -320,19 +360,24 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                 async def response(_request, _body):
                     nonlocal replies
                     replies += 1
+
                     if replies == 1:
                         if first_reply == "lost":
                             return None
+
                         peer.response_status = 503
                         return b'{"error":{"message":"temporarily unavailable"}}'
+
                     peer.response_status = 200
                     return completion()
 
                 async with TlsPeer("success", response_factory=response) as peer, launched_children() as children:
                     owner = Interpreter((self.factory(peer.origin + "/chat", peer.trust),),
                                         timeout_seconds=8, context_bytes=16384, secrets=("PRIVATE_FIXTURE_KEY",))
+
                     dispatch = AsyncMock(return_value=ToolFinished("prepared"))
                     tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
+
                     try:
                         result = await owner.run([], tools, dispatch)
                         self.assertEqual("prepared", result.value)
@@ -352,9 +397,11 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             trust.verify_flags |= ssl.VERIFY_X509_TRUSTED_FIRST
             restored = restore_trust(capture_trust(trust))
             self.assertIsInstance(restored, ssl.SSLContext)
+
             for field in ("minimum_version", "maximum_version", "hostname_checks_common_name",
                           "verify_flags", "verify_mode", "check_hostname", "options"):
                 self.assertEqual(getattr(trust, field), getattr(restored, field), msg=field)
+
             self.assertEqual(trust.get_ciphers(), restored.get_ciphers())
 
     def test_opaque_tls_context_is_refused_without_silently_changing_trust(self):

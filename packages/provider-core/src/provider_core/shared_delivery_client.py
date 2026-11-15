@@ -16,8 +16,10 @@ class SharedDeliveryClient:
                 f"Unexpected {type(publication)=}; "
                 "Delivery endpoint and publication material require the same API and provider identity."
             )
+
         if (endpoint.api_origin, endpoint.provider_ref) != (publication.origin, publication.provider_ref):
             raise ValueError("Delivery endpoint and publication material require the same API and provider identity.")
+
         self.endpoint, self.publication = endpoint, publication
         self._client = DeliveryClient(endpoint, exchange_seconds=exchange_seconds, retirement_seconds=retirement_seconds)
 
@@ -38,8 +40,11 @@ class SharedDeliveryClient:
     async def submit(self, item):
         if item.key[:2] != (self.endpoint.api_origin, self.endpoint.provider_ref):
             raise ValueError("The outcome belongs to another configured provider.")
+
         handoff = DeliveryHandoff(item, self.publication)
         reply = await self._client._request("POST", "/submit", body=handoff.encode())
+
         if reply != handoff.acceptance():
             raise DeliveryRejected("The durable acknowledgement does not match the submitted result and publication material.")
+
         return reply

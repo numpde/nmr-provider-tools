@@ -49,9 +49,11 @@ class ShutdownPeer:
         self.listener.settimeout(0.1)
         self.origin = f"https://127.0.0.1:{self.listener.getsockname()[1]}"
         proxy_path = None
+
         if self.tunnel:
             proxy = await self.stack.enter_async_context(UnixProxy(self.origin, "tunnel"))
             proxy_path = proxy.path
+
         self.stack.enter_context(patch("provider_core.transport.OwnedNetworkBackend", self.backend))
         unwrap = TLSStream.unwrap
 
@@ -60,10 +62,12 @@ class ShutdownPeer:
             return await unwrap(stream)
 
         self.stack.enter_context(patch.object(TLSStream, "unwrap", observe_shutdown))
+
         self.transport = HttpTransport(
             trust=certificate.trust, exchange_seconds=1, retirement_seconds=0.3,
             proxy_socket=proxy_path,
         )
+
         self.server = asyncio.create_task(asyncio.to_thread(self.serve, certificate.server_trust))
         return self
 
@@ -79,16 +83,20 @@ class ShutdownPeer:
             async def close_raw():
                 self.raw_close_attempts += 1
                 self.raw_close_started.set()
+
                 while self.hold_raw_close and not self.raw_close_release.is_set():
                     try:
                         await self.raw_close_release.wait()
                     # silent-defaults: allow-contract -- This fault models a physical close that cannot finish until the test releases it, despite observer cancellation.
                     except asyncio.CancelledError:
                         pass
+
                 if self.raw_close_failures:
                     raise self.raw_close_failures.pop(0)
+
                 if self.raw_close_failure is not None:
                     raise self.raw_close_failure
+
                 await close()
                 self.raw_close_successes += 1
 
@@ -108,21 +116,30 @@ class ShutdownPeer:
                     continue
             else:
                 return
+
             with raw:
                 raw.settimeout(3)
+
                 with trust.wrap_socket(raw, server_side=True) as connection:
                     request = bytearray()
+
                     while not request.endswith(b"\r\n\r\n"):
                         chunk = connection.recv(1)
+
                         if not chunk or len(request) >= 16384:
                             raise AssertionError("TLS shutdown probe received an incomplete or oversized request")
+
                         request.extend(chunk)
+
                     self.requests.append(bytes(request))
                     step = len(reply) if self.fragment_size is None else self.fragment_size
+
                     for offset in range(0, len(reply), step):
                         connection.sendall(reply[offset:offset + step])
+
                     if self.hold and not self.release.wait(3):
                         raise AssertionError("TLS shutdown probe was not released during teardown")
+
                     # SSLSocket.close is deliberately bypassed: no TLS goodbye
                     # may accidentally turn a ragged EOF into a cooperative peer.
                     os.close(connection.detach())
@@ -131,9 +148,11 @@ class ShutdownPeer:
     async def __aexit__(self, kind, value, traceback):
         self.release.set()
         self.raw_close_release.set()
+
         try:
             if self.transport._active is not None:
                 await asyncio.wait_for(asyncio.shield(self.transport._active.task), 4)
+
             await asyncio.wait_for(asyncio.shield(self.server), 4)
         finally:
             try:

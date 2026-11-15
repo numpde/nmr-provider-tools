@@ -51,8 +51,10 @@ class DeliveryQueueTests(unittest.TestCase):
         first, other = outcome(), outcome(provider="provider:other", suffix="1")
         queue.enqueue(first)
         queue.hold(first, "The API rejected this terminal outcome; inspect operator diagnostics.")
+
         with self.assertRaises(DeliveryFull):
             queue.enqueue(outcome(suffix="2"))
+
         queue.enqueue(other)
         self.assertIsNone(queue.next_pending(first.api_origin, first.provider_ref))
         self.assertEqual(queue.next_pending(other.api_origin, other.provider_ref), other)
@@ -63,11 +65,15 @@ class DeliveryQueueTests(unittest.TestCase):
         self.limits = QueueLimits(provider_items=2, provider_bytes=len(first.body), total_items=4, total_bytes=2 * len(first.body))
         queue = self.open()
         queue.enqueue(first)
+
         with self.assertRaises(DeliveryFull):
             queue.enqueue(outcome(suffix="1"))
+
         queue.enqueue(outcome(provider="provider:other", suffix="1"))
+
         with self.assertRaises(DeliveryFull):
             queue.enqueue(outcome(provider="provider:third", suffix="2"))
+
         self.assertEqual(len(queue.inventory(first.api_origin, first.provider_ref)), 1)
 
     def test_operator_discard_requires_exclusive_storage_and_exact_held_identity(self):
@@ -76,12 +82,16 @@ class DeliveryQueueTests(unittest.TestCase):
         held = outcome(message="DISCARDED_HELD_PAYLOAD_NEEDLE")
         pending = outcome(suffix="1")
         other = outcome(provider="provider:other", suffix="2")
+
         for item in (held, pending, other):
             queue.enqueue(item)
+
         queue.hold(held, "The API refused this outcome; operator reconciliation is required.")
         queue.hold(other, "Another binding owns this held request.")
+
         with self.assertRaises(DeliveryStorageFailed):
             DeliveryQueue(self.root, limits=self.limits)
+
         for origin, provider, attempt, digest in (
             ("https://other.example", held.provider_ref, held.execution_attempt_ref, held.body_sha256),
             (held.api_origin, other.provider_ref, held.execution_attempt_ref, held.body_sha256),
@@ -90,6 +100,7 @@ class DeliveryQueueTests(unittest.TestCase):
         ):
             with self.assertRaises(DeliveryConflict):
                 queue.discard_held(origin, provider, attempt, digest)
+
         queue.discard_held(held.api_origin, held.provider_ref, held.execution_attempt_ref, held.body_sha256)
         self.assertEqual(queue.next_pending(pending.api_origin, pending.provider_ref), pending)
         self.assertEqual(len(queue.inventory(other.api_origin, other.provider_ref)), 1)

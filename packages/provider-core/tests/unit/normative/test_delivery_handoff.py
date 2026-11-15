@@ -19,9 +19,11 @@ from tests.fakes.delivery import outcome
 class DeliveryHandoffTests(unittest.TestCase):
     def material(self):
         credential = encoded(document())
+
         fields = {"origin": "https://api.example", "profile": "dev-local", "topology": "dev-local",
                   "provider_ref": "provider:example", "exchange_seconds": 10, "retirement_seconds": 5,
                   "credential_file": "/private/credential"}
+
         _, _, material = api_settings_with_material(fields, Mock(return_value=credential))
         return material
 
@@ -42,13 +44,16 @@ class DeliveryHandoffTests(unittest.TestCase):
     def test_queue_restarts_with_original_material_and_refuses_changed_material(self):
         item = outcome(provider="provider:example")
         first, other = DeliveryHandoff(item, self.material()), DeliveryHandoff(item, self.material())
+
         with tempfile.TemporaryDirectory() as directory:
             limits = QueueLimits(2, 4096, 4, 8192)
             queue = DeliveryQueue(Path(directory), limits=limits)
             self.assertEqual(queue.enqueue_handoff(first), first.acceptance())
             self.assertEqual(queue.enqueue_handoff(first), first.acceptance())
+
             with self.assertRaises(DeliveryConflict):
                 queue.enqueue_handoff(other)
+
             queue.close()
             queue = DeliveryQueue(Path(directory), limits=limits)
             restored = queue.next_pending_handoff(item.api_origin, item.provider_ref)
@@ -61,6 +66,7 @@ class DeliveryHandoffTests(unittest.TestCase):
     def test_legacy_hold_does_not_block_new_handoff(self):
         legacy = outcome(provider="provider:example")
         new = DeliveryHandoff(outcome(provider="provider:example", suffix="1"), self.material())
+
         with tempfile.TemporaryDirectory() as directory:
             queue = DeliveryQueue(Path(directory), limits=QueueLimits(2, 4096, 4, 8192))
             queue.enqueue(legacy)
@@ -72,13 +78,16 @@ class DeliveryHandoffTests(unittest.TestCase):
 
     def test_version_one_database_upgrades_without_losing_its_row(self):
         item = outcome(provider="provider:example")
+
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "delivery.sqlite3"
             db = sqlite3.connect(path)
             path.chmod(0o600)
             db.execute("CREATE TABLE outstanding (api_origin TEXT NOT NULL, provider_ref TEXT NOT NULL, attempt_ref TEXT NOT NULL, job_ref TEXT NOT NULL, operation TEXT NOT NULL, body BLOB NOT NULL, digest TEXT NOT NULL, state TEXT NOT NULL, created_at REAL NOT NULL, held_reason TEXT, PRIMARY KEY(api_origin,provider_ref,attempt_ref))")
+
             db.execute("INSERT INTO outstanding VALUES (?,?,?,?,?,?,?,'pending',1,NULL)",
                        (*item.key, item.job_ref, item.operation.value, item.body, item.body_sha256))
+
             db.execute("PRAGMA user_version=1")
             db.commit()
             db.close()
@@ -92,6 +101,7 @@ class DeliveryHandoffTests(unittest.TestCase):
         legacy = outcome(provider="provider:example")
         material, other = self.material(), self.material()
         new = DeliveryHandoff(outcome(provider="provider:example", suffix="1"), other)
+
         with tempfile.TemporaryDirectory() as directory:
             queue = DeliveryQueue(Path(directory), limits=QueueLimits(2, 4096, 4, 8192))
             queue.enqueue(legacy)
@@ -109,15 +119,20 @@ class DeliveryHandoffTests(unittest.TestCase):
         handoff = DeliveryHandoff(outcome(provider="provider:example"), self.material())
         document = json.loads(handoff.encode())
         document["credential"] = "PRIVATE_INVALID_CREDENTIAL"
+
         with self.assertRaises(DeliveryHandoffRejected) as rejected:
             read_delivery_handoff(json.dumps(document).encode())
+
         self.assertNotIn("PRIVATE", str(rejected.exception))
+
         with self.assertRaises(DeliveryHandoffRejected):
             read_delivery_handoff(b"x" * (MAX_HANDOFF_BYTES + 1))
+
         with self.assertRaises(DeliveryHandoffRejected):
             DeliveryHandoff(outcome(provider="provider:other"), self.material())
 
     def test_client_refuses_mismatched_material_before_admitting_work(self):
         endpoint = DeliveryEndpoint("https://api.example", "provider:other", Path("/tmp/delivery.sock"))
+
         with self.assertRaisesRegex(ValueError, "same API and provider"):
             SharedDeliveryClient(endpoint, self.material(), exchange_seconds=1, retirement_seconds=1)

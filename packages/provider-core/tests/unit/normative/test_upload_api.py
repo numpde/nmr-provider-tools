@@ -13,11 +13,13 @@ from tests.fakes.uploads import CONTENT_HASH, UPLOAD_REF, encoded, grant, member
 class UploadApiTests(unittest.IsolatedAsyncioTestCase):
     async def test_membership_and_grant_use_exact_bodyless_signed_routes(self):
         transport = Transport(reply(encoded(membership(uploads=[member(content_hash=None)]))), reply(encoded(grant())))
+
         api = ProviderAPI(
             SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
             transport,
             expected_topology="dev-local",
         )
+
         observed = await api.uploads("job:example")
         self.assertEqual(observed.job_ref, "job:example")
         self.assertEqual(observed.members[0].description, "Two conformers\n雪")
@@ -25,6 +27,7 @@ class UploadApiTests(unittest.IsolatedAsyncioTestCase):
         access = await api.read_grant("job:example", UPLOAD_REF)
         self.assertEqual((access.job_ref, access.upload_ref, access.content_hash), ("job:example", UPLOAD_REF, CONTENT_HASH))
         self.assertNotIn("private-bearer-canary", repr(access))
+
         for (request, ceiling), method, target, limit in zip(
             transport.calls,
             ("GET", "POST"),
@@ -46,11 +49,13 @@ class UploadApiTests(unittest.IsolatedAsyncioTestCase):
             [member(upload_ref="upload:sha256:" + f"{index:064x}", description="\x01" * 4096) for index in range(64)],
         ):
             transport = Transport(reply(encoded(membership(uploads=members))))
+
             api = ProviderAPI(
                 SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
                 transport,
                 expected_topology="dev-local",
             )
+
             observed = await api.uploads("job:example")
             self.assertEqual(len(observed.members), len(members))
             self.assertEqual([item.description for item in observed.members], [item["description"] for item in members])

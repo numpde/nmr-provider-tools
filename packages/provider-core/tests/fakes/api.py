@@ -14,6 +14,7 @@ from provider_core.transport import ExchangeFailed, HttpResponse
 # silent-defaults: allow-contract -- This signature-window specimen selects an explicit known request and code.
 def signature_window_problem(request_id="request:test", *, code="authentication_window_closed"):
     """Complete correlated refusal; arbitrary server prose must stay private."""
+
     return json.dumps(
         {
             "type": "urn:nmr-api:problem:authentication-failed",
@@ -40,16 +41,20 @@ class Transport:
     async def retire(self, *, owner=None):
         if not self.retirement_confirmed and self.pending_owner is not owner:
             raise ExchangeFailed("Foreign exchange owner")
+
         self.retirement_confirmed = True
         self.pending_owner = None
 
     async def exchange(self, request, *, maximum_bytes, owner=None):
         if not self.retirement_confirmed:
             self.pending_owner = owner
+
         self.calls.append((request, maximum_bytes))
         result = next(self.replies)
+
         if isinstance(result, BaseException):
             raise result
+
         return result
 
 
@@ -68,18 +73,21 @@ def reply(body, *, status=200, headers=None):
 # silent-defaults: allow-contract -- This fixture supplies the ordinary valid dev-local response envelope.
 def response_headers(*, topology=b"dev-local", request_id=None, status=200):
     """Authored valid API metadata; explicit adversarial headers stay untouched."""
+
     # silent-defaults: allow-contract -- The chosen response status selects protocol JSON or problem JSON media type.
     headers = (
         (b"content-type", b"application/json" if status == 200 else b"application/problem+json"),
         (b"cache-control", b"no-store"),
         (b"nmr-api-topology", topology),
     )
+
     # silent-defaults: allow-contract -- Absent request correlation emits no header and never fabricates an ID.
     return headers if request_id is None else (*headers, (b"x-request-id", request_id))
 
 
 def api(transport, origin):
     """Use a disposable signing identity with the explicitly selected transport."""
+
     return ProviderAPI(
         SigningIdentity(origin, "credential:test", Ed25519PrivateKey.generate()), transport, expected_topology="dev-local"
     )

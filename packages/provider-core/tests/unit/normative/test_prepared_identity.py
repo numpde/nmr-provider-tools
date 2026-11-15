@@ -7,10 +7,12 @@ from unittest.mock import Mock
 
 from provider_core.analysis import PreparedAnalysis
 from provider_core.attempt_record import MAX_EVIDENCE_BYTES, ProtectedEvidence
+
 from provider_core.producer_checkpoint import (
     MAX_CHECKPOINT_BYTES, AcknowledgedCheckpoint, EnteredCheckpoint, EvidenceDigest,
     encode_checkpoint,
 )
+
 from tests.fakes.api import Transport, api, reply
 from tests.fakes.attempt_store import admission, record
 from tests.fakes.attempts import observation, progress_response
@@ -49,9 +51,11 @@ class PreparedIdentityTests(unittest.IsolatedAsyncioTestCase):
             reply(observation()),
             reply(observation()),
         )
+
         store, acknowledged, claim = await live_attempt()
         session = Session(store)
         session.handle = session.preparation = PreparedAnalysis(IDENTITY)
+
         terminal = await live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -61,6 +65,7 @@ class PreparedIdentityTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=1,
             task_settle_seconds=0.1,
         ).run(acknowledged)
+
         self.assertEqual(EvidenceDigest.from_evidence(IDENTITY), session.events[1][1].prepared)
         self.assertEqual(EvidenceDigest.from_evidence(IDENTITY), terminal.selection.attempt.prepared)
         self.assertNotIn(IDENTITY.content, encode_checkpoint(terminal))

@@ -16,14 +16,17 @@ class Stream:
     async def __aiter__(self):
         for chunk in self.chunks:
             yield chunk
+
         if self.stall is not None:
             await self.stall.wait()
+
         if self.failure is not None:
             raise self.failure
 
     async def aclose(self):
         if self.close_failure is not None:
             raise self.close_failure
+
         self.closed = True
 
 
@@ -43,11 +46,14 @@ class Client:
     async def handle_async_request(self, request, **options):
         self.calls.append((request, options))
         self.sent.set()
+
         if self.send_gate is not None:
             await self.send_gate.wait()
+
         return httpcore.Response(self.status, headers=self.headers, content=self.stream)
 
     async def aclose(self):
         if self.close_failure is not None:
             raise self.close_failure
+
         self.closed = True

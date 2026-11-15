@@ -20,6 +20,7 @@ class AttemptRecordFailureTests(unittest.TestCase):
         for body in (retained_start(job_ref="job:foreign"), bytearray(retained_start())):
             with self.assertRaises(ValueError):
                 StartPending(self.scope(), "nmr_predict", facts(), body)
+
         with self.assertRaises(ValueError):
             StartPending(self.scope(), "bad/key", facts(), retained_start())
 
@@ -39,6 +40,7 @@ class AttemptRecordFailureTests(unittest.TestCase):
 
     def test_foreign_start_admission_is_rejected_as_an_acknowledgement_refusal(self):
         pending = self.record()
+
         for changes in (
             {"job_ref": "job:other"},
             {"provider_ref": "provider:other"},
@@ -50,5 +52,6 @@ class AttemptRecordFailureTests(unittest.TestCase):
     def test_encoder_refuses_record_above_the_live_control_limit(self):
         scope = replace(self.scope(), api_origin="https://" + "a" * 70000)
         record = StartPending(scope, "nmr_predict", facts(), retained_start())
+
         with self.assertRaisesRegex(ValueError, "65536"):
             _encode_pending(record)

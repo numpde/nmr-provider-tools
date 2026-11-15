@@ -18,15 +18,21 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         async with TlsPeer("success", response_status=429, response_body=gzip.compress(b"PRIVATE" * 1000),
                            response_headers=((b"Content-Encoding", b"gzip"), (b"X-Request-ID", b"fixture-request"))) as peer:
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
+
             endpoint = ChatEndpoint(self.spec(peer.origin + "/chat"), transport=transport,
                                     request_bytes=4096, response_bytes=8192, error_response_bytes=64)
+
             self.addAsyncCleanup(endpoint.retire)
+
             with self.assertRaises(ChatFailed) as caught:
                 await endpoint.complete([], [])
+
             self.assertEqual(caught.exception.cause.response_head.status, 429)
             self.assertEqual(caught.exception.cause.primary.reason, "size_limit")
+
             self.assertIn((b"x-request-id", b"fixture-request"),
                           [(name.lower(), value) for name, value in caught.exception.cause.response_head.headers])
+
             self.assertTrue(endpoint.retirement_confirmed)
             self.assertEqual(len(peer.requests), 1)
             self.assertNotIn("PRIVATE", str(caught.exception))
@@ -34,10 +40,13 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_absolute_turn_deadline_bounds_a_longer_exchange_budget(self):
         async with TlsPeer("headers-stall") as peer:
             transport = HttpTransport(trust=peer.trust, exchange_seconds=3, retirement_seconds=0.5)
+
             endpoint = ChatEndpoint(self.spec(peer.origin + "/chat"), transport=transport,
                                     request_bytes=4096, response_bytes=4096)
+
             with self.assertRaises(ChatFailed):
                 await asyncio.wait_for(endpoint.complete([], [], not_after=asyncio.get_running_loop().time() + 0.25), 1.5)
+
             self.assertEqual(len(peer.requests), 1)
             await endpoint.retire()
             self.assertTrue(endpoint.retirement_confirmed)
@@ -45,17 +54,22 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_http_rejection_keeps_error_fields_without_complete_prompt_or_key_echoes(self):
         prompt = 'PRIVATE_INPUT quoted "source"\nC 0 0 0; api_key=PRIVATE_KEY'
+
         body = json.dumps({"error": {
             "message": "Unsupported tool_choice. Echo: " + prompt + "; escaped: " + json.dumps(prompt)[1:-1],
             "type": "invalid_request_error", "code": "unsupported_parameter", "param": "tool_choice",
             "request": "PRIVATE_UNRELATED_BODY",
         }}).encode()
+
         response = HttpResponse(400, ((b"content-type", b"application/json"),), body)
         transport = SimpleNamespace(exchange_decoded=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True)
+
         endpoint = ChatEndpoint(self.spec("https://example.invalid/chat"), transport=transport,
                                 request_bytes=4096, response_bytes=16384)
+
         with self.assertRaises(ChatFailed) as caught:
             await endpoint.complete([{"role": "user", "content": prompt}], [])
+
         evidence = caught.exception.endpoint_error
         self.assertIn("Unsupported tool_choice", evidence["message"])
         self.assertEqual(evidence["code"], "unsupported_parameter")
@@ -71,10 +85,13 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(length=len(body)):
                 response = HttpResponse(400, (), body)
                 transport = SimpleNamespace(exchange_decoded=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True)
+
                 endpoint = ChatEndpoint(self.spec("https://example.invalid/chat"), transport=transport,
                                         request_bytes=4096, response_bytes=32768)
+
                 with self.assertRaises(ChatFailed) as caught:
                     await endpoint.complete([], [])
+
                 self.assertEqual(caught.exception.response.status, 400)
                 self.assertIn("detail_unavailable", caught.exception.endpoint_error)
                 self.assertNotIn("PRIVATE", json.dumps(caught.exception.endpoint_error))
@@ -85,11 +102,14 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         interruption.__cause__ = previous
         failure = ExchangeFailed("Authored interrupted exchange", primary=interruption)
         transport = SimpleNamespace(exchange_decoded=AsyncMock(side_effect=interruption), last_failure=failure)
+
         endpoint = ChatEndpoint(
             self.spec("https://example.invalid/chat"), transport=transport, request_bytes=4096, response_bytes=4096
         )
+
         with self.assertRaises(asyncio.CancelledError) as caught:
             await endpoint.complete([], [])
+
         self.assertIs(caught.exception, interruption)
         self.assertIs(type(interruption.__cause__), ChatFailed)
         self.assertIs(interruption.__cause__.cause, failure)
@@ -103,12 +123,15 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         # Capture only this test's diagnostic; any other event still fails.
         with self.assertLogs("asyncio", level="ERROR") as recorded:
             writer = None
+
             try:
                 async with TlsPeer("success", handshake_seconds=0.25) as peer:
                     incoming, outgoing = ssl.MemoryBIO(), ssl.MemoryBIO()
                     client = peer.trust.wrap_bio(incoming, outgoing, server_side=False, server_hostname="localhost")
+
                     with self.assertRaises(ssl.SSLWantReadError):
                         client.do_handshake()
+
                     port = peer.server.sockets[0].getsockname()[1]
                     reader, writer = await asyncio.open_connection("127.0.0.1", port)
                     writer.write(outgoing.read())
@@ -116,21 +139,27 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.wait_for(peer.handshake_received.wait(), 1)
                     self.assertEqual(peer.server_names, ["localhost"])
                     self.assertEqual(peer.handlers, set())
+
                 await asyncio.wait_for(reader.read(), 1)
                 self.assertEqual(peer.requests, [])
             finally:
                 if writer is not None:
                     writer.close()
                     await writer.wait_closed()
+
         self.assertEqual(1, len(recorded.records),
                          msg=[record.getMessage() for record in recorded.records])
+
         event = recorded.records[0]
         self.assertEqual("ERROR", event.levelname)
+
         self.assertEqual("Error on transport creation for incoming connection",
                          event.getMessage().split("\n", 1)[0])
+
         self.assertIsNotNone(event.exc_info)
         error = event.exc_info[1]
         self.assertIn(type(error), (ConnectionAbortedError, ConnectionResetError))
+
         if type(error) is ConnectionAbortedError:
             self.assertIn("SSL handshake is taking longer than 0.25 seconds", str(error))
 
@@ -141,11 +170,14 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_oversized_request_is_rejected_before_http(self):
         transport = SimpleNamespace(exchange_decoded=AsyncMock(), retire=AsyncMock(), retirement_confirmed=True)
+
         endpoint = ChatEndpoint(
             self.spec("https://example.invalid/chat"), transport=transport, request_bytes=64, response_bytes=4096
         )
+
         with self.assertRaisesRegex(ChatFailed, "request.*byte limit"):
             await endpoint.complete([{"role": "user", "content": "PRIVATE_SOURCE" * 100}], [])
+
         transport.exchange_decoded.assert_not_awaited()
 
     async def test_http_failure_and_malformed_replies_keep_raw_evidence_private(self):
@@ -160,14 +192,18 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.subTest(status=status, body=body):
                 response = HttpResponse(status, ((b"content-type", b"application/json"),), body)
+
                 transport = SimpleNamespace(
                     exchange_decoded=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True
                 )
+
                 endpoint = ChatEndpoint(
                     self.spec("https://example.invalid/chat"), transport=transport, request_bytes=4096, response_bytes=4096
                 )
+
                 with self.assertRaises(ChatFailed) as caught:
                     await endpoint.complete([], [])
+
                 transport.exchange_decoded.assert_awaited_once()
                 self.assertIs(caught.exception.response, response)
                 self.assertNotIn("PRIVATE", str(caught.exception))
@@ -177,12 +213,16 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(mode=mode):
                 async with TlsPeer(mode, response_body=b"x" * 100) as peer:
                     transport = HttpTransport(trust=peer.trust, exchange_seconds=0.15, retirement_seconds=0.5)
+
                     endpoint = ChatEndpoint(
                         self.spec(peer.origin + "/chat"), transport=transport, request_bytes=4096, response_bytes=maximum
                     )
+
                     self.addAsyncCleanup(endpoint.retire)
+
                     with self.assertRaises(ChatFailed) as caught:
                         await asyncio.wait_for(endpoint.complete([], []), 2)
+
                     self.assertIsInstance(caught.exception.cause, ExchangeFailed)
                     self.assertTrue(endpoint.retirement_confirmed)
                     self.assertEqual(len(peer.requests), 1)
@@ -191,32 +231,42 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancelled_exchange_is_retired_and_remains_cancellation(self):
         async with TlsPeer("headers-stall") as peer:
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
+
             endpoint = ChatEndpoint(
                 self.spec(peer.origin + "/chat"), transport=transport, request_bytes=4096, response_bytes=4096
             )
+
             self.addAsyncCleanup(endpoint.retire)
             task = asyncio.create_task(endpoint.complete([], []))
             await asyncio.wait_for(peer.received.wait(), 1)
             task.cancel()
+
             with self.assertRaises(asyncio.CancelledError):
                 await task
+
             self.assertTrue(endpoint.retirement_confirmed)
             await asyncio.wait_for(peer.closed.wait(), 1)
 
     async def test_unconfirmed_retirement_preserves_the_transport_failure(self):
         failure = ExchangeFailed("Resource retirement is unconfirmed", primary=OSError("PRIVATE"))
+
         transport = SimpleNamespace(
             exchange_decoded=AsyncMock(side_effect=failure), retire=AsyncMock(side_effect=failure), retirement_confirmed=False
         )
+
         endpoint = ChatEndpoint(
             self.spec("https://example.invalid/chat"), transport=transport, request_bytes=4096, response_bytes=4096
         )
+
         with self.assertRaises(ChatFailed) as caught:
             await endpoint.complete([], [])
+
         self.assertIs(caught.exception.cause, failure)
         self.assertFalse(endpoint.retirement_confirmed)
+
         with self.assertRaises(ChatFailed) as retired:
             await endpoint.retire()
+
         self.assertIs(retired.exception.cause, failure)
 
     async def test_lost_reply_does_not_repeat_the_potentially_billed_post(self):
@@ -225,12 +275,16 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
 
         async with TlsPeer("success", response_factory=lose_reply) as peer:
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
+
             endpoint = ChatEndpoint(
                 self.spec(peer.origin + "/chat"), transport=transport, request_bytes=4096, response_bytes=4096
             )
+
             self.addAsyncCleanup(endpoint.retire)
+
             with self.assertRaises(ChatFailed):
                 await endpoint.complete([], [])
+
             self.assertEqual(len(peer.requests), 1)
             self.assertTrue(endpoint.retirement_confirmed)
 

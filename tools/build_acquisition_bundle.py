@@ -34,6 +34,7 @@ SOURCE_FILES = (
     "tools/inference_native.sh",
     "tools/docker_client.sh",
 )
+
 # The proxy and its logging formatter use the SDK's canonical sources.
 # repo-check: allow-module-constant
 PROXY_FILES = ("__init__.py", "container_guard.py", "bound_http_proxy.py", "diagnostic_text.py")
@@ -49,6 +50,7 @@ INSTALLER_SOURCES = (
 
 def _add(files, name, data):
     member_path = PurePosixPath(name)
+
     if (
         member_path.is_absolute()
         or ".." in member_path.parts
@@ -58,18 +60,21 @@ def _add(files, name, data):
         raise ValueError(
             "Cannot build acquisition source bundle: duplicate or unsupported member path."
         )
+
     files[name] = data
 
 
 def dependency_files(pool, pin):
     (package,) = tomllib.loads(pin.read_text())["packages"]
     (wheel,) = package["wheels"]
+
     if package["name"] != "linux-idmap":
         raise ValueError(
             "Cannot build acquisition source bundle: require the qualified linux-idmap pin."
         )
 
     wheel_name = PurePosixPath(urlsplit(wheel["url"]).path).name
+
     if wheel_name != f"linux_idmap-{package['version']}-py3-none-any.whl":
         raise ValueError(
             "Cannot build acquisition source bundle: the identity dependency "
@@ -78,51 +83,68 @@ def dependency_files(pool, pin):
 
     wheel_bytes = (pool / wheel_name).read_bytes()
     observed_sha256 = hashlib.sha256(wheel_bytes).hexdigest()
+
     if observed_sha256 != wheel["hashes"]["sha256"]:
         raise ValueError(
             "Cannot build acquisition source bundle: identity wheel differs from its pinned hash."
         )
 
     files = {}
+
     with zipfile.ZipFile(io.BytesIO(wheel_bytes)) as archive:
         for member in archive.infolist():
             if not member.is_dir():
                 _add(files, member.filename, archive.read(member))
+
     return files, {wheel_name: observed_sha256}
 
 
 def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
     if re.fullmatch(r"[0-9a-f]{40}", revision) is None:
         raise ValueError("Cannot build acquisition manifest: require the captured Git source revision.")
+
     version = core_wheel.name.removeprefix("provider_core-").removesuffix("-py3-none-any.whl")
+
     if re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", version) is None:
         raise ValueError("Cannot build acquisition manifest: the SDK wheel must identify an exact release version.")
+
     (files, dependencies) = dependency_files(pool, pin)
+
     for name in SOURCE_FILES:
         _add(files, name, (source / "host" / name).read_bytes())
+
     _add(files, "compose/acquisition.yml", (source / "compose/acquisition.yml").read_bytes())
+
     for source_name, issued_name in INSTALLER_SOURCES:
         _add(files, issued_name, (source / source_name).read_bytes())
+
     installer = installer_release(source / "requirements/installer-release.json")
+
     _add(files, "acquisition_tool/installer/wheels/" + installer["name"],
          wheel_bytes(pool / installer["name"], installer))
+
     dependencies[installer["name"]] = installer["sha256"]
+
     # Select the same built tool artifact that the SDK issuer records. Its
     # version is not inferred from the owner version or an older consumer pin.
     if re.fullmatch(r"wheelhouse-tool-[0-9]+\.[0-9]+\.[0-9]+\.pyz", wheelhouse_bundle.name) is None:
         raise ValueError("Cannot build acquisition manifest: require one built wheelhouse tool artifact.")
+
     with regular_file(wheelhouse_bundle) as stream:
         dependencies[wheelhouse_bundle.name] = hashlib.file_digest(stream, "sha256").hexdigest()
 
     with zipfile.ZipFile(core_wheel) as archive:
         member_names = archive.namelist()
+
         for leaf in PROXY_FILES:
             member_name = "provider_core/" + leaf
+
             if member_names.count(member_name) != 1:
                 raise ValueError(
                     "Cannot build acquisition source bundle: SDK proxy member "
                     "is missing or duplicated."
                 )
+
             _add(files, member_name, archive.read(member_name))
 
     payload_inventory = {
@@ -133,19 +155,23 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
         }
         for (name, data) in sorted(files.items())
     }
+
     manifest = (json.dumps({
         "release_version": version,
         "source_revision": revision,
         "payload_files": payload_inventory,
         "dependency_inputs": dependencies,
     }, sort_keys=True, indent=2) + "\n").encode()
+
     _add(files, "acquisition-manifest.json", manifest)
     # Legacy importers still need every member in the external SDK issuer.
     # Only the embedded inventory excludes itself; the archive digest covers it.
     source_inventory = dict(payload_inventory)
+
     source_inventory["acquisition-manifest.json"] = {
         "sha256": hashlib.sha256(manifest).hexdigest(), "size": len(manifest), "mode": 0o644,
     }
+
     return files, {"source_files": source_inventory, "dependency_inputs": dependencies}
 
 
@@ -153,6 +179,7 @@ def build(pool, output, source, core_wheel, pin, *, revision, wheelhouse_bundle)
     (files, source_record) = contents(
         pool, source, core_wheel, pin, revision=revision, wheelhouse_bundle=wheelhouse_bundle,
     )
+
     with tempfile.NamedTemporaryFile(
         prefix="." + output.name + ".",
         suffix=".part",
@@ -174,4 +201,5 @@ def build(pool, output, source, core_wheel, pin, *, revision, wheelhouse_bundle)
         os.fsync(temporary.fileno())
         os.link(temporary.name, output)
         fsync_directory(output.parent)
+
     return source_record

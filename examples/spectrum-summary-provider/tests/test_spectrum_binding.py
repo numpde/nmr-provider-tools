@@ -39,6 +39,7 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
         package = Path(resources.files("spectrum_provider")).resolve()
         self.assertEqual(package, Path(distribution.locate_file("spectrum_provider")).resolve())
         self.assertTrue(package.is_relative_to(Path(sys.prefix).resolve()))
+
         for name in ("science.py", "binding.py", "provider.py"):
             with self.subTest(name=name):
                 self.assertTrue(package.joinpath(name).is_file())
@@ -74,6 +75,7 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
         )
 
         provider = await self.provider()
+
         for binding in (provider.baseline_corrector, provider.peak_detector):
             with self.subTest(binding=binding.description.binding_id):
                 self.assertIs(type(binding.contribution).initialize, sdk.Contribution.initialize)

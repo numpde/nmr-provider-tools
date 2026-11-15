@@ -45,8 +45,10 @@ def _configure_proxy_logging(level):
     Ports nmrnet_provider/runtime_logging.py at 765958643bd3371bc908218d09caaa73fcb406a4.
     This executable needs no scientific binding merely to configure its logger.
     """
+
     if level not in ("INFO", "DEBUG", "WARNING"):
         raise ValueError("Cannot configure proxy logging: choose INFO, DEBUG or WARNING.")
+
     handler = logging.StreamHandler(sys.stderr)
     handler.addFilter(_proxy_routine_record)
     handler.setFormatter(CredentialRedactingFormatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
@@ -61,17 +63,21 @@ class ServiceRefused(ValueError):
 def authority_parts(authority):
     """Admit the exact ASCII host:port representation emitted by configuration."""
     host, separator, port_text = authority.rpartition(":")
+
     if not separator or not re.fullmatch(r"[a-z0-9][a-z0-9.-]*", host):
         raise ServiceRefused(
             "Cannot admit service proxy authority: require a canonical DNS name or IPv4 address and explicit port."
         )
+
     try:
         bound_http_proxy._dns_name(host)
         port = int(port_text)
     except (UnicodeError, ValueError):
         raise ServiceRefused("Cannot admit service proxy authority: its DNS name or port is malformed.") from None
+
     if not 1 <= port <= 65535 or port_text != str(port):
         raise ServiceRefused("Cannot admit service proxy authority: require a canonical port from 1 through 65535.")
+
     return host, port
 
 
@@ -86,46 +92,62 @@ class ServicePolicy:
     def admit(cls, mode, authorities, addresses):
         if mode not in ("local", "mapped", "external"):
             raise ServiceRefused("Cannot configure service proxy: select local, mapped or external routing explicitly.")
+
         admitted = frozenset(authority_parts(value) for value in authorities)
+
         if not admitted or len(admitted) != len(authorities):
             raise ServiceRefused("Cannot configure service proxy: authorities must be nonempty and unique.")
+
         mapped = {}
+
         for value in addresses:
             host, separator, text = value.partition("=")
+
             try:
                 address = str(ipaddress.IPv4Address(text))
             except ipaddress.AddressValueError:
                 raise ServiceRefused("Cannot configure local service proxy: each peer requires a literal IPv4 address.") from None
+
             if not separator or host in mapped:
                 raise ServiceRefused("Cannot configure local service proxy: peer address assignments must be unambiguous.")
+
             try:
                 literal = ipaddress.IPv4Address(host)
             except ipaddress.AddressValueError:
                 literal = None
+
             if literal is not None and str(literal) != address:
                 raise ServiceRefused("Cannot configure local service proxy: a literal authority must keep its own address.")
+
             mapped[host] = address
+
         if mode == "external" and mapped:
             raise ServiceRefused("Cannot configure external service proxy: local address assignments are not allowed.")
+
         if mode in ("local", "mapped") and mapped.keys() != {host for host, _ in admitted}:
             raise ServiceRefused("Cannot configure mapped service proxy: require exactly one address for every admitted host.")
+
         return cls(admitted, tuple(sorted(mapped.items())))
 
     def destination(self, header):
         if not header.startswith(b"CONNECT "):
             raise ServiceRefused("Cannot admit service proxy request: only CONNECT tunnels are allowed.")
+
         try:
             destination = bound_http_proxy.parse_destination(header)
             _, host, port, _ = destination
             target = header.split(b" ", 2)[1].decode("ascii")
+
             if authority_parts(target) != (host, port):
                 raise ValueError
         except (UnicodeError, ValueError):
             raise ServiceRefused("Cannot admit service proxy request: the CONNECT authority is malformed.") from None
+
         if (host, port) not in self.authorities:
             raise ServiceRefused(
                 "Cannot admit service proxy request: this destination is outside the configured authority grant."
             )
+
         return destination
 
     def connect(self, host, port, interface):
@@ -152,26 +174,36 @@ class LiveProxyConfiguration:
 
     def read(self):
         descriptor = os.open(self.path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
+
         try:
             if not stat.S_ISREG(os.fstat(descriptor).st_mode):
                 raise ServiceRefused("Proxy configuration must be a regular file.")
+
             raw = bytearray()
+
             while len(raw) <= 65536:
                 part = os.read(descriptor, 65537 - len(raw))
+
                 if not part:
                     break
+
                 raw.extend(part)
         finally:
             os.close(descriptor)
+
         if len(raw) > 65536:
             raise ServiceRefused("Proxy configuration exceeds its 65536-byte limit.")
+
         try:
             document = tomllib.loads(raw.decode("utf-8"))
         except RecursionError:
             raise ServiceRefused("Proxy configuration is too deeply nested.") from None
+
         table = document.get("api_proxy")
+
         if type(table) is not dict:
             raise ServiceRefused("Proxy configuration requires an api_proxy table.")
+
         maximum = table.get("max_connections")
         level = table.get("log_level")
         # silent-defaults: allow-contract -- Existing settings gain the seven-second ramp when the runtime is updated.
@@ -179,31 +211,45 @@ class LiveProxyConfiguration:
         # silent-defaults: allow-contract -- Existing settings use the ready-first order when the runtime is updated.
         order = table.get("admission_order", "ready")
         authorities = table.get("allowed_authorities")
+
         if type(maximum) is not int or maximum <= 0:
             raise ServiceRefused("Proxy max_connections must be a positive integer.")
+
         if type(delay) not in (int, float) or not 0 <= delay <= bound_http_proxy.HEADER_SECONDS:
             raise ServiceRefused("Proxy max_admission_delay_seconds must be between 0 and 30 seconds.")
+
         if order not in ("ready", "fifo"):
             raise ServiceRefused("Proxy admission_order must be ready or fifo.")
+
         if level not in ("INFO", "DEBUG", "WARNING"):
             raise ServiceRefused("Proxy log_level must be INFO, DEBUG or WARNING.")
+
         if type(authorities) is not list or any(type(value) is not str for value in authorities):
             raise ServiceRefused("Proxy allowed_authorities must be a list of authorities.")
+
         # silent-defaults: allow-contract -- External routes need no mapped address table.
         route = table.get("route", {})  # silent-defaults: allow-empty-get -- External routes need no mapping table.
+
         if type(route) is not dict:
             raise ServiceRefused("Proxy route settings must be a table.")
+
         # silent-defaults: allow-contract -- External routes have no mapped addresses.
         addresses = route.get("addresses", [])  # silent-defaults: allow-empty-get -- External routes have no mapped addresses.
+
         if type(addresses) is not list or any(type(value) is not str for value in addresses):
             raise ServiceRefused("Proxy route addresses must be a list of mappings.")
+
         if self.mode == "external" and addresses:
             raise ServiceRefused("External service proxy does not accept local address mappings.")
+
         hosts = {authority_parts(value)[0] for value in authorities}
+
         selected = (addresses if self.mode == "external" else
                     [address for address in addresses if address.partition("=")[0] in hosts])
+
         policy = (ServicePolicy.admit(self.mode, authorities, selected) if authorities
                   else ServicePolicy(frozenset(), ()))
+
         return LiveProxySettings(policy, maximum, level, delay, order)
 
     def apply(self, server, settings):
@@ -215,21 +261,27 @@ class LiveProxyConfiguration:
 
     def refresh(self, server):
         now = time.monotonic()
+
         if now < self.next_poll:
             return
+
         self.next_poll = now + 5
+
         try:
             settings = self.read()
         except ServiceRefused as error:
             logging.getLogger("provider_core.proxy").warning(
                 "Cannot reload proxy settings: %s Retaining the current settings.", error
             )
+
             return
         except (OSError, UnicodeError, ValueError) as error:
             logging.getLogger("provider_core.proxy").warning(
                 "Cannot reload proxy settings; retaining current settings", exc_info=error,
             )
+
             return
+
         self.apply(server, settings)
 
 
@@ -244,6 +296,7 @@ class ServiceProxyHandler(bound_http_proxy.ProxyHandler):
     def admission_reply(self, error):
         if isinstance(error, ServiceRefused):
             return b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n"
+
         return super().admission_reply(error)
 
 class ServiceProxyServer(bound_http_proxy.ProxyServer):
@@ -263,6 +316,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
         self.admission_order = "ready"
         self.pending = deque()
         super().__init__(str(path), interface)
+
         try:
             self.process_status = ProcessStatus(status_directory, "proxy")
             self.process_status.refresh("ready")
@@ -272,49 +326,65 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
 
     def service_actions(self):
         self.process_status.refresh("ready")
+
         if self.live_configuration is not None:
             self.live_configuration.refresh(self)
+
         self._start_waiting()
 
     def process_request(self, request, client_address):
         if self.live_configuration is None and not self.shared_socket:
             return super().process_request(request, client_address)
+
         self._start_waiting()
         active, capacity = self._slots.load()
+
         if active * 2 <= capacity:
             fraction = 0.0
         elif active >= capacity:
             fraction = 1.0
         else:
             fraction = 2 * active / capacity - 1
+
         delay_seconds = self.max_admission_delay_seconds * fraction
+
         if delay_seconds == 0 and self.admission_order == "ready" and self._slots.acquire():
             self._start_reserved(request, client_address)
             return
+
         if len(self.pending) >= capacity:
             self.shutdown_request(request)
             return
+
         ready_at = time.monotonic() + delay_seconds
         self.pending.append((ready_at, ready_at + bound_http_proxy.HEADER_SECONDS, request, client_address))
         self._start_waiting()
 
     def _start_waiting(self):
         poller = select.poll()
+
         for _, _, request, _ in self.pending:
             poller.register(request, select.POLLHUP | select.POLLERR)
+
         closed = {fd for fd, events in poller.poll(0) if events & (select.POLLHUP | select.POLLERR | select.POLLNVAL)}
         blocked = False
+
         for _ in range(len(self.pending)):
             ready_at, expires_at, request, client_address = self.pending.popleft()
             now = time.monotonic()
+
             if request.fileno() in closed or now >= expires_at:
                 self.shutdown_request(request)
                 continue
+
             if blocked or ready_at > now or not self._slots.acquire():
                 self.pending.append((ready_at, expires_at, request, client_address))
+
                 if self.admission_order == "fifo":
                     blocked = True
+
                 continue
+
             self._start_reserved(request, client_address)
 
     def _start_reserved(self, request, client_address):
@@ -322,14 +392,17 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
             self.start_reserved_request(request, client_address)
         except BaseException as error:
             self.shutdown_request(request)
+
             if not isinstance(error, Exception):
                 raise
+
             self.handle_error(request, client_address)
 
     def server_close(self):
         while self.pending:
             _, _, request, _ = self.pending.popleft()
             self.shutdown_request(request)
+
         super().server_close()
 
     def server_bind(self):
@@ -337,6 +410,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
         # a stale public socket that the restart owner must refuse to remove.
         # silent-defaults: allow-contract -- Socket birth mode follows the explicit private or shared grant.
         previous = os.umask(0o117 if self.shared_socket else 0o177)
+
         try:
             super().server_bind()
         finally:
@@ -354,6 +428,7 @@ def socket_grant(path, ready, *, socket_group_id=None):
     and publication use the held directory, not a reopened replaceable ancestor.
     No host cleanup loop or extra lifetime registry participates in restart.
     """
+
     if (
         not path.is_absolute()
         or not ready.is_absolute()
@@ -364,17 +439,23 @@ def socket_grant(path, ready, *, socket_group_id=None):
         raise ServiceRefused(
             "Cannot start service proxy: socket and readiness require distinct absolute paths in one private directory."
         )
+
     descriptor = None
+
     try:
         try:
             if len(str(path).encode("utf-8")) > 107:
                 raise ServiceRefused("Cannot start service proxy: the Unix socket path exceeds Linux's 107-byte pathname limit.")
+
             parent = path.parent.lstat()
             shared = socket_group_id is not None
+
             if shared and (type(socket_group_id) is not int or socket_group_id <= 0 or socket_group_id != os.getegid()):
                 raise ServiceRefused("Cannot start service proxy: the shared socket group must be the proxy's primary GID.")
+
             # silent-defaults: allow-contract -- Directory modes follow the selected shared or private grant.
             parent_modes = (0o710, 0o2710) if shared else (0o700,)
+
             if (
                 path.parent.resolve() != path.parent
                 or not stat.S_ISDIR(parent.st_mode)
@@ -385,31 +466,41 @@ def socket_grant(path, ready, *, socket_group_id=None):
                 raise ServiceRefused(
                     "Cannot start service proxy: its directory must be caller-owned with the required private or shared-group mode, and free of symlinks."
                 )
+
             descriptor = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC)
             held = os.fstat(descriptor)
+
             if (held.st_dev, held.st_ino, held.st_uid, held.st_mode) != (parent.st_dev, parent.st_ino, parent.st_uid, parent.st_mode):
                 raise ServiceRefused("Cannot start service proxy: its admitted directory changed before ownership was acquired.")
+
             try:
                 fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
                 raise ServiceRefused("Cannot start service proxy: another proxy owns this private route directory.") from error
+
             retired = []
+
             for leaf, required in ((path, stat.S_ISSOCK), (ready, stat.S_ISREG)):
                 try:
                     observed = os.stat(leaf.name, dir_fd=descriptor, follow_symlinks=False)
                 except FileNotFoundError:
                     continue
+
                 # silent-defaults: allow-contract -- Only the explicitly shared socket is group writable; readiness remains private.
                 mode = 0o660 if shared and leaf == path else 0o600
+
                 if (not required(observed.st_mode) or observed.st_uid != os.geteuid()
                         or stat.S_IMODE(observed.st_mode) != mode
                         or (shared and leaf == path and observed.st_gid != socket_group_id)):
                     raise ServiceRefused("Cannot start service proxy: prior route leaves have an unexpected type, owner or mode; preserve them for inspection.")
+
                 if leaf == ready:
                     with os.fdopen(os.open(leaf.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=descriptor), "rb") as receipt:
                         if receipt.read(7) != b"ready\n":
                             raise ServiceRefused("Cannot start service proxy: prior readiness is not the owned complete receipt; preserve it for inspection.")
+
                 retired.append(leaf.name)
+
             for name in retired:
                 os.unlink(name, dir_fd=descriptor)
         except OSError as error:
@@ -418,6 +509,7 @@ def socket_grant(path, ready, *, socket_group_id=None):
             ) from error
         except UnicodeError as error:
             raise ServiceRefused("Cannot start service proxy: its Unix path must be valid UTF-8.") from error
+
         yield Path("/proc/self/fd") / str(descriptor)
     finally:
         if descriptor is not None:
@@ -437,40 +529,53 @@ def main():
     parser.add_argument("--live-config", type=Path)
     parser.add_argument("--socket-group-id", type=int)
     args = parser.parse_args()
+
     if args.live_config is None and (not args.authority or not args.log_level):
         parser.error("private routes require --authority and --log-level")
+
     if args.live_config is not None and (args.authority is not None or args.log_level is not None):
         parser.error("live routes take authorities and log level from --live-config")
+
     if args.live_config is not None and args.address is not None:
         parser.error("live routes take address mappings from --live-config")
+
     # Startup errors need the same formatter before live settings can supply
     # their chosen log level. This initial level affects only configuration.
     _configure_proxy_logging("WARNING")
+
     try:
         # Omitted --address supplies no mappings. External mode requires none;
         # local mode still requires complete coverage in ServicePolicy.admit.
         addresses = args.address
+
         if addresses is None:
             addresses = ()
+
         live = None
+
         if args.live_config is None:
             policy = ServicePolicy.admit(args.mode, args.authority, addresses)
             _configure_proxy_logging(args.log_level)
         else:
             if not args.live_config.is_absolute():
                 raise ServiceRefused("Cannot configure service proxy: the live settings path must be absolute.")
+
             live = LiveProxyConfiguration(args.live_config, args.mode)
             settings = live.read()
             policy = settings.policy
             _configure_proxy_logging(settings.log_level)
+
         bound_http_proxy.require_interface(args.interface)
+
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
             probe.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, args.interface.encode() + b"\0")
+
         with socket_grant(args.socket, args.ready_file, socket_group_id=args.socket_group_id) as parent:
             with ServiceProxyServer(parent / args.socket.name, args.interface, policy, status_directory=args.status_directory,
                                     live_configuration=live, shared_socket=args.socket_group_id is not None) as server:
                 if live is not None:
                     live.apply(server, settings)
+
                 bound_http_proxy.publish_readiness(parent / args.ready_file.name, "ready\n")
                 logging.getLogger("provider_core.proxy").info("Service proxy ready.")
                 server.serve_forever()

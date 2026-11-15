@@ -31,12 +31,15 @@ class RunnerSummaryTests(unittest.TestCase):
         result, output = self.render((Cases("test_failed_assertion"),
                                       Cases("test_unexpected_exception"),
                                       Cases("test_seeded_subtest")))
+
         self.assertFalse(result.wasSuccessful())
         self.assertEqual(3, len(result.problems))
         summary = output[output.index("=== PROVIDER-CORE FAILURE SUMMARY"):]
         self.assertIn("3 failing cases", summary)
+
         for name in ("test_failed_assertion", "test_unexpected_exception", "test_seeded_subtest"):
             self.assertIn(name, summary)
+
         self.assertIn("mode='blocked'", summary)
         self.assertIn("seed=23", summary)
         self.assertIn("AssertionError: The restored Job failed to publish", summary)
@@ -113,6 +116,7 @@ class RunnerSummaryTests(unittest.TestCase):
                         "message": "Expected injected reset",
                         "exception": ConnectionResetError("intentionally unfinished TLS"),
                     })
+
                 self.assertEqual(1, len(captured.records))
                 self.assertIs(type(captured.records[0].exc_info[1]), ConnectionResetError)
 

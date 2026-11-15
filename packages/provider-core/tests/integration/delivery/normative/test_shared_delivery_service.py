@@ -30,7 +30,9 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             if len(peer.requests) == 1:
                 peer.response_status = 429
                 return b"retry"
+
             peer.response_status = 200
+
             return fail_response(execution_attempt_ref=item.execution_attempt_ref,
                                  failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
 
@@ -38,12 +40,15 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             item = replace(item, api_origin=peer.origin)
             ca = (Path(peer.scratch.name) / "cert.pem").read_bytes()
             credential = encoded(document(principal_ref="provider:test"))
+
             fields = {"origin": peer.origin, "profile": "dev-local", "topology": "dev-local",
                       "provider_ref": "provider:test", "exchange_seconds": 2, "retirement_seconds": 1,
                       "credential_file": "/gone/key", "ca_file": "/gone/ca"}
+
             _, _, material = api_settings_with_material(
                 fields, lambda _path, **options: credential if options["label"] == "API signing credential" else ca
             )
+
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / "state").mkdir(mode=0o700)
@@ -60,6 +65,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 queue.enqueue_handoff(DeliveryHandoff(item, material))
                 queue.close()
                 policy = ServicePolicy.admit("mapped", [urlsplit(peer.origin).netloc], ["127.0.0.1=127.0.0.1"])
+
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root) as proxy:
                     thread = threading.Thread(target=proxy.serve_forever, kwargs={"poll_interval": 0.01})
                     thread.start()
@@ -72,6 +78,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                         def __call__(self, _error, facts):
                             if facts["event"] == "delivery_retry":
                                 retry.set()
+
                             if facts["event"] == "delivery_published":
                                 published.set()
 
@@ -79,7 +86,9 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                         socket=SharedDeliverySocket(root / "ipc/http.sock", None), proxy_socket=root / "proxy.sock",
                         request_seconds=2, retry_initial_seconds=60, retry_max_seconds=60,
                         on_notice=Notices(), diagnostic_status=Mock(), live_configuration=SharedDeliveryConfiguration(config))
+
                     task = asyncio.create_task(service.run())
+
                     try:
                         await asyncio.wait_for(retry.wait(), 5)
                         replacement = root / "replacement.toml"
@@ -100,6 +109,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
         async def response(_request, _body):
             item = items[len(peer.requests) - 1]
+
             return fail_response(execution_attempt_ref=item.execution_attempt_ref,
                                  failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
 
@@ -107,27 +117,35 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             items = [replace(item, api_origin=peer.origin) for item in items]
             ca = (Path(peer.scratch.name) / "cert.pem").read_bytes()
             materials, keys = [], []
+
             for _ in items:
                 credential = encoded(document(principal_ref="provider:test"))
+
                 fields = {"origin": peer.origin, "profile": "dev-local", "topology": "dev-local",
                           "provider_ref": "provider:test", "exchange_seconds": 2, "retirement_seconds": 1,
                           "credential_file": "/gone/key", "ca_file": "/gone/ca"}
+
                 settings, _, material = api_settings_with_material(
                     fields, lambda _path, **options: credential if options["label"] == "API signing credential" else ca
                 )
+
                 materials.append(material)
                 keys.append(settings.identity.private_key)
+
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / "state").mkdir(mode=0o700)
                 (root / "ipc").mkdir(mode=0o700)
                 limits = QueueLimits(4, 16384, 8, 32768)
                 queue = DeliveryQueue(root / "state", limits=limits)
+
                 for item, material in zip(items, materials):
                     queue.enqueue_handoff(DeliveryHandoff(item, material))
+
                 queue.close()
                 authority = urlsplit(peer.origin).netloc
                 policy = ServicePolicy.admit("mapped", [authority], ["127.0.0.1=127.0.0.1"])
+
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root) as proxy:
                     thread = threading.Thread(target=proxy.serve_forever, kwargs={"poll_interval": 0.01})
                     thread.start()
@@ -136,6 +154,7 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
                     def notice(error, facts):
                         notices.append((error, facts))
+
                         if sum(event[1]["event"] == "delivery_published" for event in notices) == 2:
                             published.set()
 
@@ -143,11 +162,15 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                         socket=SharedDeliverySocket(root / "ipc/http.sock", None), proxy_socket=root / "proxy.sock",
                         request_seconds=2, retry_initial_seconds=0.01, retry_max_seconds=0.02,
                         on_notice=notice, diagnostic_status=Mock())
+
                     task = asyncio.create_task(service.run())
+
                     try:
                         await asyncio.wait_for(published.wait(), 5)
+
                         for request, item, key in zip(peer.requests, items, keys):
                             verify_signed_request(request, item.body, origin=peer.origin, key=key)
+
                         self.assertEqual(peer.request_bodies, [item.body for item in items])
                         self.assertEqual(service.queue.inventory(peer.origin, "provider:test"), [])
                     finally:
@@ -155,4 +178,5 @@ class SharedDeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                         await asyncio.wait_for(task, 5)
                         await asyncio.to_thread(proxy.shutdown)
                         await asyncio.to_thread(thread.join, 2)
+
                     self.assertTrue(service.retirement_confirmed)

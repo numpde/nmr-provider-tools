@@ -46,8 +46,10 @@ def _has_documented_escape(node: ast.Call, source_lines: list[str]) -> bool:
         return stripped.startswith(_ESCAPE_PREFIX) and bool(stripped.removeprefix(_ESCAPE_PREFIX).strip())
 
     immediate = source_lines[node.lineno - 2]
+
     if documents_reason(immediate):
         return True
+
     return node.lineno >= 3 and immediate.strip().startswith("# repo-check:") and documents_reason(source_lines[node.lineno - 3])
 
 
@@ -56,6 +58,7 @@ def _findings(path: Path, source: str) -> list[_Finding]:
 
     tree = ast.parse(source, filename=str(path))
     source_lines = source.splitlines()
+
     return sorted(
         [
             _Finding(
@@ -159,5 +162,6 @@ class TupleGeneratorPostureTests(unittest.TestCase):
     ) -> None:
         paths = python_sources(production_only=False)
         findings = _scan(paths)
+
         if findings:
             self.fail("tuple() calls over comprehensions:\n" + "\n".join(finding.diagnostic() for finding in findings))

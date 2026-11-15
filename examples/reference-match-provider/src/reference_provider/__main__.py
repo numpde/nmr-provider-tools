@@ -23,6 +23,7 @@ async def run_demo() -> None:
     Host exit then joins original retirement, deferring interruption while SDK
     resources are pending rather than abandoning cleanup when a cap expires.
     """
+
     async with open_provider() as provider:
         execution_host = provider.execution_host
         operation_policy = provider.operation_policy
@@ -37,6 +38,7 @@ async def run_demo() -> None:
 
         with failure_collector.capture():
             hosted_matcher = provider.matcher
+
             for values in ((3, 4, 0, 0), (0, 0, 1, 1)):
                 analysis_executor = execution_host.open_analysis(allocations=frozenset({hosted_matcher.allocation}))
                 reservation_ref, = analysis_executor.reservations
@@ -51,30 +53,37 @@ async def run_demo() -> None:
 
                 if isinstance(match_operation, NotAdmitted):
                     raise RuntimeError(f"Reference match admission refused: {match_operation.code.value}: {match_operation.message}")
+
                 async with asyncio.timeout(15):
                     operation_observation = await observe_completion(operation=match_operation)
+
                 pending_report_deliveries.append((match_operation, operation_observation.require_result()))
+
                 # Same allocation supports sequential analyses. Its index remains
                 # initialized; its first result remains retained under a separate owner.
                 async with asyncio.timeout(15):
                     await observe_cleanup(control=analysis_executor.close())
+
                 analysis_executor = None
 
         if analysis_executor is not None:
             with failure_collector.capture():
                 analysis_executor.request_stop()
+
         # A later analysis failure must not suppress an earlier usable report.
         # Failed consumption keeps the result owned until this process exits.
         for match_operation, result_ref in pending_report_deliveries:
             with failure_collector.capture():
                 async with ResultConsumption(operation=match_operation, result=result_ref, receive=print_report) as result_consumer:
                     await result_consumer.consume()
+
         # Completed sessions need no second observation. Keep only the
         # current session if its cleanup has not been confirmed yet.
         if analysis_executor is not None:
             with failure_collector.capture():
                 async with asyncio.timeout(15):
                     await observe_cleanup(control=analysis_executor.close())
+
         failure_collector.raise_if_any()
 
 

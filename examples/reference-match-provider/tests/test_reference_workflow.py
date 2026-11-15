@@ -45,12 +45,14 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
         build = self.enterContext(patch("reference_provider.science.build_index", wraps=science.build_index))
         match = self.enterContext(patch("reference_provider.science.match", wraps=science.match))
         operations = []
+
         async with provider_setup.open_provider() as provider:
             execution_host = provider.execution_host
             operation_policy = provider.operation_policy
             binding = provider.matcher
             call = binding.call(method=ReferenceMatcher.match)
             library = binding.contribution
+
             async with asyncio.timeout(15):
                 for values, expected in (
                     ((3, 4, 0, 0), "pattern-a"),
@@ -80,6 +82,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
                 first_index = match.call_args_list[0].kwargs["index"]
                 self.assertIs(first_index, match.call_args_list[1].kwargs["index"])
+
                 for operation, result, payload in operations:
                     self.assertEqual(payload, await operation.read_result(result))
                     received = []
@@ -92,6 +95,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual([payload], received)
                     released = await operation.observe(after=None, wait_seconds=0)
                     self.assertIs(ResultState.RELEASED, released.result_state)
+
         self.assertIsNone(library.loaded_index)
 
     async def test_second_analysis_failure_does_not_suppress_the_first_report(self):
@@ -102,8 +106,10 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
 
         def fail_second(*, index, settings, candidate):
             calls.append(candidate)
+
             if len(calls) == 2:
                 raise cause
+
             return original_match(index=index, settings=settings, candidate=candidate)
 
         def observed_host(**options):
@@ -114,6 +120,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             def open_analysis(*, allocations):
                 analysis = original_open(allocations=allocations)
                 opened.append(analysis)
+
                 if len(opened) == 2:
                     original_close = analysis.close
 
@@ -124,6 +131,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                         return original_close()
 
                     analysis.close = close
+
                 return analysis
 
             owner.open_analysis = open_analysis
@@ -137,6 +145,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
             async with asyncio.timeout(15):
                 with self.assertRaises(OSError) as raised:
                     await demo.run_demo()
+
         self.assertIs(cause, raised.exception)
         report = json.loads(output.getvalue())
         self.assertEqual("pattern-a", report["label"])
@@ -156,5 +165,6 @@ class ReferenceCommandTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         reports = [json.loads(line) for line in result.stdout.splitlines()]
         self.assertEqual(["pattern-a", "pattern-b"], [report["label"] for report in reports])
+
         for report in reports:
             self.assertAlmostEqual(1.0, report["score"])

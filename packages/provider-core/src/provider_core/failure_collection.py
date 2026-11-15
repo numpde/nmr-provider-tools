@@ -40,6 +40,7 @@ class FailureCollector:
     @contextmanager
     def capture(self) -> Iterator[None]:
         """Keep one phase's failure without skipping the caller's later phases."""
+
         try:
             yield
         except BaseException as cause:
@@ -54,14 +55,17 @@ class FailureCollector:
                     cause = cause.subgroup(unrecorded_leaf)
             elif id(cause) in self._seen:
                 return
+
             if cause is not None:
                 self._causes.append(cause)
                 self._seen.update(id(leaf) for leaf in _leaves(cause=cause))
 
     def raise_if_any(self) -> None:
         """Raise one original cause directly, or group independent failures."""
+
         if len(self._causes) == 1:
             raise self._causes[0]
+
         if self._causes:
             # Causes are already explicit in the group; do not print an active
             # caller exception again as implicit context above that same group.

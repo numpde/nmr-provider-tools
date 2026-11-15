@@ -35,8 +35,10 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
 
     def transport(self, phase):
         replies = [reply(start_response()), reply(observation()), reply(progress_response())]
+
         if phase == "running":
             replies.extend([reply(observation()), reply(progress_response(phase="running")), reply(observation())])
+
         replies.append(reply(b"API unavailable after crash", status=503))
         return Transport(*replies)
 
@@ -77,6 +79,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
         for mismatch in ("phase", "owner", "admission", "interruption"):
             with self.subTest(mismatch=mismatch):
                 session = self.session("preparing")
+
                 if mismatch == "phase":
                     session.claimed_phase = "running"
                 elif mismatch == "owner":
@@ -85,9 +88,12 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
                     session.clone_acknowledgement = True
                 else:
                     session.interrupt_first = True
+
                 controller = self.controller(session, self.transport("preparing"))
+
                 with self.assertRaises(ControllerFailed):
                     await controller.run(record())
+
                 self.assertEqual([], controller.delivery.items)
                 self.assertNotIn("execute", session.events)
 
@@ -100,6 +106,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
                 if len(self.calls) == 3:
                     session.begin_crash.set()
                     await asyncio.wait_for(session.crash_ready.wait(), 2)
+
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         original = self.transport("preparing")
@@ -120,16 +127,20 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
                 if len(self.calls) == 3:
                     session.begin_crash.set()
                     await asyncio.wait_for(session.crash_ready.wait(), 5)
+
                     if owner.observed_crash is None:
                         raise AssertionError("The fixture requires an admitted crash before its API failure")
+
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         recovery = ObservationRecovery(
             gap_seconds=6, backoff_max_seconds=0.04,
             on_retry=Mock(side_effect=OSError("Logging sink failed")), on_recovered=Mock(),
         )
+
         controller = self.controller(session, OutageDuringCrash(*self.transport("preparing").replies),
                                      observation_recovery=recovery)
+
         controller._poll_seconds = 0.01
         accepted = await controller.run(record())
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
@@ -144,8 +155,10 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
 
             async def submit(self, item):
                 self.attempted.append(item.body)
+
                 if len(self.attempted) == 1:
                     raise DeliveryFull("Relay is full")
+
                 return await super().submit(item)
 
         delivery, diagnostic = FullOnce(), OSError("Retry logging sink failed")
@@ -162,6 +175,7 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_native_cleanup_crash_preserves_already_chosen_complete_or_fail(self):
         evidence = ProtectedEvidence("fixture.outcome.v1", b"original scientific outcome")
+
         for outcome, expected in (
             (AnalysisSuccess("result.v1", b"result", evidence), TerminalOperation.COMPLETE),
             (AnalysisFailure("input_rejected", "Input was rejected", evidence), TerminalOperation.FAIL),
@@ -172,8 +186,10 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
                 class CleanupCrash(CrashingSession):
                     async def execute(self, prepared, *, report_condition):
                         self.events.append("execute")
+
                         if prepared is not self.handle:
                             raise AssertionError("Foreign scientific handle")
+
                         return outcome
 
                     async def retire(self):
@@ -186,10 +202,14 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
                 replies[-1] = reply(observation())
                 controller = self.controller(session, Transport(*replies))
                 controller.delivery = delivery
+
                 with self.assertRaises(ControllerFailed):
                     await controller.run(record())
+
                 self.assertEqual(1, len(delivery.items))
                 self.assertIs(expected, delivery.items[0].operation)
+
                 if expected is TerminalOperation.FAIL:
                     self.assertEqual("input_rejected", json.loads(delivery.items[0].body)["failure_code"])
+
                 self.assertIsNone(controller.operation.observed_crash)

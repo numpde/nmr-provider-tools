@@ -16,21 +16,27 @@ class AttemptReadTests(unittest.IsolatedAsyncioTestCase):
             for job_state in ("open", "closed", "cancelled"):
                 with self.subTest(state=state, job_state=job_state):
                     transport = Transport(reply(observation(state=state, job_state=job_state)))
+
                     api = ProviderAPI(
                         SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
                         transport,
                         expected_topology="dev-local",
                     )
+
                     result = await api.read_attempt(ATTEMPT_REF, job_ref="job:example")
+
                     self.assertEqual(
                         (result.execution_attempt_ref, result.job_ref, result.state, result.job_state),
                         (ATTEMPT_REF, "job:example", state, job_state),
                     )
+
                     request, limit = transport.calls[0]
+
                     self.assertEqual(
                         (request.method, request.url.raw_path, limit),
                         ("GET", b"/provider/v1/execution-attempts/" + ATTEMPT_REF.encode(), 65536),
                     )
+
                     self.assertEqual(request.content, b"")
                     self.assertIn("Signature", request.headers)
                     self.assertNotIn("Content-Type", request.headers)

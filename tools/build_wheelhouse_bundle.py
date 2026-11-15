@@ -28,13 +28,16 @@ SOURCE_MODULES = (
 
 def dependency_files(pool, lock):
     files = {}
+
     for ((package, version), hashes) in requirements(lock).items():
         wheel_name = f"{package.replace('-', '_')}-{version}-py3-none-any.whl"
         wheel_bytes = (pool / wheel_name).read_bytes()
+
         if hashlib.sha256(wheel_bytes).hexdigest() not in hashes:
             raise ValueError(
                 f"Cannot build wheelhouse bundle: {wheel_name} differs from its pinned hash."
             )
+
         with zipfile.ZipFile(io.BytesIO(wheel_bytes)) as archive:
             for member in archive.infolist():
                 if not member.is_dir():
@@ -42,12 +45,15 @@ def dependency_files(pool, lock):
                         raise ValueError(
                             f"Cannot build wheelhouse bundle: duplicate {member.filename}."
                         )
+
                     files[member.filename] = archive.read(member)
+
     return files
 
 
 def build(pool, output, source, lock):
     bundle_members = dependency_files(pool, lock)
+
     bundle_members["__main__.py"] = (
         b"import sys\n"
         b"if sys.argv[1:2] == ['stream']:\n"
@@ -66,6 +72,7 @@ def build(pool, output, source, lock):
         b"    from wheelhouse_tool.__main__ import main\n"
         b"raise SystemExit(main())\n"
     )
+
     for name in SOURCE_MODULES:
         bundle_members[f"wheelhouse_tool/{name}"] = (source / "wheelhouse_tool" / name).read_bytes()
 
@@ -74,6 +81,7 @@ def build(pool, output, source, lock):
         suffix=".part",
         dir=output.parent,
     )
+
     try:
         with os.fdopen(temporary_fd, "wb") as stream:
             with zipfile.ZipFile(stream, "w", compression=zipfile.ZIP_STORED) as archive:
@@ -82,12 +90,14 @@ def build(pool, output, source, lock):
                     zip_entry.compress_type = zipfile.ZIP_STORED
                     zip_entry.external_attr = 0o644 << 16
                     archive.writestr(zip_entry, member_bytes)
+
             stream.flush()
             os.fchmod(stream.fileno(), 0o644)
             os.fsync(stream.fileno())
 
         os.link(temporary_name, output)
         directory_fd = os.open(output.parent, os.O_RDONLY | os.O_DIRECTORY)
+
         try:
             os.fsync(directory_fd)
         finally:

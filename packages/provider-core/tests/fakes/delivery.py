@@ -14,6 +14,7 @@ def healthy_diagnostics():
 # silent-defaults: allow-contract -- The fixed provider, Attempt suffix and payload sentinel prove exact retention and disclosure behavior.
 def outcome(*, provider="provider:test", suffix="0", message="SCIENTIFIC_PAYLOAD_NEEDLE"):
     reference = ATTEMPT_REF[:-1] + suffix
+
     return DeliveryOutcome(
         "https://api.example", provider, "job:queue", reference,
         TerminalOperation.FAIL, fail_body(reference, "provider_interrupted", message) + b"\n",

@@ -22,6 +22,7 @@ class DeliveryRetireOldTests(unittest.TestCase):
             tools.mkdir(parents=True)
             shutil.copyfile(ROOT / 'host/tools/delivery_retire_old.sh', tools / 'delivery_retire_old.sh')
             (root / 'volumes').write_text(''.join(name + '\n' for name in names))
+
             (tools / 'checker_operation.sh').write_text('''
 checker_begin() {
     operation_directory=$PROBE_ROOT/operation
@@ -70,19 +71,24 @@ checker_call() {
     if [[ $PROBE_SCENARIO == interrupted ]]; then operation_diagnostic='native control receipt retained'; return 130; fi
 }
 ''')
+
             environment = os.environ | {
                 'PROBE_ROOT': str(root), 'PROBE_PROJECT': 'delivery-test',
                 'PROBE_IMAGE': 'sha256:' + 'a' * 64,
                 'PROBE_DIGEST': 'b' * 64, 'PROBE_SCENARIO': scenario,
             }
+
             result = subprocess.run(
                 ['bash', str(tools / 'delivery_retire_old.sh'), environment['PROBE_PROJECT'], environment['PROBE_IMAGE']],
                 env=environment, text=True, capture_output=True, check=False,
             )
+
             remaining = (root / 'volumes').read_text().splitlines()
             removed = []
+
             if (root / 'removed').exists():
                 removed = (root / 'removed').read_text().splitlines()
+
             result.reservation_retained = (root / 'reservation').exists()
             return result, remaining, removed
 
@@ -97,6 +103,7 @@ checker_call() {
 
     def test_uncertain_ownership_borrowers_and_changes_refuse_before_removal(self):
         name = 'delivery-test-ipc-' + 'b' * 64
+
         for scenario in ('foreign', 'bad-driver', 'borrowed', 'changed'):
             with self.subTest(scenario=scenario):
                 result, remaining, removed = self.run_retirement(scenario, [name])

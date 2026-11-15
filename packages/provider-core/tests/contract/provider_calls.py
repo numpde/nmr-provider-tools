@@ -29,6 +29,7 @@ def provider_calls():
     start = start_body("job:example", "retained-start:01")
     complete = complete_body(ATTEMPT_REF, " result\n雪 ", b"result bytes")
     failed = fail_body(ATTEMPT_REF, "input_rejected", " Explain\n雪\x01 ")
+
     return {
         "provider_hello": ProviderCall("publish_hello", (), hello, receipt(), hello_request),
         "jobs_list": ProviderCall(

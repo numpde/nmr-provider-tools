@@ -20,23 +20,30 @@ class EngineCacheGCTests(unittest.TestCase):
     def test_native_policy_rejects_wrong_types_separately_from_threshold_values(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "daemon.json"
+
             for document in ([], None, True):
                 path.write_text(json.dumps(document))
+
                 with self.subTest(document=document), self.assertRaises(TypeError):
                     native_config(path)
+
         for builder in ([], None, True):
             with self.subTest(builder=builder), self.assertRaises(TypeError):
                 configured({"builder": builder})
+
         with self.assertRaises(TypeError):
             limits({"builder": {"gc": {"enabled": "true"}}})
+
         document = configured({})
         document["builder"]["gc"]["defaultReservedSpace"] = ""
+
         with self.assertRaises(ValueError):
             limits(document)
 
     def test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it(self):
         original = {"data-root": "/owned/engine", "log-driver": "local",
                     "builder": {"other": {"retained": True}}}
+
         updated = configured(original)
         self.assertEqual(original["data-root"], updated["data-root"])
         self.assertEqual(original["builder"]["other"], updated["builder"]["other"])
@@ -64,9 +71,11 @@ class EngineCacheGCTests(unittest.TestCase):
             config = root / "daemon.json"
             config.write_text('{"data-root":"/keep"}\n')
             before = config.read_bytes()
+
             with patch("host.tools.engine_cache_gc.subprocess.run", return_value=SimpleNamespace(returncode=1)) as command:
                 with self.assertRaisesRegex(ValueError, "original file is unchanged"):
                     install(root, "science", "unix:///tmp/engine.sock", config)
+
             self.assertEqual(config.read_bytes(), before)
             self.assertEqual(["dockerd", "--validate"], command.call_args.args[0][:2])
             self.assertEqual([config], list(root.iterdir()))
@@ -77,30 +86,36 @@ class EngineCacheGCTests(unittest.TestCase):
             config = root / "daemon.json"
             config.write_text("{}\n")
             failure = subprocess.CalledProcessError(1, ["systemctl", "--user", "daemon-reload"])
+
             with patch(
                 "host.tools.engine_cache_gc.subprocess.run",
                 side_effect=[SimpleNamespace(returncode=0), SimpleNamespace(stdout=str(root / "config") + "\n"), failure],
             ):
                 with self.assertRaisesRegex(RuntimeError, "settings were saved.*activation could not be confirmed"):
                     install(root, "science", "unix:///tmp/engine.sock", config)
+
             self.assertEqual(["10GB", "32GB", "20GB"], limits(json.loads(config.read_text())))
 
     def test_periodic_command_uses_native_limits_and_isolated_selected_engine(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "host/tools").mkdir(parents=True)
+
             for name in ("engine_cache_gc.sh", "engine_cache_gc.py", "docker_context.sh", "docker_client.sh", "inference_native.sh"):
                 shutil.copyfile(ROOT / "host/tools" / name, root / "host/tools" / name)
+
             config = root / "daemon.json"
             document = configured({})
             document["builder"]["gc"]["defaultMaxUsedSpace"] = "24GB"
             config.write_text(json.dumps(document))
             probe = root / "probe.json"
+
             result = subprocess.run(["bash", str(root / "host/tools/engine_cache_gc.sh"), "run", "science",
                                      "unix:///tmp/selected-engine.sock", str(config)], capture_output=True, text=True,
                                     env=os.environ | {"PATH":str(ROOT / "tests/repository/fixtures/cache-gc") + os.pathsep + os.environ["PATH"],
                                                       "GC_PROBE":str(probe), "DOCKER_HOST":"unix:///tmp/wrong.sock",
                                                       "HTTP_PROXY":"http://unselected.invalid"}, timeout=15, check=False)
+
             self.assertEqual(0, result.returncode, msg=result.stderr)
             observed = json.loads(probe.read_text())
             argv = observed["argv"]

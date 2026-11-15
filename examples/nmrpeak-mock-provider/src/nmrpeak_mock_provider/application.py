@@ -81,8 +81,10 @@ class PredictionWorkflow:
         keeps its original error and result available while the request stays open;
         the surrounding service owns reconciliation before closing the request.
         """
+
         if self.result_consumer is None:
             result_ref = await self.finish()
+
             # Another waiter may have joined the same generation while this one
             # waited. Publish one receiver owner without an intervening await.
             if self.result_consumer is None:
@@ -96,13 +98,16 @@ class PredictionWorkflow:
 
     async def settle_receiver(self) -> None:
         """Join any started receiver before request cleanup can release its result."""
+
         if self.result_consumer is not None:
             await self.result_consumer.settle()
 
     async def finish(self):
         """Submit generate once, then wait on the same operation and return its result."""
+
         if self.preparation_tool.prepared_state_handle is None:
             raise RuntimeError("Accept an interpretation before generating candidates")
+
         if self.generation_submission is None:
             reservation_ref, = self.analysis_executor.reservations
 
@@ -115,7 +120,9 @@ class PredictionWorkflow:
             )
 
         generation_admission = self.generation_submission.submit()
+
         if isinstance(generation_admission, NotAdmitted):
             raise RuntimeError(f"Cannot generate candidates: {generation_admission=}")
+
         operation_observation = await self.generation_submission.wait()
         return operation_observation.require_result()

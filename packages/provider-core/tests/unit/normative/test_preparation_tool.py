@@ -43,22 +43,29 @@ class Science(Contribution):
 
     def initialize(self, *, assets: AssetAccess) -> None:
         self.initializations += 1
+
         if self.load_entered is not None:
             self.load_entered.set()
+
             if not self.load_release.wait(timeout=5):
                 raise TimeoutError("Test did not release scientific loading")
 
     @operation(state_outputs=(prepared,))
     def prepare(self, *, sample: Sample) -> ScientificReturn[Sample]:
         self.inputs.append(sample)
+
         if self.entered is not None:
             self.entered.set()
+
             if not self.release.wait(timeout=5):
                 raise TimeoutError("Test did not release scientific preparation")
+
         if self.failure is not None:
             raise self.failure
+
         if sample.value < 0:
             raise CallRejected(code="negative", message="Supply a nonnegative sample")
+
         return ScientificReturn(value=sample, states=(self.prepared.returned(value=sample),))
 
     @operation(state_inputs=(candidate,))
@@ -128,11 +135,15 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
     async def test_operator_failure_is_original_and_cannot_restart_preparation(self):
         original = OSError("Scientific model could not read its weights")
         self.science.failure = original
+
         with self.assertRaises(expected_exception=OSError) as raised:
             await self.propose(value=1)
+
         self.assertIs(expr1=original, expr2=raised.exception)
+
         with self.assertRaises(expected_exception=RuntimeError):
             await self.propose(value=2)
+
         self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
 
     async def test_encoding_rejection_is_not_a_correctable_model_proposal(self):
@@ -143,11 +154,13 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
         def fail_report(owner, value):
             if owner is codec:
                 raise original
+
             return encode(self=owner, value=value)
 
         with patch.object(target=type(codec), attribute="encode", new=fail_report):
             with self.assertRaises(expected_exception=CallRejected) as raised:
                 await self.propose(value=1)
+
         self.assertIs(expr1=original, expr2=raised.exception)
         self.assertIsNone(obj=self.preparation_tool.prepared_state_handle)
         self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
@@ -172,10 +185,13 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(target=self.analysis_executor, attribute="submit", new=failing_release):
             with self.assertRaises(expected_exception=OSError) as raised:
                 await self.propose(value=1)
+
         self.assertIs(expr1=original, expr2=raised.exception)
         self.assertIsNotNone(obj=self.preparation_tool.prepared_state_handle)
+
         with self.assertRaises(expected_exception=RuntimeError):
             await self.propose(value=2)
+
         self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
 
         operation = self.analysis_executor.submit_method(
@@ -199,22 +215,30 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
         self.science.entered = Event()
         self.science.release = Event()
         task = asyncio.create_task(coro=self.propose(value=1))
+
         try:
             self.assertTrue(expr=await asyncio.to_thread(self.science.entered.wait, timeout=2))
             original = self.preparation_tool.operation
+
             with self.assertRaises(expected_exception=RuntimeError):
                 await self.propose(value=0)
+
             task.cancel()
+
             with self.assertRaises(expected_exception=asyncio.CancelledError):
                 await task
+
             with self.assertRaises(expected_exception=RuntimeError):
                 await self.propose(value=2)
+
             self.science.release.set()
             completed = await observe_completion(operation=original)
             completed.require_result()
             await self.preparation_tool.resume()
+
             with self.assertRaises(expected_exception=RuntimeError):
                 await self.propose(value=3)
+
             self.assertIs(expr1=original, expr2=self.preparation_tool.operation)
             self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
         finally:
@@ -231,17 +255,23 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
             requests.append(invocation)
             operation = submit(invocation=invocation)
             operations.append(operation)
+
             if len(requests) == 1:
                 raise original
+
             return operation
 
         with patch.object(target=self.analysis_executor, attribute="submit", new=lose_reply):
             with self.assertRaises(expected_exception=OSError) as raised:
                 await self.propose(value=1)
+
             self.assertIs(expr1=original, expr2=raised.exception)
+
             with self.assertRaises(expected_exception=RuntimeError):
                 await self.propose(value=2)
+
             await self.preparation_tool.resume()
+
         self.assertIs(expr1=requests[0], expr2=requests[1])
         self.assertIs(expr1=operations[0], expr2=operations[1])
         self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
@@ -249,8 +279,10 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
     async def test_scientific_deadline_exception_remains_an_operator_failure(self):
         original = StartDeadlineExpired("Scientific component raised a deadline error")
         self.science.failure = original
+
         with self.assertRaises(expected_exception=StartDeadlineExpired) as raised:
             await self.propose(value=1)
+
         self.assertIs(expr1=original, expr2=raised.exception)
 
     async def test_interpreter_next_model_prepares_after_original_loading_settles(self):
@@ -285,8 +317,10 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(delay=max(0, first_deadline[0] - asyncio.get_running_loop().time()) + 0.01)
             self.assertFalse(expr=task.done())
             self.science.load_release.set()
+
             async with asyncio.timeout(5):
                 await task
+
             observed = await expired.observe(after=None, wait_seconds=0)
             self.assertTrue(expr=observed.finished)
             self.assertIsInstance(obj=observed.failures[0].cause, cls=StartDeadlineExpired)
@@ -311,8 +345,10 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
                 reports.append(result)
                 control = release_result(result=result)
                 releases.append(control)
+
                 if len(releases) == 1:
                     raise original
+
                 return control
 
             self.enterContext(patch.object(target=operation, attribute="release_result", new=release))
@@ -321,16 +357,19 @@ class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
         with patch.object(target=self.analysis_executor, attribute="submit", new=lose_release_reply):
             with self.assertRaises(expected_exception=OSError) as raised:
                 await self.propose(value=1)
+
             self.assertIs(expr1=original, expr2=raised.exception)
             await observe_cleanup(control=releases[0])
             await self.preparation_tool.resume()
             await self.preparation_tool.resume()
+
         self.assertIs(expr1=reports[0], expr2=reports[1])
         self.assertIs(expr1=releases[0], expr2=releases[1])
         self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
 
     async def test_foreign_output_is_rejected_before_science(self):
         foreign = Science.kind.output(name="foreign", dispose=dispose)
+
         with self.assertRaises(expected_exception=ValueError):
             PreparationTool(
                 call_binding=self.preparation_tool.tool_definition.call_binding,

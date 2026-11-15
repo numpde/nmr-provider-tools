@@ -16,12 +16,14 @@ from provider_core.contribution_errors import ScientificRejection
 def _finite_float(value: object, *, label: str) -> float:
     if type(value) not in (int, float) or not math.isfinite(value):
         raise ValueError(f"{label} must be a finite number")
+
     return float(value)
 
 
 def _finite_values(values: object, *, label: str) -> tuple[float, ...]:
     if type(values) is not tuple:
         raise TypeError(f"{label} must be a tuple")
+
     # repo-check: allow-tuple-generator -- Scientific values are normalized into the immutable tuple required by the model contract.
     return tuple(
         _finite_float(value, label=f"{label}[{index}]")
@@ -44,6 +46,7 @@ class WeightedSumSettings:
             "scale",
             _finite_float(self.scale, label="scale"),
         )
+
         object.__setattr__(
             self,
             "offset",
@@ -60,8 +63,10 @@ class CoefficientSet:
             self.values,
             label="coefficient values",
         )
+
         if not normalized_values:
             raise ValueError("coefficient values must not be empty")
+
         object.__setattr__(self, "values", normalized_values)
 
 
@@ -109,6 +114,7 @@ class PredictionResult:
             "total",
             _finite_float(self.total, label="prediction total"),
         )
+
         if not (type(self.count) is int and 0 < self.count):
             raise ValueError("count must be a positive integer")
 
@@ -124,6 +130,7 @@ class SumResult:
             "total",
             _finite_float(self.total, label="sum total"),
         )
+
         if not (type(self.count) is int and 0 < self.count):
             raise ValueError("count must be a positive integer")
 
@@ -132,6 +139,7 @@ class SumResult:
 class WeightedSumModel:
     settings: WeightedSumSettings
     coefficients: CoefficientSet
+
     loaded_coefficients: tuple[float, ...] | None = field(
         default=None,
         init=False,
@@ -143,6 +151,7 @@ class WeightedSumModel:
 class WeightedSumAnalysis:
     model: WeightedSumModel
     is_open: bool = field(default=False, init=False)
+
     accepted_preparation: PreparedValues | None = field(
         default=None,
         init=False,
@@ -160,6 +169,7 @@ class PreparedValues:
     def __post_init__(self) -> None:
         if not self.values:
             raise ValueError("prepared values must not be empty")
+
         self.values = _finite_values(self.values, label="prepared values")
 
     @property
@@ -168,15 +178,18 @@ class PreparedValues:
             raise RuntimeError(
                 "The prepared values have already been consumed or disposed"
             )
+
         return len(self.values)
 
     def consume(self, *, analysis: WeightedSumAnalysis) -> tuple[float, ...]:
         if self.analysis is not analysis:
             raise RuntimeError("The prepared values belong to another analysis")
+
         if analysis.accepted_preparation is not self:
             raise RuntimeError(
                 "The prepared values are not this analysis's accepted preparation"
             )
+
         if self.values is None:
             raise RuntimeError(
                 "The prepared values have already been consumed or disposed"
@@ -190,6 +203,7 @@ class PreparedValues:
     def dispose(self) -> None:
         if self.analysis.accepted_preparation is self:
             self.analysis.accepted_preparation = None
+
         self.values = None
 
 
@@ -212,6 +226,7 @@ def create_model(
 def load_model(model: WeightedSumModel) -> None:
     if model.loaded_coefficients is not None:
         raise RuntimeError("The model coefficients are already loaded")
+
     model.loaded_coefficients = model.coefficients.values
 
 
@@ -226,10 +241,12 @@ def create_analysis(model: WeightedSumModel) -> WeightedSumAnalysis:
 def initialize_analysis(analysis: WeightedSumAnalysis) -> None:
     if analysis.is_open:
         raise RuntimeError("The analysis is already initialized")
+
     if analysis.model.loaded_coefficients is None:
         raise RuntimeError(
             "Cannot initialize an analysis before loading model coefficients"
         )
+
     analysis.is_open = True
 
 
@@ -238,13 +255,16 @@ def prepare(
     candidate: PreparationInput,
 ) -> PreparedValues:
     """Reject one candidate without discarding the analysis itself."""
+
     if not analysis.is_open:
         raise RuntimeError("Cannot prepare input for a closed analysis")
+
     if not candidate.values:
         raise ScientificInputRejected(
             "empty_input",
             "Preparation input must contain at least one value",
         )
+
     if analysis.accepted_preparation is not None:
         raise ScientificInputRejected(
             "already_prepared",
@@ -252,6 +272,7 @@ def prepare(
         )
 
     loaded_coefficients = analysis.model.loaded_coefficients
+
     if loaded_coefficients is None:
         raise RuntimeError(
             "Cannot prepare input because model coefficients are not loaded"
@@ -270,6 +291,7 @@ def prepare(
         analysis=analysis,
         values=candidate.values,
     )
+
     analysis.accepted_preparation = prepared
     return prepared
 
@@ -282,6 +304,7 @@ def calculate(
         raise RuntimeError("Cannot calculate for a closed analysis")
 
     loaded_coefficients = analysis.model.loaded_coefficients
+
     if loaded_coefficients is None:
         raise RuntimeError("Cannot calculate because model coefficients are not loaded")
 
@@ -297,6 +320,7 @@ def calculate(
             strict=True,
         )
     )
+
     prediction_total = (
         analysis.model.settings.offset
         + analysis.model.settings.scale * weighted_sum
@@ -319,6 +343,7 @@ def sum_values(summation: SumInput) -> SumResult:
         )
 
     total = math.fsum(summation.values)
+
     if not math.isfinite(total):
         raise ArithmeticError("The sum total is not finite")
 
@@ -335,6 +360,8 @@ def dispose_prepared(prepared: PreparedValues) -> None:
 
 def dispose_analysis(analysis: WeightedSumAnalysis) -> None:
     accepted_preparation = analysis.accepted_preparation
+
     if accepted_preparation is not None:
         dispose_prepared(accepted_preparation)
+
     analysis.is_open = False

@@ -14,6 +14,7 @@ class ScriptedEndpoint:
         self.requests = []
         self.retirement_confirmed = False
         encoded = json.dumps(obj=proposals, sort_keys=True).encode(encoding="utf-8")
+
         self.identity = json.dumps(obj={
             "configuration_id": "recorded-nmrpeak-interpreter",
             "model": "recorded-tool-responses",
@@ -24,8 +25,10 @@ class ScriptedEndpoint:
         index = len(self.requests)
         # Retain the messages as received, independent of later history mutation.
         self.requests.append(deepcopy(x=messages))
+
         if index >= len(self.proposals):
             raise RuntimeError("The recorded interpreter has no further response")
+
         return {"role": "assistant", "tool_calls": [{
             "id": str(index), "type": "function",
             "function": {

@@ -55,8 +55,11 @@ class DockerContextPostureTests(unittest.TestCase):
     def test_runtime_sources_do_not_force_default(self):
         roots = (ROOT / "tools", ROOT / "packages/provider-core/src", ROOT / "containers")
         paths = [ROOT / "Makefile"]
+
         paths.extend(path for root in roots for path in root.rglob("*")
                      if path.is_file() and (path.suffix in (".sh", ".py") or path.name == "Dockerfile"))
+
         failures = [f"{path.relative_to(ROOT)}:{line}" for path in paths
                     for line in implicit_defaults(path.read_text(encoding="utf-8"))]
+
         self.assertEqual([], failures)

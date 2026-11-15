@@ -31,9 +31,11 @@ class InstallerImageTests(unittest.TestCase):
         python = installer.create_environment(environment)
         source = self.root / "source"
         source.mkdir()
+
         (source / "pyproject.toml").write_text(
             '[build-system]\nrequires = []\nbuild-backend = "backend"\nbackend-path = ["."]\n'
         )
+
         (source / "backend.py").write_text('''import pathlib
 import zipfile
 
@@ -46,21 +48,27 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         wheel.writestr("installer_fixture-1.0.dist-info/RECORD", "")
     return name
 ''')
+
         output = self.root / "wheels"
         output.mkdir()
         command = pip_command(python)
+
         subprocess.run([*command, "wheel", "--no-index", "--no-deps", "--no-build-isolation",
                         "--wheel-dir", str(output), str(source)], check=True, capture_output=True, text=True)
+
         wheel, = output.glob("*.whl")
         lock = self.root / "requirements.lock"
         lock.write_text("installer-fixture==1.0 --hash=sha256:" + hashlib.sha256(wheel.read_bytes()).hexdigest() + "\n")
+
         subprocess.run([*command, "install", "--no-index", "--no-deps", "--require-hashes",
                         "--find-links", str(output), "-r", str(lock)], check=True, capture_output=True, text=True)
+
         result = subprocess.run([str(python), "-I", "-B", "-c",
                                  "import json, pip, sys, installer_fixture; "
                                  "assert installer_fixture.VALUE == 42; "
                                  "print(json.dumps([pip.__version__, pip.__file__, sys.prefix]))"],
                                 check=True, capture_output=True, text=True)
+
         version, installed, prefix = json.loads(result.stdout)
         self.assertEqual(self.record["name"].split("-")[1], version)
         self.assertEqual(environment, Path(prefix))
@@ -68,18 +76,23 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
     def test_issued_helper_uses_its_guard_with_a_conflicting_consumer_tools_package(self):
         python = installer.create_environment(self.root / "consumer")
+
         site = Path(subprocess.check_output(
             [str(python), "-I", "-B", "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"], text=True,
         ).strip())
+
         for source, issued in INSTALLER_SOURCES:
             if source.endswith(".py"):
                 destination = site / issued
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 destination.write_bytes((ROOT / source).read_bytes())
+
         (site / "tools").mkdir()
         (site / "tools/__init__.py").write_text("raise AssertionError('consumer tools must not supply the SDK guard')\n")
+
         command = [str(python), "-I", "-B", "-c",
                    "from acquisition_tool.installer.tools.installer import create_environment"]
+
         environment = os.environ | {"NMR_PROVIDER_TOOLS_IN_CONTAINER": "1"}
         subprocess.run(command, env=environment, check=True, capture_output=True, text=True)
         del environment["NMR_PROVIDER_TOOLS_IN_CONTAINER"]
@@ -89,17 +102,23 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
 
     def test_bad_wheel_bytes_or_symlinks_never_start_installation(self):
         wheel = self.root / self.record["name"]
+
         for data in (b"", b"damaged", b"x" * (self.record["size"] + 1)):
             with self.subTest(size=len(data)), patch("tools.installer.subprocess.run") as dispatch:
                 wheel.write_bytes(data)
+
                 with self.assertRaisesRegex(ValueError, "wheel size or SHA-256 differs"):
                     installer.install(self.root, self.record)
+
                 dispatch.assert_not_called()
+
         wheel.unlink()
         wheel.symlink_to(ROOT / "requirements/installer-release.json")
+
         with patch("tools.installer.subprocess.run") as dispatch:
             with self.assertRaises(OSError):
                 installer.install(self.root, self.record)
+
             dispatch.assert_not_called()
 
     def test_capture_does_not_rebind_after_pool_replacement(self):
@@ -116,9 +135,12 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
     def test_release_rejects_escaping_wheel_names_and_duplicate_fields(self):
         path = self.root / "release.json"
         path.write_text(json.dumps(self.record | {"name": "../outside.whl"}))
+
         with self.assertRaisesRegex(ValueError, "release record must identify one pip wheel"):
             installer.release(path)
+
         path.write_text('{"name":"first","name":"second"}')
+
         with self.assertRaisesRegex(ValueError, "duplicate field"):
             installer.release(path)
 
@@ -126,6 +148,7 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         for changes in ({"name": []}, {"sha256": 1}, {"size": True}, {"url": None}):
             with self.subTest(changes=changes), self.assertRaises(TypeError):
                 installer.validate_release(self.record | changes)
+
         for changes in ({"name": "../outside.whl"}, {"sha256": "bad"}, {"size": 0}, {"url": "http://files.pythonhosted.org/pip.whl"}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 installer.validate_release(self.record | changes)

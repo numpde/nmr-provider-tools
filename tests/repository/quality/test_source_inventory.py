@@ -46,30 +46,42 @@ def root_entry_visibility_findings(manifest, root):
     while granting only public source contents to the checker.
     """
     records = manifest.split("\0")
+
     if not records or records[-1] != "":
         raise ValueError("root-entry manifest must end with NUL")
+
     expected = {}
     findings = []
+
     for record in records[:-1]:
         kind, separator, name = record.partition("\t")
+
         if not separator or not name or "/" in name or name in {".", ".."}:
             raise ValueError("root-entry manifest has an invalid root name")
+
         if name in expected:
             raise ValueError("root-entry manifest repeats a root name")
+
         expected[name] = kind
+
         if name in PRIVATE_ROOT_ENTRIES:
             continue
+
         if kind not in {"f", "d"}:
             findings.append(f"{name}: public source root is not a regular file or directory")
             continue
+
         path = root / name
+
         if not path.exists():
             findings.append(f"{name}: public source root is invisible to repository checks")
         elif path.is_symlink() or (kind == "f" and not path.is_file()) or (kind == "d" and not path.is_dir()):
             findings.append(f"{name}: visible source root type disagrees with host inventory")
+
     for path in sorted(root.iterdir()):
         if path.name not in expected:
             findings.append(f"{path.name}: visible root entry is absent from host inventory")
+
     return findings
 
 
@@ -79,17 +91,21 @@ class SourceInventoryUnitTests(unittest.TestCase):
             root = Path(directory)
             private = root / "release-artifacts/private.txt"
             authored = root / "tools/release-artifacts/authored.sh"
+
             for path in (private, authored):
                 path.parent.mkdir(parents=True)
                 path.write_text("fixture\n")
+
             with patch.object(sources, "ROOT", root):
                 observed = sources.iter_repo_text_files()
+
             self.assertNotIn(private, observed)
             self.assertIn(authored, observed)
 
     def test_python_source_selection_respects_explicit_scope(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             for name in (
                 "host/scripts/operation.py",
                 "tools/z.py",
@@ -105,6 +121,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("pass\n")
+
             with patch.object(sources, "ROOT", root):
                 self.assertEqual(
                     [
@@ -116,6 +133,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
                     ],
                     sources.python_sources(production_only=True),
                 )
+
                 self.assertEqual(
                     [
                         root / "host/scripts/operation.py",
@@ -129,11 +147,13 @@ class SourceInventoryUnitTests(unittest.TestCase):
                     ],
                     sources.python_sources(production_only=False),
                 )
+
                 with self.assertRaises(TypeError):
                     sources.python_sources()
 
     def test_frontend_ownership_rejects_pinned_and_unpinned_registry_directives(self):
         self.assertFalse(has_external_frontend("# Local engine frontend.\nFROM base@sha256:hash\n"))
+
         for directive in ("# syntax=docker/dockerfile:1", "# SYNTAX = docker/dockerfile:1@sha256:" + "a" * 64):
             self.assertTrue(has_external_frontend("# Introduction.\n" + directive + "\nFROM base\n"))
 
@@ -143,6 +163,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
             (root / "tools").mkdir()
             (root / "stale.txt").write_text("fixture")
             manifest = "d\ttools\0f\tnew-source.py\0d\t.pytest_cache\0l\tlinked.py\0d\t.work\0d\t.aws\0d\tsecrets\0"
+
             self.assertEqual(
                 [
                     "new-source.py: public source root is invisible to repository checks",
@@ -157,10 +178,13 @@ class SourceInventoryUnitTests(unittest.TestCase):
     def test_root_visibility_rejects_malformed_duplicate_and_mismatched_records(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             for manifest in ("f\tname", "f\t../escape\0", "f\tname\0f\tname\0", "f\t\0"):
                 with self.subTest(manifest=manifest), self.assertRaises(ValueError):
                     root_entry_visibility_findings(manifest, root)
+
             (root / "file").write_text("fixture")
+
             self.assertEqual(
                 ["file: visible source root type disagrees with host inventory"],
                 root_entry_visibility_findings("d\tfile\0", root),
@@ -182,6 +206,7 @@ class SourceInventoryUnitTests(unittest.TestCase):
             ),
             discovered,
         )
+
         self.assertEqual(
             (
                 ("compose/missing.yml",),
@@ -236,9 +261,11 @@ class SourceInventoryUnitTests(unittest.TestCase):
     def test_discovery_rejects_invalid_or_missing_source_roots(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             for subtree in ("", "/compose", "compose/", "compose/../other"):
                 with self.subTest(subtree=subtree), self.assertRaises((TypeError, ValueError)):
                     discover_source_files(root=root, subtree=subtree)
+
             with self.assertRaisesRegex(
                 SourceInventoryError,
                 "compose source root must be a directory",
@@ -261,15 +288,20 @@ class SourceInventoryRepositoryTests(unittest.TestCase):
         result = subprocess.run(
             ["env", "NMR_SELECTED_DOCKER_ENDPOINT=unix:///var/run/docker.sock", "DOCKER_CONTEXT_INPUT_ORIGIN=command line", "DOCKER_CONTEXT_INPUT=default", "bash", str(ROOT / "host/tools/repository.sh"), "--print", "tests/repository"], text=True, capture_output=True, check=True
         )
+
         arguments = shlex.split(result.stdout)
         mounts = [arguments[index + 1] for index, value in enumerate(arguments) if value == "--mount"]
+
         for subtree in ("host", "tools", "tests", "requirements", "containers", "notes"):
             self.assertIn(f"type=bind,src={ROOT / subtree},dst=/workspace/{subtree},readonly", mounts)
+
         for name in ("Makefile", "README.md"):
             self.assertIn(f"type=bind,src={ROOT / name},dst=/workspace/{name},readonly", mounts)
+
         self.assertFalse(any(f"src={ROOT / 'secrets'}" in mount for mount in mounts))
         self.assertFalse(any(f"src={ROOT / 'release-artifacts'}" in mount for mount in mounts))
         self.assertNotIn(f"type=bind,src={ROOT / '.git'},dst=/workspace/.git,readonly", mounts)
+
         for mount in mounts:
             self.assertNotIn("docker.sock", mount)
             self.assertTrue(mount.endswith(",readonly"), msg=mount)

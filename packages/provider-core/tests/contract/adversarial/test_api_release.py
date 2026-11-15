@@ -27,6 +27,7 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
         self.assertEqual(base64.b64decode(document["canonical_input_base64"], validate=True), source)
         pattern = self.schemas["nmr.provider.job_input.read.response.v1"]["properties"]["canonical_input_base64"]["pattern"]
         self.assertIsNone(re.fullmatch(pattern, document["canonical_input_base64"]))
+
         with self.assertRaises(JobInputRejected):
             verify_job_input(json.dumps(document).encode(), feed=facts(source))
 
@@ -36,6 +37,7 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
                 root = Path(directory) / "release"
                 shutil.copytree(RELEASE_ROOT, root)
                 path = root / "schemas/hello_response.v1.schema.json"
+
                 if mutation == "artifact":
                     path.write_bytes(path.read_bytes().replace(b"accepted_at", b"accepted_on"))
                 elif mutation == "manifest":
@@ -49,6 +51,7 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
                     outside = Path(directory) / "unchanged-schema.json"
                     path.rename(outside)
                     path.symlink_to(outside)
+
                 with self.assertRaises(AssertionError):
                     self.read_release(root)
 
@@ -57,14 +60,18 @@ class ReleasedApiRefusalTests(PinnedApiRelease, unittest.IsolatedAsyncioTestCase
             for mutation in ("schema", "extra"):
                 with self.subTest(operation=operation, mutation=mutation):
                     document = json.loads(call.response)
+
                     if mutation == "schema":
                         document["schema_id"] += ".future"
                     else:
                         document["unreviewed_protocol_field"] = "PRIVATE_PROTOCOL_CANARY"
+
                     transport = Transport(reply(json.dumps(document).encode()))
                     client = api(transport, "https://api.example.test")
+
                     with self.assertRaises(ApiFailure) as failed:
                         await getattr(client, call.method_name)(*call.arguments, **call.options)
+
                     self.assertEqual(len(transport.calls), 1)
                     self.assertIs(client.last_failure, failed.exception)
                     self.assertNotIn("PRIVATE_PROTOCOL_CANARY", str(failed.exception))

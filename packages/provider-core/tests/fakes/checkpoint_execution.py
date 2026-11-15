@@ -67,8 +67,10 @@ class CausalDelivery(RecordingDelivery):
     def answer(self, disposition):
         if disposition not in ("accepted", "full", "retryable", "lost", "rejected"):
             raise ValueError("Unknown causal delivery disposition")
+
         if not self.awaiting_answer:
             raise RuntimeError("No original terminal submission awaits a decision")
+
         self._answered += 1
         self._answers.put_nowait(disposition)
 
@@ -81,18 +83,24 @@ class CausalDelivery(RecordingDelivery):
         async with self._offers_changed:
             self.offers.append(item)
             self._offers_changed.notify_all()
+
         # A new offer after emergency teardown is not a proof of delivery.
         if self._tearing_down:
             return await super().submit(item)
+
         disposition = await self._answers.get()
+
         if disposition == "accepted":
             return await super().submit(item)
+
         if disposition == "full":
             raise DeliveryFull("The local delivery queue has no available capacity")
+
         if disposition == "retryable":
             failure = DeliveryUnavailable("The local delivery service is temporarily unavailable", status=503)
             self.last_failure = failure
             raise failure
+
         if disposition == "lost":
             # The relay may have accepted these immutable bytes; the producer
             # saw no verified ACK and may not infer or replace the outcome.
@@ -100,8 +108,10 @@ class CausalDelivery(RecordingDelivery):
             failure = DeliveryUnavailable("The exact local acknowledgement was lost")
             self.last_failure = failure
             raise failure
+
         if disposition == "rejected":
             raise DeliveryRejected("The relay response did not match the selected terminal")
+
         raise AssertionError("A causal delivery decision was not consumed")
 
     def can_retry(self, failure):

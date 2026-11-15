@@ -15,34 +15,46 @@ from .sources import REPOSITORY_ROOT, python_sources
 def _message_without_cause(node: ast.expr, caught_name: str | None) -> bool:
     if isinstance(node, ast.Constant):
         return isinstance(node.value, str)
+
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
         return _message_without_cause(node.left, caught_name) and _message_without_cause(node.right, caught_name)
+
     if isinstance(node, ast.JoinedStr):
         return not any(isinstance(item, ast.Name) and item.id == caught_name for item in ast.walk(node))
+
     return False
 
 
 def _opaque_oserror_translations(source: str) -> list[int]:
     findings = []
+
     for handler in ast.walk(ast.parse(source)):
         if not isinstance(handler, ast.ExceptHandler) or handler.type is None:
             continue
+
         caught = list(ast.walk(handler.type))
+
         if not any(isinstance(node, ast.Name) and node.id == "OSError" for node in caught):
             continue
+
         if len(handler.body) != 1 or not isinstance(handler.body[0], ast.Raise):
             continue
+
         replacement = handler.body[0].exc
+
         if not isinstance(replacement, ast.Call):
             continue
+
         if not isinstance(replacement.func, ast.Name) or replacement.func.id != "CommandError":
             continue
+
         if (
             len(replacement.args) == 1
             and all(keyword.arg == "returncode" for keyword in replacement.keywords)
             and _message_without_cause(replacement.args[0], handler.name)
         ):
             findings.append(handler.lineno)
+
     return findings
 
 
@@ -62,19 +74,25 @@ def _raw_cli_exception_text(source: str) -> list[int]:
     other AST nodes do not supply a candidate cause value.
     """
     findings = []
+
     for handler in ast.walk(ast.parse(source)):
         if not isinstance(handler, ast.ExceptHandler) or not handler.name or handler.type is None:
             continue
+
         if not any(
             isinstance(node, ast.Name) and node.id in {"OSError", "Exception", "BaseException"} for node in ast.walk(handler.type)
         ):
             continue
+
         for statement in _raises_in_blocks(handler.body):
             if not isinstance(statement.exc, ast.Call):
                 continue
+
             call = statement.exc
+
             if not isinstance(call.func, ast.Name) or call.func.id != "CommandError" or not call.args:
                 continue
+
             for node in (node for arg in call.args for node in ast.walk(arg)):
                 if isinstance(node, ast.FormattedValue):
                     value = node.value
@@ -87,9 +105,11 @@ def _raw_cli_exception_text(source: str) -> list[int]:
                     value = node.args[0]
                 else:
                     continue
+
                 if isinstance(value, ast.Name) and value.id == handler.name:
                     findings.append(statement.lineno)
                     break
+
     return findings
 
 
@@ -116,6 +136,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
 
     def test_raw_projection_dispatch_preserves_nested_and_unsupported_message_shapes(self) -> None:
         """Node dispatch retains raw disclosure without treating safe fields as causes."""
+
         for caught in ("OSError", "Exception", "BaseException"):
             for message, expected in (
                 ('f"{exc!s:>20}"', [4]),
@@ -134,6 +155,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
 
     def test_cli_projects_broad_failure_facts_instead_of_dumping_exception_text(self) -> None:
         findings = []
+
         for path in python_sources(production_only=True):
             for line in _raw_cli_exception_text(path.read_text(encoding="utf-8")):
                 findings.append(
@@ -141,6 +163,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
                     "formats a broad exception's raw text; project safe cause "
                     "and context fields rather than losing the cause or exposing values."
                 )
+
         self.assertEqual([], findings, msg="\n".join(findings))
 
     def test_context_and_formatting_do_not_substitute_for_a_filesystem_cause(self) -> None:
@@ -180,6 +203,7 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
 
     def test_filesystem_command_failures_do_not_hide_their_cause(self) -> None:
         findings = []
+
         for path in python_sources(production_only=True):
             for line in _opaque_oserror_translations(path.read_text(encoding="utf-8")):
                 findings.append(
@@ -188,4 +212,5 @@ class ErrorTransparencyPostureTests(unittest.TestCase):
                     "its chained cause. Project the safe filesystem reason "
                     "or report it before raising; do not dump exception text."
                 )
+
         self.assertEqual([], findings, msg="\n".join(findings))

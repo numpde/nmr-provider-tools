@@ -14,13 +14,16 @@ from tests.fakes.job_input import facts, response
 class ApiReadTests(unittest.IsolatedAsyncioTestCase):
     async def test_input_read_binds_exact_bytes_and_signs_bodyless_route(self):
         transport = Transport(reply(response()))
+
         api = ProviderAPI(
             SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
             transport,
             expected_topology="dev-local",
         )
+
         with patch("provider_core.api.time.time", return_value=1700000000):
             verified = await api.job_input(facts(), analysis_kind_ref="nmr_prediction")
+
         self.assertEqual(verified.specification_bytes, b"private instructions")
         self.assertEqual(len(transport.calls), 1)
         request, ceiling = transport.calls[0]

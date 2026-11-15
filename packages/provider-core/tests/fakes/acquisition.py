@@ -31,8 +31,10 @@ class API:
 
     async def read_grant(self, _job_ref, _upload_ref):
         self.calls.append("grant")
+
         if isinstance(self.grant, Exception):
             raise self.grant
+
         return self.grant
 
 
@@ -48,8 +50,10 @@ class Store:
     async def exchange(self, request, *, maximum_bytes, account_bytes, before_body=None):
         self.calls.append(request)
         self.maximum_bytes = maximum_bytes
+
         if before_body is not None:
             before_body(HttpResponseHead(200, tuple(self.headers)))
+
         account_bytes(len(self.body))
         return HttpResponse(200, self.headers, self.body)
 
@@ -59,6 +63,7 @@ def sources(*, total_bytes=100, source_bytes=100, requests=20, seconds=60, store
     body = b"geometry"
     digest = "sha256:" + hashlib.sha256(body).hexdigest()
     member = UploadMember(UPLOAD_REF, "private-description", len(body), digest)
+
     grant = ReadGrant(
         "job:example",
         UPLOAD_REF,
@@ -68,9 +73,12 @@ def sources(*, total_bytes=100, source_bytes=100, requests=20, seconds=60, store
         "private-bearer",
         datetime.now(UTC) + timedelta(minutes=1),
     )
+
     api = API(member, grant)
+
     if store is None:
         store = Store(body)
+
     owner = JobUploads(
         "job:example",
         api=api,
@@ -78,6 +86,7 @@ def sources(*, total_bytes=100, source_bytes=100, requests=20, seconds=60, store
         store_origin="https://store.example",
         limits=UploadLimits(source_bytes, total_bytes, requests, seconds),
     )
+
     return owner, api, store
 
 
@@ -92,6 +101,7 @@ def file_sources(**limits):
 def private_source_directory():
     with tempfile.TemporaryDirectory() as root:
         descriptor = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_CLOEXEC)
+
         try:
             yield root, descriptor
         finally:
@@ -119,25 +129,30 @@ class SourceFileCalls:
 
     def open(self, name, *args, **kwargs):
         descriptor = self._open(name, *args, **kwargs)
+
         if kwargs.get("dir_fd") == self.directory_fd:
             self.names.append(name)
             self.descriptors.append(descriptor)
+
         return descriptor
 
     def close(self, descriptor):
         if descriptor in self.descriptors:
             self.closed.append(descriptor)
+
         return self._close(descriptor)
 
     def unlink(self, name, *args, **kwargs):
         if kwargs.get("dir_fd") == self.directory_fd:
             self.removed.append(name)
+
         return self._unlink(name, *args, **kwargs)
 
 
 @contextmanager
 def observe_source_files(directory_fd):
     calls = SourceFileCalls(directory_fd)
+
     with (
         patch("provider_core.uploads.os.open", side_effect=calls.open),
         patch("provider_core.uploads.os.close", side_effect=calls.close),

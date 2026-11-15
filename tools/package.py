@@ -36,25 +36,31 @@ def artifact_names(version):
 
 def qualify_wheelhouse_bundle(bundle, scratch):
     locked_requirements = requirements(Path("/wheelhouse-tool.lock"))
+
     (packaging_version, accepted_hashes) = next(
         (version, hashes)
         for ((name, version), hashes) in locked_requirements.items()
         if name == "packaging"
     )
+
     packaging_wheel_name = f"packaging-{packaging_version}-py3-none-any.whl"
     packaging_digest = digest(Path("/wheelhouse") / packaging_wheel_name)
+
     if packaging_digest not in accepted_hashes:
         raise ValueError("Cannot qualify wheelhouse bundle: cached packaging wheel differs from its lock.")
 
     selection_lock = scratch / "pylock.toml"
+
     selection_lock.write_text(
         'lock-version = "1.0"\ncreated-by = "release qualification"\n'
         f'[[packages]]\nname = "packaging"\nversion = "{packaging_version}"\n'
         f'[[packages.wheels]]\nurl = "https://example.invalid/{packaging_wheel_name}"\n'
         f'hashes = {{ sha256 = "{packaging_digest}" }}\n'
     )
+
     projected_lock = scratch / "pylock.local.toml"
     wheelhouse_command = ["python3", "-I", "-S", str(bundle)]
+
     subprocess.run(
         [*wheelhouse_command, "locate", "--help"],
         check=True,
@@ -67,6 +73,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
         stdout=subprocess.PIPE,
         text=True,
     )
+
     if json.loads(selected_wheels.stdout)["artifacts"][0]["sha256"] != packaging_digest:
         raise ValueError("Cannot qualify wheelhouse bundle: target selection differs from the lock.")
 
@@ -86,15 +93,19 @@ def qualify_wheelhouse_bundle(bundle, scratch):
         check=True,
         stdout=subprocess.DEVNULL,
     )
+
     projected_artifact = tomllib.loads(projected_lock.read_text())["packages"][0]["wheels"][0]
     projected_hashes = projected_artifact.get("hashes")
+
     if projected_artifact.get("path") != "/wheels/" + packaging_wheel_name or "url" in projected_artifact:
         raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
+
     if type(projected_hashes) is not dict:
         raise TypeError(
             f"Unexpected {type(projected_hashes)=}; "
             "Cannot qualify wheelhouse bundle: projected hashes must be an object."
         )
+
     if projected_hashes.get("sha256") != packaging_digest:
         raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
 
@@ -102,6 +113,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     dockerfile.write_text("FROM scratch\n")
     manifest = scratch / "stream-manifest.json"
     report = scratch / "pip-report.json"
+
     report.write_text(
         json.dumps(
             {
@@ -133,29 +145,35 @@ def qualify_wheelhouse_bundle(bundle, scratch):
         stdout=subprocess.PIPE,
         text=True,
     )
+
     expected_report = [
         {"filename": packaging_wheel_name, "sha256": packaging_digest, "directory": "wheels"}
     ]
+
     if json.loads(report_conversion.stdout) != expected_report:
         raise ValueError("Cannot qualify wheelhouse bundle: pip report projection differs from the selected artifact.")
 
     manifest.write_text(report_conversion.stdout)
+
     manifest_identity = subprocess.run(
         [*wheelhouse_command, "identity", "--manifest", str(manifest)],
         check=True,
         stdout=subprocess.PIPE,
         text=True,
     ).stdout.strip()
+
     canonical_manifest = json.dumps(
         json.loads(report_conversion.stdout),
         sort_keys=True,
         separators=(",", ":"),
         ensure_ascii=True,
     ).encode()
+
     if manifest_identity != hashlib.sha256(canonical_manifest).hexdigest():
         raise ValueError("Cannot qualify wheelhouse bundle: selection identity differs from the selected artifact.")
 
     source_allowlist = scratch / "stream-sources.json"
+
     source_allowlist.write_text(
         json.dumps(
             [
@@ -168,6 +186,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
             ]
         )
     )
+
     streamed_context = subprocess.run(
         [
             *wheelhouse_command,
@@ -194,18 +213,22 @@ def qualify_wheelhouse_bundle(bundle, scratch):
 
 def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
     """Validate the pinned source inventory before extracting or importing code."""
+
     if type(expected_source_files) is not dict:
         raise TypeError(
             f"Unexpected {type(expected_source_files)=}; "
             "Cannot qualify acquisition source bundle: source inventory must be an object."
         )
+
     if not (expected_source_files):
         raise ValueError("Cannot qualify acquisition source bundle: missing source inventory.")
 
     with tarfile.open(bundle, "r:gz") as archive:
         verified_sources = {}
+
         for member in archive.getmembers():
             member_path = PurePosixPath(member.name)
+
             if (
                 not member.name
                 or not member_path.parts
@@ -220,11 +243,13 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
                 )
 
             expected_member = expected_source_files.get(member.name)
+
             if type(expected_member) is not dict:
                 raise TypeError(
                     f"Unexpected {type(expected_member)=}; "
                     "Cannot qualify acquisition source bundle: member inventory must be an object."
                 )
+
             if set(expected_member) != {"sha256", "size", "mode"} or member.size != expected_member["size"] or member.mode != expected_member["mode"]:
                 raise ValueError(
                     "Cannot qualify acquisition source bundle: member differs from source inventory."
@@ -232,15 +257,18 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
 
             with archive.extractfile(member) as reader:
                 member_bytes = reader.read()
+
             if hashlib.sha256(member_bytes).hexdigest() != expected_member["sha256"]:
                 raise ValueError(
                     "Cannot qualify acquisition source bundle: member checksum "
                     "differs from source inventory."
                 )
+
             verified_sources[member.name] = member_bytes
 
     if set(verified_sources) != set(expected_source_files):
         raise ValueError("Cannot qualify acquisition source bundle: incomplete source inventory.")
+
     for name in verified_sources:
         if any(parent.as_posix() in verified_sources for parent in PurePosixPath(name).parents):
             raise ValueError(
@@ -249,22 +277,28 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
 
     destination = scratch / "acquisition-source"
     destination.mkdir()
+
     for (name, member_bytes) in verified_sources.items():
         extracted_file = destination / name
         extracted_file.parent.mkdir(parents=True, exist_ok=True)
+
         with extracted_file.open("xb") as output:
             output.write(member_bytes)
 
     subprocess.run(["bash", "-n", str(destination / "acquisition_tool/owner.sh")], check=True)
+
     subprocess.run([
         "python3", "-I", "-S", "-B", str(destination / "acquisition_tool/source_update.py"),
         "verify", "--source-dir", str(destination),
     ], check=True)
+
     cold_import_check = Path(__file__).resolve().parent.parent / "containers/isolated/acquisition_import_check.py"
+
     subprocess.run(
         ["python3", "-I", "-S", "-B", str(cold_import_check), str(destination)],
         check=True,
     )
+
     subprocess.run(
         [
             "python3",
@@ -282,11 +316,14 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
 def unpack_source(archive, destination, version):
     """Admit the complete tar inventory before creating any extracted file."""
     root_name = f"provider_core-{version}"
+
     with tarfile.open(archive, "r:gz") as source_archive:
         members = source_archive.getmembers()
         member_names = set()
+
         for member in members:
             member_path = PurePosixPath(member.name)
+
             if (
                 member.name in member_names
                 or not member.name
@@ -301,16 +338,20 @@ def unpack_source(archive, destination, version):
                     "Cannot qualify package: source archive has duplicate, "
                     "unsafe or unsupported members."
                 )
+
             member_names.add(member.name)
 
         for member in members:
             extracted_path = destination / member.name
+
             if member.isdir():
                 extracted_path.mkdir(parents=True, exist_ok=True)
             else:
                 extracted_path.parent.mkdir(parents=True, exist_ok=True)
+
                 with source_archive.extractfile(member) as reader, extracted_path.open("xb") as writer:
                     shutil.copyfileobj(reader, writer)
+
                 extracted_path.chmod(member.mode & 0o777)
 
     return destination / root_name
@@ -322,23 +363,27 @@ def source_payload(source, inventory):
             f"Unexpected {type(inventory)=}; "
             "Cannot qualify package: the pre-build source inventory must be an object."
         )
+
     if not (inventory):
         raise ValueError("Cannot qualify package: the pre-build source inventory is missing.")
 
     for (name, facts) in inventory.items():
         member_path = PurePosixPath(name)
+
         if member_path.is_absolute() or ".." in member_path.parts or member_path.as_posix() != name or not (name in {"README.md", "MANIFEST.in", "pyproject.toml"}
                 or name.startswith(("src/provider_core/", "tests/"))):
             raise ValueError(
                 "Cannot qualify package: the recorded source inventory "
                 "has unsupported entries."
             )
+
         if type(facts) is not dict:
             raise TypeError(
                 f"Unexpected {type(facts)=}; "
                 "Cannot qualify package: the recorded source inventory "
                 "has unsupported entries."
             )
+
         if set(facts) != {"sha256", "size", "mode"}:
             raise ValueError(
                 "Cannot qualify package: the recorded source inventory "
@@ -346,6 +391,7 @@ def source_payload(source, inventory):
             )
 
         source_file = source / name
+
         if (
             not source_file.is_file()
             or digest(source_file) != facts["sha256"]
@@ -367,11 +413,13 @@ def source_payload(source, inventory):
             "top_level.txt",
         )
     }
+
     observed_files = {
         path.relative_to(source).as_posix()
         for path in source.rglob("*")
         if path.is_file()
     }
+
     if observed_files != set(inventory) | generated_metadata_files:
         raise ValueError(
             "Cannot qualify package: source distribution has missing "
@@ -389,6 +437,7 @@ def wheel_payload(wheel, expected, version):
     with zipfile.ZipFile(wheel) as archive:
         archive_members = archive.namelist()
         metadata_prefix = f"provider_core-{version}.dist-info/"
+
         if len(archive_members) != len(set(archive_members)) or any(
             not name.startswith(metadata_prefix) and name not in expected
             for name in archive_members
@@ -400,6 +449,7 @@ def wheel_payload(wheel, expected, version):
             for name in archive_members
             if not name.startswith(metadata_prefix)
         }
+
         if wheel_files != expected:
             raise ValueError(
                 "Cannot qualify package: installed wheel payload differs "
@@ -425,12 +475,14 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
     )
 
     behavioral_python = None
+
     if any(suite in ("unit", "integration") for suite in suites):
         behavioral_lock = behavioral_install_lock(
             lock,
             source / "tests/requirements.lock",
             root / "behavioral-install.lock",
         )
+
         behavioral_python = install_environment(
             root / "behavioral",
             behavioral_lock,
@@ -441,8 +493,10 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
 
     test_root = root / "run"
     shutil.copytree(source / "tests", test_root / "tests")
+
     for suite in suites:
         selected_python = behavioral_python if suite in ("unit", "integration") else runtime_python
+
         test_command = [
             str(selected_python),
             "-I",
@@ -451,7 +505,9 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
             suite,
             "test*.py",
         ]
+
         test_process = subprocess.run(test_command, cwd=test_root)
+
         if test_process.returncode:
             raise SystemExit(
                 f"Installed provider-core {suite} release qualification failed "
@@ -463,11 +519,13 @@ def qualify_installed(wheel, lock, source, pool, root, suites):
 def check(artifacts, revision):
     with tempfile.TemporaryDirectory(prefix="package-proof-") as temporary:
         scratch = Path(temporary)
+
         for path in artifacts.iterdir():
             with regular_file(path):
                 pass
 
         captured_wheels = list(artifacts.glob("*.whl"))
+
         if len(captured_wheels) != 1:
             raise ValueError("Cannot qualify package: expect exactly one provider-core wheel.")
 
@@ -475,26 +533,31 @@ def check(artifacts, revision):
             r"provider_core-((?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*))-py3-none-any.whl",
             captured_wheels[0].name,
         )
+
         if wheel_filename is None:
             raise ValueError("Cannot qualify package: wheel name must identify a provider-core release version.")
 
         release_version = wheel_filename[1]
         artifact_prefix = f"provider_core-{release_version}"
+
         if {path.name for path in artifacts.iterdir()} != artifact_names(release_version):
             raise ValueError("Cannot qualify package: expect exactly the declared release artifacts.")
 
         checksum_manifest_path = artifacts / (artifact_prefix + "-sha256.json")
         original_manifest_digest = digest(checksum_manifest_path)
         recorded_hashes = json.loads(checksum_manifest_path.read_text())
+
         observed_hashes = {
             path.name: digest(path)
             for path in artifacts.iterdir()
             if not path.name.endswith("-sha256.json")
         }
+
         if recorded_hashes != observed_hashes:
             raise ValueError("Cannot qualify package: captured release hashes do not match the declared artifacts.")
 
         release_record = json.loads((artifacts / (artifact_prefix + "-release.json")).read_text())
+
         if (
             release_record["source_revision"] != revision
             or release_record["files"] != {
@@ -507,23 +570,28 @@ def check(artifacts, revision):
                 "Cannot qualify package: source revision or recorded artifact "
                 "identities differ from this release."
             )
+
         if release_record["tool_source_files"] != wheelhouse_source_inventory(Path("/workspace/wheelhouse_tool")):
             raise ValueError("Cannot qualify package: wheelhouse tool source differs from the release inputs.")
 
         wheelhouse_bundle = artifacts / f"wheelhouse-tool-{release_version}.pyz"
         rebuilt_wheelhouse_bundle = scratch / wheelhouse_bundle.name
+
         build_wheelhouse_bundle(
             Path("/wheelhouse"),
             rebuilt_wheelhouse_bundle,
             Path("/workspace"),
             Path("/wheelhouse-tool.lock"),
         )
+
         if wheelhouse_bundle.read_bytes() != rebuilt_wheelhouse_bundle.read_bytes():
             raise ValueError("Cannot qualify package: wheelhouse bundle differs from its source rebuild.")
+
         qualify_wheelhouse_bundle(wheelhouse_bundle, scratch)
 
         acquisition_bundle = artifacts / f"acquisition-owner-{release_version}.tar.gz"
         rebuilt_acquisition_bundle = scratch / acquisition_bundle.name
+
         acquisition_record = build_acquisition_bundle(
             Path("/wheelhouse"),
             rebuilt_acquisition_bundle,
@@ -533,6 +601,7 @@ def check(artifacts, revision):
             revision=revision,
             wheelhouse_bundle=wheelhouse_bundle,
         )
+
         if (
             acquisition_bundle.read_bytes() != rebuilt_acquisition_bundle.read_bytes()
             or release_record["acquisition_source_files"] != acquisition_record["source_files"]
@@ -542,6 +611,7 @@ def check(artifacts, revision):
                 "Cannot qualify acquisition source bundle: bytes or provenance "
                 "differ from the pinned rebuild."
             )
+
         qualify_acquisition_bundle(acquisition_bundle, scratch, acquisition_record["source_files"])
 
         extracted_source = unpack_source(
@@ -549,7 +619,9 @@ def check(artifacts, revision):
             scratch / "source",
             release_version,
         )
+
         source_project = tomllib.loads((extracted_source / "pyproject.toml").read_text())
+
         if (
             source_project["project"]["name"] != "provider-core"
             or source_project["project"]["version"] != release_version
@@ -560,6 +632,7 @@ def check(artifacts, revision):
         original_wheel_metadata = wheel_payload(captured_wheels[0], source_python_files, release_version)
 
         runtime_install_lock = artifacts / (artifact_prefix + "-install.lock")
+
         if requirements(runtime_install_lock) != requirements(Path("/core-runtime.lock")) | {
             ("provider-core", release_version): {digest(captured_wheels[0])}
         }:
@@ -569,6 +642,7 @@ def check(artifacts, revision):
             )
 
         native_install_lock = artifacts / (artifact_prefix + "-native-install.lock")
+
         if requirements(native_install_lock) != {
             ("provider-core", release_version): {digest(captured_wheels[0])}
         }:
@@ -579,6 +653,7 @@ def check(artifacts, revision):
 
         rebuild_output = scratch / "rebuilt"
         rebuild_output.mkdir()
+
         (rebuilt_wheel, rebuilt_lock, rebuilt_dependency_inputs) = build_candidate(
             extracted_source,
             Path("/core-runtime.lock"),
@@ -586,6 +661,7 @@ def check(artifacts, revision):
             Path("/wheelhouse"),
             rebuild_output,
         )
+
         if (
             rebuilt_dependency_inputs != release_record["dependency_inputs"]
             or wheel_payload(rebuilt_wheel, source_python_files, release_version) != original_wheel_metadata
@@ -597,6 +673,7 @@ def check(artifacts, revision):
 
         runtime_root = Path("/runtime/package-proof")
         runtime_root.mkdir()
+
         qualify_installed(
             captured_wheels[0],
             runtime_install_lock,
@@ -605,6 +682,7 @@ def check(artifacts, revision):
             runtime_root / "original",
             ("unit", "contract", "integration"),
         )
+
         qualify_installed(
             rebuilt_wheel,
             rebuilt_lock,
@@ -613,6 +691,7 @@ def check(artifacts, revision):
             runtime_root / "rebuilt",
             ("contract",),
         )
+
         qualify_installed(
             captured_wheels[0],
             native_install_lock,

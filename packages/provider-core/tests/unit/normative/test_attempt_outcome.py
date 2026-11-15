@@ -21,16 +21,19 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
         ):
             retained = json.dumps(json.loads(body), indent=2).encode() + b"\n"
             transport = Transport(reply(response()), reply(response(replayed=True)))
+
             api = ProviderAPI(
                 SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
                 transport,
                 expected_topology="dev-local",
             )
+
             for replayed in (False, True):
                 result = await getattr(api, method)(retained, execution_attempt_ref=ATTEMPT_REF)
                 self.assertEqual(result.replayed, replayed)
                 self.assertEqual(result.execution_attempt_ref, ATTEMPT_REF)
                 self.assertEqual(result.committed_at.isoformat(), "2026-10-18T00:00:00+00:00")
+
             if method == "complete_attempt":
                 self.assertEqual(result.result_schema_id, " result\n雪 ")
                 self.assertEqual(result.result_byte_length, len(b"result bytes"))
@@ -39,11 +42,13 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
             else:
                 self.assertEqual(result.failure_message, " Explain\n雪\x01 ")
                 self.assertNotIn("Explain", repr(result))
+
             first, second = (call[0] for call in transport.calls)
             self.assertEqual((first.content, second.content), (retained, retained))
             self.assertNotEqual(first.headers["Signature-Input"], second.headers["Signature-Input"])
             # silent-defaults: allow-contract -- The selected terminal method determines the expected complete or fail wire operation.
             operation = "complete" if method == "complete_attempt" else "fail"
+
             self.assertEqual(
                 (first.method, first.url.raw_path), ("POST", b"/provider/v1/execution-attempts/" + operation.encode())
             )
@@ -60,13 +65,16 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_result_bytes_are_opaque_not_required_to_be_utf8_or_json(self):
         data = b"\xff\x00\x80\r\n"
+
         transport = Transport(
             reply(complete_response(result_fingerprint="sha256:" + sha256(data).hexdigest(), result_byte_length=len(data)))
         )
+
         api = ProviderAPI(
             SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
             transport,
             expected_topology="dev-local",
         )
+
         result = await api.complete_attempt(complete_body(ATTEMPT_REF, " result\n雪 ", data), execution_attempt_ref=ATTEMPT_REF)
         self.assertEqual(result.result_byte_length, len(data))

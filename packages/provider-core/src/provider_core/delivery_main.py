@@ -26,8 +26,10 @@ from provider_core.transport import require_unix_socket_path
 
 async def _run(service, notices):
     loop = asyncio.get_running_loop()
+
     for signum in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(signum, service.request_stop)
+
     try:
         await service.run()
         notices(None, {"event": "delivery_stopped", "retirement_confirmed": service.retirement_confirmed})
@@ -48,15 +50,18 @@ def main():
     parser.add_argument("--request-seconds", type=float)
     parser.add_argument("--status-directory", type=Path)
     options = parser.parse_args()
+
     if options.shared_config is not None and (
         not options.shared_config.is_absolute() or options.state_directory is None or not options.state_directory.is_absolute()
         or options.socket is None or options.proxy_socket is None or options.request_seconds is None
         or options.status_directory is None or not options.status_directory.is_absolute()
     ):
         parser.error("shared delivery requires absolute configuration, state and status directories, both socket paths and request deadline")
+
     os.umask(0o077)
     notices = DeliveryNotices(sys.stderr, secrets=())
     service = None
+
     try:
         if options.config is not None:
             service = load_delivery_service(options.config, on_notice=notices, diagnostic_status=notices.status)
@@ -64,11 +69,13 @@ def main():
             require_unix_socket_path(str(options.proxy_socket))
             live = SharedDeliveryConfiguration(options.shared_config)
             settings = live.read()
+
             service = SharedDeliveryService(options.state_directory, limits=settings.limits,
                 socket=SharedDeliverySocket(options.socket, options.socket_group_id), proxy_socket=options.proxy_socket,
                 request_seconds=options.request_seconds, retry_initial_seconds=settings.retry_initial_seconds,
                 retry_max_seconds=settings.retry_max_seconds, on_notice=notices, diagnostic_status=notices.status,
                 live_configuration=live, status_directory=options.status_directory)
+
         asyncio.run(_run(service, notices))
         return 0
     # silent-defaults: allow-exception-outcome -- This process boundary reports the retained failure and exits nonzero
@@ -78,8 +85,10 @@ def main():
         notices(failure, {
             "event": "delivery_failed", "retirement_confirmed": service is None or service.retirement_confirmed,
         })
+
         if isinstance(failure, KeyboardInterrupt):
             return 130
+
         # silent-defaults: allow-contract -- Configuration refusal exits 2; other reported process failures exit 1.
         return 2 if type(failure) is DeliveryConfigurationRejected else 1
     finally:

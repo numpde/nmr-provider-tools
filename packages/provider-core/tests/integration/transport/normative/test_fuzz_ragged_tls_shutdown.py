@@ -20,6 +20,7 @@ class GeneratedShutdownTests(unittest.TestCase):
                 self.assertTrue(peer.transport.retirement_confirmed)
                 self.assertGreater(peer.raw_close_successes, 0)
                 self.assertTrue(all(sock.fileno() == -1 for sock in peer.raw_sockets))
+
         asyncio.run(probe())
 
     @settings(max_examples=24, deadline=None, database=None)
@@ -36,5 +37,6 @@ class GeneratedShutdownTests(unittest.TestCase):
                 self.assertTrue(peer.transport.retirement_confirmed)
                 self.assertGreater(peer.raw_close_successes, 0)
                 self.assertTrue(all(sock.fileno() == -1 for sock in peer.raw_sockets))
+
         asyncio.run(probe())
 

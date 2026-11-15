@@ -39,13 +39,18 @@ class AttemptStartFailureTests(unittest.IsolatedAsyncioTestCase):
             retained_start().replace(b"{", b'{"job_ref":"job:example",', 1),
         ):
             transport = Transport()
+
             with self.subTest(body_type=type(body)), self.assertRaises(ValueError):
                 await self.start(self.api(transport), body)
+
             self.assertEqual(transport.calls, [])
+
         for facts in ({"analysis_kind_ref": "bad?key"}, {"provider_ref": "bad"}, {"job_ref": "job:bad/"}):
             transport = Transport()
+
             with self.assertRaises(ValueError):
                 await self.start(self.api(transport), **facts)
+
             self.assertEqual(transport.calls, [])
 
     async def test_malformed_success_keeps_admission_uncertain_and_private(self):
@@ -65,8 +70,10 @@ class AttemptStartFailureTests(unittest.IsolatedAsyncioTestCase):
             response = reply(start_response(**changes))
             transport = Transport(response)
             api = self.api(transport)
+
             with self.subTest(changes=changes), self.assertRaises(ApiFailure) as caught:
                 await self.start(api)
+
             self.assertTrue(caught.exception.attempt_mutation_may_have_committed)
             self.assertIs(caught.exception.response, response)
             self.assertIs(api.last_failure, caught.exception)
@@ -82,8 +89,10 @@ class AttemptStartFailureTests(unittest.IsolatedAsyncioTestCase):
         ):
             transport = Transport(outcome)
             api = self.api(transport)
+
             with self.assertRaises(asyncio.CancelledError if isinstance(outcome, asyncio.CancelledError) else ApiFailure):
                 await self.start(api)
+
             self.assertTrue(api.last_failure.attempt_mutation_may_have_committed)
             self.assertFalse(api.last_failure.issuance_may_have_committed)
             self.assertEqual(len(transport.calls), 1)
@@ -109,15 +118,20 @@ class AttemptStartFailureTests(unittest.IsolatedAsyncioTestCase):
                 "code": code,
                 "detail": "private-canary",
             }
+
             transport = Transport(
                 ExchangeFailed("response lost"),
                 reply(json.dumps(document).encode(), status=status, headers=response_headers(status=status, request_id=b"request:test")),
             )
+
             api = self.api(transport)
+
             with self.assertRaises(ApiFailure) as earlier:
                 await self.start(api)
+
             with self.assertRaises(ApiFailure) as current:
                 await self.start(api)
+
             self.assertTrue(earlier.exception.attempt_mutation_may_have_committed)
             self.assertEqual(current.exception.attempt_mutation_may_have_committed, uncertain)
             self.assertNotIn("private-canary", str(current.exception))

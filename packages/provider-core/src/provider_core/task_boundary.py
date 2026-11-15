@@ -11,6 +11,7 @@ async def contain_task_exit(operation, /, *args, **kwargs):
     Only KeyboardInterrupt and SystemExit are grouped; their exact objects remain
     available to the owner. This grants no outcome, retirement or retry authority.
     """
+
     try:
         return await operation(*args, **kwargs)
     except (KeyboardInterrupt, SystemExit) as cause:

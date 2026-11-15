@@ -39,15 +39,19 @@ class ConditionRetryAfterTests(unittest.IsolatedAsyncioTestCase):
         session = ReportingSession(store)
         on_retry = Mock()
         executor = make_executor(store, claim, session, transport, window=0.1, on_retry=on_retry)
+
         with self.assertRaises(ExecutionFailed) as caught:
             await asyncio.wait_for(executor.run(acknowledged), 2)
+
         self.assertIs(type(caught.exception.cause), ConditionRecoveryExpired)
         original = caught.exception.cause.cause
         self.assertIs(type(original), ApiFailure)
         self.assertEqual(original.status, 503)
         self.assertEqual(original.retry_after_seconds, 1)
+
         self.assertEqual(len(transport.condition_requests), 1,
                          "The same condition must not be sent before the server's retry floor")
+
         on_retry.assert_not_called()
         self.assertIs(caught.exception.condition_failure, original)
         self.assertEqual([event[0] for event in session.events], ["retire"])
@@ -58,9 +62,11 @@ class ConditionRetryAfterTests(unittest.IsolatedAsyncioTestCase):
             def __init__(self):
                 super().__init__(first_failed_put=2)
                 self.put_times = []
+
             async def exchange(self, request, *, maximum_bytes, owner=None):
                 if request.method == "PUT":
                     self.put_times.append(asyncio.get_running_loop().time())
+
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         store, acknowledged, claim = await live_attempt()
@@ -82,8 +88,10 @@ class ConditionRetryAfterTests(unittest.IsolatedAsyncioTestCase):
         transport.followup_observation = reply(observation(job_state="cancelled"))
         session = ReportingSession(store)
         executor = make_executor(store, claim, session, transport, window=2)
+
         with self.assertRaises(ExecutionFailed) as caught:
             await asyncio.wait_for(executor.run(acknowledged), 0.5)
+
         self.assertIs(type(caught.exception.cause), ExecutionStopped)
         self.assertEqual(len(transport.condition_requests), 1)
         self.assertEqual([event[0] for event in session.events], ["retire"])

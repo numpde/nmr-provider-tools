@@ -59,16 +59,22 @@ class PeakWorkflow:
 
     async def finish(self) -> Observation | NotAdmitted:
         """Resume observation or downstream admission without repeating science."""
+
         if self.baseline_submission.operation is None:
             raise RuntimeError("Start the baseline operation before waiting for peaks.")
+
         if self.peak_detection_refusal is not None:
             return self.peak_detection_refusal
+
         if self.peak_detection_submission is None or self.peak_detection_submission.operation is None:
             baseline_observation = await self.baseline_submission.wait()
+
             # Science may succeed while encoding fails. Keep both facts intact.
             if baseline_observation.outcome is not Outcome.SUCCEEDED or baseline_observation.result_state is not ResultState.AVAILABLE:
                 return baseline_observation
+
             corrected_spectrum_payload = await self.baseline_submission.operation.read_result(result=baseline_observation.result)
+
             if self.peak_detection_submission is None:
                 self.peak_detection_submission = Submission(
                     analysis_executor=self.analysis_executor,
@@ -82,17 +88,21 @@ class PeakWorkflow:
                 )
 
             peak_detection_admission = self.peak_detection_submission.submit()
+
             if isinstance(peak_detection_admission, NotAdmitted):
                 if peak_detection_admission.code is AdmissionCode.CLOSED:
                     # Stopping execution makes downstream admission impossible.
                     # This workflow no longer needs the intermediate result.
                     self.baseline_report_release = self.baseline_submission.operation.release_result(result=baseline_observation.result)
                     self.peak_detection_refusal = peak_detection_admission
+
                 # A capacity refusal can still be retried using the retained input.
                 return peak_detection_admission
+
             # The accepted invocation now owns its input bytes. This is an
             # in-memory handoff, not durable report acceptance or publication.
             self.baseline_report_release = self.baseline_submission.operation.release_result(result=baseline_observation.result)
+
         # Intermediate cleanup is an independent owner. A release failure must
         # not hide an accepted peak operation or its usable result. The caller
         # observes baseline_report_release separately when settling the workflow.

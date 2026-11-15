@@ -30,6 +30,7 @@ from provider_core.delivery_config import DeliveryConfigurationRejected
 from provider_core.delivery_ipc import DeliveryRequestRejected
 from provider_core.delivery_store import DeliveryConflict, DeliveryFull, DeliveryInventoryUnavailable, DeliveryStorageFailed
 from provider_core.delivery_worker import DeliveryWorkerFailed
+
 from provider_core.execution import (
     ConditionRecoveryExpired,
     ExecutionFailed,
@@ -38,6 +39,7 @@ from provider_core.execution import (
     ExecutionStopRequested,
     ObservationGapExpired,
 )
+
 from provider_core.ownership import LiveCapacityFull, OwnershipRefused
 from provider_core.lifetime import LifetimeRefused
 from provider_core.runner_protocol import LifecycleRejected, RetirementUnconfirmed
@@ -57,19 +59,25 @@ def owned_relationships(error):
     redact and bound this protected graph; ordinary Python chaining is not copied.
     """
     kind = type(error)
+
     if kind is InterpretationFailed:
         for visit, cause in error.failures:
             yield f"interpreter model {visit} failure", cause
+
         for visit, turn, cause in error.correction_failures:
             yield f"interpreter model {visit} turn {turn} correction failure", cause
+
     if kind is ConversationRetirementFailed:
         for endpoint_index, cause in error.failures:
             yield f"interpreter endpoint {endpoint_index} cleanup", cause
+
     if kind in (ConversationFailed, ConversationRetirementFailed):
         for endpoint_index, cause in error.endpoint_failures:
             yield f"interpreter endpoint {endpoint_index} failure", cause
+
         for turn_index, cause in error.correction_failures:
             yield f"interpreter turn {turn_index} correction failure", cause
+
     if kind in (
         CredentialRejected,
         ObservedWorkerCrash,
@@ -96,6 +104,7 @@ def owned_relationships(error):
         DeliveryConfigurationRejected,
     ):
         yield "owned cause", error.cause
+
     if kind in (
         ControllerFailed,
         ExecutionFailed,
@@ -109,36 +118,49 @@ def owned_relationships(error):
     ):
         for cause in error.cleanup_failures:
             yield "independent cleanup", cause
+
     if kind in (ConversationRetirementFailed, ChatFailed, ExecutionFailed, ControllerFailed):
         yield "interruption cause", error.interruption_cause
+
     if kind is ExecutionFailed:
         yield "local delivery failure", error.delivery_failure
+
         if error.delivery_diagnostic_failure is not None:
             yield "delivery retry diagnostic", error.delivery_diagnostic_failure
+
         yield "handoff interruption", error.handoff_interruption
         yield "analysis operation interruption", error.operation_interruption
         yield "first condition failure", error.condition_failure
         yield "latest condition failure", error.latest_condition_failure
+
     if kind is StartFailed:
         for cause in error.settlement_failures:
             yield "independent settlement", cause
+
     if kind in (ExecutionFailed, StartFailed, DeliveryWorkerFailed):
         yield "API failure", error.api_failure
+
     if kind is ExchangeFailed:
         yield "transport primary", error.primary
         yield "transport interruption", error.interruption
+
         if error.child_failure is not None:
             yield "model HTTP child evidence", error.child_failure
+
         if error.caller_interruption is not None:
             yield "transport caller interruption", error.caller_interruption
+
         if type(error.network_io) is NetworkIOObservation and error.network_io.error is not None:
             yield "network I/O error", error.network_io.error
+
             if error.network_io.cause is not None:
                 yield "network I/O original cause", error.network_io.cause
             elif error.network_io.context is not None:
                 yield "network I/O original context", error.network_io.context
+
     if kind in (UploadFailed, UploadInputRejected, UploadRecoveryExhausted):
         yield "acquisition interruption", error.interruption
+
     if kind is UploadFileReadFailed:
         yield "source reader interruption", error.interruption
 
@@ -151,8 +173,10 @@ def owned_details(error):
     header admission. Redaction and display truncation remain with the consumer.
     """
     kind = type(error)
+
     if kind is AnalysisOutcomeUnresolved:
         return {"message": "No publishable analysis outcome was established; retain this Attempt."}
+
     if kind not in (
         CredentialRejected,
         ObservedWorkerCrash,
@@ -200,24 +224,32 @@ def owned_details(error):
         RouteProjectionRejected,
     ):
         return {}
+
     details = {"message": str(error)}
+
     if kind is DecodedBodyRejected:
         details["reason"] = error.reason
+
     if kind is ObservedWorkerCrash:
         details.update({
             "phase": error.phase, "returncode": error.native_exit.returncode,
             "worker_role": error.native_exit.role, "worker_generation": error.native_exit.generation,
             "worker_operation": error.native_exit.operation,
         })
+
     if kind is DeliveryUnavailable:
         details["status"] = error.status
+
     if kind is DeliveryWorkerFailed:
         details["api_receipt_received"] = error.api_receipt_received
+
     if kind is LifecycleRejected:
         if error.returncode is not None:
             details["returncode"] = error.returncode
+
         if error.scratch_released is not None:
             details["scratch_released"] = error.scratch_released
+
     if kind is ApiFailure:
         details.update(
             operation=error.operation,
@@ -227,54 +259,74 @@ def owned_details(error):
             issuance_may_have_committed=error.issuance_may_have_committed,
             attempt_mutation_may_have_committed=error.attempt_mutation_may_have_committed,
         )
+
     if kind is ExecutionFailed and type(error.attempt) is AcknowledgedAttempt:
         details.update(
             job_ref=error.attempt.admission.job_ref, execution_attempt_ref=error.attempt.admission.execution_attempt_ref,
             delivery_acceptance_received=error.delivery_acceptance is not None,
         )
+
     if kind is ObservationGapExpired:
         details.update(
             gap_seconds=error.gap_seconds, read_started=error.read_started, observation_pending=error.observation_pending
         )
+
     if kind is ConditionRecoveryExpired:
         details.update(window_seconds=error.window_seconds, phase=error.phase, condition_code=error.condition_code)
+
     if kind is ExecutionFailed:
         # Historical failure age is not a live claim or worker-readiness check.
         details["failure_age_seconds"] = time.monotonic() - error.observed_at
         details["outcome_in_memory"] = error.outcome is not None
         details["condition_receipt_received"] = error.condition_receipt is not None
+
     if kind in (UploadFailed, UploadInputRejected, UploadRecoveryExhausted):
         details["grant_issued"] = error.grant_issued
+
         if error.response is not None:
             details.update(status=error.response.status, request_id=response_request_id(error.response.headers))
+
     if kind is ChatFailed:
         details["reason"] = error.reason
+
         if error.endpoint_error is not None:
             details["endpoint_error_unverified"] = True
+
             for name in ("message", "type", "code", "param", "detail_unavailable"):
                 value = error.endpoint_error.get(name)
+
                 if type(value) is str:
                     details["endpoint_error_" + name] = value
+
         head = error.response
+
         if head is None and type(error.cause) is ExchangeFailed:
             head = error.cause.response_head
+
         if head is not None:
             details.update(status=head.status, request_id=response_request_id(head.headers))
+
     if kind is ExchangeFailed and type(error.network_io) is NetworkIOObservation:
         details["network_io_stage"] = error.network_io.stage
         details["network_io_eof"] = error.network_io.eof
         details["network_io_deadline_cancelled"] = error.network_io.deadline_cancelled
+
     if kind is ExchangeFailed and error.response_head is not None:
         details.update(status=error.response_head.status, request_id=response_request_id(error.response_head.headers))
+
     if kind is ExchangeFailed and error.proxy_connect_status is not None:
         details["proxy_connect_status"] = error.proxy_connect_status
+
     if kind is ExchangeFailed and type(error.process) is ChatProcessResult:
         # silent-defaults: allow-contract -- No sent signal has no last-signal identity; retain that absence alongside its zero count.
         details.update(model_http_pid=error.process.pid, model_http_returncode=error.process.returncode,
                        model_http_signals_sent=len(error.process.signals_sent),
                        model_http_last_signal=error.process.signals_sent[-1] if error.process.signals_sent else None)
+
     if kind is StartFailed:
         details["acknowledgement_received"] = error.acknowledgement is not None
+
         if error.acknowledgement is not None:
             details["observed_attempt_state"] = error.acknowledgement.admission.state
+
     return details

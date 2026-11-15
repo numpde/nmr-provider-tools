@@ -22,6 +22,7 @@ from types import NoneType
 from typing import Any, Protocol, get_args, get_origin, get_type_hints, runtime_checkable
 
 from provider_core.contribution_errors import ScientificRejection
+
 from provider_core.payload import (
     DataclassStateBinding,
     JsonDataclassCodec,
@@ -33,6 +34,7 @@ from provider_core.payload import (
 def _identity(value: object, label: str) -> None:
     if type(value) is not str:
         raise TypeError(f"{label} must be a string")
+
     if not (
         value
         and all(character.isprintable() and not character.isspace() for character in value)
@@ -46,6 +48,7 @@ def _identity(value: object, label: str) -> None:
 def _digest(value: object, label: str) -> None:
     if type(value) is not str:
         raise TypeError(f"{label} must be a string")
+
     if re.fullmatch(pattern=r"sha256:[0-9a-f]{64}\Z", string=value) is None:
         raise ValueError(f"{label} must be a lowercase sha256:<64 hex characters> digest")
 
@@ -53,6 +56,7 @@ def _digest(value: object, label: str) -> None:
 def _binding_revision(value: object) -> None:
     if type(value) is not str:
         raise TypeError("Binding revision must be a string")
+
     if re.fullmatch(pattern=r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z", string=value) is None:
         raise ValueError("Binding revision must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest")
 
@@ -67,8 +71,10 @@ def _records(values: object, record_type: type[object], label: str) -> None:
 
 def _set_records(values: object, record_type: type[object], label: str) -> None:
     """Require an immutable unordered inventory with records of the declared type."""
+
     if type(values) is not frozenset:
         raise TypeError(f"Unexpected {type(values)=}; {label=} requires a frozenset")
+
     for value in values:
         if type(value) is not record_type:
             raise TypeError(f"Unexpected {type(value)=}; {label=} requires {record_type=}")
@@ -116,6 +122,7 @@ def _positional_parameters(
         raise TypeError(f"{label} must expose an inspectable signature") from error
 
     parameters = tuple(signature.parameters.values())
+
     if len(parameters) != count or any(
         parameter.kind
         not in (
@@ -125,6 +132,7 @@ def _positional_parameters(
         for parameter in parameters
     ):
         raise TypeError(f"{label} must accept exactly {count} positional parameters")
+
     return parameters
 
 
@@ -140,10 +148,12 @@ def _require_callable_signature(
         count=len(parameter_types),
         label=label,
     )
+
     hints = _resolved_callable_hints(callable_, label=label)
 
     for (parameter, expected_type) in zip(parameters, parameter_types, strict=True):
         actual_type = hints.get(parameter.name)
+
         if actual_type is not expected_type:
             raise TypeError(
                 f"{label} parameter {parameter.name!r} annotation must be exactly "
@@ -167,6 +177,7 @@ def _constructed_type(
         count=len(parameter_types),
         label=label,
     )
+
     hints = _resolved_callable_hints(callable_, label=label)
 
     for (parameter, expected_type) in zip(parameters, parameter_types, strict=True):
@@ -177,8 +188,10 @@ def _constructed_type(
             )
 
     constructed_type = hints.get("return")
+
     if not isinstance(constructed_type, type) or constructed_type is NoneType:
         raise TypeError(f"{label} must declare one concrete return type")
+
     return constructed_type
 
 
@@ -187,24 +200,32 @@ def _scientific_call_shape(
 ) -> _ScientificCallShape:
     if isinstance(scientific_call, _MethodCall):
         return scientific_call.shape
+
     if isinstance(scientific_call, _PlainCall):
         return _ScientificCallShape(
             instance=None, analysis=None, input=scientific_call.input_type,
             state=NoState, output=scientific_call.result_type,
         )
+
     parameters = _positional_parameters(scientific_call, count=1, label="Scientific call")
     resolved_annotations = _resolved_callable_hints(scientific_call, label="Scientific call")
     context_type = resolved_annotations.get(parameters[0].name)
+
     if get_origin(context_type) is not CallContext or len(get_args(context_type)) != 4:
         raise TypeError("Scientific call must accept one CallContext[Instance, Analysis, Input, State]")
+
     instance_type, analysis_type, input_type, state_type = get_args(context_type)
+
     if not all(isinstance(value, type) for value in (instance_type, analysis_type, input_type, state_type)):
         raise TypeError("Scientific context parameters must name concrete types")
 
     return_annotation = resolved_annotations.get("return")
+
     if get_origin(return_annotation) is not ScientificReturn or len(get_args(return_annotation)) != 1:
         raise TypeError("Scientific call return annotation must be ScientificReturn[OutputT]")
+
     (output_type,) = get_args(return_annotation)
+
     if not isinstance(output_type, type):
         raise TypeError("Scientific call output annotation must be a concrete type")
 
@@ -265,8 +286,10 @@ class AssetDescription:
         _identity(self.name, "Asset name")
         _identity(self.media_type, "Asset media type")
         _digest(self.digest, "Asset digest")
+
         if type(self.size_bytes) is not int:
             raise TypeError("Asset byte count must be an integer")
+
         if not 0 < self.size_bytes:
             raise ValueError("Asset byte count must be a positive integer")
 
@@ -291,19 +314,26 @@ class ConfiguredIdentity:
     def __post_init__(self) -> None:
         _identity(self.binding_id, "Binding identity")
         _identity(self.implementation, "Implementation identity")
+
         if not self.implementation.isascii():
             raise ValueError("Implementation identity must be ASCII")
+
         if type(self.contract_version) is not int:
             raise TypeError("Contract version must be an integer")
+
         if not 0 < self.contract_version:
             raise ValueError("Contract version must be a positive integer")
+
         if self.configuration is not None and type(self.configuration) is not ConfigurationDescription:
             raise TypeError("Configuration must be a ConfigurationDescription or None")
+
         _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
         _unique(self.assets, lambda asset: asset.name, "Scientific assets")
         configuration = None
+
         if self.configuration is not None:
             configuration = {"format": self.configuration.format, "digest": self.configuration.digest}
+
         document = {
             "schema_id": "provider-core.configured-identity.v2",
             "implementation": self.implementation,
@@ -315,6 +345,7 @@ class ConfiguredIdentity:
                 for asset in sorted(self.assets, key=lambda asset: asset.name)
             ],
         }
+
         encoded = json.dumps(document, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode("ascii")
         object.__setattr__(self, "revision", "configured-v2:sha256:" + hashlib.sha256(encoded).hexdigest())
 
@@ -339,12 +370,16 @@ class ResourceRequirement:
     def __post_init__(self) -> None:
         _identity(self.kind, "Resource kind")
         _identity(self.unit, "Resource unit")
+
         if type(self.amount) is not int:
             raise TypeError("Resource amount must be an integer")
+
         if not 0 < self.amount:
             raise ValueError("Resource amount must be a positive integer")
+
         if self.selector is not None:
             _identity(self.selector, "Resource selector")
+
         if type(self.exclusive) is not bool:
             raise TypeError("Resource exclusivity must be boolean")
 
@@ -355,11 +390,14 @@ class ResourceRequirement:
 
 def _require_resource_requirements(resource_requirements: object) -> None:
     """Require unordered immutable needs with one quantity per resource identity."""
+
     if type(resource_requirements) is not frozenset:
         raise TypeError(f"Unexpected {type(resource_requirements)=}; supply a frozenset of ResourceRequirement records")
+
     for resource_requirement in resource_requirements:
         if type(resource_requirement) is not ResourceRequirement:
             raise TypeError(f"Unexpected {type(resource_requirement)=}; expected a ResourceRequirement record")
+
     _unique(
         values=resource_requirements,
         key=lambda resource_requirement: resource_requirement.identity,
@@ -376,6 +414,7 @@ class StateParameter:
     def __post_init__(self) -> None:
         _identity(self.name, "State parameter name")
         _identity(self.kind, "Scientific state kind")
+
         if type(self.use) is not StateUse:
             raise TypeError("State use must be a declared StateUse")
 
@@ -415,11 +454,14 @@ class ProgressEvent:
 
     def __post_init__(self) -> None:
         _identity(self.stage, "Progress stage")
+
         if (self.completed is None) != (self.total is None):
             raise ValueError("Progress completed and total must be supplied together")
+
         if self.completed is not None:
             if type(self.completed) is not int or type(self.total) is not int:
                 raise TypeError("Progress counts must be integers")
+
             if not (0 <= self.completed <= self.total and 0 < self.total):
                 raise ValueError("Progress counts must satisfy 0 <= completed <= total and total > 0")
 
@@ -449,8 +491,10 @@ class CallContext[InstanceT, AnalysisT, InputT, StateT]:
 
     def require_control(self) -> ScientificControl:
         """Obtain only the progress/stop capability this call actually declared."""
+
         if self.control is None:
             raise RuntimeError("This scientific call did not declare progress or cooperative stopping")
+
         return self.control
 
 
@@ -485,10 +529,13 @@ class CallDescription:
         _records(self.state_outputs, StateOutput, "State outputs")
         _unique(self.state_outputs, lambda value: value.name, "State outputs")
         _require_resource_requirements(resource_requirements=self.resources)
+
         if type(self.concurrency) is not ConcurrencyRequirement:
             raise TypeError("Call concurrency must be a declared ConcurrencyRequirement")
+
         if type(self.interruption) is not InterruptionSupport:
             raise TypeError("Call interruption must be a declared InterruptionSupport")
+
         if type(self.progress) is not bool:
             raise TypeError("Call progress declaration must be boolean")
 
@@ -507,10 +554,13 @@ class ImplementationDescription:
     def __post_init__(self) -> None:
         _identity(self.binding_id, "Binding identity")
         _binding_revision(self.binding_revision)
+
         if type(self.contract_version) is not int:
             raise TypeError("Contract version must be an integer")
+
         if not 1 <= self.contract_version:
             raise ValueError("Contract version must be a positive integer")
+
         if (
             self.configuration is not None
             and type(self.configuration) is not ConfigurationDescription
@@ -519,13 +569,17 @@ class ImplementationDescription:
                 "Implementation configuration must be a ConfigurationDescription "
                 "or None"
             )
+
         _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
         _unique(self.assets, lambda value: value.name, "Scientific assets")
         _set_records(values=self.calls, record_type=CallDescription, label="Call descriptions")
+
         if not self.calls:
             raise ValueError("An implementation must declare at least one call")
+
         _unique(self.calls, lambda value: value.name, "Call descriptions")
         _require_resource_requirements(resource_requirements=self.resident_resources)
+
         if type(self.isolation) is not IsolationRequirement:
             raise TypeError("Implementation isolation must be a declared IsolationRequirement")
 
@@ -604,6 +658,7 @@ class ScientificReturn[OutputT]:
 
     value: OutputT = field(repr=False)
     states: tuple[ReturnedState[Any], ...] = ()
+
     dispose_value: Callable[[OutputT], None] | None = field(
         default=None,
         repr=False,
@@ -612,6 +667,7 @@ class ScientificReturn[OutputT]:
     def __post_init__(self) -> None:
         _records(self.states, ReturnedState, "Returned scientific states")
         _unique(self.states, lambda value: value.name, "Returned scientific states")
+
         if self.dispose_value is not None:
             _callback(self.dispose_value, "Scientific return disposal")
 
@@ -647,16 +703,22 @@ class _MethodCall:
 
     def __call__(self, *, context: CallContext) -> ScientificReturn:
         arguments = {self.receiver: context.instance}
+
         if self.input_parameter is not None:
             arguments[self.input_parameter] = context.scientific_input
+
         if self.analysis_parameter is not None:
             arguments[self.analysis_parameter] = context.analysis
+
         if self.control_parameter is not None:
             arguments[self.control_parameter] = context.control
+
         arguments.update(context.state)
         result = self.function(**arguments)
+
         if self.wrapped_result:
             return result
+
         return ScientificReturn(value=result)
 
 
@@ -677,9 +739,11 @@ class CallBinding[InputT, StateT, OutputT]:
     description: CallDescription
     input_codec: PayloadCodec[InputT] = field(repr=False)
     state_binding: StateBinding[StateT] = field(repr=False)
+
     scientific_call: Callable[
         [CallContext[Any, Any, InputT, StateT]], ScientificReturn[OutputT]
     ] = field(repr=False)
+
     result_codec: PayloadCodec[OutputT] = field(repr=False)
     _shape: _ScientificCallShape = field(init=False, repr=False, compare=False)
     _owner: _CallOwner | None = field(default=None, init=False, repr=False, compare=False)
@@ -695,10 +759,13 @@ class CallBinding[InputT, StateT, OutputT]:
         ):
             if not isinstance(codec, PayloadCodec):
                 raise TypeError(f"{label} must implement PayloadCodec")
+
         if self.input_codec.format != self.description.input_format:
             raise ValueError("Input codec format differs from the call description")
+
         if self.result_codec.format != self.description.result_format:
             raise ValueError("Result codec format differs from the call description")
+
         if not isinstance(self.state_binding, StateBinding):
             raise TypeError("State binding must implement StateBinding")
 
@@ -707,28 +774,38 @@ class CallBinding[InputT, StateT, OutputT]:
             parameter.name
             for parameter in self.description.state_inputs
         )
+
         if self.state_binding.names != declared_state_names:
             raise ValueError("State binding fields differ from the call's declared state inputs")
 
         if self.description.state_inputs:
             if not isinstance(self.state_binding, DeclaredStateBinding):
                 raise TypeError("Stateful calls require a binding that owns typed state declarations")
+
             if self.state_binding.parameters != self.description.state_inputs:
                 raise ValueError("State binding kind/use differs from the call's declared inputs")
+
             if set(self.state_binding.input_types) != set(declared_state_names):
                 raise ValueError("State binding types must match the declared input names")
 
         _callback(self.scientific_call, "Scientific call")
+
         if type(self._output_slots) is not tuple:
             raise TypeError("Scientific output slots must be an immutable tuple")
+
         output_descriptions = []
+
         for slot in self._output_slots:
             if not isinstance(slot, StateOutputBinding) or not isinstance(slot.value_type, type):
                 raise TypeError("Scientific output slots require a concrete Python value type")
+
             output_descriptions.append(slot.description)
+
         if tuple(output_descriptions) != self.description.state_outputs:
             raise ValueError("Scientific output slots must match the declared outputs")
+
         call_shape = _scientific_call_shape(self.scientific_call)
+
         for (actual_type, expected_type, role) in (
             (call_shape.input, self.input_codec.value_type, "input"),
             (call_shape.state, self.state_binding.value_type, "state"),
@@ -770,17 +847,20 @@ class CallBinding[InputT, StateT, OutputT]:
                 raise ValueError(
                     "Omit input_format when the scientific call has no input"
                 )
+
             admitted_input_format = "provider-core.no-input.v1"
         else:
             if input_format is None:
                 raise ValueError(
                     "A scientific call with input requires input_format"
                 )
+
             admitted_input_format = input_format
 
         if state_binding is None:
             if state_type is not NoState:
                 raise TypeError("Stateful calls require an explicit typed state binding")
+
             state_parameters = ()
         else:
             state_parameters = state_binding.parameters
@@ -789,11 +869,14 @@ class CallBinding[InputT, StateT, OutputT]:
             format=admitted_input_format,
             value_type=input_type,
         )
+
         result_codec = JsonDataclassCodec(
             format=result_format,
             value_type=result_type,
         )
+
         output_descriptions = []
+
         for slot in state_outputs:
             output_descriptions.append(slot.description)
 
@@ -830,10 +913,12 @@ class CallBinding[InputT, StateT, OutputT]:
         concurrency: ConcurrencyRequirement,
     ) -> CallBinding[InputT, NoState, OutputT]:
         """Bind an ordinary unary calculation with no state/control hooks."""
+
         _require_callable_signature(
             function, parameter_types=(input_type,), return_type=result_type,
             label="Plain scientific function",
         )
+
         return CallBinding.from_json_dataclasses(
             name=name, input_type=input_type, state_type=NoState, result_type=result_type,
             input_format=input_format, result_format=result_format,
@@ -864,15 +949,19 @@ class CallBinding[InputT, StateT, OutputT]:
     ) -> ScientificReturn[OutputT]:
         """Bind and pass only the scientific values this call declares."""
         scientific_control = None
+
         if self.description.progress or self.description.interruption is InterruptionSupport.COOPERATIVE:
             scientific_control = control
+
         context = CallContext(
             instance=instance, analysis=analysis, scientific_input=scientific_input,
             state=self.state_binding.bind(live_states),
             control=scientific_control,
         )
+
         if isinstance(self.scientific_call, _MethodCall):
             return self.scientific_call(context=context)
+
         return self.scientific_call(context)
 
     def encode_result(self, value: OutputT) -> bytes:
@@ -899,6 +988,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
     def construct_instance(self) -> InstanceT | None:
         if self.instance is None:
             return None
+
         return self.instance.construct()
 
     def initialize_instance(self, *, instance: InstanceT, assets: object) -> None:
@@ -912,6 +1002,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
     def construct_analysis(self, *, instance: InstanceT) -> AnalysisT | None:
         if self.analysis is None:
             return None
+
         return self.analysis.construct(instance)
 
     def initialize_analysis(self, *, analysis: AnalysisT) -> None:
@@ -925,43 +1016,60 @@ class ImplementationBinding[InstanceT, AnalysisT]:
     def __post_init__(self) -> None:
         if type(self.identity) is not ConfiguredIdentity:
             raise TypeError("A binding requires one ConfiguredIdentity")
+
         if self.instance is not None and type(self.instance) is not InstanceHooks:
             raise TypeError("Instance hooks must be InstanceHooks or None")
+
         if self.analysis is not None and type(self.analysis) is not AnalysisHooks:
             raise TypeError("Analysis hooks must be AnalysisHooks or None")
+
         bound_calls = []
         member_hints = get_type_hints(type(self), include_extras=True)
+
         for member in fields(self):
             if not member.init:
                 continue
+
             declaration = getattr(self, member.name)
             annotation = member_hints.get(member.name)
+
             if get_origin(annotation) is not CallBinding:
                 if type(declaration) is CallBinding:
                     raise TypeError(f"Call member {member.name!r} must declare its concrete CallBinding types")
+
                 continue
+
             if type(declaration) is not CallBinding:
                 raise TypeError(f"Declared call member {member.name!r} must contain a CallBinding")
+
             expected_types = get_args(annotation)
+
             actual_types = (
                 declaration.input_codec.value_type,
                 declaration.state_binding.value_type,
                 declaration.result_codec.value_type,
             )
+
             if expected_types != actual_types:
                 raise TypeError(f"Call member {member.name!r} codecs differ from its declared types")
+
             bound = replace(declaration)
             object.__setattr__(bound, "_owner", self)
             object.__setattr__(self, member.name, bound)
             bound_calls.append(bound)
+
         calls = tuple(bound_calls)
+
         if not calls:
             raise ValueError("A binding must declare at least one named call field")
+
         _unique(calls, lambda call: call.description.name, "Call bindings")
         object.__setattr__(self, "_calls", calls)
         descriptions = []
+
         for call in calls:
             descriptions.append(call.description)
+
         object.__setattr__(self, "description", ImplementationDescription(
             binding_id=self.identity.binding_id, binding_revision=self.identity.revision,
             contract_version=self.identity.contract_version,
@@ -978,12 +1086,14 @@ class ImplementationBinding[InstanceT, AnalysisT]:
                 parameter_types=(),
                 label="Instance constructor",
             )
+
             _require_callable_signature(
                 self.instance.initialize,
                 parameter_types=(instance_type,),
                 return_type=NoneType,
                 label="Instance initializer",
             )
+
             _require_callable_signature(
                 self.instance.dispose,
                 parameter_types=(instance_type,),
@@ -999,12 +1109,14 @@ class ImplementationBinding[InstanceT, AnalysisT]:
                 parameter_types=(instance_type,),
                 label="Analysis constructor",
             )
+
             _require_callable_signature(
                 self.analysis.initialize,
                 parameter_types=(analysis_type,),
                 return_type=NoneType,
                 label="Analysis initializer",
             )
+
             _require_callable_signature(
                 self.analysis.dispose,
                 parameter_types=(analysis_type,),
@@ -1016,11 +1128,13 @@ class ImplementationBinding[InstanceT, AnalysisT]:
 
         for call in calls:
             call_shape = call._shape
+
             if call_shape.instance is not None and call_shape.instance is not instance_type:
                 raise TypeError(
                     f"Call {call.description.name!r} instance annotation must be "
                     f"{instance_type.__qualname__}"
                 )
+
             if call_shape.analysis is not None and call_shape.analysis is not analysis_type:
                 raise TypeError(
                     f"Call {call.description.name!r} analysis annotation must be "
@@ -1029,38 +1143,49 @@ class ImplementationBinding[InstanceT, AnalysisT]:
 
     def ref[InputT, StateT, OutputT](self, call: CallBinding[InputT, StateT, OutputT]) -> CallRef:
         """Reference one of this exact binding's members, rejecting siblings."""
+
         if call._owner is not self:
             raise ValueError("Call belongs to another configured binding")
+
         return ref(call)
 
 
 def _require_state_kinds(*, calls: tuple[CallBinding, ...]) -> None:
     """A scientific kind has one concrete type within a configured implementation."""
     state_types = {}
+
     for call in calls:
         declared_types = []
+
         for slot in call._output_slots:
             declared_types.append((slot.description.kind, slot.value_type))
+
         for parameter in call.description.state_inputs:
             declared_types.append((parameter.kind, call.state_binding.input_types[parameter.name]))
+
         for kind, value_type in declared_types:
             if kind in state_types and state_types[kind] is not value_type:
                 raise TypeError(f"Scientific state kind {kind!r} names different Python types")
+
             state_types[kind] = value_type
 
 
 def ref[InputT, StateT, OutputT](call: CallBinding[InputT, StateT, OutputT]) -> CallRef:
     """Project an actual owned member to its data-only execution identity."""
     owner = call._owner
+
     if owner is None:
         raise ValueError("Cannot reference a call before a configured binding owns it")
+
     if not any(member is call for member in owner._calls):
         raise ValueError("Call does not belong to its configured binding")
+
     return CallRef(owner.description.binding_id, owner.description.binding_revision, call.description.name)
 
 
 def description_document(description: ImplementationDescription) -> dict[str, object]:
     """Return the scheduler-facing, JSON-compatible view of one binding."""
+
     if type(description) is not ImplementationDescription:
         raise TypeError("Description export requires an ImplementationDescription")
 

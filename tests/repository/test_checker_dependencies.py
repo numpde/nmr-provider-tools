@@ -24,11 +24,13 @@ class CheckerDependencyTests(unittest.TestCase):
         self.pool.mkdir()
         self.capture = self.root / "capture"
         self.capture.mkdir()
+
         self.package = {
             "name": "make", "version": "4.3-4.1", "file": "make_4.3-4.1_amd64.deb",
             "url": "https://deb.debian.org/debian/pool/main/m/make-dfsg/make_4.3-4.1_amd64.deb",
             "size": 4, "sha256": hashlib.sha256(b"make").hexdigest(),
         }
+
         self.artifact = self.pool / self.package["file"]
         self.artifact.write_bytes(b"make")
         self.manifest = self.root / "dependencies.json"
@@ -37,8 +39,10 @@ class CheckerDependencyTests(unittest.TestCase):
     def test_declaration_rejects_duplicate_fields_and_foreign_artifacts(self):
         self.assertEqual([self.package], dependencies.declaration(self.manifest))
         self.manifest.write_text('{"platform":"linux/amd64","platform":"linux/amd64","packages":[]}')
+
         with self.assertRaisesRegex(ValueError, "duplicate JSON field"):
             dependencies.declaration(self.manifest)
+
         for changes, error_type in (
             ({"name": "ruff"}, ValueError),
             ({"file": "../make.deb"}, ValueError),
@@ -48,6 +52,7 @@ class CheckerDependencyTests(unittest.TestCase):
             with self.subTest(changes=changes):
                 package = self.package | changes
                 self.manifest.write_text(json.dumps({"platform": "linux/amd64", "packages": [package]}))
+
                 with self.assertRaises(error_type):
                     dependencies.declaration(self.manifest)
 
@@ -75,9 +80,12 @@ class CheckerDependencyTests(unittest.TestCase):
     def test_artifact_symlinks_and_oversized_bytes_are_rejected(self):
         linked = self.pool / "linked"
         linked.symlink_to(self.artifact)
+
         with self.assertRaises(OSError):
             dependencies.verify(self.package, linked)
+
         self.artifact.write_bytes(b"make-extra")
+
         with self.assertRaisesRegex(ValueError, "exceeds declared size"):
             dependencies.verify(self.package, self.artifact)
 
@@ -88,8 +96,10 @@ class CheckerDependencyTests(unittest.TestCase):
         dependencies.publish(self.package, staged, self.artifact)
         self.assertEqual(inode, self.artifact.stat().st_ino)
         self.artifact.write_bytes(b"late")
+
         with self.assertRaisesRegex(ValueError, "differs"):
             dependencies.publish(self.package, staged, self.artifact)
+
         self.assertEqual(b"late", self.artifact.read_bytes())
         self.assertEqual(b"make", staged.read_bytes())
 
@@ -101,12 +111,15 @@ class CheckerDependencyTests(unittest.TestCase):
         self.assertEqual(staged.stat().st_ino, destination.stat().st_ino)
         destination.unlink()
         destination.symlink_to(self.artifact)
+
         with self.assertRaises(OSError):
             dependencies.publish(self.package, staged, destination)
+
         self.assertTrue(destination.is_symlink())
 
     def test_download_refuses_unowned_network_configuration_before_writes(self):
         with patch.dict(os.environ, {}, clear=True):
             with self.assertRaisesRegex(ValueError, "launcher-owned loopback proxy"):
                 dependencies.download([self.package], self.pool)
+
         self.assertEqual([self.artifact], list(self.pool.iterdir()))

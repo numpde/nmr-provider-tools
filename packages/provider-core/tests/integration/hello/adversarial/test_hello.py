@@ -20,9 +20,11 @@ class UnconfirmedHelloTests(unittest.IsolatedAsyncioTestCase):
                 HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5),
                 expected_topology="dev-local",
             )
+
             try:
                 with self.assertRaises(ApiFailure) as caught:
                     await api.publish_hello(**announcement())
+
                 self.assertIn("acceptance is unconfirmed", " ".join(caught.exception.__notes__))
                 self.assertEqual(len(peer.requests), 1)
                 self.assertIsNotNone(caught.exception.cause)
@@ -41,13 +43,17 @@ class UnconfirmedHelloTests(unittest.IsolatedAsyncioTestCase):
                 HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5),
                 expected_topology="dev-local",
             )
+
             owner = object()
             task = asyncio.create_task(api.publish_hello(**announcement(), owner=owner))
+
             try:
                 await asyncio.wait_for(peer.received.wait(), 1)
                 task.cancel()
+
                 with self.assertRaises(asyncio.CancelledError):
                     await task
+
                 self.assertIsInstance(api.last_failure.cause.primary, asyncio.CancelledError)
                 self.assertIn("acceptance is unconfirmed", " ".join(api.last_failure.__notes__))
                 self.assertEqual(len(peer.requests), 1)
@@ -55,5 +61,7 @@ class UnconfirmedHelloTests(unittest.IsolatedAsyncioTestCase):
                 if not task.done():
                     task.cancel()
                     await asyncio.gather(task, return_exceptions=True)
+
                 await api.retire(owner=owner)
+
             await asyncio.wait_for(peer.closed.wait(), 1)

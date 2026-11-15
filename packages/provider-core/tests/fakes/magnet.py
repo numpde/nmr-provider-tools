@@ -37,6 +37,7 @@ class IndeterminatePrediction(RuntimeError):
 
 def prediction():
     decimal = "2.718281828459045235360287"
+
     return {
         "projected_atom_mapped_cxsmiles": "synthetic-projection-only",
         "h_atom_indices": [4],
@@ -66,8 +67,10 @@ class MagnetSession:
         Real interpretation admission belongs to Magnet's capability; malformed
         candidate rejection is outside these three outcome-seam cases.
         """
+
         if acknowledged.start.input != instructions.identity or self.retired or self._prepared is not None:
             raise ValueError("Magnet fixture preparation requires its exact live admitted input")
+
         self.phases.append(type(self.store.records[0]))
         value = await self.interpreter(instructions.specification_bytes)
         model_input = {"smiles": value["smiles"], "h_solvent": value["solvent"], "c_solvent": value["solvent"]}
@@ -81,10 +84,12 @@ class MagnetSession:
     async def execute(self, handle, *, report_condition):  # noqa: ARG002
         if self.retired or self._prepared is None or self._prepared[0] is not handle:
             raise ValueError("Magnet fixture execution requires its current unused prepared handle")
+
         _, key, model_input = self._prepared
         self._prepared = None
         self.phases.append(type(self.store.records[0]))
         result = await self.worker(model_input)
+
         return AnalysisSuccess(
             RESULT_SCHEMA_ID,
             self._result(key, model_input, result),

@@ -33,6 +33,7 @@ class ExecutionIntegrationTests(unittest.IsolatedAsyncioTestCase):
             progress_response(phase="running"), observation(),
             progress_response(phase="running", condition_code="waiting_capacity"), progress_response(phase="running"),
             observation(), complete_response(result_schema_id="result.v1")]
+
         async with api_tls_peer("success", response_bodies=replies) as peer:
             selected_scope = replace(scope(), api_origin=peer.origin)
             pending = replace(record(), scope=selected_scope)
@@ -42,28 +43,38 @@ class ExecutionIntegrationTests(unittest.IsolatedAsyncioTestCase):
             store = LiveAttemptProbe()
             store.scope = selected_scope
             claim = AttemptClaims.live().claim_live(pending, lifecycle_owner=store)
+
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
+
                 for name in ("delivery", "ipc"):
                     (root / name).mkdir(mode=0o700)
+
                 published = asyncio.Event()
+
                 def notice(_error, facts):
                     if facts["event"] == "delivery_published":
                         published.set()
+
                 endpoint = DeliveryEndpoint(peer.origin, selected_scope.provider_ref, root / "ipc/http.sock")
+
                 relay = DeliveryService(root / "delivery", limits=QueueLimits(4, 16384, 8, 32768),
                     bindings=(DeliveryBinding(endpoint, sender),), request_seconds=1, retry_initial_seconds=0.01,
                     retry_max_seconds=0.02, on_notice=notice, diagnostic_status=healthy_diagnostics)
+
                 relay_task = asyncio.create_task(relay.run())
                 delivery = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
                 session = ReportingSession(store)
+
                 try:
                     await asyncio.wait_for(relay.ready.wait(), 1)
                     acknowledged = await AttemptStarter.live(client, claim, scope=selected_scope).start(pending)
+
                     accepted = await live_executor(client, store, claim, session,
                         delivery=delivery, on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
                         delivery_retry_max_seconds=0.02, allowed_job_states=frozenset({"open"}),
                         poll_seconds=1, task_settle_seconds=0.1).run(acknowledged)
+
                     self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
                     self.assertEqual(store.records, (accepted,))
                     await asyncio.wait_for(published.wait(), 2)
@@ -74,8 +85,10 @@ class ExecutionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(len(peer.requests), 13)
                     self.assertEqual(json.loads(peer.request_bodies[4])["condition_code"], "waiting_capacity")
                     self.assertEqual(json.loads(peer.request_bodies[9])["phase"], "running")
+
                     for request, body in zip(peer.requests[:-1], peer.request_bodies[:-1], strict=True):
                         verify_signed_request(request, body, origin=peer.origin, key=client.identity.private_key)
+
                     verify_signed_request(peer.requests[-1], peer.request_bodies[-1], origin=peer.origin, key=sender.identity.private_key)
                     self.assertTrue(peer.requests[-1].startswith(b"POST /provider/v1/execution-attempts/complete "))
                     self.assertFalse((root / "control").exists())
@@ -84,4 +97,5 @@ class ExecutionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     relay.request_stop()
                     await asyncio.wait_for(relay_task, 2)
                     await delivery.retire()
+
             await transport.retire()

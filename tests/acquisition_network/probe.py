@@ -24,22 +24,31 @@ def exchange(proxy_port, origin_port, tunnel):
         if tunnel:
             client.sendall(f"CONNECT 127.0.0.2:{origin_port} HTTP/1.1\r\nHost: fixture\r\n\r\n".encode())
             response = b""
+
             while b"\r\n\r\n" not in response:
                 block = client.recv(4096)
+
                 if not block:
                     raise RuntimeError("CONNECT ended before its response")
+
                 response += block
+
             if not response.startswith(b"HTTP/1.1 200 "):
                 raise RuntimeError("CONNECT did not reach the gateway")
+
             client.sendall(b"GET /proof HTTP/1.1\r\nHost: fixture\r\nConnection: close\r\n\r\n")
         else:
             client.sendall(f"GET http://127.0.0.2:{origin_port}/proof HTTP/1.1\r\nHost: fixture\r\nConnection: close\r\n\r\n".encode())
+
         client.shutdown(socket.SHUT_WR)
         data = b""
+
         while block := client.recv(4096):
             data += block
+
             if len(data) > 65536:
                 raise RuntimeError("origin response exceeded its bound")
+
         if not data.endswith(b"\r\n\r\nproof"):
             raise RuntimeError("relay did not deliver the origin response")
 
@@ -48,6 +57,7 @@ def denied(family, address):
     try:
         with socket.socket(family, socket.SOCK_STREAM) as client:
             client.settimeout(2)
+
             if client.connect_ex(address) == 0:
                 raise RuntimeError("direct external connection succeeded")
     except OSError:
@@ -58,16 +68,21 @@ def denied(family, address):
 
 def check_routes():
     routes = Path("/proc/net/route").read_text().splitlines()[1:]
+
     if any(len(parts) >= 8 and parts[1] == "00000000" and parts[7] == "00000000"
            for parts in (row.split() for row in routes)):
         raise RuntimeError("IPv4 default route exists")
+
     path = Path("/proc/net/ipv6_route")
+
     if path.exists():
         for line in path.read_text().splitlines():
             parts = line.split()
+
             # Linux emits a non-forwarding unreachable default route on lo.
             if len(parts) >= 10 and parts[0] == "0" * 32 and parts[1] == "00" and parts[-1] != "lo":
                 raise RuntimeError("IPv6 default route exists")
+
     if set(os.listdir("/sys/class/net")) != {"lo"}:
         raise RuntimeError("worker namespace has a non-loopback interface")
 
@@ -78,24 +93,31 @@ if sys.argv[1] == "origin":
         server.serve_forever()
 elif sys.argv[1] == "session-offline":
     check_routes()
+
     if any(os.environ.get(name) for name in ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")):
         raise RuntimeError("offline worker inherited a proxy setting")
+
     raise SystemExit(int(sys.argv[2]))
 elif sys.argv[1] in ("worker", "session-worker"):
     if sys.argv[1] == "session-worker":
         proxy = urlsplit(os.environ["HTTP_PROXY"])
+
         if proxy.scheme != "http" or proxy.hostname != "127.0.0.1" or proxy.port is None:
             raise RuntimeError("session proxy is not the loopback relay")
+
         proxy_port, origin_port = proxy.port, int(sys.argv[2])
     else:
         proxy_port, origin_port = int(sys.argv[2]), int(sys.argv[3])
+
     check_routes()
     # The same known host origin must be unreachable directly and reachable
     # through the gateway. Its distinct loopback address avoids relay collisions.
     denied(socket.AF_INET, ("127.0.0.2", origin_port))
     denied(socket.AF_INET, ("192.0.2.1", 443))
+
     if socket.has_ipv6:
         denied(socket.AF_INET6, ("2001:db8::1", 443, 0, 0))
+
     exchange(proxy_port, origin_port, False)
     exchange(proxy_port, origin_port, True)
     print(json.dumps({"netns": os.stat("/proc/self/ns/net").st_ino, "http": True, "connect": True}))

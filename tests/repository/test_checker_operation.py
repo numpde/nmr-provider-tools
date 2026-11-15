@@ -22,6 +22,7 @@ class CheckerOperationTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.directory = Path(temporary.name)
         self.engine = self.directory / "engine.sh"
+
         self.engine.write_text('''set -eu
 printf '%s\\n' "$1" >> "$PROBE_CALLS"
 identifier=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
@@ -54,6 +55,7 @@ case "$1" in
     *) exit 99 ;;
 esac
 ''')
+
         self.environment = os.environ | {
             "PROBE_CALLS": str(self.directory / "calls"),
             "PROBE_STATE": str(self.directory / "state"),
@@ -86,13 +88,16 @@ budget=10
 if [[ $PROBE_SCENARIO == attachment-timeout ]]; then budget=1; fi
 if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
 '''
+
         return ["bash", "-c", script, "bash", str(ROOT)], self.environment | {"PROBE_SCENARIO": scenario}
 
     def owned_paths(self):
         paths = [Path(line) for line in (self.directory / "report").read_text().splitlines()]
+
         for path in paths:
             self.assertEqual(Path("/tmp"), path.parent)
             self.addCleanup(shutil.rmtree, path, ignore_errors=True)
+
         return paths
 
     def run_probe(self, scenario):
@@ -102,10 +107,13 @@ if checker_run "$budget" inert-image; then exit 0; else exit "$?"; fi
     def identity_invocation(self, scenario):
         shadow = self.directory / "identity-checkout"
         (shadow / "host/tools").mkdir(parents=True)
+
         for name in ("checker_operation.sh", "docker_client.sh", "inference_native.sh", "image_lifecycle.sh"):
             shutil.copyfile(ROOT / "host/tools" / name, shadow / "host/tools" / name)
+
         acquisition = shadow / "bootstrap/acquisition/acquisition_tool"
         acquisition.mkdir(parents=True)
+
         # The published owner is an external port here. Its own tests qualify
         # probing; this fixture exposes its call, result, and retirement receipt.
         (acquisition / "owner.sh").write_text('''printf 'source\\n' >> "$PROBE_IDENTITY_EVENTS"
@@ -125,6 +133,7 @@ acquisition_project_ids() {
     fixture_output=(17 29)
 }
 ''')
+
         script = '''set -euo pipefail
 root=$1
 python3() {
@@ -149,6 +158,7 @@ if [[ $PROBE_SCENARIO == missing-receipt || $PROBE_SCENARIO == malformed-receipt
 fi
 exit "$status"
 '''
+
         environment = self.environment | {
             "PROBE_SCENARIO": scenario,
             "NMR_SELECTED_DOCKER_ENDPOINT": "unix:///fixture-selected.sock",
@@ -156,6 +166,7 @@ exit "$status"
             "PROBE_IDENTITY_ARGUMENTS": str(self.directory / "identity-arguments"),
             "PROBE_IDENTITY_RESULT": str(self.directory / "identity-result"),
         }
+
         return ["bash", "-c", script, "bash", str(shadow)], environment
 
     def run_identity_probe(self, scenario):
@@ -166,12 +177,14 @@ exit "$status"
         result = self.run_identity_probe("identity-success")
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual(["verify", "source", "project", "native"], (self.directory / "identity-events").read_text().splitlines())
+
         self.assertEqual(
             ["2", "unix:///fixture-selected.sock", "pinned-image", "--interpreter", "/probe/python",
              "--user-uid", "0", "--user-gid", "0", "--memory-bytes", "67108864", "--pids-limit", "16",
              "--nano-cpus", "1000000000", "--map", "uid", "inverse", "1001", "--map", "gid", "inverse", "1002"],
             (self.directory / "identity-arguments").read_text().splitlines(),
         )
+
         self.assertEqual(["0", "17", "29", "true"], (self.directory / "identity-result").read_text().splitlines())
         self.assertTrue(all(not path.exists() for path in self.owned_paths()))
 
@@ -179,10 +192,12 @@ exit "$status"
         result = self.run_identity_probe(scenario)
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertEqual(["verify", "source", "project"], (self.directory / "identity-events").read_text().splitlines())
+
         self.assertEqual(
             ["2", "old-uid", "old-gid", "true", "2", "2", "true"],
             (self.directory / "identity-result").read_text().splitlines(),
         )
+
         self.assertTrue(all(path.is_dir() for path in self.owned_paths()))
         self.assertIn("acquisition retirement is unconfirmed", result.stderr)
 
@@ -195,10 +210,12 @@ exit "$status"
     def assert_settled_identity_failure(self, scenario, status):
         result = self.run_identity_probe(scenario)
         self.assertEqual(status, result.returncode, msg=result.stderr)
+
         self.assertEqual(
             [str(status), "old-uid", "old-gid", "true"],
             (self.directory / "identity-result").read_text().splitlines(),
         )
+
         self.assertTrue(all(not path.exists() for path in self.owned_paths()))
 
     def test_settled_identity_failure_preserves_status_and_prior_ids(self):
@@ -223,8 +240,10 @@ exit "$status"
     def test_successful_build_retires_images_only_after_cleanup_and_lock_release(self):
         shadow = self.directory / "checkout"
         (shadow / "host/tools").mkdir(parents=True)
+
         for name in ("checker_operation.sh", "docker_client.sh", "inference_native.sh", "image_lifecycle.sh"):
             shutil.copyfile(ROOT / "host/tools" / name, shadow / "host/tools" / name)
+
         (shadow / "host/tools/image_retirement.sh").write_text('''set -eu
 [[ $1 == --automatic ]]
 [[ ! -e $PROBE_STATE ]]
@@ -235,6 +254,7 @@ exec {borrow}< "$root"
 flock --exclusive --nonblock "$borrow"
 printf 'retired\\n' > "$PROBE_REPORT.retired"
 ''')
+
         command, environment = self.invocation("success")
         command[-1] = str(shadow)
         command[2] = command[2].replace('budget=10', 'image_retire_after_success=true\nbudget=10')
@@ -283,13 +303,17 @@ printf 'retired\\n' > "$PROBE_REPORT.retired"
 
     def test_repeated_signals_do_not_interrupt_teardown(self):
         command, environment = self.invocation("repeated-signals")
+
         with subprocess.Popen(command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as process:
             deadline = time.monotonic() + 10
+
             while not (self.directory / "ready").exists() and time.monotonic() < deadline:
                 time.sleep(0.01)
+
             self.assertTrue((self.directory / "ready").exists())
             process.send_signal(signal.SIGTERM)
             process.send_signal(signal.SIGHUP)
             _, diagnostic = process.communicate(timeout=10)
+
         self.assertEqual(0, process.returncode, msg=diagnostic)
         self.assertTrue(all(not path.exists() for path in self.owned_paths()))

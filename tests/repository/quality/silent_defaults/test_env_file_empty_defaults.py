@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from . import _repo_surfaces
+
 from ._repo_surfaces import (
     INTERPOLATION_DEFAULT_RE,
     REPO_ROOT,
@@ -53,14 +54,18 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
         # NMRNet has no reviewed private dotenv exclusions to grant.
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+
             for name in ("private.env", "private.env.example"):
                 (root / name).write_text("PROFILE=fixture\n")
+
             excluded = frozenset({Path("private.env")})
+
             with (
                 patch.object(_repo_surfaces, "REPO_ROOT", root),
                 patch(__name__ + ".SILENT_DEFAULTS_PRIVATE_ENV_EXCLUSIONS", excluded),
             ):
                 scanned = {repo_path(path) for path in _env_files()}
+
             self.assertTrue(excluded.isdisjoint(scanned))
             self.assertIn(Path("private.env.example"), scanned)
             self.assertNotIn(Path("private.env"), scanned)
@@ -82,11 +87,15 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
 
     def test_env_files_do_not_publish_blank_assignments(self) -> None:
         findings: list[str] = []
+
         for source, line_number, line in surface_lines(_env_files(), skip_comments=True):
             stripped = line.strip()
+
             if not stripped:
                 continue
+
             match = ENV_ASSIGNMENT_RE.match(stripped)
+
             if match and match.group("value").strip() in {"", '""', "''"}:
                 findings.append(f"{source}:{line_number}: {match.group('name')}={match.group('value')}")
 
@@ -94,6 +103,7 @@ class EnvFileEmptyDefaultsTest(unittest.TestCase):
 
     def test_env_files_do_not_use_interpolation_defaults(self) -> None:
         findings: list[str] = []
+
         for source, line_number, line in surface_lines(_env_files(), skip_comments=True):
             for match in INTERPOLATION_DEFAULT_RE.finditer(line):
                 findings.append(

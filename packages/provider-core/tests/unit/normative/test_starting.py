@@ -30,16 +30,20 @@ class StartingTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(claim.operation_owner)
         self.assertTrue(claims.owns_job(scope(), pending.input.job_ref))
         replacement = AttemptStarter.live(starter.api, claim, scope=scope())
+
         for send in (starter.start, starter.resume, replacement.start, replacement.resume):
             with self.assertRaises(OwnershipRefused):
                 await send(pending)
+
         self.assertEqual(1, len(transport.calls))
 
     async def test_remote_conflict_retains_received_admission_and_both_live_claims(self):
         claims = AttemptClaims.live()
         pending = record()
+
         other = replace(record("first"), input=replace(pending.input, job_ref="job:other"),
                         body=start_body("job:other", "first"))
+
         existing = claims.claim_live(other, lifecycle_owner=LiveAttemptProbe())
         owner = object()
         existing.begin(owner)
@@ -48,18 +52,24 @@ class StartingTests(unittest.IsolatedAsyncioTestCase):
         claim = claims.claim_live(pending, lifecycle_owner=LiveAttemptProbe())
         transport = Transport(reply(start_response()))
         starter = AttemptStarter.live(api(transport, scope().api_origin), claim, scope=scope())
+
         with self.assertRaises(StartFailed) as failed:
             await starter.start(pending)
+
         acknowledgement = failed.exception.acknowledgement
         self.assertEqual(ATTEMPT_REF, acknowledgement.admission.execution_attempt_ref)
         self.assertEqual(pending, acknowledgement.start)
         self.assertTrue(existing.active)
         self.assertTrue(claim.active)
         self.assertIs(starter, claim.operation_owner)
+
         with self.assertRaises(StartFailed) as unsettled:
             await starter.settle()
+
         self.assertIs(acknowledgement, unsettled.exception.acknowledgement)
         self.assertIsInstance(unsettled.exception.settlement_failures[-1], StartRefused)
+
         with self.assertRaises(StartRefused):
             await starter.resume(pending)
+
         self.assertEqual(1, len(transport.calls))

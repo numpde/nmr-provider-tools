@@ -32,6 +32,7 @@ class ReferenceMatcher(sdk.Contribution):
     def match(self, *, candidate: science.VectorInput) -> science.MatchReport:
         if self.loaded_index is None:
             raise RuntimeError("Cannot match a query before the reference index has been initialized")
+
         return science.match(
             index=self.loaded_index, settings=self.configuration.settings, candidate=candidate,
         )

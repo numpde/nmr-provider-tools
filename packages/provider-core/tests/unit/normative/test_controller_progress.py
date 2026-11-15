@@ -24,6 +24,7 @@ class ControllerPhaseProgressTests(unittest.IsolatedAsyncioTestCase):
         replies[3] = reply(b"PRIVATE progress response", status=503)
         replies.insert(4, reply(observation()))
         transport = Transport(*replies)
+
         confirmed = await live_controller(
             api(transport, scope().api_origin),
             store,
@@ -34,6 +35,7 @@ class ControllerPhaseProgressTests(unittest.IsolatedAsyncioTestCase):
             task_settle_seconds=0.1,
             on_unconfirmed_phase_progress=notice,
         ).run(record())
+
         self.assertIs(type(confirmed), DeliveryAcceptedCheckpoint)
         notice.assert_called_once()
         attempt, phase, failure = notice.call_args.args

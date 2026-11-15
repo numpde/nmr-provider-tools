@@ -32,11 +32,13 @@ def native_config(path):
 
     configuration_bytes = path.read_bytes()
     document = json.loads(configuration_bytes)
+
     if type(document) is not dict:
         raise TypeError(
             f"Unexpected {type(document)=}; "
             "The native engine configuration must be a JSON object."
         )
+
     return configuration_bytes, document
 
 
@@ -47,6 +49,7 @@ def configured(document):
 
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
     builder_settings = proposed_configuration.setdefault("builder", {})
+
     if type(builder_settings) is not dict:
         raise TypeError(
             f"Unexpected {type(builder_settings)=}; "
@@ -55,11 +58,13 @@ def configured(document):
 
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
     gc_settings = builder_settings.setdefault("gc", {})
+
     if type(gc_settings) is not dict:
         raise TypeError(
             f"Unexpected {type(gc_settings)=}; "
             "Native builder.gc configuration is not an object."
         )
+
     gc_settings.update(DEFAULTS)
     limits(proposed_configuration)
     return proposed_configuration
@@ -67,37 +72,46 @@ def configured(document):
 
 def limits(document):
     gc_settings = document["builder"]["gc"]
+
     if type(gc_settings) is not dict:
         raise TypeError(
             f"Unexpected {type(gc_settings)=}; "
             "Native builder.gc configuration must be an object."
         )
+
     if type(gc_settings.get("enabled")) is not bool:
         raise TypeError(
             f"Unexpected {type(gc_settings.get('enabled'))=}; "
             "Native builder.gc must explicitly enable or disable cache collection."
         )
+
     if not gc_settings["enabled"]:
         return None
+
     if gc_settings.get("policy"):
         raise ValueError(
             "A custom native GC policy cannot be reproduced by this single threshold-based prune timer."
         )
 
     thresholds = []
+
     for setting in ("defaultReservedSpace", "defaultMaxUsedSpace", "defaultMinFreeSpace"):
         threshold = gc_settings.get(setting)
+
         if type(threshold) not in (str, int) or type(threshold) is str and (
             not threshold or any(character.isspace() or ord(character) < 32 for character in threshold)
         ):
             raise ValueError(f"Native builder.gc.{setting} requires its literal space threshold.")
+
         thresholds.append(str(threshold))
+
     return thresholds
 
 
 def argument(value):
     if not value or any(ord(c) < 32 or ord(c) == 127 for c in value):
         raise ValueError("Timer arguments cannot contain empty values or control characters.")
+
     # Systemd specifiers remain literal. ExecStart's ':' prefix below disables
     # environment substitution; no shell interprets these captured arguments.
     return '"' + value.replace('\\', '\\\\').replace('"', '\\"').replace('%', '%%') + '"'
@@ -106,14 +120,19 @@ def argument(value):
 def unit_files(root, context, endpoint, config):
     if not endpoint.startswith("unix:///"):
         raise ValueError("Cache collection requires the selected local Unix engine.")
+
     name = "engine-cache-gc-" + hashlib.sha256(endpoint.encode()).hexdigest()[:16]
+
     command = " ".join(argument(value) for value in (
         "/bin/bash", str(root / "host/tools/engine_cache_gc.sh"), "run", context, endpoint, str(config)))
+
     service = ("[Unit]\nDescription=Unused BuildKit cache collection for one local engine\n\n"
                "[Service]\nType=oneshot\nTimeoutStartSec=360\nExecStart=:" + command + "\n")
+
     timer = ("[Unit]\nDescription=Periodic unused BuildKit cache collection\n\n"
              "[Timer]\nOnCalendar=hourly\nRandomizedDelaySec=15min\nPersistent=true\n"
              f"Unit={name}.service\n\n[Install]\nWantedBy=timers.target\n")
+
     return name, service, timer
 
 
@@ -127,7 +146,9 @@ def install(root, context, endpoint, path):
         suffix=".json",
         dir=path.parent,
     )
+
     temporary_path = Path(temporary_name)
+
     try:
         with os.fdopen(temporary_fd, "w", encoding="utf-8") as output:
             os.fchmod(output.fileno(), stat.S_IMODE(path.stat().st_mode))
@@ -144,16 +165,19 @@ def install(root, context, endpoint, path):
             timeout=30,
             check=False,
         )
+
         if validation.returncode:
             raise ValueError(
                 "dockerd rejected the proposed native GC configuration; "
                 "the original file is unchanged."
             )
+
         if path.read_bytes() != original_bytes:
             raise ValueError(
                 "Native engine configuration changed during validation; "
                 "retry against the current file."
             )
+
         temporary_path.replace(path)
     finally:
         temporary_path.unlink(missing_ok=True)
@@ -166,11 +190,13 @@ def install(root, context, endpoint, path):
             text=True,
             timeout=10,
         ).stdout.strip()
+
         unit_directory = Path(configuration_directory) / "systemd/user"
         unit_directory.mkdir(parents=True, exist_ok=True)
         (unit_directory / (unit_name + ".service")).write_text(service_document)
         (unit_directory / (unit_name + ".timer")).write_text(timer_document)
         subprocess.run(["systemctl", "--user", "daemon-reload"], check=True, timeout=30)
+
         subprocess.run(
             ["systemctl", "--user", "enable", "--now", unit_name + ".timer"],
             check=True,
@@ -194,6 +220,7 @@ def main():
         if sys.argv[1:2] == ["policy"] and len(sys.argv) == 3:
             (_, document) = native_config(Path(sys.argv[2]))
             values = limits(document)
+
             if values is None:
                 print("disabled")
             else:
@@ -203,6 +230,7 @@ def main():
             install(Path(root), context, endpoint, Path(config))
         else:
             raise ValueError("Use the maintained cache-GC installation target.")
+
         return 0
     # silent-defaults: allow-exception-outcome -- Failed installation exits with failure; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_timer_failure_reports_saved_native_policy
     except (TypeError, ValueError, RuntimeError) as failure:

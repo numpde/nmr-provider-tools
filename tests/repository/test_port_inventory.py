@@ -18,14 +18,19 @@ class PortInventoryTests(unittest.TestCase):
         dispositions = json.loads((ROOT / "tests/repository/port-dispositions.json").read_text())
         targets = [entry["target"] for entry in manifest["files"]]
         self.assertEqual(len(targets), len(set(targets)), msg="Copied targets must not have duplicate source authorities.")
+
         for entry in manifest["files"]:
             target = ROOT / entry["target"]
+
             with self.subTest(target=entry["target"]):
                 self.assertTrue(target.is_file() and not target.is_symlink())
                 self.assertRegex(entry["sha256"], r"^[0-9a-f]{64}$")
+
                 if not target.name.endswith(".py"):
                     continue
+
                 tree = ast.parse(target.read_text())
+
                 present = {
                     f"{owner.name}.{method.name}"
                     for owner in ast.walk(tree)
@@ -33,6 +38,7 @@ class PortInventoryTests(unittest.TestCase):
                     for method in owner.body
                     if isinstance(method, ast.FunctionDef) and method.name.startswith("test_")
                 }
+
                 excluded = {item["method"] for item in dispositions if item["target"] == entry["target"]}
                 expected = set(entry["test_methods"])
                 missing = {name for name in expected if name.split(".")[-1] in excluded}
@@ -49,6 +55,7 @@ class PortInventoryTests(unittest.TestCase):
         modules = inventory["modules"]
         names = [entry["source"] for entry in modules]
         self.assertEqual(len(names), len(set(names)))
+
         self.assertEqual(
             {
                 entry["source"]
@@ -57,6 +64,7 @@ class PortInventoryTests(unittest.TestCase):
             },
             {entry["source"] for entry in modules if entry["disposition"] == "ported"},
         )
+
         for entry in modules:
             self.assertTrue(entry["reason"].strip())
             self.assertIn(entry["disposition"], {"ported", "provider-owned", "on-owner-extraction", "no-current-consumer"})

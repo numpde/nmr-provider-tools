@@ -23,6 +23,7 @@ from tests.fakes.api import Transport, reply
 from tests.fakes.attempt_store import scope
 from tests.fakes.attempts import observation, progress_response, retained_start, start_response
 from tests.fakes.job_input import facts, response
+
 from tests.fakes.magnet import (
     ANALYSIS_KIND,
     RESULT_SCHEMA_ID,
@@ -32,6 +33,7 @@ from tests.fakes.magnet import (
     RetrySafeUnavailable,
     prediction,
 )
+
 from tests.fakes.api import api
 
 
@@ -42,9 +44,11 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
             interpreter = AsyncMock(return_value={"smiles": "  CCO  ", "solvent": "CDCl3"})
             worker = AsyncMock(return_value=prediction())
             session = MagnetSession(store, interpreter, worker)
+
             expected = {"schema_id": RESULT_SCHEMA_ID, "provider_attempt_key": "retained-start:01",
                         "model_input": {"smiles": "  CCO  ", "h_solvent": "CDCl3", "c_solvent": "CDCl3"},
                         "prediction": prediction()}
+
             expected_bytes = json.dumps(expected, sort_keys=True, separators=(",", ":")).encode()
             transport = Transport(reply(start_response(analysis_kind_ref=ANALYSIS_KIND)), *self._run_replies())
             client = api(transport, store.scope.api_origin)
@@ -75,8 +79,10 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
             client = api(transport, store.scope.api_origin)
             acknowledged = await AttemptStarter.live(client, claim, scope=store.scope).start(pending)
             executor = self._executor(client, store, claim, session)
+
             with self.assertRaises(ExecutionFailed) as failed:
                 await executor.run(acknowledged)
+
             self.assertIs(failed.exception.cause, unavailable)
             self.assertEqual(store.records, (AcknowledgedCheckpoint(acknowledged.start, acknowledged.admission),))
             self.assertIs(acknowledged.local_phase, LocalExecutionPhase.NOT_ENTERED)
@@ -84,10 +90,13 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(session.retired)
             self.assertEqual(len(transport.calls), 4)
             self.assertTrue(executor.work_settled)
+
             with self.assertRaises(ExecutionRefused):
                 await executor.settle()
+
             with self.assertRaises(ExecutionRefused):
                 await executor.run(acknowledged)
+
             worker.assert_not_awaited()
             claim.release(owner=claim.lifecycle_owner)
 
@@ -100,17 +109,22 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
             client = api(Transport(reply(start_response(analysis_kind_ref=ANALYSIS_KIND)), *self._run_replies()), store.scope.api_origin)
             acknowledged = await AttemptStarter.live(client, claim, scope=store.scope).start(pending)
             executor = self._executor(client, store, claim, session)
+
             with self.assertRaises(ExecutionFailed) as failed:
                 await executor.run(acknowledged)
+
             self.assertIs(failed.exception.cause, indeterminate)
             (entered,) = store.records
             self.assertIs(type(entered), EnteredCheckpoint)
             self.assertTrue(session.retired)
             self.assertTrue(executor.work_settled)
+
             with self.assertRaises(ExecutionRefused):
                 await executor.settle()
+
             with self.assertRaises(ExecutionRefused):
                 await executor.run(acknowledged)
+
             worker.assert_awaited_once()
             self.assertEqual(store.records, (entered,))
             claim.release(owner=claim.lifecycle_owner)
@@ -127,7 +141,9 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
     # silent-defaults: allow-contract -- This selects the documented synthetic preparation seam, without claiming real Magnet integration.
     def _run_replies(self, *, preparation_only=False):
         beginning = (reply(observation()), reply(response(SOURCE)), reply(progress_response()))
+
         if preparation_only:
             return beginning
+
         return (*beginning, reply(observation()), reply(progress_response(phase="running")),
                 reply(observation()), reply(observation()))

@@ -35,6 +35,7 @@ def dataclass_json_schema(*, value_type: type) -> dict:
     This describes JSON structure. Exact integer decoding, duplicate keys and
     scientific validity remain obligations of the runtime codec and science.
     """
+
     return _adapter(value_type=value_type).json_schema(
         by_alias=False,
         mode="validation",

@@ -26,6 +26,7 @@ class ControllerConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         replies = list(lifecycle_replies())
         replies[4:4] = [reply(b"PRIVATE outage", status=503), reply(progress_response(condition_code="waiting_capacity"))]
         transport = Transport(*replies)
+
         confirmed = await live_controller(
             api(transport, scope().api_origin),
             store,
@@ -36,6 +37,7 @@ class ControllerConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
             task_settle_seconds=0.1,
             condition_recovery=ConditionRecovery(1, 0.01, retry, recovered),
         ).run(record())
+
         self.assertIs(type(confirmed), DeliveryAcceptedCheckpoint)
         retry.assert_called_once()
         recovered.assert_called_once()

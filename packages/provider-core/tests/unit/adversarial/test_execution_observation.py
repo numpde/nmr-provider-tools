@@ -34,20 +34,26 @@ class WaitingSession(Session):
             await self.release.wait()
         except asyncio.CancelledError:
             self.cancel_count += 1
+
             if not self.resist:
                 raise
+
             await self.release.wait()
 
     async def prepare(self, acknowledged, instructions, *, report_condition):
         result = await super().prepare(acknowledged, instructions, report_condition=report_condition)
+
         if self.phase == "prepare":
             await self._wait()
+
         return result
 
     async def execute(self, prepared, *, report_condition):
         result = await super().execute(prepared, report_condition=report_condition)
+
         if self.phase == "execute":
             await self._wait()
+
         self.produced.set()
         return result
 
@@ -58,10 +64,13 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(phase=phase):
                 store, acknowledged, claim = await live_attempt()
                 replies = [reply(observation()), reply(response()), reply(progress_response())]
+
                 if phase == "execute":
                     replies += [reply(observation()), reply(progress_response(phase="running")), reply(observation())]
+
                 replies.append(reply(observation(job_state="closed")))
                 session = WaitingSession(store, phase)
+
                 executor = live_executor(
                     api(Transport(*replies), store.scope.api_origin),
                     store,
@@ -71,16 +80,20 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                     poll_seconds=0.01,
                     task_settle_seconds=0.02,
                 )
+
                 try:
                     with self.assertRaises(ExecutionFailed) as failed:
                         await executor.run(acknowledged)
+
                     self.assertIsInstance(failed.exception.cause, ExecutionStopped)
                     self.assertEqual(session.cancel_count, 1)
+
                     # silent-defaults: allow-contract -- The canceled phase determines the already-observed event order.
                     self.assertEqual(
                         [e[0] for e in session.events],
                         ["prepare", "retire"] if phase == "prepare" else ["prepare", "execute", "retire"],
                     )
+
                     claim.release(owner=claim.lifecycle_owner)
                 finally:
                     session.release.set()
@@ -88,9 +101,11 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
     async def test_retired_worker_with_pending_task_keeps_claim_until_original_task_settles(self):
         store, acknowledged, claim = await live_attempt()
         session = WaitingSession(store, "prepare", resist=True)
+
         transport = Transport(
             reply(observation()), reply(response()), reply(progress_response()), reply(observation(job_state="closed"))
         )
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -100,15 +115,20 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=0.01,
             task_settle_seconds=0.01,
         )
+
         try:
             with self.assertRaises(ExecutionFailed) as failed:
                 await executor.run(acknowledged)
+
             self.assertIsInstance(failed.exception.cause, ExecutionStopped)
             self.assertTrue(any(isinstance(e, TimeoutError) for e in failed.exception.cleanup_failures))
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             with self.assertRaises(ExecutionFailed):
                 await executor.settle()
+
             self.assertEqual(session.cancel_count, 1)
             session.release.set()
             self.assertIsNone(await executor.settle())
@@ -121,6 +141,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
     async def test_final_stop_preserves_completed_result_without_terminal_publication(self):
         store, acknowledged, claim = await live_attempt()
         session = Session(store)
+
         transport = Transport(
             reply(observation()),
             reply(response()),
@@ -130,6 +151,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             reply(observation()),
             reply(observation(job_state="closed")),
         )
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -139,14 +161,19 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=0.1,
             task_settle_seconds=0.02,
         )
+
         with self.assertRaises(ExecutionFailed) as failed:
             await executor.run(acknowledged)
+
         self.assertIsInstance(failed.exception.cause, ExecutionStopped)
         self.assertIs(failed.exception.outcome, session.outcome)
+
         with self.assertRaises(OwnershipRefused):
             claim.release(owner=claim.lifecycle_owner)
+
         with self.assertRaises(ExecutionFailed):
             await executor.settle()
+
         retained = await executor.retain_suppressed_disposition()
         self.assertIsInstance(retained, SuppressedCheckpoint)
         self.assertIs(retained.reason, SuppressionReason.SERVER_STOP)
@@ -165,6 +192,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                 if len(self.calls) == 6:
                     session.release.set()
                     await session.produced.wait()
+
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         transport = RacingTransport(
@@ -176,6 +204,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             reply(observation()),
             ExchangeFailed("poll reply lost"),
         )
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -185,14 +214,18 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=0.01,
             task_settle_seconds=0.02,
         )
+
         try:
             with self.assertRaises(ExecutionFailed) as failed:
                 await executor.run(acknowledged)
+
             self.assertIs(failed.exception.cause, failed.exception.api_failure)
             self.assertIs(failed.exception.outcome, session.outcome)
             self.assertEqual(len(transport.calls), 7)
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             retained = await executor.retain_suppressed_disposition()
             self.assertIs(retained.reason, SuppressionReason.OBSERVATION_FAILED)
             self.assertIs(executor.last_failure.cause, failed.exception.api_failure)
@@ -205,6 +238,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
     async def test_late_execution_result_updates_failure_and_keeps_unretained_outcome_owned(self):
         store, acknowledged, claim = await live_attempt()
         session = WaitingSession(store, "execute", resist=True)
+
         transport = Transport(
             reply(observation()),
             reply(response()),
@@ -214,6 +248,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             reply(observation()),
             reply(observation(job_state="closed")),
         )
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -223,19 +258,25 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=0.01,
             task_settle_seconds=0.01,
         )
+
         try:
             with self.assertRaises(ExecutionFailed):
                 await executor.run(acknowledged)
+
             self.assertIsNone(executor.last_failure.outcome)
             session.release.set()
             await session.produced.wait()
             self.assertIs(executor.last_failure.outcome, session.outcome)
+
             with self.assertRaises(ExecutionFailed):
                 await executor.settle()
+
             self.assertIs(executor.last_failure.outcome, session.outcome)
             self.assertEqual(session.cancel_count, 1)
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             retained = await executor.retain_suppressed_disposition()
             self.assertIs(retained.reason, SuppressionReason.SERVER_STOP)
             self.assertEqual(store.records, (retained,))
@@ -249,11 +290,14 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(phase=phase):
                 store, acknowledged, claim = await live_attempt()
                 replies = [reply(observation()), reply(response()), reply(progress_response())]
+
                 if phase == "execute":
                     replies += [reply(observation()), reply(progress_response(phase="running")), reply(observation())]
+
                 transport = Transport(*replies, ExchangeFailed("must not read after binding failure"))
                 session = Session(store)
                 cause = RuntimeError("private binding failure")
+
                 executor = live_executor(
                     api(transport, store.scope.api_origin),
                     store,
@@ -263,8 +307,10 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                     poll_seconds=0.1,
                     task_settle_seconds=0.02,
                 )
+
                 with patch.object(session, phase, AsyncMock(side_effect=cause)), self.assertRaises(ExecutionFailed) as failed:
                     await executor.run(acknowledged)
+
                 self.assertIs(failed.exception.cause, cause)
                 self.assertEqual(len(transport.calls), len(replies))
                 self.assertEqual(failed.exception.cleanup_failures, ())
@@ -283,6 +329,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                     self.retirement_confirmed = False
                     reading.set()
                     await asyncio.Future()
+
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         transport = PendingTransport(
@@ -293,6 +340,7 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             reply(progress_response(phase="running")),
             reply(observation()),
         )
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -302,16 +350,22 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=0.01,
             task_settle_seconds=0.02,
         )
+
         task = asyncio.create_task(executor.run(acknowledged))
+
         try:
             await asyncio.wait_for(reading.wait(), 1)
             task.cancel()
+
             with self.assertRaises(asyncio.CancelledError):
                 await task
+
             self.assertIsInstance(executor.last_failure.cause, asyncio.CancelledError)
             self.assertIs(transport.pending_owner, executor)
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             self.assertIsNone(await executor.settle())
             self.assertIsNone(transport.pending_owner)
             self.assertEqual(session.cancel_count, 1)

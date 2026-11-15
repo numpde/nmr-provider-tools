@@ -37,27 +37,33 @@ class _Finding:
 def _assigned_names(statement: ast.stmt) -> list[str]:
     if isinstance(statement, ast.Assign):
         return [target.id for target in statement.targets if isinstance(target, ast.Name)]
+
     if isinstance(statement, ast.AnnAssign) and isinstance(statement.target, ast.Name):
         return (statement.target.id,)
+
     return []
 
 
 def _assigned_value(statement: ast.stmt) -> ast.expr | None:
     if isinstance(statement, (ast.Assign, ast.AnnAssign)):
         return statement.value
+
     return None
 
 
 def _repository_root_name(name: str) -> str | None:
     normalized = name.lstrip("_").casefold()
+
     if normalized in {
         "repo_root",
         "repository_root",
         "project_root",
     }:
         return normalized
+
     if normalized == "root":
         return normalized
+
     return None
 
 
@@ -66,13 +72,16 @@ def _source_location_depth(
     source_location_depths: dict[str, int],
 ) -> int | None:
     origin_depths: list[int] = []
+
     for node in ast.walk(expression):
         if isinstance(node, ast.Name) and node.id == "__file__":
             origin_depths.append(0)
         elif isinstance(node, ast.Name) and node.id in source_location_depths:
             origin_depths.append(source_location_depths[node.id])
+
         if isinstance(node, ast.Attribute) and node.attr == "__file__":
             origin_depths.append(0)
+
         if (
             isinstance(node, ast.Call)
             and isinstance(node.func, ast.Attribute)
@@ -81,13 +90,16 @@ def _source_location_depth(
             and node.func.attr == "getfile"
         ):
             origin_depths.append(0)
+
     if not origin_depths:
         return None
+
     return max(origin_depths) + _upward_steps(expression)
 
 
 def _upward_steps(expression: ast.expr) -> int:
     steps = 0
+
     for node in ast.walk(expression):
         if isinstance(node, ast.Subscript) and (
             isinstance(node.value, ast.Attribute)
@@ -97,22 +109,29 @@ def _upward_steps(expression: ast.expr) -> int:
             and node.slice.value >= 0
         ):
             steps = max(steps, node.slice.value + 1)
+
         if isinstance(node, ast.Attribute) and node.attr == "parent":
             consecutive_steps = 1
             parent = node.value
+
             while isinstance(parent, ast.Attribute) and parent.attr == "parent":
                 consecutive_steps += 1
                 parent = parent.value
+
             steps = max(steps, consecutive_steps)
+
     return steps
 
 
 def _root_target_uses_source_layout(name: str, depth: int) -> bool:
     normalized = _repository_root_name(name)
+
     if normalized is None:
         return False
+
     if normalized == "root":
         return depth >= 2
+
     return depth >= 1
 
 
@@ -125,6 +144,7 @@ def _findings_in_body(
     findings: list[_Finding] = []
     # silent-defaults: allow-contract -- A top-level body starts with no source-location bindings; nested bodies copy the inherited scope before updating their own map; proof=tests/repository/quality/test_repository_root_posture.py::RepositoryRootPostureTests.test_detector_flags_source_layout_repository_root_inference
     source_location_depths = dict(inherited_source_location_depths or {})
+
     for statement in statements:
         if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
             findings.extend(
@@ -134,14 +154,18 @@ def _findings_in_body(
                     inherited_source_location_depths=source_location_depths,
                 )
             )
+
         names = _assigned_names(statement)
         value = _assigned_value(statement)
+
         if value is None or not names:
             continue
+
         source_location_depth = _source_location_depth(
             value,
             source_location_depths,
         )
+
         if source_location_depth is not None:
             findings.extend(
                 _Finding(
@@ -153,12 +177,14 @@ def _findings_in_body(
                 for name in names
                 if _root_target_uses_source_layout(name, source_location_depth)
             )
+
         for name in names:
             if source_location_depth is not None:
                 source_location_depths[name] = source_location_depth
             else:
                 # silent-defaults: allow-contract -- Non-source rebinding removes that name's earlier source-layout provenance; an untracked name needs no removal; proof=tests/repository/quality/test_repository_root_posture.py::RepositoryRootPostureTests.test_detector_ignores_non_repository_and_non_source_roots
                 source_location_depths.pop(name, None)
+
     return tuple(findings)
 
 
@@ -241,5 +267,6 @@ class RepositoryRootPostureTests(unittest.TestCase):
     def test_python_does_not_infer_repository_root_from_source_layout(self) -> None:
         paths = tuple(python_sources(production_only=False))
         findings = _scan(paths)
+
         if findings:
             self.fail("repository roots inferred from source layout:\n" + "\n".join(finding.diagnostic() for finding in findings))

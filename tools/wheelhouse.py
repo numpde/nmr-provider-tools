@@ -34,6 +34,7 @@ CHUNK_BYTES = 1024 * 1024
 # silent-defaults: allow-contract -- Shared read-only cache access is the default; exclusive acquisition is explicitly requested by the caller.
 def pool_lock(pool, exclusive=False):
     descriptor = os.open(pool, os.O_RDONLY | os.O_DIRECTORY)
+
     try:
         fcntl.flock(descriptor, fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH)
         yield descriptor
@@ -47,9 +48,11 @@ def pool_read_lock(pool):
 
 def digest(path):
     checksum = hashlib.sha256()
+
     with regular_file(path) as stream:
         while chunk := stream.read(CHUNK_BYTES):
             checksum.update(chunk)
+
     return checksum.hexdigest()
 
 
@@ -62,25 +65,36 @@ def requirements(lock):
     """Read the fixed name/version and allowed SHA-256 values emitted by our lock lane."""
     packages = {}
     current = None
+
     with regular_file(lock) as stream:
         for raw in stream:
             line = raw.decode().strip().removesuffix("\\").rstrip()
+
             if not line or line.startswith("#"):
                 continue
+
             if match := re.fullmatch(r"--hash=sha256:([0-9a-f]{64})", line):
                 if current is None:
                     raise ValueError("Cannot acquire wheels: hash precedes its locked package")
+
                 packages[current].add(match[1])
                 continue
+
             match = re.fullmatch(r"([A-Za-z0-9_.-]+)==([A-Za-z0-9][A-Za-z0-9.!+_-]*)", line)
+
             if match is None:
                 raise ValueError("Cannot acquire wheels: lock entries must contain only named pinned versions and SHA-256 hashes.")
+
             current = (re.sub(r"[-_.]+", "-", match[1]).lower(), match[2])
+
             if current in packages:
                 raise ValueError(f"Cannot acquire wheels: duplicate locked package {current}")
+
             packages[current] = set()
+
     if not packages or not all(packages.values()):
         raise ValueError("Cannot acquire wheels: every locked package must have SHA-256 hashes")
+
     return packages
 
 
@@ -94,17 +108,23 @@ def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None)
     https://pip.pypa.io/en/stable/reference/installation-report/
     """
     pools = (pool, *extra_pools)
+
     if any(not directory.is_dir() for directory in pools):
         raise ValueError("Cannot select wheels: every supplied wheel directory must exist.")
+
     with tempfile.TemporaryDirectory(prefix="wheel-selection-") as temporary:
         frozen = Path(temporary) / "requirements.lock"
+
         with regular_file(lock) as source, frozen.open("xb") as target:
             shutil.copyfileobj(source, target, CHUNK_BYTES)
+
         requirements(frozen)
         report = Path(temporary) / "report.json"
         borrowed_descriptors = ()
+
         if lock_fd is not None:
             borrowed_descriptors = (lock_fd,)
+
         subprocess.run(
             [
                 *pip_command(sys.executable),
@@ -126,6 +146,7 @@ def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None)
             ],
             check=True, pass_fds=borrowed_descriptors,
         )
+
         return wheel_inputs_from_report(frozen, pool, report, extra_pools, required_files)
 
 
@@ -133,12 +154,16 @@ def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None)
 def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=None):
     """Project pip's actual selection or installation report into input identities."""
     selected = read_json(report)
+
     if selected["version"] != "1":
         raise ValueError("Cannot select wheels: pip returned an unsupported installation-report version.")
+
     files = {}
+
     for item in selected["install"]:
         location = urllib.parse.urlsplit(item["download_info"]["url"])
         candidate = Path(urllib.request.url2pathname(location.path))
+
         if (
             location.scheme != "file"
             or location.netloc
@@ -146,33 +171,42 @@ def wheel_inputs_from_report(lock, pool, report, extra_pools=(), required_files=
             or candidate.suffix != ".whl"
         ):
             raise ValueError("Cannot select wheels: pip selected a file outside the supplied flat pool.")
+
         if required_files and candidate.name in required_files and candidate.resolve() != required_files[candidate.name].resolve():
             raise ValueError(f"Cannot select {candidate.name}: pip did not select the required release artifact.")
+
         with regular_file(candidate):
             pass
+
         # Pip owns lock resolution and checks the selected file against the lock.
         files[candidate.name] = item["download_info"]["archive_info"]["hashes"]["sha256"]
+
     if required_files and not set(required_files).issubset(files):
         raise ValueError("Cannot select wheels: a required release artifact was not selected.")
+
     return {"lock_sha256": digest(lock), "files": files}
 
 
 def publish_file(path, destination, checksum):
     """Add one complete file without replacing a peer's existing inode or bytes."""
+
     with regular_file(path) as stream:
         os.fchmod(stream.fileno(), 0o644)
         os.fsync(stream.fileno())
+
     try:
         os.link(path, destination, follow_symlinks=False)
     except FileExistsError as conflict:
         try:
             observed = digest(destination)
+
             if observed != checksum:
                 raise ValueError(
                     f"Cannot reuse {destination.name!r}: expected SHA-256 {checksum}, found {observed}; the existing file is preserved."
                 )
         except (OSError, ValueError) as invalid_winner:
             raise conflict from invalid_winner
+
     fsync_directory(destination.parent)
 
 
@@ -182,6 +216,7 @@ def main():
     parser.add_argument("--pool", type=Path, required=True)
     parser.add_argument("--lock", type=Path, action="append", required=True)
     args = parser.parse_args()
+
     for lock in args.lock:
         with pool_read_lock(args.pool) as lock_fd:
             print(json.dumps(select_wheels(lock, args.pool, lock_fd=lock_fd), sort_keys=True))

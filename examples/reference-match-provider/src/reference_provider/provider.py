@@ -31,8 +31,10 @@ class Provider:
 @asynccontextmanager
 async def open_provider() -> AsyncIterator[Provider]:
     """Read configuration once; indexing remains lazy until the first query."""
+
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         provider_config = tomllib.load(source)
+
     operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
 
     resource_requirements = frozenset(
@@ -42,6 +44,7 @@ async def open_provider() -> AsyncIterator[Provider]:
 
     matching_config = provider_config["science"]["matching"]
     reference_entries = []
+
     for reference_config in matching_config["references"]:
         reference_entries.append(science.Reference(label=reference_config["label"], values=tuple(reference_config["values"])))
 

@@ -21,27 +21,35 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
 
     def test_oversized_legacy_inventory_preserves_rows_and_does_not_block_publisher_access(self):
         queue = self.open()
+
         # Seed the valid version-1 layout as an older larger-capacity service.
         for index in range(MAX_PROVIDER_ITEMS + 1):
             reference = "execution_attempt:sha256:" + f"{index:064x}"
+
             item = DeliveryOutcome("https://api.example", "provider:test", "job:queue", reference,
                                    TerminalOperation.FAIL, fail_body(reference, "provider_interrupted", "legacy exact body"))
+
             state, reason = "held", "preserve this held obligation"
+
             if index == 0:
                 state, reason = "pending", None
+
             queue._db.execute(
                 "INSERT INTO outstanding VALUES(?,?,?,?,?,?,?,?,?,?,NULL)",
                 (item.api_origin, item.provider_ref, item.execution_attempt_ref, item.job_ref, item.operation.value,
                  item.body, item.body_sha256, state, 1.0, reason),
             )
+
         queue._db.commit()
         expected = queue._db.execute("SELECT * FROM outstanding ORDER BY attempt_ref").fetchall()
         queue.close()
         adopted = DeliveryQueue(self.root, limits=QueueLimits(MAX_PROVIDER_ITEMS, 8 * 1024 * 1024, MAX_PROVIDER_ITEMS, 8 * 1024 * 1024))
         self.addCleanup(adopted.close)
         self.assertEqual(MAX_PROVIDER_ITEMS + 1, len(adopted.inventory("https://api.example", "provider:test")))
+
         with self.assertRaisesRegex(DeliveryInventoryUnavailable, "publication continues"):
             adopted.ipc_inventory("https://api.example", "provider:test")
+
         # Single-Attempt recovery uses the primary key even when full IPC inventory cannot fit.
         statements = []
         adopted._db.set_trace_callback(statements.append)
@@ -52,6 +60,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
         self.assertIsNone(adopted.status("https://other.example", "provider:test", expected[-1][2]))
         # The original pending row remains available while all held rows stay held.
         self.assertEqual(expected[0][2], adopted.next_pending("https://api.example", "provider:test").execution_attempt_ref)
+
         with sqlite3.connect(f"file:{self.root / 'delivery.sqlite3'}?mode=ro", uri=True) as inspection:
             self.assertEqual(expected, inspection.execute("SELECT * FROM outstanding ORDER BY attempt_ref").fetchall())
 
@@ -70,30 +79,38 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
         queue = self.open()
         original, other = outcome(), outcome(message="different accepted candidate")
         queue.enqueue(original)
+
         with self.assertRaises(DeliveryConflict):
             queue.enqueue(other)
+
         with self.assertRaises(DeliveryConflict):
             queue.remove_published(other)
+
         self.assertEqual(queue.next_pending(original.api_origin, original.provider_ref), original)
 
     def test_corrupt_database_is_not_replaced(self):
         path = self.root / "delivery.sqlite3"
         path.write_bytes(b"not a SQLite database")
         path.chmod(0o600)
+
         with self.assertRaises(DeliveryStorageFailed):
             self.open()
+
         self.assertEqual(path.read_bytes(), b"not a SQLite database")
 
     def test_one_service_owns_the_database(self):
         first = self.open()
         item = outcome()
         first.enqueue(item)
+
         with self.assertRaises(DeliveryStorageFailed):
             self.open()
+
         self.assertEqual(first.next_pending(item.api_origin, item.provider_ref), item)
 
     def test_body_cannot_claim_another_attempt(self):
         item = outcome()
+
         with self.assertRaises(ValueError):
             DeliveryOutcome(
                 item.api_origin, item.provider_ref, item.job_ref, item.execution_attempt_ref[:-1] + "1",
@@ -103,6 +120,7 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
     def test_missing_volume_directory_keeps_operation_and_original_cause(self):
         with self.assertRaises(DeliveryStorageFailed) as caught:
             DeliveryQueue(self.root / "missing", limits=self.limits)
+
         self.assertIn("open delivery storage", str(caught.exception))
         self.assertIsInstance(caught.exception.cause, FileNotFoundError)
         self.assertFalse((self.root / "missing").exists())
@@ -121,9 +139,12 @@ class DeliveryQueueRefusalTests(unittest.TestCase):
                 patch("provider_core.delivery_store.os.fstat", side_effect=primary):
             with self.assertRaises(DeliveryStorageFailed) as refused:
                 self.open()
+
         self.assertEqual(len(opened), 1)
+
         with self.assertRaises(OSError) as closed:
             real_fstat(opened[0])
+
         self.assertEqual(closed.exception.errno, errno.EBADF)
         self.assertIs(refused.exception.cause, primary)
         self.assertIn(".owner.lock", str(refused.exception))

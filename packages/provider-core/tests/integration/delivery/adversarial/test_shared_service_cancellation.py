@@ -28,27 +28,35 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
             item = replace(outcome(), api_origin=peer.origin)
             ca = (Path(peer.scratch.name) / "cert.pem").read_bytes()
             credential = encoded(document(principal_ref=item.provider_ref))
+
             fields = {"origin": peer.origin, "profile": "dev-local", "topology": "dev-local",
                       "provider_ref": item.provider_ref, "exchange_seconds": 10, "retirement_seconds": 1,
                       "credential_file": "/fixture/credential", "ca_file": "/fixture/ca"}
+
             settings, _, material = api_settings_with_material(
                 fields, lambda _path, **options: credential if options["label"] == "API signing credential" else ca)
+
             handoff = DeliveryHandoff(item, material)
+
             with tempfile.TemporaryDirectory() as directory:
                 root = Path(directory)
                 (root / "state").mkdir(mode=0o700)
                 (root / "ipc").mkdir(mode=0o700)
                 limits = QueueLimits(2, 8192, 4, 16384)
                 policy = ServicePolicy.admit("mapped", [urlsplit(peer.origin).netloc], ["127.0.0.1=127.0.0.1"])
+
                 with ServiceProxyServer(root / "proxy.sock", "lo", policy, status_directory=root) as proxy:
                     thread = threading.Thread(target=proxy.serve_forever, kwargs={"poll_interval": 0.01})
+
                     service = SharedDeliveryService(
                         root / "state", limits=limits, socket=SharedDeliverySocket(root / "ipc/socket", None),
                         proxy_socket=root / "proxy.sock", request_seconds=2, retry_initial_seconds=0.01,
                         retry_max_seconds=0.02, on_notice=Mock(), diagnostic_status=Mock())
+
                     thread.start()
                     task = asyncio.create_task(service.run())
                     client = None
+
                     try:
                         await asyncio.wait_for(service.ready.wait(), 5)
                         endpoint = DeliveryEndpoint(peer.origin, item.provider_ref, root / "ipc/socket")
@@ -58,11 +66,14 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
                         worker = service.workers[item.key[:2]]
                         api = worker.api
                         service._worker_tasks[item.key[:2]].cancel()
+
                         with self.assertRaisesRegex(RuntimeError, "worker was cancelled"):
                             await asyncio.wait_for(task, 5)
+
                         self.assertTrue(api.retirement_confirmed)
                         self.assertTrue(service.retirement_confirmed)
                         self.assertEqual(peer.request_bodies, [item.body])
+
                         verify_signed_request(peer.requests[0], item.body, origin=peer.origin,
                                               key=settings.identity.private_key)
                     finally:
@@ -73,11 +84,14 @@ class SharedServiceCancellationTests(unittest.IsolatedAsyncioTestCase):
                             try:
                                 if not task.done():
                                     service.request_stop()
+
                                 await asyncio.wait_for(asyncio.gather(task, return_exceptions=True), 5)
                             finally:
                                 await asyncio.to_thread(proxy.shutdown)
                                 await asyncio.to_thread(thread.join, 2)
+
                 queue = DeliveryQueue(root / "state", limits=limits)
+
                 try:
                     retained = queue.next_pending_handoff(item.api_origin, item.provider_ref)
                     self.assertEqual(retained.outcome, item)

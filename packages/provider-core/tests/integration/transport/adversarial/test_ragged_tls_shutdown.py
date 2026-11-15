@@ -21,6 +21,7 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
                 async with ShutdownPeer([fixed_response(b"data")], tunnel=tunnel, raw_close_failures=(failure,)) as peer:
                     with self.assertRaises(ExchangeFailed) as caught:
                         await peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4)
+
                     self.assertIn(failure, caught.exception.cleanup_failures)
                     self.assertGreaterEqual(peer.raw_close_attempts, 2)
                     self.assertGreater(peer.raw_close_successes, 0)
@@ -38,11 +39,14 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
         async with ShutdownPeer([fixed_response(b"data")], tunnel=True, hold_raw_close=True) as peer:
             owner = object()
             task = asyncio.create_task(peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4, owner=owner))
+
             try:
                 await asyncio.wait_for(peer.raw_close_started.wait(), 2)
                 task.cancel("cancel pending raw close")
+
                 with self.assertRaises(asyncio.CancelledError) as caught:
                     await asyncio.wait_for(task, 2)
+
                 self.assertEqual(("cancel pending raw close",), caught.exception.args)
                 self.assertFalse(peer.transport.retirement_confirmed)
                 self.assertIs(owner, peer.transport.pending_owner)
@@ -54,22 +58,29 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
     async def test_close_deadline_cannot_authorize_replacement(self):
         async with ShutdownPeer([fixed_response(b"data")], tunnel=False, hold_raw_close=True) as peer:
             owner = object()
+
             with self.assertRaises(ExchangeFailed):
                 await peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4, owner=owner)
+
             self.assertFalse(peer.transport.retirement_confirmed)
             self.assertIs(owner, peer.transport.pending_owner)
+
             with self.assertRaises(ExchangeFailed):
                 await peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4, owner=object())
+
             self.assertEqual(1, len(peer.requests))
 
     async def test_wrong_owner_cannot_retire_pending_raw_close(self):
         async with ShutdownPeer([fixed_response(b"data")], tunnel=True, hold_raw_close=True) as peer:
             owner = object()
             task = asyncio.create_task(peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4, owner=owner))
+
             try:
                 await asyncio.wait_for(peer.raw_close_started.wait(), 2)
+
                 with self.assertRaises(ExchangeFailed):
                     await peer.transport.retire(owner=object())
+
                 self.assertIs(owner, peer.transport.pending_owner)
                 self.assertFalse(peer.transport.retirement_confirmed)
                 self.assertEqual(0, peer.raw_close_successes)
@@ -83,10 +94,12 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
                 async with ShutdownPeer([fixed_response(b"data")], tunnel=tunnel, raw_close_failure=failure) as peer:
                     with self.assertRaises(ExchangeFailed) as caught:
                         await peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4)
+
                     self.assertIn(failure, caught.exception.cleanup_failures)
                     self.assertGreater(peer.raw_close_attempts, 0)
                     self.assertEqual(0, peer.raw_close_successes)
                     self.assertFalse(peer.transport.retirement_confirmed)
+
                     with self.assertRaises(ExchangeFailed):
                         await peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4)
 
@@ -113,15 +126,20 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(tunnel=tunnel):
                 async with ShutdownPeer([wire], tunnel=tunnel) as peer:
                     request = httpx.Request("GET", peer.origin)
+
                     with self.assertRaises(ExchangeFailed) as caught:
                         if decoded:
                             await peer.transport.exchange_decoded(request, maximum_bytes=maximum_bytes, error_maximum_bytes=4096)
                         else:
                             await peer.transport.exchange(request, maximum_bytes=maximum_bytes)
+
                     self.assertIsNotNone(caught.exception.primary)
+
                     if primary is not None:
                         self.assertIsInstance(caught.exception.primary, primary)
+
                     self.assertTrue(peer.transport.retirement_confirmed)
+
                 self.assertEqual(1, len(peer.requests))
 
     async def test_content_length_body_is_short(self):
@@ -170,6 +188,7 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
                 async with ShutdownPeer([fixed_response(b"data")], tunnel=tunnel, hold=True) as peer:
                     with self.assertRaises(ExchangeFailed) as caught:
                         await peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4)
+
                     self.assertIsInstance(caught.exception.primary, TimeoutError)
                     self.assertTrue(peer.transport.retirement_confirmed)
 
@@ -178,14 +197,18 @@ class RejectedResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(tunnel=tunnel):
                 async with ShutdownPeer([fixed_response(b"data")], tunnel=tunnel, hold=True) as peer:
                     task = asyncio.create_task(peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4))
+
                     try:
                         await asyncio.wait_for(peer.shutdown_started.wait(), 2)
                         task.cancel("caller stopped shutdown probe")
+
                         with self.assertRaises(asyncio.CancelledError) as caught:
                             await task
+
                         self.assertEqual(("caller stopped shutdown probe",), caught.exception.args)
                         self.assertTrue(peer.transport.retirement_confirmed)
                     finally:
                         if not task.done():
                             task.cancel()
+
                         await asyncio.gather(task, return_exceptions=True)

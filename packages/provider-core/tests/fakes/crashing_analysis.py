@@ -24,8 +24,10 @@ class CrashingSession(LiveSession):
 
     def _observe_exit(self):
         pid = worker_pid(self.native.science, b"H")
+
         if self.interrupt_first:
             self.native.mark_interruption()
+
         os.kill(pid, 9)
         self.native.observe_retirement()
 
@@ -33,27 +35,34 @@ class CrashingSession(LiveSession):
         await self.begin_crash.wait()
         await asyncio.to_thread(self._observe_exit)
         acknowledged = self.acknowledged
+
         if self.clone_acknowledgement:
             acknowledged = replace(acknowledged)
+
         failure = ObservedWorkerCrash.from_session(
             acknowledged, phase=self.claimed_phase, owner=self.claimed_owner, runner=self.native,
             evidence=ProtectedEvidence("fixture.crash.v1", b"observed original native exit"),
             cause=EOFError("PRIVATE_SCIENTIFIC_CONTEXT"),
         )
+
         self.crash_ready.set()
         raise failure
 
     async def prepare(self, acknowledged, instructions, *, report_condition):
         self.acknowledged = acknowledged
         prepared = await super().prepare(acknowledged, instructions, report_condition=report_condition)
+
         if self.crash_phase == "preparing":
             await self._crash()
+
         return prepared
 
     async def execute(self, prepared, *, report_condition):
         self.events.append("execute")
+
         if prepared is not self.handle:
             raise AssertionError("Foreign scientific handle")
+
         await self._crash()
 
     async def retire(self):
@@ -61,4 +70,5 @@ class CrashingSession(LiveSession):
             await asyncio.to_thread(self.native.retire)
         else:
             await asyncio.to_thread(self.native.observe_retirement)
+
         await super().retire()

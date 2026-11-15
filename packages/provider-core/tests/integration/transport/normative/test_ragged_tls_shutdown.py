@@ -17,6 +17,7 @@ class CompleteResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
                 async with ShutdownPeer([wire], tunnel=tunnel, fragment_size=fragment_size) as peer:
                     request = httpx.Request(method, peer.origin)
                     options = {"maximum_bytes": 4096}
+
                     if decoded:
                         response = await peer.transport.exchange_decoded(request, error_maximum_bytes=4096, **options)
                         self.assertEqual(expected, response.body)
@@ -29,10 +30,12 @@ class CompleteResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
                     else:
                         response = await peer.transport.exchange(request, **options)
                         self.assertEqual(expected, response.body)
+
                     self.assertTrue(peer.transport.retirement_confirmed)
                     self.assertIsNone(peer.transport.pending_owner)
                     self.assertGreater(peer.raw_close_successes, 0)
                     self.assertTrue(all(sock.fileno() == -1 for sock in peer.raw_sockets))
+
                 self.assertEqual(1, peer.connections_closed)
                 self.assertEqual(1, len(peer.requests))
 
@@ -90,4 +93,5 @@ class CompleteResponseShutdownTests(unittest.IsolatedAsyncioTestCase):
                         response = await peer.transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=32)
                         self.assertEqual(expected, response.body)
                         self.assertTrue(peer.transport.retirement_confirmed)
+
                 self.assertEqual(2, len(peer.requests))

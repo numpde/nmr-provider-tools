@@ -24,6 +24,7 @@ from tools.wheelhouse import digest, pool_lock, read_json, requirements, select_
 def release_inputs(pin, runtime_lock):
     release = read_json(pin)
     (release_version, wheel_digest) = (release["version"], release["wheel_sha256"])
+
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", release_version) or not re.fullmatch(
         r"[0-9a-f]{64}", wheel_digest
     ):
@@ -36,10 +37,12 @@ def release_inputs(pin, runtime_lock):
         runtime_requirements.rstrip()
         + f"\nprovider-core=={release_version} \\\n    --hash=sha256:{wheel_digest}\n"
     ).encode()
+
     if hashlib.sha256(install_lock_bytes).hexdigest() != release["install_lock_sha256"]:
         raise ValueError(
             "Cannot use delivery release: runtime lock differs from the issued install lock."
         )
+
     return release, install_lock_bytes
 
 
@@ -53,6 +56,7 @@ def missing_wheels(release, pool):
         raise ValueError("Cannot use delivery release: wheelhouse must be an existing directory.")
 
     missing_wheel_ids = []
+
     for (wheel_name, expected_sha256) in release_wheels(release).items():
         if not re.fullmatch(r"[A-Za-z0-9_.+!-]+\.whl", wheel_name) or not re.fullmatch(
             r"[0-9a-f]{64}", expected_sha256
@@ -60,6 +64,7 @@ def missing_wheels(release, pool):
             raise ValueError("Cannot use delivery release: malformed pinned wheel identity.")
 
         wheel_path = pool / wheel_name
+
         if wheel_path.exists() or wheel_path.is_symlink():
             if digest(wheel_path) != expected_sha256:
                 raise ValueError(
@@ -68,6 +73,7 @@ def missing_wheels(release, pool):
                 )
         else:
             missing_wheel_ids.append((wheel_name, expected_sha256))
+
     return missing_wheel_ids
 
 
@@ -76,15 +82,19 @@ def publish_release_wheels(tool, pool, artifacts):
 
     with tempfile.TemporaryDirectory(prefix="delivery-lock-") as temporary:
         acquisition_lock = Path(temporary) / "pylock.delivery.toml"
+
         with acquisition_lock.open("x", encoding="utf-8") as stream:
             stream.write('lock-version = "1.0"\ncreated-by = "nmr-provider-tools delivery"\n')
+
             for (wheel_name, checksum, url) in artifacts:
                 (distribution, version, _, _) = parse_wheel_filename(wheel_name)
                 stream.write("[[packages]]\n")
+
                 stream.write(
                     f"name = {json.dumps(str(distribution))}\n"
                     f"version = {json.dumps(str(version))}\n"
                 )
+
                 stream.write(f"[packages.archive]\nurl = {json.dumps(url)}\n")
                 stream.write(f"[packages.archive.hashes]\nsha256 = {json.dumps(checksum)}\n")
 
@@ -99,30 +109,37 @@ def publish_release_wheels(tool, pool, artifacts):
 
 def acquire_release(pin, runtime_lock, pool, tool):
     (release, _) = release_inputs(pin, runtime_lock)
+
     with pool_lock(pool):
         missing = missing_wheels(release, pool)
 
     artifacts = []
+
     for (wheel_name, expected_sha256) in missing:
         require_download_proxy()
+
         if wheel_name.startswith("provider_core-"):
             url = f"https://github.com/numpde/nmr-provider-tools/releases/download/v{release['version']}/{wheel_name}"
         else:
             (distribution, version, *_) = wheel_name.split("-")
+
             with urllib.request.urlopen(
                 f"https://pypi.org/pypi/{distribution}/{version}/json",
                 timeout=30,
             ) as response:
                 metadata = json.load(response)
+
             candidates = [
                 item["url"]
                 for item in metadata["urls"]
                 if item["filename"] == wheel_name and item["digests"]["sha256"] == expected_sha256
             ]
+
             if len(candidates) != 1 or urllib.parse.urlsplit(candidates[0]).hostname != "files.pythonhosted.org":
                 raise ValueError(
                     f"Cannot acquire {wheel_name}: the pinned wheel is absent from its published index."
                 )
+
             url = candidates[0]
 
         artifacts.append((wheel_name, expected_sha256, url))
@@ -139,8 +156,10 @@ def capture_image_inputs(pin, runtime_lock, pool, destination):
 def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
     (release, install_lock_bytes) = release_inputs(pin, runtime_lock)
     captured_lock = destination / "provider-core-install.lock"
+
     with captured_lock.open("xb") as target:
         target.write(install_lock_bytes)
+
     captured_lock.chmod(0o644)
     requirements(captured_lock)
 
@@ -148,18 +167,22 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
         raise ValueError("Cannot build delivery: the selected wheelhouse is missing pinned release wheels.")
 
     selected_wheels = select_wheels(captured_lock, pool, lock_fd=lock_fd)
+
     if selected_wheels["files"] != release_wheels(release):
         raise ValueError("Cannot build delivery: selected wheels differ from the pinned release closure.")
 
     wheel_input_record = destination / "provider-core-wheel-inputs.json"
+
     with wheel_input_record.open("x", encoding="utf-8") as target:
         json.dump(selected_wheels, target, sort_keys=True)
         target.write("\n")
+
     wheel_input_record.chmod(0o644)
 
     dockerfile_template = destination / "containers/delivery/Dockerfile"
     marker = "# selected-wheel-inputs"
     template_contents = dockerfile_template.read_text()
+
     if template_contents.count(marker) != 1:
         raise ValueError("Cannot build delivery: the Dockerfile has no unique wheel input marker.")
 
@@ -167,14 +190,18 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
         "COPY " + json.dumps(["wheelhouse/" + name, "/" + name])
         for name in sorted(selected_wheels["files"])
     )
+
     installer = installer_release(destination / "requirements/installer-release.json")
     copy_instructions += "\nCOPY " + json.dumps(["installer/" + installer["name"], "/installer/" + installer["name"]])
     selected_dockerfile = destination / "containers/delivery/Dockerfile.selected"
+
     with selected_dockerfile.open("x") as target:
         target.write(template_contents.replace(marker, copy_instructions))
+
     selected_dockerfile.chmod(0o644)
 
     stream_manifest = destination / "provider-core-stream.json"
+
     with stream_manifest.open("x", encoding="utf-8") as target:
         json.dump(
             [
@@ -184,7 +211,9 @@ def _capture_image_inputs(pin, runtime_lock, pool, destination, lock_fd):
             target,
             sort_keys=True,
         )
+
         target.write("\n")
+
     stream_manifest.chmod(0o644)
 
 
@@ -197,8 +226,10 @@ if __name__ == "__main__":
     parser.add_argument("--destination", type=Path)
     parser.add_argument("--tool-pin", type=Path)
     args = parser.parse_args()
+
     if args.action == "check":
         (release, _) = release_inputs(args.pin, args.runtime_lock)
+
         with pool_lock(args.pool):
             if missing_wheels(release, args.pool) or (
                 args.tool_pin and not tool_present(args.pool, read_json(args.tool_pin))
@@ -209,9 +240,11 @@ if __name__ == "__main__":
     elif args.action == "acquire":
         if args.tool_pin is None:
             parser.error("acquire requires --tool-pin")
+
         acquisition_tool = acquire_tool(args.pool, read_json(args.tool_pin))
         acquire_release(args.pin, args.runtime_lock, args.pool, acquisition_tool)
     else:
         if args.destination is None:
             parser.error("capture requires --destination")
+
         capture_image_inputs(args.pin, args.runtime_lock, args.pool, args.destination)

@@ -27,6 +27,7 @@ class UntrustedJobInputTests(unittest.TestCase):
             {"input_byte_length": 1},
             {"schema_id": "PRIVATE_SENTINEL"},
         )
+
         for change in changes:
             with self.subTest(field=next(iter(change))):
                 self.rejected(response(**change))
@@ -74,7 +75,9 @@ class UntrustedJobInputTests(unittest.TestCase):
                 "input_fingerprint": "sha256:" + "0" * 64,
                 "input_byte_length": 1,
             }
+
             fields.update(change)
+
             with self.assertRaises(JobInputRejected):
                 FeedInputFacts(**fields)
 

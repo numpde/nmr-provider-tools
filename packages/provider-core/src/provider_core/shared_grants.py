@@ -60,16 +60,21 @@ def shared_grants(path):
     try:
         document = tomllib.loads(read_startup_file(path, maximum_bytes=65536, label="shared settings").decode("utf-8"))
         project, gid = document["deployment"]["project"], document["deployment"]["gid"]
+
         if not (type(project) is str):
             raise TypeError(f"Unexpected {type(project)=}; the shared socket project must be text")
+
         if not (re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,48}", project) is not None):
             raise ValueError
+
         if not (type(gid) is int):
             raise TypeError(f"Unexpected {type(gid)=}; the shared socket group ID must be an integer")
+
         if not (0 < gid <= 4294967294):
             raise ValueError
     except (KeyError, TypeError, ValueError, UnicodeError, RecursionError):
         raise ValueError("Shared socket grants require the operator project's name and nonzero group ID.") from None
+
     return SharedGrants(project, gid)
 
 

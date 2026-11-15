@@ -40,41 +40,52 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
         async with AsyncExitStack() as cleanup:
             store, acknowledged, claim, session, source, source_api = await self._source_resources(cleanup, "close_output")
             executor = self._executor(store, claim, session)
+
             with self.assertRaises(ExecutionFailed) as failed:
                 await self._run(cleanup, executor, acknowledged)
+
             self.assertIsInstance(failed.exception.cause, ChildChannelClosed)
             process = session.child.process
             self.assertIsNone(process.returncode)
             self.assertEqual(session.source_reply["content_hash"], session.source.content_hash)
             self.assertEqual(session.source_reply["marker"], "acquired-source-observed")
             self.assertTrue(source.exists())
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             with self.assertRaises(ExecutionFailed):
                 await executor.settle()
+
             self.assertTrue(source.exists())
             self.assertEqual(session.source_removals, 0)
             await session.child.stop()
             self.assertTrue(source.exists(), "Stopping the child does not settle composition's file cleanup")
             unlink_failure = OSError("Authored source removal failure")
+
             with (
                 patch("tests.fakes.upload_child_session.os.unlink", side_effect=unlink_failure) as remove,
                 self.assertRaises(ExecutionFailed) as cleanup_failed,
             ):
                 await executor.settle()
+
             self.assertIn(unlink_failure, cleanup_failed.exception.cleanup_failures)
             remove.assert_called_once_with(session.source.name, dir_fd=session.directory_fd)
             self.assertTrue(source.exists())
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             await executor.settle()
             self.assertIs(session.child.process, process)
             self.assertIsNotNone(process.returncode)
             self.assertTrue(session.child.pipes_closed)
             self.assertFalse(source.exists())
             self.assertEqual(session.source_removals, 1)
+
             with self.assertRaises(ExecutionRefused):
                 await executor.settle()
+
             self.assertEqual(session.source_removals, 1)
             self.assertEqual(session.generations, 1)
             self.assertEqual(source_api.calls.count("grant"), 1)
@@ -94,8 +105,10 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(session.source_read_reply, {"state": "reading", "byte_length": session.source.byte_length})
             self.assertIsNone(session.source_reply)
             task.cancel()
+
             with self.assertRaises(asyncio.CancelledError):
                 await self._finished(task)
+
             self.assertIs(session.child.process, process)
             self.assertIsNotNone(process.returncode)
             self.assertTrue(session.child.pipes_closed)
@@ -115,8 +128,10 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
                     store, acknowledged, claim, session, source, _ = await self._source_resources(cleanup, mode)
                     session.source = replace(session.source, job_ref="job:different")
                     executor = self._executor(store, claim, session, preparation_only=True)
+
                     with self.assertRaises(ExecutionFailed) as failed:
                         await self._run(cleanup, executor, acknowledged)
+
                     self.assertIsInstance(failed.exception.cause, ValueError)
                     self.assertIsNone(session.child.process)
                     self.assertFalse(session.source_cleanup_observed_stopped_child)
@@ -139,8 +154,10 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
         source_api.grant = replace(source_api.grant, byte_length=len(body), content_hash=digest)
         client = Client(Stream([body]), headers=store_headers(body))
         await acquisition.inspect()
+
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
             receipt = await acquisition.acquire_file(UPLOAD_REF, directory_fd=descriptor, retirement_seconds=0.1)
+
         session = UploadChildSession(store, mode, receipt, directory_fd=descriptor)
         cleanup.push_async_callback(session.stop_child)
         return store, acknowledged, claim, session, Path(root, receipt.name), source_api
@@ -158,10 +175,12 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsNotNone(session.child.process.returncode)
             body = json.loads(executor.delivery.items[0].body)
             result = json.loads(base64.b64decode(body["canonical_result_base64"], validate=True))
+
             self.assertEqual(
                 result,
                 {"state": "result", "source_fingerprint": acknowledged.start.input.input_fingerprint, "value": "scripted-only"},
             )
+
             self.assertEqual(store.records, (terminal,))
             claim.release(owner=claim.lifecycle_owner)
 
@@ -187,8 +206,10 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
             original_process = session.child.process
             self.assertIsNone(original_process.returncode)
             task.cancel()
+
             with self.assertRaises(asyncio.CancelledError):
                 await self._finished(task)
+
             self.assertIs(session.child.process, original_process)
             self.assertIsNotNone(original_process.returncode)
             self.assertTrue(session.child.pipes_closed)
@@ -201,21 +222,28 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
         async with AsyncExitStack() as cleanup:
             store, acknowledged, claim, session = await self._resources(cleanup, "close_output")
             executor = self._executor(store, claim, session)
+
             with self.assertRaises(ExecutionFailed) as failed:
                 await self._run(cleanup, executor, acknowledged)
+
             original_process = session.child.process
             self.assertIsInstance(failed.exception.cause, ChildChannelClosed)
             self.assertIsNone(original_process.returncode)
             self.assertTrue(any(isinstance(cause, ChildStopUnconfirmed) for cause in failed.exception.cleanup_failures))
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             with self.assertRaises(ExecutionFailed):
                 await executor.settle()
+
             self.assertIsNone(original_process.returncode)
             self.assertEqual(session.generations, 1)
             await session.child.stop()
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             self.assertIsNone(await executor.settle())
             self.assertIs(session.child.process, original_process)
             self.assertIsNotNone(original_process.returncode)
@@ -235,8 +263,10 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
         if not task.done():
             task.cancel()
             await asyncio.wait((task,), timeout=1)
+
         if not task.done():
             raise TimeoutError("Test executor did not settle after cancellation; still attempt exact-child and store cleanup")
+
         await asyncio.gather(task, return_exceptions=True)
 
     async def _run(self, cleanup, executor, acknowledged):
@@ -248,8 +278,10 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
         # wait_for would await cancellation indefinitely if retirement regressed.
         # Retain the task for bounded cleanup even when this watchdog expires.
         await asyncio.wait((task,), timeout=3)
+
         if not task.done():
             raise TimeoutError("Test executor did not finish; cancel it and clean up its retained child")
+
         return task.result()
 
     # silent-defaults: allow-contract -- Normal fixtures reach running progress; refusal cases explicitly stop their reply sequence at preparation.
@@ -260,6 +292,7 @@ class ChildRetirementTests(unittest.IsolatedAsyncioTestCase):
         # Long poll interval isolates child/caller-cancellation correctness from
         # scheduler-dependent read counts; all waits have separate test watchdogs.
         transport = Transport(*itertools.chain(beginning, after, itertools.repeat(reply(observation()), 16)))
+
         return live_executor(
             api(transport, store.scope.api_origin),
             store,

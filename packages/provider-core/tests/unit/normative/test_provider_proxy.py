@@ -25,9 +25,11 @@ class ServiceProxyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "settings.toml"
             replacement = Path(directory) / "replacement.toml"
+
             path.write_text('[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
                             'allowed_authorities = ["api.example:443"]\n'
                             '[api_proxy.route]\naddresses = ["api.example=192.0.2.1"]\n')
+
             live = provider_proxy.LiveProxyConfiguration(path, "mapped")
             initial = live.read()
             self.assertEqual(initial.max_admission_delay_seconds, 7)
@@ -35,10 +37,13 @@ class ServiceProxyTests(unittest.TestCase):
             server = SimpleNamespace(policy=initial.policy, _slots=bound_http_proxy.ConnectionAdmission(2))
             self.assertTrue(server._slots.acquire())
             self.assertTrue(server._slots.acquire())
+
             replacement.write_text('[api_proxy]\nmax_connections = 1\nmax_admission_delay_seconds = 3\nadmission_order = "fifo"\nlog_level = "DEBUG"\n'
                                    'allowed_authorities = ["other.example:443"]\n'
                                    '[api_proxy.route]\naddresses = ["other.example=192.0.2.2"]\n')
+
             replacement.replace(path)
+
             with patch.object(provider_proxy.logging, "getLogger") as logger:
                 live.refresh(server)
                 self.assertEqual(server.max_admission_delay_seconds, 3)
@@ -55,13 +60,17 @@ class ServiceProxyTests(unittest.TestCase):
                 self.assertFalse(server._slots.acquire())
                 logger.return_value.warning.assert_called_once()
                 logger.return_value.warning.reset_mock()
+
                 path.write_text('[api_proxy]\nmax_connections = 0\nlog_level = "INFO"\n'
                                 'allowed_authorities = ["api.example:443"]\n')
+
                 live.next_poll = 0
                 live.refresh(server)
                 self.assertIn("max_connections", str(logger.return_value.warning.call_args.args[1]))
+
                 path.write_text('[api_proxy]\nmax_connections = 2\nmax_admission_delay_seconds = '
                                 + '9' * 400 + '\nlog_level = "INFO"\nallowed_authorities = []\n')
+
                 live.next_poll = 0
                 live.refresh(server)
                 self.assertEqual(server.max_admission_delay_seconds, 3)
@@ -71,45 +80,56 @@ class ServiceProxyTests(unittest.TestCase):
                 live.refresh(server)
                 self.assertIn("deeply nested", str(logger.return_value.warning.call_args.args[1]))
                 self.assertEqual(server.policy.authorities, frozenset({("other.example", 443)}))
+
             server._slots.release()
             self.assertTrue(server._slots.acquire())
             server._slots.release()
+
             with self.assertRaises(ValueError):
                 live.read()
 
     def test_admission_ramp_waits_without_reserving_a_worker_and_bounds_queue(self):
         policy = ServicePolicy.admit("external", ["api.example:443"], [])
+
         with tempfile.TemporaryDirectory() as directory:
             with ServiceProxyServer(Path(directory) / "proxy.sock", "lo", policy, status_directory=Path(directory), shared_socket=True) as server:
                 server._slots.set_limit(4)
                 server.max_admission_delay_seconds = 7
+
                 for _ in range(3):
                     self.assertTrue(server._slots.acquire())
+
                 clients = []
+
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=100):
                     for _ in range(5):
                         owned, peer = socket.socketpair()
                         clients.append(peer)
                         server.process_request(owned, "")
+
                 self.assertEqual(len(server.pending), 4)
                 self.assertEqual(server.pending[0][0], 103.5)
                 self.assertEqual(server._slots.load(), (3, 4))
                 self.assertEqual(clients[-1].recv(1), b"")
                 server.server_close()
+
                 for client in clients:
                     self.assertEqual(client.recv(1), b"")
                     client.close()
+
                 for _ in range(3):
                     server._slots.release()
 
     def test_abandoned_and_expired_waiters_release_queue_capacity(self):
         policy = ServicePolicy.admit("external", ["api.example:443"], [])
+
         with tempfile.TemporaryDirectory() as directory:
             with ServiceProxyServer(Path(directory) / "proxy.sock", "lo", policy, status_directory=Path(directory), shared_socket=True) as server:
                 server._slots.set_limit(1)
                 server.max_admission_delay_seconds = 7
                 self.assertTrue(server._slots.acquire())
                 first, first_peer = socket.socketpair()
+
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=100):
                     server.process_request(first, "")
                     first_peer.close()
@@ -117,8 +137,10 @@ class ServiceProxyTests(unittest.TestCase):
                     self.assertFalse(server.pending)
                     second, second_peer = socket.socketpair()
                     server.process_request(second, "")
+
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=138):
                     server._start_waiting()
+
                 self.assertFalse(server.pending)
                 self.assertEqual(second_peer.recv(1), b"")
                 second_peer.close()
@@ -126,21 +148,28 @@ class ServiceProxyTests(unittest.TestCase):
 
     def test_later_eligible_request_does_not_wait_for_an_earlier_delay(self):
         policy = ServicePolicy.admit("external", ["api.example:443"], [])
+
         with tempfile.TemporaryDirectory() as directory:
             with ServiceProxyServer(Path(directory) / "proxy.sock", "lo", policy, status_directory=Path(directory), shared_socket=True) as server:
                 server._slots.set_limit(4)
                 server.max_admission_delay_seconds = 7
+
                 for _ in range(4):
                     self.assertTrue(server._slots.acquire())
+
                 first, first_peer = socket.socketpair()
                 second, second_peer = socket.socketpair()
+
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=100), patch.object(server, "start_reserved_request") as start:
                     server.process_request(first, "")
+
                     for _ in range(3):
                         server._slots.release()
+
                     server.process_request(second, "")
                     start.assert_called_once_with(second, "")
                     self.assertEqual(len(server.pending), 1)
+
                 second.close()
                 second_peer.close()
                 first_peer.close()
@@ -149,46 +178,60 @@ class ServiceProxyTests(unittest.TestCase):
 
     def test_fifo_waits_for_the_earliest_connection_even_when_a_later_one_is_ready(self):
         policy = ServicePolicy.admit("external", ["api.example:443"], [])
+
         with tempfile.TemporaryDirectory() as directory:
             with ServiceProxyServer(Path(directory) / "proxy.sock", "lo", policy, status_directory=Path(directory), shared_socket=True) as server:
                 server._slots.set_limit(4)
                 server.max_admission_delay_seconds = 7
                 server.admission_order = "fifo"
+
                 for _ in range(4):
                     self.assertTrue(server._slots.acquire())
+
                 first, first_peer = socket.socketpair()
                 second, second_peer = socket.socketpair()
+
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=100), patch.object(server, "start_reserved_request") as start:
                     server.process_request(first, "")
+
                     for _ in range(3):
                         server._slots.release()
+
                     server.process_request(second, "")
                     start.assert_not_called()
                     self.assertEqual(len(server.pending), 2)
+
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=107), patch.object(server, "start_reserved_request") as start:
                     server._start_waiting()
                     self.assertEqual([call.args[0] for call in start.call_args_list], [first, second])
+
                 first.close()
                 second.close()
                 first_peer.close()
                 second_peer.close()
+
                 for _ in range(3):
                     server._slots.release()
 
     def test_ready_request_uses_free_slot_even_if_waiting_queue_is_full(self):
         policy = ServicePolicy.admit("external", ["api.example:443"], [])
+
         with tempfile.TemporaryDirectory() as directory:
             with ServiceProxyServer(Path(directory) / "proxy.sock", "lo", policy, status_directory=Path(directory), shared_socket=True) as server:
                 server._slots.set_limit(4)
                 server.max_admission_delay_seconds = 7
+
                 for _ in range(4):
                     self.assertTrue(server._slots.acquire())
+
                 clients = []
+
                 with patch("provider_core.provider_proxy.time.monotonic", return_value=100), patch.object(server, "start_reserved_request") as start:
                     for _ in range(4):
                         owned, peer = socket.socketpair()
                         clients.append(peer)
                         server.process_request(owned, "")
+
                     server._slots.release()
                     server.max_admission_delay_seconds = 0
                     new, new_peer = socket.socketpair()
@@ -196,10 +239,13 @@ class ServiceProxyTests(unittest.TestCase):
                     start.assert_called_once_with(new, "")
                     self.assertEqual(len(server.pending), 4)
                     server._slots.release()
+
                     for _ in range(3):
                         server._slots.release()
+
                     new.close()
                     new_peer.close()
+
                 for peer in clients:
                     peer.close()
 
@@ -208,19 +254,25 @@ class ServiceProxyTests(unittest.TestCase):
             path = Path(directory) / "settings.toml"
             os.mkfifo(path)
             live = provider_proxy.LiveProxyConfiguration(path, "external")
+
             with self.assertRaisesRegex(ValueError, "regular file"):
                 live.read()
 
     def test_empty_live_authorities_refuse_new_connections(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "settings.toml"
+
             path.write_text('[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
                             'allowed_authorities = []\n')
+
             settings = provider_proxy.LiveProxyConfiguration(path, "external").read()
+
             with self.assertRaises(provider_proxy.ServiceRefused):
                 settings.policy.destination(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n")
+
             path.write_text('[api_proxy]\nmax_connections = 2\nlog_level = "INFO"\n'
                             'allowed_authorities = []\n[api_proxy.route]\naddresses = ["invalid"]\n')
+
             with self.assertRaises(provider_proxy.ServiceRefused):
                 provider_proxy.LiveProxyConfiguration(path, "external").read()
 
@@ -231,16 +283,22 @@ class ServiceProxyTests(unittest.TestCase):
         handler.server = SimpleNamespace(policy=old, outbound_interface="lo")
         handler.destination(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n")
         handler.server.policy = new
+
         with patch.object(bound_http_proxy, "connect_bound") as connect:
             handler.connect("api.example", 443)
+
         connect.assert_called_once_with("192.0.2.1", 443, "lo")
         later = object.__new__(ServiceProxyHandler)
         later.server = handler.server
+
         with self.assertRaises(provider_proxy.ServiceRefused):
             later.destination(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n")
+
         later.destination(b"CONNECT other.example:443 HTTP/1.1\r\n\r\n")
+
         with patch.object(bound_http_proxy, "connect_bound") as connect:
             later.connect("other.example", 443)
+
         connect.assert_called_once_with("192.0.2.2", 443, "lo")
 
     def test_entrypoint_logging_needs_no_scientific_binding_and_preserves_dependency_floor(self):
@@ -255,10 +313,12 @@ logging.getLogger('dependency').setLevel(logging.DEBUG)
 logging.getLogger('dependency').info('dependency-info')
 logging.getLogger('dependency').warning('dependency-warning')
 """
+
         for level in ("INFO", "DEBUG", "WARNING"):
             with self.subTest(level=level):
                 result = subprocess.run([sys.executable, "-B", "-c", script, level],
                                         capture_output=True, text=True, timeout=5, check=False)
+
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stdout, "")
                 self.assertEqual(result.stderr.count("proxy-info"), int(level != "WARNING"))
@@ -282,11 +342,13 @@ logging.getLogger('dependency').warning('dependency-warning')
                 self.assertRaises(OSError),
             ):
                 ServiceProxyServer(Path(directory) / "proxy.sock", "lo", policy, status_directory=Path(directory))
+
         self.assertEqual(closed, [-1])
 
     def test_exclusive_proxy_restart_replaces_only_stale_private_endpoint_and_readiness(self):
         with tempfile.TemporaryDirectory() as directory:
             path, ready = Path(directory) / "proxy.sock", Path(directory) / "ready"
+
             command = [sys.executable, "-B", "-c", "from provider_core.provider_proxy import main; main()",
                        "--interface", "lo", "--mode", "external", "--authority", "api.example:443",
                        "--socket", str(path), "--ready-file", str(ready), "--status-directory", directory,
@@ -295,12 +357,15 @@ logging.getLogger('dependency').warning('dependency-warning')
             def stop(child):
                 if child.poll() is None:
                     child.kill()
+
                 child.communicate(timeout=2)
 
             def wait_ready(child):
                 deadline = time.monotonic() + 2
+
                 while True:
                     self.assertIsNone(child.poll(), "Proxy exited before readiness")
+
                     try:
                         if ready.read_bytes() == b"ready\n":
                             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
@@ -308,6 +373,7 @@ logging.getLogger('dependency').warning('dependency-warning')
                                 client.connect(str(path))
                                 client.sendall(b"CONNECT denied.example:443 HTTP/1.1\r\n\r\n")
                                 self.assertIn(b"403 Forbidden", client.recv(1024))
+
                             self.assertIsNone(child.poll())
                             return
                     # silent-defaults: allow-contract -- Only successful serving proves readiness while the prior stale endpoint is replaced.
@@ -315,8 +381,10 @@ logging.getLogger('dependency').warning('dependency-warning')
                         # Before admission, the prior dead listener can still
                         # have a filesystem leaf. Only serving proves readiness.
                         pass
+
                     if time.monotonic() >= deadline:
                         self.fail("Proxy did not replace its retired endpoint within the test budget")
+
                     time.sleep(0.01)
 
             first = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -337,12 +405,15 @@ logging.getLogger('dependency').warning('dependency-warning')
 
     def test_mapped_publication_preserves_authority_and_port_without_resolving_the_name(self):
         policy = ServicePolicy.admit("mapped", ["nmr.localhost:10443"], ["nmr.localhost=172.17.0.1"])
+
         self.assertEqual(
             policy.destination(b"CONNECT nmr.localhost:10443 HTTP/1.1\r\n\r\n")[:3],
             ("CONNECT", "nmr.localhost", 10443),
         )
+
         with patch.object(bound_http_proxy, "_dns_servers") as dns, patch.object(socket, "socket") as factory:
             policy.connect("nmr.localhost", 10443, "lo")
+
         dns.assert_not_called()
         factory.return_value.setsockopt.assert_called_once_with(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, b"lo\0")
         factory.return_value.connect.assert_called_once_with(("172.17.0.1", 10443))
@@ -350,6 +421,7 @@ logging.getLogger('dependency').warning('dependency-warning')
     def test_cli_publishes_private_complete_readiness_only_after_socket_admission(self):
         with tempfile.TemporaryDirectory() as directory:
             path, ready = Path(directory) / "proxy.sock", Path(directory) / "ready"
+
             argv = [
                 "provider_proxy",
                 "--interface",
@@ -375,45 +447,57 @@ logging.getLogger('dependency').warning('dependency-warning')
 
     def test_live_config_cli_starts_before_a_log_level_is_available_on_the_command_line(self):
         """Live settings supply the log level; startup must first read that file."""
+
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             settings = root / "settings.toml"
+
             settings.write_text(
                 '[api_proxy]\nmax_connections=2\nlog_level="INFO"\n'
                 'allowed_authorities=["api.example:443"]\n'
             )
+
             argv = [
                 "provider_proxy", "--interface", "lo", "--mode", "external",
                 "--socket", str(root / "proxy.sock"), "--ready-file", str(root / "ready"),
                 "--status-directory", directory, "--live-config", str(settings),
             ]
+
             with patch.object(provider_proxy.sys, "argv", argv), patch.object(ServiceProxyServer, "serve_forever"):
                 provider_proxy.main()
+
             self.assertEqual((root / "ready").read_bytes(), b"ready\n")
 
     def test_local_mapping_selects_only_the_frozen_address_without_dns(self):
         policy = ServicePolicy.admit("local", ["api.example:443", "api.example:8443"], ["api.example=192.0.2.8"])
         sentinel = object()
+
         with patch.object(bound_http_proxy, "connect_bound", return_value=sentinel) as connect:
             self.assertIs(policy.connect("api.example", 443, "eth0"), sentinel)
+
         connect.assert_called_once_with("192.0.2.8", 443, "eth0")
         self.assertEqual(policy.destination(b"CONNECT api.example:8443 HTTP/1.1\r\n\r\n")[:3], ("CONNECT", "api.example", 8443))
 
     def test_external_route_preserves_the_admitted_host_for_bound_resolution(self):
         policy = ServicePolicy.admit("external", ["model.example:443"], [])
+
         with patch.object(bound_http_proxy, "connect_bound") as connect:
             policy.connect("model.example", 443, "wlan0")
+
         connect.assert_called_once_with("model.example", 443, "wlan0")
 
     def test_real_unix_listener_relays_bytes_and_preserves_client_half_close(self):
         policy = ServicePolicy.admit("local", ["api.example:443"], ["api.example=127.0.0.1"])
+
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "proxy.sock"
             outbound, peer = socket.socketpair()
+
             with patch.object(bound_http_proxy, "connect_bound", return_value=outbound) as connect:
                 with ServiceProxyServer(path, "lo", policy, status_directory=Path(directory)) as server:
                     worker = threading.Thread(target=server.handle_request)
                     worker.start()
+
                     try:
                         with socket.socket(socket.AF_UNIX) as client, peer:
                             client.settimeout(2)
@@ -430,6 +514,8 @@ logging.getLogger('dependency').warning('dependency-warning')
                             self.assertEqual(client.recv(4096), b"")
                     finally:
                         worker.join(2)
+
                     self.assertFalse(worker.is_alive())
                     self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+
                 connect.assert_called_once_with("127.0.0.1", 443, "lo")

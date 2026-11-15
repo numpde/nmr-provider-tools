@@ -30,8 +30,10 @@ class ProviderLifetime:
                 f"Unexpected {type(root)=}; "
                 "Provider lifetime requires an absolute private root."
             )
+
         if not (root.is_absolute()):
             raise ValueError("Provider lifetime requires an absolute private root.")
+
         self._root, self._descriptor = root, None
         self._close_failure = None
 
@@ -40,20 +42,27 @@ class ProviderLifetime:
             raise LifetimeRefused(
                 "Cannot reopen provider lifetime after its lock close failed; release remains unconfirmed."
             ) from self._close_failure
+
         if self._descriptor is not None:
             raise LifetimeRefused("Provider lifetime already holds its lock; retain its original owner.")
+
         facts = self._root.lstat()
+
         if (self._root.resolve() != self._root or not stat.S_ISDIR(facts.st_mode)
                 or facts.st_uid != os.geteuid() or stat.S_IMODE(facts.st_mode) != 0o700):
             raise LifetimeRefused("Provider lifetime directory must be canonical, caller-owned and mode 0700.")
+
         self._descriptor = os.open(
             self._root / ".checkpoint-owner.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600,
         )
+
         try:
             facts = os.fstat(self._descriptor)
+
             if (not stat.S_ISREG(facts.st_mode) or facts.st_uid != os.geteuid()
                     or stat.S_IMODE(facts.st_mode) != 0o600):
                 raise LifetimeRefused("Provider lifetime lock must be a caller-owned mode 0600 regular file.")
+
             fcntl.flock(self._descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BaseException as failure:
             try:
@@ -63,14 +72,18 @@ class ProviderLifetime:
                     "Provider lifetime admission failed and lock release is unconfirmed.",
                     [failure, cleanup_failure],
                 ) from None
+
             raise
+
         return self
 
     def close(self):
         if self._close_failure is not None:
             raise self._close_failure
+
         if self._descriptor is not None:
             descriptor, self._descriptor = self._descriptor, None
+
             try:
                 os.close(descriptor)
             except BaseException as failure:

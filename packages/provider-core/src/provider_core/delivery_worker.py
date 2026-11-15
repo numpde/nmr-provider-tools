@@ -30,6 +30,7 @@ class DeliveryWorkerFailed(RuntimeError):
 
 def require_delivery_retry_settings(initial_seconds, maximum_seconds):
     """Share admission before service startup and standalone worker construction."""
+
     if any(type(value) not in (int, float) or not math.isfinite(value) or value <= 0
            for value in (initial_seconds, maximum_seconds)) or initial_seconds > maximum_seconds:
         raise ValueError("Delivery retry delays must be finite positive seconds, with initial delay no greater than maximum.")
@@ -41,6 +42,7 @@ class DeliveryWorker:
     def __init__(self, inbox, endpoint, api, *, retry_initial_seconds, retry_max_seconds, on_notice):
         if api.origin != endpoint.api_origin:
             raise ValueError("Delivery signing origin differs from its configured binding.")
+
         require_delivery_retry_settings(retry_initial_seconds, retry_max_seconds)
         self.inbox, self.endpoint, self.api = inbox, endpoint, api
         self.retry_initial_seconds, self.retry_max_seconds = retry_initial_seconds, retry_max_seconds
@@ -58,14 +60,19 @@ class DeliveryWorker:
 
     def status(self):
         """Local publisher state, independent of inbox or remote API readiness."""
+
         if self.failure is not None:
             return {"state": "stopped", "message": str(self.failure)}
+
         if self.paused:
             return {"state": "paused", "message": "This binding could not obtain a verified receipt or permission to retry. Inspect its operator diagnostics, resolve the reported cause, then restart delivery."}
+
         if self.stopping.is_set():
             return {"state": "stopping", "message": "Delivery is settling its original work; pending bytes remain retained."}
+
         if self._running:
             return {"state": "running", "message": "The local publisher is running; this is not a remote API availability check."}
+
         return {"state": "starting", "message": "The local publisher has not started yet."}
 
     def _facts(self, event, item):
@@ -75,17 +82,22 @@ class DeliveryWorker:
         """Apply changed retry policy to the next attempt without waking for arrivals."""
         loop = asyncio.get_running_loop()
         started, deadline = loop.time(), loop.time() + seconds
+
         while not self.stopping.is_set():
             remaining = deadline - loop.time()
+
             if remaining <= 0:
                 return
+
             stop, changed = asyncio.create_task(self.stopping.wait()), asyncio.create_task(self.policy_changed.wait())
+
             try:
                 await asyncio.wait((stop, changed), timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
             finally:
                 stop.cancel()
                 changed.cancel()
                 await asyncio.gather(stop, changed, return_exceptions=True)
+
             if self.policy_changed.is_set():
                 self.policy_changed.clear()
                 delay = min(max(delay, self.retry_initial_seconds), self.retry_max_seconds)
@@ -110,6 +122,7 @@ class DeliveryWorker:
         def stalled():
             nonlocal alerted
             alerted = True
+
             self.on_notice(
                 TimeoutError("Publication is still pending; the publisher retains this report's original API and storage operations."),
                 {**facts("delivery_stalled"), "api_receipt_received": self._api_receipt_received,
@@ -117,23 +130,29 @@ class DeliveryWorker:
             )
 
         alarm = loop.call_later(alert_seconds, stalled)
+
         try:
             delay = self.retry_initial_seconds
+
             while not self.stopping.is_set():
                 self._api_receipt_received = False
+
                 try:
                     publish = self.api.complete_attempt if item.operation is TerminalOperation.COMPLETE else self.api.fail_attempt
                     receipt = await publish(item.body, execution_attempt_ref=item.execution_attempt_ref, owner=self)
                 except ApiFailure as failure:
                     if not self.api.retirement_confirmed:
                         await self.api.retire(owner=self)
+
                     if self.api.can_replay_terminal(failure):
                         retried = True
                         delay = min(max(delay, self.retry_initial_seconds), self.retry_max_seconds)
                         seconds = random.uniform(delay / 2, delay)
                         minimum = failure.retry_after_seconds
+
                         if minimum is not None:
                             seconds += minimum
+
                         self.on_notice(failure, {**facts("delivery_retry"), "retry_seconds": seconds})
                         # New arrivals must not bypass backoff. Only shutdown ends
                         # this wait early; no overall expiry discards a durable item.
@@ -141,6 +160,7 @@ class DeliveryWorker:
                         await self._backoff(delay, 0 if minimum is None else minimum, seconds)
                         delay = min(self.retry_max_seconds, delay * 2)
                         continue
+
                     # A verified item conflict or receipt-shape mismatch belongs
                     # to this row. Trust, routing, topology and unknown refusals
                     # pause the binding, rather than holding every pending item.
@@ -148,21 +168,26 @@ class DeliveryWorker:
                         failure.status == 409 and failure.problem_code is not None
                         or failure.status == 200 and type(failure.cause) is ResponseRejected
                     )
+
                     if not item_refusal:
                         self.paused = True
                         self.on_notice(failure, facts("delivery_binding_paused"))
                         return
+
                     await self.inbox.storage(
                         self.inbox.queue.hold, item,
                         "The API did not return a matching publication receipt and exact replay is not authorized. Reconcile this retained request; never rerun science to replace it.",
                     )
+
                     self.on_notice(failure, facts("delivery_held"))
                     return
                 else:
                     self._api_receipt_received = True
                     await self.inbox.storage(self.inbox.queue.remove_published, item)
+
                     self.on_notice(None, {**facts("delivery_published"), "replayed": receipt.replayed,
                                           "recovered": retried or alerted})
+
                     return
         finally:
             alarm.cancel()
@@ -170,15 +195,19 @@ class DeliveryWorker:
     async def run(self):
         if self._running:
             raise ValueError("A delivery binding already has its serial API worker.")
+
         self._running = True
         operation_failure, cleanup_failures = None, ()
+
         try:
             while not self.stopping.is_set() and not self.paused:
                 self._api_receipt_received = False
                 self.changed.clear()
+
                 item = await self.inbox.storage(
                     self.inbox.queue.next_pending, self.endpoint.api_origin, self.endpoint.provider_ref
                 )
+
                 if item is None:
                     await self.changed.wait()
                 else:
@@ -190,19 +219,25 @@ class DeliveryWorker:
                 await self.api.retire(owner=self)
             except BaseException as cause:
                 cleanup_failures = (cause,)
+
             self._running = False
+
         if operation_failure is not None or cleanup_failures:
             self.failure = DeliveryWorkerFailed(
                 cause=operation_failure, api_failure=self.api.last_failure,
                 cleanup_failures=cleanup_failures, api_receipt_received=self._api_receipt_received,
             )
+
             self.on_notice(self.failure, {
                 "event": "delivery_worker_failed", "api_origin": self.endpoint.api_origin,
                 "provider_ref": self.endpoint.provider_ref,
             })
+
             if isinstance(operation_failure, asyncio.CancelledError):
                 raise operation_failure from self.failure
+
             for cause in cleanup_failures:
                 if isinstance(cause, asyncio.CancelledError):
                     raise cause from self.failure
+
             raise self.failure from None

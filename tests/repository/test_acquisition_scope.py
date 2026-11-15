@@ -27,23 +27,28 @@ class AcquisitionScopeTests(unittest.TestCase):
         binary.mkdir()
         actor = Path(__file__).resolve().parent / 'fixtures/acquisition_engine.sh'
         (binary / 'python3').symlink_to(actor)
+
         script = r'''
 set -euo pipefail
 unset _acq_active _acq_endpoint NMR_SELECTED_DOCKER_ENDPOINT
 source "$ACQUISITION_SOURCE_ROOT/acquisition_tool/owner.sh"
 ''' + body
+
         environment = {
             **os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}', 'ENGINE_STATE': str(root),
             'IDENTITY_RECEIPT': 'exact', 'IDENTITY_OUTPUT': '17 19 23 29\n',
             'IDENTITY_STATUS': '0', 'IDENTITY_DIAGNOSTIC': '',
             'ACQUISITION_SOURCE_ROOT': str(Path(__file__).resolve().parents[2] / 'host'),
         }
+
         process = subprocess.Popen(['bash', '-c', script], env=environment,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+
         def stop():
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.communicate()
+
         self.addCleanup(stop)
         stdout, stderr = process.communicate(timeout=20)
         return process.returncode, stdout, stderr, root
@@ -57,8 +62,10 @@ printf '%s %s\n' "$uid" "$gid"
 acquisition_map_owner uid gid fixture:identity 1007 2009
 printf '%s %s\n' "$uid" "$gid"
 ''')
+
         self.assertEqual(0, status, msg=stderr)
         self.assertEqual(b'17 19\n17 19\n', stdout)
+
         self.assertEqual([
             'unix:///selected.sock', 'fixture:identity', str(os.geteuid()), str(os.getegid()),
             'unix:///selected.sock', 'fixture:identity', '1007', '2009',
@@ -73,10 +80,12 @@ acquisition_project_ids values 4 unix:///selected.sock fixture:identity "$ENGINE
     --map uid forward 1007 --map gid inverse 2009 --map uid inverse 0 --map gid forward 0
 printf '%s\n' "${values[*]}"
 ''')
+
         self.assertEqual(0, status, msg=stderr)
         self.assertEqual(b'17 19 23 29\n', stdout)
         self.assertEqual('retired\n', (root / 'retired').read_text())
         arguments = (root / 'identity-projection-arguments').read_text().splitlines()
+
         self.assertEqual([
             '--endpoint', 'unix:///selected.sock', '--image', 'fixture:identity',
             '--interpreter', '/usr/local/bin/python3', '--user-uid', '0', '--user-gid', '0',
@@ -93,6 +102,7 @@ printf '%s\n' "${values[*]}"
             with self.subTest(output=output):
                 # Shell quoting keeps the scenario bytes literal, including newlines.
                 literal = "'" + output.replace("'", "'\\''") + "'"
+
                 status, stdout, stderr, root = self.run_mapping(r'''
 export IDENTITY_OUTPUT=''' + literal + r'''
 values=(unchanged retained)
@@ -101,6 +111,7 @@ acquisition_project_ids values 4 unix:///selected.sock fixture:identity "$ENGINE
     --map uid forward 1007 || status=$?
 printf '%s %s\n' "$status" "${values[*]}"
 ''')
+
                 self.assertEqual(0, status, msg=stderr)
                 self.assertEqual(b'2 unchanged retained\n', stdout)
                 self.assertEqual('retired\n', (root / 'retired').read_text())
@@ -112,6 +123,7 @@ printf '%s %s\n' "$status" "${values[*]}"
                 status, stdout, stderr, root = self.run_mapping(
                     f'{name}=(unchanged)\n' +
                     f'acquisition_project_ids {name} 4 unix:///selected.sock fixture:identity "" --map uid forward 0\n')
+
                 self.assertEqual(2, status, msg=stderr)
                 self.assertEqual(b'', stdout)
                 self.assertIn(b'reserved', stderr)
@@ -131,6 +143,7 @@ acquisition_project_ids values 4 unix:///selected.sock fixture:identity "$ENGINE
     --map uid forward 1007 || status=$?
 printf '%s %s\n' "$status" "${values[*]}"
 ''')
+
                 self.assertEqual(0, status, msg=stderr)
                 self.assertEqual(f'{expected} unchanged retained\n'.encode(), stdout)
                 self.assertEqual(receipt == 'exact', (root / 'retired').exists())
@@ -148,6 +161,7 @@ status=0
 acquisition_map_owner ''' + arguments + r''' || status=$?
 printf '%s %s %s\n' "$status" "$uid" "$gid"
 ''')
+
                 self.assertEqual(0, status, msg=stderr)
                 self.assertEqual(b'2 unchanged unchanged\n', stdout)
                 self.assertFalse((root / 'identity-arguments').exists())
@@ -163,8 +177,10 @@ NMR_SELECTED_DOCKER_ENDPOINT=unix:///standalone-b.sock
 acquisition_map_owner uid gid fixture:identity 1007 2009
 printf '%s %s\n' "$uid" "$gid"
 ''')
+
         self.assertEqual(0, status, msg=stderr)
         self.assertEqual(b'17 19\n', stdout)
+
         self.assertEqual([
             'unix:///scope.sock', 'fixture:identity', '1007', '2009',
             'unix:///standalone-b.sock', 'fixture:identity', '1007', '2009',
@@ -178,6 +194,7 @@ NMR_SELECTED_DOCKER_ENDPOINT=unix:///standalone.sock
 mapped() { ''' + mutation + r'''; acquisition_map_owner uid gid fixture:identity 1007 2009; }
 acquisition_scope --endpoint unix:///scope.sock --bootstrap-image fixture:bootstrap -- mapped
 ''')
+
                 self.assertEqual(2, status, msg=stderr)
                 self.assertEqual(b'', stdout)
                 self.assertFalse((root / 'identity-arguments').exists())
@@ -190,6 +207,7 @@ _acq_endpoint=unix:///stale.sock
 ''' + selection + r'''
 acquisition_map_owner uid gid fixture:identity 1007 2009
 ''')
+
                 self.assertEqual(2, status, msg=stderr)
                 self.assertEqual(b'', stdout)
                 self.assertFalse((root / 'identity-arguments').exists())
@@ -204,6 +222,7 @@ acquisition_set_route system || route_status=$?
 acquisition_worker offline result fixture:image grants application || worker_status=$?
 printf '%s %s\n' "$route_status" "$worker_status"
 ''')
+
                 self.assertEqual(0, status, msg=stderr)
                 self.assertEqual(b'2 2\n', stdout)
                 self.assertFalse((root / 'identity-arguments').exists())
@@ -220,6 +239,7 @@ acquisition_scope --endpoint unix:///new.sock --bootstrap-image fixture:bootstra
 printf '%s %s %s %s\n' "$map_status" "$scope_status" "$uid" "$gid"
 [[ $_acq_active == invalid && $_acq_endpoint == unix:///unchanged.sock ]]
 ''')
+
         self.assertEqual(0, status, msg=stderr)
         self.assertEqual(b'2 2 unchanged unchanged\n', stdout)
         self.assertFalse((root / 'identity-arguments').exists())
@@ -231,6 +251,7 @@ printf '%s %s %s %s\n' "$map_status" "$scope_status" "$uid" "$gid"
 worker() { acquisition_worker ''' + arguments + r'''; }
 acquisition_scope --endpoint unix:///scope.sock --bootstrap-image fixture:bootstrap -- worker
 ''')
+
                 self.assertEqual(2, status, msg=stderr)
                 self.assertEqual(b'', stdout)
                 self.assertNotIn(b'unbound variable', stderr)
@@ -249,6 +270,7 @@ outer() {
 }
 acquisition_scope --endpoint unix:///outer.sock --bootstrap-image fixture:bootstrap -- outer
 ''')
+
         self.assertEqual(0, status, msg=stderr)
         self.assertEqual(b'', stdout)
         self.assertFalse((root / 'identity-arguments').exists())
@@ -262,6 +284,7 @@ acquisition_scope --endpoint unix:///outer.sock --bootstrap-image fixture:bootst
         docker = binary / 'docker'
         # Execute checked-in source through a symlink; scratch remains noexec.
         docker.symlink_to(Path(__file__).resolve().parent / "fixtures/acquisition_engine.sh")
+
         script = r'''
 set -uo pipefail
 if [[ ${OWNER_ERREXIT:-0} == 1 ]]; then set -e; fi
@@ -279,28 +302,38 @@ callback() {
 if [[ -v CALLER_TERM_TRAP ]]; then trap "$CALLER_TERM_TRAP" TERM; fi
 acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixture:bootstrap --retired-receipt "$receipt" -- callback
 '''.replace('CALLBACK_BODY', callback)
+
         injected = {}
+
         if env is not None:
             injected.update(env)
+
         if 'ACQUISITION_STDOUT_STAT_FAULT' in injected:
             (binary / 'stat').symlink_to(Path(__file__).resolve().parent / 'fixtures/acquisition_engine.sh')
+
         if 'CLIENT_CLEANUP_FAILURE' in injected:
             (binary / 'rm').symlink_to(Path(__file__).resolve().parent / 'fixtures/acquisition_engine.sh')
+
         if 'NATIVE_CORRUPT_REMOVAL_ROLE' in injected:
             (binary / 'mv').symlink_to(Path(__file__).resolve().parent / 'fixtures/native_command.py')
+
             injected.update(NATIVE_CONTROL=str(root / 'native-control'), NATIVE_PUBLICATION_FAILURE='none',
                             NATIVE_STATUS_MUTATION='none', NATIVE_CORRUPT_READY='1')
+
         environment = {**os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}',
                        'ACQUISITION_COMPOSE_EXIT': '0', 'FAIL_COMPOSE_DOWN': '0',
                        'HOLD_COMPOSE_WORKER': '0',
                        'STATE': str(root), 'ENGINE_STATE': str(root), **injected}
+
         process = subprocess.Popen(['bash', '-c', script], env=environment,
                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                    start_new_session=True)
+
         def stop():
             if process.poll() is None:
                 os.killpg(process.pid, signal.SIGKILL)
                 process.communicate()
+
         self.addCleanup(stop)
         return process, root
 
@@ -313,8 +346,10 @@ for attempt in 1 2; do
     printf 'result=%s\n' "$result"
 done
 ''', env={'ACQUISITION_COMPOSE_EXIT': '7'})
+
         self.assertEqual(b'package-output\nresult=7\npackage-output\nresult=7\n',
                          self.assert_exit(process, root, 0))
+
         calls = (root / 'compose-calls').read_text().splitlines()
         self.assertEqual(['run', 'down', 'run', 'down'], [line.split()[1] for line in calls])
         self.assertNotEqual(calls[0].split()[0], calls[2].split()[0])
@@ -328,6 +363,7 @@ status=$?
 printf 'result=%s\n' "$result"
 return "$status"
 ''', env={'FAIL_COMPOSE_DOWN': '1'})
+
         stdout, stderr = process.communicate(timeout=15)
         self.assertEqual(2, process.returncode, msg=stderr)
         self.assertEqual(b'package-output\nresult=unchanged\n', stdout)
@@ -339,6 +375,7 @@ return "$status"
 printf 'services: {}\n' > "$STATE/caller.yml"
 acquisition_compose_worker offline result "$STATE/caller.yml" worker-offline
 ''', env={'HOLD_COMPOSE_WORKER': '1'})
+
         self.wait_marker(process, root / 'compose-held')
         process.send_signal(signal.SIGTERM)
         self.assert_exit(process, root, 143)
@@ -346,10 +383,13 @@ acquisition_compose_worker offline result "$STATE/caller.yml" worker-offline
 
     def wait_marker(self, process, marker):
         deadline = time.monotonic() + 15
+
         while not marker.exists() and time.monotonic() < deadline:
             if process.poll() is not None:
                 self.fail(f'owner exited before {marker.name}: {process.communicate()}')
+
             time.sleep(.01)
+
         self.assertTrue(marker.exists(), msg=f'owner did not create {marker}')
 
     def rescue_native_removal(self, observed, scope_pid, operation, client):
@@ -364,9 +404,12 @@ acquisition_compose_worker offline result "$STATE/caller.yml" worker-offline
         self.assertEqual(scope_pid, os.getsid(anchor))
         os.killpg(anchor, signal.SIGKILL)
         deadline = time.monotonic() + 5
+
         while Path(f'/proc/{anchor}').exists() and time.monotonic() < deadline:
             time.sleep(.01)
+
         self.assertFalse(Path(f'/proc/{anchor}').exists())
+
         for directory in (Path(observed['directory']), operation, client):
             shutil.rmtree(directory)
 
@@ -398,41 +441,51 @@ PY
 _acq_fail 'scope reporter barrier'
 return 2
 '''
+
         cases = (
             ('default', {}, -signal.SIGTERM),
             ('custom', {'CALLER_TERM_TRAP': 'printf "handled\\n" > "$STATE/caller-term"; exit 77'}, 77),
             ('ignored', {'CALLER_TERM_TRAP': ''}, 2),
         )
+
         for disposition, environment, expected in cases:
             with self.subTest(disposition=disposition):
                 process, root = self.launch(callback, env=environment)
                 reporter = None
                 deadline = time.monotonic() + 15
+
                 while reporter is None and time.monotonic() < deadline:
                     self.assertIsNone(process.poll(), msg='owner exited before blocked reporter')
                     pending = [process.pid]
+
                     while pending:
                         parent = pending.pop()
+
                         try:
                             children = Path(f'/proc/{parent}/task/{parent}/children').read_text().split()
                         except FileNotFoundError:
                             continue
+
                         for child in children:
                             pid = int(child)
                             pending.append(pid)
+
                             try:
                                 argv = Path(f'/proc/{pid}/cmdline').read_bytes().split(b'\0')[:-1]
                                 channel = Path(f'/proc/{pid}/wchan').read_text().strip()
                                 session = os.getsid(pid)
                             except (FileNotFoundError, ProcessLookupError):
                                 continue
+
                             if (len(argv) == 9 and argv[:5] == [b'python3', b'-I', b'-S', b'-B', b'-c']
                                     and argv[-3:] == [b'scope reporter barrier\n', b'', b'']
                                     and channel in {'pipe_write', 'anon_pipe_write'}
                                     and session == process.pid):
                                 reporter = pid
+
                     if reporter is None:
                         time.sleep(.005)
+
                 self.assertIsNotNone(reporter, msg='no owned blocked reporter observed')
                 self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
                 process.send_signal(signal.SIGTERM)
@@ -441,6 +494,7 @@ return 2
                 self.assertEqual(b'', stdout, msg=stderr)
                 self.assertFalse(Path(f'/proc/{reporter}').exists())
                 self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
+
                 if disposition == 'custom':
                     self.assertEqual('handled\n', (root / 'caller-term').read_text())
                     self.assertEqual(['77 yes'], (root / 'caller-exit').read_text().splitlines())
@@ -451,6 +505,7 @@ return 2
         process, root = self.launch(
             "_acq_fail 'ordinary reporter status'; "
             'inference_native() { inference_cancellation_status=0; return 143; }; return 2')
+
         self.assert_exit(process, root, 2)
         self.assertIn('stderr delivery failed (status 143', (root / 'owner-diagnostic').read_text())
 
@@ -463,6 +518,7 @@ return 2
              b'running state could not be verified'),
             ('exhausted', b'checks-exhausted\n', b'true\n', b'', 100, '37', b'did not become ready'),
         )
+
         for role in ('gateway', 'relay'):
             for scenario, reason, state, inspect_error, polls, log_status, public_reason in cases:
                 with self.subTest(role=role, scenario=scenario):
@@ -471,6 +527,7 @@ return 2
                         'acquisition_worker online status fixture:local grants application',
                         env={'READINESS_ROLE': role, 'READINESS_SCENARIO': scenario,
                              'READINESS_LOG_STATUS': log_status})
+
                     stdout, stderr = process.communicate(timeout=20)
                     operation = Path((root / 'scratch').read_text().strip())
                     self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
@@ -480,49 +537,62 @@ return 2
                     self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
                     self.assertEqual([], list(root.glob('live-*')))
                     expected_roles = ['gateway']
+
                     if role == 'relay':
                         expected_roles.insert(0, 'relay')
+
                     self.assertEqual(expected_roles, (root / 'removal-attempts').read_text().splitlines())
                     self.assertEqual([role] * polls, (root / 'readiness-inspections').read_text().splitlines())
                     self.assertEqual([role], (root / 'readiness-logs').read_text().splitlines())
                     self.assertIn(str(operation).encode(), stderr)
                     self.assertIn(f'{role} readiness failed'.encode(), stderr)
                     self.assertIn(public_reason, stderr)
+
                     if scenario == 'inspect-failed':
                         self.assertIn(b'inspect status 37', stderr)
+
                     if log_status != '0':
                         self.assertIn(f'logs (status {log_status})'.encode(), stderr)
+
                     for private in (b'private inspect cause', b'private malformed state',
                                     b'private container stdout', b'private container stderr'):
                         self.assertNotIn(private, stdout + stderr)
+
                     self.assertEqual(0o700, operation.stat().st_mode & 0o777)
                     evidence = operation / role
+
                     expected = {
                         'readiness-reason': reason, 'state': state, 'state.stderr': inspect_error,
                         'logs': b'private container stdout\n',
                         'logs.stderr': b'private container stderr\n',
                         'log-status': (log_status + '\n').encode(),
                     }
+
                     for name, contents in expected.items():
                         path = evidence / name
                         self.assertEqual(contents, path.read_bytes(), msg=str(path))
                         self.assertEqual(0o600, path.stat().st_mode & 0o777)
                         self.assertLess(path.stat().st_size, 4096)
+
                     match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
                                       (root / 'engine-client').read_text())
+
                     self.assertIsNotNone(match)
                     self.assertFalse(Path(match.group(1)).exists())
 
     def test_private_metadata_receipts_must_remain_below_the_native_file_cap(self):
         with tempfile.TemporaryDirectory() as directory:
             receipt = Path(directory) / 'receipt'
+
             for size, expected_status in ((0, 0), (4095, 0), (4096, 1)):
                 with self.subTest(size=size):
                     receipt.write_bytes(b'x' * size)
+
                     result = subprocess.run(
                         ['bash', '-c', 'source host/acquisition_tool/owner.sh; '
                          '_acq_private_receipt_below_limit "$1"', 'bash', str(receipt)],
                         capture_output=True, timeout=5, check=False)
+
                     self.assertEqual(expected_status, result.returncode, msg=result.stderr)
                     self.assertEqual(b'', result.stdout)
                     self.assertEqual(b'', result.stderr)
@@ -533,16 +603,20 @@ return 2
             ('nonnumeric', {'ACQUISITION_STDOUT_STAT_FAULT': 'nonnumeric'}),
             ('cap', {'CAP_CREATE_STDOUT_ROLE': 'gateway'}),
         )
+
         for fault, environment in cases:
             with self.subTest(fault=fault):
                 process, root = self.launch(
                     'acquisition_set_route system; '
                     'acquisition_worker online status fixture:local grants application', env=environment)
+
                 stdout, stderr = process.communicate(timeout=20)
                 operation = Path((root / 'scratch').read_text().strip())
                 self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+
                 match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
                                   (root / 'engine-client').read_text())
+
                 self.assertIsNotNone(match)
                 private_client = Path(match.group(1))
                 self.addCleanup(shutil.rmtree, private_client, ignore_errors=True)
@@ -562,6 +636,7 @@ return 2
                 self.assertTrue(private_client.is_dir())
                 self.assertEqual(identifier.encode() + b'\n', (operation / 'gateway/cid').read_bytes())
                 receipt = operation / 'gateway/stdout'
+
                 if fault == 'cap':
                     self.assertEqual(4096, receipt.stat().st_size)
                     self.assertEqual(b' ' * 4096, receipt.read_bytes())
@@ -572,34 +647,43 @@ return 2
 
     def test_failed_create_exact_pair_owns_cleanup_without_start(self):
         roles = ('gateway', 'relay', 'worker-1')
+
         for index, role in enumerate(roles, 1):
             with self.subTest(role=role):
                 process, root = self.launch(
                     'acquisition_set_route system; '
                     'acquisition_worker online status fixture:local grants application',
                     env={'FAIL_CREATE_ROLE': role, 'FAILED_CREATE_OUTPUT': 'exact'})
+
                 stdout, stderr = process.communicate(timeout=15)
                 self.assertEqual(2, process.returncode, msg=(stdout, stderr))
                 self.assertEqual(['2 yes'], (root / 'caller-exit').read_text().splitlines())
                 self.assertIn(f'Cannot create {role}: creation did not complete (status 23).'.encode(), stderr)
                 identifiers = [f'{value:064x}' for value in range(1, index + 1)]
+
                 self.assertEqual(
                     {f'start-{identifier}' for identifier in identifiers[:-1]},
                     {path.name for path in root.glob('start-*')})
+
                 self.assertEqual(
                     {f'rm-{identifier}' for identifier in identifiers},
                     {path.name for path in root.glob('rm-*')})
+
                 self.assertEqual(list(reversed(roles[:index])),
                                  (root / 'removal-attempts').read_text().splitlines())
+
                 self.assertEqual([], list(root.glob('live-*')))
                 self.assertFalse(Path((root / 'scratch').read_text().strip()).exists())
+
                 match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
                                   (root / 'engine-client').read_text())
+
                 self.assertIsNotNone(match)
                 self.assertFalse(Path(match.group(1)).exists())
 
     def test_failed_create_disagreeing_or_nul_stdout_retains_ownership(self):
         roles = ('gateway', 'relay', 'worker-1')
+
         for index, role in enumerate(roles, 1):
             for output in ('disagree', 'nul'):
                 with self.subTest(role=role, output=output):
@@ -607,11 +691,14 @@ return 2
                         'acquisition_set_route system; '
                         'acquisition_worker online status fixture:local grants application',
                         env={'FAIL_CREATE_ROLE': role, 'FAILED_CREATE_OUTPUT': output})
+
                     stdout, stderr = process.communicate(timeout=20)
                     operation = Path((root / 'scratch').read_text().strip())
                     self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+
                     match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
                                       (root / 'engine-client').read_text())
+
                     self.assertIsNotNone(match)
                     client = Path(match.group(1))
                     self.addCleanup(shutil.rmtree, client, ignore_errors=True)
@@ -622,13 +709,17 @@ return 2
                     self.assertTrue(client.is_dir())
                     self.assertIn(f'Cannot create {role}: creation did not complete (status 23).'.encode(), stderr)
                     identifiers = [f'{value:064x}' for value in range(1, index + 1)]
+
                     self.assertEqual(
                         {f'start-{identifier}' for identifier in identifiers[:-1]},
                         {path.name for path in root.glob('start-*')})
+
                     self.assertEqual([], list(root.glob('rm-*')))
                     self.assertFalse((root / 'removal-attempts').exists())
+
                     self.assertEqual({f'live-{identifier}' for identifier in identifiers},
                                      {path.name for path in root.glob('live-*')})
+
                     identifier = identifiers[-1].encode()
                     self.assertEqual(identifier + b'\n', (operation / role / 'cid').read_bytes())
                     expected = f'{9:064d}\n'.encode() if output == 'disagree' else identifier + b'\0'
@@ -643,6 +734,7 @@ return 2
 
     def test_cancelled_create_uses_only_admissible_identity_for_cleanup(self):
         roles = ('gateway', 'relay', 'worker-1')
+
         for index, role in enumerate(roles, 1):
             for output in ('empty', 'exact', 'disagree', 'nul'):
                 with self.subTest(role=role, output=output):
@@ -651,6 +743,7 @@ return 2
                         'acquisition_worker online status fixture:local grants application',
                         env={'FAIL_CREATE_ROLE': role, 'FAILED_CREATE_OUTPUT': output,
                              'HOLD_FAILED_CREATE': '1'})
+
                     try:
                         self.wait_marker(process, root / 'create-held')
                         client_pid = int((root / 'create-held').read_text())
@@ -660,8 +753,10 @@ return 2
                         self.assertIsNone(process.poll())
                         operation = Path((root / 'scratch').read_text().strip())
                         self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+
                         match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
                                           (root / 'engine-client').read_text())
+
                         self.assertIsNotNone(match)
                         private_client = Path(match.group(1))
                         self.addCleanup(shutil.rmtree, private_client, ignore_errors=True)
@@ -670,6 +765,7 @@ return 2
                         cid = operation / role / 'cid'
                         create_stdout = operation / role / 'stdout'
                         self.assertEqual(identifier + b'\n', cid.read_bytes())
+
                         if output == 'empty':
                             # A complete EOF receipt permits recovery before stdout publication.
                             cid.write_bytes(identifier)
@@ -681,6 +777,7 @@ return 2
                             expected_cid, expected_stdout = identifier + b'\n', f'{9:064d}\n'.encode()
                         else:
                             expected_cid, expected_stdout = identifier + b'\n', identifier + b'\0'
+
                         self.assertEqual(expected_cid, cid.read_bytes())
                         self.assertEqual(expected_stdout, create_stdout.read_bytes())
                         self.assertEqual(str(index), (root / 'counter').read_text())
@@ -690,14 +787,19 @@ return 2
                         self.assertEqual(b'', stdout)
                         self.assertFalse(Path('/proc', str(client_pid)).exists())
                         self.assertFalse(Path('/proc', str(anchor_pid)).exists())
+
                         self.assertEqual({f'start-{value}' for value in identifiers[:-1]},
                                          {path.name for path in root.glob('start-*')})
+
                         self.assertEqual(str(index), (root / 'counter').read_text())
+
                         if output in ('empty', 'exact'):
                             self.assertEqual({f'rm-{value}' for value in identifiers},
                                              {path.name for path in root.glob('rm-*')})
+
                             self.assertEqual(list(reversed(roles[:index])),
                                              (root / 'removal-attempts').read_text().splitlines())
+
                             self.assertEqual([], list(root.glob('live-*')))
                             self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
                             self.assertEqual(['143 yes'], (root / 'caller-exit').read_text().splitlines())
@@ -706,8 +808,10 @@ return 2
                         else:
                             self.assertEqual([], list(root.glob('rm-*')))
                             self.assertFalse((root / 'removal-attempts').exists())
+
                             self.assertEqual({f'live-{value}' for value in identifiers},
                                              {path.name for path in root.glob('live-*')})
+
                             self.assertFalse((root / 'retired').exists())
                             self.assertEqual(['143 no'], (root / 'caller-exit').read_text().splitlines())
                             self.assertTrue(operation.is_dir())
@@ -723,8 +827,10 @@ return 2
         process, root = self.launch(
             'acquisition_set_route system; acquisition_worker online status fixture:local grants application; false',
             env={'OWNER_ERREXIT': '1', 'WORKER_STATUS': '0'})
+
         try:
             self.assert_exit(process, root, 1)
+
             self.assertEqual(['worker-1', 'relay', 'gateway'],
                              (root / 'removal-attempts').read_text().splitlines())
         finally:
@@ -732,9 +838,11 @@ return 2
             # its fake engine has no live resources beyond these exact files.
             if (root / 'scratch').exists():
                 shutil.rmtree(Path((root / 'scratch').read_text().strip()), ignore_errors=True)
+
             if (root / 'engine-client').exists():
                 match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
                                   (root / 'engine-client').read_text())
+
                 if match:
                     shutil.rmtree(Path(match.group(1)), ignore_errors=True)
 
@@ -747,6 +855,7 @@ acquisition_worker offline status fixture:first-worker grants application || ret
 acquisition_worker offline report_status fixture:second-worker grants application || return $?
 printf '%s %s\n' "$status" "$report_status"
 '''
+
         process, root = self.launch(callback, env={'WORKER_STATUS': '7'})
         self.assertIn(b'7 7\n', self.assert_exit(process, root, 0))
         self.assertEqual(['fixture:bootstrap'], (root / 'map-images').read_text().splitlines())
@@ -756,6 +865,7 @@ printf '%s %s\n' "$status" "$report_status"
             'acquisition_set_route system; acquisition_worker online status fixture:first grants application; '
             'acquisition_worker online status fixture:second grants application',
             env={'WORKER_STATUS': '0'})
+
         self.assert_exit(process, root, 0)
         arguments = (root / 'create-arguments').read_text().splitlines()
         self.assertEqual(1, arguments.count('--resolver-file'))
@@ -771,6 +881,7 @@ printf '%s %s\n' "$status" "$report_status"
              'READINESS_SCENARIO': 'stopped', 'READINESS_LOG_STATUS': '0'},
             {'WORKER_STATUS': '0', 'INVALID_RELAY_STATE': '1'},
         )
+
         for environment in cases:
             with self.subTest(environment=environment):
                 process, root = self.launch(r'''
@@ -781,6 +892,7 @@ acquisition_worker online status fixture:second grants application || second=$?
 printf '%s %s\n' "$first" "$second"
 return "$first"
 ''', env=environment)
+
                 stdout, stderr = process.communicate(timeout=20)
                 operation = Path((root / 'scratch').read_text().strip())
                 self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
@@ -793,8 +905,10 @@ return "$first"
                 self.assertEqual(['relay', 'gateway'], (root / 'removal-attempts').read_text().splitlines())
                 self.assertEqual([], list(root.glob('live-*')))
                 self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
+
                 if 'READINESS_ROLE' in environment:
                     self.assertIn(b'stopped before becoming ready', stderr)
+
                 if 'INVALID_RELAY_STATE' in environment:
                     self.assertIn(b'relay network and running state could not be verified', stderr)
                     self.assertEqual(b'none false\n', (operation / 'relay/mode').read_bytes())
@@ -806,8 +920,10 @@ acquisition_worker online first fixture:first grants application || return $?
 acquisition_worker online second fixture:second grants application || return $?
 printf '%s %s\n' "$first" "$second"
 ''', env={'WORKER_STATUS': '7'})
+
         self.assertEqual(b'7 7\n', self.assert_exit(process, root, 0))
         self.assertEqual('4', (root / 'counter').read_text())
+
         self.assertEqual(['worker-1', 'worker-2', 'relay', 'gateway'],
                          (root / 'removal-attempts').read_text().splitlines())
 
@@ -815,6 +931,7 @@ printf '%s %s\n' "$first" "$second"
         process, root = self.launch(
             'acquisition_worker offline status fixture:local grants application',
             env={'STREAM_WITNESS': '1', 'WORKER_STATUS': '0'})
+
         self.wait_marker(process, root / 'started-worker')
         ready, _, _ = select.select([process.stdout], [], [], 5)
         self.assertTrue(ready, msg='worker output was buffered until completion')
@@ -840,6 +957,7 @@ finally:
 PY
 _acq_fail 'fixture diagnostic'
 """ + action
+
                 process, root = self.launch(callback, env={'CALLER_EXITS': '1'})
                 # Do not drain stderr until the caller has observed retirement.
                 self.wait_marker(process, root / 'caller-exit')
@@ -848,6 +966,7 @@ _acq_fail 'fixture diagnostic'
     def test_exiting_caller_trap_preserves_the_framework_diagnostic(self):
         process, root = self.launch("_acq_fail 'known framework diagnostic'; exit 2",
                                     env={'CALLER_EXITS': '1'})
+
         stdout, stderr = process.communicate(timeout=15)
         self.assertEqual(2, process.returncode, msg=(stdout, stderr))
         self.assertIn(b'known framework diagnostic', stderr)
@@ -860,6 +979,7 @@ _acq_fail 'fixture diagnostic'
                     'acquisition_set_route system; acquisition_worker online status fixture:local grants application '
                     '|| return $?; return "$status"',
                     env={'WORKER_STATUS': str(status), 'CORRUPT_COMPLETED_WORKER_CID': 'damaged-worker'})
+
                 stdout, stderr = process.communicate(timeout=20)
                 operation = Path((root / 'scratch').read_text().strip())
                 self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
@@ -883,12 +1003,14 @@ _acq_fail 'fixture diagnostic'
             (0, 'delete', 41, b'failed after deleting the selected directory'),
             (37, 'delete', 37, b'failed after deleting the selected directory'),
         )
+
         for status, effect, expected, cause in cases:
             with self.subTest(status=status, effect=effect):
                 process, root = self.launch(
                     'acquisition_set_route system; acquisition_worker online status fixture:local grants application '
                     '|| return $?; return "$status"',
                     env={'WORKER_STATUS': str(status), 'CLIENT_CLEANUP_FAILURE': effect})
+
                 stdout, stderr = process.communicate(timeout=20)
                 client = Path((root / 'client-cleanup-path').read_text().strip())
                 self.addCleanup(shutil.rmtree, client, ignore_errors=True)
@@ -897,8 +1019,10 @@ _acq_fail 'fixture diagnostic'
                 self.assertIn(str(client).encode(), stderr)
                 self.assertIn(b'status 41', stderr)
                 self.assertIn(cause, stderr)
+
                 if status:
                     self.assertIn(b'already failed with status 37', stderr)
+
                 operation = Path((root / 'scratch').read_text().strip())
                 self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
                 private_cause = operation / 'client-cleanup.stderr'
@@ -915,6 +1039,7 @@ _acq_fail 'fixture diagnostic'
         process, root = self.launch(
             'printf "%s\\n" "$_acq_scratch" > "$STATE/scratch"; return 37',
             env={'CLIENT_CLEANUP_FAILURE': 'oversized-cause'})
+
         stdout, stderr = process.communicate(timeout=15)
         self.assertEqual(37, process.returncode, msg=(stdout, stderr))
         operation = Path((root / 'scratch').read_text().strip())
@@ -938,6 +1063,7 @@ _acq_fail 'fixture diagnostic'
                 process, root = self.launch(
                     'acquisition_set_route system; acquisition_worker online result fixture:local grants application',
                     env={'STREAM_WITNESS': '1', 'CLIENT_CLEANUP_FAILURE': 'retain'})
+
                 self.wait_marker(process, root / 'started-worker')
                 process.send_signal(interrupted)
                 stdout, stderr = process.communicate(timeout=20)
@@ -957,6 +1083,7 @@ _acq_fail 'fixture diagnostic'
         process, root = self.launch(
             'printf "%s\\n" "$_acq_scratch" > "$STATE/scratch"; return 37',
             env={'CLIENT_CLEANUP_FAILURE': 'binary-cause'})
+
         stdout, stderr = process.communicate(timeout=15)
         self.assertEqual(37, process.returncode, msg=(stdout, stderr))
         operation = Path((root / 'scratch').read_text().strip())
@@ -986,6 +1113,7 @@ finally:
 PY
 return 37
 '''
+
         for failure in ('retain', 'oversized-cause', 'capture-directory'):
             with self.subTest(failure=failure):
                 process, root = self.launch(callback, env={'CLIENT_CLEANUP_FAILURE': failure})
@@ -1006,6 +1134,7 @@ return 37
                 detail = report.read_bytes()
                 self.assertIn(b'already failed with status 37', detail)
                 self.assertIn(b'status 41', detail)
+
                 if failure == 'capture-directory':
                     self.assertIn(b'destination is a directory', detail)
                 elif failure == 'oversized-cause':
@@ -1017,11 +1146,14 @@ return 37
         process, root = self.launch(
             'acquisition_set_route system; acquisition_worker online status fixture:local grants application',
             env={'WORKER_STATUS': '0', 'FAIL_REMOVE_AFTER_EFFECT': 'worker-1'})
+
         stdout, stderr = process.communicate(timeout=20)
         self.assertEqual(2, process.returncode, msg=(stdout, stderr))
         self.assertIn(b'acquisition worker-1 failed (status 23)', stderr)
+
         self.assertEqual(['worker-1', 'relay', 'gateway'],
                          (root / 'removal-attempts').read_text().splitlines())
+
         self.assertEqual([], list(root.glob('live-*')))
         self.assertEqual(b'retired\n', (root / 'retired').read_bytes())
         self.assertEqual(['2 yes'], (root / 'caller-exit').read_text().splitlines())
@@ -1035,8 +1167,10 @@ return 37
                                            ('worker-1', ('gateway', 'relay', 'worker-1'), '2 2\n')):
             with self.subTest(selected=selected):
                 environment = {'NATIVE_CORRUPT_REMOVAL_ROLE': selected, 'WORKER_STATUS': '0'}
+
                 if selected != 'worker-1':
                     environment.update(READINESS_ROLE=selected, READINESS_SCENARIO='stopped', READINESS_LOG_STATUS='0')
+
                 process, root = self.launch(r'''
 acquisition_set_route system
 first=0 second=0
@@ -1047,6 +1181,7 @@ fi
 printf '%s %s\n' "$first" "$second" > "$STATE/callback-status"
 return "$first"
 ''', env=environment)
+
                 self.wait_marker(process, root / 'native-control')
                 observed = json.loads((root / 'native-control').read_text())
                 anchor = observed['anchor']
@@ -1068,6 +1203,7 @@ return "$first"
                 self.assertEqual(anchor, observed['group'])
                 self.assertEqual(process.pid, observed['session'])
                 self.assertEqual(['rm', '--force', f'{len(roles):064x}'], observed['command'][-3:])
+
                 for index, role in enumerate(roles, 1):
                     identifier = f'{index:064x}'
                     receipt = operation / role / 'cid'
@@ -1081,36 +1217,48 @@ return "$first"
                 process, root = self.launch(
                     'acquisition_set_route system; acquisition_worker online status fixture:local grants application',
                     env={'WORKER_STATUS': '0', 'FAIL_REMOVE': failed})
+
                 stdout, stderr = process.communicate(timeout=20)
                 # This fake-engine test deliberately creates unresolved owner
                 # evidence; remove only its observed test operation artifacts.
                 operation = Path((root / 'scratch').read_text().strip())
                 self.addCleanup(shutil.rmtree, operation, ignore_errors=True)
+
                 match = re.search(r'--config (/tmp/nmrnet-docker-client\.[^/]+)/config',
                                   (root / 'engine-client').read_text())
+
                 if match:
                     self.addCleanup(shutil.rmtree, Path(match.group(1)), ignore_errors=True)
+
                 self.assertIsNotNone(match)
                 self.assertTrue(Path(match.group(1)).is_dir())
                 self.assertTrue(operation.is_dir())
+
                 for index, role in enumerate(('gateway', 'relay', 'worker-1'), 1):
                     identifier = f'{index:064x}'
                     receipt = operation / role / 'cid'
                     self.assertEqual((identifier + '\n').encode(), receipt.read_bytes())
                     self.assertEqual(receipt.read_bytes(), (operation / role / 'stdout').read_bytes())
+
                 expected_live = [1, 2]
+
                 if failed == 'worker-1':
                     expected_live.append(3)
+
                 self.assertEqual({f'live-{index:064x}' for index in expected_live},
                                  {path.name for path in root.glob('live-*')})
+
                 self.assertNotEqual(process.returncode, 0, msg=(stdout, stderr))
                 self.assertFalse((root / 'retired').exists(), msg=(stdout, stderr, list(root.iterdir())))
                 self.assertEqual([f'{process.returncode} no'], (root / 'caller-exit').read_text().splitlines())
                 attempts = (root / 'removal-attempts').read_text().splitlines()
                 expected_attempts = ['worker-1']
+
                 if failed == 'relay':
                     expected_attempts.append('relay')
+
                 self.assertEqual(expected_attempts, attempts)
+
                 for role in forbidden:
                     self.assertNotIn(role, attempts)
 

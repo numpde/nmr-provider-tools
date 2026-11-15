@@ -26,14 +26,18 @@ class MakeOriginGateTests(unittest.TestCase):
             path = root / source
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_text(line + "\n")
+
             with patch.object(dapp, "ROOT", root):
                 dapp_findings = dapp.make_function_default_findings([path])
+
             with patch.object(vote, "_make_surface_lines", return_value=[(source, 1, line)]):
                 vote_findings = vote.make_function_default_findings()
+
             return dapp_findings, vote_findings
 
     def test_complete_origin_gates_are_classified_without_weakening_raw_matchers(self):
         expression = "$(if $(filter command line,$(origin PROFILE)),$(value PROFILE))"
+
         for line in (
             "export PROFILE_INPUT := " + expression,
             "override export PROFILE_INPUT := " + expression,
@@ -49,6 +53,7 @@ class MakeOriginGateTests(unittest.TestCase):
     def test_any_alternate_value_or_owner_remains_a_finding_in_both_collectors(self):
         expression = "$(if $(filter command line,$(origin PROFILE)),$(value PROFILE))"
         gate = "export PROFILE_INPUT := " + expression
+
         lines = [
             gate[:-1] + ",demo)",
             gate[:-1] + ",)",
@@ -66,6 +71,7 @@ class MakeOriginGateTests(unittest.TestCase):
             gate.replace("export ", "override override export "),
             "\t" + gate,
         ]
+
         for line in lines:
             with self.subTest(line=line):
                 self.assertFalse(is_literal_make_origin_gate("Makefile", line))
@@ -75,6 +81,7 @@ class MakeOriginGateTests(unittest.TestCase):
 
     def test_whole_line_gate_is_not_a_waiver_in_other_source_languages(self):
         line = "export PROFILE_INPUT := $(if $(filter command line,$(origin PROFILE)),$(value PROFILE))"
+
         for source in ("host/tools/runner.sh", "tools/runner.py", "containers/Dockerfile"):
             with self.subTest(source=source):
                 self.assertFalse(is_literal_make_origin_gate(source, line))

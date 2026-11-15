@@ -9,4 +9,5 @@ def zip_bytes(entries):
         with ZipFile(output, "w", compression=ZIP_DEFLATED) as archive:
             for name, contents in entries:
                 archive.writestr(name, contents)
+
         return output.getvalue()

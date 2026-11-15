@@ -20,6 +20,7 @@ def image(**changes):
     value = {"Id": IDENTIFIER, "Labels": {"org.nmr-provider-tools.inputs": OLD},
              "RepoTags": ["nmr-provider-tools/checker:" + OLD], "RepoDigests": [],
              "Created": "2020-01-01T00:00:00Z"}
+
     return value | changes
 
 
@@ -33,24 +34,34 @@ class Engine:
 
     def __call__(self, *arguments):
         self.calls.append(arguments)
+
         if arguments[:2] == ("ps", "--all"):
             if self.borrower:
                 return "1" * 64 + "\n"
+
             return ""
+
         if arguments[:3] == ("inspect", "--type", "container"):
             return json.dumps(IDENTIFIER) + "\n"
+
         if arguments[:2] == ("image", "ls"):
             return IDENTIFIER + "\n"
+
         if arguments[:2] == ("image", "inspect"):
             self.inspections += 1
             value = deepcopy(self.value)
+
             if self.changed and self.inspections > 1:
                 value["RepoTags"] = ["somebody-else/retained:latest"]
+
             if self.malformed:
                 return "{broken"
+
             return json.dumps(value) + "\n"
+
         if arguments == ("image", "rm", "--no-prune", IDENTIFIER):
             return ""
+
         raise AssertionError(arguments)
 
     @property
@@ -62,6 +73,7 @@ class ImageRetirementTests(unittest.TestCase):
     def test_legacy_delivery_metadata_preserves_only_that_image(self):
         legacy = image(Id="sha256:" + "e" * 64,
                        Labels={"org.nmr-provider-tools.role": "delivery"}, RepoTags=[])
+
         self.assertEqual([IDENTIFIER], select_images([legacy, image()], set(), CURRENT))
 
     def test_obsolete_image_is_eligible_without_age_grace(self):
@@ -70,8 +82,10 @@ class ImageRetirementTests(unittest.TestCase):
 
     def test_only_exact_obsolete_owned_id_is_removed(self):
         engine = Engine(image())
+
         with tempfile.TemporaryDirectory() as directory:
             count = retire(Path(directory), engine, lambda: CURRENT, operations=Path(directory))
+
         self.assertEqual(count, 1)
         self.assertEqual(engine.removals, [("image", "rm", "--no-prune", IDENTIFIER)])
 
@@ -87,12 +101,16 @@ class ImageRetirementTests(unittest.TestCase):
             engine = Engine(image(), changed=True)
             self.assertEqual(0, retire(Path(directory), engine, lambda: CURRENT, operations=Path(directory)))
             self.assertEqual([], engine.removals)
+
         engine = Engine(image())
         original = engine.__call__
+
         def borrowed_later(*arguments):
             if "--filter" in arguments and arguments[-1].startswith("ancestor="):
                 return "2" * 64 + "\n"
+
             return original(*arguments)
+
         with tempfile.TemporaryDirectory() as directory:
             self.assertEqual(0, retire(Path(directory), borrowed_later, lambda: CURRENT, operations=Path(directory)))
             self.assertEqual([], engine.removals)
@@ -110,25 +128,32 @@ class ImageRetirementTests(unittest.TestCase):
                           "org.nmr-provider-tools.recipe": CURRENT[1]}, RepoTags=[]),
             image(Labels={}, RepoTags=["nmr-provider-tools/wheelhouse-tool:local"]),
         ]
+
         for value in cases:
             with self.subTest(value=value):
                 self.assertEqual([], select_images([value], set(), CURRENT))
+
         self.assertEqual(select_images([image(Labels={"org.nmr-provider-tools.role": "wheelhouse-tool"},
                                              RepoTags=[])], set(), CURRENT), [IDENTIFIER])
 
     def test_incomplete_metadata_fails_before_any_removal(self):
         with tempfile.TemporaryDirectory() as directory:
             engine = Engine(image(), malformed=True)
+
             with self.assertRaises(ValueError):
                 retire(Path(directory), engine, lambda: CURRENT, operations=Path(directory))
+
             self.assertEqual([], engine.removals)
 
     def test_current_source_change_fails_before_removal(self):
         identities = iter((CURRENT, ("e" * 64, CURRENT[1], CURRENT[2])))
+
         with tempfile.TemporaryDirectory() as directory:
             engine = Engine(image())
+
             with self.assertRaises(RetirementRefused):
                 retire(Path(directory), engine, lambda: next(identities), operations=Path(directory))
+
             self.assertEqual([], engine.removals)
 
     def test_known_retained_build_receipt_protects_exact_image(self):

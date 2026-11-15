@@ -13,13 +13,18 @@ from typing import BinaryIO
 def open_checkpoint(*, path: Path, expected_sha256: str) -> BinaryIO:
     """Return the verified file at byte zero; the caller must close it after loading."""
     checkpoint = path.open(mode="rb")
+
     try:
         measured = sha256()
+
         while block := checkpoint.read(1024 * 1024):
             measured.update(block)
+
         actual_sha256 = measured.hexdigest()
+
         if actual_sha256 != expected_sha256:
             raise ValueError(f"Cannot load checkpoint: {actual_sha256=} differs from {expected_sha256=}")
+
         checkpoint.seek(0)
         return checkpoint
     except BaseException:

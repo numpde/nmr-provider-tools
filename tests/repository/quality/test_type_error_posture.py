@@ -31,6 +31,7 @@ class _Finding:
             "ValueError": "rejects a type with ValueError",
             "TypeError": "combines type and value rejection with TypeError",
         }
+
         return (
             f"{self.path}:{self.line}: guard {self.condition!r} {concerns[self.exception]}; "
             "reject wrong types first in a separate TypeError "
@@ -62,17 +63,23 @@ def _type_rejection_operands(*, expression: ast.expr, rejecting: bool) -> list[a
     An unrelated AND condition can restrict a negative type predicate to a
     narrower domain. Such guards need semantic review rather than this rule.
     """
+
     if isinstance(expression, ast.UnaryOp) and isinstance(expression.op, ast.Not):
         return _type_rejection_operands(expression=expression.operand, rejecting=not rejecting)
+
     if isinstance(expression, ast.BoolOp):
         if (rejecting and isinstance(expression.op, ast.Or)) or (
             not rejecting and isinstance(expression.op, ast.And)
         ):
             operands = []
+
             for value in expression.values:
                 operands.extend(_type_rejection_operands(expression=value, rejecting=rejecting))
+
             return operands
+
         return []
+
     if isinstance(expression, ast.Call):
         if (
             not rejecting
@@ -81,7 +88,9 @@ def _type_rejection_operands(*, expression: ast.expr, rejecting: bool) -> list[a
             and not expression.keywords
         ):
             return [expression.args[0]]
+
         return []
+
     if not (
         isinstance(expression, ast.Compare)
         and len(expression.ops) == 1
@@ -89,7 +98,9 @@ def _type_rejection_operands(*, expression: ast.expr, rejecting: bool) -> list[a
         and (_type_call(expression=expression.left) or _type_call(expression=expression.comparators[0]))
     ):
         return []
+
     operator = expression.ops[0]
+
     if (rejecting and isinstance(operator, (ast.IsNot, ast.NotEq))) or (
         not rejecting and isinstance(operator, (ast.Is, ast.Eq))
     ):
@@ -98,6 +109,7 @@ def _type_rejection_operands(*, expression: ast.expr, rejecting: bool) -> list[a
             for operand in (expression.left, expression.comparators[0])
             if _type_call(expression=operand)
         ]
+
     return []
 
 
@@ -107,23 +119,31 @@ def _type_rejection(*, expression: ast.expr, rejecting: bool) -> bool:
 
 def _value_predicate(*, expression: ast.expr) -> bool:
     """Recognize value tests without classifying unknown predicates by exclusion."""
+
     if _type_rejection(expression=expression, rejecting=True) or _type_rejection(expression=expression, rejecting=False):
         if not isinstance(expression, (ast.BoolOp, ast.UnaryOp)):
             return False
+
     if isinstance(expression, ast.UnaryOp) and isinstance(expression.op, ast.Not):
         return _value_predicate(expression=expression.operand)
+
     if isinstance(expression, ast.BoolOp):
         return any(_value_predicate(expression=value) for value in expression.values)
+
     if isinstance(expression, (ast.Name, ast.Attribute, ast.Subscript)):
         return True
+
     if isinstance(expression, ast.Compare):
         if any(isinstance(operator, (ast.Lt, ast.LtE, ast.Gt, ast.GtE, ast.Eq, ast.NotEq, ast.In, ast.NotIn)) for operator in expression.ops):
             return True
+
         # Identity with None commonly tests regex match results, but identity
         # with a class object can instead restrict the supported type domain.
         return any(_value_predicate(expression=value) for value in (expression.left, *expression.comparators) if isinstance(value, ast.Call))
+
     if not isinstance(expression, ast.Call):
         return False
+
     if (
         any(_builtin(expression=expression.func, name=name) for name in ("any", "all"))
         and len(expression.args) == 1
@@ -132,6 +152,7 @@ def _value_predicate(*, expression: ast.expr) -> bool:
     ):
         generator = expression.args[0]
         return _value_predicate(expression=generator.elt)
+
     return _builtin(expression=expression.func, name="len") or (
         isinstance(expression.func, ast.Attribute)
         and isinstance(expression.func.value, ast.Name)
@@ -142,25 +163,32 @@ def _value_predicate(*, expression: ast.expr) -> bool:
 
 def _findings(*, path: Path, source: str) -> list[_Finding]:
     findings = []
+
     for statement in ast.walk(ast.parse(source=source, filename=str(path))):
         if not isinstance(statement, ast.If) or not _type_rejection(expression=statement.test, rejecting=True):
             continue
+
         # Only direct raises belong to this guard; nested scopes or conditional
         # branches can have their own failure contract.
         for child in statement.body:
             if not isinstance(child, ast.Raise) or child.exc is None:
                 continue
+
             exception = child.exc.func if isinstance(child.exc, ast.Call) else child.exc
+
             if _builtin(expression=exception, name="ValueError"):
                 exception_name = "ValueError"
             elif _builtin(expression=exception, name="TypeError") and _value_predicate(expression=statement.test):
                 exception_name = "TypeError"
             else:
                 continue
+
             findings.append(
                 _Finding(path=path, line=statement.lineno, condition=ast.unparse(statement.test), exception=exception_name)
             )
+
             break
+
     return sorted(findings, key=lambda finding: finding.line)
 
 
@@ -187,6 +215,7 @@ class TypeErrorPostureTests(unittest.TestCase):
             "type(record.value) is not expected_type or invalid(record.value)",
             "type(value) is not type(other)",
         )
+
         for condition in conditions:
             with self.subTest(condition=condition):
                 source = f"if {condition}:\n    raise ValueError('invalid value')\n"
@@ -204,6 +233,7 @@ class TypeErrorPostureTests(unittest.TestCase):
                     raise ValueError("value must be a SHA-256 digest")
             """
         )
+
         self.assertEqual([], _findings(path=Path("example.py"), source=source))
 
     def test_mixed_guard_cannot_be_fixed_by_changing_only_the_exception(self) -> None:
@@ -257,6 +287,7 @@ class TypeErrorPostureTests(unittest.TestCase):
             "type(value) is expected_type is other_type",
             "type('Dynamic', (), {}) is not str",
         )
+
         for condition in conditions:
             with self.subTest(condition=condition):
                 source = f"if {condition}:\n    raise ValueError('invalid value')\n"
@@ -272,6 +303,7 @@ class TypeErrorPostureTests(unittest.TestCase):
             with self.subTest(rejection=rejection):
                 source = f"if type(value) is not str:\n    {rejection}\n"
                 self.assertEqual(1, len(_findings(path=Path("example.py"), source=source)))
+
         for rejection in (
             "raise TypeError('invalid')",
             "raise errors.ValueError('invalid')",
@@ -286,6 +318,7 @@ class TypeErrorPostureTests(unittest.TestCase):
 
     def test_diagnostic_names_the_guard_and_required_exception_order(self) -> None:
         findings = _findings(path=Path("example.py"), source="if type(value) is not str:\n    raise ValueError('bad')\n")
+
         self.assertEqual(
             "example.py:1: guard 'type(value) is not str' rejects a type with ValueError; "
             "reject wrong types first in a separate TypeError guard, then validate supported values with ValueError",
@@ -298,4 +331,5 @@ class TypeErrorPostureTests(unittest.TestCase):
             for path in python_sources(production_only=True)
             for finding in _findings(path=path.relative_to(REPOSITORY_ROOT), source=path.read_text(encoding="utf-8"))
         ]
+
         self.assertEqual([], findings, msg="\n".join(finding.diagnostic() for finding in findings))

@@ -69,13 +69,16 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     session.begin_crash.set()
                     await asyncio.wait_for(session.crash_ready.wait(), 2)
                     clock.now += gap
+
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         transport = StopAtDeadline(*self.initial_replies(), reply(observation(job_state="cancelled")))
         recovery = ObservationRecovery(gap, 0.1, Mock(), Mock())
         controller = self.controller(session, transport, recovery, poll_seconds=0.01)
+
         with self.clock(clock), self.assertRaises(ControllerFailed):
             await asyncio.wait_for(controller.run(record()), 3)
+
         self.assertIsNotNone(session.native.original_exit)
         self.assertIsInstance(controller.operation.last_failure.cause, ExecutionStopped)
         self.assertEqual([], controller.delivery.items)
@@ -89,8 +92,10 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
         transport = Transport(*self.initial_replies(), reply(b"maintenance", status=503))
         recovery = ObservationRecovery(3, 0.5, retry, recovered)
         controller = self.controller(session, transport, recovery, poll_seconds=0.5)
+
         with patch("provider_core.execution.random.uniform", return_value=0.5):
             accepted = await asyncio.wait_for(controller.run(record()), 4)
+
         self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
         retry.assert_called_once()
         recovered.assert_not_called()
@@ -111,12 +116,15 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     clock.now += gap
                     session.begin_crash.set()
                     await asyncio.wait_for(session.crash_ready.wait(), 2)
+
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         transport = CrashAfterDeadline(*self.initial_replies(), reply(b"maintenance", status=503))
         controller = self.controller(session, transport, ObservationRecovery(gap, 0.1, Mock(), Mock()), poll_seconds=0.01)
+
         with self.clock(clock), self.assertRaises(ControllerFailed):
             await asyncio.wait_for(controller.run(record()), 3)
+
         self.assertIsNotNone(session.native.original_exit)
         self.assertIsNone(controller.operation.observed_crash)
         self.assertIsInstance(controller.operation.last_failure.cause, ObservationGapExpired)
@@ -131,8 +139,10 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
         class HeldRetirement(Transport):
             async def exchange(self, request, *, maximum_bytes, owner=None):
                 result = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+
                 if len(self.calls) == 4:
                     self.pending_owner, self.retirement_confirmed = owner, False
+
                 return result
 
             async def retire(self, *, owner=None):
@@ -140,13 +150,16 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
                     session.begin_crash.set()
                     await asyncio.wait_for(session.crash_ready.wait(), 2)
                     raise retirement_failure
+
                 await super().retire(owner=owner)
 
         transport = HeldRetirement(*self.initial_replies(), reply(b"maintenance", status=503))
         controller = self.controller(session, transport, ObservationRecovery(3, 0.1, Mock(), Mock()), poll_seconds=0.01)
+
         try:
             with self.assertRaises(ControllerFailed):
                 await asyncio.wait_for(controller.run(record()), 3)
+
             self.assertIsNotNone(controller.operation.observed_crash)
             self.assertEqual(1, len(controller.delivery.items))
             exact_body = controller.delivery.items[0].body
@@ -157,6 +170,7 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
         finally:
             release.set()
             await controller.settle()
+
         self.assertTrue(controller.shutdown_ready)
         self.assertEqual([exact_body], [item.body for item in controller.delivery.items])
         self.assertEqual(4, len(transport.calls))
@@ -168,8 +182,10 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
         class CrashDuringFloor(Transport):
             async def exchange(self, request, *, maximum_bytes, owner=None):
                 received = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+
                 if len(self.calls) == 4:
                     session.begin_crash.set()
+
                 return received
 
         retry, recovered = Mock(), Mock()

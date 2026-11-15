@@ -25,16 +25,20 @@ class ExecutionFailureAgeTests(unittest.IsolatedAsyncioTestCase):
         session = Session(probe)
         original_cleanup_failure = OSError(errno.EBUSY, "PRIVATE_SCIENTIFIC_RESOURCE")
         session.retirement_failure = original_cleanup_failure
+
         controller = live_controller(
             api(Transport(*lifecycle_replies()), probe.scope.api_origin), probe, claims, session,
             delivery=delivery, on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
             delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
             poll_seconds=1, task_settle_seconds=0.1,
         )
+
         selected = record()
+
         try:
             with self.assertRaises(ControllerFailed) as first:
                 await controller.run(selected)
+
             original = first.exception.cause
             self.assertIs(type(original), ExecutionFailed)
             self.assertIs(original, controller.operation.last_failure)
@@ -45,8 +49,10 @@ class ExecutionFailureAgeTests(unittest.IsolatedAsyncioTestCase):
             first_evidence = failure_evidence(original, secrets=())
 
             await asyncio.sleep(0.04)
+
             with self.assertRaises(ControllerFailed) as second:
                 await controller.settle()
+
             self.assertIs(second.exception, first.exception)
             self.assertIs(second.exception.cause, original)
             self.assertEqual(1, len(claims.live_owners()))
@@ -64,13 +70,17 @@ class ExecutionFailureAgeTests(unittest.IsolatedAsyncioTestCase):
         released_evidence = failure_evidence(original, secrets=())
         snapshots = (first_evidence, second_evidence, released_evidence)
         evidence = json.dumps(snapshots, sort_keys=True)
+
         for snapshot in snapshots:
             self.assertEqual(selected.input.job_ref, snapshot["job_ref"], msg=evidence)
             self.assertEqual(ATTEMPT_REF, snapshot["execution_attempt_ref"], msg=evidence)
             self.assertTrue(snapshot["delivery_acceptance_received"], msg=evidence)
+
             self.assertIn("failure_age_seconds", snapshot,
                           msg="The diagnostic identifies the Job and Attempt but not the age of its original lifecycle failure: " + evidence)
+
             self.assertGreaterEqual(snapshot["failure_age_seconds"], 0, msg=evidence)
+
         elapsed = second_at - first_at
         observed_age = second_evidence["failure_age_seconds"] - first_evidence["failure_age_seconds"]
         self.assertAlmostEqual(elapsed, observed_age, delta=0.01, msg=evidence)

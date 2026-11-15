@@ -19,10 +19,13 @@ class ResponseRejected(ValueError):
 
 def _unique_fields(pairs):
     result = {}
+
     for name, value in pairs:
         if name in result:
             raise ResponseRejected("Response contains a duplicate JSON field")
+
         result[name] = value
+
     return result
 
 
@@ -33,6 +36,7 @@ def _reject_constant(_value):
 def read_document(raw, limit):
     if type(raw) is not bytes or len(raw) > limit:
         raise ResponseRejected(f"Response must be immutable bytes within the {limit}-byte route limit")
+
     try:
         return json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_fields, parse_constant=_reject_constant)
     except ResponseRejected:
@@ -49,11 +53,13 @@ def read_document(raw, limit):
 
 def read_timestamp(value):
     """Admit UTC rendering shared by the pinned provider Job and Attempt schemas."""
+
     if (
         type(value) is not str
         or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.(?!000000)[0-9]{6})?Z", value) is None
     ):
         raise ResponseRejected("Response timestamp must be canonical UTC seconds or six nonzero fractional digits")
+
     try:
         return datetime.fromisoformat(value)
     except ValueError:

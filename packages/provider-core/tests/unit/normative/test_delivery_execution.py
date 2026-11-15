@@ -39,9 +39,11 @@ class FullUntilReleased(RecordingDelivery):
 
     async def submit(self, item):
         self.attempted.append(item.body)
+
         if not self.release.is_set():
             self.full_seen.set()
             raise DeliveryFull("Delivery capacity is full.")
+
         return await super().submit(item)
 
 
@@ -71,6 +73,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         session, delivery = CheckpointSession(store), FullUntilReleased()
         executor = executor_at(store, acknowledged, claim, session, delivery)
         task = asyncio.create_task(executor.run(acknowledged))
+
         try:
             await asyncio.wait_for(delivery.full_seen.wait(), 1)
             await asyncio.wait_for(session.retirement_started.wait(), 1)
@@ -84,6 +87,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
             claim.release(owner=claim.lifecycle_owner)
         finally:
             delivery.release.set()
+
             if not task.done():
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
@@ -100,8 +104,10 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         session = FailAfterAcceptance(store)
         session.retirement_failure = OSError("native cleanup failed")
         executor = executor_at(store, acknowledged, claim, session, delivery)
+
         with self.assertRaises(ExecutionFailed) as failed:
             await executor.run(acknowledged)
+
         self.assertIsNotNone(failed.exception.delivery_acceptance)
         self.assertTrue(executor.delivery_accepted)
         self.assertIsNone(failed.exception.outcome)
@@ -125,16 +131,20 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         session = FailAfterFull(store)
         session.retirement_failure = OSError(errno.EIO, "PRIVATE_NATIVE")
         executor = executor_at(store, acknowledged, claim, session, delivery)
+
         try:
             with self.assertRaises(ExecutionFailed) as failed:
                 await executor.run(acknowledged)
+
             self.assertGreater(len(delivery.attempted), 0)
             report = json.dumps(failure_evidence(failed.exception, secrets=()))
             self.assertIn('"errno": 5', report)
             self.assertNotIn("PRIVATE_NATIVE", report)
             self.assertGreater(executor._on_delivery_retry.call_count, 0)
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             delivery.release.set()
             await asyncio.wait_for(asyncio.shield(executor._handoff_wait), 1)
             session.retirement_failure = None
@@ -146,6 +156,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
             claim.release(owner=claim.lifecycle_owner)
         finally:
             delivery.release.set()
+
             if executor._handoff_wait is not None:
                 await asyncio.wait_for(asyncio.shield(executor._handoff_wait), 1)
 
@@ -165,6 +176,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         session, delivery = PausedRetirement(store), FullUntilReleased()
         executor = executor_at(store, acknowledged, claim, session, delivery)
         task = asyncio.create_task(executor.run(acknowledged))
+
         try:
             await asyncio.wait_for(delivery.full_seen.wait(), 1)
             await asyncio.wait_for(session.retirement_started.wait(), 1)
@@ -175,8 +187,10 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(task.done())
             self.assertFalse(executor.retirement_confirmed)
             self.assertIsNone(executor.last_failure)
+
             with self.assertRaises(OwnershipRefused):
                 claim.release(owner=claim.lifecycle_owner)
+
             self.assertIsNone(executor._outcome)
             session.release.set()
             await asyncio.wait_for(task, 1)
@@ -184,6 +198,7 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         finally:
             delivery.release.set()
             session.release.set()
+
             if not task.done():
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
@@ -193,21 +208,27 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         session, delivery = CheckpointSession(store), FullUntilReleased()
         executor = executor_at(store, acknowledged, claim, session, delivery)
         task = asyncio.create_task(executor.run(acknowledged))
+
         try:
             await asyncio.wait_for(delivery.full_seen.wait(), 1)
             task.cancel()
+
             with self.assertRaises(asyncio.CancelledError):
                 await task
+
             count = len(delivery.attempted)
             delivery.release.set()
+
             with self.assertRaises(ExecutionFailed):
                 await executor.settle()
+
             self.assertEqual(len(delivery.attempted), count)
             self.assertEqual(delivery.items, [])
             self.assertFalse(executor.delivery_accepted)
             self.assertIsNotNone(executor._outcome)
         finally:
             delivery.release.set()
+
             if not task.done():
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
@@ -220,12 +241,15 @@ class DeliveryExecutionTests(unittest.IsolatedAsyncioTestCase):
         store, acknowledged, claim = await live_attempt()
         session, delivery = CancelledCleanup(store), RecordingDelivery()
         executor = executor_at(store, acknowledged, claim, session, delivery)
+
         with self.assertRaises(asyncio.CancelledError):
             await executor.run(acknowledged)
+
         self.assertEqual(len(delivery.items), 1)
         self.assertIsNone(executor._outcome)
         self.assertFalse(executor.retirement_confirmed)
         self.assertIsNotNone(executor.last_failure.delivery_acceptance)
         self.assertTrue(executor.last_failure.cleanup_failures)
+
         with self.assertRaises(OwnershipRefused):
             claim.release(owner=claim.lifecycle_owner)

@@ -15,6 +15,7 @@ from provider_core.delivery_worker import DeliveryWorker, DeliveryWorkerFailed, 
 def publication_api(material, proxy_socket):
     settings, _ = api_settings_from_material(material.api_fields(), credential_bytes=material.credential_bytes,
                                              ca_bytes=material.ca_bytes)
+
     http = replace(settings.http, proxy_socket=str(proxy_socket))
     return ProviderAPI(settings.identity, http.new_transport(), expected_topology=settings.expected_topology)
 
@@ -34,17 +35,22 @@ class SharedDeliveryWorker(DeliveryWorker):
     async def run(self):
         if self._running:
             raise ValueError("A delivery provider already has its serial worker.")
+
         self._running = True
         operation_failure, cleanup_failures = None, ()
+
         try:
             while not self.stopping.is_set() and not self.paused:
                 self._api_receipt_received = False
                 self.changed.clear()
+
                 handoff = await self.inbox.storage(
                     self.inbox.queue.next_pending_handoff, self.endpoint.api_origin, self.endpoint.provider_ref
                 )
+
                 if handoff is None:
                     return
+
                 self.api = publication_api(handoff.publication, self.proxy_socket)
                 await self._deliver(handoff.outcome)
                 await self.api.retire(owner=self)
@@ -57,18 +63,24 @@ class SharedDeliveryWorker(DeliveryWorker):
                     await self.api.retire(owner=self)
                 except BaseException as cause:
                     cleanup_failures = (cause,)
+
             self._running = False
+
         if operation_failure is not None or cleanup_failures:
             # silent-defaults: allow-contract -- No API failure exists if constructing the first API owner failed.
             self.failure = DeliveryWorkerFailed(
                 cause=operation_failure, api_failure=None if self.api is None else self.api.last_failure,
                 cleanup_failures=cleanup_failures, api_receipt_received=self._api_receipt_received,
             )
+
             self.on_notice(self.failure, {"event": "delivery_worker_failed", "api_origin": self.endpoint.api_origin,
                                           "provider_ref": self.endpoint.provider_ref})
+
             if isinstance(operation_failure, asyncio.CancelledError):
                 raise operation_failure from self.failure
+
             for cause in cleanup_failures:
                 if isinstance(cause, asyncio.CancelledError):
                     raise cause from self.failure
+
             raise self.failure from None

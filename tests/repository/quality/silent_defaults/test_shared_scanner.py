@@ -29,8 +29,10 @@ def is_literal_make_origin_gate(source: str, line: str) -> bool:
     https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/Makefile#L74-L78
     """
     path = Path(source)
+
     if path.name != "Makefile" and path.suffix != ".mk":
         return False
+
     return (
         re.fullmatch(
             r"[ ]*(?:override[ \t]+)?export[ \t]+[A-Za-z_][A-Za-z0-9_]*[ \t]*:=[ \t]*"
@@ -44,8 +46,10 @@ def is_literal_make_origin_gate(source: str, line: str) -> bool:
 
 def repo_files(patterns: tuple[str, ...]) -> list[Path]:
     paths: set[Path] = set()
+
     for pattern in patterns:
         paths.update(ROOT.glob(pattern))
+
     return sorted(path for path in paths if path.is_file() and not excluded(path))
 
 
@@ -62,12 +66,15 @@ def line_findings(
     skip_comments: bool = True,
 ) -> list[str]:
     findings: list[str] = []
+
     for path in paths:
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
             if skip_comments and line.lstrip().startswith("#"):
                 continue
+
             for match in matcher.finditer(line):
                 findings.append(f"{path.relative_to(ROOT)}:{line_number}: {label}: {match.group(0).strip()}")
+
     return findings
 
 
@@ -81,6 +88,7 @@ class SharedScannerTest(unittest.TestCase):
     def test_line_findings_reports_relative_paths_and_skips_comments(self) -> None:
         path = Path(__file__).resolve()
         findings = line_findings([path], re.compile(r"^SCANNER_TEST_MARKER = "), "marker")
+
         marker_line = next(
             line_number
             for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)

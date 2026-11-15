@@ -18,8 +18,10 @@ class NetworkGateTests(unittest.TestCase):
         environment.pop("NETWORK_INTERFACE_INPUT", None)
         # silent-defaults: allow-pop-default -- Strip the inherited fixed origin marker without consuming its previous value.
         environment.pop("NETWORK_INTERFACE_INPUT_ORIGIN", None)
+
         if interface is not None:
             environment["NETWORK_INTERFACE_INPUT"] = interface
+
         return subprocess.run(
             ["bash", "host/tools/docker.sh", "--print", "run", "--image", "fixture:worker", "--",
              "--read-only", "--entrypoint", "python3", "--", "-B", "-m", "fixture",

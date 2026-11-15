@@ -26,8 +26,10 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             config = root / "settings.toml"
+
             config.write_text('[outbox]\nprovider_items = 2\nprovider_bytes = 8192\ntotal_items = 4\n'
                               'total_bytes = 16384\nretry_initial_seconds = 1\nretry_max_seconds = 5\nlog_level = "INFO"\n')
+
             queue = DeliveryQueue(root, limits=QueueLimits(2, 8192, 4, 16384))
             item = outcome()
             queue.enqueue(item)
@@ -35,10 +37,13 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             queue.enqueue(outcome(suffix="1"))
             queue.close()
             output = io.StringIO()
+
             argv = ["delivery_discard", "--shared-config", str(config), "--state-directory", str(root),
                     "--api-origin", item.api_origin, "--provider-ref", item.provider_ref, "--list-held"]
+
             with patch("sys.argv", argv), contextlib.redirect_stdout(output):
                 delivery_discard.main()
+
             result = json.loads(output.getvalue())
             self.assertEqual(result["held"][0]["execution_attempt_ref"], item.execution_attempt_ref)
             self.assertEqual(result["pending"][0]["execution_attempt_ref"], outcome(suffix="1").execution_attempt_ref)
@@ -59,23 +64,29 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             live = SharedDeliveryConfiguration(path)
             settings = live.read()
             notices = Mock()
+
             service = SharedDeliveryService(root / "state", limits=settings.limits,
                 socket=SharedDeliverySocket(root / "delivery.sock", None), proxy_socket=root / "proxy.sock",
                 request_seconds=1, retry_initial_seconds=1, retry_max_seconds=10,
                 on_notice=notices, diagnostic_status=Mock(), live_configuration=live)
+
             service.queue = DeliveryQueue(root / "state", limits=settings.limits)
             self.addCleanup(service.queue.close)
             worker = SimpleNamespace(retry_initial_seconds=1, retry_max_seconds=10, policy_changed=asyncio.Event())
             service.workers[("https://api.example", "provider:example")] = worker
+
             fields = {"origin": "https://api.example", "profile": "dev-local", "topology": "dev-local",
                       "provider_ref": "provider:example", "exchange_seconds": 1, "retirement_seconds": 1,
                       "credential_file": "/gone/key"}
+
             _, _, material = api_settings_with_material(fields, Mock(return_value=encoded(document())))
             first = DeliveryHandoff(outcome(provider="provider:example"), material)
             second = DeliveryHandoff(outcome(provider="provider:example", suffix="1"), material)
             service.queue.enqueue_handoff(first)
+
             with self.assertRaises(DeliveryFull):
                 service.queue.enqueue_handoff(second)
+
             replacement = root / "replacement.toml"
             write(replacement, 2, 3)
             replacement.replace(path)

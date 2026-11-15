@@ -46,24 +46,30 @@ class ChatEndpointSpec:
                 f"Unexpected {type(self.configuration_id)=}; "
                 "Cannot configure interpreter endpoint: configuration_id must be a bounded ASCII identifier."
             )
+
         if re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", self.configuration_id) is None:
             raise ValueError("Cannot configure interpreter endpoint: configuration_id must be a bounded ASCII identifier.")
+
         if not (type(self.model) is str):
             raise TypeError(
                 f"Unexpected {type(self.model)=}; "
                 "Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes."
             )
+
         if not (self.model.strip() and self.model.isprintable() and len(self.model.encode('utf-8')) <= 512):
             raise ValueError(
                 "Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes."
             )
+
         if type(self.api_key) is not str:
             raise TypeError(
                 f"Unexpected {type(self.api_key)=}; "
                 "Cannot configure interpreter endpoint: an explicit header-safe API key is required."
             )
+
         if not (self.api_key) or any(not 32 < ord(char) < 127 for char in self.api_key):
             raise ValueError("Cannot configure interpreter endpoint: an explicit header-safe API key is required.")
+
         if self.reasoning_effort is not None and (
             type(self.reasoning_effort) is not str
             or not self.reasoning_effort
@@ -71,17 +77,21 @@ class ChatEndpointSpec:
             or not self.reasoning_effort.isalnum()
         ):
             raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
+
         if type(self.url) is not str:
             raise TypeError(
                 f"Unexpected {type(self.url)=}; "
                 "Cannot configure interpreter endpoint: URL must be canonical ASCII HTTPS text."
             )
+
         if any(not 32 < ord(char) < 127 for char in self.url):
             raise ValueError("Cannot configure interpreter endpoint: URL must be canonical ASCII HTTPS text.")
+
         try:
             url = httpx.URL(self.url)
         except httpx.InvalidURL:
             raise ValueError("Cannot configure interpreter endpoint: URL is not valid HTTPS.") from None
+
         if url.scheme != "https" or not url.host or url.userinfo or "?" in self.url or "#" in self.url or str(url) != self.url:
             raise ValueError(
                 "Cannot configure interpreter endpoint: use a canonical HTTPS URL without credentials, query or fragment."
@@ -97,8 +107,10 @@ def _encode_request(spec, messages, tools):
         "parallel_tool_calls": False,
         "stream": False,
     }
+
     if spec.reasoning_effort is not None:
         request["reasoning_effort"] = spec.reasoning_effort
+
     return _json_bytes(request)
 
 
@@ -136,15 +148,19 @@ class ChatEndpointFactory:
 
 def _request_echoes(messages, key):
     texts = [key]
+
     for message in messages:
         if type(message) is not dict:
             continue
+
         texts.append(message.get("content"))
         calls = message.get("tool_calls")
+
         if type(calls) is list:
             for call in calls:
                 if type(call) is dict and type(call.get("function")) is dict:
                     texts.append(call["function"].get("arguments"))
+
     # repo-check: allow-tuple-generator -- Capture fixed secret spellings once for redaction across the asynchronous exchange.
     return tuple(spelling for text in texts if type(text) is str and text
                  for spelling in (text, json.dumps(text, ensure_ascii=True)[1:-1]))
@@ -155,16 +171,22 @@ def _without_echoes(value, echoes):
     # src/secs_inference/provider/chat.py::_diagnostic_text: merge original
     # matches so replacing a key cannot expose a larger overlapping prompt echo.
     spans = []
+
     for echo in echoes:
         start = value.find(echo)
+
         while start >= 0:
             spans.append((start, start + len(echo)))
             start = value.find(echo, start + 1)
+
     parts, end = [], 0
+
     for start, stop in sorted(spans):
         if start >= end:
             parts.extend((value[end:start], "[redacted]"))
+
         end = max(end, stop)
+
     parts.append(value[end:])
     # silent-defaults: allow-contract -- Replace nonprinting diagnostic characters with spaces while retaining readable redacted structure.
     return " ".join("".join(char if char.isprintable() else " " for char in "".join(parts)).split())
@@ -178,24 +200,31 @@ def _endpoint_error(response, messages, key):
     paraphrased input is not detected. Consumers redact all configured secrets
     before display limits; truncating here could expose another key's prefix.
     """
+
     try:
         document = read_document(response.body, 8192)
     # silent-defaults: allow-exception-outcome -- Unreadable optional service detail is explicitly unavailable and never replaces the HTTP refusal
     except ResponseRejected:
         return {"detail_unavailable": "The model service error detail was not complete readable JSON within 8192 bytes."}
+
     # silent-defaults: allow-contract -- A non-object response supplies no usable error object.
     fields = document.get("error") if type(document) is dict else None
+
     if type(fields) is not dict:
         return {"detail_unavailable": "The model service response contained no readable error object."}
+
     echoes = _request_echoes(messages, key)
+
     result = {name: _without_echoes(fields[name], echoes)
               for name in ("message", "type", "code", "param") if type(fields.get(name)) is str}
+
     # silent-defaults: allow-contract -- An empty reviewed diagnostic selection reports detail unavailable without exposing the response body.
     return result or {"detail_unavailable": "The model service response contained no readable error fields."}
 
 
 def require_chat_limits(*, request_bytes, response_bytes):
     """Admit carrier limits before startup gives it a transport."""
+
     if any(type(value) is not int or value <= 0 for value in (request_bytes, response_bytes)):
         raise ValueError("Cannot configure interpreter carrier: request and response byte limits must be positive integers.")
 
@@ -214,9 +243,12 @@ class ChatEndpoint:
                 f"Unexpected {type(spec)=}; "
                 "Cannot configure interpreter carrier: explicit ChatEndpointSpec is required."
             )
+
         require_chat_limits(request_bytes=request_bytes, response_bytes=response_bytes)
+
         if error_response_bytes is None:
             error_response_bytes = response_bytes
+
         require_chat_limits(request_bytes=request_bytes, response_bytes=error_response_bytes)
         self.spec, self._transport = spec, transport
         self._request_bytes, self._response_bytes = request_bytes, response_bytes
@@ -225,6 +257,7 @@ class ChatEndpoint:
     @property
     def identity(self):
         """Project configured facts without key/URL text or authentication identity."""
+
         configuration = {
             "configuration_id": self.spec.configuration_id,
             "model": self.spec.model,
@@ -234,6 +267,7 @@ class ChatEndpoint:
             "response_bytes": self._response_bytes,
             "error_response_bytes": self._error_response_bytes,
         }
+
         return _json_bytes(
             {
                 "configuration_id": self.spec.configuration_id.replace(self.spec.api_key, "[redacted]"),
@@ -264,17 +298,20 @@ class ChatEndpoint:
         configured cleanup allowance for the original exchange.
         """
         content = _encode_request(self.spec, messages, tools)
+
         if len(content) > self._request_bytes:
             raise ChatFailed(
                 "request_limit",
                 f"Cannot send interpreter request: its {len(content)} bytes exceed the {self._request_bytes}-byte limit; this turn was not sent.",
             )
+
         wire = httpx.Request(
             "POST",
             self.spec.url,
             headers={"Authorization": "Bearer " + self.spec.api_key, "Content-Type": "application/json"},
             content=content,
         )
+
         try:
             response = await self._transport.exchange_decoded(
                 wire, maximum_bytes=self._response_bytes, error_maximum_bytes=self._error_response_bytes,
@@ -286,6 +323,7 @@ class ChatEndpoint:
                 "Interpretation was interrupted; the model request may have been processed, but no tool was accepted. No resend was attempted.",
                 cause=self._transport.last_failure,
             )
+
             failure.interruption_cause = interruption.__cause__
             # Transport retains this same cancellation as its primary. The
             # protected renderer preserves that reference cycle with node IDs.
@@ -296,6 +334,7 @@ class ChatEndpoint:
                 "Cannot complete interpreter request: HTTPS I/O failed; inspect its protected cause and retirement state.",
                 cause=cause,
             ) from None
+
         if response.status != 200:
             raise ChatFailed(
                 "http_status",
@@ -303,23 +342,29 @@ class ChatEndpoint:
                 response=response,
                 endpoint_error=_endpoint_error(response, messages, self.spec.api_key),
             )
+
         try:
             document = read_document(response.body, self._response_bytes)
+
             if type(document) is not dict or type(document.get("choices")) is not list or len(document["choices"]) != 1:
                 raise ResponseRejected("Model reply must contain exactly one completion.")
+
             choice = document["choices"][0]
+
             if (
                 type(choice) is not dict
                 or type(choice.get("message")) is not dict
                 or choice["message"].get("role") != "assistant"
             ):
                 raise ResponseRejected("Model reply must contain one assistant message.")
+
             if choice.get("finish_reason") == "length":
                 raise ChatFailed(
                     "completion_limit",
                     "Cannot interpret the model reply: generation stopped at the service's completion limit; no tool was accepted.",
                     response=response,
                 )
+
             if choice.get("finish_reason") not in ("stop", "tool_calls"):
                 raise ResponseRejected("Model service did not report a completed assistant reply.")
         except ResponseRejected as cause:
@@ -329,4 +374,5 @@ class ChatEndpoint:
                 cause=cause,
                 response=response,
             ) from None
+
         return choice["message"]

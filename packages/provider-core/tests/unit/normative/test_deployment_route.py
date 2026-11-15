@@ -20,18 +20,21 @@ from tests.unit.normative.test_deployment_binding import definition
 class DeploymentRouteTests(unittest.TestCase):
     def binding(self, mode):
         raw = definition(1)
+
         if mode == "local":
             raw = raw.replace(b'mode = "mapped"', b'mode = "local"\nnetwork_id = "' + b"b" * 64 + b'"')
             raw = raw.replace(b"api.example=127.0.0.1", b"api.example=172.18.0.5")
         elif mode == "external":
             raw = raw.replace(b'mode = "mapped"', b'mode = "external"')
             raw = raw.replace(b'addresses = ["api.example=127.0.0.1"]', b'resolver_file = "/synthetic/resolver"')
+
         return parse_deployment_bindings(raw).selected("fixture-0")
 
     def render(self, binding, **changes):
         arguments = {"image": "sha256:" + "a" * 64, "interpreter": "/opt/provider/bin/python",
                      "namespace": "provider-one", "uid": 65532, "gid": 65532,
                      "storage": NamedRouteVolume(), "input_sources": {}}
+
         arguments.update(changes)
         return render_api_route(binding, **arguments)
 
@@ -41,14 +44,17 @@ class DeploymentRouteTests(unittest.TestCase):
 
     def test_actual_identity_gets_separate_private_storage_and_readonly_client_grant(self):
         binding = self.binding("mapped")
+
         with patch("provider_core.deployment_binding.read_startup_file") as read:
             provider = self.render(binding)
             delivery = self.render(binding, namespace="delivery-one", uid=1000, gid=1000)
+
         read.assert_not_called()
         self.assertEqual(provider.client_socket, delivery.client_socket)
         self.assertNotEqual(provider.client_mount["source"], delivery.client_mount["source"])
         self.assertTrue(provider.client_mount["read_only"])
         self.assertTrue(delivery.client_mount["read_only"])
+
         for projection, uid in ((provider, 65532), (delivery, 1000)):
             proxy = self.proxy(projection)
             self.assertEqual(f"{uid}:{uid}", proxy["user"])
@@ -96,9 +102,11 @@ class DeploymentRouteTests(unittest.TestCase):
                 proxy = self.proxy(projection)
                 self.assertEqual("proxy", proxy["labels"]["org.nmr-provider-tools.route-role"])
                 self.assertEqual("provider-one", proxy["labels"]["org.nmr-provider-tools.route"])
+
                 for service in projection.compose["services"].values():
                     self.assertEqual(proxy["labels"]["org.nmr-provider-tools.binding"],
                                      service["labels"]["org.nmr-provider-tools.binding"])
+
                     if service is not proxy:
                         self.assertEqual("initializer", service["labels"]["org.nmr-provider-tools.route-role"])
 
@@ -106,21 +114,25 @@ class DeploymentRouteTests(unittest.TestCase):
         for mode in ("mapped", "local", "external"):
             with self.subTest(mode=mode):
                 sources = {}
+
                 if mode == "external":
                     sources = {"/synthetic/resolver": "/frozen/api-resolv.conf",
                                "/synthetic/signing.json": "/frozen/signing.json"}
+
                 projection = self.render(self.binding(mode), input_sources=sources)
                 proxy = self.proxy(projection)
                 command = proxy["command"]
                 self.assertEqual("api.example:443", command[command.index("--authority") + 1])
                 self.assertEqual("lo", command[command.index("--interface") + 1])
                 self.assertNotIn("/frozen/signing.json", json.dumps(projection.compose))
+
                 if mode == "local":
                     self.assertNotIn("network_mode", proxy)
                     self.assertEqual([{"external": True, "name": "b" * 64}], list(projection.compose["networks"].values()))
                 else:
                     self.assertEqual("host", proxy["network_mode"])
                     self.assertEqual({}, projection.compose["networks"])
+
                 if mode == "external":
                     self.assertNotIn("--address", command)
                     resolver = proxy["volumes"][1]
@@ -129,8 +141,10 @@ class DeploymentRouteTests(unittest.TestCase):
                     self.assertTrue(resolver["read_only"])
                 else:
                     expected = "api.example=127.0.0.1"
+
                     if mode == "local":
                         expected = "api.example=172.18.0.5"
+
                     self.assertEqual(expected, command[command.index("--address") + 1])
                     self.assertEqual(1, len(proxy["volumes"]))
 
@@ -168,6 +182,7 @@ class DeploymentRouteTests(unittest.TestCase):
     def test_explicit_service_identity_is_stable_across_binding_changes(self):
         first = self.binding("local")
         second = parse_deployment_bindings(definition(2)).selected("fixture-1")
+
         for storage in (NamedRouteVolume(), RouteDirectory(Path("/runtime/private-api"))):
             with self.subTest(storage=type(storage).__name__):
                 prior = self.render(first, service_name="api", storage=storage)
@@ -177,10 +192,13 @@ class DeploymentRouteTests(unittest.TestCase):
                 self.assertNotEqual(prior.client_socket, changed.client_socket)
                 self.assertIn("api", prior.compose["services"])
                 self.assertEqual({"api": {"external": True, "name": "b" * 64}}, prior.compose["networks"])
+
                 if type(storage) is NamedRouteVolume:
                     self.assertEqual({"api", "api-init"}, set(prior.compose["services"]))
+
                     self.assertEqual({"api-init": {"condition": "service_completed_successfully"}},
                                      prior.compose["services"]["api"]["depends_on"])
+
                     self.assertNotEqual(prior.client_mount["source"], changed.client_mount["source"])
                 else:
                     self.assertEqual({"api"}, set(prior.compose["services"]))
@@ -190,6 +208,7 @@ class DeploymentRouteTests(unittest.TestCase):
             source = Path(directory) / "binding.toml"
             source.write_bytes(definition(1))
             source.chmod(0o600)
+
             result = subprocess.run(
                 [sys.executable, "-I", "-B", "-m", "provider_core.deployment_route", "render",
                  "--definition", str(source), "--binding", "fixture-0", "--service-name", "api", "--image", "sha256:" + "a" * 64,
@@ -197,6 +216,7 @@ class DeploymentRouteTests(unittest.TestCase):
                  "--gid", "65532", "--directory", "/runtime/private-api"],
                 capture_output=True, text=True, check=False, timeout=5,
             )
+
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual("", result.stderr)
         projected = json.loads(result.stdout)
@@ -210,6 +230,7 @@ class DeploymentRouteTests(unittest.TestCase):
             root.chmod(0o700)
             (root / "retained").write_bytes(b"retained")
             observed = root.lstat()
+
             with patch("provider_core.deployment_route.os.geteuid", return_value=0), patch(
                 "provider_core.deployment_route.os.fchown"
             ) as chown, patch("provider_core.deployment_route.os.open", wraps=os.open) as opened, patch(
@@ -217,6 +238,7 @@ class DeploymentRouteTests(unittest.TestCase):
                     st_uid=65532, st_gid=65532, st_mode=observed.st_mode)
             ):
                 initialize_route(65532, 65532, root)
+
             chown.assert_not_called()
             opened.assert_not_called()
             self.assertEqual(b"retained", (root / "retained").read_bytes())
@@ -226,18 +248,22 @@ class DeploymentRouteTests(unittest.TestCase):
             root = Path(directory)
             root.chmod(0o755)
             root_status = SimpleNamespace(st_uid=0, st_gid=0, st_mode=stat.S_IFDIR | 0o755)
+
             with patch("provider_core.deployment_route.os.geteuid", return_value=0), patch(
                 "provider_core.deployment_route.os.fstat", return_value=root_status
             ), patch("provider_core.deployment_route.os.fchown") as chown:
                 initialize_route(65532, 65532, root)
+
             self.assertEqual(0o700, stat.S_IMODE(root.stat().st_mode))
             self.assertEqual((65532, 65532), chown.call_args.args[1:])
             (root / "retained").write_bytes(b"retained")
+
             with patch("provider_core.deployment_route.os.geteuid", return_value=0), patch(
                 "provider_core.deployment_route.os.fstat", return_value=root_status
             ), patch("provider_core.deployment_route.os.fchown") as chown:
                 with self.assertRaises(RouteProjectionRejected):
                     initialize_route(65532, 65532, root)
+
             chown.assert_not_called()
             self.assertEqual(b"retained", (root / "retained").read_bytes())
 
@@ -248,9 +274,11 @@ class DeploymentRouteTests(unittest.TestCase):
             target.mkdir(mode=0o755)
             link = root / "link"
             link.symlink_to(target, target_is_directory=True)
+
             with patch("provider_core.deployment_route.os.geteuid", return_value=0):
                 with self.assertRaises(RouteProjectionRejected):
                     initialize_route(65532, 65532, link)
+
             self.assertEqual(0o755, stat.S_IMODE(target.stat().st_mode))
 
     def test_initializer_keeps_admission_and_close_failure(self):
@@ -260,12 +288,15 @@ class DeploymentRouteTests(unittest.TestCase):
             primary = OSError(errno.EIO, "private stat failure")
             cleanup = OSError(errno.EIO, "private close failure")
             real_close = os.close
+
             def close_then_fail(descriptor):
                 real_close(descriptor)
                 raise cleanup
+
             with patch("provider_core.deployment_route.os.geteuid", return_value=0), patch(
                 "provider_core.deployment_route.os.fstat", side_effect=primary
             ), patch("provider_core.deployment_route.os.close", side_effect=close_then_fail):
                 with self.assertRaises(BaseExceptionGroup) as failed:
                     initialize_route(65532, 65532, root)
+
             self.assertEqual((primary, cleanup), failed.exception.exceptions)

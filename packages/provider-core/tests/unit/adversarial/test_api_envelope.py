@@ -27,12 +27,16 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
 
     def test_explicit_topology_is_required_before_any_exchange(self):
         transport = Transport()
+
         with self.assertRaises(TypeError):
             ProviderAPI(self.identity(), transport)
+
         for topology, error_type in ((None, TypeError), ("run", ValueError), ("PRIVATE", ValueError), (True, TypeError), ([], TypeError)):
             with self.subTest(topology_type=type(topology).__name__), self.assertRaises(error_type) as caught:
                 ProviderAPI(self.identity(), transport, expected_topology=topology)
+
             self.assertNotIn("PRIVATE", str(caught.exception))
+
         self.assertEqual(transport.calls, [])
 
     async def test_missing_foreign_or_duplicate_topology_rejects_valid_input_and_hello(self):
@@ -42,11 +46,13 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
                     observed = reply(receipt() if hello else response(), headers=(*HEADERS, *markers, CORRELATION))
                     transport = Transport(observed)
                     api = self.api(transport)
+
                     with self.assertRaises(ApiFailure) as caught:
                         if hello:
                             await api.publish_hello(**announcement())
                         else:
                             await api.job_input(facts(), analysis_kind_ref="nmr_predict")
+
                     self.assertIs(caught.exception.response, observed)
                     self.assertEqual((caught.exception.status, caught.exception.request_id), (200, "request:header"))
                     self.assertIsNone(caught.exception.problem_code)
@@ -60,8 +66,10 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
             ((CORRELATION, CORRELATION), None),
         ):
             observed = reply(b'{"PRIVATE":', headers=(*HEADERS, MARKER, *ids))
+
             with self.subTest(ids=ids), self.assertRaises(ApiFailure) as caught:
                 await self.api(Transport(observed)).job_input(facts(), analysis_kind_ref="nmr_predict")
+
             self.assertEqual(caught.exception.request_id, expected)
             self.assertNotIn("PRIVATE", str(caught.exception))
             self.assertIs(caught.exception.response, observed)
@@ -69,8 +77,10 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
     async def test_duplicate_request_ids_reject_an_otherwise_valid_success_body(self):
         observed = reply(response(), headers=(*HEADERS, MARKER, CORRELATION, CORRELATION))
         transport = Transport(observed)
+
         with self.assertRaises(ApiFailure) as caught:
             await self.api(transport).job_input(facts(), analysis_kind_ref="nmr_predict")
+
         self.assertIs(caught.exception.response, observed)
         self.assertIsNone(caught.exception.request_id)
         self.assertEqual(len(transport.calls), 1)
@@ -78,8 +88,10 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
     async def test_late_head_is_diagnostic_and_never_downgrades_grant_uncertainty(self):
         cause = ExchangeFailed("Incomplete exchange", primary=OSError("PRIVATE"))
         api = self.api(Transport(cause))
+
         with self.assertRaises(ApiFailure) as caught:
             await api.read_grant("job:example", UPLOAD_REF)
+
         failure = caught.exception
         self.assertEqual((failure.status, failure.request_id), (None, None))
         self.assertTrue(failure.issuance_may_have_committed)
@@ -101,6 +113,7 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
                 "detail": "PRIVATE",
             }
         ).encode()
+
         for topology, request_id, known in (
             (b"dev-local", b"request:body", True),
             (b"dev-local", b"request:other", False),
@@ -110,8 +123,10 @@ class ApiEnvelopeTests(unittest.IsolatedAsyncioTestCase):
             transport = Transport(
                 reply(body, status=401, headers=response_headers(topology=topology, request_id=request_id, status=401))
             )
+
             with self.subTest(topology=topology, request_id=request_id), self.assertRaises(ApiFailure) as caught:
                 await self.api(transport).read_grant("job:example", UPLOAD_REF)
+
             # silent-defaults: allow-contract -- Only the known correlated problem obtains the reviewed local code.
             self.assertEqual(caught.exception.problem_code, "signature_expired" if known else None)
             self.assertEqual(caught.exception.issuance_may_have_committed, not known)

@@ -49,6 +49,7 @@ class ConfiguredMemberTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "before a configured binding owns it"):
             contribution.ref(unbound)
+
         self.assertEqual("run", contribution.ref(binding.run).name)
 
     def test_sibling_rejects_a_member_even_when_metadata_are_equal(self):
@@ -71,8 +72,10 @@ class ConfiguredMemberTests(unittest.TestCase):
         self.assertIsNot(first.run, second.run)
         self.assertEqual(contribution.ref(first.run), contribution.ref(second.run))
         self.assertEqual(contribution.ref(original.run), original.ref(original.run))
+
         with self.assertRaisesRegex(ValueError, "before a configured binding owns it"):
             contribution.ref(declaration)
+
         with self.assertRaisesRegex(ValueError, "another configured binding"):
             first.ref(second.run)
 
@@ -100,7 +103,9 @@ class ConfiguredMemberTests(unittest.TestCase):
             settings=science.WeightedSumSettings(scale=2, offset=1),
             coefficients=science.CoefficientSet(values=(1, 2, 3)),
         )
+
         plain = sum_binding()
+
         binding = MixedBinding(
             identity=plain.identity,
             instance=weighted.instance,
@@ -109,17 +114,21 @@ class ConfiguredMemberTests(unittest.TestCase):
             isolation=weighted.isolation,
             run=plain.run,
         )
+
         model = binding.instance.construct()
         analysis = binding.analysis.construct(model)
+
         try:
             # The unary sum has no dependency on loaded coefficients or an
             # initialized analysis, although its implementation owns both hooks.
             self.assertIsNone(model.loaded_coefficients)
             self.assertFalse(analysis.is_open)
+
             returned = binding.run.invoke(
                 model, analysis, science.SumInput(values=(1, 2, 3)),
                 {}, UnusedControl(),
             )
+
             self.assertEqual(science.SumResult(total=6, count=3), returned.value)
             self.assertEqual((), returned.states)
             self.assertIsNone(model.loaded_coefficients)

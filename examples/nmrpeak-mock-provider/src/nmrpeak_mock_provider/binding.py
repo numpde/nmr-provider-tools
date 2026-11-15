@@ -41,6 +41,7 @@ class PeakContribution(sdk.Contribution):
 
     def close(self) -> None:
         """Close any model created by initialize, including a partially loaded one."""
+
         if self.model is not None:
             self.model.close()
 

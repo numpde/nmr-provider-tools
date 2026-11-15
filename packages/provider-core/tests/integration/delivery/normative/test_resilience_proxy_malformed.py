@@ -16,11 +16,14 @@ class MalformedProxyResponseTests(unittest.IsolatedAsyncioTestCase):
             async with UnixProxy(peer.origin, 'malformed') as proxy:
                 transport = HttpTransport(trust=peer.trust, exchange_seconds=2,
                                           retirement_seconds=1, proxy_socket=proxy.path)
+
                 client = api(transport, peer.origin)
+
                 try:
                     with self.assertRaises(ApiFailure) as caught:
                         await client.jobs(analysis_kind_ref='mol_from_1h_spectrum_formula',
                                           has_provider_execution_attempt=False, limit=1, cursor=None)
+
                     await client.retire()
                     self.assertTrue(client.retirement_confirmed)
                     self.assertIs(type(caught.exception.cause.primary), httpcore.RemoteProtocolError)

@@ -83,20 +83,26 @@ class RunnerSession:
     def connect(self, *, deadline=None):
         if self._connect_started:
             raise ValueError("Runner session connect is single-use; retain its original setup operation.")
+
         self._connect_started = True
         phase_deadline = time.monotonic() + self._startup
         deadline = phase_deadline if deadline is None else min(deadline, phase_deadline)
         self._connect_control(deadline)
+
         try:
             with self._control_state:
                 self._connected = True
+
                 if self._stop_requested.is_set():
                     self.control.shutdown(socket.SHUT_WR)
+
             greeting, self.science = receive_greeting(self.control, deadline=deadline)
+
             if greeting["role"] != self.role or tuple(greeting["lock"]) != self.expected_lock_identity:
                 self.science.close()
                 self.science = None
                 raise LifecycleRejected("Runner greeting does not match the admitted role and stable lifetime lock.")
+
             self.generation, self.operation = greeting["generation"], greeting["operation"]
             self.lock_identity = tuple(greeting["lock"])
         except BaseException as cause:
@@ -107,23 +113,30 @@ class RunnerSession:
         while True:
             if self._stop_requested.is_set():
                 raise RunnerStartupStopped("Runner startup was stopped before connecting to its control endpoint.")
+
             remaining = deadline - time.monotonic()
+
             if remaining <= 0:
                 raise RunnerStartupUnavailable("Runner control endpoint was not connected within its startup budget.")
+
             self.control.settimeout(remaining)
+
             try:
                 self.control.connect(self.path)
                 return
             except OSError as cause:
                 if cause.errno not in (errno.ENOENT, errno.ECONNREFUSED):
                     raise
+
                 self._stop_requested.wait(min(0.02, max(0, deadline - time.monotonic())))
 
     def request_stop(self):
         with self._control_state:
             self._local_interruption = True
+
             if not self._stop_requested.is_set():
                 self._stop_requested.set()
+
                 if self._connected:
                     self.control.shutdown(socket.SHUT_WR)
 
@@ -133,24 +146,29 @@ class RunnerSession:
         Bindings must also call this before their own internal transport cleanup.
         It records intent without sending a stop or changing an earlier exit fact.
         """
+
         with self._control_state:
             self._local_interruption = True
 
     @property
     def original_exit(self):
         """Return the original exit fact; later cleanup cannot establish its cause."""
+
         with self._control_state:
             return self._original_exit
 
     def retire(self, *, deadline=None):
         if self.retirement is None:
             self.request_stop()
+
         self.observe_retirement(deadline=deadline)
 
     def observe_retirement(self, *, deadline=None):
         """Receive cleanup facts without causing retirement (including cap expiry)."""
+
         if not self._retirement_reader.acquire(blocking=False):
             raise LifecycleRejected("Runner retirement already has an original reader; join that observation instead of reading another frame.")
+
         try:
             self._observe_retirement(deadline)
         finally:
@@ -161,14 +179,18 @@ class RunnerSession:
             raise LifecycleRejected(
                 "Original runner control setup or lifecycle read failed; preserve its cause and use bounded lifecycle recovery, not a second frame read."
             ) from self._observation_failure
+
         if self.retirement is None:
             self.control.settimeout(self._cleanup)
+
             try:
                 phase_deadline = time.monotonic() + self._cleanup
                 effective = phase_deadline if deadline is None else min(deadline, phase_deadline)
                 retirement = self._receive_retirement(effective)
+
                 with self._control_state:
                     self.retirement = retirement
+
                     if retirement.reason == "exited" and not self._local_interruption:
                         self._original_exit = OriginalWorkerExit(
                             self.role, self.generation, self.operation, retirement.returncode,
@@ -178,12 +200,14 @@ class RunnerSession:
                 # this owner until the binding's proof session settles it.
                 self._observation_failure = cause
                 raise
+
         if not self.retirement.scratch_released:
             raise LifecycleRejected("Runner child stopped but its scratch cleanup remains unconfirmed.",
                                     returncode=self.retirement.returncode, scratch_released=False)
 
     def _receive_retirement(self, deadline):
         reply = receive_document(self.control, deadline=deadline)
+
         if (
             set(reply) != {"kind", "generation", "operation", "returncode", "scratch_released", "reason"}
             or reply["kind"] != "retired" or reply["generation"] != self.generation
@@ -194,12 +218,16 @@ class RunnerSession:
             raise LifecycleRejected(
                 "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
             )
+
         if not -signal.NSIG < reply["returncode"] < 256:
             raise LifecycleRejected("Runner retirement has an impossible operating-system exit status; its cause remains unknown.")
+
         return Retirement(reply["returncode"], reply["scratch_released"], reply["reason"])
 
     def close(self):
         self.mark_interruption()
+
         if self.science is not None:
             self.science.close()
+
         self.control.close()

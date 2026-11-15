@@ -34,6 +34,7 @@ RECOVERY_SECONDS = 7.0
 def _event(path, kind, **facts):
     document = {"kind": kind, "pid": os.getpid(), "at": time.monotonic(), **facts}
     descriptor = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
+
     try:
         os.write(descriptor, json.dumps(document).encode() + b"\n")
     finally:
@@ -55,9 +56,12 @@ def install_fault(stack, path):
 
     async def marked_perform(self, request, *args, **kwargs):
         state = None
+
         if request.url.path == "/hang":
             state = {"cancelled": False, "engaged": False}
+
         token = active.set(state)
+
         try:
             return await perform(self, request, *args, **kwargs)
         finally:
@@ -68,17 +72,21 @@ def install_fault(stack, path):
             return await read(self, *args, **kwargs)
         except asyncio.CancelledError:
             state = active.get()
+
             if state is not None:
                 state["cancelled"] = True
                 _event(path, "read_cancelled")
+
             raise
 
     async def held_close(self):
         state = active.get()
+
         if state is not None and state["cancelled"]:
             if not state["engaged"]:
                 state["engaged"] = True
                 _event(path, "cleanup_engaged")
+
             # A real HTTP implementation that cannot finish its cancellation
             # cleanup. No test-side release occurs before the recovery verdict.
             while True:
@@ -86,6 +94,7 @@ def install_fault(stack, path):
                     await asyncio.sleep(0.02)
                 except asyncio.CancelledError:
                     _event(path, "cleanup_ignored_cancellation")
+
         await close(self)
 
     stack.enter_context(patch.object(HttpTransport, "_perform", marked_perform))
@@ -101,6 +110,7 @@ def http_worker(path):
         _event(path, "term_ignored")
 
     signal.signal(signal.SIGTERM, ignore_termination)
+
     with ExitStack() as stack:
         install_fault(stack, path)
         main()
@@ -110,17 +120,21 @@ def warm_worker():
     """One process initialization, with observable preparation/execution counts."""
     state = {"pid": os.getpid(), "model_loads": 1, "preparations": 0, "executions": 0, "retirements": 0}
     handles = set()
+
     for line in sys.stdin:
         request = json.loads(line)
         operation, job = request["operation"], request.get("job")
+
         if operation == "prepare":
             if job in handles:
                 raise AssertionError("Fixture preparation was repeated")
+
             handles.add(job)
             state["preparations"] += 1
         elif operation == "execute":
             if job not in handles:
                 raise AssertionError("Fixture execution did not own its prepared handle")
+
             handles.remove(job)
             state["executions"] += 1
         elif operation == "retire":
@@ -128,6 +142,7 @@ def warm_worker():
             state["retirements"] += 1
         elif operation != "snapshot":
             raise AssertionError("Unknown fixture worker request")
+
         print(json.dumps(state), flush=True)
 
 
@@ -138,6 +153,7 @@ class WarmWorker:
             stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
+
         self.initial = await self.call("snapshot")
 
     async def call(self, operation, job=None):
@@ -145,8 +161,10 @@ class WarmWorker:
         await self.process.stdin.drain()
         # Worker IPC is not the original model HTTP request's deadline.
         line = await asyncio.wait_for(self.process.stdout.readline(), 3)
+
         if not line:
             raise AssertionError("The persistent worker stopped before the recovery verdict")
+
         return json.loads(line)
 
 
@@ -159,12 +177,15 @@ def _failure_types(error):
     def visit(current):
         if current is None or id(current) in seen:
             return
+
         seen.add(id(current))
         types.add(type(current).__name__)
         visit(current.__cause__)
         visit(current.__context__)
+
         for _, child in owned_relationships(current):
             visit(child)
+
         if isinstance(current, BaseExceptionGroup):
             for child in current.exceptions:
                 visit(child)
@@ -200,14 +221,19 @@ async def scenario(marker, report):
         async def exchange(self, request, *, maximum_bytes, owner=None):
             self.calls.append((request, maximum_bytes))
             path = request.url.path
+
             if path.endswith("/start"):
                 return reply(start_response(job_ref=self.job, execution_attempt_ref=self.reference))
+
             if path.endswith("/progress"):
                 sent = json.loads(request.content)
+
                 return reply(progress_response(execution_attempt_ref=self.reference,
                                                phase=sent["phase"], condition_code=sent["condition_code"]))
+
             if request.method == "GET":
                 return reply(observation(job_ref=self.job, execution_attempt_ref=self.reference))
+
             raise AssertionError("Unexpected API request in the recovery fixture")
 
     class Session:
@@ -217,12 +243,14 @@ async def scenario(marker, report):
             self.handle = None
             self.failure = None
             self.retired = False
+
             factory = ChatEndpointFactory(
                 spec=ChatEndpointSpec(configuration_id="recovery-fixture", model="fixture", url=endpoint,
                                       api_key="PRIVATE_FIXTURE_KEY", reasoning_effort=None),
                 trust=trust, retirement_seconds=CLEANUP_SECONDS,
                 request_bytes=32768, response_bytes=8192,
             )
+
             self.interpreter = Interpreter(
                 (factory,),
                 timeout_seconds=BLOCKED_MODEL_SECONDS if endpoint.endswith("/hang") else HEALTHY_MODEL_SECONDS,
@@ -231,12 +259,14 @@ async def scenario(marker, report):
 
         async def prepare(self, acknowledged, instructions, *, report_condition):
             self.prepare_calls += 1
+
             if acknowledged.start.input != instructions.identity:
                 raise AssertionError("Fixture preparation changed its original input")
 
             async def dispatch(name, arguments, *, not_after):
                 if name != "prepare" or arguments:
                     raise AssertionError("Unexpected model tool")
+
                 report_condition.require_execution()
                 self.tool_calls += 1
                 await self.worker.call("prepare", self.job)
@@ -245,10 +275,12 @@ async def scenario(marker, report):
 
             tools = [{"type": "function", "function": {
                 "name": "prepare", "parameters": {"type": "object", "properties": {}}}}]
+
             try:
                 result = await self.interpreter.run([], tools, dispatch)
             except InterpretationFailed as failure:
                 self.failure = failure
+
                 failed = AnalysisFailure(
                     "interpreter_failed", "The model request did not complete within its time allowance.",
                     ProtectedEvidence("fixture.interpreter.failure.v1", b"original failure retained by session"),
@@ -258,23 +290,28 @@ async def scenario(marker, report):
                 raise
             else:
                 return result.value
+
             return failed
 
         async def execute(self, prepared, *, report_condition):
             if prepared is not self.handle or self.handle is None:
                 raise AssertionError("Fixture execution changed its prepared handle")
+
             report_condition.require_execution()
             self.execute_calls += 1
             result = await self.worker.call("execute", self.job)
             self.handle = None
+
             return AnalysisSuccess("fixture.result.v1", json.dumps(result).encode(),
                                    ProtectedEvidence("fixture.result.evidence.v1", b"one fixture execution"))
 
         async def retire(self):
             self.retire_calls += 1
             await self.interpreter.retire()
+
             if not self.interpreter.retirement_confirmed:
                 raise AssertionError("Original interpreter has not confirmed retirement")
+
             if not self.retired:
                 await self.worker.call("retire", self.job)
                 self.retired = True
@@ -296,8 +333,10 @@ async def scenario(marker, report):
 
     body = json.dumps({"choices": [{"message": call("prepared", "prepare", {}),
                                   "finish_reason": "tool_calls"}]}).encode()
+
     with ExitStack() as stack:
         install_fault(stack, marker)
+
         try:
             import provider_core.chat_process as chat_process
         except ModuleNotFoundError as error:
@@ -314,15 +353,19 @@ async def scenario(marker, report):
 
             async def lane():
                 nonlocal lane_failure
+
                 try:
                     for index, name in enumerate(("warmup", "hung", "next"), start=1):
                         job = "job:" + name
                         base = record("recovery:" + name)
+
                         pending = StartPending(scope(), base.analysis_kind_ref, replace(base.input, job_ref=job),
                                                retained_start(job_ref=job, provider_attempt_key="recovery:" + name))
+
                         # silent-defaults: allow-contract -- The middle Job alone selects the injected fault; warmup and recovery use the healthy route.
                         session = Session(job, peer.origin + ("/hang" if name == "hung" else "/ready"), trust, worker)
                         transport = ApiTransport(job, index)
+
                         controller = AttemptController.live(
                             api(transport, scope().api_origin), claims, session,
                             scope=scope(), stopping=stopping,
@@ -333,14 +376,18 @@ async def scenario(marker, report):
                             delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
                             poll_seconds=1, task_settle_seconds=0.1,
                         )
+
                         controllers.append(controller)
                         sessions.append(session)
                         started.append(name)
+
                         if name == "hung":
                             timing["started"] = time.monotonic()
                             warm.set()
+
                         await controller.run(pending)
                         finished.append(name)
+
                         if name == "next":
                             timing["completed"] = time.monotonic()
                 except Exception as error:
@@ -359,6 +406,7 @@ async def scenario(marker, report):
             # silent-defaults: allow-contract -- Missing engagement records no owner PID; the test independently requires engagement and a distinct child PID.
             fault_pid = engaged[0]["pid"] if engaged else None
             alive = False
+
             if fault_pid is not None:
                 try:
                     os.kill(fault_pid, 0)
@@ -367,9 +415,12 @@ async def scenario(marker, report):
                     pass
                 else:
                     alive = True
+
             failures = set(_failure_types(lane_failure))
+
             for session in sessions:
                 failures.update(_failure_types(session.failure))
+
             result = {
                 "provider_pid": os.getpid(), "started_jobs": started, "finished_jobs": finished,
                 "next_job_completed": "next" in finished,
@@ -387,6 +438,7 @@ async def scenario(marker, report):
                           "term_ignored": any(event["kind"] == "term_ignored" for event in events),
                           "owner_still_alive": alive},
             }
+
             # Snapshot the verdict while the provider and warm worker still live.
             # The outer test can now retire the process group without turning
             # teardown into an apparent successful recovery.
@@ -398,6 +450,7 @@ async def scenario(marker, report):
 
 if __name__ == "__main__":
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
     if sys.argv[1] == "warm-worker":
         warm_worker()
     elif sys.argv[1] == "http-worker":

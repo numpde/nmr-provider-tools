@@ -22,15 +22,19 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
             context = ssl.create_default_context(
                 cafile=str(Path(peer.scratch.name) / "cert.pem"),
             )
+
             reader, writer = await asyncio.open_connection(
                 "127.0.0.1", peer.server.sockets[0].getsockname()[1],
             )
+
             try:
                 await asyncio.sleep(0.8)
+
                 await asyncio.wait_for(
                     writer.start_tls(context, server_hostname="localhost", ssl_handshake_timeout=2),
                     2.5,
                 )
+
                 writer.write(b"GET /delayed HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
                 await writer.drain()
                 head = await asyncio.wait_for(reader.readuntil(b"\r\n\r\n"), 2)
@@ -40,6 +44,7 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
             finally:
                 writer.close()
                 await asyncio.wait_for(writer.wait_closed(), 2)
+
             await asyncio.wait_for(peer.closed.wait(), 2)
             self.assertEqual(1, len(peer.requests))
             self.assertEqual(b"GET /delayed HTTP/1.1", peer.requests[0].split(b"\r\n")[0])
@@ -48,6 +53,7 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
         # Observe the supported asyncio.start_server arguments, not private
         # asyncio SSL internals. The shutdown allowance remains independent.
         original = asyncio.start_server
+
         with patch("tests.fakes.tls_peer.asyncio.start_server", wraps=original) as started:
             async with TlsPeer("success", handshake_seconds=1.75, shutdown_seconds=0.8) as peer:
                 self.assertEqual((1.75, 0.8), (peer.handshake_seconds, peer.shutdown_seconds))
@@ -58,6 +64,7 @@ class TlsPeerTimeoutTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_raw_tcp_tls_stall_remains_an_explicit_non_ssl_mode(self):
         original = asyncio.start_server
+
         with patch("tests.fakes.tls_peer.asyncio.start_server", wraps=original) as started:
             async with TlsPeer("tls-stall", handshake_seconds=1.5, shutdown_seconds=0.25):
                 selected = started.await_args.kwargs

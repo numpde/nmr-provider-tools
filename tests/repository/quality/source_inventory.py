@@ -18,7 +18,9 @@ class SourceInventoryError(AssertionError):
 def _validated_subtree(subtree: str) -> PurePosixPath:
     if not isinstance(subtree, str):
         raise TypeError("subtree must be a string")
+
     candidate = PurePosixPath(subtree)
+
     if (
         not subtree
         or candidate.is_absolute()
@@ -26,6 +28,7 @@ def _validated_subtree(subtree: str) -> PurePosixPath:
         or any(part in {"", ".", ".."} for part in candidate.parts)
     ):
         raise ValueError("subtree must be a normalized relative POSIX path")
+
     return candidate
 
 
@@ -41,23 +44,30 @@ def discover_source_files(*, root: Path, subtree: str) -> tuple[str, ...]:
 
     if not isinstance(root, Path):
         raise TypeError("root must be a pathlib.Path")
+
     subtree_path = _validated_subtree(subtree)
     base = root.joinpath(*subtree_path.parts)
 
     if base.is_symlink():
         raise SourceInventoryError(f"{subtree} source root must not be a symlink")
+
     if not base.is_dir():
         raise SourceInventoryError(f"{subtree} source root must be a directory")
 
     discovered: list[str] = []
+
     for path in sorted(base.rglob("*"), key=lambda item: item.as_posix()):
         relative = path.relative_to(root).as_posix()
+
         if path.is_symlink():
             raise SourceInventoryError(f"{relative} must not be a symlink")
+
         if path.is_dir():
             continue
+
         if not path.is_file():
             raise SourceInventoryError(f"{relative} must be a regular file")
+
         discovered.append(relative)
 
     return tuple(discovered)
@@ -72,6 +82,7 @@ def inventory_delta(
 
     discovered_set = frozenset(discovered)
     reviewed_set = frozenset(reviewed)
+
     return (
         tuple(sorted(reviewed_set - discovered_set)),
         tuple(sorted(discovered_set - reviewed_set)),
@@ -88,10 +99,12 @@ def require_exact_inventory(
 
     if not isinstance(label, str) or not label:
         raise TypeError("label must be a non-empty string")
+
     missing, unclassified = inventory_delta(
         discovered=discovered,
         reviewed=reviewed,
     )
+
     if missing or unclassified:
         raise SourceInventoryError(
             f"{label} inventory is not exact; missing={list(missing)!r}; unclassified={list(unclassified)!r}"

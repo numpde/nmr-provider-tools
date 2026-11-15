@@ -25,6 +25,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
             return write(descriptor, data[:997])
 
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=2, retirement_seconds=1)
+
         with (
             tempfile.TemporaryFile() as output,
             patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
@@ -36,6 +37,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
                 maximum_bytes=sum(map(len, chunks)),
                 account_bytes=charged.append,
             )
+
             self.assertIs(type(response), HttpFileResponse)
             self.assertEqual(response.byte_length, sum(map(len, chunks)))
             self.assertEqual(response.content_hash, "sha256:" + hashlib.sha256(b"".join(chunks)).hexdigest())
@@ -51,6 +53,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
     async def test_empty_file_response_has_complete_empty_body_facts(self):
         client = Client(Stream([]), status=204)
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=1)
+
         with (
             tempfile.TemporaryFile() as output,
             patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
@@ -58,6 +61,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
             response = await transport.exchange_file(
                 httpx.Request("GET", "https://api.example/input"), output_fd=output.fileno(), maximum_bytes=0
             )
+
             self.assertEqual((response.status, response.byte_length), (204, 0))
             self.assertEqual(response.content_hash, "sha256:" + hashlib.sha256(b"").hexdigest())
             self.assertEqual(output.tell(), 0)
@@ -65,6 +69,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
     async def test_file_facts_describe_response_bytes_at_callers_current_offset(self):
         client = Client(Stream([b"body"]))
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=1)
+
         with (
             tempfile.TemporaryFile() as output,
             patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
@@ -72,9 +77,11 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
             output.write(b"prefix:old body:tail")
             output.flush()
             output.seek(7)
+
             response = await transport.exchange_file(
                 httpx.Request("GET", "https://api.example/input"), output_fd=output.fileno(), maximum_bytes=4
             )
+
             self.assertEqual(response.byte_length, 4)
             self.assertEqual(response.content_hash, "sha256:" + hashlib.sha256(b"body").hexdigest())
             output.seek(0)
@@ -84,11 +91,13 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         client = Client(Stream([b"ok"]))
         trust = ssl.create_default_context()
         transport = HttpTransport(trust=trust, exchange_seconds=1, retirement_seconds=1, proxy_socket="/egress/proxy.sock")
+
         with (
             patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=AssertionError("direct pool created")),
             patch("provider_core.transport.httpcore.AsyncHTTPProxy", return_value=client) as factory,
         ):
             response = await transport.exchange(httpx.Request("GET", "https://api.example/input"), maximum_bytes=2)
+
         self.assertEqual(response.body, b"ok")
         self.assertEqual(client.calls[0][0].url.host, b"api.example")
         self.assertIs(factory.call_args.kwargs["ssl_context"], trust)
@@ -99,6 +108,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
         clients = [Client(Stream([b"ab", b"cd"])), Client(Stream([b"ok"]))]
         trust = ssl.create_default_context()
         transport = HttpTransport(trust=trust, exchange_seconds=1, retirement_seconds=1)
+
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients) as factory:
             response = await transport.exchange(httpx.Request("GET", "https://api.example/input"), maximum_bytes=4)
             self.assertEqual(response.body, b"abcd")
@@ -107,6 +117,7 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(clients[0].stream.closed)
             self.assertEqual(clients[0].calls[0][0].url.target, b"/input")
             await transport.exchange(httpx.Request("GET", "https://api.example/input"), maximum_bytes=4)
+
         self.assertEqual(factory.call_count, 2)
         self.assertIs(factory.call_args.kwargs["ssl_context"], trust)
         self.assertEqual(factory.call_args.kwargs["retries"], 0)

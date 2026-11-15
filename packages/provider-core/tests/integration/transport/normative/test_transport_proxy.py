@@ -18,6 +18,7 @@ class UnixTunnelTests(unittest.IsolatedAsyncioTestCase):
         async with TlsPeer("success") as peer, UnixProxy(peer.origin, "tunnel") as proxy:
             origin = peer.origin.replace("127.0.0.1", "localhost")
             key = Ed25519PrivateKey.generate()
+
             request = signed_request(
                 SigningIdentity(origin, "credential:test", key),
                 method="GET",
@@ -27,22 +28,28 @@ class UnixTunnelTests(unittest.IsolatedAsyncioTestCase):
                 created=1700000000,
                 nonce=bytes(16),
             )
+
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5, proxy_socket=proxy.path)
+
             with patch("httpcore.AnyIOBackend.connect_tcp", new=AsyncMock(side_effect=AssertionError("direct TCP attempted"))):
                 response = await transport.exchange(request, maximum_bytes=4)
+
             await transport.retire()
             self.assertEqual(response.body, b"data")
             self.assertEqual(peer.server_names, ["localhost"])
             self.assertEqual(len(peer.requests), 1)
             self.assertEqual(len(proxy.headers), 1)
+
             headers = {
                 name.lower(): value
                 for line in peer.requests[0].split(b"\r\n")[1:]
                 if line
                 for name, value in [line.split(b": ", 1)]
             }
+
             self.assertEqual(headers[b"host"].decode(), origin.removeprefix("https://"))
             parameters = headers[b"signature-input"].removeprefix(b"sig1=")
+
             base = b"\n".join(
                 [
                     b'"@method": GET',
@@ -52,6 +59,7 @@ class UnixTunnelTests(unittest.IsolatedAsyncioTestCase):
                     b'"@signature-params": ' + parameters,
                 ]
             )
+
             key.public_key().verify(parse(headers[b"signature"], tltype="dictionary")["sig1"][0], base)
             self.assertTrue(proxy.headers[0].startswith(b"CONNECT localhost:"))
             self.assertNotIn(b"signature", proxy.headers[0].lower())

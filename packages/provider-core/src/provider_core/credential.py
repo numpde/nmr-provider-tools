@@ -28,6 +28,7 @@ from provider_core.signing import require_credential_ref
 # The issued credential artifact has a bounded startup envelope.
 # repo-check: allow-module-constant
 MAX_CREDENTIAL_BYTES = 16384
+
 # The issued credential profile has a closed field set.
 # repo-check: allow-module-constant
 _FIELDS = {
@@ -59,26 +60,32 @@ class ProviderCredential:
 
 def parse_provider_credential(raw):
     """Verify the closed issued document and return its identity/signing capability."""
+
     try:
         document = read_document(raw, MAX_CREDENTIAL_BYTES)
     except ResponseRejected as cause:
         raise CredentialRejected("supply the original API-issued JSON file within 16384 bytes.", cause=cause) from None
+
     if type(document) is not dict or set(document) != _FIELDS or any(type(value) is not str for value in document.values()):
         raise CredentialRejected("the seven API-issued fields must be present and contain text.")
+
     try:
         canonical = (
             json.dumps(document, ensure_ascii=False, allow_nan=False, sort_keys=True, separators=(",", ":")).encode() + b"\n"
         )
     except UnicodeError as cause:
         raise CredentialRejected("artifact text must be valid UTF-8.", cause=cause) from None
+
     if raw != canonical:
         raise CredentialRejected("use the original canonical JSON document followed by one newline.")
+
     if (
         document["schema_id"] != "nmr.provider.private_signing_credential.v1"
         or document["algorithm"] != "ed25519"
         or document["profile"] not in ("dev-local", "dev", "run")
     ):
         raise CredentialRejected("require the provider v1 artifact, Ed25519 and profile dev-local, dev or run.")
+
     try:
         require_provider_ref(document["principal_ref"])
         require_credential_ref(document["credential_ref"])
@@ -86,6 +93,7 @@ def parse_provider_credential(raw):
         raise CredentialRejected(
             "principal_ref must identify a provider and credential_ref a signing credential.", cause=cause
         ) from None
+
     private_key = _signing_key(document)
     return ProviderCredential(document["profile"], document["principal_ref"], document["credential_ref"], private_key)
 
@@ -93,14 +101,19 @@ def parse_provider_credential(raw):
 def _signing_key(document):
     try:
         public_der = base64.b64decode(document["public_key_spki_der_b64"], validate=True)
+
         if base64.b64encode(public_der).decode("ascii") != document["public_key_spki_der_b64"]:
             raise ValueError("Public key base64 is not canonical.")
+
         public_key = load_der_public_key(public_der)
         private_key = load_pem_private_key(document["private_key_pkcs8_pem"].encode("ascii"), password=None)
     except (TypeError, ValueError, UnicodeError, UnsupportedAlgorithm) as cause:
         raise CredentialRejected("decode a base64 DER public key and an unencrypted PEM private key.", cause=cause) from None
+
     if not isinstance(public_key, Ed25519PublicKey) or not isinstance(private_key, Ed25519PrivateKey):
         raise CredentialRejected("both keys must use Ed25519.")
+
     if private_key.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo) != public_der:
         raise CredentialRejected("public and private keys do not match.")
+
     return private_key

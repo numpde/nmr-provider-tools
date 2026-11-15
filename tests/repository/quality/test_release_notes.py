@@ -28,11 +28,14 @@ def wrapped_lines(source: str) -> list[int]:
     for number, line in enumerate(source.splitlines(), 1):
         if fence is not None:
             marker = fence[0]
+
             if re.fullmatch(rf"[ \t]*{re.escape(marker)}{{{len(fence)},}}[ \t]*", line):
                 fence = None
+
             continue
 
         opening = _FENCE.match(line)
+
         if opening:
             fence = opening.group(1)
             previous = None
@@ -43,6 +46,7 @@ def wrapped_lines(source: str) -> list[int]:
         else:
             if previous is not None:
                 findings.append(number)
+
             previous = "paragraph"
 
     return findings
@@ -50,6 +54,7 @@ def wrapped_lines(source: str) -> list[int]:
 
 def scan_release_notes(root: Path) -> list[str]:
     """Return file:line diagnostics for every matching release note."""
+
     return [
         f"{path.relative_to(root).as_posix()}:{number}: {_GUIDANCE}"
         for path in sorted((root / "notes").glob("*_release_v*.md"))
@@ -70,6 +75,7 @@ class ReleaseNotesTests(unittest.TestCase):
             "1. Numbered item\n"
             "   continued numbered item\n"
         )
+
         self.assertEqual([2, 3, 6, 9], wrapped_lines(source))
 
     def test_allows_blank_lines_headings_separate_items_and_fenced_code(self):
@@ -95,17 +101,21 @@ class ReleaseNotesTests(unittest.TestCase):
             "\n---\n"
             "After the separator.\n"
         )
+
         self.assertEqual([], wrapped_lines(source))
 
     def test_discovers_new_versioned_notes_and_reports_file_and_line(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / "notes").mkdir()
+
             (root / "notes/new_release_v9.8.7.md").write_text(
                 "# Release\n\nFirst line\nwrapped line\n",
                 encoding="utf-8",
             )
+
             (root / "notes/other.md").write_text("not\nscoped\n", encoding="utf-8")
+
             self.assertEqual(
                 [f"notes/new_release_v9.8.7.md:4: {_GUIDANCE}"],
                 scan_release_notes(root),

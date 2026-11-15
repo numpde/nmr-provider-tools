@@ -21,8 +21,10 @@ class CheckerProvisioningTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
+
         for name in ("tools", "requirements", "containers"):
             shutil.copytree(ROOT / name, self.root / name)
+
         shutil.copytree(ROOT / "host", self.root / "host")
         shutil.copyfile(ROOT / "Makefile", self.root / "Makefile")
         self.environment = os.environ | {"PATH": f"{ROOT / 'tests/repository/fixtures/docker-context'}:{os.environ['PATH']}"}
@@ -36,19 +38,24 @@ class CheckerProvisioningTests(unittest.TestCase):
     def invoke_make(self, target, *, wheelhouse, interface):
         # This test selects inputs; the native lane qualifies bootstrap builds.
         arguments = ["make", "--no-print-directory", "-o", "checks/bootstrap/build", target, "DOCKER_CONTEXT=default"]
+
         if wheelhouse is not None:
             arguments.append(f"WHEELHOUSE={wheelhouse}")
+
         if interface is not None:
             arguments.append(f"NETWORK_INTERFACE={interface}")
+
         return subprocess.run(arguments, cwd=self.root, env=self.environment, capture_output=True, text=True, check=False)
 
     def test_explicit_empty_and_environment_only_selectors_do_not_authorize_acquisition(self):
         self.environment |= {"WHEELHOUSE": str(self.root), "WHEELHOUSE_INPUT": str(self.root),
                              "WHEELHOUSE_INPUT_ORIGIN": "command line", "NETWORK_INTERFACE_INPUT": "lo"}
+
         cases = (("", "lo", "WHEELHOUSE cannot be empty"),
                  (None, "lo", "WHEELHOUSE must be set on the make command line"),
                  (str(self.root), "", "is not an available network interface"),
                  (str(self.root), "missing-interface", "is not an available network interface"))
+
         for wheelhouse, interface, diagnostic in cases:
             with self.subTest(wheelhouse=wheelhouse, interface=interface):
                 result = self.invoke_make("checks/dependencies/download", wheelhouse=wheelhouse, interface=interface)
@@ -77,6 +84,7 @@ sha256sum() {
 }
 if fingerprint=$(checker_fingerprint checker); then exit 99; else exit "$?"; fi
 ''')
+
         self.assertEqual(7, result.returncode, msg=result.stderr)
 
     def test_source_mutation_during_capture_reports_the_changed_inputs(self):
@@ -89,6 +97,7 @@ cp() {
 export -f cp
 bash "$root/host/tools/checker.sh" bootstrap-build
 ''')
+
         self.assertEqual(2, result.returncode, msg=result.stderr)
         self.assertIn("Cannot build checker: source inputs changed during capture", result.stderr)
 
@@ -111,11 +120,13 @@ checker_metadata() {
 }
 if checker_admit_image "$fingerprint" checker; then [[ $checker_image == "$identifier" ]]; else exit "$?"; fi
 '''.replace("SCENARIO", scenario))
+
                 self.assertEqual(expected, result.returncode, msg=result.stderr)
 
     def test_owned_checker_provides_make_without_ruff(self):
         self.assertIsNotNone(shutil.which("make"))
         self.assertIsNone(shutil.which("ruff"))
+
         with self.assertRaises(importlib.metadata.PackageNotFoundError):
             importlib.metadata.distribution("ruff")
 
@@ -129,5 +140,6 @@ if checker_admit_image "$fingerprint" checker; then [[ $checker_image == "$ident
              "DOCKER_CONTEXT=default", f"WHEELHOUSE={self.root}", "NETWORK_INTERFACE=lo"],
             cwd=self.root, env=self.environment, check=True, capture_output=True, text=True,
         )
+
         self.assertLess(result.stdout.index("bash host/tools/checker.sh prepare"),
                         result.stdout.index("bash host/tools/provider_core.sh download"))

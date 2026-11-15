@@ -44,42 +44,55 @@ def positive_seconds(value):
 
 def _remaining(connection, deadline):
     remaining = deadline - time.monotonic()
+
     if remaining <= 0:
         raise TimeoutError("Runner lifecycle deadline expired before its complete reply.")
+
     connection.settimeout(remaining)
 
 
 def _read(connection, size, deadline):
     result = bytearray()
+
     while len(result) < size:
         _remaining(connection, deadline)
         chunk, ancillary, flags, _ = connection.recvmsg(size - len(result), 0)
+
         if flags & socket.MSG_CTRUNC or ancillary:
             raise LifecycleRejected("Unexpected descriptor transfer in a lifecycle frame.")
+
         if not chunk:
             raise LifecycleRejected("Runner control closed before its complete lifecycle reply.")
+
         result.extend(chunk)
+
     return bytes(result)
 
 
 def send_document(connection, value, *, deadline):
     raw = json.dumps(value, allow_nan=False, separators=(",", ":")).encode("ascii")
+
     if len(raw) > MAXIMUM_CONTROL_BYTES:
         raise LifecycleRejected("Runner lifecycle output exceeds its fixed byte limit.")
+
     _remaining(connection, deadline)
     connection.sendall(struct.pack("!I", len(raw)) + raw)
 
 
 def receive_document(connection, *, deadline):
     size = struct.unpack("!I", _read(connection, 4, deadline))[0]
+
     if not 0 < size <= MAXIMUM_CONTROL_BYTES:
         raise LifecycleRejected("Runner lifecycle reply has an invalid byte count.")
+
     try:
         value = json.loads(_read(connection, size, deadline))
     except (ValueError, UnicodeError) as cause:
         raise LifecycleRejected("Runner lifecycle reply is not a complete JSON document.") from cause
+
     if type(value) is not dict:
         raise LifecycleRejected("Runner lifecycle reply must be an object.")
+
     return value
 
 
@@ -87,20 +100,26 @@ def send_greeting(connection, value, science, *, deadline):
     # Send rights exactly once. A partial later frame write must not transfer
     # another endpoint, and asyncio buffering must not consume this first byte.
     _remaining(connection, deadline)
+
     if connection.sendmsg([b"\0"], [(socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [science.fileno()]))]) != 1:
         raise LifecycleRejected("Runner could not transfer its scientific endpoint.")
+
     send_document(connection, value, deadline=deadline)
 
 
 def receive_greeting(connection, *, deadline):
     descriptors = []
     science = None
+
     try:
         _remaining(connection, deadline)
+
         first, ancillary, flags, _ = connection.recvmsg(
             1, socket.CMSG_SPACE(8 * array.array("i").itemsize), socket.MSG_CMSG_CLOEXEC
         )
+
         unexpected = False
+
         for level, kind, raw in ancillary:
             if level == socket.SOL_SOCKET and kind == socket.SCM_RIGHTS:
                 values = array.array("i")
@@ -108,13 +127,18 @@ def receive_greeting(connection, *, deadline):
                 descriptors.extend(values)
             else:
                 unexpected = True
+
         if first != b"\0" or flags & socket.MSG_CTRUNC or unexpected or len(descriptors) != 1:
             raise LifecycleRejected("Runner greeting requires exactly one scientific endpoint.")
+
         science = socket.socket(fileno=descriptors[0])
         descriptors.clear()
+
         if science.family != socket.AF_UNIX or science.type != socket.SOCK_STREAM:
             raise LifecycleRejected("Runner supplied an unsupported scientific endpoint type.")
+
         value = receive_document(connection, deadline=deadline)
+
         if (
             set(value) != {"kind", "role", "generation", "operation", "lock"}
             or value["kind"] != "opened" or not token(value["generation"]) or not token(value["operation"])
@@ -123,10 +147,12 @@ def receive_greeting(connection, *, deadline):
             or any(type(part) is not int or part < 0 for part in value["lock"])
         ):
             raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
+
         return value, science
     except BaseException:
         if science is not None:
             science.close()
+
         raise
     finally:
         for descriptor in descriptors:

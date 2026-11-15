@@ -70,8 +70,10 @@ class ObservationTests(unittest.IsolatedAsyncioTestCase):
     def test_original_failure_takes_precedence_over_available_bytes(self):
         original = OSError("Result encoding did not complete")
         failed = replace(self.observation, failures=(Failure(phase="encoding", cause=original),))
+
         with self.assertRaises(expected_exception=OSError) as raised:
             failed.require_result()
+
         self.assertIs(expr1=original, expr2=raised.exception)
 
     def test_independent_failures_keep_their_original_objects_and_order(self):
@@ -85,6 +87,7 @@ class ObservationTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:
             failed.require_result()
+
         self.assertEqual(first=(original, interruption), second=raised.exception.exceptions)
 
     def test_incomplete_unsuccessful_or_unavailable_result_is_refused(self):

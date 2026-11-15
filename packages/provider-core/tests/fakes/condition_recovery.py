@@ -24,24 +24,33 @@ class ConditionOutageTransport(ConditionTransport):
 
     async def exchange(self, request, *, maximum_bytes, owner=None):
         received = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+
         if request.method == "PUT":
             self.puts += 1
+
             if self.puts == self.first_failed_put:
                 self.condition_body = request.content
+
             if request.content == self.condition_body:
                 self.condition_requests.append(request)
                 fault = next(self.faults, None)
+
                 if fault is not None:
                     self.retirement_confirmed, self.pending_owner = False, owner
+
                     if isinstance(fault, BaseException):
                         raise fault
+
                     return fault
         elif self.condition_body is not None:
             if not self.retirement_confirmed:
                 raise AssertionError("Monitor read preceded original condition PUT retirement")
+
             self.read_after_failure.set()
+
             if self.followup_observation is not None:
                 return self.followup_observation
+
         return received
 
     async def retire(self, *, owner=None):

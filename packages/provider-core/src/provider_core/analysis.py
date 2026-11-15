@@ -71,21 +71,28 @@ class ObservedWorkerCrash(RuntimeError):
                 f"Unexpected {type(acknowledged)=}; "
                 "Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence"
             )
+
         if phase not in ("preparing", "running") or owner is None:
             raise ValueError("Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence")
+
         if type(runner) is not RunnerSession or type(evidence) is not ProtectedEvidence:
             raise TypeError(
                 f"Unexpected {type(runner)=}, {type(evidence)=}; "
                 "Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence"
             )
+
         if (cause is not None and not isinstance(cause, BaseException)):
             raise TypeError(f"Unexpected {type(cause)=}; an observed crash cause must be an exception or None")
+
         original = runner.original_exit
+
         if original is None:
             raise ValueError("Cannot classify a worker crash without an original exit observed before local interruption")
+
         self.acknowledged, self.phase, self.owner = acknowledged, phase, owner
         self.runner, self.native_exit = runner, original
         self.evidence, self.cause = evidence, cause
+
         super().__init__(
             f"Original worker exit observed (return code {original.returncode}); declared scientific phase: {phase}."
         )
@@ -99,6 +106,7 @@ class ObservedWorkerCrash(RuntimeError):
         phase = {"preparing": "preparation", "running": "calculation"}[self.phase]
         code = self.native_exit.returncode
         status = f"signal {-code}" if code < 0 else f"exit status {code}"
+
         return AnalysisFailure(
             "worker_crashed", f"Worker exited unexpectedly during {phase} ({status}). No verified outcome was returned.",
             self.evidence,
@@ -176,5 +184,6 @@ class AnalysisSession(Protocol):
 async def retire_session(session):
     """Confirm the protocol result for both pre-start and execution cleanup."""
     result = await session.retire()
+
     if result is not None:
         raise TypeError("Session retirement must return None after confirmed cleanup, otherwise raise")

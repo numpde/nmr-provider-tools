@@ -40,14 +40,18 @@ def build_source_wheel(
     The caller owns staged_source's temporary parent and its cleanup. Returning
     the stage permits a subsequent source-distribution build from the same tree.
     """
+
     if not source.is_dir() or source.is_symlink():
         raise ValueError("Cannot build wheel: source must be a real directory.")
+
     if any(path.is_symlink() for path in source.rglob("*")):
         raise ValueError("Cannot build wheel: source must not contain symlinks.")
+
     if staged_source.resolve().is_relative_to(source.resolve()):
         raise ValueError("Cannot build wheel: staged source must be outside the input tree.")
 
     shutil.copytree(source, staged_source)
+
     for directory in (staged_source, *staged_source.rglob("*")):
         if directory.is_dir():
             directory.chmod(directory.stat().st_mode | stat.S_IWUSR)
@@ -68,14 +72,17 @@ def build_source_wheel(
         check=True,
         env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"},
     )
+
     return staged_source
 
 
 # silent-defaults: allow-contract -- Installation accepts explicit optional immutable extra wheel pools; an omitted pool is the empty collection, while missing required files has a separate None sentinel.
 def install_locked(python, lock, wheels, report, extra_pools=(), required_files=None, lock_fd=None):
     borrowed_descriptors = ()
+
     if lock_fd is not None:
         borrowed_descriptors = (lock_fd,)
+
     subprocess.run(
         [
             *pip_command(python),
@@ -101,11 +108,13 @@ def install_locked(python, lock, wheels, report, extra_pools=(), required_files=
         check=True,
         pass_fds=borrowed_descriptors,
     )
+
     return wheel_inputs_from_report(lock, wheels, report, extra_pools, required_files)
 
 
 def build_candidate(source, runtime_lock, build_lock, pool, output):
     """Freeze locks and select shared-pool wheels before building a release."""
+
     with pool_read_lock(pool) as lock_fd:
         return _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd)
 
@@ -118,6 +127,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         scratch = Path(temporary)
         identities = {}
         locks = {}
+
         for (role, lock) in (("runtime", runtime_lock), ("build", build_lock)):
             frozen = scratch / f"{role}.lock"
             shutil.copyfile(lock, frozen)
@@ -127,17 +137,20 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
 
         project_metadata = tomllib.loads((source / "pyproject.toml").read_text())
         release_version = project_metadata["project"]["version"]
+
         if not (project_metadata["project"]["name"] == "provider-core"):
             raise ValueError(
                 "Cannot build provider-core release: metadata must identify "
                 "provider-core and a three-part release version."
             )
+
         if not (type(release_version) is str):
             raise TypeError(
                 f"Unexpected {type(release_version)=}; "
                 "Cannot build provider-core release: metadata must identify "
                 "provider-core and a three-part release version."
             )
+
         if not (re.fullmatch(
                 r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)",
                 release_version,
@@ -149,6 +162,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
 
         builder = scratch / "builder"
         builder_python = create_environment(builder)
+
         installed_build_inputs = install_locked(
             python=builder_python,
             lock=locks["build"],
@@ -156,6 +170,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             report=scratch / "build-install.json",
             lock_fd=lock_fd,
         )
+
         if installed_build_inputs != identities["build"]:
             raise ValueError("Cannot build provider-core: installed build inputs differ from selected inputs.")
 
@@ -165,7 +180,9 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             python=builder_python,
             output=output,
         )
+
         sdist_builder = Path(__file__).resolve().parent.parent / "containers/isolated/build_sdist.py"
+
         subprocess.run(
             [
                 str(builder_python),
@@ -178,8 +195,10 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             env=os.environ | {"SOURCE_DATE_EPOCH": "315532800"},
             check=True,
         )
+
         wheel = output / f"provider_core-{release_version}-py3-none-any.whl"
         sdist = output / f"provider_core-{release_version}.tar.gz"
+
         if set(output.iterdir()) != {wheel, sdist} or any(
             not path.is_file() or path.is_symlink() for path in (wheel, sdist)
         ):
@@ -193,14 +212,18 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
         install_lock = output / f"provider_core-{release_version}-install.lock"
         runtime_lock_text = locks["runtime"].read_text()
         requirements(locks["runtime"])
+
         install_lock.write_text(
             runtime_lock_text.rstrip()
             + f"\nprovider-core=={release_version} \\\n    --hash=sha256:{digest(wheel)}\n"
         )
+
         expected_requirements = requirements(locks["runtime"]) | {
             ("provider-core", release_version): {digest(wheel)}
         }
+
         observed_requirements = requirements(install_lock)
+
         if observed_requirements != expected_requirements:
             raise ValueError(
                 "Cannot publish provider-core: installation lock differs "
@@ -208,9 +231,11 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
             )
 
         native_lock = output / f"provider_core-{release_version}-native-install.lock"
+
         native_lock.write_text(
             f"provider-core=={release_version} \\\n    --hash=sha256:{digest(wheel)}\n"
         )
+
         if requirements(native_lock) != {("provider-core", release_version): {digest(wheel)}}:
             raise ValueError("Cannot publish provider-core: native installation lock differs from the built wheel.")
 
@@ -220,6 +245,7 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
 # silent-defaults: allow-contract -- An optional caller-supplied wheel pool is immutable and empty by default; the expected-inputs and required-files None values signal distinct checks.
 def install_environment(root, lock, pool, expected_inputs=None, extra_pools=(), required_files=None):
     """Install one complete application lock using the image's approved pip."""
+
     with pool_read_lock(pool) as lock_fd:
         return _install_environment(root, lock, pool, expected_inputs, extra_pools, required_files, lock_fd)
 
@@ -234,6 +260,7 @@ def _install_environment(root, lock, pool, expected_inputs, extra_pools, require
         required_files,
         lock_fd,
     )
+
     if expected_inputs is not None and selected_wheel_inputs != expected_inputs:
         raise ValueError(
             "Cannot admit provider-core installation: selected wheel identities "
@@ -250,6 +277,7 @@ def _install_environment(root, lock, pool, expected_inputs, extra_pools, require
             required_files=required_files,
             lock_fd=lock_fd,
         )
+
         if installed_wheel_inputs != selected_wheel_inputs:
             raise ValueError(
                 "Cannot admit provider-core installation: installed wheel "
@@ -270,6 +298,7 @@ def behavioral_install_lock(runtime_lock, test_lock, destination):
     runtime_requirements = requirements(runtime_lock)
     test_requirements = requirements(test_lock)
     overlapping_requirements = set(runtime_requirements).intersection(test_requirements)
+
     if overlapping_requirements:
         raise ValueError(
             "Cannot install provider-core behavioral tests: test requirements "
@@ -279,19 +308,23 @@ def behavioral_install_lock(runtime_lock, test_lock, destination):
     destination.write_text(
         runtime_lock.read_text().rstrip() + "\n" + test_lock.read_text().strip() + "\n"
     )
+
     if requirements(destination) != runtime_requirements | test_requirements:
         raise ValueError(
             "Cannot install provider-core behavioral tests: merged wheel lock "
             "differs from its inputs"
         )
+
     return destination
 
 
 def source_inventory(source):
     inventory = {}
+
     for path in sorted(source.rglob("*")):
         if path.is_symlink():
             raise ValueError("Cannot capture package inventory: source links are not release inputs.")
+
         if path.is_file():
             inventory[path.relative_to(source).as_posix()] = {
                 "sha256": digest(path),
@@ -319,6 +352,7 @@ def wheelhouse_source_inventory(source):
 
 def normalize_sdist(path):
     """Remove host account metadata and use the same fixed epoch as the wheel."""
+
     # Keep replacement on the same filesystem, with automatic failure cleanup.
     with tempfile.TemporaryDirectory(prefix="sdist-normalize-", dir=path.parent) as temporary:
         normalized_path = Path(temporary) / "archive.tar.gz"
@@ -356,6 +390,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
 
     dependency_files(pool, Path("/requirements/wheelhouse-tool.lock"))
     source_files = source_inventory(source)
+
     (wheel, install_lock, dependency_inputs) = build_candidate(
         source=source,
         runtime_lock=runtime_lock,
@@ -369,6 +404,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
     native_lock = output / (artifact_prefix + "-native-install.lock")
 
     wheelhouse_bundle = output / ("wheelhouse-tool-" + artifact_prefix.removeprefix("provider_core-") + ".pyz")
+
     build_wheelhouse_bundle(
         pool=pool,
         output=wheelhouse_bundle,
@@ -377,6 +413,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
     )
 
     acquisition_bundle = output / ("acquisition-owner-" + artifact_prefix.removeprefix("provider_core-") + ".tar.gz")
+
     acquisition_record = build_acquisition_bundle(
         pool=pool,
         output=acquisition_bundle,
@@ -389,6 +426,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
 
     release_files = (wheel, sdist, install_lock, native_lock, wheelhouse_bundle, acquisition_bundle)
     release_record = output / (artifact_prefix + "-release.json")
+
     release_record.write_text(
         json.dumps(
             {
@@ -406,6 +444,7 @@ def release(source, runtime_lock, build_lock, pool, output, revision):
     )
 
     checksum_manifest = output / (artifact_prefix + "-sha256.json")
+
     checksum_manifest.write_text(
         json.dumps(
             {path.name: digest(path) for path in (*release_files, release_record)},
@@ -436,16 +475,21 @@ def main():
     parser.add_argument("--revision")
     parser.add_argument("--expected-inputs", type=Path)
     args = parser.parse_args()
+
     if args.action == "install":
         if args.root is None or args.lock is None:
             parser.error("install requires --root and --lock")
+
         expected_inputs = None
+
         if args.expected_inputs is not None:
             expected_inputs = read_json(args.expected_inputs)
+
         install_environment(args.root, args.lock, args.pool, expected_inputs)
     else:
         if any(value is None for value in (args.source, args.runtime_lock, args.build_lock, args.output, args.revision)):
             parser.error("release requires --source, --runtime-lock, --build-lock, --output and --revision")
+
         release(args.source, args.runtime_lock, args.build_lock, args.pool, args.output, args.revision)
 
 

@@ -28,8 +28,10 @@ class AttemptReadRejectionTests(unittest.IsolatedAsyncioTestCase):
             (ATTEMPT_REF, "job:example?private", ValueError),
         ):
             transport = Transport()
+
             with self.assertRaises(error_type):
                 await self.api(transport).read_attempt(attempt, job_ref=job)
+
             self.assertEqual(transport.calls, [])
 
     async def test_malformed_or_foreign_observations_retain_private_evidence(self):
@@ -52,13 +54,16 @@ class AttemptReadRejectionTests(unittest.IsolatedAsyncioTestCase):
             b" " * 65537,
             b"[" * 2000 + b"]" * 2000,
         ]
+
         for body in bodies:
             with self.subTest(body_prefix=body[:30]):
                 response = reply(body)
                 transport = Transport(response)
                 api = self.api(transport)
+
                 with self.assertRaises(ApiFailure) as caught:
                     await api.read_attempt(ATTEMPT_REF, job_ref="job:example")
+
                 self.assertNotIn("private-canary", str(caught.exception))
                 self.assertIs(caught.exception.response, response)
                 self.assertIs(api.last_failure, caught.exception)
@@ -66,11 +71,14 @@ class AttemptReadRejectionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_failed_reads_preserve_transport_and_http_evidence_without_retry(self):
         failure = ExchangeFailed("read failed", primary=OSError("private-canary"))
+
         for outcome in (reply(b"private-canary", status=503), reply(observation(), headers=()), failure):
             transport = Transport(outcome)
             api = self.api(transport)
+
             with self.assertRaises(ApiFailure) as caught:
                 await api.read_attempt(ATTEMPT_REF, job_ref="job:example")
+
             self.assertNotIn("private-canary", str(caught.exception))
             self.assertIs(api.last_failure, caught.exception)
             self.assertEqual(len(transport.calls), 1)
@@ -78,7 +86,9 @@ class AttemptReadRejectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_cancellation_remains_cancellation_with_operation_context(self):
         transport = Transport(asyncio.CancelledError())
         api = self.api(transport)
+
         with self.assertRaises(asyncio.CancelledError):
             await api.read_attempt(ATTEMPT_REF, job_ref="job:example")
+
         self.assertEqual(api.last_failure.operation, "read Execution Attempt")
         self.assertEqual(len(transport.calls), 1)

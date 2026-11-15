@@ -71,15 +71,21 @@ class Submission:
 
     def submit(self) -> Operation | NotAdmitted:
         """Deliver this request once, or return its already acquired operation."""
+
         if self.operation is not None:
             return self.operation
+
         admission_result = self._analysis_executor.submit(invocation=self.invocation)
+
         if not isinstance(admission_result, NotAdmitted):
             self._operation = admission_result
+
         return admission_result
 
     async def wait(self) -> Observation:
         """Observe original admitted work without submitting or releasing anything."""
+
         if self.operation is None:
             raise RuntimeError("Submit this request and acquire its operation before waiting")
+
         return await observe_completion(operation=self.operation)

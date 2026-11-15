@@ -18,8 +18,10 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         owner, api, store = sources(requests=2)
         await owner.inspect()
         api.member = replace(api.member, description="Changed description")
+
         with self.assertRaises(UploadFailed) as caught:
             await owner.acquire(UPLOAD_REF)
+
         self.assertNotIsInstance(caught.exception, UploadInputRejected)
         self.assertIs(owner.last_failure, caught.exception)
         self.assertFalse(caught.exception.grant_issued)
@@ -31,8 +33,10 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_fixed_file_ceiling_is_correctable_at_one_byte_over_without_grant_or_budget_reset(self):
         owner, api, store = sources(source_bytes=7)
         await owner.inspect()
+
         with self.assertRaises(UploadInputRejected) as caught:
             await owner.acquire(UPLOAD_REF)
+
         self.assertIs(owner.last_failure, caught.exception)
         self.assertFalse(caught.exception.grant_issued)
         self.assertIn("8 bytes", str(caught.exception))
@@ -41,8 +45,10 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(owner.received_bytes, 0)
         self.assertEqual(api.calls, ["membership"])
         self.assertEqual(store.calls, [])
+
         with self.assertRaisesRegex(UploadInputRejected, "inspect"):
             await owner.acquire(UPLOAD_REF)
+
         self.assertEqual(owner.requests_started, 1)
 
     async def test_spent_cumulative_bytes_dominate_a_simultaneous_fixed_file_ceiling(self):
@@ -55,8 +61,10 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         # spent work must remain an operational hold rather than invite repair.
         api.member = replace(api.member, byte_length=9)
         await owner.inspect()
+
         with self.assertRaises(UploadFailed) as caught:
             await owner.acquire(UPLOAD_REF)
+
         self.assertNotIsInstance(caught.exception, UploadInputRejected)
         self.assertFalse(caught.exception.grant_issued)
         self.assertEqual(owner.received_bytes, 8)
@@ -67,19 +75,24 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_spent_requests_or_deadline_dominate_an_oversized_file_refusal(self):
         owner, api, store = sources(source_bytes=7, requests=1)
         await owner.inspect()
+
         with self.assertRaises(UploadFailed) as caught:
             await owner.acquire(UPLOAD_REF)
+
         self.assertNotIsInstance(caught.exception, UploadInputRejected)
         self.assertEqual(owner.requests_started, 1)
         self.assertEqual(api.calls, ["membership"])
         self.assertEqual(store.calls, [])
+
         with patch("provider_core.uploads.time") as clock:
             clock.monotonic.return_value = 100
             owner, api, store = sources(source_bytes=7)
             await owner.inspect()
             clock.monotonic.return_value = 161
+
             with self.assertRaises(UploadFailed) as caught:
                 await owner.acquire(UPLOAD_REF)
+
             self.assertNotIsInstance(caught.exception, UploadInputRejected)
             self.assertEqual(owner.requests_started, 1)
             self.assertEqual(api.calls, ["membership"])
@@ -89,25 +102,32 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         owner, api, store = sources()
         await owner.inspect()
         api.member = UploadMember(UPLOAD_REF, "changed description", 8, api.member.content_hash)
+
         with self.assertRaises(UploadFailed):
             await owner.acquire(UPLOAD_REF)
+
         self.assertEqual(api.calls, ["membership", "membership"])
         self.assertEqual(store.calls, [])
+
         with self.assertRaises(UploadFailed):
             await owner.acquire(UPLOAD_REF)
+
         self.assertEqual(api.calls, ["membership", "membership"])
 
     async def test_source_size_is_admitted_before_grant(self):
         owner, api, store = sources(source_bytes=4)
         await owner.inspect()
+
         with self.assertRaises(UploadFailed):
             await owner.acquire(UPLOAD_REF)
+
         self.assertNotIn("grant", api.calls)
         self.assertEqual(store.calls, [])
 
     async def test_foreign_url_never_receives_bearer(self):
         owner, api, store = sources()
         original = api.grant
+
         api.grant = ReadGrant(
             original.job_ref,
             original.upload_ref,
@@ -117,9 +137,12 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             original.capability,
             original.expires_at,
         )
+
         await owner.inspect()
+
         with self.assertRaises(UploadFailed) as caught:
             await owner.acquire(UPLOAD_REF)
+
         self.assertNotIn("private-bearer", str(caught.exception))
         self.assertTrue(caught.exception.grant_issued)
         self.assertEqual(store.calls, [])
@@ -129,13 +152,17 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         await owner.inspect()
         store.headers = store_headers(store.body)
         store.body = b"tampered"
+
         # The admitted body is corrupt, so consumed bytes remain spent.
         with self.assertRaises(UploadFailed):
             await owner.acquire(UPLOAD_REF)
+
         self.assertEqual(owner.received_bytes, 8)
         await owner.inspect()
+
         with self.assertRaises(UploadFailed):
             await owner.acquire(UPLOAD_REF)
+
         self.assertEqual(api.calls.count("grant"), 1)
         self.assertEqual(len(store.calls), 1)
 
@@ -157,20 +184,26 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
     async def test_request_budget_includes_inspection_refresh_and_grant(self):
         owner, api, store = sources(requests=3)
         await owner.inspect()
+
         with self.assertRaises(UploadFailed):
             await owner.acquire(UPLOAD_REF)
+
         self.assertEqual(owner.requests_started, 3)
         self.assertEqual(api.calls, ["membership", "membership", "grant"])
         self.assertEqual(store.calls, [])
+
         with self.assertRaises(UploadFailed):
             await owner.inspect()
+
         self.assertEqual(owner.requests_started, 3)
 
     async def test_unconfirmed_store_retirement_blocks_even_membership_refresh(self):
         owner, api, store = sources()
         store.retirement_confirmed = False
+
         with self.assertRaises(UploadFailed):
             await owner.inspect()
+
         self.assertEqual(api.calls, [])
 
     async def test_failed_grant_requires_explicit_reinspection_for_changed_or_unchanged_list(self):
@@ -181,15 +214,21 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             failure.issuance_may_have_committed = True
             api.grant = failure
             await owner.inspect()
+
             with self.assertRaises(ApiFailure) as caught:
                 await owner.acquire(UPLOAD_REF)
+
             self.assertIs(caught.exception, failure)
+
             with self.assertRaises(UploadFailed):
                 await owner.acquire(UPLOAD_REF)
+
             self.assertEqual(api.calls.count("grant"), 1)
             api.grant = original
+
             if changed:
                 api.member = None
+
             observed = await owner.inspect()
             # silent-defaults: allow-contract -- Changed membership remains empty until an explicit refreshed inspection.
             self.assertEqual(len(observed.members), 0 if changed else 1)
@@ -204,8 +243,10 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             owner, api, store = sources()
             api.grant = replace(api.grant, **changes)
             await owner.inspect()
+
             with self.assertRaises(UploadFailed):
                 await owner.acquire(UPLOAD_REF)
+
             self.assertEqual(store.calls, [])
 
     async def test_same_length_corrupted_bytes_are_charged_but_never_returned(self):
@@ -213,8 +254,10 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         store.headers = store_headers(store.body)
         store.body = b"tampered"
         await owner.inspect()
+
         with self.assertRaises(UploadFailed) as caught:
             await owner.acquire(UPLOAD_REF)
+
         self.assertIn("SHA-256", str(caught.exception))
         self.assertTrue(caught.exception.grant_issued)
         self.assertEqual(owner.received_bytes, 8)
@@ -233,8 +276,10 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
 
         api.read_grant = stalled_grant
         await owner.inspect()
+
         with self.assertRaises(UploadFailed) as caught:
             await owner.acquire(UPLOAD_REF)
+
         self.assertIs(caught.exception.cause, failure)
         self.assertFalse(caught.exception.grant_issued)
         self.assertTrue(caught.exception.cause.issuance_may_have_committed)
@@ -253,11 +298,13 @@ class UploadAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         api.uploads = delayed_inspection
         active = asyncio.create_task(owner.inspect())
         await entered.wait()
+
         try:
             with self.assertRaises(UploadFailed):
                 await owner.inspect()
         finally:
             release.set()
             observed = await active
+
         self.assertEqual(len(observed.members), 1)
         self.assertEqual(api.calls, ["membership"])

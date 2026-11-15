@@ -28,6 +28,7 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
     async def failure(self, api):
         with self.assertRaises(ApiFailure) as caught:
             await api.read_grant("job:example", UPLOAD_REF)
+
         return caught.exception
 
     # silent-defaults: allow-contract -- The normal fixture selects these exact references; foreign-identity cases override them explicitly.
@@ -41,8 +42,10 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
             api = self.api(transport)
             failure = await self.failure(api)
             self.assertEqual(self.permitted(api, failure), code == "upload_read_not_finalized", code)
+
             if code == "upload_read_not_finalized":
                 self.assertFalse(failure.issuance_may_have_committed)
+
             self.assertFalse(api.can_retry_read(failure))
             self.assertEqual(len(transport.calls), 1)
 
@@ -59,8 +62,10 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
         await api.uploads("job:example")
         self.assertFalse(self.permitted(api, failure))
         other_route = self.api(Transport(pending))
+
         with self.assertRaises(ApiFailure) as caught:
             await other_route.uploads("job:example")
+
         self.assertFalse(self.permitted(other_route, caught.exception))
 
     async def test_unsettled_issuance_requires_original_transport_retirement(self):
@@ -89,6 +94,7 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
         without_request = tuple((name, value) for name, value in headers if name.lower() != b"x-request-id")
         # repo-check: allow-tuple-generator -- This malformed topology specimen must retain the same immutable ordered header contract.
         without_topology = tuple((name, value) for name, value in headers if name.lower() != b"nmr-api-topology")
+
         responses = (
             replace(pending, headers=without_request),
             replace(pending, headers=without_request + ((b"x-request-id", b"request:foreign"),)),
@@ -100,6 +106,7 @@ class GrantRenewalTests(unittest.IsolatedAsyncioTestCase):
             io_failure("pending body was interrupted", stage="read", primary=httpcore.ReadTimeout(),
                            response_head=HttpResponseHead(pending.status, headers)),
         )
+
         for index, response in enumerate(responses):
             with self.subTest(case=index):
                 api = self.api(Transport(response))

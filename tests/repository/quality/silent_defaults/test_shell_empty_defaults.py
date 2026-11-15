@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from . import _repo_surfaces
+
 from ._repo_surfaces import (
     INTERPOLATION_DEFAULT_RE,
     SILENT_DEFAULTS_PRIVATE_ENV_EXCLUSIONS,
@@ -70,20 +71,25 @@ class ShellEmptyDefaultsTest(unittest.TestCase):
             root = Path(directory)
             config = root / "config"
             config.mkdir()
+
             for name in ("private.env", "private.env.example"):
                 (config / name).write_text("PROFILE=fixture\n")
+
             excluded = frozenset({Path("config/private.env")})
+
             with (
                 patch.object(_repo_surfaces, "REPO_ROOT", root),
                 patch(__name__ + ".SILENT_DEFAULTS_PRIVATE_ENV_EXCLUSIONS", excluded),
             ):
                 scanned = {repo_path(path) for path in _shell_surface_files()}
+
             self.assertTrue(excluded.isdisjoint(scanned))
             self.assertIn(Path("config/private.env.example"), scanned)
             self.assertNotIn(Path("config/private.env"), scanned)
 
     def test_shell_operator_surfaces_do_not_use_empty_default_expansion(self) -> None:
         findings: list[str] = []
+
         for source, line_number, line in surface_lines(_shell_surface_files(), skip_comments=True):
             for match in INTERPOLATION_DEFAULT_RE.finditer(line):
                 findings.append(

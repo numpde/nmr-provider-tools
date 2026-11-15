@@ -20,15 +20,19 @@ class SingleRetirementSession(Session):
     async def retire(self):
         if any(event[0] == "retire" for event in self.events):
             raise RuntimeError("Scripted session was already retired; do not release its resources twice")
+
         await super().retire()
 
 
 async def cancel_task(task):
     """Bound cleanup of the watchdog task even after an assertion fails."""
+
     if not task.done():
         task.cancel()
         await asyncio.wait((task,), timeout=2)
+
     if not task.done():
         raise TimeoutError("Test task did not settle after cancellation")
+
     if not task.cancelled():
         task.exception()

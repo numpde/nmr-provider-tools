@@ -44,6 +44,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
     async def assert_succeeded(self, operation):
         """Wait for the operation's terminal observation and require success."""
+
         async with asyncio.timeout(10):
             observed_operation = await observe_completion(operation)
 
@@ -53,6 +54,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
 
     async def assert_settled(self, control):
         """Observe required cleanup before reporting it as complete."""
+
         async with asyncio.timeout(10):
             observed_cleanup = await observe_cleanup(control)
 
@@ -126,6 +128,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
                 self.assertIsNotNone(model.loaded_coefficients)
                 await observe_cleanup(control=analysis.close())
                 await observe_cleanup(control=host.retire())
+
             dispose.assert_called_once_with(model=model)
             self.assertIsNone(model.loaded_coefficients)
 
@@ -216,6 +219,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.addAsyncCleanup(preparation_consumption.settle)
+
         async with asyncio.timeout(10):
             await preparation_consumption.consume()
 
@@ -252,8 +256,10 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.addAsyncCleanup(calculation_consumption.settle)
+
         async with asyncio.timeout(10):
             await calculation_consumption.consume()
+
         await self.assert_settled(analysis.close())
 
 

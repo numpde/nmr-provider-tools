@@ -36,14 +36,19 @@ def main():
     action.add_argument("--execution-attempt-ref")
     parser.add_argument("--body-sha256")
     options = parser.parse_args()
+
     if (not options.list_held and options.body_sha256 is None) or (options.list_held and options.body_sha256 is not None):
         parser.error("Supply the exact body SHA-256 for discard; list-held needs no payload selector.")
+
     os.umask(0o077)
+
     if options.shared_config is not None:
         if options.state_directory is None or not options.state_directory.is_absolute():
             parser.error("Shared delivery inspection requires its absolute state directory.")
+
         if _https_origin(options.api_origin)[0] != options.api_origin:
             parser.error("Held delivery inspection requires the canonical API origin.")
+
         require_provider_ref(options.provider_ref)
         limits = SharedDeliveryConfiguration(options.shared_config).read().limits
         state = options.state_directory
@@ -51,18 +56,25 @@ def main():
         document = tomllib.loads(read_startup_file(
             options.config, maximum_bytes=65536, label="delivery configuration"
         ).decode("utf-8"))
+
         if document["schema_id"] != "provider-core.delivery.v1":
             parser.error("Cannot inspect or discard held results: use the installed delivery configuration (schema provider-core.delivery.v1).")
+
         matches = [binding for binding in document["bindings"]
                    if (binding["api"]["origin"], binding["api"]["provider_ref"]) == (options.api_origin, options.provider_ref)]
+
         if len(matches) != 1:
             parser.error("Cannot inspect or discard held results: the supplied API/provider pair must match exactly one configured binding.")
+
         limits = QueueLimits(**document["limits"])
         state = Path(document["state_directory"])
+
     queue = DeliveryQueue(state, limits=limits)
+
     try:
         if options.list_held:
             items = queue.inventory(options.api_origin, options.provider_ref)
+
             print(json.dumps({"api_origin": options.api_origin, "provider_ref": options.provider_ref,
                               "outstanding_items": len(items),
                               "pending": [item for item in items if item["state"] == "pending"],
@@ -72,6 +84,7 @@ def main():
             queue.discard_held(options.api_origin, options.provider_ref, options.execution_attempt_ref, options.body_sha256)
     finally:
         queue.close()
+
     if not options.list_held:
         print("Discarded the matching held payload. This does not establish API acceptance or resolve the remote Attempt.")
 

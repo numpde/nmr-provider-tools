@@ -17,10 +17,12 @@ import sys
 import httpx
 
 from provider_core.chat_tls import restore_trust
+
 from provider_core.chat_wire import (
     METADATA_BYTES, decoded_bytes, failure_message, read_request,
     response_message, write_message,
 )
+
 from provider_core.decoded_body import require_decoded_limit
 from provider_core.transport import HttpTransport
 from provider_core.transport_errors import ExchangeFailed
@@ -44,6 +46,7 @@ class _Cancellation:
 
     def request(self, _signal, _frame):
         self.requested = True
+
         if self.task is not None:
             self.task.cancel()
 
@@ -55,6 +58,7 @@ class _Cancellation:
 def _positive_seconds(value):
     if not (type(value) in (int, float) and math.isfinite(value) and value > 0):
         raise ValueError("Interpreter child requires finite positive timing settings")
+
     return value
 
 
@@ -64,60 +68,80 @@ def _request(document):
             f"Unexpected {type(document)=}; "
             "Interpreter child request has an unknown schema"
         )
+
     if document.keys() != _REQUEST_FIELDS:
         raise ValueError("Interpreter child request has an unknown schema")
+
     if type(document["version"]) is not int:
         raise TypeError(
             f"Unexpected {type(document['version'])=}; "
             "Interpreter child request has an unknown schema"
         )
+
     if document["version"] != 1 or document["kind"] != "request":
         raise ValueError("Interpreter child request has an unknown schema")
+
     for field in ("method", "url"):
         value = document[field]
+
         if not (type(value) is str):
             raise TypeError(
                 f"Unexpected {type(value)=}; "
                 "Interpreter child request method and URL must be text"
             )
+
         if not (0 < len(value) <= METADATA_BYTES):
             raise ValueError("Interpreter child request metadata exceeds its admitted limit")
+
     pairs = document["headers"]
+
     if not (type(pairs) is list):
         raise TypeError(
             f"Unexpected {type(pairs)=}; "
             "Interpreter child headers must be a list"
         )
+
     if not (len(pairs) <= 65536):
         raise ValueError("Interpreter child headers exceed their admitted limit")
+
     headers = []
     remaining = METADATA_BYTES
+
     for pair in pairs:
         if type(pair) is not list:
             raise TypeError(
                 f"Unexpected {type(pair)=}; "
                 "Interpreter child header must be a two-element list"
             )
+
         if len(pair) != 2:
             raise ValueError("Interpreter child header is malformed")
+
         name = decoded_bytes(pair[0], remaining)
         remaining -= len(name)
         value = decoded_bytes(pair[1], remaining)
         remaining -= len(value)
         headers.append((name, value))
+
     limit = document["request_bytes"]
+
     if not (type(limit) is int):
         raise TypeError(
             f"Unexpected {type(limit)=}; "
             "Interpreter child request byte allowance must be an integer"
         )
+
     if not (0 <= limit):
         raise ValueError("Interpreter child request byte allowance is invalid")
+
     body = decoded_bytes(document["body"], limit)
+
     if len(body) != limit:
         raise ValueError("Interpreter child did not receive the complete admitted request")
+
     for field in ("exchange_seconds", "connect_seconds", "retirement_seconds", "not_after"):
         _positive_seconds(document[field])
+
     require_decoded_limit(document["maximum_bytes"])
     require_decoded_limit(document["error_maximum_bytes"])
     return httpx.Request(document["method"], document["url"], headers=headers, content=body)
@@ -127,17 +151,21 @@ async def _exchange(document, cancellation):
     cancellation.task = asyncio.current_task()
     owner = object()
     transport = None
+
     try:
         cancellation.check()
         request = _request(document)
         trust = restore_trust(document["trust"], directory=document["trust_directory"])
+
         transport = HttpTransport(
             trust=trust, exchange_seconds=document["exchange_seconds"],
             connect_seconds=document["connect_seconds"],
             retirement_seconds=document["retirement_seconds"],
             proxy_socket=document["proxy_socket"],
         )
+
         cancellation.check()
+
         # This is the parent's unchanged monotonic deadline. Construction and
         # trust restoration consume it; neither can grant a new exchange budget.
         response = await transport.exchange_decoded(
@@ -159,6 +187,7 @@ async def _exchange(document, cancellation):
                 primary=cause,
                 caller_interruption=cause if isinstance(cause, asyncio.CancelledError) else None,
             )
+
         # Preserve original evidence before any cancellation-resistant cleanup
         # can block this interpreter. The parent still requires observed exit.
         write_message(sys.stdout.buffer, failure_message(failure))
@@ -183,14 +212,18 @@ def main(argv=None):
     arguments = sys.argv[1:] if argv is None else argv
     cancellation = _Cancellation()
     previous = signal.signal(signal.SIGUSR1, cancellation.request)
+
     try:
         # A test-owned entry module may have arguments of its own. The parent
         # always appends the exact admitted request-frame allowance last.
         if not arguments or not arguments[-1].isascii() or not arguments[-1].isdecimal():
             return 1
+
         maximum = int(arguments[-1])
+
         if not 0 < maximum <= 0xffffffff:
             return 1
+
         document = read_request(sys.stdin.buffer, maximum)
         asyncio.run(_exchange(document, cancellation))
     # silent-defaults: allow-exception-outcome -- A failed child exits unsuccessfully; the parent must reject a missing or partial reply and observe process retirement.
@@ -200,6 +233,7 @@ def main(argv=None):
         return 1
     finally:
         signal.signal(signal.SIGUSR1, previous)
+
     return 0
 
 

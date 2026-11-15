@@ -13,9 +13,11 @@ from provider_core.runner_protocol import LifecycleRejected
 class RunnerTests(unittest.TestCase):
     def test_protected_failure_projection_keeps_stopped_child_and_unreleased_scratch_facts(self):
         failure = LifecycleRejected("Child stopped; scratch remains held", returncode=-9, scratch_released=False)
+
         self.assertEqual(owned_details(failure), {
             "message": "Child stopped; scratch remains held", "returncode": -9, "scratch_released": False,
         })
+
     def setUp(self):
         self.runner = RunningSupervisor()
         self.addCleanup(self.runner.close)
@@ -41,6 +43,7 @@ class RunnerTests(unittest.TestCase):
         self.assertNotEqual(first.operation, second.operation)
         self.assertIsNone(self.runner.process.poll())
         self.assertEqual(list(self.runner.scratch.iterdir()), [])
+
         for pid in (one, two):
             with self.assertRaises(ProcessLookupError):
                 os.kill(pid, 0)
@@ -58,8 +61,10 @@ class RunnerTests(unittest.TestCase):
         pid = worker_pid(session.science, b"H")
         session.retire()
         self.assertEqual(session.retirement.returncode, -9)
+
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
+
         self.assertEqual(list(self.runner.scratch.iterdir()), [])
 
     def test_original_exit_reason_distinguishes_crash_from_our_kill_with_same_status(self):
@@ -82,8 +87,10 @@ class RunnerTests(unittest.TestCase):
         os.kill(pid, 9)
         session.observe_retirement()
         original = session.original_exit
+
         self.assertEqual((session.role, session.generation, session.operation, -9),
                          (original.role, original.generation, original.operation, original.returncode))
+
         session.mark_interruption()
         self.assertIs(original, session.original_exit)
 
@@ -100,11 +107,15 @@ class RunnerTests(unittest.TestCase):
         session = self.session()
         worker_pid(session.science, b"D")
         raw = bytearray()
+
         while not raw.endswith(b"\n"):
             part = session.science.recv(4096)
+
             if not part:
                 self.fail("Child closed before its descriptor observation")
+
             raw.extend(part)
+
         observed = json.loads(raw)
         self.assertEqual(observed["sockets"], [observed["science"]])
         self.assertEqual(tuple(observed["lock"]), session.lock_identity)
@@ -130,8 +141,10 @@ class OwnerSessionLifetimeTests(unittest.TestCase):
         self.assertEqual(-15, self.session.retirement.returncode)
         self.assertTrue(self.session.retirement.scratch_released)
         self.assertEqual([], list(self.runner.scratch.iterdir()))
+
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
+
         self.assertIsNone(self.runner.process.poll())
 
     def test_native_child_exit_retires_its_owner_session_without_a_stop_request(self):
@@ -140,6 +153,7 @@ class OwnerSessionLifetimeTests(unittest.TestCase):
         self.assertEqual(0, self.session.retirement.returncode)
         self.assertTrue(self.session.retirement.scratch_released)
         self.assertEqual([], list(self.runner.scratch.iterdir()))
+
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
 
@@ -149,8 +163,10 @@ class OwnerSessionLifetimeTests(unittest.TestCase):
         successor = self.runner.session(startup_seconds=2, retirement_seconds=2)
         self.addCleanup(successor.close)
         successor.connect()
+
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)
+
         self.assertFalse((self.runner.scratch / self.session.operation).exists())
         self.assertNotEqual(self.session.operation, successor.operation)
         self.assertGreaterEqual(self.session.science.fileno(), 0)
@@ -167,5 +183,6 @@ class OwnerSessionLifetimeTests(unittest.TestCase):
         self.assertTrue(self.session.retirement.scratch_released)
         self.assertEqual(0, self.runner.process.wait(timeout=2))
         self.assertEqual([], list(self.runner.scratch.iterdir()))
+
         with self.assertRaises(ProcessLookupError):
             os.kill(pid, 0)

@@ -24,19 +24,23 @@ class PreparedIdentityRefusalTests(unittest.TestCase):
 
     def test_entry_requires_explicit_protected_identity(self):
         acknowledged = acknowledge_start(record(), admission())
+
         with self.assertRaises(TypeError):
             mark_execution_entered(acknowledged)
+
         for value in (None, b"unbound identity", object()):
             with self.subTest(value_type=type(value).__name__), self.assertRaises(TypeError):
                 mark_execution_entered(acknowledged, value)
 
     def test_identity_cannot_be_attached_before_execution_entry(self):
         acknowledged = acknowledge_start(record(), admission())
+
         with self.assertRaises(ValueError):
             replace(acknowledged, prepared_identity=ProtectedEvidence("fixture.input.v1", b"identity"))
 
     def test_checkpoint_entry_requires_its_actual_prepared_digest(self):
         acknowledged = AcknowledgedCheckpoint(record(), admission())
+
         for value in (None, b"unbound identity", ProtectedEvidence("fixture.input.v1", b"identity")):
             with self.subTest(value_type=type(value).__name__), self.assertRaises(TypeError):
                 EnteredCheckpoint(acknowledged, value)
@@ -51,9 +55,11 @@ class UnidentifiedPreparationTests(unittest.IsolatedAsyncioTestCase):
             reply(progress_response()),
             reply(observation()),
         )
+
         store, acknowledged, claim = await live_attempt()
         session = Session(store)
         session.preparation = object()
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -63,8 +69,10 @@ class UnidentifiedPreparationTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=1,
             task_settle_seconds=0.1,
         )
+
         with self.assertRaises(ExecutionFailed) as failed:
             await executor.run(acknowledged)
+
         self.assertIsInstance(failed.exception.cause, TypeError)
         self.assertEqual(["prepare", "retire"], [event[0] for event in session.events])
         self.assertEqual((AcknowledgedCheckpoint(acknowledged.start, acknowledged.admission),), store.records)

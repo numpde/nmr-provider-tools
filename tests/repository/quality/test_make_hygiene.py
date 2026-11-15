@@ -24,14 +24,17 @@ from .sources import is_skipped, iter_repo_text_files, read_text, repo_path
 MAKE_TARGET_RE = re.compile(r"^(?P<names>[A-Za-z0-9_/-]+(?:[ \t]+[A-Za-z0-9_/-]+)*)[ \t]*:(?!:*=)[ \t]*(?P<prereqs>.*)$")
 MAKE_HELP_TARGET_RE = re.compile(r"\bmake\s+(?P<name>[A-Za-z0-9_/-]+)\b")
 MAKE_PHONY_RE = re.compile(r"^\.PHONY:\s*(?P<names>.*)$", re.MULTILINE)
+
 # Dapp requires explicit safe discovery; API additionally requires caller-proof
 # ownership. Accept that modifier without admitting a second default authority.
 MAKE_DEFAULT_GOAL_RE = re.compile(
     r"^(?:override[ \t]+)?\.DEFAULT_GOAL[ \t]*:?=[ \t]*(?P<name>[A-Za-z0-9_/-]+)[ \t]*$", re.MULTILINE
 )
+
 MAKE_DEFAULT_AUTHORITY_RE = re.compile(
     r"^[ \t]*(?:(?:override|export|private)[ \t]+)*\.DEFAULT_GOAL[ \t]*(?:::?=|[?+!]?=)", re.MULTILINE
 )
+
 FIRST_PARTY_PYTHON_ROOTS = (
     "tools",
     "tests",
@@ -39,6 +42,7 @@ FIRST_PARTY_PYTHON_ROOTS = (
     "src",
     "packages",
 )
+
 SECRET_PATTERNS = [
     re.compile("GITHUB_" + "ACCESS_TOKEN"),
     re.compile(r"github_pat_[A-Za-z0-9_]+"),
@@ -50,10 +54,12 @@ SECRET_PATTERNS = [
 class RepositoryHygieneTest(unittest.TestCase):
     def test_secret_text_patterns_are_absent(self):
         findings = []
+
         for path in iter_repo_text_files():
             for line_number, line in enumerate(read_text(path).splitlines(), start=1):
                 if any(pattern.search(line) for pattern in SECRET_PATTERNS):
                     findings.append(f"{path}:{line_number}: secret pattern")
+
         self.assertEqual([], findings, msg="\n".join(findings))
 
     def test_first_party_python_bytecode_is_not_materialized_on_host(self) -> None:
@@ -64,6 +70,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         # lane regressed.
         for root_name in FIRST_PARTY_PYTHON_ROOTS:
             root = repo_path(root_name)
+
             for path in root.rglob("*"):
                 if path.is_dir() and path.name == "__pycache__":
                     failures.append(f"{path}: Python bytecode cache must not be materialized on host")
@@ -83,6 +90,7 @@ class RepositoryHygieneTest(unittest.TestCase):
         for path in repo_path(".").rglob("*"):
             if is_skipped(path):
                 continue
+
             if path.is_symlink():
                 failures.append(f"{path}: first-party repository paths must not be symlinks")
 
@@ -100,6 +108,7 @@ class RepositoryHygieneTest(unittest.TestCase):
 
     def test_make_scoped_targets_are_hierarchical(self) -> None:
         targets = self.make_targets(read_text(repo_path("Makefile")))
+
         for target in targets - {"help", "tests"}:
             with self.subTest(target=target):
                 self.assertRegex(target, r"^[a-z0-9]+(?:-[a-z0-9]+)*(?:/[a-z0-9]+(?:-[a-z0-9]+)*)+$")
@@ -107,10 +116,12 @@ class RepositoryHygieneTest(unittest.TestCase):
     def test_make_test_scopes_run_their_supported_campaigns(self) -> None:
         # The public aggregate covers repository checks and every installed-core lane.
         makefile = read_text(repo_path("Makefile"))
+
         self.assertEqual(
             ("tests/repository", "tests/unit/provider-core", "tests/contract/provider-core", "tests/integration/provider-core", "tests/deployment"),
             self.make_target_prereqs(makefile, "tests"),
         )
+
         self.assertEqual("", self.make_target_recipe(makefile, "tests").strip())
 
     def test_repository_has_one_make_entrypoint(self) -> None:
@@ -132,10 +143,13 @@ class RepositoryHygieneTest(unittest.TestCase):
 
     def test_make_default_goal_is_explicit_help_target(self) -> None:
         makefile = read_text(repo_path("Makefile"))
+
         self.assertEqual(
             1, len(MAKE_DEFAULT_AUTHORITY_RE.findall(makefile)), msg="Makefile must have exactly one default-goal assignment"
         )
+
         match = MAKE_DEFAULT_GOAL_RE.search(makefile)
+
         if match is None:
             self.fail("Makefile must declare an explicit default goal")
 
@@ -186,14 +200,18 @@ class RepositoryHygieneTest(unittest.TestCase):
             "next/three:\n"
             "\t@echo next\n"
         )
+
         self.assertEqual(["first/one", "second/two", "common/input", "next/three"], self.make_target_list(makefile))
+
         for target in ("first/one", "second/two"):
             with self.subTest(target=target):
                 self.assertEqual(("common/input",), self.make_target_prereqs(makefile, target))
                 self.assertEqual("\t@echo $@", self.make_target_recipe(makefile, target))
+
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "Makefile"
             path.write_text(makefile)
+
             result = subprocess.run(
                 ["make", "--no-print-directory", "--dry-run", "-f", str(path), "first/one", "second/two"],
                 cwd=directory,
@@ -201,6 +219,7 @@ class RepositoryHygieneTest(unittest.TestCase):
                 text=True,
                 check=False,
             )
+
         self.assertEqual(0, result.returncode, msg=result.stderr)
         self.assertEqual(["echo input", "echo first/one", "echo second/two"], result.stdout.splitlines())
 
@@ -214,12 +233,14 @@ class RepositoryHygieneTest(unittest.TestCase):
             "real/one real/two:\n"
             "\t@echo $@\n"
         )
+
         self.assertEqual(["help", "real/one", "real/two"], self.make_target_list(makefile))
         self.assertEqual("\t@echo 'recipe/target: hidden'", self.make_help_recipe(makefile))
 
     def test_duplicate_detection_retains_names_repeated_across_multi_target_rules(self):
         makefile = "first/one second/two:\nsecond/two third/three:\n"
         self.assertEqual(["first/one", "second/two", "second/two", "third/three"], self.make_target_list(makefile))
+
         with patch(f"{__name__}.read_text", return_value=makefile), self.assertRaises(AssertionError):
             self.test_make_targets_are_unique()
 
@@ -233,14 +254,17 @@ class RepositoryHygieneTest(unittest.TestCase):
             "real/one real/two:\n"
             "\t@echo $@\n"
         )
+
         with patch(f"{__name__}.read_text", return_value=makefile):
             self.test_make_help_mentions_existing_targets()
             self.test_make_phony_targets_are_real_targets()
+
         with (
             patch(f"{__name__}.read_text", return_value=makefile.replace("help:\n", "help:\n\t@echo 'make stale/lane'\n")),
             self.assertRaises(AssertionError),
         ):
             self.test_make_help_mentions_existing_targets()
+
         with (
             patch(f"{__name__}.read_text", return_value=makefile + ".PHONY: stale/lane\n"),
             self.assertRaises(AssertionError),
@@ -256,23 +280,32 @@ class RepositoryHygieneTest(unittest.TestCase):
         lines = makefile.splitlines()
         start = lines.index("help:") + 1
         recipe: list[str] = []
+
         for line in lines[start:]:
             if MAKE_TARGET_RE.match(line):
                 break
+
             recipe.append(line)
+
         return "\n".join(recipe)
 
     def make_target_recipe(self, makefile: str, target: str) -> str:
         lines = makefile.splitlines()
+
         for index, line in enumerate(lines):
             match = MAKE_TARGET_RE.match(line)
+
             if match is not None and target in match.group("names").split():
                 recipe: list[str] = []
+
                 for recipe_line in lines[index + 1 :]:
                     if MAKE_TARGET_RE.match(recipe_line) or recipe_line.startswith(".PHONY:"):
                         break
+
                     recipe.append(recipe_line)
+
                 return "\n".join(recipe)
+
         raise self.failureException(f"missing Make target: {target}")
 
     def make_targets(self, makefile: str) -> set[str]:
@@ -289,6 +322,8 @@ class RepositoryHygieneTest(unittest.TestCase):
     def make_target_prereqs(self, makefile: str, target: str) -> tuple[str, ...]:
         for line in makefile.splitlines():
             match = MAKE_TARGET_RE.match(line)
+
             if match is not None and target in match.group("names").split():
                 return tuple(match.group("prereqs").split("#", 1)[0].split())
+
         raise self.failureException(f"missing Make target: {target}")

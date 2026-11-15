@@ -113,6 +113,7 @@ class SchemaTests(unittest.TestCase):
         self.codec.json_schema()
         peak = Peak(integral="provider code can construct its own Python object")
         self.assertEqual(first=str, second=type(peak.integral))
+
         with self.assertRaises(expected_exception=TypeError):
             JsonDataclassCodec(format="peak.v1", value_type=Peak).encode(value=peak)
 
@@ -172,6 +173,7 @@ class ScientificInputToolDefinitionTests(unittest.IsolatedAsyncioTestCase):
     def test_structural_failure_keeps_original_codec_rejection(self):
         with self.assertRaises(expected_exception=PayloadRejected) as raised:
             self.tool_definition.decode(name=self.tool_definition.name, arguments={"value": {}})
+
         self.assertEqual(first="unexpected_field", second=raised.exception.code)
 
     def test_custom_codec_does_not_acquire_guessed_json_semantics(self):
@@ -188,6 +190,7 @@ class ScientificInputToolDefinitionTests(unittest.IsolatedAsyncioTestCase):
                 return original.decode(payload=payload)
 
         custom = replace(self.call_binding, input_codec=CustomCodec())
+
         with self.assertRaisesRegex(expected_exception=TypeError, expected_regex="CustomCodec"):
             ScientificInputToolDefinition(call_binding=custom, description="Cannot infer this codec's schema")
 

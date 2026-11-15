@@ -12,10 +12,12 @@ from provider_core.diagnostics import failure_evidence
 class HttpsAdmissionTests(unittest.TestCase):
     def test_captured_ca_builds_trust_without_transport_settings_or_path_reads(self):
         context = Mock()
+
         with patch.dict("os.environ", {}, clear=True), \
                 patch("provider_core.api_config.CapturedSSLContext", return_value=context), \
                 patch("provider_core.api_config.new_https_trust") as roots:
             self.assertIs(https_trust(b"CAPTURED_CA", label="Interpreter"), context)
+
         context.load_verify_locations.assert_called_once_with(cadata="CAPTURED_CA")
         roots.assert_not_called()
 
@@ -28,6 +30,7 @@ class HttpsAdmissionTests(unittest.TestCase):
                         patch("provider_core.api_config.new_https_trust") as roots, \
                         self.assertRaises(ApiConfigurationRejected):
                     https_trust(material, label="Interpreter")
+
                 context.assert_not_called()
                 roots.assert_not_called()
 
@@ -46,6 +49,7 @@ class HttpsAdmissionTests(unittest.TestCase):
 
             with self.subTest(reason=reason), self.assertRaises(ApiConfigurationRejected) as caught:
                 self.settings(read_file)
+
             error = caught.exception
             self.assertIn(reason, str(error))
             self.assertIsInstance(error.cause, cause_type)
@@ -59,17 +63,21 @@ class HttpsAdmissionTests(unittest.TestCase):
         cause = ssl.SSLError("PRIVATE_NATIVE_REASON")
         context = Mock()
         context.load_verify_locations.side_effect = cause
+
         with patch("provider_core.api_config.CapturedSSLContext", return_value=context), \
                 self.assertRaises(ApiConfigurationRejected) as caught:
             self.settings(lambda path, **selection: b"PRIVATE_CA")
+
         self.assertIs(caught.exception.cause, cause)
         self.assertNotIn("PRIVATE", json.dumps(failure_evidence(caught.exception, secrets=())))
 
     def test_reader_failure_keeps_its_identity_before_any_tls_parser_effect(self):
         cause = OSError("The selected CA exceeds its 1048576-byte read limit.")
         reader = Mock(side_effect=cause)
+
         with patch("provider_core.api_config.CapturedSSLContext") as create_context, self.assertRaises(OSError) as caught:
             self.settings(reader)
+
         self.assertIs(caught.exception, cause)
         create_context.assert_not_called()
         reader.assert_called_once_with("/PRIVATE_PATH/ca.pem", maximum_bytes=1048576, label="API CA")
@@ -78,4 +86,5 @@ class HttpsAdmissionTests(unittest.TestCase):
         with patch("provider_core.api_config.new_https_trust") as roots:
             with self.assertRaisesRegex(ApiConfigurationRejected, "reader did not return bytes"):
                 self.settings(lambda path, **selection: None)
+
         roots.assert_not_called()

@@ -24,8 +24,10 @@ def _has_prose(comment):
 
 def _optional_setting(comment):
     """Recognize a complete commented-out assignment, not prose containing '='."""
+
     if comment.startswith("["):
         return False
+
     try:
         return bool(tomllib.loads(comment))
     # silent-defaults: allow-exception-outcome -- Prose need not parse as TOML; syntax failure means this comment is not a complete optional assignment; proof=tests/repository/quality/test_example_toml_explanations.py::ExampleTomlExplanationTests.test_accepts_preceding_and_inline_comments_including_optional_settings
@@ -39,12 +41,15 @@ def _inline_explanation(statement):
     for offset, character in enumerate(statement):
         if character != "#":
             continue
+
         try:
             tomllib.loads(statement[:offset])
         except TOMLDecodeError:
             continue
+
         if _has_prose(statement[offset + 1:].splitlines()[0]):
             return True
+
     return False
 
 
@@ -59,19 +64,25 @@ def unexplained_settings(source):
     lines = iter(enumerate(source.splitlines(), 1))
     explained = False
     findings = []
+
     for line_number, line in lines:
         stripped = line.strip()
+
         if not stripped:
             explained = False
             continue
+
         if stripped.startswith("#"):
             comment = stripped[1:].strip()
+
             if not _optional_setting(comment):
                 explained = explained or _has_prose(comment)
                 continue
+
             statement = comment
         else:
             statement = line
+
             while True:
                 try:
                     tomllib.loads(statement)
@@ -79,10 +90,13 @@ def unexplained_settings(source):
                 except TOMLDecodeError:
                     _, continuation = next(lines)
                     statement += "\n" + continuation
+
         if not statement.lstrip().startswith("["):
             if not explained and not _inline_explanation(statement):
                 findings.append(line_number)
+
         explained = False
+
     return findings
 
 
@@ -116,18 +130,22 @@ class ExampleTomlExplanationTests(unittest.TestCase):
             example = root / "nested/new.example.toml"
             example.parent.mkdir()
             example.write_text('unexplained = 1\n', encoding="utf-8")
+
             with patch.object(sources, "ROOT", root):
                 with self.assertRaisesRegex(AssertionError, r"nested/new\.example\.toml:1:"):
                     self.test_all_example_toml_settings_have_explanations()
 
     def test_all_example_toml_settings_have_explanations(self):
         findings = []
+
         for path in sorted(sources.ROOT.rglob("*.example.toml")):
             if sources.is_skipped(path):
                 continue
+
             for line in unexplained_settings(path.read_text(encoding="utf-8")):
                 findings.append(
                     f"{path.relative_to(sources.ROOT)}:{line}: explain this setting in a comment "
                     "directly above it or on the same line"
                 )
+
         self.assertEqual([], findings, msg="\n".join(findings))

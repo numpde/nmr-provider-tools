@@ -21,6 +21,7 @@ class UnixHTTPPeer:
 
     async def handle(self, reader, writer):
         self.tasks.add(asyncio.current_task())
+
         try:
             head = await reader.readuntil(b"\r\n\r\n")
             fields = dict(line.split(b": ", 1) for line in head.split(b"\r\n")[1:] if line)
@@ -31,6 +32,7 @@ class UnixHTTPPeer:
             writer.write(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\n")
             await writer.drain()
             self.head_sent.set()
+
             if self.stall:
                 await reader.read()
             else:
@@ -41,20 +43,25 @@ class UnixHTTPPeer:
             self.closed.set()
         finally:
             writer.close()
+
             try:
                 await writer.wait_closed()
             except ConnectionResetError:
                 self.closed.set()
+
             self.closed.set()
 
     async def __aexit__(self, *_failure):
         self.server.close()
+
         for task in self.tasks:
             if not task.done():
                 task.cancel()
+
         results = await asyncio.gather(*self.tasks, return_exceptions=True)
         await self.server.wait_closed()
         self.scratch.cleanup()
         failures = [failure for failure in results if isinstance(failure, Exception)]
+
         if failures:
             raise ExceptionGroup("Unix HTTP peer failed", failures)

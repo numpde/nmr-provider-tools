@@ -17,6 +17,7 @@ class ReferenceScienceTests(unittest.TestCase):
         index = self.index()
         self.assertEqual((((0, 0.6),), ((0, 0.8),), ((1, 1.0),)), index.postings)
         settings = science.MatchSettings(minimum_score=0.5)
+
         for values, label in (((3, 4, 0), "pattern-a"), ((0, 0, 2), "pattern-b")):
             with self.subTest(values=values):
                 report = science.match(index, settings, science.VectorInput(values=values))
@@ -28,16 +29,19 @@ class ReferenceScienceTests(unittest.TestCase):
             science.Reference(label="z", values=(1, 0)),
             science.Reference(label="a", values=(1, 0)),
         ))
+
         report = science.match(
             science.build_index(references), science.MatchSettings(minimum_score=0),
             science.VectorInput(values=(1, 0)),
         )
+
         self.assertEqual("a", report.label)
 
     def test_query_rejections_distinguish_dimensions_zero_overlap_and_threshold(self):
         index = science.build_index(science.ReferenceSet(entries=(
             science.Reference(label="axis", values=(1, 0)),
         )))
+
         for values, minimum, code in (
             ((1,), 0, "wrong_dimensions"),
             ((0, 0), 0, "zero_vector"),
@@ -47,10 +51,12 @@ class ReferenceScienceTests(unittest.TestCase):
             with self.subTest(code=code):
                 with self.assertRaises(ScientificRejection) as rejected:
                     science.match(index, science.MatchSettings(minimum_score=minimum), science.VectorInput(values=values))
+
                 self.assertEqual(code, rejected.exception.code)
 
     def test_finite_extreme_values_normalize_without_overflow_or_underflow(self):
         index = self.index()
+
         for values in ((3e307, 4e307, 0), (3e-307, 4e-307, 0)):
             report = science.match(index, science.MatchSettings(minimum_score=0.5), science.VectorInput(values=values))
             self.assertEqual("pattern-a", report.label)
@@ -74,8 +80,10 @@ class ReferenceScienceTests(unittest.TestCase):
             with self.subTest(entries=entries):
                 with self.assertRaises(ValueError):
                     science.ReferenceSet(entries=entries)
+
         with self.assertRaises(ValueError):
             science.Reference(label="zero", values=(0, 0))
+
         for minimum in (-0.1, 1.1, float("inf")):
             with self.assertRaises(ValueError):
                 science.MatchSettings(minimum_score=minimum)

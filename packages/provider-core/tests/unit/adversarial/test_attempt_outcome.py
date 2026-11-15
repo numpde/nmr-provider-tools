@@ -50,19 +50,25 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
         ):
             document = json.loads(self.body(completing)) | changes
             transport = Transport()
+
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 await self.send(self.api(transport), completing, json.dumps(document).encode())
+
             self.assertEqual(transport.calls, [])
+
         for completing, body in ((True, b" " * 2097153), (False, b" " * 16385), (False, bytearray(self.body(False)))):
             transport = Transport()
+
             with self.assertRaises(ValueError):
                 await self.send(self.api(transport), completing, body)
+
             self.assertEqual(transport.calls, [])
 
     def test_invalid_builder_inputs_do_not_create_publication(self):
         for data, error_type in ((b"", ValueError), (b"x" * 786433, ValueError), (bytearray(b"x"), TypeError)):
             with self.assertRaises(error_type):
                 complete_body(ATTEMPT_REF, "schema", data)
+
         for message in ("", "\x00", "\udfff", "x" * 1025):
             with self.assertRaises(ValueError):
                 fail_body(ATTEMPT_REF, "input_rejected", message)
@@ -81,8 +87,10 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
         ):
             received = reply(response(**changes))
             transport = Transport(received)
+
             with self.subTest(changes=changes), self.assertRaises(ApiFailure) as caught:
                 await self.send(self.api(transport), completing, self.body(completing))
+
             self.assertTrue(caught.exception.attempt_mutation_may_have_committed)
             self.assertIs(caught.exception.response, received)
             self.assertNotIn("private-canary", str(caught.exception))
@@ -93,8 +101,10 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
             for outcome in (ExchangeFailed("response lost"), asyncio.CancelledError(), reply(b"private-canary", status=503)):
                 transport = Transport(outcome)
                 api = self.api(transport)
+
                 with self.assertRaises(asyncio.CancelledError if isinstance(outcome, asyncio.CancelledError) else ApiFailure):
                     await self.send(api, completing, self.body(completing))
+
                 self.assertTrue(api.last_failure.attempt_mutation_may_have_committed)
                 self.assertEqual(len(transport.calls), 1)
 
@@ -115,15 +125,20 @@ class AttemptOutcomeFailureTests(unittest.IsolatedAsyncioTestCase):
                 "instance": "urn:nmr-api:request:test",
                 "request_id": "request:test",
             }
+
             transport = Transport(
                 ExchangeFailed("lost reply"),
                 reply(json.dumps(problem).encode(), status=409, headers=response_headers(status=409, request_id=b"request:test")),
             )
+
             api = self.api(transport)
+
             with self.assertRaises(ApiFailure) as earlier:
                 await self.send(api, completing, self.body(completing))
+
             with self.assertRaises(ApiFailure) as current:
                 await self.send(api, completing, self.body(completing))
+
             self.assertTrue(earlier.exception.attempt_mutation_may_have_committed)
             self.assertFalse(current.exception.attempt_mutation_may_have_committed)
             self.assertEqual(current.exception.problem_code, code)

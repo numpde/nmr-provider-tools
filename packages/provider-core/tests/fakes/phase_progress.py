@@ -19,19 +19,26 @@ class PhaseProgressTransport(ConditionTransport):
 
     async def exchange(self, request, *, maximum_bytes, owner=None):
         received = await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
+
         if request.method == "PUT":
             command = json.loads(request.content)
+
             if (command["phase"], command["condition_code"]) == (self.phase, None):
                 if self.failed:
                     raise AssertionError("A failed phase label was resent")
+
                 self.failed = True
                 self.retirement_confirmed, self.pending_owner = False, owner
+
                 if isinstance(self.phase_failure, BaseException):
                     raise self.phase_failure
+
                 return self.phase_failure
         elif self.failed and self.fresh_reads == 0:
             if not self.retirement_confirmed:
                 raise AssertionError("Fresh lifecycle read preceded original PUT retirement")
+
             self.fresh_reads += 1
             return self.fresh_observation
+
         return received

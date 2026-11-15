@@ -20,9 +20,11 @@ from host.acquisition_tool import source_update as updates
 class SourceUpdateTests(unittest.TestCase):
     def test_manifest_distinguishes_record_types_from_unsupported_values(self):
         manifest = self.manifest("1.0.0", self.old)
+
         for changes in ({"source_revision": []}, {"payload_files": []}, {"dependency_inputs": []}):
             with self.subTest(changes=changes), self.assertRaises(TypeError):
                 updates.read_manifest(json.dumps(manifest | changes))
+
         for changes in ({"source_revision": "bad"}, {"payload_files": {}}, {"dependency_inputs": {"wheel.pyz": "bad"}}):
             with self.subTest(changes=changes), self.assertRaises(ValueError):
                 updates.read_manifest(json.dumps(manifest | changes))
@@ -56,24 +58,29 @@ class SourceUpdateTests(unittest.TestCase):
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
             path.chmod(0o644)
+
         (root / "acquisition-manifest.json").write_text(json.dumps(self.manifest(version, payload)))
         (root / "acquisition-manifest.json").chmod(0o644)
 
     def write_archive(self, *, extra):
         payload = dict(self.new)
         payload["acquisition-manifest.json"] = json.dumps(self.manifest("2.0.0", self.new)).encode()
+
         with tarfile.open(self.archive, "w:gz") as archive:
             for name, data in payload.items():
                 member = tarfile.TarInfo(name)
                 member.mode, member.size = 0o644, len(data)
                 archive.addfile(member, io.BytesIO(data))
+
             for name, kind in extra:
                 member = tarfile.TarInfo(name)
                 member.mode, member.type = 0o644, kind
+
                 if member.isfile():
                     archive.addfile(member, io.BytesIO())
                 else:
                     archive.addfile(member)
+
         self.pin.write_text(json.dumps({
             "version": "2.0.0", "archive_sha256": hashlib.sha256(self.archive.read_bytes()).hexdigest(),
         }))
@@ -93,23 +100,29 @@ class SourceUpdateTests(unittest.TestCase):
 
     def test_local_edit_refuses_update_before_download(self):
         (self.source / "acquisition_tool/old.py").write_bytes(b"local edit")
+
         with patch.object(updates.subprocess, "run") as download, self.assertRaises(ValueError):
             updates.update(self.source, self.pin)
+
         download.assert_not_called()
         self.assertEqual(b"local edit", (self.source / "acquisition_tool/old.py").read_bytes())
 
     def test_checksum_failure_precedes_tar_parsing_and_preserves_source(self):
         self.archive.write_bytes(b"not an authenticated archive")
+
         with patch.object(updates.tarfile, "open") as parse, self.assertRaisesRegex(ValueError, "checksum mismatch"):
             updates.import_archive(self.source, self.pin, self.archive)
+
         parse.assert_not_called()
         self.assert_old_source()
 
     def test_nonregular_archive_is_rejected_without_waiting_for_input(self):
         fifo = self.root / "archive-fifo"
         os.mkfifo(fifo)
+
         with self.assertRaisesRegex(ValueError, "regular file"):
             updates.import_archive(self.source, self.pin, fifo)
+
         self.assert_old_source()
 
     def test_unsafe_or_duplicate_archive_members_never_publish(self):
@@ -120,8 +133,10 @@ class SourceUpdateTests(unittest.TestCase):
         ):
             with self.subTest(name=name):
                 self.write_archive(extra=((name, kind),))
+
                 with self.assertRaises(ValueError):
                     updates.import_archive(self.source, self.pin, self.archive)
+
                 self.assert_old_source()
 
     def test_git_checkout_modes_preserve_only_the_executable_contract(self):
@@ -129,23 +144,29 @@ class SourceUpdateTests(unittest.TestCase):
         path.chmod(0o664)
         updates.verify(self.source)
         path.chmod(0o755)
+
         with self.assertRaisesRegex(ValueError, "executable bits"):
             updates.verify(self.source)
 
     def test_unrecorded_directory_or_symlink_is_not_admitted(self):
         extra = self.source / "extra"
         extra.mkdir()
+
         with self.assertRaises(ValueError):
             updates.verify(self.source)
+
         extra.rmdir()
         extra.symlink_to(self.root, target_is_directory=True)
+
         with self.assertRaises(ValueError):
             updates.verify(self.source)
 
     def test_exchange_failure_keeps_old_source_and_retains_candidate_evidence(self):
         failure = PermissionError("exchange denied")
+
         with patch.object(updates, "_exchange_directories", side_effect=failure), self.assertRaises(PermissionError) as caught:
             updates.import_archive(self.source, self.pin, self.archive)
+
         self.assertIs(failure, caught.exception)
         self.assert_old_source()
         stages = list(self.root.glob(".acquisition-next-*"))
@@ -155,8 +176,10 @@ class SourceUpdateTests(unittest.TestCase):
 
     def test_cleanup_failure_reports_published_source_and_original_error(self):
         failure = PermissionError("previous snapshot cleanup denied")
+
         with patch.object(updates.shutil, "rmtree", side_effect=failure), self.assertRaises(PermissionError) as caught:
             updates.import_archive(self.source, self.pin, self.archive)
+
         self.assertIs(failure, caught.exception)
         self.assertEqual("2.0.0", updates.verify(self.source)["release_version"])
         self.assertIn("published", " ".join(failure.__notes__))
@@ -170,6 +193,7 @@ class SourceUpdateTests(unittest.TestCase):
         def reject_stage(path):
             if Path(path).name.startswith(".acquisition-next-"):
                 raise primary
+
             return verify(path)
 
         with (
@@ -178,6 +202,7 @@ class SourceUpdateTests(unittest.TestCase):
             self.assertRaises(BaseExceptionGroup) as caught,
         ):
             updates.import_archive(self.source, self.pin, self.archive)
+
         self.assertEqual((primary, cleanup), caught.exception.exceptions)
         self.assert_old_source()
 
@@ -195,6 +220,7 @@ class SourceUpdateTests(unittest.TestCase):
             patch.object(updates, "_admit_archive", wraps=updates._admit_archive) as admission,
         ):
             updates.update(self.source, self.pin)
+
         self.assertEqual(1, download.call_count)
         self.assertEqual(1, admission.call_count)
         self.assertEqual("2.0.0", updates.verify(self.source)["release_version"])
@@ -207,6 +233,7 @@ class SourceUpdateTests(unittest.TestCase):
 
         with patch.object(updates.subprocess, "run", side_effect=download_and_edit), self.assertRaises(ValueError):
             updates.update(self.source, self.pin)
+
         self.assertEqual(b"edit during download", (self.source / "acquisition_tool/old.py").read_bytes())
         self.assertFalse(self.download_directory.exists())
         self.assertEqual([], list(self.root.glob(".acquisition-next-*")))

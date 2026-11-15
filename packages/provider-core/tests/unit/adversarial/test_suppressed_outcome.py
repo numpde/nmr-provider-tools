@@ -25,12 +25,15 @@ async def stopped_executor(retirement_failure):
     store, acknowledged, claim = await live_attempt()
     session = Session(store)
     session.retirement_failure = retirement_failure
+
     transport = Transport(reply(observation()), reply(response()), reply(progress_response()), reply(observation()),
                           reply(progress_response(phase="running")), reply(observation()), reply(observation(job_state="closed")))
+
     executor = live_executor(api(transport, store.scope.api_origin), store, claim, session,
                                delivery=RecordingDelivery(), on_delivery_retry=unexpected_delivery_retry,
                                delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
                                allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+
     try:
         await executor.run(acknowledged)
     except ExecutionFailed as failure:
@@ -38,6 +41,7 @@ async def stopped_executor(retirement_failure):
             raise
     else:
         raise AssertionError("Fixture did not stop the completed result's acceptance")
+
     return store, executor, session, claim, transport
 
 
@@ -53,23 +57,30 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
                     self.retirement_confirmed = False
                     reading.set()
                     await asyncio.Future()
+
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         store, acknowledged, claim = await live_attempt()
         session = Session(store)
+
         transport = PendingTransport(reply(observation()), reply(response()), reply(progress_response()), reply(observation()),
                                      reply(progress_response(phase="running")), reply(observation()))
+
         executor = live_executor(api(transport, store.scope.api_origin), store, claim, session,
                            delivery=RecordingDelivery(), on_delivery_retry=unexpected_delivery_retry,
                            delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
                                    allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+
         task = asyncio.create_task(executor.run(acknowledged))
         await asyncio.wait_for(reading.wait(), 1)
         task.cancel()
+
         with self.assertRaises(asyncio.CancelledError):
             await task
+
         with self.assertRaises(ExecutionFailed) as unretained:
             await executor.settle()
+
         self.assertIn("suppression disposition", str(unretained.exception.cleanup_failures[-1]))
         self.assertIs(unretained.exception.outcome, session.outcome)
         self.assertIsNone(transport.pending_owner)
@@ -88,14 +99,18 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
         store, acknowledged, claim = await live_attempt()
         session = Session(store)
         session.preparation = AnalysisFailure("invalid_input", "Supply coordinates.", ProtectedEvidence("evidence.v1", b"reason"))
+
         transport = Transport(reply(observation()), reply(response()), reply(progress_response()),
                               reply(observation(job_state="closed")))
+
         executor = live_executor(api(transport, store.scope.api_origin), store, claim, session,
                            delivery=RecordingDelivery(), on_delivery_retry=unexpected_delivery_retry,
                            delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
                                    allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+
         with self.assertRaises(ExecutionFailed):
             await executor.run(acknowledged)
+
         retained = await executor.retain_suppressed_disposition()
         self.assertIs(type(retained.attempt), AcknowledgedCheckpoint)
         self.assertIs(retained.reason, SuppressionReason.SERVER_STOP)
@@ -111,8 +126,10 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
         store, executor, session, claim, transport = await stopped_executor(RuntimeError("private cleanup failure"))
         retained = await executor.retain_suppressed_disposition()
         self.assertEqual(store.records, (retained,))
+
         with self.assertRaises(OwnershipRefused):
             claim.release(owner=claim.lifecycle_owner)
+
         session.retirement_failure = None
         self.assertIsNone(await executor.settle())
         self.assertEqual(len(transport.calls), 7)

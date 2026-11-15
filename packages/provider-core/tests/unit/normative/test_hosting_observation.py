@@ -59,10 +59,12 @@ class HeldObserver:
 
     async def observe(self, *, after, wait_seconds):
         self.requests.append((after, wait_seconds))
+
         if after == self.observation.revision and wait_seconds > 0:
             self.changed.clear()
             self.waiting.set()
             await self.changed.wait()
+
         return self.observation
 
     def publish(self, observation):
@@ -73,6 +75,7 @@ class HeldObserver:
 class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
     async def test_completion_preserves_scientific_success_and_encoding_failure(self):
         cause = ValueError("The completed scientific result cannot be encoded")
+
         completed = replace(
             pending_operation(),
             revision=8,
@@ -82,6 +85,7 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
             failures=(Failure("encoding", cause),),
             resources=ResourceState.OCCUPIED,
         )
+
         operation = SimpleNamespace(observe=AsyncMock(return_value=completed))
 
         observed = await observe_completion(operation)
@@ -92,6 +96,7 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_completion_returns_a_failed_outcome_without_raising_its_cause(self):
         cause = ArithmeticError("The numerical calculation failed")
+
         completed = replace(
             pending_operation(),
             finished=True,
@@ -99,6 +104,7 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
             failures=(Failure("science", cause),),
             resources=ResourceState.UNKNOWN,
         )
+
         operation = SimpleNamespace(observe=AsyncMock(return_value=completed))
 
         self.assertIs(completed, await observe_completion(operation))
@@ -107,10 +113,12 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
     async def test_completion_long_polls_with_the_latest_revision(self):
         pending = pending_operation()
         newer = replace(pending, revision=7, allowance_expired=True)
+
         result = ResultRef(
             operation=OperationRef(host="host", analysis="analysis", operation_id="calculation"),
             result_id="result",
         )
+
         completed = replace(
             newer,
             revision=10,
@@ -119,11 +127,13 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
             result_state=ResultState.AVAILABLE,
             result=result,
         )
+
         operation = SimpleNamespace(
             observe=AsyncMock(side_effect=[pending, newer, completed]),
         )
 
         self.assertIs(completed, await observe_completion(operation))
+
         self.assertEqual(
             [
                 {"after": None, "wait_seconds": 0},
@@ -137,11 +147,14 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
         pending = pending_operation()
         operation = HeldObserver(pending)
         waiter = asyncio.create_task(observe_completion(operation))
+
         try:
             await asyncio.wait_for(operation.waiting.wait(), 1)
             waiter.cancel()
+
             with self.assertRaises(asyncio.CancelledError):
                 await waiter
+
             self.assertIs(pending, operation.observation)
 
             completed = replace(pending, revision=9, finished=True, outcome=Outcome.SUCCEEDED)
@@ -156,6 +169,7 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
         settled = CleanupObservation(
             revision=5, settled=True, allowance_expired=False, failures=(),
         )
+
         cleanup = SimpleNamespace(observe=AsyncMock(return_value=settled))
 
         self.assertIs(settled, await observe_cleanup(cleanup))
@@ -165,11 +179,13 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
         pending = CleanupObservation(
             revision=2, settled=False, allowance_expired=False, failures=(),
         )
+
         expired = replace(pending, revision=6, allowance_expired=True)
         settled = replace(expired, revision=9, settled=True)
         cleanup = SimpleNamespace(observe=AsyncMock(side_effect=[pending, expired, settled]))
 
         self.assertIs(settled, await observe_cleanup(cleanup))
+
         self.assertEqual(
             [
                 {"after": None, "wait_seconds": 0},
@@ -183,13 +199,17 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
         pending = CleanupObservation(
             revision=3, settled=False, allowance_expired=False, failures=(),
         )
+
         cleanup = HeldObserver(pending)
         waiter = asyncio.create_task(observe_cleanup(cleanup))
+
         try:
             await asyncio.wait_for(cleanup.waiting.wait(), 1)
             waiter.cancel()
+
             with self.assertRaises(asyncio.CancelledError):
                 await waiter
+
             self.assertIs(pending, cleanup.observation)
 
             settled = replace(pending, revision=8, settled=True)
@@ -202,12 +222,14 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cleanup_propagates_one_original_failure_before_settlement(self):
         cause = OSError("The original cleanup could not release its resource")
+
         failed = CleanupObservation(
             revision=3,
             settled=False,
             allowance_expired=False,
             failures=(Failure("cleanup", cause),),
         )
+
         cleanup = SimpleNamespace(observe=AsyncMock(return_value=failed))
 
         with self.assertRaises(OSError) as raised:
@@ -219,12 +241,14 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
     async def test_cleanup_groups_independent_original_base_exception_causes(self):
         first = OSError("The first resource failed to close")
         second = asyncio.CancelledError("The second cleanup reported cancellation")
+
         failed = CleanupObservation(
             revision=3,
             settled=False,
             allowance_expired=False,
             failures=(Failure("first", first), Failure("second", second)),
         )
+
         cleanup = SimpleNamespace(observe=AsyncMock(return_value=failed))
 
         with self.assertRaises(BaseExceptionGroup) as raised:
@@ -240,8 +264,10 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(helper=helper.__name__):
                 cause = OSError("The original observation channel failed")
                 owner = SimpleNamespace(observe=AsyncMock(side_effect=cause))
+
                 with self.assertRaises(OSError) as raised:
                     await helper(owner)
+
                 self.assertIs(cause, raised.exception)
                 owner.observe.assert_awaited_once_with(after=None, wait_seconds=0)
 

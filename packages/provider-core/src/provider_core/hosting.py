@@ -27,6 +27,7 @@ from provider_core.contribution import (
     IsolationRequirement,
     ProgressEvent,
 )
+
 from provider_core.task_boundary import contain_task_exit
 
 
@@ -41,6 +42,7 @@ def _identity(value, label):
             f"Unexpected {type(value)=}; "
             f"{label} must be a nonempty identity without whitespace or control characters"
         )
+
     if not (value and all(character.isprintable() and not character.isspace() for character in value)):
         raise ValueError(f"{label} must be a nonempty identity without whitespace or control characters")
 
@@ -51,6 +53,7 @@ def _digest(value, label):
             f"Unexpected {type(value)=}; "
             f"{label} must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest"
         )
+
     if re.fullmatch(r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z", value) is None:
         raise ValueError(f"{label} must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest")
 
@@ -74,13 +77,17 @@ class BackendCapabilities:
         ):
             if type(values) is not frozenset:
                 raise TypeError(f"Unexpected {type(values)=}; backend {name=} support must be a frozenset")
+
             if not values:
                 raise ValueError(f"Backend {name=} support cannot be empty")
+
             for value in values:
                 if type(value) is not expected_type:
                     raise TypeError(f"Unexpected {type(value)=}; backend {name=} support requires {expected_type=}")
+
         if any(version <= 0 for version in self.contract_versions):
             raise ValueError(f"Backend contract versions must be positive; {self.contract_versions=}")
+
         if type(self.progress) is not bool:
             raise TypeError(f"Unexpected {type(self.progress)=}; backend progress support must be boolean")
 
@@ -126,11 +133,13 @@ class OperationRef:
     def __post_init__(self):
         _identity(self.host, "Host identity")
         _identity(self.analysis, "Analysis identity")
+
         if not (type(self.operation_id) is str):
             raise TypeError(
                 f"Unexpected {type(self.operation_id)=}; "
                 "Operation identity must contain 1 through 160 characters"
             )
+
         if not (0 < len(self.operation_id) <= 160):
             raise ValueError("Operation identity must contain 1 through 160 characters")
 
@@ -154,11 +163,13 @@ class StateRef:
         _digest(self.binding_revision, "Binding revision")
         _identity(self.state_id, "State identity")
         _identity(self.kind, "Scientific state kind")
+
         if type(self.producer) is not OperationRef:
             raise TypeError(
                 f"Unexpected {type(self.producer)=}; "
                 "State producer must be an OperationRef from the same host and analysis"
             )
+
         if (self.producer.host, self.producer.analysis) != (self.host, self.analysis):
             raise ValueError("State producer must belong to the same host and analysis")
 
@@ -174,6 +185,7 @@ class ResultRef:
                 f"Unexpected {type(self.operation)=}; "
                 "Result reference requires an OperationRef"
             )
+
         _identity(self.result_id, "Result identity")
 
 
@@ -184,6 +196,7 @@ class StateArgument:
 
     def __post_init__(self):
         _identity(self.name, "State argument name")
+
         if type(self.reference) is not StateRef:
             raise TypeError(
                 f"Unexpected {type(self.reference)=}; "
@@ -200,6 +213,7 @@ class StateResult:
 
     def __post_init__(self):
         _identity(self.name, "State output name")
+
         if type(self.reference) is not StateRef:
             raise TypeError(
                 f"Unexpected {type(self.reference)=}; "
@@ -243,6 +257,7 @@ class OperationPolicy:
             self.cleanup_overdue_flag_seconds,
         ):
             positive_seconds(value)
+
         if not all(type(value) is int and 0 < value for value in (
             self.reject_encoded_input_over_bytes,
             self.reject_encoded_result_over_bytes,
@@ -279,15 +294,19 @@ class Invocation:
         if self.start_not_after is not None:
             if type(self.start_not_after) not in (int, float):
                 raise TypeError(f"Unexpected {type(self.start_not_after)=}; a start deadline must be a finite execution-clock value")
+
             if not math.isfinite(self.start_not_after):
                 raise ValueError(f"Cannot set a start deadline with {self.start_not_after=}; expected a finite execution-clock value")
+
         if not (type(self.operation_id) is str):
             raise TypeError(
                 f"Unexpected {type(self.operation_id)=}; "
                 "An invocation needs an operation ID of 1 through 160 characters."
             )
+
         if not (0 < len(self.operation_id) <= 160):
             raise ValueError("An invocation needs an operation ID of 1 through 160 characters.")
+
         if not (
             type(self.target) is CallRef
             and type(self.payload) is bytes
@@ -324,11 +343,13 @@ class NotAdmitted:
                 f"Unexpected {type(self.code)=}; "
                 "Non-admission requires an AdmissionCode"
             )
+
         if not (type(self.message) is str):
             raise TypeError(
                 f"Unexpected {type(self.message)=}; "
                 "Non-admission requires an explanatory message"
             )
+
         if not (self.message):
             raise ValueError("Non-admission requires an explanatory message")
 
@@ -413,10 +434,13 @@ class Observation:
         inspect rejections themselves can keep using the observation's fields.
         """
         causes = [failure.cause for failure in self.failures]
+
         if len(causes) == 1:
             raise causes[0]
+
         if causes:
             raise BaseExceptionGroup("Scientific execution reported independent failures", causes)
+
         if not (
             self.finished
             and self.outcome is Outcome.SUCCEEDED
@@ -427,6 +451,7 @@ class Observation:
                 f"Cannot use the result of {self.operation=}; "
                 f"{self.finished=}, {self.outcome=}, {self.result_state=}, {self.result=}"
             )
+
         return self.result
 
 
@@ -499,10 +524,12 @@ async def observe_completion(operation: Operation) -> Observation:
     scientific outcome, result availability and cleanup facts in Observation.
     """
     observation = await operation.observe(after=None, wait_seconds=0)
+
     while not observation.finished:
         observation = await operation.observe(
             after=observation.revision, wait_seconds=1,
         )
+
     return observation
 
 
@@ -522,15 +549,20 @@ async def observe_cleanup(
     again observes the same cleanup rather than starting it again.
     """
     observation = await control.observe(after=None, wait_seconds=0)
+
     while not observation.settled and not observation.failures:
         observation = await control.observe(
             after=observation.revision, wait_seconds=1,
         )
+
     causes = [failure.cause for failure in observation.failures]
+
     if len(causes) == 1:
         raise causes[0]
+
     if causes:
         raise BaseExceptionGroup("Execution cleanup reported multiple failures.", causes)
+
     return observation
 
 
@@ -543,11 +575,13 @@ def _observe_owned_task(task: asyncio.Task) -> None:
 def _start_owned_task[ResultT](operation: Callable[[], Awaitable[ResultT]]) -> asyncio.Task[ResultT]:
     """Start one contained task and retain its diagnostics even between observers."""
     coroutine = contain_task_exit(operation)
+
     try:
         task = asyncio.create_task(coro=coroutine)
     except BaseException:
         coroutine.close()
         raise
+
     task.add_done_callback(_observe_owned_task)
     return task
 
@@ -556,8 +590,10 @@ async def _join_settlement[ResultT](*, task: asyncio.Task[ResultT]) -> ResultT:
     """Defer observer cancellation until this exact cleanup task returns or fails."""
     interruptions = []
     waiter = asyncio.current_task()
+
     while True:
         cancellations_before_wait = waiter.cancelling()
+
         try:
             result = await asyncio.shield(task)
         except asyncio.CancelledError as cause:
@@ -567,11 +603,13 @@ async def _join_settlement[ResultT](*, task: asyncio.Task[ResultT]) -> ResultT:
             if waiter.cancelling() > cancellations_before_wait:
                 interruptions.append(cause)
                 continue
+
             if interruptions:
                 raise BaseExceptionGroup(
                     "Cleanup cancellation and interrupted shutdown observation.",
                     [*interruptions, cause],
                 )
+
             raise
         except BaseException as cause:
             if interruptions:
@@ -579,19 +617,24 @@ async def _join_settlement[ResultT](*, task: asyncio.Task[ResultT]) -> ResultT:
                     "Cleanup failed while shutdown observation was interrupted.",
                     [*interruptions, cause],
                 )
+
             raise
         else:
             if len(interruptions) == 1:
                 raise interruptions[0]
+
             if interruptions:
                 raise BaseExceptionGroup("Shutdown observation was interrupted.", interruptions)
+
             return result
 
 
 def _raise_context_failure(*, original: BaseException | None, cleanup: BaseException) -> Never:
     """Keep a lone original cause intact; group independent work and cleanup errors."""
+
     if original is None or cleanup is original:
         raise cleanup
+
     raise BaseExceptionGroup(
         "Context work and SDK cleanup reported failures",
         [original, cleanup],
@@ -647,6 +690,7 @@ class ResultConsumption:
 
     async def __aexit__(self, exception_type, exception, traceback) -> None:
         """Settle before outer cleanup; preserve body and independent receiver failures."""
+
         try:
             await self.settle()
         except BaseException as cleanup:
@@ -674,8 +718,10 @@ class ResultConsumption:
 
     def start(self) -> asyncio.Task[None]:
         """Retain the original read/receiver task before its first async effect."""
+
         if self.acceptance is None:
             self._acceptance = _start_owned_task(operation=self._accept)
+
         return self.acceptance
 
     async def wait_for_acceptance(self) -> None:
@@ -690,8 +736,10 @@ class ResultConsumption:
         or observes the original release control once one has been returned.
         """
         await self.wait_for_acceptance()
+
         if self.release is None:
             self._release = self.operation.release_result(self.result)
+
         return await observe_cleanup(self.release)
 
     async def settle(self) -> CleanupObservation | None:
@@ -705,6 +753,8 @@ class ResultConsumption:
         returns None without invoking its receiver. A failed receiver is never
         retried here.
         """
+
         if self.acceptance is None:
             return None
+
         return await _join_settlement(task=_start_owned_task(operation=self.consume))

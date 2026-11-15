@@ -43,8 +43,10 @@ class NativeInstallationTests(unittest.TestCase):
             model = endpoint("native", call("report", "report_interpretation_problem", {}))
             reason = ToolRejected("This model needs to hand the decision back to its caller.")
             conversation = ToolConversation((model,), max_turns=1, secrets=())
+
             async def dispatch(name, arguments):
                 return ToolHandoff(reason)
+
             try:
                 outcome = await conversation.run([], [], dispatch)
                 self.assertIsInstance(outcome, ConversationHandoff)
@@ -64,10 +66,13 @@ class NativeInstallationTests(unittest.TestCase):
 
         async def run():
             model = endpoint("native", call("selected", "prepare", {}))
+
             owner = Interpreter((lambda **grant: model,), timeout_seconds=30,
                                 context_bytes=16384, secrets=())
+
             async def dispatch(name, arguments, *, not_after):
                 return ToolFinished("accepted")
+
             tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
             self.assertEqual((await owner.run([], tools, dispatch)).value, "accepted")
             self.assertTrue(owner.retirement_confirmed)
@@ -77,6 +82,7 @@ class NativeInstallationTests(unittest.TestCase):
     def test_native_imports_have_no_third_party_dependency_closure(self):
         for name in ("httpx", "httpcore", "http_sf", "cryptography", "tomli_w"):
             self.assertIsNone(importlib.util.find_spec(name), name)
+
         import provider_core.runner
         import provider_core.runner_protocol
         import provider_core.runner_session
@@ -87,11 +93,13 @@ class NativeInstallationTests(unittest.TestCase):
         import provider_core.contribution
         import provider_core.hosting
         import provider_core.embedded_host
+
         self.assertFalse({
             "provider_core.chat", "provider_core.chat_process", "provider_core.chat_tls",
             "provider_core.chat_wire", "provider_core.chat_worker",
             "provider_core.api", "provider_core.execution", "provider_core.controller",
         }.intersection(sys.modules), msg="Native conversation imports must not acquire model HTTP/process dependencies")
+
         distribution = importlib.metadata.distribution("provider-core")
         self.assertTrue(distribution.requires)
         self.assertTrue(all('; extra == "api"' in requirement for requirement in distribution.requires))
@@ -108,6 +116,7 @@ class NativeInstallationTests(unittest.TestCase):
             for path in distribution_files
             if path.suffix == ".py"
         }
+
         unexpected_examples = [
             path
             for path in packaged_python
@@ -130,17 +139,21 @@ class NativeInstallationTests(unittest.TestCase):
 
     def test_native_reader_returns_verified_bytes_and_refuses_later_mutation(self):
         data = b"scientific input"
+
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "source"
             path.write_bytes(data)
             descriptor = os.open(directory, os.O_RDONLY | os.O_DIRECTORY)
+
             try:
                 receipt = VerifiedUploadFile("job", "upload", len(data), "sha256:" + hashlib.sha256(data).hexdigest(), "source")
                 snapshot = read_upload_file(receipt, directory_fd=descriptor, maximum_bytes=64)
                 self.assertEqual(data, snapshot.data)
                 path.write_bytes(b"X" * len(data))
+
                 with self.assertRaises(UploadFileReadFailed):
                     read_upload_file(receipt, directory_fd=descriptor, maximum_bytes=64)
+
                 self.assertEqual(data, snapshot.data)
             finally:
                 os.close(descriptor)

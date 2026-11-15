@@ -14,12 +14,14 @@ class SpectrumScienceTests(unittest.TestCase):
             positions=(0, 1, 2, 3, 4),
             intensities=(1, 4, 2, 5, 1),
         )
+
         corrected = science.subtract_baseline(source, science.BaselineSettings(baseline=1))
         report = science.detect_peaks(corrected, science.PeakSettings(minimum_height=2))
 
         self.assertEqual(source.positions, corrected.positions)
         self.assertEqual((0, 3, 1, 4, 0), corrected.intensities)
         self.assertEqual((1, 4, 2, 5, 1), source.intensities)
+
         self.assertEqual(
             science.PeakReport(
                 peaks=(science.Peak(position=1, height=3), science.Peak(position=3, height=4)),
@@ -32,6 +34,7 @@ class SpectrumScienceTests(unittest.TestCase):
             science.Spectrum(positions=(0,), intensities=(1,)),
             science.BaselineSettings(baseline=2),
         )
+
         self.assertEqual((-1,), corrected.intensities)
 
     def test_detection_excludes_endpoints_plateaus_and_below_threshold_maxima(self) -> None:
@@ -42,6 +45,7 @@ class SpectrumScienceTests(unittest.TestCase):
             ),
             science.PeakSettings(minimum_height=2),
         )
+
         self.assertEqual((), report.peaks)
 
     def test_detection_includes_a_strict_maximum_equal_to_the_threshold(self) -> None:
@@ -49,6 +53,7 @@ class SpectrumScienceTests(unittest.TestCase):
             science.Spectrum(positions=(0, 1, 2), intensities=(0, 2, 0)),
             science.PeakSettings(minimum_height=2),
         )
+
         self.assertEqual((science.Peak(position=1, height=2),), report.peaks)
 
     def test_peak_detection_rejects_too_few_samples(self) -> None:
@@ -57,6 +62,7 @@ class SpectrumScienceTests(unittest.TestCase):
                 science.Spectrum(positions=(0, 1), intensities=(0, 2)),
                 science.PeakSettings(minimum_height=2),
             )
+
         self.assertEqual("too_few_samples", rejected.exception.code)
         self.assertIn("at least three samples", rejected.exception.message)
 
@@ -74,6 +80,7 @@ class SpectrumScienceTests(unittest.TestCase):
     def test_nonfinite_and_boolean_measurements_and_settings_are_rejected(self) -> None:
         for value in (float("inf"), float("-inf"), float("nan"), True):
             expected_error = TypeError if type(value) is bool else ValueError
+
             for constructor in (
                 lambda: science.Spectrum(positions=(value,), intensities=(1,)),
                 lambda: science.Spectrum(positions=(0,), intensities=(value,)),

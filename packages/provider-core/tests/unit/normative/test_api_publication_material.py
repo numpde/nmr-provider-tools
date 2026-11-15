@@ -11,6 +11,7 @@ from tests.fakes.credential import document, encoded
 class PublicationMaterialTests(unittest.TestCase):
     def setUp(self):
         self.credential = encoded(document())
+
         self.fields = {
             "origin": "https://api.example",
             "profile": "dev-local",
@@ -32,20 +33,25 @@ class PublicationMaterialTests(unittest.TestCase):
         self.assertEqual(retained.http.retirement_seconds, file_settings.http.retirement_seconds)
         self.assertEqual(retained.http.trust.verify_mode, ssl.CERT_REQUIRED)
         self.assertTrue(retained.http.trust.check_hostname)
+
         reader.assert_called_once_with("/private/credential", maximum_bytes=16384,
                                        label="API signing credential", secret=True)
 
     def test_provider_captures_the_same_admitted_material_once(self):
         reader = Mock(return_value=self.credential)
+
         original, provider, material = api_settings_with_material(
             self.fields | {"credential_file": "/private/credential"}, reader
         )
+
         self.assertEqual(material.credential_bytes, self.credential)
         self.assertIsNone(material.ca_bytes)
         self.assertNotIn("PRIVATE KEY", repr(material))
+
         rebuilt, rebuilt_provider = api_settings_from_material(
             material.api_fields(), credential_bytes=material.credential_bytes, ca_bytes=material.ca_bytes
         )
+
         self.assertEqual(provider, rebuilt_provider)
         self.assertEqual(original.identity.credential_ref, rebuilt.identity.credential_ref)
         self.assertEqual(original.identity.origin, rebuilt.identity.origin)
@@ -55,15 +61,20 @@ class PublicationMaterialTests(unittest.TestCase):
         with patch("provider_core.api_config.new_https_trust") as roots:
             with self.assertRaises(ApiConfigurationRejected):
                 api_settings_from_material(self.fields, credential_bytes=self.credential, ca_bytes=b"")
+
         roots.assert_not_called()
 
     def test_wrong_identity_is_refused_before_ca_loading(self):
         reader = Mock(return_value=self.credential)
+
         fields = self.fields | {"provider_ref": "provider:other", "credential_file": "/private/credential",
                                 "ca_file": "/private/ca"}
+
         with self.assertRaises(ApiConfigurationRejected):
             api_settings(fields, reader)
+
         reader.assert_called_once()
+
         with self.assertRaises(ApiConfigurationRejected):
             api_settings_from_material(self.fields | {"provider_ref": "provider:other"},
                                        credential_bytes=self.credential, ca_bytes=b"invalid CA")

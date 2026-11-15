@@ -36,6 +36,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 self.operation = asyncio.current_task()
                 await start_report.wait()
                 reporting.set()
+
                 try:
                     await report_condition("waiting_capacity")
                 except asyncio.CancelledError as cause:
@@ -46,6 +47,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
         transport.block_read = 2
         start_report, reporting = asyncio.Event(), asyncio.Event()
         session = QueuedSession(store)
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -55,15 +57,19 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=0.005,
             task_settle_seconds=0.1,
         )
+
         task = asyncio.create_task(executor.run(acknowledged))
+
         try:
             await asyncio.wait_for(transport.read_blocked.wait(), 1)
             start_report.set()
             await asyncio.wait_for(reporting.wait(), 1)
             session.operation.cancel()
             transport.release_read.set()
+
             with self.assertRaises(asyncio.CancelledError):
                 await asyncio.wait_for(task, 1)
+
             self.assertIs(executor.last_failure.cause, session.caught)
             self.assertIs(executor.last_failure.operation_interruption, session.caught)
             self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])
@@ -73,8 +79,10 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
         finally:
             start_report.set()
             transport.release_read.set()
+
             if not task.done():
                 task.cancel()
+
             await asyncio.gather(task, return_exceptions=True)
 
     async def test_report_queued_behind_poll_rechecks_phase_after_acquiring_exchange(self):
@@ -82,6 +90,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
         transport = ConditionTransport()
         transport.block_read = 2
         session = PausingSession(store)
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -91,8 +100,10 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=0.005,
             task_settle_seconds=0.1,
         )
+
         task = asyncio.create_task(executor.run(acknowledged))
         report = None
+
         try:
             await asyncio.wait_for(transport.read_blocked.wait(), 1)
             queued = asyncio.Event()
@@ -107,8 +118,10 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
             session.finish.set()
             await asyncio.wait_for(session.returning.wait(), 1)
             transport.release_read.set()
+
             with self.assertRaises(ExecutionRefused):
                 await report
+
             await asyncio.wait_for(task, 1)
             self.assertFalse(any(b"late_condition" in request.content for request, _ in transport.calls))
             self.assertEqual(transport.maximum_in_flight, 1)
@@ -116,9 +129,12 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
         finally:
             transport.release_read.set()
             session.finish.set()
+
             if not task.done():
                 task.cancel()
+
             await asyncio.gather(task, return_exceptions=True)
+
             if report is not None:
                 await asyncio.gather(report, return_exceptions=True)
 
@@ -127,6 +143,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
         transport = ConditionTransport()
         transport.release.set()
         session = ReportingSession(store)
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -136,11 +153,14 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=1,
             task_settle_seconds=0.1,
         )
+
         await executor.run(acknowledged)
         count = len(transport.calls)
+
         for reporter in session.reporters.values():
             with self.assertRaises(ExecutionRefused):
                 await reporter("late_condition")
+
         self.assertEqual(len(transport.calls), count)
         claim.release(owner=claim.lifecycle_owner)
 
@@ -149,6 +169,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
         transport = ConditionTransport()
         session = ReportingSession(store)
         session.conditions["prepare"] = ("PRIVATE invalid text",)
+
         with self.assertRaises(ExecutionFailed) as failed:
             await live_executor(
                 api(transport, store.scope.api_origin),
@@ -159,6 +180,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 poll_seconds=1,
                 task_settle_seconds=0.1,
             ).run(acknowledged)
+
         self.assertIsInstance(failed.exception.cause, ValueError)
         self.assertNotIn("PRIVATE", str(failed.exception.cause))
         self.assertEqual(len(transport.calls), 3)
@@ -178,6 +200,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                 session.conditions[other_phase] = ()
                 cleanup = RuntimeError("Authored private cleanup cause")
                 session.retirement_failure = cleanup
+
                 executor = live_executor(
                     api(transport, store.scope.api_origin),
                     store,
@@ -187,9 +210,11 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                     poll_seconds=1,
                     task_settle_seconds=0.1,
                 )
+
                 try:
                     with self.assertRaises(ExecutionFailed) as failed:
                         await executor.run(acknowledged)
+
                     self.assertIs(failed.exception.cause, session.caught)
                     self.assertIsInstance(failed.exception.cause, ApiFailure)
                     self.assertIs(failed.exception.api_failure, session.caught)
@@ -197,10 +222,12 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
                     # silent-defaults: allow-contract -- Only execution failure can retain the already-computed outcome.
                     self.assertIs(failed.exception.outcome, session.outcome if phase == "execute" else None)
                     (retained,) = store.records
+
                     self.assertIs(
                         type(retained),
                         EnteredCheckpoint if phase == "execute" else AcknowledgedCheckpoint,
                     )
+
                     if phase == "prepare":
                         self.assertNotIn("execute", [event[0] for event in session.events])
                 finally:
@@ -223,6 +250,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
         session = LaterFailureSession(store)
         cleanup = RuntimeError("Authored private cleanup cause")
         session.retirement_failure = cleanup
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -232,9 +260,11 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=1,
             task_settle_seconds=0.1,
         )
+
         try:
             with self.assertRaises(asyncio.CancelledError) as cancelled:
                 await executor.run(acknowledged)
+
             self.assertIs(cancelled.exception, interruption)
             self.assertIs(executor.last_failure.cause, interruption)
             self.assertIs(executor.last_failure.interruption_cause, previous)
@@ -256,6 +286,7 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
         transport.failure = ExchangeFailed("Authored private transport cause")
         later = RuntimeError("Authored later private binding cause")
         session = LaterFailureSession(store)
+
         executor = live_executor(
             api(transport, store.scope.api_origin),
             store,
@@ -265,8 +296,10 @@ class ExecutionConditionFailureTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=1,
             task_settle_seconds=0.1,
         )
+
         with self.assertRaises(ExecutionFailed) as failed:
             await executor.run(acknowledged)
+
         self.assertIs(failed.exception.cause, session.caught)
         self.assertIs(failed.exception.cause.__context__, later)
         self.assertIs(failed.exception.api_failure, session.caught)

@@ -21,23 +21,28 @@ class DeploymentErrorCliTests(unittest.TestCase):
 
     def test_binding_cli_refusals_do_not_echo_untrusted_values(self):
         raw = definition(1)
+
         specimens = (
             b'password = "PRIVATE_INPUT_CANARY"\n' + raw,
             raw.replace(b'interface = "lo"', b'interface = "PRIVATE_INPUT_CANARY"'),
             raw.replace(b'https://api.example', b'https://user:PRIVATE_INPUT_CANARY@api.example'),
             raw.replace(b'"/synthetic/signing.json"', b'"PRIVATE_INPUT_CANARY"'),
         )
+
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "binding.toml"
+
             for specimen in specimens:
                 with self.subTest(specimen=specimen):
                     path.write_bytes(specimen)
                     path.chmod(0o600)
+
                     result = subprocess.run(
                         [sys.executable, "-I", "-B", "-m", "provider_core.deployment_binding",
                          "paths", "--definition", str(path), "--all"],
                         capture_output=True, text=True, check=False, timeout=10,
                     )
+
                     self.assertEqual(result.returncode, 2)
                     report = json.loads(result.stderr)
                     self.assertEqual(report["failure"]["exception_type"], "BindingDefinitionRejected")
@@ -50,6 +55,7 @@ class DeploymentErrorCliTests(unittest.TestCase):
             path = Path(directory) / "binding.toml"
             path.write_bytes(definition(1))
             path.chmod(0o600)
+
             result = subprocess.run(
                 [sys.executable, "-I", "-B", "-m", "provider_core.deployment_route", "render",
                  "--definition", str(path), "--binding", "fixture-0", "--image", "PRIVATE_INPUT_CANARY",
@@ -57,6 +63,7 @@ class DeploymentErrorCliTests(unittest.TestCase):
                  "--uid", "65532", "--gid", "65532", "--named-volume"],
                 capture_output=True, text=True, check=False, timeout=10,
             )
+
             self.assertEqual(result.returncode, 2)
             report = json.loads(result.stderr)
             self.assertEqual(report["failure"]["exception_type"], "RouteProjectionRejected")

@@ -50,15 +50,18 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
         async with host() as owner:
             owner.adopt(contribution=OwnedScience(close=close), requirements=frozenset())
             self.assertEqual(first=[], second=closed)
+
         observation = await owner.retire().observe(after=None, wait_seconds=0)
         self.assertTrue(expr=observation.settled)
         self.assertEqual(first=[True], second=closed)
 
     async def test_body_error_remains_original_after_retirement(self):
         original = OSError("Provider assembly failed")
+
         with self.assertRaises(expected_exception=OSError) as raised:
             async with host() as owner:
                 raise original
+
         self.assertIs(expr1=original, expr2=raised.exception)
         observation = await owner.retire().observe(after=None, wait_seconds=0)
         self.assertTrue(expr=observation.settled)
@@ -68,11 +71,13 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
         cleanup = OSError("Retirement request failed before returning a control")
         owner = host()
         original_retire = owner.retire
+
         try:
             with patch.object(target=owner, attribute="retire", side_effect=cleanup):
                 with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:
                     async with owner:
                         raise original
+
             self.assertEqual(first=(original, cleanup), second=raised.exception.exceptions)
         finally:
             await settle_cleanup(control=original_retire())
@@ -88,6 +93,7 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
             async with host() as owner:
                 owner.adopt(contribution=OwnedScience(close=close), requirements=frozenset())
                 raise original
+
         body_failure, retirement_failure = raised.exception.exceptions
         self.assertIs(expr1=original, expr2=body_failure)
         observation = await owner.retire().observe(after=None, wait_seconds=0)
@@ -103,8 +109,10 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
 
         def close():
             entered.set()
+
             if not release.wait(timeout=5):
                 raise TimeoutError("Test did not release the native cleanup gate")
+
             closed.append(True)
 
         async def use_host():
@@ -115,6 +123,7 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
                 exited.set()
 
         task = asyncio.create_task(coro=use_host())
+
         try:
             async with asyncio.timeout(10):
                 self.assertTrue(expr=await asyncio.to_thread(entered.wait, timeout=5))
@@ -127,8 +136,10 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
                 self.assertFalse(expr=task.done())
                 self.assertFalse(expr=exited.is_set())
                 release.set()
+
                 with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:
                     await task
+
             self.assertEqual(first=2, second=len(raised.exception.exceptions))
             self.assertTrue(expr=all(isinstance(cause, asyncio.CancelledError) for cause in raised.exception.exceptions))
             self.assertEqual(first=[True], second=closed)

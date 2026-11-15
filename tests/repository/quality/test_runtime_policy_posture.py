@@ -42,8 +42,10 @@ def _is_uppercase_name(name: str) -> bool:
 def _binding_names(binding: ast.Assign | ast.AnnAssign) -> list[str]:
     if isinstance(binding, ast.Assign):
         return [target.id for target in binding.targets if isinstance(target, ast.Name)]
+
     if isinstance(binding, ast.AnnAssign) and isinstance(binding.target, ast.Name):
         return [binding.target.id]
+
     return []
 
 
@@ -80,8 +82,10 @@ def _module_bindings(tree: ast.Module) -> list[ast.Assign | ast.AnnAssign]:
 def _has_escape(binding: ast.Assign | ast.AnnAssign, source_lines: list[str]) -> bool:
     if binding.lineno < 2:
         return False
+
     if isinstance(binding, ast.Assign) and (len(binding.targets) != 1 or not isinstance(binding.targets[0], ast.Name)):
         return False
+
     preceding_line = source_lines[binding.lineno - 2]
     indentation = preceding_line[: len(preceding_line) - len(preceding_line.lstrip())]
     return len(indentation) == binding.col_offset and preceding_line.strip() == _ESCAPE
@@ -90,6 +94,7 @@ def _has_escape(binding: ast.Assign | ast.AnnAssign, source_lines: list[str]) ->
 def _findings(path: Path, source: str) -> list[_Finding]:
     tree = ast.parse(source, filename=str(path))
     source_lines = source.splitlines()
+
     return [
         _Finding(path=path, line=binding.lineno, name=name)
         for binding in _module_bindings(tree)
@@ -198,6 +203,7 @@ class RuntimePolicyPostureTests(unittest.TestCase):
         self,
     ) -> None:
         findings = _scan(python_sources(production_only=True))
+
         if findings:
             self.fail(
                 "module-scope uppercase direct-name value assignment review "

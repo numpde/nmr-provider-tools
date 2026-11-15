@@ -36,6 +36,7 @@ class ScriptedChild:
     async def start(self, mode, *, pass_fds=()):
         if self.process is not None:
             raise RuntimeError("Scripted child already exists; retain and stop it instead of replacing it")
+
         self.process = await asyncio.create_subprocess_exec(
             sys.executable,
             "-I",
@@ -55,18 +56,22 @@ class ScriptedChild:
 
     async def receive(self):
         line = await self.process.stdout.readline()
+
         if not line:
             raise ChildChannelClosed("Scripted child closed its result channel; confirm that same process stopped before reuse")
+
         return json.loads(line)
 
     async def stop(self):
         if self.process is None or self.pipes_closed:
             return
+
         if self.process.returncode is None:
             # A raced kill cannot attest exit. Still await the retained child
             # and drain its owned pipes below; no replacement process exists.
             with suppress(ProcessLookupError):
                 self.process.kill()
+
         await asyncio.wait_for(self.process.wait(), 1)
         await asyncio.wait_for(self.process.communicate(), 1)
         await asyncio.wait_for(self.process.stdin.wait_closed(), 1)
@@ -88,16 +93,20 @@ class ChildSession:
     async def prepare(self, acknowledged, instructions, *, report_condition):  # noqa: ARG002
         if acknowledged.start.input != instructions.identity:
             raise ValueError("Scripted preparation requires the exact admitted input")
+
         self.phases.append(type(self.store.records[0]))
         await self.child.start(self.mode)
         fingerprint = instructions.identity.input_fingerprint
         await self.child.send({"operation": "prepare", "source_fingerprint": fingerprint})
         reply = await self.child.receive()
         evidence = ProtectedEvidence("fixture.child.evidence.v1", b"scripted preparation, not chemical validation")
+
         if reply == {"state": "rejected"}:
             return AnalysisFailure("input_rejected", "The scripted peer rejected preparation before generation.", evidence)
+
         if reply != {"state": "prepared", "source_fingerprint": fingerprint}:
             raise ValueError("Scripted preparation did not acknowledge the exact source")
+
         self._prepared = PreparedAnalysis(ProtectedEvidence("fixture.child.input.v1", fingerprint.encode("ascii")))
         return self._prepared
 
@@ -105,14 +114,18 @@ class ChildSession:
     async def execute(self, handle, *, report_condition):  # noqa: ARG002
         if handle is not self._prepared or handle is None:
             raise ValueError("Scripted generation requires this session's current unused handle")
+
         self._prepared = None
         self.phases.append(type(self.store.records[0]))
         self.generations += 1
         await self.child.send({"operation": "generate"})
+
         if await self.child.receive() != {"state": "generating"}:
             raise ValueError("Scripted child did not acknowledge generation")
+
         self.generation_started.set()
         result = await self.child.receive()
+
         return AnalysisSuccess(
             "fixture.child.result.v1",
             json.dumps(result).encode(),
@@ -121,8 +134,10 @@ class ChildSession:
 
     async def retire(self):
         self._prepared = None
+
         if self.mode == "close_output" and not self.child.pipes_closed:
             raise ChildStopUnconfirmed(
                 "Scripted child stop is unconfirmed; retain its exact process and explicitly settle after cleanup"
             )
+
         await self.child.stop()

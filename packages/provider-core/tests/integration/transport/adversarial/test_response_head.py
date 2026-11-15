@@ -14,9 +14,11 @@ class ReceivedHeadTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(mode=mode):
                 async with TlsPeer(mode) as peer:
                     transport = HttpTransport(trust=peer.trust, exchange_seconds=0.15, retirement_seconds=0.3)
+
                     try:
                         with self.assertRaises(ExchangeFailed) as caught:
                             await transport.exchange(httpx.Request("GET", peer.origin + "/input"), maximum_bytes=100)
+
                         head = caught.exception.response_head
                         self.assertEqual((head.status, head.headers), (200, ((b"Content-Length", b"100"),)))
                         self.assertIsNotNone(caught.exception.primary)

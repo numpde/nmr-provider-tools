@@ -49,13 +49,16 @@ class AttemptStarter:
 
     def __init__(self, api, scope, claim):
         claim.require_live(scope)
+
         if type(scope) is not RecoveryScope:
             raise TypeError(
                 f"Unexpected {type(scope)=}; "
                 "Cannot configure Attempt start: scope must be an admitted RecoveryScope"
             )
+
         if api.origin != scope.api_origin:
             raise ValueError("Cannot configure Attempt start: signing origin differs from the selected scope")
+
         self.api = api
         self.scope = scope
         self.claim = claim
@@ -77,14 +80,17 @@ class AttemptStarter:
     async def _start(self, pending):
         if type(pending) is not StartPending or pending.scope != self.scope:
             raise StartRefused("Start requires a pending record matching the current API, provider, lane and generation")
+
         if self._pending is not None:
             raise StartRefused("Attempt start still owns unresolved work; settle it before another request")
+
         self.claim.require_live_start(pending)
         self.claim.begin(self)
         self._pending = pending
         self._observing = True
         self._api_failure = None
         self.last_failure = None
+
         try:
             self._unretained = await self._send(pending)
             self.claim.bind_attempt(self.scope, self._unretained.admission.execution_attempt_ref, owner=self)
@@ -120,20 +126,26 @@ class AttemptStarter:
         except ApiFailure as failure:
             self._api_failure = failure
             raise
+
         return acknowledge_start(pending, admission)
 
     async def settle(self):
         """Settle original I/O without inventing a late acknowledgement."""
+
         if self._pending is None or self._observing:
             raise StartRefused("No unobserved start operation is available to settle")
+
         self._observing = True
+
         try:
             if self.api.pending_owner is self:
                 await self.api.retire(owner=self)
+
             if self._unretained is not None:
                 raise StartRefused(
                     "Received acknowledgement remains unresolved; retain its owner and reconcile the claim before preparation"
                 )
+
             return None
         except asyncio.CancelledError as cause:
             self._remember("Start settlement was cancelled; original ownership remains retained", cause, settlement=True)
@@ -155,6 +167,7 @@ class AttemptStarter:
     def _remember(self, message, cause, *, settlement=False):
         # silent-defaults: allow-contract -- Absent earlier settlement evidence remains absent.
         original = self.last_failure if settlement else None
+
         # silent-defaults: allow-contract -- Retain the original primary and append only observed settlement failures; the empty tuple means none.
         failure = StartFailed(
             message,
@@ -165,5 +178,6 @@ class AttemptStarter:
             if original is not None
             else ((cause,) if settlement else ()),
         )
+
         self.last_failure = failure
         return failure

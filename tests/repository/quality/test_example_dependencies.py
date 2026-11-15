@@ -17,10 +17,12 @@ class ExampleDependencyTests(unittest.TestCase):
             with self.subTest(dependency=dependency), TemporaryDirectory() as directory:
                 example = Path(directory) / "example"
                 example.mkdir()
+
                 (example / "pyproject.toml").write_text(data=(
                     '[project]\nname = "test-example"\nversion = "0.1.0"\n'
                     f'dependencies = ["{dependency}"]\n'
                 ), encoding="utf-8")
+
                 self.assertEqual(
                     first=[(example, "test-example", "0.1.0")],
                     second=_discover_examples(examples=Path(directory), core_version="0.6.19"),
@@ -37,9 +39,11 @@ class ExampleDependencyTests(unittest.TestCase):
             with self.subTest(dependencies=dependencies), TemporaryDirectory() as directory:
                 example = Path(directory) / "example"
                 example.mkdir()
+
                 (example / "pyproject.toml").write_text(data=(
                     '[project]\nname = "test-example"\nversion = "0.1.0"\n'
                     f'dependencies = {dependencies}\n'
                 ), encoding="utf-8")
+
                 with self.assertRaises(expected_exception=ValueError):
                     _discover_examples(examples=Path(directory), core_version="0.6.19")

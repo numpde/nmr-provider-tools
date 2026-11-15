@@ -42,23 +42,30 @@ class AttemptInventoryPage:
 def inventory_query(*, state, limit, cursor):
     if state != "in_progress":
         raise ValueError("Attempt inventory state must be in_progress")
+
     return b"state=in_progress&" + paging_query(limit=limit, cursor=cursor)
 
 
 def read_attempt_inventory(raw, *, limit):
     """Admit all rows before exposing a page; preserve the server's ordering."""
     document = read_document(raw, ATTEMPT_RESPONSE_BYTES)
+
     if type(document) is not dict or set(document) != {"schema_id", "attempts", "next_cursor"}:
         raise ResponseRejected("Attempt inventory response fields do not match the supported page schema")
+
     if document["schema_id"] != "nmr.provider.execution_attempts.list.response.v1":
         raise ResponseRejected("Attempt inventory response schema is not the supported version")
+
     attempts = document["attempts"]
+
     if type(attempts) is not list or len(attempts) > MAX_PAGE_ITEMS or len(attempts) > limit:
         raise ResponseRejected("Attempt inventory exceeds the requested or supported item count")
+
     try:
         require_cursor(document["next_cursor"])
     except (TypeError, ValueError) as cause:
         raise ResponseRejected(str(cause)) from None
+
     # repo-check: allow-tuple-generator -- The admitted AttemptPage retains an immutable ordered collection.
     return AttemptInventoryPage(tuple(_read_item(item) for item in attempts), document["next_cursor"])
 
@@ -68,6 +75,7 @@ def _read_item(item):
         "analysis_kind_ref", "execution_attempt_ref", "job_ref", "provider_attempt_key", "state", "started_at",
     }:
         raise ResponseRejected("Inventory Attempt fields do not match the supported item schema")
+
     try:
         require_analysis_kind(item["analysis_kind_ref"])
         require_attempt_ref(item["execution_attempt_ref"])
@@ -75,7 +83,9 @@ def _read_item(item):
         require_provider_attempt_key(item["provider_attempt_key"])
     except (TypeError, ValueError) as cause:
         raise ResponseRejected(str(cause)) from None
+
     if item["state"] != "in_progress":
         raise ResponseRejected("Inventory Attempt state must be in_progress")
+
     return InventoryAttempt(item["analysis_kind_ref"], item["execution_attempt_ref"], item["job_ref"],
                             item["provider_attempt_key"], item["state"], read_timestamp(item["started_at"]))

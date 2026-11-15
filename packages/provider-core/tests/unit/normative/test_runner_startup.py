@@ -28,6 +28,7 @@ class RunnerStartupTests(unittest.TestCase):
         self.listener.bind(str(self.path))
         self.listener.listen()
         self.listener.settimeout(1)
+
         self.greeting = {
             "kind": "opened", "role": "fixture", "generation": "a" * 32,
             "operation": "b" * 32, "lock": [0, 0],
@@ -38,6 +39,7 @@ class RunnerStartupTests(unittest.TestCase):
             session = RunnerSession(
                 self.path, role="fixture", expected_lock_identity=(0, 0), startup_seconds=3, retirement_seconds=1,
             )
+
         self.addCleanup(session.close)
         return session
 
@@ -46,14 +48,17 @@ class RunnerStartupTests(unittest.TestCase):
         self.assertFalse(session.control_connected)
         session.request_stop()
         session.request_stop()
+
         with self.assertRaises(InterruptedError) as stopped:
             session.connect()
+
         self.assertIs(runner_api.RunnerStartupStopped, type(stopped.exception))
         self.assertFalse(session.control_connected)
         self.assertIsNone(session.science)
         self.assertIsNone(session.operation)
         self.assertIsNone(session.retirement)
         self.listener.setblocking(False)
+
         with self.assertRaises(BlockingIOError):
             self.listener.accept()
 
@@ -87,8 +92,10 @@ class RunnerStartupTests(unittest.TestCase):
                     raise
 
         session = self.session(ObservedConnect)
+
         with self.assertRaises(TimeoutError) as unavailable:
             session.connect(deadline=time.monotonic() + 0.1)
+
         self.assertTrue(failures)
         self.assertEqual({expected_errno}, set(failures))
         self.assertEqual("RunnerStartupUnavailable", type(unavailable.exception).__name__)
@@ -111,13 +118,16 @@ class RunnerStartupTests(unittest.TestCase):
                     raise
 
         session = self.session(ObservedConnect)
+
         with ThreadPoolExecutor(max_workers=1) as executor:
             original = executor.submit(session.connect)
             self.assertTrue(attempted.wait(1))
             self.assertEqual(expected_errno, failures[0])
             session.request_stop()
+
             with self.assertRaises(InterruptedError) as stopped:
                 original.result(timeout=1)
+
         self.assertIs(runner_api.RunnerStartupStopped, type(stopped.exception))
         self.assertFalse(session.control_connected)
         self.assertIsNone(session.science)
@@ -131,8 +141,10 @@ class RunnerStartupTests(unittest.TestCase):
                 raise failure
 
         session = self.session(InterruptedConnect)
+
         with self.assertRaises(InterruptedError) as caught:
             session.connect()
+
         self.assertIs(failure, caught.exception)
         self.assertIsNot(runner_api.RunnerStartupStopped, type(caught.exception))
         self.assertFalse(session.control_connected)
@@ -146,8 +158,10 @@ class RunnerStartupTests(unittest.TestCase):
                 raise failure
 
         session = self.session(TimedOutConnect)
+
         with self.assertRaises(TimeoutError) as caught:
             session.connect()
+
         self.assertIs(failure, caught.exception)
         self.assertFalse(session.control_connected)
         self.assertIsNone(session.retirement)
@@ -159,31 +173,39 @@ class RunnerStartupTests(unittest.TestCase):
             def connect(self, address):
                 super().connect(address)
                 connected.set()
+
                 if not release.wait(1):
                     raise TimeoutError("Fixture did not release the successful control connection.")
 
         session = self.session(PausedConnect)
+
         with ThreadPoolExecutor(max_workers=1) as executor:
             original = executor.submit(session.connect)
+
             try:
                 self.assertTrue(connected.wait(1))
                 session.request_stop()
             finally:
                 release.set()
+
             peer, _ = self.listener.accept()
             science, remote = socket.socketpair()
+
             with peer, science, remote:
                 peer.settimeout(1)
                 self.assertEqual(b"", peer.recv(1))
                 send_greeting(peer, self.greeting, science, deadline=time.monotonic() + 1)
                 original.result(timeout=1)
                 self.assertTrue(session.control_connected)
+
                 send_document(peer, {
                     "kind": "retired", "generation": self.greeting["generation"],
                     "operation": self.greeting["operation"], "returncode": -15, "scratch_released": True,
                     "reason": "owner_lost",
                 }, deadline=time.monotonic() + 1)
+
                 session.retire()
+
         self.assertEqual(-15, session.retirement.returncode)
         self.assertTrue(session.retirement.scratch_released)
 
@@ -191,28 +213,36 @@ class RunnerStartupTests(unittest.TestCase):
         session = self.session(socket.socket)
         raw = json.dumps(self.greeting).encode("ascii")
         frame = struct.pack("!I", len(raw)) + raw
+
         with ThreadPoolExecutor(max_workers=1) as executor:
             original = executor.submit(session.connect)
             peer, _ = self.listener.accept()
             science, remote = socket.socketpair()
+
             with peer, science, remote:
                 peer.settimeout(1)
+
                 peer.sendmsg([b"\0" + frame[:2]], [
                     (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [science.fileno()])),
                 ])
+
                 science.close()
                 session.request_stop()
                 self.assertEqual(b"", peer.recv(1))
                 remote.setblocking(False)
+
                 with self.assertRaises(BlockingIOError):
                     remote.recv(1)
+
                 peer.sendall(frame[2:])
                 original.result(timeout=1)
                 self.assertEqual(self.greeting["operation"], session.operation)
+
                 send_document(peer, {
                     "kind": "retired", "generation": session.generation, "operation": session.operation,
                     "returncode": 0, "scratch_released": True, "reason": "owner_lost",
                 }, deadline=time.monotonic() + 1)
+
                 session.retire()
                 self.assertEqual(0, session.retirement.returncode)
                 self.assertTrue(session.retirement.scratch_released)

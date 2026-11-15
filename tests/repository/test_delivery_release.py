@@ -31,15 +31,19 @@ class DeliveryReleaseTests(unittest.TestCase):
     def test_warm_pool_needs_no_network_and_retains_file(self):
         self.wheel.write_bytes(self.content)
         inode = self.wheel.stat().st_ino
+
         with patch.object(delivery_image, "require_download_proxy", side_effect=AssertionError("network not needed")):
             delivery_image.acquire_release(None, None, self.pool, Path("unused.pyz"))
+
         self.assertEqual(inode, self.wheel.stat().st_ino)
         self.assertEqual(self.content, self.wheel.read_bytes())
 
     def test_conflicting_cached_wheel_is_preserved(self):
         self.wheel.write_bytes(b"different")
+
         with self.assertRaisesRegex(ValueError, "existing file retained"):
             delivery_image.acquire_release(None, None, self.pool, Path("unused.pyz"))
+
         self.assertEqual(b"different", self.wheel.read_bytes())
 
     def test_missing_release_is_passed_to_shared_publisher(self):
@@ -47,6 +51,7 @@ class DeliveryReleaseTests(unittest.TestCase):
             delivery_image, "publish_release_wheels"
         ) as publish:
             delivery_image.acquire_release(None, None, self.pool, Path("tool.pyz"))
+
         self.assertEqual(self.wheel.name, publish.call_args.args[2][0][0])
         self.assertEqual(self.digest, publish.call_args.args[2][0][1])
 
@@ -56,12 +61,14 @@ class DeliveryReleaseTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(ValueError, "downloaded bytes"):
                 delivery_image.acquire_release(None, None, self.pool, Path("tool.pyz"))
+
         self.assertFalse(self.wheel.exists())
         self.assertEqual([], list(self.pool.iterdir()))
 
     def test_capture_records_pins_without_copying_wheels(self):
         selected = {"lock_sha256": hashlib.sha256(b"lock").hexdigest(),
                     "files": {self.wheel.name: self.digest}}
+
         with tempfile.TemporaryDirectory() as temporary:
             destination = Path(temporary)
             dockerfile = destination / "containers/delivery/Dockerfile"
@@ -73,19 +80,24 @@ class DeliveryReleaseTests(unittest.TestCase):
             installer = json.loads(record.read_text())
             self.wheel.write_bytes(self.content)
             inode = self.wheel.stat().st_ino
+
             with patch.object(delivery_image, "requirements"), patch.object(
                 delivery_image, "missing_wheels", return_value=[]
             ), patch.object(delivery_image, "select_wheels", return_value=selected):
                 delivery_image.capture_image_inputs(None, None, self.pool, destination)
+
             self.assertEqual(
                 {"provider-core-install.lock", "provider-core-wheel-inputs.json", "provider-core-stream.json", "containers", "requirements"},
                 {path.name for path in destination.iterdir()},
             )
+
             self.assertEqual(b"lock", (destination / "provider-core-install.lock").read_bytes())
             self.assertEqual(selected, json.loads((destination / "provider-core-wheel-inputs.json").read_text()))
+
             self.assertEqual([{"directory": "wheelhouse", "filename": self.wheel.name, "sha256": self.digest},
                               {"directory": "installer", "filename": installer["name"], "sha256": installer["sha256"]}],
                              json.loads((destination / "provider-core-stream.json").read_text()))
+
             self.assertIn(self.wheel.name, (dockerfile.parent / "Dockerfile.selected").read_text())
             self.assertEqual(inode, self.wheel.stat().st_ino)
 
@@ -95,12 +107,15 @@ class DeliveryReleaseTests(unittest.TestCase):
             root.mkdir()
             lock = Path(temporary) / "provider-core-install.lock"
             lock.write_bytes(b"lock")
+
             selected = {"lock_sha256": hashlib.sha256(b"lock").hexdigest(),
                         "files": {self.wheel.name: self.digest}}
+
             with patch.object(core_environment, "select_wheels", return_value=selected), patch.object(
                 core_environment, "install_locked", return_value=selected
             ) as install, patch.object(core_environment.subprocess, "run"):
                 core_environment.install_environment(root, lock, self.pool, selected)
+
             self.assertEqual(self.pool, install.call_args.kwargs["wheels"])
             self.assertEqual(b"lock", (root / "provider-core-install.lock").read_bytes())
             self.assertFalse((root / "wheels").exists())

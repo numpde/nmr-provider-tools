@@ -23,17 +23,23 @@ async def await_original(original, *, deadline):
     new caller cap. Expiry and cancellation never cancel the original Future.
     This wait grants no resource retirement or permission to close its inputs.
     """
+
     if not isinstance(original, Future):
         raise TypeError("Cannot observe thread work: supply its original concurrent Future.")
+
     seconds = None
+
     if deadline is not None:
         positive_seconds(deadline)
         seconds = max(0, deadline - time.monotonic())
+
     if not original.done():
         wrapped = asyncio.wrap_future(original)
         wrapped.add_done_callback(_observe_completion)
+
         async with asyncio.timeout(seconds):
             await asyncio.wait((wrapped,))
+
     return original.result()
 
 
@@ -61,16 +67,20 @@ class AsyncRunnerSession:
     def __init__(self, session, *, not_after=None, setup_not_after=None):
         if not_after is not None:
             positive_seconds(not_after)
+
         if setup_not_after is not None:
             positive_seconds(setup_not_after)
+
         self.session = session
         self._not_after = not_after
+
         if setup_not_after is None:
             self._setup_not_after = not_after
         elif not_after is None:
             self._setup_not_after = setup_not_after
         else:
             self._setup_not_after = min(not_after, setup_not_after)
+
         self._setup = self._reader = None
         self._deadline = None
         self._stop_failure = None
@@ -96,10 +106,13 @@ class AsyncRunnerSession:
     def _failure(original):
         if original is None:
             return None
+
         if not original.done():
             return None
+
         if original.cancelled():
             return LifecycleRejected("Original native control operation was cancelled; native completion remains unconfirmed.")
+
         return original.exception()
 
     @property
@@ -124,6 +137,7 @@ class AsyncRunnerSession:
         except BaseException:
             self._executor.shutdown(wait=False)
             raise
+
         original.add_done_callback(completed)
         return original
 
@@ -133,46 +147,60 @@ class AsyncRunnerSession:
         except FutureCancelledError:
             if not original.cancelled():
                 raise
+
             raise self._failure(original) from None
 
     def _retirement_deadline(self):
         if self._deadline is None:
             self._deadline = time.monotonic() + self.session.retirement_seconds
+
             if self._not_after is not None:
                 self._deadline = min(self._deadline, self._not_after)
+
         return self._deadline
 
     async def connect(self, *, wait_seconds):
         """Start or join the original setup without replacing its startup cap."""
         positive_seconds(wait_seconds)
+
         if self._setup is None:
             self._setup = self._start(self.session.connect, self._setup_completed, deadline=self._setup_not_after)
+
         deadline = time.monotonic() + wait_seconds
+
         if self._setup_not_after is not None:
             deadline = min(deadline, self._setup_not_after)
+
         return await self._wait(self._setup, deadline)
 
     async def observe_retirement(self, *, wait_seconds):
         """Observe without stopping; wait expiry leaves the original read active."""
         positive_seconds(wait_seconds)
+
         if self._setup is None:
             raise RuntimeError("Cannot observe native retirement before starting the original control setup with connect.")
+
         deadline = min(self._retirement_deadline(), time.monotonic() + wait_seconds)
         await self._wait(self._setup, deadline)
+
         if self._reader is None:
             if time.monotonic() >= self._deadline:
                 raise TimeoutError("Cannot start native retirement observation: its aggregate cleanup allowance has expired.")
+
             self._reader = self._start(self.session.observe_retirement, self._release, deadline=self._deadline)
+
         return await self._wait(self._reader, deadline)
 
     def request_stop(self):
         """Record native interruption before stop; retain its first failure."""
         self._retirement_deadline()
+
         try:
             self.session.request_stop()
         except BaseException as cause:
             if self._stop_failure is None:
                 self._stop_failure = cause
+
             raise
 
     async def join_retirement(self, *, wait_seconds):

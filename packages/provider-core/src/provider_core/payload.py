@@ -17,6 +17,7 @@ from dataclasses import MISSING, dataclass, fields, is_dataclass
 from enum import Enum
 from functools import cache
 from types import NoneType, UnionType
+
 from typing import (
     Any,
     Literal,
@@ -66,6 +67,7 @@ class StateBinding[T](Protocol):
 def _require_format(value: object) -> None:
     if type(value) is not str:
         raise TypeError(f"Unexpected {type(value)=}; a payload format must be a string")
+
     if not (
         value
         and all(character.isprintable() and not character.isspace() for character in value)
@@ -82,19 +84,23 @@ def _reject_constant(value: str) -> None:
 
 def _object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
+
     for (name, value) in pairs:
         if name in result:
             raise PayloadRejected(
                 "duplicate_field",
                 f"JSON field {name!r} appears more than once",
             )
+
         result[name] = value
+
     return result
 
 
 def _read_json(payload: bytes) -> object:
     if type(payload) is not bytes:
         raise TypeError("Payload codecs accept bytes")
+
     try:
         return json.loads(
             payload.decode("utf-8"),
@@ -121,6 +127,7 @@ def _path_index(path: str, index: int) -> str:
 def _union_members(annotation: object) -> tuple[object, ...] | None:
     if get_origin(annotation) in (UnionType, Union):
         return get_args(annotation)
+
     return None
 
 
@@ -134,27 +141,33 @@ def _dataclass_fields(value_type: type[object]):
         raise TypeError("Portable values must be dataclass types")
 
     parameters = value_type.__dataclass_params__
+
     slotted = getattr(
         parameters,
         "slots",
         "__slots__" in value_type.__dict__,
     )
+
     if not parameters.frozen or not slotted:
         raise TypeError(f"{value_type.__qualname__} must be a frozen, slotted dataclass")
 
     declared_fields = fields(value_type)
+
     if any(not field.init for field in declared_fields):
         non_init_field = next(field.name for field in declared_fields if not field.init)
+
         raise TypeError(
             f"{value_type.__qualname__}.{non_init_field} must participate in construction"
         )
 
     annotations = _resolved_hints(value_type)
     declared_names = {field.name for field in declared_fields}
+
     if set(annotations) != declared_names:
         raise TypeError(
             f"{value_type.__qualname__} must annotate every init field and no non-field names"
         )
+
     return declared_fields, annotations
 
 
@@ -166,15 +179,19 @@ def _validate_annotation(
 ) -> None:
     if annotation in (str, bool, int, float, NoneType):
         return
+
     if annotation is Any:
         raise TypeError(f"{path} may not use Any")
 
     origin = get_origin(annotation)
     arguments = get_args(annotation)
+
     if origin is Literal:
         if not arguments:
             raise TypeError(f"{path} has an empty Literal")
+
         return
+
     if origin is tuple:
         if len(arguments) == 2 and arguments[1] is Ellipsis:
             _validate_annotation(
@@ -182,34 +199,44 @@ def _validate_annotation(
                 path=f"{path}[]",
                 seen=seen,
             )
+
             return
+
         for (index, item) in enumerate(arguments):
             _validate_annotation(
                 item,
                 path=f"{path}[{index}]",
                 seen=seen,
             )
+
         return
+
     if origin in (list, dict):
         raise TypeError(
             f"{path} uses a mutable container; use tuple or a nested frozen dataclass"
         )
 
     members = _union_members(annotation)
+
     if members is not None:
         if len(members) != 2 or NoneType not in members:
             raise TypeError(f"{path} supports only T | None unions")
+
         _validate_annotation(
             next(member for member in members if member is not NoneType),
             path=path,
             seen=seen,
         )
+
         return
+
     if isinstance(annotation, type) and issubclass(annotation, Enum):
         return
+
     if isinstance(annotation, type) and is_dataclass(annotation):
         _validate_dataclass(annotation, seen=seen)
         return
+
     raise TypeError(f"{path} uses unsupported portable annotation {annotation!r}")
 
 
@@ -220,8 +247,10 @@ def _validate_dataclass(
 ) -> None:
     if value_type in seen:
         return
+
     (declared_fields, hints) = _dataclass_fields(value_type)
     nested_seen = seen | {value_type}
+
     for field in declared_fields:
         _validate_annotation(
             hints[field.name],
@@ -234,29 +263,39 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
     if annotation is str:
         if type(value) is not str:
             raise PayloadRejected("invalid_type", f"{path} must be a string")
+
         return value
+
     if annotation is bool:
         if type(value) is not bool:
             raise PayloadRejected("invalid_type", f"{path} must be a boolean")
+
         return value
+
     if annotation is int:
         if type(value) is not int:
             raise PayloadRejected("invalid_type", f"{path} must be an integer")
+
         return value
+
     if annotation is float:
         if type(value) not in (int, float) or not math.isfinite(value):
             raise PayloadRejected(
                 "invalid_type",
                 f"{path} must be a finite number",
             )
+
         return float(value)
+
     if annotation is NoneType:
         if value is not None:
             raise PayloadRejected("invalid_type", f"{path} must be null")
+
         return None
 
     origin = get_origin(annotation)
     arguments = get_args(annotation)
+
     if origin is Literal:
         if value not in arguments or not any(
             type(value) is type(item)
@@ -266,10 +305,13 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
                 "invalid_value",
                 f"{path} is not one of the declared literal values",
             )
+
         return value
+
     if origin is tuple:
         if type(value) is not list:
             raise PayloadRejected("invalid_type", f"{path} must be an array")
+
         if len(arguments) == 2 and arguments[1] is Ellipsis:
             # repo-check: allow-tuple-generator -- Decode the provider's variadic tuple annotation into the immutable type its scientific callable requires.
             return tuple(
@@ -280,11 +322,13 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
                 )
                 for (index, item) in enumerate(value)
             )
+
         if len(value) != len(arguments):
             raise PayloadRejected(
                 "invalid_length",
                 f"{path} must contain exactly {len(arguments)} items",
             )
+
         # repo-check: allow-tuple-generator -- A fixed tuple annotation requires an immutable positional result with the declared element types.
         return tuple(
             _decode_value(
@@ -298,11 +342,14 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
         )
 
     members = _union_members(annotation)
+
     if members is not None:
         if value is None:
             return None
+
         member = next(item for item in members if item is not NoneType)
         return _decode_value(value, member, path=path)
+
     if isinstance(annotation, type) and issubclass(annotation, Enum):
         try:
             return annotation(value)
@@ -311,8 +358,10 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
                 "invalid_value",
                 f"{path} is not a declared enum value",
             ) from error
+
     if isinstance(annotation, type) and is_dataclass(annotation):
         return _decode_dataclass(value, annotation, path=path)
+
     raise AssertionError(f"Unsupported annotation reached decoding: {annotation!r}")
 
 
@@ -323,6 +372,7 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
     (declared_fields, annotations) = _dataclass_fields(value_type)
     fields_by_name = {field.name: field for field in declared_fields}
     unexpected_fields = set(value) - set(fields_by_name)
+
     if unexpected_fields:
         raise PayloadRejected(
             "unexpected_field",
@@ -336,6 +386,7 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
         and field.default is MISSING
         and field.default_factory is MISSING
     }
+
     if missing_fields:
         raise PayloadRejected(
             "missing_field",
@@ -350,6 +401,7 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
         )
         for (name, item) in value.items()
     }
+
     try:
         return value_type(**decoded_arguments)
     except CallRejected:
@@ -365,36 +417,49 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
     if annotation is str:
         if type(value) is not str:
             raise TypeError(f"{path} must be str, got {type(value).__qualname__}")
+
         return value
+
     if annotation is bool:
         if type(value) is not bool:
             raise TypeError(f"{path} must be bool, got {type(value).__qualname__}")
+
         return value
+
     if annotation is int:
         if type(value) is not int:
             raise TypeError(f"{path} must be int, got {type(value).__qualname__}")
+
         return value
+
     if annotation is float:
         if type(value) not in (int, float) or not math.isfinite(value):
             raise TypeError(f"{path} must be a finite float-compatible number")
+
         return float(value)
+
     if annotation is NoneType:
         if value is not None:
             raise TypeError(f"{path} must be None")
+
         return None
 
     origin = get_origin(annotation)
     arguments = get_args(annotation)
+
     if origin is Literal:
         if value not in arguments or not any(
             type(value) is type(item)
             for item in arguments
         ):
             raise TypeError(f"{path} is not one of the declared literal values")
+
         return value
+
     if origin is tuple:
         if type(value) is not tuple:
             raise TypeError(f"{path} must be tuple")
+
         if len(arguments) == 2 and arguments[1] is Ellipsis:
             return [
                 _encode_value(
@@ -404,8 +469,10 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
                 )
                 for (index, item) in enumerate(value)
             ]
+
         if len(value) != len(arguments):
             raise TypeError(f"{path} must contain exactly {len(arguments)} items")
+
         return [
             _encode_value(
                 item,
@@ -418,17 +485,23 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
         ]
 
     members = _union_members(annotation)
+
     if members is not None:
         if value is None:
             return None
+
         member = next(item for item in members if item is not NoneType)
         return _encode_value(value, member, path=path)
+
     if isinstance(annotation, type) and issubclass(annotation, Enum):
         if type(value) is not annotation:
             raise TypeError(f"{path} must be {annotation.__qualname__}")
+
         return value.value
+
     if isinstance(annotation, type) and is_dataclass(annotation):
         return _encode_dataclass(value, annotation, path=path)
+
     raise AssertionError(f"Unsupported annotation reached encoding: {annotation!r}")
 
 
@@ -443,7 +516,9 @@ def _encode_dataclass(
             f"{path} must be exactly {value_type.__qualname__}, "
             f"got {type(value).__qualname__}"
         )
+
     (declared_fields, hints) = _dataclass_fields(value_type)
+
     return {
         field.name: _encode_value(
             getattr(value, field.name),
@@ -490,6 +565,7 @@ class JsonDataclassCodec[T]:
             self.value_type,
             path="$",
         )
+
         return json.dumps(
             document,
             ensure_ascii=True,
@@ -507,8 +583,10 @@ class DataclassStateBinding[T]:
 
     def __post_init__(self) -> None:
         (declared_fields, hints) = _dataclass_fields(self.value_type)
+
         for field in declared_fields:
             annotation = hints[field.name]
+
             if get_origin(annotation) is not None or annotation in (Any, object):
                 raise TypeError(
                     f"{self.value_type.__qualname__}.{field.name} "
@@ -523,17 +601,21 @@ class DataclassStateBinding[T]:
     def bind(self, values: Mapping[str, object]) -> T:
         if not isinstance(values, Mapping):
             raise TypeError("Live scientific states must be supplied as a mapping")
+
         if set(values) != set(self.names):
             raise ValueError(
                 "Live scientific state names differ from the declared state struct"
             )
 
         annotations = _resolved_hints(self.value_type)
+
         for (name, state_value) in values.items():
             expected_type = annotations[name]
+
             if type(state_value) is not expected_type:
                 raise TypeError(
                     f"Scientific state {name!r} must be exactly "
                     f"{expected_type.__qualname__}, got {type(state_value).__qualname__}"
                 )
+
         return self.value_type(**values)

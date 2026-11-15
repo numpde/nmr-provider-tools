@@ -38,21 +38,26 @@ class DiagnosticOutputRefused(ValueError):
 
 def describe_core_failure(error, text, diagnostic_window):
     """Provide the default three-argument renderer hook for reviewed SDK facts."""
+
     if type(error) is DiagnosticOutputRefused:
         return {"message": str(error)}
+
     return core_owned_details(error)
 
 
 def operator_redactor(*, secrets):
     """Share known-secret spellings and credential-field scrubbing across sinks."""
+
     spellings = {
         spelling for secret in secrets for spelling in (secret, repr(secret)[1:-1], json.dumps(secret)[1:-1]) if spelling
     }
+
     spellings = sorted(spellings, key=len, reverse=True)
 
     def redact(text):
         for secret in spellings:
             text = text.replace(secret, "[redacted]")
+
         return redact_credential_fields(text)
 
     return redact
@@ -74,6 +79,7 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
 
     def diagnostic_window(value):
         diagnostic = redact(value)
+
         return {
             "head": diagnostic[:4096],
             "tail": diagnostic[-4096:] if len(diagnostic) > 8192 else diagnostic[4096:],
@@ -84,6 +90,7 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
         yield "cause", current.__cause__
         yield "context", current.__context__
         yield from owner_relationships(current)
+
         if isinstance(current, BaseExceptionGroup):
             for member in current.exceptions:
                 yield "group member", member
@@ -91,10 +98,13 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
     def describe(current):
         nonlocal remaining
         remaining -= 1
+
         if id(current) in seen:
             return {"exception_reference": seen[id(current)]}
+
         identity = seen[id(current)] = len(seen)
         frames, count = deque(maxlen=32), 0
+
         for frame, line in traceback.walk_tb(current.__traceback__):
             frames.append(
                 {
@@ -103,48 +113,67 @@ def failure_evidence(error, *, secrets, describe_owner=describe_core_failure, ow
                     "function": text(frame.f_code.co_name, 128),
                 }
             )
+
             count += 1
+
         evidence = {"exception_id": identity, "exception_type": text(type(current).__name__, 128), "frames": list(frames)}
+
         if count > len(frames):
             evidence["omitted_frame_count"] = count - len(frames)
+
         evidence.update(
             {name: text(value, 1024) if type(value) is str else value for name, value in describe_owner(current, text, diagnostic_window).items()}
         )
+
         if isinstance(current, OSError) and type(current.errno) is int:
             evidence["errno"] = current.errno
+
             if current.errno in errno.errorcode and not isinstance(current, (ssl.SSLError, socket.gaierror, socket.herror)):
                 evidence["reason"] = os.strerror(current.errno)
+
         if type(current) is SystemExit:
             code = current.code
+
             if code is None:
                 evidence["system_exit_code"] = None
             elif type(code) in (int, bool) and -(2 ** 63) <= code < 2 ** 63:
                 evidence["system_exit_code"] = code
             else:
                 evidence["system_exit_code_omitted"] = True
+
         if isinstance(current, sqlite3.Error):
             # Native result identity excludes SQL, paths and exception text.
             # https://docs.python.org/3.12/library/sqlite3.html#sqlite3.Error
             code = getattr(current, "sqlite_errorcode", None)
             name = getattr(current, "sqlite_errorname", None)
+
             if type(code) is int:
                 evidence["sqlite_errorcode"] = code
+
             if type(name) is str:
                 evidence["sqlite_errorname"] = text(name, 128)
+
         if isinstance(current, ssl.SSLCertVerificationError):
             verification_code = getattr(current, "verify_code", None)
+
             if type(verification_code) is int:
                 evidence["certificate_verification_code"] = verification_code
+
         children = []
+
         for relationship, child in relationships(current):
             if child is None:
                 continue
+
             if remaining <= 0:
                 evidence["additional_relationships_omitted"] = True
                 break
+
             children.append({"relationship": text(relationship, 128), "failure": describe(child)})
+
         if children:
             evidence["relationships"] = children
+
         return evidence
 
     return describe(error)
@@ -159,9 +188,11 @@ def write_stderr(content):
     """
     descriptor = sys.stderr.fileno()
     blocking = os.get_blocking(descriptor)
+
     try:
         os.set_blocking(descriptor, False)
         written = os.write(descriptor, content)
+
         if written != len(content):
             raise DiagnosticOutputRefused(f"Cannot finish stderr diagnostic output: wrote {written} of {len(content)} bytes.")
     finally:
@@ -171,12 +202,15 @@ def write_stderr(content):
 def write_notice(content):
     """Keep pipe notices atomic so a rejected record cannot corrupt the next one."""
     descriptor = sys.stderr.fileno()
+
     if stat.S_ISFIFO(os.fstat(descriptor).st_mode):
         maximum = os.fpathconf(descriptor, "PC_PIPE_BUF")
+
         if len(content) > maximum:
             raise DiagnosticOutputRefused(
                 f"Cannot emit complete API availability notice: {len(content)} bytes exceed the pipe's {maximum}-byte atomic-write limit."
             )
+
     write_stderr(content)
 
 

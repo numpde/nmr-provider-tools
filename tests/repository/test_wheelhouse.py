@@ -31,6 +31,7 @@ class WheelhouseTests(unittest.TestCase):
         self.missing = self.make_wheel("pool-missing")
         shutil.copyfile(self.cached, self.pool / self.cached.name)
         self.lock = self.root / "requirements.lock"
+
         self.lock.write_text("".join(
             f"{name}==1.0 " + "\\\n" + f"    --hash=sha256:{wheelhouse.digest(path)}\n"
             for name, path in (("pool-cached", self.cached), ("pool-missing", self.missing))
@@ -40,11 +41,13 @@ class WheelhouseTests(unittest.TestCase):
     def make_wheel(self, name, version="1.0"):
         distribution = name.replace("-", "_")
         path = self.index / f"{distribution}-{version}-py3-none-any.whl"
+
         with zipfile.ZipFile(path, "w") as archive:
             prefix = f"{distribution}-{version}.dist-info"
             archive.writestr(f"{prefix}/METADATA", f"Metadata-Version: 2.1\nName: {name}\nVersion: {version}\n")
             archive.writestr(f"{prefix}/WHEEL", "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n")
             archive.writestr(f"{prefix}/RECORD", "")
+
         return path
 
     def test_provider_core_cache_check_distinguishes_missing_and_corrupt(self):
@@ -52,6 +55,7 @@ class WheelhouseTests(unittest.TestCase):
         shutil.copyfile(self.missing, self.pool / self.missing.name)
         self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
         (self.pool / self.missing.name).write_bytes(b"corrupt")
+
         with self.assertRaisesRegex(ValueError, "cached bytes differ"):
             provider_core_acquire.cache_state(self.pool, [self.lock])
 
@@ -65,23 +69,30 @@ class WheelhouseTests(unittest.TestCase):
         self.assertEqual("missing", provider_core_acquire.cache_state(self.pool, [self.lock]))
         self.lock.write_text(self.lock.read_text().replace("==1.0+other ", "==1.0 "))
         (self.pool / wheel.name).write_bytes(b"corrupt")
+
         with self.assertRaisesRegex(ValueError, "cached bytes differ"):
             provider_core_acquire.cache_state(self.pool, [self.lock])
+
         alternate = self.make_wheel("pool-local", "1.0+z")
         shutil.copyfile(alternate, self.pool / alternate.name)
+
         self.lock.write_text(f"pool-local==1.0 \\\n    --hash=sha256:{wheelhouse.digest(wheel)} \\\n"
                              f"    --hash=sha256:{wheelhouse.digest(alternate)}\n")
+
         self.assertEqual("complete", provider_core_acquire.cache_state(self.pool, [self.lock]))
 
     def test_acquisition_bootstrap_dependency_is_checked_outside_runtime_lock(self):
         lock = self.root / "bootstrap.toml"
+
         lock.write_text('[[packages]]\nname = "identity-fixture"\nversion = "1.0"\n'
                         '[[packages.wheels]]\nurl = "https://example.invalid/' + self.missing.name + '"\n'
                         'hashes = {sha256 = "' + wheelhouse.digest(self.missing) + '"}\n')
+
         self.assertFalse(provider_core_acquire.bootstrap_present(self.pool, lock))
         shutil.copyfile(self.missing, self.pool / self.missing.name)
         self.assertTrue(provider_core_acquire.bootstrap_present(self.pool, lock))
         (self.pool / self.missing.name).write_bytes(b"corrupt bootstrap")
+
         with self.assertRaisesRegex(ValueError, "bootstrap pin"):
             provider_core_acquire.bootstrap_present(self.pool, lock)
 
@@ -102,12 +113,15 @@ class WheelhouseTests(unittest.TestCase):
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         thread = Thread(target=server.serve_forever)
         thread.start()
+
         try:
             pin = {"name": "synthetic-tool.pyz", "sha256": hashlib.sha256(content).hexdigest(),
                    "url": f"http://127.0.0.1:{server.server_port}/synthetic-tool.pyz"}
+
             with patch.object(provider_core_acquire, "require_download_proxy"):
                 path = provider_core_acquire.acquire_tool(self.pool, pin)
                 provider_core_acquire.acquire_tool(self.pool, pin)
+
             self.assertEqual(content, path.read_bytes())
             self.assertEqual(["/synthetic-tool.pyz"], requests)
             self.assertFalse(list(self.pool.glob("*.part")))
@@ -135,6 +149,7 @@ class WheelhouseTests(unittest.TestCase):
             thread = Thread(target=acquire)
             thread.start()
             completed_while_shared = finished.wait(2)
+
         thread.join(5)
         self.assertTrue(completed_while_shared, msg="cached tool waited for exclusive pool access")
         self.assertEqual([], errors)
@@ -151,8 +166,10 @@ class WheelhouseTests(unittest.TestCase):
                 "url": path.as_uri(), "archive_info": {"hashes": {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()}}}}]}))
 
         write_report(self.pool / self.cached.name)
+
         with self.assertRaisesRegex(ValueError, "required release artifact"):
             wheelhouse.wheel_inputs_from_report(self.lock, self.pool, report, (candidate_dir,), {candidate.name: candidate})
+
         write_report(candidate)
         selected = wheelhouse.wheel_inputs_from_report(self.lock, self.pool, report, (candidate_dir,), {candidate.name: candidate})
         self.assertIn(candidate.name, selected["files"])

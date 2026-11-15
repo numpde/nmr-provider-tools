@@ -15,6 +15,7 @@ class DeliveryConfigFiles:
         self.key.write_bytes(encoded(document()))
         self.key.chmod(0o600)
         self.path = self.root / "delivery.toml"
+
         self.raw = f'''schema_id = "provider-core.delivery.v1"
 state_directory = {json.dumps(str(self.root / "state"))}
 request_seconds = 1
@@ -38,6 +39,7 @@ credential_file = {json.dumps(str(self.key))}
 exchange_seconds = 1
 retirement_seconds = 0.2
 '''.encode()
+
         self.write(self.raw)
 
     def write(self, raw):
