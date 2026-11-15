@@ -1,11 +1,12 @@
 # NMRPeak mock provider
 
-This example runs one HF and one CHF prediction. Provider startup reads deployment
-configuration and creates the scientific objects and SDK execution manager.
-`Prediction`, the provider application, asks the SDK to validate interpreted
-input and generate candidates. Startup then consumes the resulting reports.
+Provider setup reads deployment configuration and creates the HF/CHF scientific
+objects and SDK execution manager. `Prediction`, the request-handling application
+code, asks the SDK to validate interpreted input and generate candidates.
+The integration tests supply requests and consume the resulting reports.
 
-The model, tokenizer and language-model endpoint are small stand-ins. The SDK
+The model and tokenizer are small stand-ins; the tests supply a scripted
+language-model endpoint. The SDK
 interpreter, scientific execution and cleanup are real. The example uses no ML
 libraries, credentials or network services; Job discovery and durable API delivery
 remain responsibilities of the surrounding provider.
@@ -21,7 +22,7 @@ remain responsibilities of the surrounding provider.
 | Model/tokenizer | Small deterministic Python implementations | Loaded neural model and NMR tokenizer |
 | Output admission | Candidate count and string bounds | Provider-owned candidate validation |
 | Execution | SDK `EmbeddedHost` runs submitted scientific methods | Execution and cleanup inside the chosen deployment |
-| Report consumption | SDK `ResultConsumption`, stdout or recording receiver | Retained result passed to the external delivery receiver |
+| Report consumption | SDK `ResultConsumption`, recording test receiver | Retained result passed to the external delivery receiver |
 
 ```text
 src/nmrpeak_mock_provider/
@@ -31,22 +32,31 @@ src/nmrpeak_mock_provider/
     application.py   interpretation → validation → generation
     composition.py   explicit provider assembly and interpretation tool schemas
     fake_model.py    stand-in tokenizer and neural model
-    fake_services.py stand-in LLM endpoint and report receiver
     interpreter.md   source-faithful extraction instructions
     hf.json/chf.json tiny checkpoint substitutes
-    __main__.py      run both offerings and settle their owners
+    provider.py      deployment setup and SDK retirement
 config/
     deployments/localhost/
         provider.toml    scientific settings and execution policy
+tests/
+    fakes.py             scripted LLM endpoint and recording report receiver
+    test_peak_example.py installed integration scenarios and failure tests
 ```
 
-`run_demo` is provider startup. It reads the deployment file, constructs the HF/CHF
-`Settings`, and passes them and the selected `Model` constructor to `adopt_offerings`.
-That provider-written helper builds `Hf` and `Chf` using the packaged `hf.json` and
-`chf.json` checkpoint substitutes. It asks `host.adopt` to retain each exact object
-before the SDK calls its initialize method, where provider code loads the model.
-Assembly returns an unordered `frozenset` of hosted handles. The demo iterates
-it and uses each contribution's type to choose the matching input.
+`open_provider` is provider-written setup, not an SDK hook. The surrounding
+application calls it with an explicit model constructor. It reads the deployment
+file, constructs the HF/CHF `Settings`, and passes them and the constructor to
+`adopt_offerings`. That helper builds `Hf` and `Chf` using the packaged `hf.json`
+and `chf.json` checkpoint substitutes. It asks `host.adopt` to retain each exact
+object before the SDK calls its initialize method, where provider code loads the
+model. Assembly returns an unordered `frozenset` of hosted handles.
+
+The context yields a `Provider` containing the execution manager, per-operation
+policy and offerings. Its caller owns request discovery and report delivery and
+finishes its request handlers and receivers before leaving the context.
+`open_provider` then retires the SDK, including after partial setup or a caller
+failure. Independent caller and retirement failures preserve both original causes.
+Setup does not create requests, contact a language model or load science.
 
 A real provider supplies its checkpoint locations in its own assembly code.
 The path locates a file; the expected digest determines which contents are
@@ -59,7 +69,7 @@ installed file during use. This example does not invent a snapshot service or
 claim that an open descriptor prevents in-place mutation.
 
 `Prediction.interpret` asks the SDK `Interpreter` to turn text into structured
-input. When the scripted language model proposes input, `Interpreter` invokes the
+input. When a language model proposes input, `Interpreter` invokes the
 provider's `Prediction.dispatch`. That method decodes the proposal and submits
 `prepare` through `EmbeddedAnalysis.submit_method`.
 
@@ -76,13 +86,13 @@ failures propagate as their original exceptions. Once `prepare` succeeds,
 report bytes. It then submits `generate` using that prepared input. Repeated waits
 observe the saved operation; submitting a method again would request more work.
 
-`run_demo` retains a `ResultConsumption` for each generated report. That SDK object
-passes result bytes to the provider's receiver, then releases them after the
+The integration scenario retains a `ResultConsumption` for each generated report.
+That SDK object passes result bytes to a receiver, then releases them after the
 receiver returns successfully. A canceled wait can resume the same consumption.
 Receiver failure leaves the result available without rerunning science or
-resending automatically. This example's receiver flushes stdout; that establishes
-local acceptance only. The synthetic checkpoints and rankings make no chemistry
-claim.
+resending automatically. The test receiver records bytes in memory; it proves
+local consumption, not durable delivery. The synthetic checkpoints and rankings
+make no chemistry claim.
 
 Provider code requests cleanup by releasing results, closing execution sessions
 and retiring the host. Cleanup timers only make an overdue flag observable; they
@@ -98,15 +108,13 @@ make tests/integration/provider-core DOCKER_CONTEXT=science \
   WHEELHOUSE=/home/ra/Downloads/wheelhouse TEST_PATTERN=test_peak_example.py
 ```
 
-With both installed inside a permitted container, run from this example project
-root, which contains the maintained `config/` tree:
-
-```sh
-python -I -B -m nmrpeak_mock_provider
-```
-
-It prints an HF report and a CHF report. Process placement remains deployment-owned;
-the example does not copy NMRPeak's private worker frames into the scientific API.
+The installed tests run both HF and CHF through interpretation, scientific
+validation, generation and report consumption. They finish receivers before
+closing execution sessions and retiring the interpreter and provider. There is
+no executable demo or request server in this package: its application code is
+called by a surrounding provider service. Process placement remains
+deployment-owned; the example does not copy NMRPeak's private worker frames into
+the scientific API.
 
 
 Provider constructor settings are ordinary object attributes. The SDK does not
@@ -125,8 +133,8 @@ Each deployment's `provider.toml` supplies both scientific settings and executio
 policy. The maintained file is `config/deployments/localhost/provider.toml`
 relative to this example project root. Configuration is excluded from the wheel.
 Supply its `config/` tree in the working directory;
-the top-level `PROVIDER_CONFIG_PATH` in `__main__.py` selects the deployment file.
-No command-line arguments are required.
+the top-level `PROVIDER_CONFIG_PATH` in `provider.py` selects the deployment file.
+Setup takes no configuration-path argument.
 
 Startup reads that file once, constructs HF/CHF `Settings` from its science
 sections, and passes them and an explicit model constructor to `adopt_offerings`.
@@ -135,7 +143,7 @@ The SDK receives the resulting scientific objects and their requirements.
 A provider can choose another constructor in its own startup composition without
 adding model discovery or imports to the SDK.
 
-The installed-command test supplies configuration outside the wheel and changes
+The installed-provider test supplies configuration outside the wheel and changes
 beam size between runs, verifying that deployment configuration changes the
 scientific results without changing the installed application.
 

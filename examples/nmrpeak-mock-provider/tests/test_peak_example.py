@@ -5,20 +5,19 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
+from contextlib import AsyncExitStack
 from dataclasses import replace
 from importlib import metadata, resources
 import json
 import shutil
 from pathlib import Path
-import subprocess
-import sys
 import tomllib
 from tempfile import TemporaryDirectory
 from threading import Event
 import unittest
 from unittest.mock import patch
 
-from provider_core.embedded_host import EmbeddedHost
+from provider_core.embedded_host import EmbeddedAnalysis, EmbeddedHost
 from provider_core.hosting import OperationPolicy, NotAdmitted, StartDeadlineExpired, ResultConsumption, ResultState, observe_cleanup, observe_completion
 from provider_core.interpreter import Interpreter, ModelWindowExpired, ProseService
 from provider_core.scientific import ResourceRequirement
@@ -27,8 +26,10 @@ from nmrpeak_mock_provider.application import Prediction
 from nmrpeak_mock_provider.binding import Chf, Hf, PeakContribution
 from nmrpeak_mock_provider.composition import adopt_offerings, interpretation_messages, interpretation_tools
 from nmrpeak_mock_provider.fake_model import Model, Tokenizer
-from nmrpeak_mock_provider.fake_services import RecordingReceiver, ScriptedEndpointFactory
+from nmrpeak_mock_provider import provider as provider_setup
 from nmrpeak_mock_provider.science import Settings
+
+from .fakes import RecordingReceiver, ScriptedEndpointFactory
 
 
 def candidate(*, carbon):
@@ -313,8 +314,13 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         self.assertIsNone(obj=self.chf.contribution.model)
 
 
-class InstalledCommandTests(unittest.TestCase):
-    def test_installed_command_runs_both_offerings(self):
+async def close_execution(*, execution: EmbeddedAnalysis) -> None:
+    """Wait for the test's requested analysis cleanup before retiring its provider."""
+    await observe_cleanup(control=execution.close())
+
+
+class InstalledProviderTests(unittest.IsolatedAsyncioTestCase):
+    async def test_external_deployment_settings_change_scientific_results(self):
         package = Path(str(resources.files(anchor="nmrpeak_mock_provider")))
         distribution = metadata.distribution(distribution_name="nmrpeak-mock-provider-example")
         self.assertEqual(first=package, second=Path(distribution.locate_file(path="nmrpeak_mock_provider")))
@@ -326,16 +332,109 @@ class InstalledCommandTests(unittest.TestCase):
                     data=configuration.read_text(encoding="utf-8").replace("beam_size = 2", f"{beam_size=}"),
                     encoding="utf-8",
                 )
-                result = subprocess.run(
-                    args=[sys.executable, "-I", "-B", "-m", "nmrpeak_mock_provider"],
-                    cwd=directory,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                )
-                self.assertEqual(first=0, second=result.returncode, msg=result.stderr)
-                reports = [json.loads(s=line) for line in result.stdout.splitlines()]
+                reports = []
+                with patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration):
+                    async with provider_setup.open_provider(create_model=Model) as provider:
+                        for hosted in provider.offerings:
+                            carbon = isinstance(hosted.contribution, Chf)
+                            factory = ScriptedEndpointFactory(proposals=(candidate(carbon=carbon),), context_bytes=32768)
+                            async with AsyncExitStack() as request_cleanup:
+                                interpreter = Interpreter(
+                                    endpoint_factories=(ProseService(factory=factory),),
+                                    timeout_seconds=15,
+                                    context_bytes=factory.context_bytes,
+                                    secrets=(),
+                                )
+                                request_cleanup.push_async_callback(interpreter.retire)
+                                execution = provider.host.open_analysis(allocations=frozenset({hosted.allocation}))
+                                request_cleanup.push_async_callback(close_execution, execution=execution)
+                                prediction = Prediction(
+                                    execution=execution,
+                                    hosted=hosted,
+                                    interpreter=interpreter,
+                                    policy=provider.operation_policy,
+                                )
+                                await prediction.interpret(
+                                    messages=interpretation_messages(source="Recorded NMR source"),
+                                    tools=interpretation_tools(carbon=carbon),
+                                )
+                                result = await prediction.finish()
+                                receiver = RecordingReceiver()
+                                consumption = ResultConsumption(
+                                    operation=prediction.generation,
+                                    result=result,
+                                    receive=receiver,
+                                )
+                                # Finish the original receiver before closing its execution session.
+                                request_cleanup.push_async_callback(consumption.settle)
+                                await consumption.consume()
+                                report, = receiver.payloads
+                                reports.append(json.loads(s=report))
                 self.assertEqual(first=2, second=len(reports))
                 self.assertNotEqual(first=reports[0]["checkpoint_sha256"], second=reports[1]["checkpoint_sha256"])
                 for report in reports:
                     self.assertEqual(first=beam_size, second=len(report["generated_smiles"]))
+
+    async def test_setup_does_not_start_science_and_retires_on_exit(self):
+        created = []
+
+        def create_model():
+            model = Model()
+            created.append(model)
+            return model
+
+        configuration = Path(__file__).parent / "config/deployments/localhost/provider.toml"
+        with patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration):
+            async with provider_setup.open_provider(create_model=create_model) as provider:
+                self.assertEqual(first=2, second=len(provider.offerings))
+                self.assertEqual(first=[], second=created)
+        retirement = await provider.host.retire().observe(after=None, wait_seconds=0)
+        self.assertTrue(expr=retirement.settled)
+        self.assertEqual(first=[], second=created)
+
+    async def test_partial_assembly_failure_retires_the_adopted_object(self):
+        original = OSError("Cannot finish provider assembly")
+        closed = []
+
+        class ClosingHf(Hf):
+            def close(self) -> None:
+                closed.append(self)
+                super().close()
+
+        def adopt_partially(*, host, requested_requirements, hf_settings, chf_settings, create_model):
+            contribution = ClosingHf(
+                configuration=hf_settings,
+                checkpoint_path=Path(str(resources.files(anchor="nmrpeak_mock_provider").joinpath("hf.json"))),
+                create_model=create_model,
+            )
+            host.adopt(contribution=contribution, requirements=requested_requirements)
+            raise original
+
+        configuration = Path(__file__).parent / "config/deployments/localhost/provider.toml"
+        with patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration):
+            with patch.object(target=provider_setup, attribute="adopt_offerings", new=adopt_partially):
+                with self.assertRaises(expected_exception=OSError) as raised:
+                    async with provider_setup.open_provider(create_model=Model):
+                        self.fail(msg="Partial assembly must not yield a provider")
+        self.assertIs(expr1=original, expr2=raised.exception)
+        self.assertEqual(first=1, second=len(closed))
+
+    async def test_body_and_retirement_failures_preserve_both_original_causes(self):
+        original = OSError("Provider request handling failed")
+        cleanup = RuntimeError("Cannot close the HF scientific object")
+
+        def fail_close(self) -> None:
+            raise cleanup
+
+        configuration = Path(__file__).parent / "config/deployments/localhost/provider.toml"
+        with patch.object(target=provider_setup, attribute="PROVIDER_CONFIG_PATH", new=configuration):
+            with patch.object(target=Hf, attribute="close", new=fail_close):
+                with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:
+                    async with provider_setup.open_provider(create_model=Model) as provider:
+                        raise original
+        # Keep the SDK's original aggregate, including the original science failure.
+        body_failure, retirement_failure = raised.exception.exceptions
+        self.assertIs(expr1=original, expr2=body_failure)
+        observation = await provider.host.retire().observe(after=None, wait_seconds=0)
+        self.assertIs(expr1=retirement_failure, expr2=observation.failures[0].cause)
+        self.assertEqual(first=(cleanup,), second=retirement_failure.exceptions)
