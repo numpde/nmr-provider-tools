@@ -5,15 +5,12 @@ from __future__ import annotations
 import asyncio
 import sys
 
-from provider_core.contribution import ref
-from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
-    OperationPolicy, Invocation, NotAdmitted, ResultConsumption,
+    NotAdmitted, ResultConsumption,
     observe_cleanup,
 )
 
-from .application import PeakWorkflow
-from .binding import Baseline, Peaks, create_bindings
+from .provider import open_provider
 from .science import Spectrum
 
 
@@ -24,20 +21,10 @@ async def run_demo() -> None:
     host context joins original retirement instead of abandoning pending cleanup
     when an observer cap expires.
     """
-    # Scientific requirements come from resources.toml; adoption records them
-    # without claiming that hardware has been reserved.
-    async with EmbeddedHost(
-        input_bytes=8192,
-        result_bytes=8192,
-        state_values=1,
-        progress_records=1,
-        initialization_seconds=5,
-        retirement_seconds=5,
-    ) as host:
+    async with open_provider(result_bytes=8192) as provider:
         analysis = None
         workflow = None
         causes = []
-
 
         async def print_report(payload: bytes) -> None:
             # Flushed stdout is this demo's consumer, not a durable report queue.
@@ -45,34 +32,10 @@ async def run_demo() -> None:
             sys.stdout.buffer.flush()
 
         try:
-            bindings = create_bindings(
-                host=host,
+            workflow = provider.create_workflow(
+                spectrum=Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
             )
-            baseline, = [binding for binding in bindings if isinstance(binding.contribution, Baseline)]
-            peaks, = [binding for binding in bindings if isinstance(binding.contribution, Peaks)]
-            analysis = host.open_analysis(allocations=frozenset({baseline.allocation, peaks.allocation}))
-            baseline_reservation = analysis.reservation(allocation=baseline.allocation)
-            peak_reservation = analysis.reservation(allocation=peaks.allocation)
-            baseline_call = baseline.call(method=Baseline.run)
-            operation_policy = OperationPolicy(
-                queue_stop_request_seconds=5,
-                execution_stop_request_seconds=10,
-                cleanup_overdue_flag_seconds=5,
-                reject_encoded_input_over_bytes=4096,
-                reject_encoded_result_over_bytes=4096,
-            )
-            workflow = PeakWorkflow(
-                execution=analysis,
-                baseline=Invocation(
-                    target=ref(call=baseline_call),
-                    payload=baseline_call.input_codec.encode(
-                        value=Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
-                    ),
-                    states=(), reservation=baseline_reservation, policy=operation_policy,
-                ),
-                peaks=peaks.reference(method=Peaks.run),
-                peak_reservation=peak_reservation, policy=operation_policy,
-            )
+            analysis = workflow.execution
             started = workflow.start()
             if isinstance(started, NotAdmitted):
                 raise RuntimeError(f"Baseline admission refused: {started.code.value}: {started.message}")
