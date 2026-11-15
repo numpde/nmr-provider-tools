@@ -21,16 +21,22 @@ class ChatProcessProjectionTests(unittest.TestCase):
         for (parent, expected) in ((None, child_interruption), (parent_interruption, parent_interruption)):
             with self.subTest(parent_interrupted=parent is not None):
                 child = ExchangeFailed(
-                    "The child exchange was interrupted.", primary=TimeoutError("response deadline"),
-                    proxy_connect_status=503, caller_interruption=child_interruption,
+                    "The child exchange was interrupted.",
+                    primary=TimeoutError("response deadline"),
+                    proxy_connect_status=503,
+                    caller_interruption=child_interruption,
                 )
 
                 failure = ChatFailed("exchange_failed", "The model request failed.", cause=child)
                 self.assertFalse(_retryable(failure))
 
                 exchange = _Exchange(
-                    object(), 1.0, failure=child, child_reply=child,
-                    caller_interruption=parent, retired=True,
+                    object(),
+                    1.0,
+                    failure=child,
+                    child_reply=child,
+                    caller_interruption=parent,
+                    retired=True,
                 )
 
                 # Exercise the actual parent evidence merge after admitting a
@@ -70,8 +76,10 @@ class ChatProcessProjectionTests(unittest.TestCase):
 
         self.assertEqual(
             {
-                "message": str(failure), "model_http_pid": 1234,
-                "model_http_returncode": -int(signal.SIGKILL), "model_http_signals_sent": 2,
+                "message": str(failure),
+                "model_http_pid": 1234,
+                "model_http_returncode": -int(signal.SIGKILL),
+                "model_http_signals_sent": 2,
                 "model_http_last_signal": int(signal.SIGKILL),
             },
             details,

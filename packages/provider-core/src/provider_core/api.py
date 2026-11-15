@@ -275,7 +275,9 @@ def _http_failure(response, operation):
 
     try:
         problem = json.loads(
-            response.body.decode("utf-8"), object_pairs_hook=_unique_problem_fields, parse_constant=_reject_problem_constant
+            response.body.decode("utf-8"),
+            object_pairs_hook=_unique_problem_fields,
+            parse_constant=_reject_problem_constant
         )
     # silent-defaults: allow-exception-outcome -- Unreadable optional diagnostics leave the original API failure unchanged
     except (ValueError, RecursionError):
@@ -612,8 +614,11 @@ class ProviderAPI:
         # request is safe; this evidence does not establish absence of effects.
         return failure.response is not None and (
             failure.status == 401 and failure.problem_code in {
-                "authentication_failed", "authentication_nonce_reused", "authentication_window_closed",
-                "signature_expired", "signature_created_in_future",
+                "authentication_failed",
+                "authentication_nonce_reused",
+                "authentication_window_closed",
+                "signature_expired",
+                "signature_created_in_future",
             }
             or failure.status == 403 and failure.problem_code == "authorization_denied"
         )
@@ -747,7 +752,12 @@ class ProviderAPI:
         )
 
         response = await self._exchange(
-            "list Jobs", owner=owner, method="GET", path="/provider/v1/jobs", query=query, maximum_bytes=PAGE_RESPONSE_BYTES
+            "list Jobs",
+            owner=owner,
+            method="GET",
+            path="/provider/v1/jobs",
+            query=query,
+            maximum_bytes=PAGE_RESPONSE_BYTES
         )
 
         try:
@@ -861,7 +871,8 @@ class ProviderAPI:
             return read_grant(response.body, job_ref=job_ref, upload_ref=upload_ref)
         except ResponseRejected as cause:
             raise self._remember_failure(
-                ApiFailure("issue Upload read grant", str(cause), response=response, cause=cause), issuance=True
+                ApiFailure("issue Upload read grant", str(cause), response=response, cause=cause),
+                issuance=True
             ) from None
 
     async def read_attempt(self, execution_attempt_ref, *, job_ref, owner=None):
@@ -917,7 +928,8 @@ class ProviderAPI:
             return read_start(response.body, job_ref=job_ref, analysis_kind_ref=analysis_kind_ref, provider_ref=provider_ref)
         except ResponseRejected as cause:
             raise self._remember_failure(
-                ApiFailure("start Execution Attempt", str(cause), response=response, cause=cause), attempt_mutation=True
+                ApiFailure("start Execution Attempt", str(cause), response=response, cause=cause),
+                attempt_mutation=True
             ) from None
 
     async def progress_attempt(self, execution_attempt_ref, *, phase, condition_code, owner=None):
@@ -943,11 +955,15 @@ class ProviderAPI:
 
         try:
             return read_progress(
-                response.body, execution_attempt_ref=execution_attempt_ref, phase=phase, condition_code=condition_code
+                response.body,
+                execution_attempt_ref=execution_attempt_ref,
+                phase=phase,
+                condition_code=condition_code
             )
         except ResponseRejected as cause:
             raise self._remember_failure(
-                ApiFailure("report Attempt progress", str(cause), response=response, cause=cause), attempt_mutation=True
+                ApiFailure("report Attempt progress", str(cause), response=response, cause=cause),
+                attempt_mutation=True
             ) from None
 
     async def complete_attempt(self, body, *, execution_attempt_ref, owner=None):
@@ -972,11 +988,15 @@ class ProviderAPI:
 
         try:
             return read_complete(
-                response.body, execution_attempt_ref=execution_attempt_ref, result_schema_id=result_schema_id, result=result
+                response.body,
+                execution_attempt_ref=execution_attempt_ref,
+                result_schema_id=result_schema_id,
+                result=result
             )
         except ResponseRejected as cause:
             raise self._remember_failure(
-                ApiFailure("complete Execution Attempt", str(cause), response=response, cause=cause), attempt_mutation=True
+                ApiFailure("complete Execution Attempt", str(cause), response=response, cause=cause),
+                attempt_mutation=True
             ) from None
 
     async def fail_attempt(self, body, *, execution_attempt_ref, owner=None):
@@ -1008,7 +1028,8 @@ class ProviderAPI:
             )
         except ResponseRejected as cause:
             raise self._remember_failure(
-                ApiFailure("publish Attempt failure", str(cause), response=response, cause=cause), attempt_mutation=True
+                ApiFailure("publish Attempt failure", str(cause), response=response, cause=cause),
+                attempt_mutation=True
             ) from None
 
     # silent-defaults: allow-contract -- Only the exchange owner supplies a known signed method/target for operation-specific recovery; parser failures grant no replay authority.
@@ -1069,7 +1090,17 @@ class ProviderAPI:
 
     # silent-defaults: allow-contract -- Callers explicitly mark issuance and Attempt effects; ordinary exchanges acquire neither effect claim.
     async def _exchange(
-        self, operation, *, method, path, query, maximum_bytes, issuance=False, body=None, attempt_mutation=False, owner=None
+        self,
+        operation,
+        *,
+        method,
+        path,
+        query,
+        maximum_bytes,
+        issuance=False,
+        body=None,
+        attempt_mutation=False,
+        owner=None
     ):
         request = signed_request(
             self._identity,

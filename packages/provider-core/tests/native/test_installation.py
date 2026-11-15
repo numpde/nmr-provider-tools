@@ -68,8 +68,10 @@ class NativeInstallationTests(unittest.TestCase):
         async def run():
             model = endpoint("native", call("selected", "prepare", {}))
 
-            owner = Interpreter((lambda **grant: model,), timeout_seconds=30,
-                                context_bytes=16384, secrets=())
+            owner = Interpreter((lambda **grant: model,),
+                                timeout_seconds=30,
+                                context_bytes=16384,
+                                secrets=())
 
             async def dispatch(name, arguments, *, not_after):
                 return ToolFinished("accepted")
@@ -96,10 +98,16 @@ class NativeInstallationTests(unittest.TestCase):
         import provider_core.embedded_host
 
         self.assertFalse({
-            "provider_core.chat", "provider_core.chat_process", "provider_core.chat_tls",
-            "provider_core.chat_wire", "provider_core.chat_worker",
-            "provider_core.api", "provider_core.execution", "provider_core.controller",
-        }.intersection(sys.modules), msg="Native conversation imports must not acquire model HTTP/process dependencies")
+            "provider_core.chat",
+            "provider_core.chat_process",
+            "provider_core.chat_tls",
+            "provider_core.chat_wire",
+            "provider_core.chat_worker",
+            "provider_core.api",
+            "provider_core.execution",
+            "provider_core.controller",
+        }.intersection(sys.modules),
+            msg="Native conversation imports must not acquire model HTTP/process dependencies")
 
         distribution = importlib.metadata.distribution("provider-core")
         self.assertTrue(distribution.requires)

@@ -46,7 +46,8 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
             )
 
         if re.fullmatch(
-            r"[a-z0-9]+(?:-[a-z0-9]+)*", distribution_name
+            r"[a-z0-9]+(?:-[a-z0-9]+)*",
+            distribution_name
         ) is None:
             raise ValueError(
                 f"Cannot install example {metadata.parent.name!r}: distribution "

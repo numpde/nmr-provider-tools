@@ -39,9 +39,11 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertGreaterEqual(first_success["finished_at"], result["restored_at"], msg=evidence)
 
         self.assertLessEqual(result["publication_times"][first_success["attempt_ref"]] - result["restored_at"],
-                             result["recovery_seconds"], msg=evidence)
+                             result["recovery_seconds"],
+                             msg=evidence)
 
-        self.assertLessEqual(len(unavailable_requests), result["request_ceiling"],
+        self.assertLessEqual(len(unavailable_requests),
+                             result["request_ceiling"],
                              msg="The unavailable prose service received more requests than the fixed policy permits: " + evidence)
 
         # One publisher owns the exact original report throughout the outage.
@@ -55,10 +57,12 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(result["original_report_bytes_sent_once"], msg=evidence)
 
         self.assertEqual(result["original_report_acceptance"]["execution_attempt_ref"],
-                         result["original_report_receipt"]["execution_attempt_ref"], msg=evidence)
+                         result["original_report_receipt"]["execution_attempt_ref"],
+                         msg=evidence)
 
         self.assertEqual("analysis_result:sha256:" + result["original_report_sha256"],
-                         result["original_report_receipt"]["analysis_result_ref"], msg=evidence)
+                         result["original_report_receipt"]["analysis_result_ref"],
+                         msg=evidence)
 
         self.assertTrue(result["all_report_bytes_preserved"], msg=evidence)
         self.assertEqual(len(jobs), result["submitted_reports"], msg=evidence)
@@ -83,7 +87,8 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
         executed = sum(not job["failed"] for job in jobs)
 
         self.assertEqual((executed, executed, len(jobs)),
-                         (after["preparations"], after["executions"], after["retirements"]), msg=evidence)
+                         (after["preparations"], after["executions"], after["retirements"]),
+                         msg=evidence)
 
         for job in jobs:
             science_count = 1
@@ -92,7 +97,8 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
                 science_count = 0
 
             self.assertEqual((1, 1, science_count, science_count),
-                             (job["starts"], job["prepare_calls"], job["scientific_prepare_calls"], job["execute_calls"]), msg=evidence)
+                             (job["starts"], job["prepare_calls"], job["scientific_prepare_calls"], job["execute_calls"]),
+                             msg=evidence)
 
             self.assertTrue(job["shutdown_ready"], msg=evidence)
 
@@ -120,7 +126,8 @@ class ProseServiceOutageTests(unittest.IsolatedAsyncioTestCase):
 
                     following = next(
                         (request for request in result["requests"]
-                         if request["at"] > observation["at"]), None
+                         if request["at"] > observation["at"]),
+                        None
                     )
 
                     if following is not None:

@@ -28,9 +28,16 @@ from provider_core.scientific import operation
 from provider_core.embedded_host import InProcessExecutionHost
 
 from provider_core.hosting import (
-    AdmissionCode, CleanupObservation, DispatchState, Failure,
-    NotAdmitted, Outcome, ResultConsumption, ResultState,
-    observe_cleanup, observe_completion,
+    AdmissionCode,
+    CleanupObservation,
+    DispatchState,
+    Failure,
+    NotAdmitted,
+    Outcome,
+    ResultConsumption,
+    ResultState,
+    observe_cleanup,
+    observe_completion,
 )
 
 from spectrum_provider import science
@@ -113,7 +120,9 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 received.append(payload)
 
             consumption = ResultConsumption(
-                operation=workflow.peak_detection_submission.operation, result=operation_observation.result, receive=accept,
+                operation=workflow.peak_detection_submission.operation,
+                result=operation_observation.result,
+                receive=accept,
             )
 
             await consumption.consume()
@@ -136,7 +145,9 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 original = workflow.peak_detection_submission.operation
 
                 failed_consumption = ResultConsumption(
-                    operation=original, result=operation_observation.result, receive=reject,
+                    operation=original,
+                    result=operation_observation.result,
+                    receive=reject,
                 )
 
                 for _ in range(2):
@@ -176,7 +187,9 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 operation_observation = await workflow.finish()
 
             consumption = ResultConsumption(
-                operation=workflow.peak_detection_submission.operation, result=operation_observation.result, receive=receive,
+                operation=workflow.peak_detection_submission.operation,
+                result=operation_observation.result,
+                receive=receive,
             )
 
             waiter = asyncio.create_task(consumption.consume())
@@ -343,7 +356,9 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
         cause = OSError("Intermediate result release failed")
 
         release = SimpleNamespace(observe=AsyncMock(return_value=CleanupObservation(
-            revision=1, settled=False, allowance_expired=False,
+            revision=1,
+            settled=False,
+            allowance_expired=False,
             failures=(Failure("release", cause),),
         )))
 
@@ -424,7 +439,10 @@ class SpectrumCommandTests(unittest.TestCase):
 
             result = subprocess.run(
                 [sys.executable, "-I", "-B", "-m", "spectrum_provider"],
-                cwd=Path(directory), capture_output=True, text=True, timeout=30,
+                cwd=Path(directory),
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
 
         self.assertEqual(0, result.returncode, result.stderr)

@@ -19,8 +19,12 @@ from unittest.mock import patch
 from provider_core.embedded_host import InProcessExecutionHost
 
 from provider_core.hosting import (
-    NotAdmitted, Outcome, ResultConsumption, ResultState,
-    observe_cleanup, observe_completion,
+    NotAdmitted,
+    Outcome,
+    ResultConsumption,
+    ResultState,
+    observe_cleanup,
+    observe_completion,
 )
 
 from reference_provider import science
@@ -64,7 +68,9 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     operation = analysis.submit_method(
                         method=binding.contribution.match,
                         scientific_input=science.VectorInput(values=values),
-                        states=(), reservation=reservation, policy=operation_policy,
+                        states=(),
+                        reservation=reservation,
+                        policy=operation_policy,
                     )
 
                     self.assertNotIsInstance(operation, NotAdmitted)
@@ -161,7 +167,10 @@ class ReferenceCommandTests(unittest.TestCase):
 
             result = subprocess.run(
                 [sys.executable, "-I", "-B", "-m", "reference_provider"],
-                cwd=Path(directory), capture_output=True, text=True, timeout=30,
+                cwd=Path(directory),
+                capture_output=True,
+                text=True,
+                timeout=30,
             )
 
         self.assertEqual(0, result.returncode, result.stderr)

@@ -77,7 +77,11 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                     store,
                     claim,
                     session,
-                    delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+                    delivery=RecordingDelivery(),
+                    on_delivery_retry=Mock(),
+                    delivery_retry_initial_seconds=0.01,
+                    delivery_retry_max_seconds=0.04,
+                    allowed_job_states=frozenset({"open"}),
                     poll_seconds=0.01,
                     task_settle_seconds=0.02,
                 )
@@ -104,7 +108,10 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
         session = WaitingSession(store, "prepare", resist=True)
 
         transport = Transport(
-            reply(observation()), reply(response()), reply(progress_response()), reply(observation(job_state="closed"))
+            reply(observation()),
+            reply(response()),
+            reply(progress_response()),
+            reply(observation(job_state="closed"))
         )
 
         executor = live_executor(
@@ -112,7 +119,11 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=0.01,
             task_settle_seconds=0.01,
         )
@@ -158,7 +169,11 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=0.1,
             task_settle_seconds=0.02,
         )
@@ -211,7 +226,11 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=0.01,
             task_settle_seconds=0.02,
         )
@@ -255,7 +274,11 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=0.01,
             task_settle_seconds=0.01,
         )
@@ -304,7 +327,11 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
                     store,
                     claim,
                     session,
-                    delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+                    delivery=RecordingDelivery(),
+                    on_delivery_retry=Mock(),
+                    delivery_retry_initial_seconds=0.01,
+                    delivery_retry_max_seconds=0.04,
+                    allowed_job_states=frozenset({"open"}),
                     poll_seconds=0.1,
                     task_settle_seconds=0.02,
                 )
@@ -348,7 +375,11 @@ class ExecutionObservationTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=0.01,
             task_settle_seconds=0.02,
         )

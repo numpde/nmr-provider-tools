@@ -45,7 +45,8 @@ class RuntimePostureTests(unittest.TestCase):
             self.assertIsNotNone(expected, msg=f"Cannot verify caller identity: the maintained launcher must inject {variable}.")
 
             self.assertTrue(
-                expected.isdecimal(), msg=f"Cannot verify caller identity: {variable} must contain a numeric identity."
+                expected.isdecimal(),
+                msg=f"Cannot verify caller identity: {variable} must contain a numeric identity."
             )
 
             self.assertNotEqual(int(expected), 0)
@@ -78,7 +79,9 @@ class RuntimePostureTests(unittest.TestCase):
 
         for (name, expected) in (("pids.max", "64"), ("memory.max", "536870912"), ("memory.swap.max", "0")):
             self.assertEqual(
-                expected, (cgroup / name).read_text().strip(), msg=f"Cgroup {name} differs from the maintained resource grant."
+                expected,
+                (cgroup / name).read_text().strip(),
+                msg=f"Cgroup {name} differs from the maintained resource grant."
             )
 
         (quota, period) = map(int, (cgroup / "cpu.max").read_text().split())

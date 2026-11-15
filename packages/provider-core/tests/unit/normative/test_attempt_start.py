@@ -27,7 +27,10 @@ class AttemptStartTests(unittest.IsolatedAsyncioTestCase):
 
             for replayed in (False, True):
                 result = await api.start_attempt(
-                    body, job_ref="job:example", analysis_kind_ref="nmr_predict", provider_ref="provider:example"
+                    body,
+                    job_ref="job:example",
+                    analysis_kind_ref="nmr_predict",
+                    provider_ref="provider:example"
                 )
 
                 self.assertEqual(result.replayed, replayed)

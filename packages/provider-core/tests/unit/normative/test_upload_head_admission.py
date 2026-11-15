@@ -30,14 +30,19 @@ class UploadHeadAdmissionTests(unittest.IsolatedAsyncioTestCase):
         client = Client(ErrorBody([]), status=503, headers=[(b"content-type", b"application/json")])
         store = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.1)
 
-        transfer = UploadTransfer("job:example", store=store, store_origin="https://store.example",
-                                  remaining=lambda:1, before_request=lambda:None, account=observed.append)
+        transfer = UploadTransfer("job:example",
+                                  store=store,
+                                  store_origin="https://store.example",
+                                  remaining=lambda:1,
+                                  before_request=lambda:None,
+                                  account=observed.append)
 
         async def fresh():
             return grant
 
         with private_source_directory() as (_, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool", return_value=client
+            "provider_core.transport.httpcore.AsyncConnectionPool",
+            return_value=client
         ):
             with self.assertRaises(UploadFailed) as caught:
                 await transfer.acquire_file(fresh, directory_fd=directory, retirement_seconds=0.1)

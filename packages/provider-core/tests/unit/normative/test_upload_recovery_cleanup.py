@@ -28,19 +28,25 @@ from tests.unit.normative.test_upload_transfer_retry import temporary_read_error
 class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
     # silent-defaults: allow-contract -- Ordinary cleanup fixtures have one second; the retained-API witness supplies its shorter actual budget.
     def owner(self, *, seconds=1, api_transport=None):
-        api_transport = api_transport or HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1,
+        api_transport = api_transport or HttpTransport(trust=ssl.create_default_context(),
+                                                      exchange_seconds=1,
                                                       retirement_seconds=0.03)
 
         store = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=0.03)
 
         api = ProviderAPI(SigningIdentity("https://api.example", "credential:test", Ed25519PrivateKey.generate()),
-                          api_transport, expected_topology="dev-local")
+                          api_transport,
+                          expected_topology="dev-local")
 
         notices = []
         recovery = UploadRecovery(3, 0.001, 0.001, asyncio.Event(), lambda *facts: notices.append(facts))
 
-        owner = JobUploads("job:example", api=api, store=store, store_origin="https://store.example",
-                           limits=UploadLimits(8, 100, 8, seconds), recovery=recovery)
+        owner = JobUploads("job:example",
+                           api=api,
+                           store=store,
+                           store_origin="https://store.example",
+                           limits=UploadLimits(8, 100, 8, seconds),
+                           recovery=recovery)
 
         return (owner, api, store, notices)
 
@@ -80,17 +86,22 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
             await store_retire(owner=owner)
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients
+            "provider_core.transport.httpcore.AsyncConnectionPool",
+            side_effect=clients
         ), patch("provider_core.uploads.os.close", side_effect=held_close):
             try:
                 await owner.inspect()
 
                 with patch.object(api, "retire", side_effect=retire_api), patch.object(
-                    store, "retire", side_effect=retire_store
+                    store,
+                    "retire",
+                    side_effect=retire_store
                 ):
                     with self.assertRaises(UploadFailed) as caught:
-                        await asyncio.wait_for(owner.acquire_file(UPLOAD_REF, directory_fd=directory,
-                                                                  retirement_seconds=0.02), 1)
+                        await asyncio.wait_for(owner.acquire_file(UPLOAD_REF,
+                                                                  directory_fd=directory,
+                                                                  retirement_seconds=0.02),
+                            1)
 
                 self.assertEqual(calls, [owner])
                 self.assertFalse(api.retirement_confirmed)
@@ -114,7 +125,9 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
             with self.subTest(cancelled=cancelled, granted=granted), private_source_directory() as (root, directory):
                 (owner, api, store, notices) = self.owner()
 
-                clients = [api_reply(MEMBERSHIP), api_reply(MEMBERSHIP), api_reply(GRANT),
+                clients = [api_reply(MEMBERSHIP),
+                           api_reply(MEMBERSHIP),
+                           api_reply(GRANT),
                            store_reply(failure=temporary_read_error())]
 
                 if not granted:
@@ -148,16 +161,21 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
                     raise store_fatal
 
                 with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients), patch(
-                    "provider_core.uploads.os.unlink", side_effect=remove
+                    "provider_core.uploads.os.unlink",
+                    side_effect=remove
                 ):
                     await owner.inspect()
 
                     try:
                         with patch.object(api, "retire", side_effect=fail_api), patch.object(
-                            store, "retire", side_effect=fail_store
+                            store,
+                            "retire",
+                            side_effect=fail_store
                         ):
-                            task = asyncio.create_task(contain_task_exit(owner.acquire_file, UPLOAD_REF,
-                                                                         directory_fd=directory, retirement_seconds=0.1))
+                            task = asyncio.create_task(contain_task_exit(owner.acquire_file,
+                                                                         UPLOAD_REF,
+                                                                         directory_fd=directory,
+                                                                         retirement_seconds=0.1))
 
                             expected = asyncio.CancelledError if cancelled else BaseExceptionGroup
 

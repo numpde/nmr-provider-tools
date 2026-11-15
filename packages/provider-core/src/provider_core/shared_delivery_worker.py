@@ -13,7 +13,8 @@ from provider_core.delivery_worker import DeliveryWorker, DeliveryWorkerFailed, 
 
 
 def publication_api(material, proxy_socket):
-    (settings, _) = api_settings_from_material(material.api_fields(), credential_bytes=material.credential_bytes,
+    (settings, _) = api_settings_from_material(material.api_fields(),
+                                             credential_bytes=material.credential_bytes,
                                              ca_bytes=material.ca_bytes)
 
     http = replace(settings.http, proxy_socket=str(proxy_socket))
@@ -49,7 +50,9 @@ class SharedDeliveryWorker(DeliveryWorker):
                 self.changed.clear()
 
                 handoff = await self.inbox.storage(
-                    self.inbox.queue.next_pending_handoff, self.endpoint.api_origin, self.endpoint.provider_ref
+                    self.inbox.queue.next_pending_handoff,
+                    self.endpoint.api_origin,
+                    self.endpoint.provider_ref
                 )
 
                 if handoff is None:
@@ -74,11 +77,15 @@ class SharedDeliveryWorker(DeliveryWorker):
         if operation_failure is not None or cleanup_failures:
             # silent-defaults: allow-contract -- No API failure exists if constructing the first API owner failed.
             self.failure = DeliveryWorkerFailed(
-                cause=operation_failure, api_failure=None if self.api is None else self.api.last_failure,
-                cleanup_failures=cleanup_failures, api_receipt_received=self._api_receipt_received,
+                cause=operation_failure,
+                api_failure=None if self.api is None else self.api.last_failure,
+                cleanup_failures=cleanup_failures,
+                api_receipt_received=self._api_receipt_received,
             )
 
-            self.on_notice(self.failure, {"event": "delivery_worker_failed", "api_origin": self.endpoint.api_origin,
+            self.on_notice(self.failure,
+                {"event": "delivery_worker_failed",
+                                          "api_origin": self.endpoint.api_origin,
                                           "provider_ref": self.endpoint.provider_ref})
 
             if isinstance(operation_failure, asyncio.CancelledError):

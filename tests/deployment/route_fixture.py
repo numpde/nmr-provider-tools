@@ -170,7 +170,9 @@ async def client(mode, path):
         socket = None
 
     transport = HttpTransport(trust=ssl.create_default_context(cafile="/evidence/ca.pem"),
-                              exchange_seconds=1, retirement_seconds=0.5, proxy_socket=socket)
+                              exchange_seconds=1,
+                              retirement_seconds=0.5,
+                              proxy_socket=socket)
 
     api = ProviderAPI(SigningIdentity(origin, "credential:test", key()), transport, expected_topology="dev-local")
 
@@ -265,10 +267,19 @@ def compose(projection, image, namespace, operation, fixture, support):
         service["labels"]["org.nmr-provider-tools.operation"] = operation
 
     plan["services"]["client"] = {
-        "image": image, "pull_policy": "never", "profiles": ["proof-client"],
-        "user": "65532:65532", "read_only": True, "init": True,
-        "cap_drop": ["ALL"], "security_opt": ["no-new-privileges:true"],
-        "network_mode": "none", "cpus": 2, "mem_limit": "256m", "memswap_limit": "256m", "pids_limit": 64,
+        "image": image,
+        "pull_policy": "never",
+        "profiles": ["proof-client"],
+        "user": "65532:65532",
+        "read_only": True,
+        "init": True,
+        "cap_drop": ["ALL"],
+        "security_opt": ["no-new-privileges:true"],
+        "network_mode": "none",
+        "cpus": 2,
+        "mem_limit": "256m",
+        "memswap_limit": "256m",
+        "pids_limit": 64,
         "entrypoint": ["/opt/provider-core/environment/bin/python", "-I", "-B", "/fixture.py", "client"],
         "command": ["success", projection["client_socket"]],
         "labels": {"org.nmr-provider-tools.operation": operation},

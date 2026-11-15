@@ -51,7 +51,8 @@ class AttemptOutcomeTests(unittest.IsolatedAsyncioTestCase):
             operation = "complete" if method == "complete_attempt" else "fail"
 
             self.assertEqual(
-                (first.method, first.url.raw_path), ("POST", b"/provider/v1/execution-attempts/" + operation.encode())
+                (first.method, first.url.raw_path),
+                ("POST", b"/provider/v1/execution-attempts/" + operation.encode())
             )
 
     def test_builders_preserve_maximum_payloads_and_scalar_text(self):

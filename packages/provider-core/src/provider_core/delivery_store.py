@@ -107,9 +107,12 @@ class DeliveryOutcome:
         """Durable enqueue identity; this is not an API acceptance receipt."""
 
         return {
-            "api_origin": self.api_origin, "provider_ref": self.provider_ref,
-            "job_ref": self.job_ref, "execution_attempt_ref": self.execution_attempt_ref,
-            "operation": self.operation.value, "body_sha256": self.body_sha256,
+            "api_origin": self.api_origin,
+            "provider_ref": self.provider_ref,
+            "job_ref": self.job_ref,
+            "execution_attempt_ref": self.execution_attempt_ref,
+            "operation": self.operation.value,
+            "body_sha256": self.body_sha256,
         }
 
 
@@ -122,7 +125,10 @@ class QueueLimits:
 
     def __post_init__(self):
         if any(type(value) is not int or value <= 0 for value in (
-            self.provider_items, self.provider_bytes, self.total_items, self.total_bytes
+            self.provider_items,
+            self.provider_bytes,
+            self.total_items,
+            self.total_bytes
         )):
             raise ValueError("Delivery queue item and byte limits must be positive integers.")
 
@@ -274,7 +280,8 @@ class DeliveryQueue:
             limits = self.limits
 
             existing = self._db.execute(
-                "SELECT job_ref,operation,body,publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?", item.key
+                "SELECT job_ref,operation,body,publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?",
+                item.key
             ).fetchone()
 
             if existing is not None:
@@ -308,7 +315,8 @@ class DeliveryQueue:
                 return None
 
             publication = self._db.execute(
-                "SELECT publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?", item.key
+                "SELECT publication FROM outstanding WHERE api_origin=? AND provider_ref=? AND attempt_ref=?",
+                item.key
             ).fetchone()[0]
 
             if publication is None:
@@ -320,9 +328,12 @@ class DeliveryQueue:
                 # Reuse the wire admission path to validate retained inputs and identity.
                 import base64
 
-                document["outcome"] = {"api_origin": item.api_origin, "provider_ref": item.provider_ref,
-                    "job_ref": item.job_ref, "execution_attempt_ref": item.execution_attempt_ref,
-                    "operation": item.operation.value, "body": base64.b64encode(item.body).decode("ascii")}
+                document["outcome"] = {"api_origin": item.api_origin,
+                    "provider_ref": item.provider_ref,
+                    "job_ref": item.job_ref,
+                    "execution_attempt_ref": item.execution_attempt_ref,
+                    "operation": item.operation.value,
+                    "body": base64.b64encode(item.body).decode("ascii")}
 
                 handoff = read_delivery_handoff(json.dumps(document, sort_keys=True, separators=(",", ":")).encode("ascii"))
 
@@ -354,7 +365,9 @@ class DeliveryQueue:
             )
 
         (settings, provider_ref) = api_settings_from_material(
-            material.api_fields(), credential_bytes=material.credential_bytes, ca_bytes=material.ca_bytes
+            material.api_fields(),
+            credential_bytes=material.credential_bytes,
+            ca_bytes=material.ca_bytes
         )
 
         with self._transaction("associate original publication material in"):
@@ -410,8 +423,11 @@ class DeliveryQueue:
                     FROM outstanding
                 """).fetchone()
 
-                overview = {"pending": pending, "held": held, "body_bytes": bodies,
-                            "publication_bytes": material, "oldest_pending_created_at": oldest}
+                overview = {"pending": pending,
+                            "held": held,
+                            "body_bytes": bodies,
+                            "publication_bytes": material,
+                            "oldest_pending_created_at": oldest}
             except sqlite3.Error as error:
                 # Do not carry SQLite text, traceback or causal context across the diagnostic boundary.
                 failure = type(error)()

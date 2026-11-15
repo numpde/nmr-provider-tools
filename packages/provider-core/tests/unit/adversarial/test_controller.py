@@ -27,8 +27,17 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
         session = SingleRetirementSession(store)
         transport = Transport(*lifecycle_replies()[:7], reply(observation(job_state="closed")))
 
-        controller = live_controller(api(transport, scope().api_origin), store, claims, session,
-                                       delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+        controller = live_controller(api(transport, scope().api_origin),
+                                       store,
+                                       claims,
+                                       session,
+                                       delivery=RecordingDelivery(),
+                                       on_delivery_retry=Mock(),
+                                       delivery_retry_initial_seconds=0.01,
+                                       delivery_retry_max_seconds=0.04,
+                                       allowed_job_states=frozenset({"open"}),
+                                       poll_seconds=1,
+                                       task_settle_seconds=0.1)
 
         with self.assertRaises(ControllerFailed):
             await controller.run(record())
@@ -66,8 +75,17 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
         start_reply = reply(start_response(state="failed", replayed=True)) if terminal_replay else ExchangeFailed("lost start reply")
         transport = Transport(start_reply)
 
-        controller = live_controller(api(transport, scope().api_origin), store, claims, session,
-                                       delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+        controller = live_controller(api(transport, scope().api_origin),
+                                       store,
+                                       claims,
+                                       session,
+                                       delivery=RecordingDelivery(),
+                                       on_delivery_retry=Mock(),
+                                       delivery_retry_initial_seconds=0.01,
+                                       delivery_retry_max_seconds=0.04,
+                                       allowed_job_states=frozenset({"open"}),
+                                       poll_seconds=1,
+                                       task_settle_seconds=0.1)
 
         with self.assertRaises(ControllerFailed) as failure:
             await controller.run(record())
@@ -110,9 +128,17 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
         delivery.submit = AsyncMock(side_effect=failure)
         transport = Transport(*lifecycle_replies())
 
-        controller = live_controller(api(transport, scope().api_origin), store, claims, session,
-            delivery=delivery, on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
-            delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+        controller = live_controller(api(transport, scope().api_origin),
+            store,
+            claims,
+            session,
+            delivery=delivery,
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=0.1)
 
         with self.assertRaises(ControllerFailed) as caught:
             await controller.run(record())
@@ -139,12 +165,16 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
         transport = Transport()
         client = api(transport, scope().api_origin)
 
-        cases = ({"allowed_job_states": frozenset({"cancelled"})}, {"poll_seconds": 0},
-                 {"task_settle_seconds": float("nan")}, {"client": api(Transport(), "https://other.example")})
+        cases = ({"allowed_job_states": frozenset({"cancelled"})},
+                 {"poll_seconds": 0},
+                 {"task_settle_seconds": float("nan")},
+                 {"client": api(Transport(), "https://other.example")})
 
         for change in cases:
-            settings = {"client": client, "allowed_job_states": frozenset({"open"}),
-                        "poll_seconds": 1, "task_settle_seconds": 0.1} | change
+            settings = {"client": client,
+                        "allowed_job_states": frozenset({"open"}),
+                        "poll_seconds": 1,
+                        "task_settle_seconds": 0.1} | change
 
             with self.subTest(change=change), self.assertRaises(ValueError):
                 live_controller(settings.pop("client"), store, claims, session, delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, **settings)
@@ -161,8 +191,17 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
         session = SingleRetirementSession(store)
         transport = Transport(ExchangeFailed("scripted lost start reply"))
 
-        controller = live_controller(api(transport, scope().api_origin), store, claims, session,
-                                       delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+        controller = live_controller(api(transport, scope().api_origin),
+                                       store,
+                                       claims,
+                                       session,
+                                       delivery=RecordingDelivery(),
+                                       on_delivery_retry=Mock(),
+                                       delivery_retry_initial_seconds=0.01,
+                                       delivery_retry_max_seconds=0.04,
+                                       allowed_job_states=frozenset({"open"}),
+                                       poll_seconds=1,
+                                       task_settle_seconds=0.1)
 
         deferred = await controller.run(record())
         self.assertTrue(deferred.may_have_committed)
@@ -188,8 +227,16 @@ class ControllerFailureTests(unittest.IsolatedAsyncioTestCase):
         session.retirement_failure = cleanup_failure
 
         controller = live_controller(api(Transport(ExchangeFailed("scripted lost start reply")), scope().api_origin),
-                                       store, claims, session, delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
-                                       poll_seconds=1, task_settle_seconds=0.1)
+                                       store,
+                                       claims,
+                                       session,
+                                       delivery=RecordingDelivery(),
+                                       on_delivery_retry=Mock(),
+                                       delivery_retry_initial_seconds=0.01,
+                                       delivery_retry_max_seconds=0.04,
+                                       allowed_job_states=frozenset({"open"}),
+                                       poll_seconds=1,
+                                       task_settle_seconds=0.1)
 
         with self.assertRaises(ControllerFailed) as failure:
             await controller.run(record())

@@ -63,7 +63,9 @@ class ConversationBoundaryTests(unittest.IsolatedAsyncioTestCase):
         second_failure = ChatFailed("http_status", "Model service returned HTTP 503.")
 
         conversation = ToolConversation(
-            (endpoint("first", first_failure), endpoint("second", second_failure)), max_turns=2, secrets=()
+            (endpoint("first", first_failure), endpoint("second", second_failure)),
+            max_turns=2,
+            secrets=()
         )
 
         with self.assertRaises(ConversationFailed) as caught:

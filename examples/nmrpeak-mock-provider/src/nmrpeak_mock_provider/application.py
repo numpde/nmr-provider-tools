@@ -13,7 +13,9 @@ from importlib.resources import files
 from provider_core.embedded_host import InProcessAnalysisExecutor
 
 from provider_core.hosting import (
-    OperationPolicy, NotAdmitted, ResultConsumption,
+    OperationPolicy,
+    NotAdmitted,
+    ResultConsumption,
 )
 
 from provider_core.interpreter import Interpreter

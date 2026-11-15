@@ -30,7 +30,12 @@ def _addresses(values):
 def _manager_output(command):
     try:
         result = subprocess.run(
-            command, capture_output=True, text=True, env={**os.environ, "LC_ALL": "C"}, timeout=3, check=False
+            command,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "LC_ALL": "C"},
+            timeout=3,
+            check=False
         )
     except FileNotFoundError:
         return ""

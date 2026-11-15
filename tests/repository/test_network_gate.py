@@ -25,10 +25,26 @@ class NetworkGateTests(unittest.TestCase):
             environment["NETWORK_INTERFACE_INPUT"] = interface
 
         return subprocess.run(
-            ["bash", "host/tools/docker.sh", "--print", "run", "--image", "fixture:worker", "--",
-             "--read-only", "--entrypoint", "python3", "--", "-B", "-m", "fixture",
-             "--network", "literal value"],
-            env=environment, text=True, capture_output=True, check=False,
+            ["bash",
+             "host/tools/docker.sh",
+             "--print",
+             "run",
+             "--image",
+             "fixture:worker",
+             "--",
+             "--read-only",
+             "--entrypoint",
+             "python3",
+             "--",
+             "-B",
+             "-m",
+             "fixture",
+             "--network",
+             "literal value"],
+            env=environment,
+            text=True,
+            capture_output=True,
+            check=False,
         )
 
     def test_networked_lanes_require_an_explicit_interface(self):

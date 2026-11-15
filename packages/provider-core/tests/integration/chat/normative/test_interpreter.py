@@ -32,13 +32,21 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
         async with TlsPeer("success", response_factory=response) as peer:
             # repo-check: allow-tuple-generator -- Interpreter requires an immutable tuple preserving configured model preference across two fixture visits.
             factories = tuple(ChatEndpointFactory(
-                spec=ChatEndpointSpec(configuration_id=name, model="fixture-" + name,
-                                      url=peer.origin + "/chat", api_key="PRIVATE_KEY", reasoning_effort="high"),
-                trust=peer.trust, retirement_seconds=0.5, request_bytes=6000, response_bytes=8192,
+                spec=ChatEndpointSpec(configuration_id=name,
+                                      model="fixture-" + name,
+                                      url=peer.origin + "/chat",
+                                      api_key="PRIVATE_KEY",
+                                      reasoning_effort="high"),
+                trust=peer.trust,
+                retirement_seconds=0.5,
+                request_bytes=6000,
+                response_bytes=8192,
             ) for name in ("first", "second"))
 
-            owner = Interpreter(factories, timeout_seconds=10,
-                                context_bytes=min(item.context_bytes for item in factories), secrets=("PRIVATE_KEY",))
+            owner = Interpreter(factories,
+                                timeout_seconds=10,
+                                context_bytes=min(item.context_bytes for item in factories),
+                                secrets=("PRIVATE_KEY",))
 
             tools = [{"type": "function", "function": {"name": name, "parameters": {"type": "object"}}}
                      for name in ("inspect", "prepare")]
@@ -74,16 +82,25 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
 
         async with TlsPeer("success", response_factory=response) as peer:
             build = ChatEndpointFactory(
-                spec=ChatEndpointSpec(configuration_id="fixture", model="fixture", url=peer.origin + "/chat",
-                                      api_key="PRIVATE_KEY", reasoning_effort=None),
-                trust=peer.trust, retirement_seconds=0.5, request_bytes=32768, response_bytes=8192,
+                spec=ChatEndpointSpec(configuration_id="fixture",
+                                      model="fixture",
+                                      url=peer.origin + "/chat",
+                                      api_key="PRIVATE_KEY",
+                                      reasoning_effort=None),
+                trust=peer.trust,
+                retirement_seconds=0.5,
+                request_bytes=32768,
+                response_bytes=8192,
             )
 
             owner = Interpreter((build,), timeout_seconds=10, context_bytes=16384, secrets=("PRIVATE_KEY",))
             dispatch = AsyncMock(return_value=ToolFinished("prepared"))
 
-            tools = [{"type": "function", "function": {"name": "prepare", "parameters": {
-                "type": "object", "properties": {"format": {"enum": ["text"]}}}}}]
+            tools = [{"type": "function",
+                "function": {"name": "prepare",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {"format": {"enum": ["text"]}}}}}]
 
             result = await owner.run([], tools, dispatch)
             self.assertEqual(result.value, "prepared")
@@ -106,8 +123,11 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
                     if use_proxy:
                         proxy_socket = proxy.path
 
-                    transport = HttpTransport(trust=peer.trust, exchange_seconds=2, retirement_seconds=0.5,
-                                              connect_seconds=0.15, proxy_socket=proxy_socket)
+                    transport = HttpTransport(trust=peer.trust,
+                                              exchange_seconds=2,
+                                              retirement_seconds=0.5,
+                                              connect_seconds=0.15,
+                                              proxy_socket=proxy_socket)
 
                     response = await transport.exchange(httpx.Request("GET", peer.origin), maximum_bytes=4)
                     self.assertEqual(response.body, b"data")
@@ -118,8 +138,11 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
         for (peer_mode, proxy_mode) in (("success", "stall"), ("tls-stall", "tunnel")):
             with self.subTest(peer_mode=peer_mode):
                 async with TlsPeer(peer_mode) as peer, UnixProxy(peer.origin, proxy_mode) as proxy:
-                    transport = HttpTransport(trust=peer.trust, exchange_seconds=3, retirement_seconds=0.5,
-                                              connect_seconds=0.15, proxy_socket=proxy.path)
+                    transport = HttpTransport(trust=peer.trust,
+                                              exchange_seconds=3,
+                                              retirement_seconds=0.5,
+                                              connect_seconds=0.15,
+                                              proxy_socket=proxy.path)
 
                     start = asyncio.get_running_loop().time()
 
@@ -151,10 +174,16 @@ class SharedInterpreterCarrierTests(unittest.IsolatedAsyncioTestCase):
 
         async with TlsPeer("success", response_factory=response) as peer, UnixProxy(peer.origin, "tunnel") as proxy:
             build = ChatEndpointFactory(
-                spec=ChatEndpointSpec(configuration_id="fixture", model="fixture", url=peer.origin + "/chat",
-                                      api_key="PRIVATE_KEY", reasoning_effort=None),
-                trust=peer.trust, proxy_socket=proxy.path, retirement_seconds=0.5,
-                request_bytes=32768, response_bytes=8192,
+                spec=ChatEndpointSpec(configuration_id="fixture",
+                                      model="fixture",
+                                      url=peer.origin + "/chat",
+                                      api_key="PRIVATE_KEY",
+                                      reasoning_effort=None),
+                trust=peer.trust,
+                proxy_socket=proxy.path,
+                retirement_seconds=0.5,
+                request_bytes=32768,
+                response_bytes=8192,
             )
 
             owner = Interpreter((build,), timeout_seconds=10, context_bytes=16384, secrets=("PRIVATE_KEY",))

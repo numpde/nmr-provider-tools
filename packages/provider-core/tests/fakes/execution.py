@@ -89,8 +89,13 @@ def live_controller(api, probe, claims, session, **settings):
     from provider_core.controller import AttemptController, LiveStartPolicy
 
     controller = AttemptController.live(
-        api, claims, session, scope=probe.scope, stopping=asyncio.Event(),
-        start_policy=LiveStartPolicy(0.001, Mock(), Mock()), **settings,
+        api,
+        claims,
+        session,
+        scope=probe.scope,
+        stopping=asyncio.Event(),
+        start_policy=LiveStartPolicy(0.001, Mock(), Mock()),
+        **settings,
     )
 
     probe.controller = controller

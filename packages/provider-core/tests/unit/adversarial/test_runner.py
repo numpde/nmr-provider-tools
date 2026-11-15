@@ -27,7 +27,11 @@ class RunnerRefusalTests(unittest.TestCase):
         for status in (-signal.NSIG, 256, 10 ** 2000):
             with self.subTest(status_digits=len(str(status))):
                 session = RunnerSession(
-                    "unused", role="fixture", expected_lock_identity=(0, 0), startup_seconds=1, retirement_seconds=1,
+                    "unused",
+                    role="fixture",
+                    expected_lock_identity=(0, 0),
+                    startup_seconds=1,
+                    retirement_seconds=1,
                 )
 
                 self.addCleanup(session.close)
@@ -36,10 +40,16 @@ class RunnerRefusalTests(unittest.TestCase):
                 (session.generation, session.operation) = ("generation", "operation")
 
                 with sender:
-                    send_document(sender, {
-                        "kind": "retired", "generation": session.generation, "operation": session.operation,
-                        "returncode": status, "scratch_released": True, "reason": "exited",
-                    }, deadline=time.monotonic() + 1)
+                    send_document(sender,
+                        {
+                            "kind": "retired",
+                            "generation": session.generation,
+                            "operation": session.operation,
+                            "returncode": status,
+                            "scratch_released": True,
+                            "reason": "exited",
+                        },
+                        deadline=time.monotonic() + 1)
 
                     with self.assertRaises(LifecycleRejected):
                         session.observe_retirement()
@@ -84,8 +94,11 @@ class RunnerRefusalTests(unittest.TestCase):
         for reason in (None, "oom", [], 1):
             with self.subTest(reason=reason):
                 session = RunnerSession(
-                    "unused", role="fixture", expected_lock_identity=(0, 0),
-                    startup_seconds=1, retirement_seconds=1,
+                    "unused",
+                    role="fixture",
+                    expected_lock_identity=(0, 0),
+                    startup_seconds=1,
+                    retirement_seconds=1,
                 )
 
                 self.addCleanup(session.close)
@@ -96,8 +109,11 @@ class RunnerRefusalTests(unittest.TestCase):
                     (session.generation, session.operation) = ("generation", "operation")
 
                     reply = {
-                        "kind": "retired", "generation": "generation", "operation": "operation",
-                        "returncode": -9, "scratch_released": True,
+                        "kind": "retired",
+                        "generation": "generation",
+                        "operation": "operation",
+                        "returncode": -9,
+                        "scratch_released": True,
                     }
 
                     if reason is not None:
@@ -129,8 +145,10 @@ class RunnerRefusalTests(unittest.TestCase):
                     selected = root / "status-alias"
                     selected.symlink_to(status, target_is_directory=True)
 
-                options = SimpleNamespace(socket=endpoint / "runner.sock", scratch=scratch,
-                                          status_directory=selected, role="fixture")
+                options = SimpleNamespace(socket=endpoint / "runner.sock",
+                                          scratch=scratch,
+                                          status_directory=selected,
+                                          role="fixture")
 
                 (read_fd, write_fd) = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
 
@@ -153,12 +171,33 @@ class RunnerRefusalTests(unittest.TestCase):
             for lifetime in ([], ["--operation-seconds", "1", "--owner-session-lifetime"]):
                 with self.subTest(lifetime=lifetime):
                     result = subprocess.run([
-                        sys.executable, "-m", "provider_core.runner", "--role", "fixture",
-                        "--socket", str(root / "absent" / "runner.sock"), "--scratch", str(root / "scratch"),
-                        "--status-directory", str(root / "status"), "--startup-seconds", "1",
-                        "--terminate-seconds", "0.1", "--kill-seconds", "1", "--cleanup-seconds", "1",
-                        *lifetime, "--", sys.executable, "-c", "raise SystemExit(77)",
-                    ], capture_output=True, timeout=2)
+                        sys.executable,
+                        "-m",
+                        "provider_core.runner",
+                        "--role",
+                        "fixture",
+                        "--socket",
+                        str(root / "absent" / "runner.sock"),
+                        "--scratch",
+                        str(root / "scratch"),
+                        "--status-directory",
+                        str(root / "status"),
+                        "--startup-seconds",
+                        "1",
+                        "--terminate-seconds",
+                        "0.1",
+                        "--kill-seconds",
+                        "1",
+                        "--cleanup-seconds",
+                        "1",
+                        *lifetime,
+                        "--",
+                        sys.executable,
+                        "-c",
+                        "raise SystemExit(77)",
+                    ],
+                        capture_output=True,
+                        timeout=2)
 
                     self.assertEqual(2, result.returncode)
                     self.assertEqual([], list(root.iterdir()))
@@ -171,7 +210,11 @@ class RunnerRefusalTests(unittest.TestCase):
             listener.settimeout(1)
 
             session = RunnerSession(
-                path, role="fixture", expected_lock_identity=(0, 0), startup_seconds=1, retirement_seconds=1,
+                path,
+                role="fixture",
+                expected_lock_identity=(0, 0),
+                startup_seconds=1,
+                retirement_seconds=1,
             )
 
             self.addCleanup(session.close)
@@ -184,10 +227,16 @@ class RunnerRefusalTests(unittest.TestCase):
                     with peer:
                         send_greeting(peer, {"kind": "malformed"}, science, deadline=time.monotonic() + 1)
 
-                        send_document(peer, {
-                            "kind": "retired", "generation": None, "operation": None,
-                            "returncode": 0, "scratch_released": True, "reason": "exited",
-                        }, deadline=time.monotonic() + 1)
+                        send_document(peer,
+                            {
+                                "kind": "retired",
+                                "generation": None,
+                                "operation": None,
+                                "returncode": 0,
+                                "scratch_released": True,
+                                "reason": "exited",
+                            },
+                            deadline=time.monotonic() + 1)
 
                 with ThreadPoolExecutor(max_workers=1) as executor:
                     original = executor.submit(reply)
@@ -215,7 +264,11 @@ class RunnerRefusalTests(unittest.TestCase):
             listener.settimeout(1)
 
             session = RunnerSession(
-                path, role="fixture", expected_lock_identity=(0, 0), startup_seconds=0.2, retirement_seconds=1,
+                path,
+                role="fixture",
+                expected_lock_identity=(0, 0),
+                startup_seconds=0.2,
+                retirement_seconds=1,
             )
 
             self.addCleanup(session.close)
@@ -226,8 +279,9 @@ class RunnerRefusalTests(unittest.TestCase):
                 (science, remote) = socket.socketpair()
 
                 with peer, science, remote:
-                    peer.sendmsg([b"\0\0\0"], [
-                        (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [science.fileno()])),
+                    peer.sendmsg([b"\0\0\0"],
+                        [
+                            (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [science.fileno()])),
                     ])
 
                     science.close()
@@ -242,8 +296,12 @@ class RunnerRefusalTests(unittest.TestCase):
                     self.assertEqual(b"", remote.recv(1))
 
                     retired = {
-                        "kind": "retired", "generation": None, "operation": None,
-                        "returncode": 0, "scratch_released": True, "reason": "exited",
+                        "kind": "retired",
+                        "generation": None,
+                        "operation": None,
+                        "returncode": 0,
+                        "scratch_released": True,
+                        "reason": "exited",
                     }
 
                     send_document(peer, retired, deadline=time.monotonic() + 1)
@@ -339,8 +397,11 @@ class RunnerRefusalTests(unittest.TestCase):
                 observed = (runner.endpoint / ".owner-session.lock").stat()
 
                 session = RunnerSession(
-                    runner.path, role=role, expected_lock_identity=(observed.st_dev, observed.st_ino + inode_delta),
-                    startup_seconds=2, retirement_seconds=2,
+                    runner.path,
+                    role=role,
+                    expected_lock_identity=(observed.st_dev, observed.st_ino + inode_delta),
+                    startup_seconds=2,
+                    retirement_seconds=2,
                 )
 
                 self.addCleanup(session.close)

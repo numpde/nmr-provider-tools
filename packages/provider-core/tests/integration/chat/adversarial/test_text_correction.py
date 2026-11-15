@@ -30,7 +30,11 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         model = recording_endpoint("only", oversized, call("done", "submit", {}))
 
         conversation = ToolConversation(
-            (model,), max_turns=2, secrets=(), text_correction=TextCorrection(), argument_bytes=8,
+            (model,),
+            max_turns=2,
+            secrets=(),
+            text_correction=TextCorrection(),
+            argument_bytes=8,
         )
 
         dispatch = AsyncMock(return_value=ToolFinished("selected"))
@@ -52,7 +56,9 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         model = recording_endpoint("only", call("unused", "submit", {}))
 
         conversation = ToolConversation(
-            (model,), max_turns=2, secrets=("KEY_SECRET",),
+            (model,),
+            max_turns=2,
+            secrets=("KEY_SECRET",),
             text_correction=TextCorrection(user_content="Use KEY_SECRET to correct this."),
         )
 
@@ -66,7 +72,9 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         model = recording_endpoint("only", call("first", "submit", {}), call("unused", "submit", {}))
 
         conversation = ToolConversation(
-            (model,), max_turns=2, secrets=("KEY_SECRET",),
+            (model,),
+            max_turns=2,
+            secrets=("KEY_SECRET",),
             text_correction=TextCorrection(user_content="correction-v1\n"),
         )
 
@@ -85,7 +93,9 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         model = recording_endpoint("only", invalid, multiple, call("good", "submit", {}))
 
         conversation = ToolConversation(
-            (model,), max_turns=3, secrets=("KEY_SECRET",),
+            (model,),
+            max_turns=3,
+            secrets=("KEY_SECRET",),
             text_correction=TextCorrection(user_content="correction-v1\n"),
         )
 
@@ -109,7 +119,9 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         second = recording_endpoint("good", call("done", "submit", {}))
 
         conversation = ToolConversation(
-            (first, second), max_turns=2, secrets=(),
+            (first, second),
+            max_turns=2,
+            secrets=(),
             text_correction=TextCorrection(user_content="correction-v1\n"),
         )
 
@@ -125,7 +137,9 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         model = recording_endpoint("only", plain, plain, call("unused", "submit", {}))
 
         conversation = ToolConversation(
-            (model,), max_turns=2, secrets=(),
+            (model,),
+            max_turns=2,
+            secrets=(),
             text_correction=TextCorrection(user_content="correction-v1\n"),
         )
 
@@ -143,7 +157,9 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         model = recording_endpoint("only", call("same", "prepare", {}), call("same", "prepare", {}))
 
         conversation = ToolConversation(
-            (model,), max_turns=2, secrets=(),
+            (model,),
+            max_turns=2,
+            secrets=(),
             text_correction=TextCorrection(user_content="correction-v1\n"),
         )
 
@@ -168,7 +184,9 @@ class TextCorrectionBoundaryTests(unittest.IsolatedAsyncioTestCase):
         model.complete.side_effect = complete
 
         conversation = ToolConversation(
-            (model,), max_turns=2, secrets=(),
+            (model,),
+            max_turns=2,
+            secrets=(),
             text_correction=TextCorrection(user_content="correction-v1\n"),
         )
 

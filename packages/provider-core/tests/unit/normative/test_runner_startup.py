@@ -31,14 +31,21 @@ class RunnerStartupTests(unittest.TestCase):
         self.listener.settimeout(1)
 
         self.greeting = {
-            "kind": "opened", "role": "fixture", "generation": "a" * 32,
-            "operation": "b" * 32, "lock": [0, 0],
+            "kind": "opened",
+            "role": "fixture",
+            "generation": "a" * 32,
+            "operation": "b" * 32,
+            "lock": [0, 0],
         }
 
     def session(self, control_type):
         with patch.object(socket, "socket", control_type):
             session = RunnerSession(
-                self.path, role="fixture", expected_lock_identity=(0, 0), startup_seconds=3, retirement_seconds=1,
+                self.path,
+                role="fixture",
+                expected_lock_identity=(0, 0),
+                startup_seconds=3,
+                retirement_seconds=1,
             )
 
         self.addCleanup(session.close)
@@ -200,11 +207,16 @@ class RunnerStartupTests(unittest.TestCase):
                 original.result(timeout=1)
                 self.assertTrue(session.control_connected)
 
-                send_document(peer, {
-                    "kind": "retired", "generation": self.greeting["generation"],
-                    "operation": self.greeting["operation"], "returncode": -15, "scratch_released": True,
-                    "reason": "owner_lost",
-                }, deadline=time.monotonic() + 1)
+                send_document(peer,
+                    {
+                        "kind": "retired",
+                        "generation": self.greeting["generation"],
+                        "operation": self.greeting["operation"],
+                        "returncode": -15,
+                        "scratch_released": True,
+                        "reason": "owner_lost",
+                    },
+                    deadline=time.monotonic() + 1)
 
                 session.retire()
 
@@ -224,8 +236,9 @@ class RunnerStartupTests(unittest.TestCase):
             with peer, science, remote:
                 peer.settimeout(1)
 
-                peer.sendmsg([b"\0" + frame[:2]], [
-                    (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [science.fileno()])),
+                peer.sendmsg([b"\0" + frame[:2]],
+                    [
+                        (socket.SOL_SOCKET, socket.SCM_RIGHTS, array.array("i", [science.fileno()])),
                 ])
 
                 science.close()
@@ -240,10 +253,16 @@ class RunnerStartupTests(unittest.TestCase):
                 original.result(timeout=1)
                 self.assertEqual(self.greeting["operation"], session.operation)
 
-                send_document(peer, {
-                    "kind": "retired", "generation": session.generation, "operation": session.operation,
-                    "returncode": 0, "scratch_released": True, "reason": "owner_lost",
-                }, deadline=time.monotonic() + 1)
+                send_document(peer,
+                    {
+                        "kind": "retired",
+                        "generation": session.generation,
+                        "operation": session.operation,
+                        "returncode": 0,
+                        "scratch_released": True,
+                        "reason": "owner_lost",
+                    },
+                    deadline=time.monotonic() + 1)
 
                 session.retire()
                 self.assertEqual(0, session.retirement.returncode)

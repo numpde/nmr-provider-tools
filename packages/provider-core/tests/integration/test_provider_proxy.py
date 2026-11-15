@@ -28,8 +28,11 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
         kind = "mol_from_1h_spectrum_formula"
 
         async def response(_request, _body):
-            return json.dumps({"schema_id": "nmr.provider.jobs.list.response.v1", "analysis_kind_ref": kind,
-                               "has_provider_execution_attempt": False, "next_cursor": None, "jobs": []}).encode()
+            return json.dumps({"schema_id": "nmr.provider.jobs.list.response.v1",
+                               "analysis_kind_ref": kind,
+                               "has_provider_execution_attempt": False,
+                               "next_cursor": None,
+                               "jobs": []}).encode()
 
         async with api_tls_peer("success", response_factory=response) as peer:
             with tempfile.TemporaryDirectory() as directory:
@@ -43,12 +46,17 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                     thread = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
                     thread.start()
 
-                    client = api(HttpTransport(trust=peer.trust, exchange_seconds=2, retirement_seconds=1,
-                                               proxy_socket=str(root / "proxy.sock")), peer.origin)
+                    client = api(HttpTransport(trust=peer.trust,
+                                               exchange_seconds=2,
+                                               retirement_seconds=1,
+                                               proxy_socket=str(root / "proxy.sock")),
+                        peer.origin)
 
                     try:
                         request = asyncio.create_task(client.jobs(analysis_kind_ref=kind,
-                            has_provider_execution_attempt=False, limit=1, cursor=None))
+                            has_provider_execution_attempt=False,
+                            limit=1,
+                            cursor=None))
 
                         await asyncio.sleep(0.05)
                         self.assertFalse(request.done())
@@ -138,7 +146,10 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
             live = LiveProxyConfiguration(settings_path, "mapped")
             initial = live.read()
 
-            with ServiceProxyServer(root / "proxy.sock", "lo", initial.policy, status_directory=root,
+            with ServiceProxyServer(root / "proxy.sock",
+                                    "lo",
+                                    initial.policy,
+                                    status_directory=root,
                                     live_configuration=live) as server:
                 live.apply(server, initial)
                 listener = threading.Thread(target=server.serve_forever, kwargs={"poll_interval": 0.01})
@@ -210,7 +221,10 @@ class ActualServiceProxyTests(unittest.IsolatedAsyncioTestCase):
                 listener.start()
 
                 transport = HttpTransport(
-                    trust=peer.trust, exchange_seconds=2, retirement_seconds=1, proxy_socket=server.server_address
+                    trust=peer.trust,
+                    exchange_seconds=2,
+                    retirement_seconds=1,
+                    proxy_socket=server.server_address
                 )
 
                 try:

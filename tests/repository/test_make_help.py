@@ -18,7 +18,11 @@ class MakeHelpTests(unittest.TestCase):
 
         result = subprocess.run(
             ("make", "--no-print-directory", "help"),
-            cwd=ROOT, capture_output=True, text=True, timeout=10, check=False,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
 
         self.assertEqual(0, result.returncode, msg=result.stderr)
@@ -29,15 +33,27 @@ class MakeHelpTests(unittest.TestCase):
     def test_release_help_explains_input_output_and_nonoverwriting_flow(self):
         result = subprocess.run(
             ("make", "--no-print-directory", "help"),
-            cwd=ROOT, capture_output=True, text=True, timeout=10, check=False,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
         )
 
         self.assertEqual(0, result.returncode, msg=result.stderr)
 
         for phrase in (
-            "publish/prepare", "publish/release", "WHEELHOUSE=", "OUTPUT=",
-            "ARTIFACTS=", "mkdir -m 700", "release-artifacts/",
-            "empty", "0700", "review", "separate",
+            "publish/prepare",
+            "publish/release",
+            "WHEELHOUSE=",
+            "OUTPUT=",
+            "ARTIFACTS=",
+            "mkdir -m 700",
+            "release-artifacts/",
+            "empty",
+            "0700",
+            "review",
+            "separate",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, result.stdout)

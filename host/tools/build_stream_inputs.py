@@ -14,7 +14,8 @@ def main():
     for name in sys.argv[3:]:
         path = context / name
 
-        entries.append({"path": str(path), "destination": name,
+        entries.append({"path": str(path),
+                        "destination": name,
                         "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
                         "executable": bool(path.stat().st_mode & 0o111)})
 

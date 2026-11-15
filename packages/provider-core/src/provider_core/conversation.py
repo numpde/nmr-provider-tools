@@ -413,14 +413,20 @@ class ToolConversation:
                 # Retirement stops new work, not acceptance from an already
                 # admitted dispatch. Its caller still owns scientific settlement.
                 return ConversationResult(
-                    outcome.value, self._observation(), tuple(self.endpoint_failures), tuple(self.correction_failures)
+                    outcome.value,
+                    self._observation(),
+                    tuple(self.endpoint_failures),
+                    tuple(self.correction_failures)
                 )
 
             self._require_active()
 
             if type(outcome) is ToolHandoff:
                 return ConversationHandoff(
-                    outcome.reason, self._observation(), tuple(self.endpoint_failures), tuple(self.correction_failures)
+                    outcome.reason,
+                    self._observation(),
+                    tuple(self.endpoint_failures),
+                    tuple(self.correction_failures)
                 )
 
             if type(outcome) is not ToolReply:

@@ -84,8 +84,10 @@ class DeliveryNotices:
                 failed_event = self.redact(facts["event"])[:128]
 
         return {
-            "output_failures": self.output_failures, "last_failure_type": failure_type,
-            "last_failure_errno": failure_errno, "last_failed_event": failed_event,
+            "output_failures": self.output_failures,
+            "last_failure_type": failure_type,
+            "last_failure_errno": failure_errno,
+            "last_failed_event": failed_event,
         }
 
     def close(self):

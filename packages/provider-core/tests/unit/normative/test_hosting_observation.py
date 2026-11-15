@@ -168,7 +168,10 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_already_settled_cleanup_returns_its_observation_without_waiting(self):
         settled = CleanupObservation(
-            revision=5, settled=True, allowance_expired=False, failures=(),
+            revision=5,
+            settled=True,
+            allowance_expired=False,
+            failures=(),
         )
 
         cleanup = SimpleNamespace(observe=AsyncMock(return_value=settled))
@@ -178,7 +181,10 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cleanup_continues_observing_after_its_allowance_expires(self):
         pending = CleanupObservation(
-            revision=2, settled=False, allowance_expired=False, failures=(),
+            revision=2,
+            settled=False,
+            allowance_expired=False,
+            failures=(),
         )
 
         expired = replace(pending, revision=6, allowance_expired=True)
@@ -198,7 +204,10 @@ class HostingObservationTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_cancelling_cleanup_wait_leaves_the_original_control_usable(self):
         pending = CleanupObservation(
-            revision=3, settled=False, allowance_expired=False, failures=(),
+            revision=3,
+            settled=False,
+            allowance_expired=False,
+            failures=(),
         )
 
         cleanup = HeldObserver(pending)

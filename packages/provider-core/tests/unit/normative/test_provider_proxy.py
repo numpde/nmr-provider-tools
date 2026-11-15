@@ -317,7 +317,10 @@ logging.getLogger('dependency').warning('dependency-warning')
         for level in ("INFO", "DEBUG", "WARNING"):
             with self.subTest(level=level):
                 result = subprocess.run([sys.executable, "-B", "-c", script, level],
-                                        capture_output=True, text=True, timeout=5, check=False)
+                                        capture_output=True,
+                                        text=True,
+                                        timeout=5,
+                                        check=False)
 
                 self.assertEqual(result.returncode, 0, result.stderr)
                 self.assertEqual(result.stdout, "")
@@ -349,10 +352,24 @@ logging.getLogger('dependency').warning('dependency-warning')
         with tempfile.TemporaryDirectory() as directory:
             (path, ready) = (Path(directory) / "proxy.sock", Path(directory) / "ready")
 
-            command = [sys.executable, "-B", "-c", "from provider_core.provider_proxy import main; main()",
-                       "--interface", "lo", "--mode", "external", "--authority", "api.example:443",
-                       "--socket", str(path), "--ready-file", str(ready), "--status-directory", directory,
-                       "--log-level", "INFO"]
+            command = [sys.executable,
+                       "-B",
+                       "-c",
+                       "from provider_core.provider_proxy import main; main()",
+                       "--interface",
+                       "lo",
+                       "--mode",
+                       "external",
+                       "--authority",
+                       "api.example:443",
+                       "--socket",
+                       str(path),
+                       "--ready-file",
+                       str(ready),
+                       "--status-directory",
+                       directory,
+                       "--log-level",
+                       "INFO"]
 
             def stop(child):
                 if child.poll() is None:
@@ -435,7 +452,10 @@ logging.getLogger('dependency').warning('dependency-warning')
                 str(path),
                 "--ready-file",
                 str(ready),
-                "--status-directory", directory, "--log-level", "INFO",
+                "--status-directory",
+                directory,
+                "--log-level",
+                "INFO",
             ]
 
             def observe_ready(_server):
@@ -459,9 +479,19 @@ logging.getLogger('dependency').warning('dependency-warning')
             )
 
             argv = [
-                "provider_proxy", "--interface", "lo", "--mode", "external",
-                "--socket", str(root / "proxy.sock"), "--ready-file", str(root / "ready"),
-                "--status-directory", directory, "--live-config", str(settings),
+                "provider_proxy",
+                "--interface",
+                "lo",
+                "--mode",
+                "external",
+                "--socket",
+                str(root / "proxy.sock"),
+                "--ready-file",
+                str(root / "ready"),
+                "--status-directory",
+                directory,
+                "--live-config",
+                str(settings),
             ]
 
             with patch.object(provider_proxy.sys, "argv", argv), patch.object(ServiceProxyServer, "serve_forever"):

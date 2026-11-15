@@ -14,7 +14,10 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
         model = recording_endpoint("only", call("bad", "submit", {"record": 1}), call("good", "submit", {}))
 
         conversation = ToolConversation(
-            (model,), max_turns=2, secrets=(), text_correction=conversation_api.TextCorrection(),
+            (model,),
+            max_turns=2,
+            secrets=(),
+            text_correction=conversation_api.TextCorrection(),
         )
 
         await conversation.run([], [], AsyncMock(side_effect=[ToolRejected("Choose another record."), ToolFinished("selected")]))
@@ -30,7 +33,9 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
                 model = recording_endpoint("only", plain | extra, call("done", "submit", {}))
 
                 conversation = ToolConversation(
-                    (model,), max_turns=2, secrets=(),
+                    (model,),
+                    max_turns=2,
+                    secrets=(),
                     text_correction=conversation_api.TextCorrection(user_content="correction-v1\n"),
                 )
 
@@ -51,7 +56,9 @@ class TextCorrectionTests(unittest.IsolatedAsyncioTestCase):
         model = recording_endpoint("only", call("bad", "submit", value), call("good", "submit", {}))
 
         conversation = ToolConversation(
-            (model,), max_turns=2, secrets=(),
+            (model,),
+            max_turns=2,
+            secrets=(),
             text_correction=conversation_api.TextCorrection(user_content="correction-v1\n"),
         )
 

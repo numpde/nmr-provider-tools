@@ -15,12 +15,17 @@ from tests.fakes.tls_peer import TlsPeer
 
 class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_error_body_limit_keeps_received_status_and_original_failure(self):
-        async with TlsPeer("success", response_status=429, response_body=gzip.compress(b"PRIVATE" * 1000),
+        async with TlsPeer("success",
+                           response_status=429,
+                           response_body=gzip.compress(b"PRIVATE" * 1000),
                            response_headers=((b"Content-Encoding", b"gzip"), (b"X-Request-ID", b"fixture-request"))) as peer:
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
 
-            endpoint = ChatEndpoint(self.spec(peer.origin + "/chat"), transport=transport,
-                                    request_bytes=4096, response_bytes=8192, error_response_bytes=64)
+            endpoint = ChatEndpoint(self.spec(peer.origin + "/chat"),
+                                    transport=transport,
+                                    request_bytes=4096,
+                                    response_bytes=8192,
+                                    error_response_bytes=64)
 
             self.addAsyncCleanup(endpoint.retire)
 
@@ -41,8 +46,10 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         async with TlsPeer("headers-stall") as peer:
             transport = HttpTransport(trust=peer.trust, exchange_seconds=3, retirement_seconds=0.5)
 
-            endpoint = ChatEndpoint(self.spec(peer.origin + "/chat"), transport=transport,
-                                    request_bytes=4096, response_bytes=4096)
+            endpoint = ChatEndpoint(self.spec(peer.origin + "/chat"),
+                                    transport=transport,
+                                    request_bytes=4096,
+                                    response_bytes=4096)
 
             with self.assertRaises(ChatFailed):
                 await asyncio.wait_for(endpoint.complete([], [], not_after=asyncio.get_running_loop().time() + 0.25), 1.5)
@@ -57,15 +64,19 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
 
         body = json.dumps({"error": {
             "message": "Unsupported tool_choice. Echo: " + prompt + "; escaped: " + json.dumps(prompt)[1:-1],
-            "type": "invalid_request_error", "code": "unsupported_parameter", "param": "tool_choice",
+            "type": "invalid_request_error",
+            "code": "unsupported_parameter",
+            "param": "tool_choice",
             "request": "PRIVATE_UNRELATED_BODY",
         }}).encode()
 
         response = HttpResponse(400, ((b"content-type", b"application/json"),), body)
         transport = SimpleNamespace(exchange_decoded=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True)
 
-        endpoint = ChatEndpoint(self.spec("https://example.invalid/chat"), transport=transport,
-                                request_bytes=4096, response_bytes=16384)
+        endpoint = ChatEndpoint(self.spec("https://example.invalid/chat"),
+                                transport=transport,
+                                request_bytes=4096,
+                                response_bytes=16384)
 
         with self.assertRaises(ChatFailed) as caught:
             await endpoint.complete([{"role": "user", "content": prompt}], [])
@@ -80,14 +91,17 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         transport.exchange_decoded.assert_awaited_once()
 
     async def test_unreadable_error_detail_preserves_status_without_partial_body(self):
-        for body in (b"<html>PRIVATE</html>", b'{"error":{"message":"PRIVATE',
+        for body in (b"<html>PRIVATE</html>",
+                     b'{"error":{"message":"PRIVATE',
                      json.dumps({"error": {"message": "PRIVATE" * 2000}}).encode()):
             with self.subTest(length=len(body)):
                 response = HttpResponse(400, (), body)
                 transport = SimpleNamespace(exchange_decoded=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True)
 
-                endpoint = ChatEndpoint(self.spec("https://example.invalid/chat"), transport=transport,
-                                        request_bytes=4096, response_bytes=32768)
+                endpoint = ChatEndpoint(self.spec("https://example.invalid/chat"),
+                                        transport=transport,
+                                        request_bytes=4096,
+                                        response_bytes=32768)
 
                 with self.assertRaises(ChatFailed) as caught:
                     await endpoint.complete([], [])
@@ -104,7 +118,10 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         transport = SimpleNamespace(exchange_decoded=AsyncMock(side_effect=interruption), last_failure=failure)
 
         endpoint = ChatEndpoint(
-            self.spec("https://example.invalid/chat"), transport=transport, request_bytes=4096, response_bytes=4096
+            self.spec("https://example.invalid/chat"),
+            transport=transport,
+            request_bytes=4096,
+            response_bytes=4096
         )
 
         with self.assertRaises(asyncio.CancelledError) as caught:
@@ -147,7 +164,8 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
                     writer.close()
                     await writer.wait_closed()
 
-        self.assertEqual(1, len(recorded.records),
+        self.assertEqual(1,
+                         len(recorded.records),
                          msg=[record.getMessage() for record in recorded.records])
 
         event = recorded.records[0]
@@ -165,14 +183,21 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
 
     def spec(self, url):
         return ChatEndpointSpec(
-            configuration_id="local-test", model="fixture-model", url=url, api_key="PRIVATE_KEY", reasoning_effort=None
+            configuration_id="local-test",
+            model="fixture-model",
+            url=url,
+            api_key="PRIVATE_KEY",
+            reasoning_effort=None
         )
 
     async def test_oversized_request_is_rejected_before_http(self):
         transport = SimpleNamespace(exchange_decoded=AsyncMock(), retire=AsyncMock(), retirement_confirmed=True)
 
         endpoint = ChatEndpoint(
-            self.spec("https://example.invalid/chat"), transport=transport, request_bytes=64, response_bytes=4096
+            self.spec("https://example.invalid/chat"),
+            transport=transport,
+            request_bytes=64,
+            response_bytes=4096
         )
 
         with self.assertRaisesRegex(ChatFailed, "request.*byte limit"):
@@ -194,11 +219,16 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
                 response = HttpResponse(status, ((b"content-type", b"application/json"),), body)
 
                 transport = SimpleNamespace(
-                    exchange_decoded=AsyncMock(return_value=response), retire=AsyncMock(), retirement_confirmed=True
+                    exchange_decoded=AsyncMock(return_value=response),
+                    retire=AsyncMock(),
+                    retirement_confirmed=True
                 )
 
                 endpoint = ChatEndpoint(
-                    self.spec("https://example.invalid/chat"), transport=transport, request_bytes=4096, response_bytes=4096
+                    self.spec("https://example.invalid/chat"),
+                    transport=transport,
+                    request_bytes=4096,
+                    response_bytes=4096
                 )
 
                 with self.assertRaises(ChatFailed) as caught:
@@ -215,7 +245,10 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
                     transport = HttpTransport(trust=peer.trust, exchange_seconds=0.15, retirement_seconds=0.5)
 
                     endpoint = ChatEndpoint(
-                        self.spec(peer.origin + "/chat"), transport=transport, request_bytes=4096, response_bytes=maximum
+                        self.spec(peer.origin + "/chat"),
+                        transport=transport,
+                        request_bytes=4096,
+                        response_bytes=maximum
                     )
 
                     self.addAsyncCleanup(endpoint.retire)
@@ -233,7 +266,10 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
 
             endpoint = ChatEndpoint(
-                self.spec(peer.origin + "/chat"), transport=transport, request_bytes=4096, response_bytes=4096
+                self.spec(peer.origin + "/chat"),
+                transport=transport,
+                request_bytes=4096,
+                response_bytes=4096
             )
 
             self.addAsyncCleanup(endpoint.retire)
@@ -251,11 +287,16 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
         failure = ExchangeFailed("Resource retirement is unconfirmed", primary=OSError("PRIVATE"))
 
         transport = SimpleNamespace(
-            exchange_decoded=AsyncMock(side_effect=failure), retire=AsyncMock(side_effect=failure), retirement_confirmed=False
+            exchange_decoded=AsyncMock(side_effect=failure),
+            retire=AsyncMock(side_effect=failure),
+            retirement_confirmed=False
         )
 
         endpoint = ChatEndpoint(
-            self.spec("https://example.invalid/chat"), transport=transport, request_bytes=4096, response_bytes=4096
+            self.spec("https://example.invalid/chat"),
+            transport=transport,
+            request_bytes=4096,
+            response_bytes=4096
         )
 
         with self.assertRaises(ChatFailed) as caught:
@@ -277,7 +318,10 @@ class ChatCarrierRejectionTests(unittest.IsolatedAsyncioTestCase):
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
 
             endpoint = ChatEndpoint(
-                self.spec(peer.origin + "/chat"), transport=transport, request_bytes=4096, response_bytes=4096
+                self.spec(peer.origin + "/chat"),
+                transport=transport,
+                request_bytes=4096,
+                response_bytes=4096
             )
 
             self.addAsyncCleanup(endpoint.retire)

@@ -71,7 +71,10 @@ class WeightedSum(sdk.Contribution):
 
     @sdk.operation(state_outputs=(normalized,))
     def prepare(
-        self, *, analysis: WeightedAnalysis, candidate: science.PreparationInput,
+        self,
+        *,
+        analysis: WeightedAnalysis,
+        candidate: science.PreparationInput,
     ) -> sdk.ScientificReturn[science.PreparationResult]:
         prepared = science.prepare(analysis=analysis.value, candidate=candidate)
 
@@ -82,7 +85,10 @@ class WeightedSum(sdk.Contribution):
 
     @sdk.operation(state_inputs=(candidate,), progress=True)
     def calculate(
-        self, *, analysis: WeightedAnalysis, candidate: science.PreparedValues,
+        self,
+        *,
+        analysis: WeightedAnalysis,
+        candidate: science.PreparedValues,
         control: sdk.ScientificControl,
     ) -> science.PredictionResult:
         control.report_progress(event=sdk.ProgressEvent(stage="calculation", completed=0, total=1))

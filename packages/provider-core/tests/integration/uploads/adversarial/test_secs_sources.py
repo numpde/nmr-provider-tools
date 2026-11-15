@@ -102,7 +102,10 @@ class SecsSourceReceivingTests(unittest.TestCase):
             other = "upload:sha256:" + "b" * 64
 
             access = SourceAccess(
-                {UPLOAD_REF: replace(receipt, upload_ref=other)}, Path(root), directory_fd=directory, max_upload_bytes=8
+                {UPLOAD_REF: replace(receipt, upload_ref=other)},
+                Path(root),
+                directory_fd=directory,
+                max_upload_bytes=8
             )
 
             with patch("tests.fakes.secs_sources.read_upload_file") as snapshot:
@@ -121,7 +124,11 @@ class SecsSourceReceivingTests(unittest.TestCase):
             receipt = snapshot_source(root, body)
 
             access = SourceAccess(
-                {UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(body), max_scope_bytes=10
+                {UPLOAD_REF: receipt},
+                Path(root),
+                directory_fd=directory,
+                max_upload_bytes=len(body),
+                max_scope_bytes=10
             )
 
             with access.scope_reader(SourceRef(UPLOAD_REF)) as reader:
@@ -142,14 +149,22 @@ class SecsSourceReceivingTests(unittest.TestCase):
             receipt = snapshot_source(root, body)
 
             member_limited = SourceAccess(
-                {UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(body), max_member_bytes=5
+                {UPLOAD_REF: receipt},
+                Path(root),
+                directory_fd=directory,
+                max_upload_bytes=len(body),
+                max_member_bytes=5
             )
 
             with self.assertRaisesRegex(InputReadError, "member limit"):
                 member_limited.read(SourceRef(UPLOAD_REF, "first"))
 
             scope_limited = SourceAccess(
-                {UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(body), max_scope_bytes=9
+                {UPLOAD_REF: receipt},
+                Path(root),
+                directory_fd=directory,
+                max_upload_bytes=len(body),
+                max_scope_bytes=9
             )
 
             with self.assertRaisesRegex(InputReadError, "members exceed"):
@@ -306,7 +321,11 @@ class SecsSourceReceivingTests(unittest.TestCase):
             receipt = snapshot_source(root, bytes(raw))
 
             access = SourceAccess(
-                {UPLOAD_REF: receipt}, Path(root), directory_fd=directory, max_upload_bytes=len(raw), max_scope_bytes=10
+                {UPLOAD_REF: receipt},
+                Path(root),
+                directory_fd=directory,
+                max_upload_bytes=len(raw),
+                max_scope_bytes=10
             )
 
             with access.scope_reader(SourceRef(UPLOAD_REF)) as reader:

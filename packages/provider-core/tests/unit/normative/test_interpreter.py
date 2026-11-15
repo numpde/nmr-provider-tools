@@ -13,9 +13,12 @@ from provider_core.interpreter import Interpreter, InterpretationFailed, Interpr
 from tests.fakes.conversation import call, endpoint
 
 
-TOOLS = [{"type": "function", "function": {"name": "prepare", "parameters": {
-    "type": "object", "properties": {"verbosity": {"type": "string", "enum": ["quiet", "full"]}},
-    "required": ["verbosity"]}}},
+TOOLS = [{"type": "function",
+    "function": {"name": "prepare",
+        "parameters": {
+            "type": "object",
+            "properties": {"verbosity": {"type": "string", "enum": ["quiet", "full"]}},
+            "required": ["verbosity"]}}},
     {"type": "function", "function": {"name": "inspect", "parameters": {"type": "object"}}},
     {"type": "function", "function": {"name": "report_interpretation_problem", "parameters": {"type": "object"}}},
 ]
@@ -33,8 +36,10 @@ def factory(model):
 # silent-defaults: allow-contract -- This unit helper intentionally supplies a fixed 240-second model allowance and one-megabyte context unless a test overrides either.
 def interpreter(*models, timeout=240, context=1024 * 1024):
     # repo-check: allow-tuple-generator -- Interpreter accepts only a captured immutable endpoint tuple, not a generator of mutable mock factories.
-    return Interpreter(tuple(factory(model) for model in models), timeout_seconds=timeout,
-                       context_bytes=context, secrets=("PRIVATE_CREDENTIAL",))
+    return Interpreter(tuple(factory(model) for model in models),
+                       timeout_seconds=timeout,
+                       context_bytes=context,
+                       secrets=("PRIVATE_CREDENTIAL",))
 
 
 def state(messages):
@@ -55,7 +60,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                 create = AsyncMock()
                 dispatch = AsyncMock()
 
-                owner = Interpreter((create,), timeout_seconds=30, context_bytes=4096,
+                owner = Interpreter((create,),
+                                    timeout_seconds=30,
+                                    context_bytes=4096,
                                     secrets=("PRIVATE_CREDENTIAL",))
 
                 with self.assertRaises(InterpretationInputRejected) as caught:
@@ -109,7 +116,8 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
     async def test_retry_stays_on_same_endpoint_same_turn_after_retirement(self):
         events = []
 
-        failure = ChatFailed("http_status", "Unavailable.",
+        failure = ChatFailed("http_status",
+                             "Unavailable.",
                              response=SimpleNamespace(status=503, headers=((b"Retry-After", b"1"),)))
 
         model = endpoint("same", failure, call("finish", "prepare", {"verbosity": "full"}))
@@ -157,7 +165,8 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
     async def test_three_proposal_rejections_escalate_with_original_request_and_retrievable_history(self):
         bad = endpoint("fast", *(call(f"bad-{i}", "prepare", {"verbosity": "invalid"}) for i in range(3)))
 
-        good = endpoint("strong", call("read", "read_interpretation_records", {"records": [{"ref": "record-1"}]}),
+        good = endpoint("strong",
+                        call("read", "read_interpretation_records", {"records": [{"ref": "record-1"}]}),
                         call("done", "prepare", {"verbosity": "quiet"}))
 
         original = [{"role": "user", "content": "Use the original source faithfully."}]
@@ -186,7 +195,8 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.value, {"verbosity": "quiet"})
 
     async def test_schema_queries_use_actual_schema_and_do_not_dispatch_science(self):
-        model = endpoint("fixture", call("query", "describe_input_constraints", {"tool": "prepare", "field": "verbosity"}),
+        model = endpoint("fixture",
+                         call("query", "describe_input_constraints", {"tool": "prepare", "field": "verbosity"}),
                          call("done", "prepare", {"verbosity": "quiet"}))
 
         dispatch = AsyncMock(return_value=ToolFinished("ready"))
@@ -206,7 +216,8 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
     async def test_history_reads_captured_observation_without_repeating_live_inspection(self):
         observation = {"source": "source-1", "spectrum": [1, 2]}
 
-        model = endpoint("fixture", call("inspect", "inspect", {"source": "source-1"}),
+        model = endpoint("fixture",
+                         call("inspect", "inspect", {"source": "source-1"}),
                          call("history", "read_interpretation_records", {"records": [{"ref": "record-1"}]}),
                          call("finish", "prepare", {}))
 
@@ -300,7 +311,8 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
     async def test_large_history_read_is_explicitly_partial_and_whole_next_context_still_fits(self):
         first = endpoint("fast", call("inspect", "inspect", {}), ChatFailed("invalid_response", "No usable reply."))
 
-        second = endpoint("strong", call("read", "read_interpretation_records", {"records": [{"ref": "record-1"}]}),
+        second = endpoint("strong",
+                          call("read", "read_interpretation_records", {"records": [{"ref": "record-1"}]}),
                           call("done", "prepare", {}))
 
         dispatch = AsyncMock(side_effect=[ToolReply({"text": "x" * 80000}), ToolFinished("ready")])
@@ -322,10 +334,13 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(dispatch.await_count, 2)
 
     async def test_history_evictions_and_missing_references_are_explicit(self):
-        first = endpoint("fast", call("one", "inspect", {}), call("two", "inspect", {}),
+        first = endpoint("fast",
+                         call("one", "inspect", {}),
+                         call("two", "inspect", {}),
                          ChatFailed("invalid_response", "No usable reply."))
 
-        second = endpoint("strong", call("read", "read_interpretation_records", {"records": [{"ref": "record-1"}, {"ref": "record-2"}]}),
+        second = endpoint("strong",
+                          call("read", "read_interpretation_records", {"records": [{"ref": "record-1"}, {"ref": "record-2"}]}),
                           call("done", "prepare", {}))
 
         dispatch = AsyncMock(side_effect=[ToolReply({"text": "x" * 600000}), ToolReply({"text": "y" * 600000}), ToolFinished("ready")])
@@ -556,14 +571,18 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
         with patch("provider_core.interpreter._now", side_effect=lambda: clock[0]):
             result = await owner.run(
-                [], TOOLS, AsyncMock(return_value=ToolFinished("ready")), not_after=135,
+                [],
+                TOOLS,
+                AsyncMock(return_value=ToolFinished("ready")),
+                not_after=135,
             )
 
         self.assertEqual(result.value, "ready")
         self.assertEqual(model.complete.await_args.kwargs["not_after"], 135)
 
         self.assertEqual(
-            state(model.complete.await_args.args[0])["budget"]["model_seconds_remaining"], 15,
+            state(model.complete.await_args.args[0])["budget"]["model_seconds_remaining"],
+            15,
         )
 
     async def test_history_cursor_resumes_the_same_captured_json_without_reinspection(self):
@@ -644,7 +663,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                 (final_messages, final_tools) = second.complete.await_args.args
 
                 size = len(json.dumps({"messages": final_messages, "tools": final_tools},
-                                      ensure_ascii=True, sort_keys=True, separators=(",", ":")).encode("ascii"))
+                                      ensure_ascii=True,
+                                      sort_keys=True,
+                                      separators=(",", ":")).encode("ascii"))
 
                 self.assertLessEqual(size, 32768)
                 self.assertEqual(dispatch.await_count, 2)
@@ -656,7 +677,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         owner = interpreter(first, second)
 
         with self.assertRaises(ConversationFailed) as caught:
-            await owner.run([], TOOLS, AsyncMock(return_value=ToolFinished("unexpected fallback")),
+            await owner.run([],
+                            TOOLS,
+                            AsyncMock(return_value=ToolFinished("unexpected fallback")),
                             describe_constraints=AsyncMock(side_effect=failure))
 
         self.assertIs(caught.exception, failure)
@@ -664,8 +687,11 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         await owner.retire()
 
     async def test_unknown_path_below_boolean_schema_gets_correction_instead_of_provider_failure(self):
-        tools = [{"type": "function", "function": {"name": "prepare", "parameters": {
-            "type": "object", "properties": {"opaque": True}}}}]
+        tools = [{"type": "function",
+            "function": {"name": "prepare",
+                "parameters": {
+                    "type": "object",
+                    "properties": {"opaque": True}}}}]
 
         model = endpoint(
             "fixture",
@@ -697,20 +723,25 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_partial_history_page_reserves_status_for_later_batch_records(self):
         first = endpoint(
-            "first", call("small", "inspect", {"source": "small"}),
+            "first",
+            call("small", "inspect", {"source": "small"}),
             call("large", "inspect", {"source": "large"}),
         )
 
         second = endpoint(
             "second",
-            call("batch", "read_interpretation_records", {
-                "records": [{"ref": "record-2"}, {"ref": "record-1"}],
+            call("batch",
+                "read_interpretation_records",
+                {
+                    "records": [{"ref": "record-2"}, {"ref": "record-1"}],
             }),
             call("done", "prepare", {}),
         )
 
         dispatch = AsyncMock(side_effect=[
-            ToolReply({"rows": 2}), ToolReply({"text": "x" * 80000}), ToolFinished("ready"),
+            ToolReply({"rows": 2}),
+            ToolReply({"text": "x" * 80000}),
+            ToolFinished("ready"),
         ])
 
         result = await interpreter(first, second, context=32768).run([], TOOLS, dispatch)
@@ -723,7 +754,8 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_unlisted_tool_is_repaired_before_any_provider_code_runs(self):
         model = endpoint(
-            "fixture", call("unknown", "unlisted_operation", {}),
+            "fixture",
+            call("unknown", "unlisted_operation", {}),
             call("accepted", "prepare", {"verbosity": "quiet"}),
         )
 
@@ -740,7 +772,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         ]
 
         model = endpoint(
-            "fixture", call("inspect", "inspect", {}), call("done", "prepare", {}),
+            "fixture",
+            call("inspect", "inspect", {}),
+            call("done", "prepare", {}),
         )
 
         captures = []
@@ -754,7 +788,9 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
         model.complete = AsyncMock(side_effect=complete)
 
         await interpreter(model).run(
-            messages, TOOLS, AsyncMock(side_effect=[ToolReply({"rows": 2}), ToolFinished("ready")]),
+            messages,
+            TOOLS,
+            AsyncMock(side_effect=[ToolReply({"rows": 2}), ToolFinished("ready")]),
         )
 
         self.assertEqual(captures[0][:len(messages)], messages)
@@ -834,8 +870,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
 
                 second = endpoint(
                     "second",
-                    call("history", "read_interpretation_records", {
-                        "records": [{"ref": "record-1"}, {"ref": "record-2"}],
+                    call("history",
+                        "read_interpretation_records",
+                        {
+                            "records": [{"ref": "record-1"}, {"ref": "record-2"}],
                     }),
                     call("final", last_tool, {}),
                 )
@@ -917,7 +955,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                     constraint_reader = inspect
 
                 running = asyncio.create_task(owner.run(
-                    [], TOOLS, dispatch, describe_constraints=constraint_reader,
+                    [],
+                    TOOLS,
+                    dispatch,
+                    describe_constraints=constraint_reader,
                 ))
 
                 await asyncio.wait_for(entered.wait(), 2)
@@ -1017,7 +1058,10 @@ class InterpreterTests(unittest.IsolatedAsyncioTestCase):
                 reader = AsyncMock(return_value=metadata)
 
                 await interpreter(model).run(
-                    [], TOOLS, AsyncMock(return_value=ToolFinished(None)), describe_constraints=reader,
+                    [],
+                    TOOLS,
+                    AsyncMock(return_value=ToolFinished(None)),
+                    describe_constraints=reader,
                 )
 
                 value = feedback(model.complete.await_args.args[0])["value"]

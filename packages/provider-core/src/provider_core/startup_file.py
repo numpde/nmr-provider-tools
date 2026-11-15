@@ -73,7 +73,9 @@ def read_startup_file(path, *, maximum_bytes, label, secret=False):
     if primary is not None and not isinstance(primary, Exception):
         if cleanup is not None:
             raise primary from StartupFileRejected(
-                f"{label} close also failed during interruption.", cause=primary.__cause__, cleanup_failures=(cleanup,)
+                f"{label} close also failed during interruption.",
+                cause=primary.__cause__,
+                cleanup_failures=(cleanup,)
             )
 
         raise primary
@@ -86,7 +88,8 @@ def read_startup_file(path, *, maximum_bytes, label, secret=False):
         cleanup_failures = () if cleanup is None else (cleanup,)
 
         raise StartupFileRejected(
-            f"{label} could not be read and closed; no runtime resources were acquired.", cause=primary,
+            f"{label} could not be read and closed; no runtime resources were acquired.",
+            cause=primary,
             cleanup_failures=cleanup_failures,
         ) from None
 

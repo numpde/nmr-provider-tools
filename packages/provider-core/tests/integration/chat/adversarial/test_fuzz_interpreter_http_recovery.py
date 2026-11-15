@@ -23,9 +23,19 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                 report_path = root / "verdict.json"
 
                 fixture_process = subprocess.Popen(
-                    (sys.executable, "-I", "-B", str(fixture), "scenario", str(root / "http-fault.jsonl"),
-                     str(report_path), str(seed)), stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                    text=True, start_new_session=True, env={**os.environ, "TMPDIR": str(root)},
+                    (sys.executable,
+                     "-I",
+                     "-B",
+                     str(fixture),
+                     "scenario",
+                     str(root / "http-fault.jsonl"),
+                     str(report_path),
+                     str(seed)),
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                    start_new_session=True,
+                    env={**os.environ, "TMPDIR": str(root)},
                 )
 
                 report = None
@@ -92,8 +102,11 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                         self.assertTrue(cycle["original_result_pending"], msg=evidence)
                         self.assertTrue(cycle["delivery_original_request_owned"], msg=evidence)
 
-                    for fact in ("first_cause_is_timeout", "original_first_cause_retained",
-                                 "original_interpreter_failure_retained", "timeout_in_failure_graph", "timeout_in_diagnostic"):
+                    for fact in ("first_cause_is_timeout",
+                                 "original_first_cause_retained",
+                                 "original_interpreter_failure_retained",
+                                 "timeout_in_failure_graph",
+                                 "timeout_in_diagnostic"):
                         self.assertTrue(cycle[fact], msg=fact + ": " + evidence)
 
                     self.assertEqual(report["scientific_worker_before"]["pid"], cycle["scientific_worker"]["pid"], msg=evidence)
@@ -113,7 +126,8 @@ class RepeatedInterpreterTimeoutTests(unittest.TestCase):
                 self.assertTrue(report["original_result_bytes_sent_once"], msg=evidence)
 
                 self.assertEqual(report["original_result_acceptance"]["execution_attempt_ref"],
-                                 report["original_result_receipt_reference"], msg=evidence)
+                                 report["original_result_receipt_reference"],
+                                 msg=evidence)
 
                 self.assertEqual(report["original_result_receipt_result"], report["original_result_receipt_verified"], msg=evidence)
                 self.assertTrue(report["delivery_request_bodies_match"], msg=evidence)

@@ -38,9 +38,19 @@ class DeploymentErrorCliTests(unittest.TestCase):
                     path.chmod(0o600)
 
                     result = subprocess.run(
-                        [sys.executable, "-I", "-B", "-m", "provider_core.deployment_binding",
-                         "paths", "--definition", str(path), "--all"],
-                        capture_output=True, text=True, check=False, timeout=10,
+                        [sys.executable,
+                         "-I",
+                         "-B",
+                         "-m",
+                         "provider_core.deployment_binding",
+                         "paths",
+                         "--definition",
+                         str(path),
+                         "--all"],
+                        capture_output=True,
+                        text=True,
+                        check=False,
+                        timeout=10,
                     )
 
                     self.assertEqual(result.returncode, 2)
@@ -57,11 +67,31 @@ class DeploymentErrorCliTests(unittest.TestCase):
             path.chmod(0o600)
 
             result = subprocess.run(
-                [sys.executable, "-I", "-B", "-m", "provider_core.deployment_route", "render",
-                 "--definition", str(path), "--binding", "fixture-0", "--image", "PRIVATE_INPUT_CANARY",
-                 "--interpreter", "/usr/local/bin/python", "--namespace", "fixture",
-                 "--uid", "65532", "--gid", "65532", "--named-volume"],
-                capture_output=True, text=True, check=False, timeout=10,
+                [sys.executable,
+                 "-I",
+                 "-B",
+                 "-m",
+                 "provider_core.deployment_route",
+                 "render",
+                 "--definition",
+                 str(path),
+                 "--binding",
+                 "fixture-0",
+                 "--image",
+                 "PRIVATE_INPUT_CANARY",
+                 "--interpreter",
+                 "/usr/local/bin/python",
+                 "--namespace",
+                 "fixture",
+                 "--uid",
+                 "65532",
+                 "--gid",
+                 "65532",
+                 "--named-volume"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
             )
 
             self.assertEqual(result.returncode, 2)

@@ -41,7 +41,10 @@ class CrashingSession(LiveSession):
             acknowledged = replace(acknowledged)
 
         failure = ObservedWorkerCrash.from_session(
-            acknowledged, phase=self.claimed_phase, owner=self.claimed_owner, runner=self.native,
+            acknowledged,
+            phase=self.claimed_phase,
+            owner=self.claimed_owner,
+            runner=self.native,
             evidence=ProtectedEvidence("fixture.crash.v1", b"observed original native exit"),
             cause=EOFError("PRIVATE_SCIENTIFIC_CONTEXT"),
         )

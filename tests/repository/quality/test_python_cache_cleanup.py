@@ -18,7 +18,9 @@ class PythonCacheCleanupTests(unittest.TestCase):
 
         return subprocess.run(
             ["bash", "-c", 'source "$1"; clean_first_party_bytecode "$2"', "bash", str(script), str(root)],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
 
     def test_clean_only_bytecode_inside_first_party_roots(self):
@@ -74,7 +76,10 @@ class PythonCacheCleanupTests(unittest.TestCase):
     def test_public_cleanup_target_does_not_require_a_docker_context(self):
         result = subprocess.run(
             ["make", "--no-print-directory", "--dry-run", "checks/python-cache/clean"],
-            cwd=ROOT, capture_output=True, text=True, check=False,
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
         )
 
         self.assertEqual(0, result.returncode, msg=result.stderr)

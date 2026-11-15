@@ -16,20 +16,24 @@ from tests.fakes.conversation import call
 from tests.fakes.tls_peer import TlsPeer
 
 from tests.integration.chat.adversarial.test_model_reply_permission import (
-    HeldRetirementSession, InterpretedSession, ReplyRun,
+    HeldRetirementSession,
+    InterpretedSession,
+    ReplyRun,
 )
 
 
 def model_reply():
     return json.dumps({"choices": [{
-        "message": call("complete", "prepare", {}), "finish_reason": "tool_calls",
+        "message": call("complete", "prepare", {}),
+        "finish_reason": "tool_calls",
     }]}).encode()
 
 
 class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
     async def test_local_ack_frees_terminal_bytes_but_not_original_claim(self):
         limits = LiveAttemptLimits(
-            maximum_attempts=2, maximum_control_bytes=262144,
+            maximum_attempts=2,
+            maximum_control_bytes=262144,
             maximum_pending_terminal_bytes=16384,
         )
 
@@ -39,12 +43,19 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
         async with (TlsPeer("success", response_body=model_reply()) as original_peer,
                     TlsPeer("success", response_body=model_reply()) as successor_peer):
             original = ReplyRun(
-                original_peer, claims, "job:handoff-held", HeldRetirementSession,
-                delivery=delivery, maximum_terminal_bytes=16384,
+                original_peer,
+                claims,
+                "job:handoff-held",
+                HeldRetirementSession,
+                delivery=delivery,
+                maximum_terminal_bytes=16384,
             )
 
             successor = ReplyRun(
-                successor_peer, claims, "job:handoff-independent", InterpretedSession,
+                successor_peer,
+                claims,
+                "job:handoff-independent",
+                InterpretedSession,
                 maximum_terminal_bytes=16384,
             )
 
@@ -58,8 +69,10 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                 (selected,) = delivery.offers
                 self.assertIs(type(original.controller.operation._checkpoint), TerminalSelectedCheckpoint)
 
-                self.assertEqual((1, 1), (
-                    original.session.science.preparations, original.session.science.executions,
+                self.assertEqual((1, 1),
+                    (
+                        original.session.science.preparations,
+                        original.session.science.executions,
                 ))
 
                 self.assertFalse(delivery.accepted.is_set())
@@ -70,7 +83,8 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                 # terminal reservation is occupied until the matching relay ACK.
                 with self.assertRaises(LiveCapacityFull):
                     claims.claim_live(
-                        successor.pending, lifecycle_owner=successor.controller,
+                        successor.pending,
+                        lifecycle_owner=successor.controller,
                         maximum_terminal_bytes=16384,
                     )
 
@@ -96,12 +110,15 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                 # B now owns the released terminal allowance, finishes its own
                 # science, and releases its own claim while A still owns cleanup.
                 accepted = await asyncio.wait_for(
-                    successor.controller.run(successor.pending), 6)
+                    successor.controller.run(successor.pending),
+                    6)
 
                 self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
 
-                self.assertEqual((1, 1), (
-                    successor.session.science.preparations, successor.session.science.executions,
+                self.assertEqual((1, 1),
+                    (
+                        successor.session.science.preparations,
+                        successor.session.science.executions,
                 ))
 
                 self.assertEqual(1, successor.start_count)
@@ -112,7 +129,8 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                 original.session.release_retirement.set()
 
                 (original_result,) = await asyncio.wait_for(
-                    asyncio.gather(driver, return_exceptions=True), 8)
+                    asyncio.gather(driver, return_exceptions=True),
+                    8)
 
                 if isinstance(original_result, ControllerFailed):
                     # The original retirement may have exceeded the SDK's
@@ -138,7 +156,8 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                     original.controller.request_stop()
 
                 await asyncio.wait_for(
-                    asyncio.gather(driver, return_exceptions=True), 8)
+                    asyncio.gather(driver, return_exceptions=True),
+                    8)
 
     async def test_retryable_local_refusal_resends_only_the_original_terminal(self):
         for first_response in ("full", "retryable"):
@@ -148,7 +167,10 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
 
                 async with TlsPeer("success", response_body=model_reply()) as peer:
                     run = ReplyRun(
-                        peer, claims, "job:retry", InterpretedSession,
+                        peer,
+                        claims,
+                        "job:retry",
+                        InterpretedSession,
                         delivery=delivery,
                     )
 
@@ -177,9 +199,11 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                         self.assertIs(delivery.items[0], first)
                         self.assertEqual(2, len(delivery.offers))
 
-                        self.assertEqual((1, 1, 1), (
-                            run.start_count, run.session.science.preparations,
-                            run.session.science.executions,
+                        self.assertEqual((1, 1, 1),
+                            (
+                                run.start_count,
+                                run.session.science.preparations,
+                                run.session.science.executions,
                         ))
 
                         self.assertTrue(run.controller.shutdown_ready)
@@ -191,7 +215,8 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                             run.controller.request_stop()
 
                         await asyncio.wait_for(
-                            asyncio.gather(driver, return_exceptions=True), 8)
+                            asyncio.gather(driver, return_exceptions=True),
+                            8)
 
     async def test_lost_or_invalid_ack_does_not_release_or_replay_terminal(self):
         for disposition in ("lost", "rejected"):
@@ -201,7 +226,10 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
 
                 async with TlsPeer("success", response_body=model_reply()) as peer:
                     run = ReplyRun(
-                        peer, claims, "job:unconfirmed", InterpretedSession,
+                        peer,
+                        claims,
+                        "job:unconfirmed",
+                        InterpretedSession,
                         delivery=delivery,
                     )
 
@@ -229,9 +257,11 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                         self.assertFalse(run.controller.shutdown_ready)
                         self.assertEqual((run.controller,), claims.live_owners())
 
-                        self.assertEqual((1, 1, 1), (
-                            run.start_count, run.session.science.preparations,
-                            run.session.science.executions,
+                        self.assertEqual((1, 1, 1),
+                            (
+                                run.start_count,
+                                run.session.science.preparations,
+                                run.session.science.executions,
                         ))
 
                         with self.assertRaises(ControllerFailed):
@@ -246,4 +276,5 @@ class DeliveryLifecycleInterleavings(unittest.IsolatedAsyncioTestCase):
                             run.controller.request_stop()
 
                         await asyncio.wait_for(
-                            asyncio.gather(driver, return_exceptions=True), 8)
+                            asyncio.gather(driver, return_exceptions=True),
+                            8)

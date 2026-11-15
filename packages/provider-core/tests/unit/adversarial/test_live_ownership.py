@@ -152,7 +152,8 @@ class LiveOwnershipTests(unittest.IsolatedAsyncioTestCase):
 
         for changed in (
             replace(pending, scope=replace(scope(), generation_id="other")),
-            replace(pending, input=replace(pending.input, job_ref="job:other"),
+            replace(pending,
+                    input=replace(pending.input, job_ref="job:other"),
                     body=start_body("job:other", "retained:one")),
             replace(pending, body=pending.body + b" "),
         ):

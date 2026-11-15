@@ -23,7 +23,9 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
         client = fixture.refusal(503, "service_unavailable")
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client), patch.object(
-            api, "retire", wraps=api.retire
+            api,
+            "retire",
+            wraps=api.retire
         ) as api_retire, patch.object(store, "retire", wraps=store.retire) as store_retire:
             with self.assertRaises(UploadRecoveryExhausted) as caught:
                 await owner.inspect()
@@ -40,11 +42,14 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
     async def test_exhausted_file_failure_preserves_all_upload_owner_fields(self):
         (owner, _, _) = self.fixture.owner(recovery=self.fixture.policy(attempts=1))
 
-        clients = [fixture.api_reply(fixture.MEMBERSHIP), fixture.api_reply(fixture.MEMBERSHIP),
-                   fixture.api_reply(fixture.GRANT), fixture.store_reply(failure=temporary_read_error())]
+        clients = [fixture.api_reply(fixture.MEMBERSHIP),
+                   fixture.api_reply(fixture.MEMBERSHIP),
+                   fixture.api_reply(fixture.GRANT),
+                   fixture.store_reply(failure=temporary_read_error())]
 
         with private_source_directory() as (_, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients
+            "provider_core.transport.httpcore.AsyncConnectionPool",
+            side_effect=clients
         ):
             await owner.inspect()
 
@@ -65,9 +70,13 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
         (owner, _, _) = self.fixture.owner(recovery=self.fixture.policy())
         (first, current) = (temporary_read_error(), temporary_read_error())
 
-        clients = [fixture.api_reply(fixture.MEMBERSHIP), fixture.api_reply(fixture.MEMBERSHIP),
-                   fixture.api_reply(fixture.GRANT), fixture.store_reply(failure=first),
-                   fixture.api_reply(fixture.MEMBERSHIP), fixture.api_reply(fixture.GRANT), fixture.store_reply(failure=current)]
+        clients = [fixture.api_reply(fixture.MEMBERSHIP),
+                   fixture.api_reply(fixture.MEMBERSHIP),
+                   fixture.api_reply(fixture.GRANT),
+                   fixture.store_reply(failure=first),
+                   fixture.api_reply(fixture.MEMBERSHIP),
+                   fixture.api_reply(fixture.GRANT),
+                   fixture.store_reply(failure=current)]
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
@@ -83,8 +92,10 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
     async def test_original_byte_and_wait_budgets_end_only_eligible_recovery(self):
         (owner, _, _) = self.fixture.owner(recovery=self.fixture.policy(), total=8)
 
-        clients = [fixture.api_reply(fixture.MEMBERSHIP), fixture.api_reply(fixture.MEMBERSHIP),
-                   fixture.api_reply(fixture.GRANT), fixture.store_reply(failure=temporary_read_error())]
+        clients = [fixture.api_reply(fixture.MEMBERSHIP),
+                   fixture.api_reply(fixture.MEMBERSHIP),
+                   fixture.api_reply(fixture.GRANT),
+                   fixture.store_reply(failure=temporary_read_error())]
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()
@@ -125,11 +136,14 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
     async def test_final_disk_failure_is_not_an_eligible_outage(self):
         (owner, _, _) = self.fixture.owner(recovery=self.fixture.policy(attempts=1))
 
-        clients = [fixture.api_reply(fixture.MEMBERSHIP), fixture.api_reply(fixture.MEMBERSHIP),
-                   fixture.api_reply(fixture.GRANT), fixture.store_reply()]
+        clients = [fixture.api_reply(fixture.MEMBERSHIP),
+                   fixture.api_reply(fixture.MEMBERSHIP),
+                   fixture.api_reply(fixture.GRANT),
+                   fixture.store_reply()]
 
         with private_source_directory() as (_, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients
+            "provider_core.transport.httpcore.AsyncConnectionPool",
+            side_effect=clients
         ), patch("provider_core.transport.os.write", side_effect=OSError(errno.EACCES, "private disk refusal")):
             await owner.inspect()
 
@@ -177,9 +191,12 @@ class UploadRecoveryExhaustionTests(unittest.IsolatedAsyncioTestCase):
         rejected = Client(Stream([]), status=503, headers=[])
         hanging = Client(Stream([], stall=asyncio.Event()), headers=fixture.response_headers())
 
-        clients = [fixture.api_reply(fixture.MEMBERSHIP), fixture.api_reply(fixture.MEMBERSHIP),
-                   fixture.api_reply(fixture.GRANT), rejected,
-                   fixture.api_reply(fixture.MEMBERSHIP), hanging]
+        clients = [fixture.api_reply(fixture.MEMBERSHIP),
+                   fixture.api_reply(fixture.MEMBERSHIP),
+                   fixture.api_reply(fixture.GRANT),
+                   rejected,
+                   fixture.api_reply(fixture.MEMBERSHIP),
+                   hanging]
 
         with patch("provider_core.transport.httpcore.AsyncConnectionPool", side_effect=clients):
             await owner.inspect()

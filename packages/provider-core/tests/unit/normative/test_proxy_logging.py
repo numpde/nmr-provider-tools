@@ -18,8 +18,12 @@ class ProxyLoggingTests(unittest.TestCase):
         failure.add_note("upstream-to-client: write 24 bytes; token=credential-in-note")
 
         record = logging.LogRecord(
-            "provider_core.proxy", logging.ERROR, __file__, 1,
-            "Operation failed; password=%s", ("credential-in-argument",),
+            "provider_core.proxy",
+            logging.ERROR,
+            __file__,
+            1,
+            "Operation failed; password=%s",
+            ("credential-in-argument",),
             (type(failure), failure, failure.__traceback__),
         )
 

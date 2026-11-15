@@ -71,11 +71,20 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
     # Every DNS errno describes resolver availability; exact ConnectionError is
     # the native connection family, not permission for arbitrary subclasses.
     if timeout or type(cause) in (
-        socket.gaierror, ConnectionError, ConnectionRefusedError, ConnectionResetError,
-        ConnectionAbortedError, BrokenPipeError, ssl.SSLEOFError, ssl.SSLZeroReturnError,
+        socket.gaierror,
+        ConnectionError,
+        ConnectionRefusedError,
+        ConnectionResetError,
+        ConnectionAbortedError,
+        BrokenPipeError,
+        ssl.SSLEOFError,
+        ssl.SSLZeroReturnError,
     ):
         return explicit is None or _availability(
-            explicit, remaining - 1, observation, timeout_cancellation=timeout_cancellation or timeout
+            explicit,
+            remaining - 1,
+            observation,
+            timeout_cancellation=timeout_cancellation or timeout
         )
 
     if isinstance(cause, ssl.SSLError):
@@ -84,9 +93,14 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
     if type(cause) in (OSError, FileNotFoundError):
         if cause.errno is not None:
             available = cause.errno in {
-                errno.ECONNREFUSED, errno.ECONNRESET, errno.ECONNABORTED,
-                errno.ETIMEDOUT, errno.ENETDOWN, errno.ENETUNREACH,
-                errno.EHOSTUNREACH, errno.EPIPE,
+                errno.ECONNREFUSED,
+                errno.ECONNRESET,
+                errno.ECONNABORTED,
+                errno.ETIMEDOUT,
+                errno.ENETDOWN,
+                errno.ENETUNREACH,
+                errno.EHOSTUNREACH,
+                errno.EPIPE,
             } or (
                 cause.errno == errno.ENOENT and observation.stage == "connect_unix"
                 and observation.unix_path is not None
@@ -94,11 +108,17 @@ def _availability(cause, remaining, observation, *, timeout_cancellation=False):
             )
 
             return available and (explicit is None or _availability(
-                explicit, remaining - 1, observation, timeout_cancellation=timeout_cancellation
+                explicit,
+                remaining - 1,
+                observation,
+                timeout_cancellation=timeout_cancellation
             ))
     elif type(cause) not in (
-        httpcore.ConnectError, httpcore.ReadError, httpcore.WriteError,
-        anyio.BrokenResourceError, anyio.EndOfStream,
+        httpcore.ConnectError,
+        httpcore.ReadError,
+        httpcore.WriteError,
+        anyio.BrokenResourceError,
+        anyio.EndOfStream,
     ):
         return False
 
@@ -183,7 +203,11 @@ class OwnedNetworkBackend(httpcore.AsyncNetworkBackend):
 
         with self.io("connect_tcp"):
             raw = await self._backend.connect_tcp(
-                host=host, port=port, timeout=timeout, local_address=local_address, socket_options=socket_options
+                host=host,
+                port=port,
+                timeout=timeout,
+                local_address=local_address,
+                socket_options=socket_options
             )
 
         return self._own(raw)
@@ -300,8 +324,10 @@ class _OwnedStream(httpcore.AsyncNetworkStream):
                     # Finish TLS shutdown instead; HttpTransport's existing
                     # deadlines still bound a peer that never answers.
                     stream = await TLSStream.wrap(
-                        _NetworkByteStream(self._stream, self._close_raw), ssl_context=ssl_context,
-                        hostname=server_hostname, server_side=False,
+                        _NetworkByteStream(self._stream, self._close_raw),
+                        ssl_context=ssl_context,
+                        hostname=server_hostname,
+                        server_side=False,
                         standard_compatible=True,
                     )
 

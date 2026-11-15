@@ -6,7 +6,10 @@ from dataclasses import replace
 from provider_core.attempt_record import ProtectedEvidence, acknowledge_start, mark_execution_entered
 
 from provider_core.producer_checkpoint import (
-    AcknowledgedCheckpoint, EvidenceDigest, TerminalSelectedCheckpoint, encode_checkpoint,
+    AcknowledgedCheckpoint,
+    EvidenceDigest,
+    TerminalSelectedCheckpoint,
+    encode_checkpoint,
 )
 
 from provider_core.attempt_record import TerminalOperation
@@ -30,5 +33,7 @@ class ProducerCheckpointRefusalTests(unittest.TestCase):
             EvidenceDigest("fixture.prepared.v1", "PRIVATE_COORDINATES", 1)
 
         with self.assertRaises(ValueError):
-            TerminalSelectedCheckpoint(AcknowledgedCheckpoint(record(), admission()), TerminalOperation.COMPLETE,
-                                       "PRIVATE_BODY", 10)
+            TerminalSelectedCheckpoint(AcknowledgedCheckpoint(record(), admission()),
+                                       TerminalOperation.COMPLETE,
+                                       "PRIVATE_BODY",
+                                       10)

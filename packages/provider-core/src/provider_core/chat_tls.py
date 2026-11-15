@@ -37,8 +37,12 @@ _SSL_CONTEXT = ssl.SSLContext
 # Supported public TLS settings form a closed snapshot schema.
 # repo-check: allow-module-constant
 _FIELDS = (
-    "options", "verify_flags", "minimum_version", "maximum_version",
-    "hostname_checks_common_name", "post_handshake_auth",
+    "options",
+    "verify_flags",
+    "minimum_version",
+    "maximum_version",
+    "hostname_checks_common_name",
+    "post_handshake_auth",
 )
 
 
@@ -305,8 +309,9 @@ def _cipher_expression(context):
 
 def _material_message(kind, value):
     if kind == "capath":
-        return {"kind": kind, "entries": [
-            {"name": name, "data": base64.b64encode(raw).decode("ascii")} for (name, raw) in value
+        return {"kind": kind,
+            "entries": [
+                {"name": name, "data": base64.b64encode(raw).decode("ascii")} for (name, raw) in value
         ]}
 
     return {"kind": kind, "data": base64.b64encode(value).decode("ascii")}

@@ -22,7 +22,9 @@ class FileResponsePeerTests(unittest.IsolatedAsyncioTestCase):
                 transport = HttpTransport(trust=peer.trust, exchange_seconds=2, retirement_seconds=0.5)
 
                 response = await transport.exchange_file(
-                    httpx.Request("GET", peer.origin + "/input"), output_fd=output.fileno(), maximum_bytes=len(body)
+                    httpx.Request("GET", peer.origin + "/input"),
+                    output_fd=output.fileno(),
+                    maximum_bytes=len(body)
                 )
 
                 self.assertEqual(response.byte_length, len(body))
@@ -52,7 +54,9 @@ class FileResponsePeerTests(unittest.IsolatedAsyncioTestCase):
                 with patch("provider_core.transport.os.write", side_effect=observe_write):
                     task = asyncio.create_task(
                         transport.exchange_file(
-                            httpx.Request("GET", peer.origin + "/input"), output_fd=output.fileno(), maximum_bytes=100
+                            httpx.Request("GET", peer.origin + "/input"),
+                            output_fd=output.fileno(),
+                            maximum_bytes=100
                         )
                     )
 

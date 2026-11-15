@@ -29,11 +29,13 @@ MAKE_PHONY_RE = re.compile(r"^\.PHONY:\s*(?P<names>.*)$", re.MULTILINE)
 # Dapp requires explicit safe discovery; API additionally requires caller-proof
 # ownership. Accept that modifier without admitting a second default authority.
 MAKE_DEFAULT_GOAL_RE = re.compile(
-    r"^(?:override[ \t]+)?\.DEFAULT_GOAL[ \t]*:?=[ \t]*(?P<name>[A-Za-z0-9_/-]+)[ \t]*$", re.MULTILINE
+    r"^(?:override[ \t]+)?\.DEFAULT_GOAL[ \t]*:?=[ \t]*(?P<name>[A-Za-z0-9_/-]+)[ \t]*$",
+    re.MULTILINE
 )
 
 MAKE_DEFAULT_AUTHORITY_RE = re.compile(
-    r"^[ \t]*(?:(?:override|export|private)[ \t]+)*\.DEFAULT_GOAL[ \t]*(?:::?=|[?+!]?=)", re.MULTILINE
+    r"^[ \t]*(?:(?:override|export|private)[ \t]+)*\.DEFAULT_GOAL[ \t]*(?:::?=|[?+!]?=)",
+    re.MULTILINE
 )
 
 FIRST_PARTY_PYTHON_ROOTS = (
@@ -146,7 +148,9 @@ class RepositoryHygieneTest(unittest.TestCase):
         makefile = read_text(repo_path("Makefile"))
 
         self.assertEqual(
-            1, len(MAKE_DEFAULT_AUTHORITY_RE.findall(makefile)), msg="Makefile must have exactly one default-goal assignment"
+            1,
+            len(MAKE_DEFAULT_AUTHORITY_RE.findall(makefile)),
+            msg="Makefile must have exactly one default-goal assignment"
         )
 
         match = MAKE_DEFAULT_GOAL_RE.search(makefile)

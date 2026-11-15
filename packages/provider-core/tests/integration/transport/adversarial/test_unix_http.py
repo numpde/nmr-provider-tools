@@ -49,7 +49,9 @@ class UnixHTTPRefusalTests(unittest.IsolatedAsyncioTestCase):
 
             with patch.object(_OwnedStream, "aclose", held_close):
                 task = asyncio.create_task(transport.exchange(
-                    httpx.Request("POST", DELIVERY_ORIGIN + "/submit", content=b"ONE_OUTCOME"), maximum_bytes=2, owner=owner
+                    httpx.Request("POST", DELIVERY_ORIGIN + "/submit", content=b"ONE_OUTCOME"),
+                    maximum_bytes=2,
+                    owner=owner
                 ))
 
                 try:

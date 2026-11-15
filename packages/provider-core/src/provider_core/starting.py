@@ -161,7 +161,9 @@ class AttemptStarter:
             raise
         except (StartRefused, ExchangeFailed) as cause:
             raise self._remember(
-                "Cannot settle Attempt start; preserve primary evidence and the start claim", cause, settlement=True
+                "Cannot settle Attempt start; preserve primary evidence and the start claim",
+                cause,
+                settlement=True
             ) from None
         finally:
             self._observing = False

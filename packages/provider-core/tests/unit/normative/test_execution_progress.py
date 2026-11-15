@@ -47,7 +47,11 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
             task_settle_seconds=0.1,
             on_unconfirmed_phase_progress=unconfirmed,
@@ -65,7 +69,8 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
         commands = [json.loads(request.content) for (request, _) in transport.calls if request.method == "PUT"]
 
         self.assertEqual(
-            [(item["phase"], item["condition_code"]) for item in commands], [("preparing", None), ("running", None)]
+            [(item["phase"], item["condition_code"]) for item in commands],
+            [("preparing", None), ("running", None)]
         )
 
         self.assertIsNone(executor.last_failure)
@@ -82,7 +87,11 @@ class PhaseProgressTests(unittest.IsolatedAsyncioTestCase):
                 store,
                 claim,
                 session,
-                delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+                delivery=RecordingDelivery(),
+                on_delivery_retry=Mock(),
+                delivery_retry_initial_seconds=0.01,
+                delivery_retry_max_seconds=0.04,
+                allowed_job_states=frozenset({"open"}),
                 poll_seconds=1,
                 task_settle_seconds=0.1,
                 on_unconfirmed_phase_progress=False,

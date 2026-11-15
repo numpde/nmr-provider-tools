@@ -20,9 +20,12 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         (_, _, store, _) = file_sources()
         deadline = asyncio.get_running_loop().time() + 0.1
 
-        transfer = UploadTransfer("job:example", store=store, store_origin="https://store.example",
+        transfer = UploadTransfer("job:example",
+                                  store=store,
+                                  store_origin="https://store.example",
                                   remaining=lambda: deadline - asyncio.get_running_loop().time(),
-                                  before_request=lambda: None, account=lambda _count: None)
+                                  before_request=lambda: None,
+                                  account=lambda _count: None)
 
         original = RuntimeError("grant owner retained an interrupted exchange")
 
@@ -55,17 +58,24 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
     async def test_forged_grant_is_rejected_before_sending_bearer(self):
         (_, api, store, client) = file_sources()
 
-        for change in ({"upload_ref": "bad?query"}, {"content_hash": "bad"},
-                       {"byte_length": True}, {"expires_at": datetime(2099, 1, 1)},
+        for change in ({"upload_ref": "bad?query"},
+                       {"content_hash": "bad"},
+                       {"byte_length": True},
+                       {"expires_at": datetime(2099, 1, 1)},
                        {"capability": "x" * 2049}):
             with self.subTest(change=change), private_source_directory() as (root, directory), patch(
-                "provider_core.transport.httpcore.AsyncConnectionPool", return_value=client
+                "provider_core.transport.httpcore.AsyncConnectionPool",
+                return_value=client
             ):
                 async def grant():
                     return replace(api.grant, **change)
 
-                transfer = UploadTransfer("job:example", store=store, store_origin="https://store.example",
-                                          remaining=lambda: 1, before_request=lambda: None, account=lambda _count: None)
+                transfer = UploadTransfer("job:example",
+                                          store=store,
+                                          store_origin="https://store.example",
+                                          remaining=lambda: 1,
+                                          before_request=lambda: None,
+                                          account=lambda _count: None)
 
                 with self.assertRaises(UploadFailed):
                     await transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1)
@@ -83,11 +93,16 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         def before_request():
             raise original
 
-        transfer = UploadTransfer("job:example", store=store, store_origin="https://store.example",
-                                  remaining=lambda: 1, before_request=before_request, account=lambda _count: None)
+        transfer = UploadTransfer("job:example",
+                                  store=store,
+                                  store_origin="https://store.example",
+                                  remaining=lambda: 1,
+                                  before_request=before_request,
+                                  account=lambda _count: None)
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool", return_value=client
+            "provider_core.transport.httpcore.AsyncConnectionPool",
+            return_value=client
         ):
             with self.assertRaises(UploadFailed) as caught:
                 await transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1)
@@ -105,12 +120,16 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         async def grant():
             return api.grant
 
-        transfer = UploadTransfer("job:example", store=store, store_origin="https://store.example",
+        transfer = UploadTransfer("job:example",
+                                  store=store,
+                                  store_origin="https://store.example",
                                   remaining=lambda: deadline - asyncio.get_running_loop().time(),
-                                  before_request=lambda: None, account=lambda _count: None)
+                                  before_request=lambda: None,
+                                  account=lambda _count: None)
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool", return_value=client
+            "provider_core.transport.httpcore.AsyncConnectionPool",
+            return_value=client
         ):
             with self.assertRaisesRegex(UploadFailed, "deadline expired") as caught:
                 await asyncio.wait_for(transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1), 2)
@@ -129,11 +148,16 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         def account(_count):
             raise original
 
-        transfer = UploadTransfer("job:example", store=store, store_origin="https://store.example",
-                                  remaining=lambda: 1, before_request=lambda: None, account=account)
+        transfer = UploadTransfer("job:example",
+                                  store=store,
+                                  store_origin="https://store.example",
+                                  remaining=lambda: 1,
+                                  before_request=lambda: None,
+                                  account=account)
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool", return_value=client
+            "provider_core.transport.httpcore.AsyncConnectionPool",
+            return_value=client
         ):
             with self.assertRaises(UploadFailed) as caught:
                 await transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1)
@@ -159,11 +183,16 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
 
             return write(descriptor, data)
 
-        transfer = UploadTransfer("job:example", store=store, store_origin="https://store.example",
-                                  remaining=lambda: 1, before_request=lambda: None, account=lambda _count: None)
+        transfer = UploadTransfer("job:example",
+                                  store=store,
+                                  store_origin="https://store.example",
+                                  remaining=lambda: 1,
+                                  before_request=lambda: None,
+                                  account=lambda _count: None)
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool", return_value=client
+            "provider_core.transport.httpcore.AsyncConnectionPool",
+            return_value=client
         ), patch("provider_core.transport.os.write", side_effect=held_write):
             task = asyncio.create_task(transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1))
 
@@ -196,8 +225,12 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         async def grant():
             raise original
 
-        transfer = UploadTransfer("job:example", store=store, store_origin="https://store.example",
-                                  remaining=lambda: 1, before_request=lambda: None, account=lambda _count: None)
+        transfer = UploadTransfer("job:example",
+                                  store=store,
+                                  store_origin="https://store.example",
+                                  remaining=lambda: 1,
+                                  before_request=lambda: None,
+                                  account=lambda _count: None)
 
         with private_source_directory() as (root, directory):
             with self.assertRaises(UploadFailed) as caught:
@@ -213,11 +246,16 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         charged = []
 
 
-        transfer = UploadTransfer("job:example", store=store, store_origin="https://store.example",
-                                  remaining=lambda: 1, before_request=lambda: None, account=charged.append)
+        transfer = UploadTransfer("job:example",
+                                  store=store,
+                                  store_origin="https://store.example",
+                                  remaining=lambda: 1,
+                                  before_request=lambda: None,
+                                  account=charged.append)
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool", return_value=client
+            "provider_core.transport.httpcore.AsyncConnectionPool",
+            return_value=client
         ):
             async def grant():
                 self.assertEqual(len(list(Path(root).iterdir())), 1)
@@ -239,11 +277,16 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         async def grant():
             return api.grant
 
-        transfer = UploadTransfer("job:example", store=store, store_origin="https://store.example",
-                                  remaining=lambda: 1, before_request=lambda: None, account=lambda _count: None)
+        transfer = UploadTransfer("job:example",
+                                  store=store,
+                                  store_origin="https://store.example",
+                                  remaining=lambda: 1,
+                                  before_request=lambda: None,
+                                  account=lambda _count: None)
 
         with private_source_directory() as (root, directory), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool", return_value=client
+            "provider_core.transport.httpcore.AsyncConnectionPool",
+            return_value=client
         ):
             with self.assertRaises(UploadFailed) as caught:
                 await transfer.acquire_file(grant, directory_fd=directory, retirement_seconds=0.1)

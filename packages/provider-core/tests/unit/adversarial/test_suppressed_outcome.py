@@ -26,13 +26,25 @@ async def stopped_executor(retirement_failure):
     session = Session(store)
     session.retirement_failure = retirement_failure
 
-    transport = Transport(reply(observation()), reply(response()), reply(progress_response()), reply(observation()),
-                          reply(progress_response(phase="running")), reply(observation()), reply(observation(job_state="closed")))
+    transport = Transport(reply(observation()),
+                          reply(response()),
+                          reply(progress_response()),
+                          reply(observation()),
+                          reply(progress_response(phase="running")),
+                          reply(observation()),
+                          reply(observation(job_state="closed")))
 
-    executor = live_executor(api(transport, store.scope.api_origin), store, claim, session,
-                               delivery=RecordingDelivery(), on_delivery_retry=unexpected_delivery_retry,
-                               delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-                               allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+    executor = live_executor(api(transport, store.scope.api_origin),
+                               store,
+                               claim,
+                               session,
+                               delivery=RecordingDelivery(),
+                               on_delivery_retry=unexpected_delivery_retry,
+                               delivery_retry_initial_seconds=0.01,
+                               delivery_retry_max_seconds=0.04,
+                               allowed_job_states=frozenset({"open"}),
+                               poll_seconds=1,
+                               task_settle_seconds=0.1)
 
     try:
         await executor.run(acknowledged)
@@ -64,13 +76,24 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
         (store, acknowledged, claim) = await live_attempt()
         session = Session(store)
 
-        transport = PendingTransport(reply(observation()), reply(response()), reply(progress_response()), reply(observation()),
-                                     reply(progress_response(phase="running")), reply(observation()))
+        transport = PendingTransport(reply(observation()),
+                                     reply(response()),
+                                     reply(progress_response()),
+                                     reply(observation()),
+                                     reply(progress_response(phase="running")),
+                                     reply(observation()))
 
-        executor = live_executor(api(transport, store.scope.api_origin), store, claim, session,
-                           delivery=RecordingDelivery(), on_delivery_retry=unexpected_delivery_retry,
-                           delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-                                   allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+        executor = live_executor(api(transport, store.scope.api_origin),
+                           store,
+                           claim,
+                           session,
+                           delivery=RecordingDelivery(),
+                           on_delivery_retry=unexpected_delivery_retry,
+                           delivery_retry_initial_seconds=0.01,
+                           delivery_retry_max_seconds=0.04,
+                                   allowed_job_states=frozenset({"open"}),
+                           poll_seconds=1,
+                           task_settle_seconds=0.1)
 
         task = asyncio.create_task(executor.run(acknowledged))
         await asyncio.wait_for(reading.wait(), 1)
@@ -101,13 +124,22 @@ class SuppressionOutcomeTests(unittest.IsolatedAsyncioTestCase):
         session = Session(store)
         session.preparation = AnalysisFailure("invalid_input", "Supply coordinates.", ProtectedEvidence("evidence.v1", b"reason"))
 
-        transport = Transport(reply(observation()), reply(response()), reply(progress_response()),
+        transport = Transport(reply(observation()),
+                              reply(response()),
+                              reply(progress_response()),
                               reply(observation(job_state="closed")))
 
-        executor = live_executor(api(transport, store.scope.api_origin), store, claim, session,
-                           delivery=RecordingDelivery(), on_delivery_retry=unexpected_delivery_retry,
-                           delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-                                   allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+        executor = live_executor(api(transport, store.scope.api_origin),
+                           store,
+                           claim,
+                           session,
+                           delivery=RecordingDelivery(),
+                           on_delivery_retry=unexpected_delivery_retry,
+                           delivery_retry_initial_seconds=0.01,
+                           delivery_retry_max_seconds=0.04,
+                                   allowed_job_states=frozenset({"open"}),
+                           poll_seconds=1,
+                           task_settle_seconds=0.1)
 
         with self.assertRaises(ExecutionFailed):
             await executor.run(acknowledged)

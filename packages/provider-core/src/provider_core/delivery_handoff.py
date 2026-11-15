@@ -45,11 +45,15 @@ def _decoded(value):
 
 def publication_bytes(material):
     # silent-defaults: allow-contract -- An absent CA explicitly selects the delivery image's system trust roots.
-    document = {"api": material.api_fields(), "credential": _encoded(material.credential_bytes),
+    document = {"api": material.api_fields(),
+                "credential": _encoded(material.credential_bytes),
                 "ca": None if material.ca_bytes is None else _encoded(material.ca_bytes)}
 
-    return json.dumps(document, sort_keys=True, separators=(",", ":"),
-                      ensure_ascii=True, allow_nan=False).encode("ascii")
+    return json.dumps(document,
+                      sort_keys=True,
+                      separators=(",", ":"),
+                      ensure_ascii=True,
+                      allow_nan=False).encode("ascii")
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -66,7 +70,8 @@ class DeliveryHandoff:
 
     def publication_document(self):
         # silent-defaults: allow-contract -- An absent CA explicitly selects the delivery image's system trust roots.
-        return {"api": self.publication.api_fields(), "credential": _encoded(self.publication.credential_bytes),
+        return {"api": self.publication.api_fields(),
+                "credential": _encoded(self.publication.credential_bytes),
                 "ca": None if self.publication.ca_bytes is None else _encoded(self.publication.ca_bytes)}
 
     def acceptance(self):
@@ -81,8 +86,11 @@ class DeliveryHandoff:
         item = self.outcome
 
         document = self.publication_document() | {
-            "outcome": {"api_origin": item.api_origin, "provider_ref": item.provider_ref, "job_ref": item.job_ref,
-                        "execution_attempt_ref": item.execution_attempt_ref, "operation": item.operation.value,
+            "outcome": {"api_origin": item.api_origin,
+                        "provider_ref": item.provider_ref,
+                        "job_ref": item.job_ref,
+                        "execution_attempt_ref": item.execution_attempt_ref,
+                        "operation": item.operation.value,
                         "body": _encoded(item.body)}
         }
 
@@ -106,7 +114,12 @@ def read_delivery_handoff(raw):
         (api, outcome) = (document["api"], document["outcome"])
 
         if type(api) is not dict or type(outcome) is not dict or set(outcome) != {
-            "api_origin", "provider_ref", "job_ref", "execution_attempt_ref", "operation", "body"
+            "api_origin",
+            "provider_ref",
+            "job_ref",
+            "execution_attempt_ref",
+            "operation",
+            "body"
         }:
             raise DeliveryHandoffRejected("Delivery handoff requires complete API and outcome fields.")
 
@@ -117,12 +130,20 @@ def read_delivery_handoff(raw):
 
         (settings, provider_ref) = api_settings_from_material(api, credential_bytes=credential, ca_bytes=ca)
 
-        material = ApiPublicationMaterial(settings.identity.origin, api["profile"], settings.expected_topology,
-                                          provider_ref, settings.http.exchange_seconds, settings.http.retirement_seconds,
-                                          credential, ca)
+        material = ApiPublicationMaterial(settings.identity.origin,
+                                          api["profile"],
+                                          settings.expected_topology,
+                                          provider_ref,
+                                          settings.http.exchange_seconds,
+                                          settings.http.retirement_seconds,
+                                          credential,
+                                          ca)
 
-        item = DeliveryOutcome(outcome["api_origin"], outcome["provider_ref"], outcome["job_ref"],
-                               outcome["execution_attempt_ref"], TerminalOperation(outcome["operation"]),
+        item = DeliveryOutcome(outcome["api_origin"],
+                               outcome["provider_ref"],
+                               outcome["job_ref"],
+                               outcome["execution_attempt_ref"],
+                               TerminalOperation(outcome["operation"]),
                                _decoded(outcome["body"]))
 
         return DeliveryHandoff(item, material)

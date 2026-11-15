@@ -48,7 +48,11 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             store,
             AttemptClaims.live(),
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
             task_settle_seconds=0.1,
         )
@@ -92,7 +96,11 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
             task_settle_seconds=0.01,
         )
@@ -137,9 +145,17 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         transport = Transport(reply(observation()), ExchangeFailed("Authored input-response failure"))
         client = api(transport, store.scope.api_origin)
 
-        executor = live_executor(client, store, claim, session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
-            delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=1)
+        executor = live_executor(client,
+            store,
+            claim,
+            session,
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=1)
 
         task = asyncio.create_task(executor.run(acknowledged))
 
@@ -186,7 +202,17 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         client = api(transport, store.scope.api_origin)
 
         executor = live_executor(
-            client, store, claim, session, delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1
+            client,
+            store,
+            claim,
+            session,
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=0.1
         )
 
         with self.assertRaises(asyncio.CancelledError) as caught:
@@ -223,7 +249,11 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
             task_settle_seconds=0.1,
         )
@@ -246,7 +276,11 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
             task_settle_seconds=0.1,
         )
@@ -274,9 +308,16 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
 
         executor = live_executor(
             api(normal_transport(last_observation=observation(job_state="closed")), store.scope.api_origin),
-            store, claim, session, delivery=RecordingDelivery(), on_delivery_retry=Mock(),
-            delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-            allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1,
+            store,
+            claim,
+            session,
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=0.1,
         )
 
         with self.assertRaises(ExecutionFailed) as failed:
@@ -294,9 +335,17 @@ class ExecutionFailureTests(unittest.IsolatedAsyncioTestCase):
         cleanup = RuntimeError("private retirement cause")
         session.retirement_failure = cleanup
 
-        executor = live_executor(api(normal_transport(), store.scope.api_origin), store, claim, session,
-            delivery=delivery, on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
-            delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+        executor = live_executor(api(normal_transport(), store.scope.api_origin),
+            store,
+            claim,
+            session,
+            delivery=delivery,
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=0.1)
 
         with self.assertRaises(ExecutionFailed) as failed:
             await executor.run(acknowledged)

@@ -14,8 +14,11 @@ class RunnerTests(unittest.TestCase):
     def test_protected_failure_projection_keeps_stopped_child_and_unreleased_scratch_facts(self):
         failure = LifecycleRejected("Child stopped; scratch remains held", returncode=-9, scratch_released=False)
 
-        self.assertEqual(owned_details(failure), {
-            "message": "Child stopped; scratch remains held", "returncode": -9, "scratch_released": False,
+        self.assertEqual(owned_details(failure),
+            {
+                "message": "Child stopped; scratch remains held",
+                "returncode": -9,
+                "scratch_released": False,
         })
 
     def setUp(self):

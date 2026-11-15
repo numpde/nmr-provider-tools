@@ -60,7 +60,9 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
             patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client),
         ):
             response = await transport.exchange_file(
-                httpx.Request("GET", "https://api.example/input"), output_fd=output.fileno(), maximum_bytes=0
+                httpx.Request("GET", "https://api.example/input"),
+                output_fd=output.fileno(),
+                maximum_bytes=0
             )
 
             self.assertEqual((response.status, response.byte_length), (204, 0))
@@ -80,7 +82,9 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
             output.seek(7)
 
             response = await transport.exchange_file(
-                httpx.Request("GET", "https://api.example/input"), output_fd=output.fileno(), maximum_bytes=4
+                httpx.Request("GET", "https://api.example/input"),
+                output_fd=output.fileno(),
+                maximum_bytes=4
             )
 
             self.assertEqual(response.byte_length, 4)

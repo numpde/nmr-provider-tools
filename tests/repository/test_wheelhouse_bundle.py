@@ -30,7 +30,9 @@ class WheelhouseBundleTests(unittest.TestCase):
 
             result = subprocess.run([*command, "list", "--format=json"],
                                     env=os.environ | {"PYTHONPATH": str(root / "checker-site")},
-                                    check=True, capture_output=True, text=True)
+                                    check=True,
+                                    capture_output=True,
+                                    text=True)
 
             self.assertNotIn("checker-only-canary", {item["name"] for item in json.loads(result.stdout)})
 

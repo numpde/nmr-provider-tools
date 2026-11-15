@@ -38,8 +38,16 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             queue.close()
             output = io.StringIO()
 
-            argv = ["delivery_discard", "--shared-config", str(config), "--state-directory", str(root),
-                    "--api-origin", item.api_origin, "--provider-ref", item.provider_ref, "--list-held"]
+            argv = ["delivery_discard",
+                    "--shared-config",
+                    str(config),
+                    "--state-directory",
+                    str(root),
+                    "--api-origin",
+                    item.api_origin,
+                    "--provider-ref",
+                    item.provider_ref,
+                    "--list-held"]
 
             with patch("sys.argv", argv), contextlib.redirect_stdout(output):
                 delivery_discard.main()
@@ -65,18 +73,28 @@ class SharedDeliveryConfigurationTests(unittest.TestCase):
             settings = live.read()
             notices = Mock()
 
-            service = SharedDeliveryService(root / "state", limits=settings.limits,
-                socket=SharedDeliverySocket(root / "delivery.sock", None), proxy_socket=root / "proxy.sock",
-                request_seconds=1, retry_initial_seconds=1, retry_max_seconds=10,
-                on_notice=notices, diagnostic_status=Mock(), live_configuration=live)
+            service = SharedDeliveryService(root / "state",
+                limits=settings.limits,
+                socket=SharedDeliverySocket(root / "delivery.sock", None),
+                proxy_socket=root / "proxy.sock",
+                request_seconds=1,
+                retry_initial_seconds=1,
+                retry_max_seconds=10,
+                on_notice=notices,
+                diagnostic_status=Mock(),
+                live_configuration=live)
 
             service.queue = DeliveryQueue(root / "state", limits=settings.limits)
             self.addCleanup(service.queue.close)
             worker = SimpleNamespace(retry_initial_seconds=1, retry_max_seconds=10, policy_changed=asyncio.Event())
             service.workers[("https://api.example", "provider:example")] = worker
 
-            fields = {"origin": "https://api.example", "profile": "dev-local", "topology": "dev-local",
-                      "provider_ref": "provider:example", "exchange_seconds": 1, "retirement_seconds": 1,
+            fields = {"origin": "https://api.example",
+                      "profile": "dev-local",
+                      "topology": "dev-local",
+                      "provider_ref": "provider:example",
+                      "exchange_seconds": 1,
+                      "retirement_seconds": 1,
                       "credential_file": "/gone/key"}
 
             (_, _, material) = api_settings_with_material(fields, Mock(return_value=encoded(document())))

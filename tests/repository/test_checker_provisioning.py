@@ -32,7 +32,10 @@ class CheckerProvisioningTests(unittest.TestCase):
     def shell(self, source):
         return subprocess.run(
             ["bash", "-eu", "-o", "pipefail", "-c", source, "bash", str(self.root)],
-            env=self.environment, capture_output=True, text=True, check=False,
+            env=self.environment,
+            capture_output=True,
+            text=True,
+            check=False,
         )
 
     def invoke_make(self, target, *, wheelhouse, interface):
@@ -48,8 +51,10 @@ class CheckerProvisioningTests(unittest.TestCase):
         return subprocess.run(arguments, cwd=self.root, env=self.environment, capture_output=True, text=True, check=False)
 
     def test_explicit_empty_and_environment_only_selectors_do_not_authorize_acquisition(self):
-        self.environment |= {"WHEELHOUSE": str(self.root), "WHEELHOUSE_INPUT": str(self.root),
-                             "WHEELHOUSE_INPUT_ORIGIN": "command line", "NETWORK_INTERFACE_INPUT": "lo"}
+        self.environment |= {"WHEELHOUSE": str(self.root),
+                             "WHEELHOUSE_INPUT": str(self.root),
+                             "WHEELHOUSE_INPUT_ORIGIN": "command line",
+                             "NETWORK_INTERFACE_INPUT": "lo"}
 
         cases = (("", "lo", "WHEELHOUSE cannot be empty"),
                  (None, "lo", "WHEELHOUSE must be set on the make command line"),
@@ -136,9 +141,18 @@ if checker_admit_image "$fingerprint" checker; then [[ $checker_image == "$ident
 
     def test_sdk_acquisition_prepares_the_stdlib_bootstrap_before_installer_workers(self):
         result = subprocess.run(
-            ["make", "--no-print-directory", "--dry-run", "packages/provider-core/download",
-             "DOCKER_CONTEXT=default", f"WHEELHOUSE={self.root}", "NETWORK_INTERFACE=lo"],
-            cwd=self.root, env=self.environment, check=True, capture_output=True, text=True,
+            ["make",
+             "--no-print-directory",
+             "--dry-run",
+             "packages/provider-core/download",
+             "DOCKER_CONTEXT=default",
+             f"WHEELHOUSE={self.root}",
+             "NETWORK_INTERFACE=lo"],
+            cwd=self.root,
+            env=self.environment,
+            check=True,
+            capture_output=True,
+            text=True,
         )
 
         self.assertLess(result.stdout.index("bash host/tools/checker.sh prepare"),

@@ -36,9 +36,11 @@ class AttemptInventoryTests(unittest.IsolatedAsyncioTestCase):
     def test_mixed_analysis_kinds_and_order_survive_as_immutable_observations(self):
         first = attempt()
 
-        second = attempt(analysis_kind_ref="nmr_rank", job_ref="job:other",
+        second = attempt(analysis_kind_ref="nmr_rank",
+                         job_ref="job:other",
                          execution_attempt_ref="execution_attempt:sha256:" + "b" * 64,
-                         provider_attempt_key="other-start:02", started_at="2026-10-18T00:00:01Z")
+                         provider_attempt_key="other-start:02",
+                         started_at="2026-10-18T00:00:01Z")
 
         for order in ((first, second), (second, first)):
             with self.subTest(order=order[0]["job_ref"]):

@@ -80,15 +80,25 @@ class PublicationTests(unittest.TestCase):
             selected_environment.update(environment)
 
         return subprocess.run(
-            ["bash", str(self.root / "host/tools/publish.sh"), action], cwd=self.root,
-            env={"PATH": str(self.bin) + os.pathsep + os.defpath, "TMPDIR": str(self.root),
-                 "TAG_INPUT_ORIGIN": "command line", "TAG_INPUT": "v0.2.0",
-                 "ARTIFACTS_INPUT_ORIGIN": "command line", "ARTIFACTS_INPUT": str(self.inputs),
-                 "OUTPUT_INPUT_ORIGIN": "command line", "OUTPUT_INPUT": str(self.root / "prepared"),
-                 "WHEELHOUSE_INPUT_ORIGIN": "command line", "WHEELHOUSE_INPUT": str(self.root / "pool"),
-                 "PUBLISH_TEST_MODE": scenario, "PUBLISH_TEST_TRACE": str(self.trace),
+            ["bash", str(self.root / "host/tools/publish.sh"), action],
+            cwd=self.root,
+            env={"PATH": str(self.bin) + os.pathsep + os.defpath,
+                 "TMPDIR": str(self.root),
+                 "TAG_INPUT_ORIGIN": "command line",
+                 "TAG_INPUT": "v0.2.0",
+                 "ARTIFACTS_INPUT_ORIGIN": "command line",
+                 "ARTIFACTS_INPUT": str(self.inputs),
+                 "OUTPUT_INPUT_ORIGIN": "command line",
+                 "OUTPUT_INPUT": str(self.root / "prepared"),
+                 "WHEELHOUSE_INPUT_ORIGIN": "command line",
+                 "WHEELHOUSE_INPUT": str(self.root / "pool"),
+                 "PUBLISH_TEST_MODE": scenario,
+                 "PUBLISH_TEST_TRACE": str(self.trace),
                  **selected_environment},
-            capture_output=True, text=True, timeout=15, check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
         )
 
     def test_prepare_keeps_authored_note_and_qualified_files_without_github_access(self):
@@ -101,8 +111,11 @@ class PublicationTests(unittest.TestCase):
         self.assertNotIn("gh ", self.trace.read_text())
 
     def test_prepare_missing_output_explains_how_to_create_a_private_destination(self):
-        result = self.run_publisher("publish", "prepare", environment={
-            "OUTPUT_INPUT_ORIGIN": "undefined", "OUTPUT_INPUT": "",
+        result = self.run_publisher("publish",
+            "prepare",
+            environment={
+                "OUTPUT_INPUT_ORIGIN": "undefined",
+                "OUTPUT_INPUT": "",
         })
 
         self.assertEqual(2, result.returncode, msg=result.stderr)
@@ -126,8 +139,11 @@ class PublicationTests(unittest.TestCase):
         self.assertNotIn("gh ", self.trace.read_text())
 
     def test_release_requires_the_reviewed_prepare_directory(self):
-        result = self.run_publisher("publish", "release", environment={
-            "ARTIFACTS_INPUT_ORIGIN": "undefined", "ARTIFACTS_INPUT": "",
+        result = self.run_publisher("publish",
+            "release",
+            environment={
+                "ARTIFACTS_INPUT_ORIGIN": "undefined",
+                "ARTIFACTS_INPUT": "",
         })
 
         self.assertEqual(2, result.returncode, msg=result.stderr)
@@ -140,8 +156,10 @@ class PublicationTests(unittest.TestCase):
         selected = self.inputs / "artifacts"
         selected.chmod(0o700)
 
-        result = self.run_publisher("publish", "release", environment={
-            "ARTIFACTS_INPUT": str(selected),
+        result = self.run_publisher("publish",
+            "release",
+            environment={
+                "ARTIFACTS_INPUT": str(selected),
         })
 
         self.assertEqual(2, result.returncode, msg=result.stderr)

@@ -9,8 +9,13 @@ from provider_core.attempt_response import read_start
 from provider_core.ownership import AttemptClaims
 
 from provider_core.producer_checkpoint import (
-    AcknowledgedCheckpoint, DeliveryAcceptedCheckpoint, EnteredCheckpoint,
-    EvidenceDigest, SuppressedCheckpoint, TerminalSelectedCheckpoint, encode_checkpoint,
+    AcknowledgedCheckpoint,
+    DeliveryAcceptedCheckpoint,
+    EnteredCheckpoint,
+    EvidenceDigest,
+    SuppressedCheckpoint,
+    TerminalSelectedCheckpoint,
+    encode_checkpoint,
 )
 
 from tests.fakes.attempt_store import record, scope
@@ -24,7 +29,9 @@ class LiveControlBudgetTests(unittest.IsolatedAsyncioTestCase):
         body = start_body(job, "k" * 128)
         body += b" " * (4096 - len(body))
 
-        largest_scope = replace(scope(), provider_ref=provider, consumer_id="\U0001f9ea" * 1024,
+        largest_scope = replace(scope(),
+                                provider_ref=provider,
+                                consumer_id="\U0001f9ea" * 1024,
                                 generation_id="\U0001f9ea" * 1024)
 
         pending = StartPending(largest_scope, kind, facts, body)
@@ -34,9 +41,13 @@ class LiveControlBudgetTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(4096, len(pending.body))
 
         admission = read_start(
-            start_response(job_ref=job, provider_ref=provider, analysis_kind_ref=kind,
+            start_response(job_ref=job,
+                           provider_ref=provider,
+                           analysis_kind_ref=kind,
                            started_at="9999-12-31T23:59:59.999999Z"),
-            job_ref=job, provider_ref=provider, analysis_kind_ref=kind,
+            job_ref=job,
+            provider_ref=provider,
+            analysis_kind_ref=kind,
         )
 
         acknowledged = AcknowledgedCheckpoint(pending, admission)

@@ -531,8 +531,16 @@ def _exception_outcome_contract(handler, protected):
     if handler.type is None:
         return False
 
-    if any(isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.Try, ast.With,
-                             ast.AsyncWith, ast.For, ast.AsyncFor, ast.While))
+    if any(isinstance(node,
+        (ast.FunctionDef,
+                             ast.AsyncFunctionDef,
+                             ast.Lambda,
+                             ast.Try,
+                             ast.With,
+                             ast.AsyncWith,
+                             ast.For,
+                             ast.AsyncFor,
+                             ast.While))
            for statement in handler.body for node in ast.walk(statement)):
         return False
 

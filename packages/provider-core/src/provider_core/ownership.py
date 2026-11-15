@@ -36,7 +36,9 @@ class LiveAttemptLimits:
 
     def __post_init__(self):
         if any(type(value) is not int or value <= 0 for value in (
-            self.maximum_attempts, self.maximum_control_bytes, self.maximum_pending_terminal_bytes,
+            self.maximum_attempts,
+            self.maximum_control_bytes,
+            self.maximum_pending_terminal_bytes,
         )):
             raise ValueError("Live Attempt limits require positive integer allowances")
 

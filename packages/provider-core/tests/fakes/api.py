@@ -89,7 +89,9 @@ def api(transport, origin):
     """Use a disposable signing identity with the explicitly selected transport."""
 
     return ProviderAPI(
-        SigningIdentity(origin, "credential:test", Ed25519PrivateKey.generate()), transport, expected_topology="dev-local"
+        SigningIdentity(origin, "credential:test", Ed25519PrivateKey.generate()),
+        transport,
+        expected_topology="dev-local"
     )
 
 

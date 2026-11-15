@@ -55,8 +55,13 @@ class LauncherTests(unittest.TestCase):
 
         result = subprocess.run(
             ["make", "--no-print-directory", "tests/repository/command"],
-            cwd=ROOT, env=environment, stdin=subprocess.DEVNULL, start_new_session=True,
-            capture_output=True, text=True, check=False,
+            cwd=ROOT,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,
+            capture_output=True,
+            text=True,
+            check=False,
         )
 
         self.assertNotEqual(0, result.returncode)
@@ -130,7 +135,11 @@ class LauncherTests(unittest.TestCase):
 
             result = subprocess.run(
                 ["make", "--no-print-directory", "--dry-run", "tests/repository/command", "checks/image/build", "DOCKER_CONTEXT=local-test"],
-                cwd=ROOT, env=environment, capture_output=True, text=True, check=False,
+                cwd=ROOT,
+                env=environment,
+                capture_output=True,
+                text=True,
+                check=False,
             )
 
             self.assertEqual(0, result.returncode, msg=result.stderr)

@@ -18,9 +18,18 @@ class InstallationContractTests(unittest.TestCase):
             path.chmod(0o600)
 
             result = subprocess.run(
-                [sys.executable, "-I", "-B", "-m", "provider_core.deployment_binding", "paths",
-                 "--definition", str(path), "--all"],
-                capture_output=True, text=True, check=False,
+                [sys.executable,
+                 "-I",
+                 "-B",
+                 "-m",
+                 "provider_core.deployment_binding",
+                 "paths",
+                 "--definition",
+                 str(path),
+                 "--all"],
+                capture_output=True,
+                text=True,
+                check=False,
             )
 
         self.assertEqual(2, result.returncode, msg=result.stderr)
@@ -32,7 +41,9 @@ class InstallationContractTests(unittest.TestCase):
     def test_delivery_client_handoff_without_execution_controller_modules(self):
         result = subprocess.run(
             [sys.executable, "-I", "-B", str(Path(__file__).with_name("client_only.py"))],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
 
         self.assertEqual(0, result.returncode, msg=result.stderr)
@@ -147,8 +158,14 @@ class InstallationContractTests(unittest.TestCase):
         )
 
         self.assertEqual(
-            set(distribution.requires), {f'{requirement}; extra == "api"' for requirement in (
-                "cryptography==50.0.0", "http-sf==1.2.1", "httpx==0.28.1", "httpcore==1.0.9", "h11==0.16.0", "tomli-w==1.2.0",
+            set(distribution.requires),
+            {f'{requirement}; extra == "api"' for requirement in (
+                "cryptography==50.0.0",
+                "http-sf==1.2.1",
+                "httpx==0.28.1",
+                "httpcore==1.0.9",
+                "h11==0.16.0",
+                "tomli-w==1.2.0",
             )}
         )
 

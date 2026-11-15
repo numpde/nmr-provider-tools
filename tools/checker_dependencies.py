@@ -215,7 +215,9 @@ def install(packages, directory):
     for package in packages:
         observed = subprocess.run(
             ["dpkg-query", "--show", "--showformat=${Version}", package["name"]],
-            check=True, capture_output=True, text=True,
+            check=True,
+            capture_output=True,
+            text=True,
         ).stdout
 
         if observed != package["version"]:

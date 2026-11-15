@@ -38,7 +38,8 @@ class ApiInputIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     self.assertEqual(len(peer.requests), 1)
 
                     self.assertIn(
-                        b"GET /provider/v1/jobs/job:example/input?analysis_kind_ref=nmr_prediction HTTP/1.1", peer.requests[0]
+                        b"GET /provider/v1/jobs/job:example/input?analysis_kind_ref=nmr_prediction HTTP/1.1",
+                        peer.requests[0]
                     )
 
                     self.assertIn(b"Signature:", peer.requests[0])

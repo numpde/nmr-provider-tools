@@ -93,7 +93,11 @@ async def child(owner_kind, failure_kind):
         session.events.append(("prepare",))
 
         child_processes.append(await asyncio.create_subprocess_exec(
-            sys.executable, "-I", "-B", "-c", "import signal; signal.pause()"))
+            sys.executable,
+            "-I",
+            "-B",
+            "-c",
+            "import signal; signal.pause()"))
 
         entered.set()
 
@@ -131,9 +135,13 @@ async def child(owner_kind, failure_kind):
     transport = Transport(*prefix, reply(observation()), reply(response()), reply(progress_response()))
     client = api(transport, probe.scope.api_origin)
 
-    settings = dict(delivery=delivery, on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
-                    delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
-                    poll_seconds=1, task_settle_seconds=1)
+    settings = dict(delivery=delivery,
+                    on_delivery_retry=Mock(),
+                    delivery_retry_initial_seconds=0.01,
+                    delivery_retry_max_seconds=0.04,
+                    allowed_job_states=frozenset({"open"}),
+                    poll_seconds=1,
+                    task_settle_seconds=1)
 
     if owner_kind == "controller":
         owner = live_controller(client, probe, AttemptClaims.live(), session, **settings)
@@ -264,9 +272,13 @@ async def owned_port_child(stage, failure_kind):
 
     delivery = Delivery()
 
-    transport = Transport(reply(observation()), reply(response()), reply(progress_response()),
-                          reply(observation()), reply(progress_response(phase="running")),
-                          reply(observation()), reply(observation()))
+    transport = Transport(reply(observation()),
+                          reply(response()),
+                          reply(progress_response()),
+                          reply(observation()),
+                          reply(progress_response(phase="running")),
+                          reply(observation()),
+                          reply(observation()))
 
     client = api(transport, probe.scope.api_origin)
 
@@ -281,10 +293,17 @@ async def owned_port_child(stage, failure_kind):
 
         client.progress_attempt = progress
 
-    owner = live_executor(client, probe, claim, session, delivery=delivery,
-                          on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
-                          delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
-                          poll_seconds=1, task_settle_seconds=1)
+    owner = live_executor(client,
+                          probe,
+                          claim,
+                          session,
+                          delivery=delivery,
+                          on_delivery_retry=Mock(),
+                          delivery_retry_initial_seconds=0.01,
+                          delivery_retry_max_seconds=0.04,
+                          allowed_job_states=frozenset({"open"}),
+                          poll_seconds=1,
+                          task_settle_seconds=1)
 
     try:
         await asyncio.create_task(owner.run(acknowledged))
@@ -384,9 +403,13 @@ async def graph_child(stage, variant):
     delivery = Delivery()
     transport = Transport(reply(observation()), reply(response()), reply(progress_response()))
 
-    settings = dict(delivery=delivery, on_delivery_retry=Mock(), delivery_retry_initial_seconds=.01,
-                    delivery_retry_max_seconds=.04, allowed_job_states=frozenset({"open"}),
-                    poll_seconds=1, task_settle_seconds=1)
+    settings = dict(delivery=delivery,
+                    on_delivery_retry=Mock(),
+                    delivery_retry_initial_seconds=.01,
+                    delivery_retry_max_seconds=.04,
+                    allowed_job_states=frozenset({"open"}),
+                    poll_seconds=1,
+                    task_settle_seconds=1)
 
     if stage in ("graph-admission", "graph-controller-delivery"):
         owner = live_controller(api(transport, probe.scope.api_origin), probe, AttemptClaims.live(), session, **settings)
@@ -478,7 +501,9 @@ elif __name__ == "__main__":
     for owner_kind in ("executor", "controller"):
         for failure_kind in ("system-exit", "keyboard-interrupt", "ordinary", "cancel"):
             result = subprocess.run([sys.executable, __file__, owner_kind, failure_kind],
-                                    capture_output=True, text=True, timeout=10)
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=10)
 
             assert result.returncode == 0, (owner_kind, failure_kind, result.returncode, result.stdout, result.stderr)
             assert result.stderr == "", result.stderr

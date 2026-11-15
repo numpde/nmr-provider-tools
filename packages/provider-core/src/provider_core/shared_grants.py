@@ -47,12 +47,20 @@ class SharedGrants:
                 self.outbox_volume: {"external": True, "name": self.outbox_volume},
             },
             "mounts": [
-                {"type": "volume", "source": self.proxy_volume, "target": str(self.proxy_socket.parent),
-                 "read_only": True, "volume": {"nocopy": True}},
-                {"type": "volume", "source": self.outbox_volume, "target": str(self.outbox_socket.parent),
-                 "read_only": True, "volume": {"nocopy": True}},
+                {"type": "volume",
+                 "source": self.proxy_volume,
+                 "target": str(self.proxy_socket.parent),
+                 "read_only": True,
+                 "volume": {"nocopy": True}},
+                {"type": "volume",
+                 "source": self.outbox_volume,
+                 "target": str(self.outbox_socket.parent),
+                 "read_only": True,
+                 "volume": {"nocopy": True}},
             ],
-            "proxy_socket": str(self.proxy_socket), "outbox_socket": str(self.outbox_socket), "socket_group_id": self.gid,
+            "proxy_socket": str(self.proxy_socket),
+            "outbox_socket": str(self.outbox_socket),
+            "socket_group_id": self.gid,
         }
 
 

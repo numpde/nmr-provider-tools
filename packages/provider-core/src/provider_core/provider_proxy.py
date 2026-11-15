@@ -275,13 +275,15 @@ class LiveProxyConfiguration:
             settings = self.read()
         except ServiceRefused as error:
             logging.getLogger("provider_core.proxy").warning(
-                "Cannot reload proxy settings: %s Retaining the current settings.", error
+                "Cannot reload proxy settings: %s Retaining the current settings.",
+                error
             )
 
             return
         except (OSError, UnicodeError, ValueError) as error:
             logging.getLogger("provider_core.proxy").warning(
-                "Cannot reload proxy settings; retaining current settings", exc_info=error,
+                "Cannot reload proxy settings; retaining current settings",
+                exc_info=error,
             )
 
             return
@@ -580,8 +582,12 @@ def main():
             probe.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, args.interface.encode() + b"\0")
 
         with socket_grant(args.socket, args.ready_file, socket_group_id=args.socket_group_id) as parent:
-            with ServiceProxyServer(parent / args.socket.name, args.interface, policy, status_directory=args.status_directory,
-                                    live_configuration=live, shared_socket=args.socket_group_id is not None) as server:
+            with ServiceProxyServer(parent / args.socket.name,
+                                    args.interface,
+                                    policy,
+                                    status_directory=args.status_directory,
+                                    live_configuration=live,
+                                    shared_socket=args.socket_group_id is not None) as server:
                 if live is not None:
                     live.apply(server, settings)
 

@@ -16,7 +16,13 @@ from dataclasses import dataclass, field
 from typing import Any, cast
 
 from provider_core.contribution import (
-    CallBinding, ReturnedState, StateOutput, StateParameter, StateUse, _identity, ref,
+    CallBinding,
+    ReturnedState,
+    StateOutput,
+    StateParameter,
+    StateUse,
+    _identity,
+    ref,
 )
 
 from provider_core.hosting import Operation, OperationRef, StateArgument, StateRef

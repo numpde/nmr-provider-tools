@@ -141,7 +141,10 @@ class CoreFailureProjectionTests(unittest.TestCase):
         for kind in (UploadFailed, UploadInputRejected, UploadRecoveryExhausted):
             with self.subTest(kind=kind):
                 failure = kind(
-                    "Source transfer did not finish", cause=cause, cleanup_failures=(cleanup,), interruption=interrupted
+                    "Source transfer did not finish",
+                    cause=cause,
+                    cleanup_failures=(cleanup,),
+                    interruption=interrupted
                 )
 
                 failure.grant_issued = True
@@ -157,7 +160,10 @@ class CoreFailureProjectionTests(unittest.TestCase):
                 )
 
         reader = UploadFileReadFailed(
-            "The acquired source changed", cause=cause, cleanup_failures=(cleanup,), interruption=interrupted
+            "The acquired source changed",
+            cause=cause,
+            cleanup_failures=(cleanup,),
+            interruption=interrupted
         )
 
         self.assertNotIn("grant_issued", owned_details(reader))
@@ -196,7 +202,11 @@ class CoreFailureProjectionTests(unittest.TestCase):
             self.assertNotIn("PRIVATE", repr(details))
 
         execution = ExecutionFailed(
-            cause=OSError(), outcome=candidate, api_failure=None, cleanup_failures=(), attempt=active
+            cause=OSError(),
+            outcome=candidate,
+            api_failure=None,
+            cleanup_failures=(),
+            attempt=active
         )
 
         details = owned_details(execution)
@@ -211,8 +221,11 @@ class CoreFailureProjectionTests(unittest.TestCase):
         active = acknowledge_start(record(), admission())
         (cause, interruption) = (OSError(), asyncio.CancelledError())
 
-        failure = ExecutionFailed(cause=cause, outcome=None,
-                                  api_failure=None, cleanup_failures=(), attempt=active)
+        failure = ExecutionFailed(cause=cause,
+                                  outcome=None,
+                                  api_failure=None,
+                                  cleanup_failures=(),
+                                  attempt=active)
 
         self.assertFalse(owned_details(failure)["delivery_acceptance_received"])
         failure.delivery_acceptance = {"body_sha256": "sha256:" + "b" * 64}

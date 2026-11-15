@@ -122,8 +122,11 @@ class SchemaTests(unittest.TestCase):
         codec.json_schema()
 
         for payload in (
-            b'{"integral":1.0}', b'{"integral":true}', b'{"integral":"1"}',
-            b'{"integral":1,"integral":2}', b'{"integral":1,"extra":0}',
+            b'{"integral":1.0}',
+            b'{"integral":true}',
+            b'{"integral":"1"}',
+            b'{"integral":1,"integral":2}',
+            b'{"integral":1,"extra":0}',
             b'{"integral":NaN}',
         ):
             with self.subTest(payload=payload):

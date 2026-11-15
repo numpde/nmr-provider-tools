@@ -73,7 +73,10 @@ class CapturedNativeTests(unittest.TestCase):
         moved = subprocess.run(
             ["bash", "-c", 'mv -- "$1" "$2"', "bash", str(pending), str(receipt)],
             env=self.environment | {"NATIVE_PUBLICATION_FAILURE": "ready"},
-            capture_output=True, text=True, timeout=5, check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
         )
 
         self.assertEqual(29, moved.returncode, msg=moved.stderr)
@@ -87,7 +90,10 @@ class CapturedNativeTests(unittest.TestCase):
         read = subprocess.run(
             ["bash", "-c", 'head -c 5 "$1"', "bash", str(status_file)],
             env=self.environment | {"NATIVE_STATUS_MUTATION": "read-error"},
-            capture_output=True, text=True, timeout=5, check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
         )
 
         self.assertEqual(31, read.returncode, msg=read.stderr)
@@ -96,7 +102,10 @@ class CapturedNativeTests(unittest.TestCase):
         removed = subprocess.run(
             ["bash", "-c", 'rm -f -- "$1"', "bash", str(status_file)],
             env=self.environment | {"NATIVE_CLEANUP_FAILURE": "1"},
-            capture_output=True, text=True, timeout=5, check=False,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
         )
 
         self.assertEqual(23, removed.returncode, msg=removed.stderr)
@@ -307,14 +316,15 @@ class CapturedNativeTests(unittest.TestCase):
             'container_native probe "$2" "$NATIVE_RESULT" "$3" "$4" native-client'
         )
 
-        return (command, environment | {
-            "NATIVE_RESULT": mode,
-            "NATIVE_BEHAVIOR": "original-signals",
-            "NATIVE_OUTCOME": str(self.root / "container-outcome"),
-            "NATIVE_GRACE_CALLS": str(self.root / "container-grace"),
-            "NATIVE_DEADLINE_OBSERVED": str(self.root / "container-deadline"),
-            "NATIVE_DEADLINE_ABSENT": str(self.root / "container-no-deadline"),
-            "NATIVE_SIGNAL_MARKER": str(self.root / "signal-observed"),
+        return (command,
+            environment | {
+                "NATIVE_RESULT": mode,
+                "NATIVE_BEHAVIOR": "original-signals",
+                "NATIVE_OUTCOME": str(self.root / "container-outcome"),
+                "NATIVE_GRACE_CALLS": str(self.root / "container-grace"),
+                "NATIVE_DEADLINE_OBSERVED": str(self.root / "container-deadline"),
+                "NATIVE_DEADLINE_ABSENT": str(self.root / "container-no-deadline"),
+                "NATIVE_SIGNAL_MARKER": str(self.root / "signal-observed"),
         })
 
     def reset_container_observations(self):
@@ -518,7 +528,8 @@ class CapturedNativeTests(unittest.TestCase):
             budget,
             sys.executable,
             str(Path(__file__).resolve()),
-        ], (self.environment if environment is None else environment))
+        ],
+            (self.environment if environment is None else environment))
 
     # silent-defaults: allow-contract -- This runner forwards its declared twenty-second fixture budget unless the case explicitly selects another one; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_cleanup_preserves_primary_and_traps_are_restored
     def run_native(self, *, budget="20", additions=None):
@@ -597,10 +608,11 @@ class CapturedNativeTests(unittest.TestCase):
         )
 
         # silent-defaults: allow-contract -- The required next_success scenario selects whether a second successful native call exercises per-invocation reset; proof=tests/repository/test_inference_native.py::CapturedNativeTests.test_actual_signal_outcome_and_next_success_reset_are_per_invocation
-        return (command, environment | {
-            "NATIVE_RESULT": result,
-            "NATIVE_NEXT": "yes" if next_success else "no",
-            "NATIVE_OUTCOME": str(self.root / "outcome"),
+        return (command,
+            environment | {
+                "NATIVE_RESULT": result,
+                "NATIVE_NEXT": "yes" if next_success else "no",
+                "NATIVE_OUTCOME": str(self.root / "outcome"),
         })
 
     def test_ordinary_signal_number_status_has_no_actual_cancellation_outcome(self):
@@ -792,7 +804,12 @@ class CapturedNativeTests(unittest.TestCase):
                     additions = {} if early else {"NATIVE_PUBLICATION_FAILURE": "ready"}
 
                     result = subprocess.run(
-                        command, env=environment | additions, capture_output=True, text=True, timeout=5, check=False
+                        command,
+                        env=environment | additions,
+                        capture_output=True,
+                        text=True,
+                        timeout=5,
+                        check=False
                     )
 
                     self.retain_cleanup(result.stderr)
@@ -831,7 +848,8 @@ class CapturedNativeTests(unittest.TestCase):
         for status in (0, 7, 137):
             with self.subTest(status=status):
                 (result, fact) = self.run_fact(
-                    budget="untimed", additions={"NATIVE_BEHAVIOR": "slow-success", "NATIVE_STATUS": str(status)}
+                    budget="untimed",
+                    additions={"NATIVE_BEHAVIOR": "slow-success", "NATIVE_STATUS": str(status)}
                 )
 
                 self.assertEqual(status, result.returncode, msg=result.stderr)
@@ -855,7 +873,12 @@ class CapturedNativeTests(unittest.TestCase):
                 (command, environment) = self.fact_command(budget="untimed", additions={"NATIVE_BEHAVIOR": "resistant"})
 
                 process = subprocess.Popen(
-                    command, env=environment, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
+                    command,
+                    env=environment,
+                    text=True,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    start_new_session=True
                 )
 
                 self.addCleanup(self.retire_probe, process)
@@ -1078,7 +1101,8 @@ class CapturedNativeTests(unittest.TestCase):
         self.helper.write_text(source.replace(join, delayed, 1))
 
         (result, fact) = self.run_fact(
-            budget="untimed", additions={"NATIVE_JOIN_FACT": str(receipt), "NATIVE_BEHAVIOR": "held-descendant"}
+            budget="untimed",
+            additions={"NATIVE_JOIN_FACT": str(receipt), "NATIVE_BEHAVIOR": "held-descendant"}
         )
 
         self.assertEqual(0, result.returncode, msg=result.stderr)
@@ -1386,7 +1410,8 @@ class CapturedNativeTests(unittest.TestCase):
                     self.helper.write_text(source.replace(terminal, '        if { mv -- "$receipt.ready" "$receipt.printf" \\\n', 1))
 
                 result = self.run_native(additions={
-                    "NATIVE_PUBLICATION_FAILURE": phase, "NATIVE_BEHAVIOR": "held-descendant",
+                    "NATIVE_PUBLICATION_FAILURE": phase,
+                    "NATIVE_BEHAVIOR": "held-descendant",
                     "NATIVE_PUBLICATION_FAILED_AT": str(failed_at),
                 })
 
@@ -1428,7 +1453,8 @@ class CapturedNativeTests(unittest.TestCase):
 
     def test_failed_expiry_publication_cannot_claim_a_confirmed_deadline(self):
         (status, diagnostic) = self.run_readied_expiry(
-            behavior="resistant", additions={"NATIVE_PUBLICATION_FAILURE": "deadline"}
+            behavior="resistant",
+            additions={"NATIVE_PUBLICATION_FAILURE": "deadline"}
         )
 
         self.assertEqual(1, status, msg=diagnostic)
@@ -1763,7 +1789,11 @@ class StdioNativeTests(unittest.TestCase):
         (command, environment) = self.fact_command(budget="untimed", additions={"NATIVE_BEHAVIOR": "stream-live"})
 
         process = subprocess.Popen(
-            command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
+            command,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True
         )
 
         self.addCleanup(self.retire_probe, process)
@@ -1803,7 +1833,8 @@ class StdioNativeTests(unittest.TestCase):
             for status in (0, 7, 137):
                 with self.subTest(budget=budget, status=status):
                     (result, fact) = self.run_stdio(
-                        budget=budget, additions={"NATIVE_BEHAVIOR": "stream-finite", "NATIVE_STATUS": str(status)}
+                        budget=budget,
+                        additions={"NATIVE_BEHAVIOR": "stream-finite", "NATIVE_STATUS": str(status)}
                     )
 
                     self.assertEqual(status, result.returncode, msg=result.stderr.decode())
@@ -1822,11 +1853,16 @@ class StdioNativeTests(unittest.TestCase):
 
     def test_native_closed_outputs_do_not_establish_completion(self):
         (command, environment) = self.fact_command(
-            budget="untimed", additions={"NATIVE_BEHAVIOR": "closed-output", "NATIVE_STATUS": "7"}
+            budget="untimed",
+            additions={"NATIVE_BEHAVIOR": "closed-output", "NATIVE_STATUS": "7"}
         )
 
         process = subprocess.Popen(
-            command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
+            command,
+            env=environment,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True
         )
 
         self.addCleanup(self.retire_probe, process)
@@ -1872,13 +1908,19 @@ class StdioNativeTests(unittest.TestCase):
                     self.assertEqual(1, command[2].count(publication))
 
                     command[2] = command[2].replace(
-                        publication, 'printf "%s" "$inference_diagnostic" > "$NATIVE_STDIO_DIAGNOSTIC"', 1
+                        publication,
+                        'printf "%s" "$inference_diagnostic" > "$NATIVE_STDIO_DIAGNOSTIC"',
+                        1
                     )
 
                     environment["NATIVE_STDIO_DIAGNOSTIC"] = str(diagnostic)
 
                     process = subprocess.Popen(
-                        command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
+                        command,
+                        env=environment,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        start_new_session=True
                     )
 
                     self.addCleanup(self.retire_probe, process)
@@ -1943,7 +1985,11 @@ class StdioNativeTests(unittest.TestCase):
                 (command, environment) = self.fact_command(budget="untimed", additions={"NATIVE_BIRTH": str(receipt)})
 
                 process = subprocess.Popen(
-                    command, env=environment, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
+                    command,
+                    env=environment,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    start_new_session=True
                 )
 
                 self.addCleanup(self.retire_probe, process)
@@ -2057,7 +2103,11 @@ class StdioNativeTests(unittest.TestCase):
         (command, environment) = self.fact_command(budget="untimed", additions={"NATIVE_BEHAVIOR": "stream-live"})
 
         process = subprocess.Popen(
-            command, env=environment | {"PATH": os.environ["PATH"]}, stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True
+            command,
+            env=environment | {"PATH": os.environ["PATH"]},
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True
         )
 
         self.addCleanup(self.retire_probe, process)

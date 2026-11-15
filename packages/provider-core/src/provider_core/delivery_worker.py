@@ -126,7 +126,8 @@ class DeliveryWorker:
 
             self.on_notice(
                 TimeoutError("Publication is still pending; the publisher retains this report's original API and storage operations."),
-                {**facts("delivery_stalled"), "api_receipt_received": self._api_receipt_received,
+                {**facts("delivery_stalled"),
+                 "api_receipt_received": self._api_receipt_received,
                  "alert_after_seconds": alert_seconds},
             )
 
@@ -180,7 +181,8 @@ class DeliveryWorker:
                         return
 
                     await self.inbox.storage(
-                        self.inbox.queue.hold, item,
+                        self.inbox.queue.hold,
+                        item,
                         "The API did not return a matching publication receipt and exact replay is not authorized. Reconcile this retained request; never rerun science to replace it.",
                     )
 
@@ -192,7 +194,9 @@ class DeliveryWorker:
 
                     await self.inbox.storage(self.inbox.queue.remove_published, item)
 
-                    self.on_notice(None, {**facts("delivery_published"), "replayed": receipt.replayed,
+                    self.on_notice(None,
+                        {**facts("delivery_published"),
+                                          "replayed": receipt.replayed,
                                           "recovered": retried or alerted})
 
                     return
@@ -214,7 +218,9 @@ class DeliveryWorker:
                 self.changed.clear()
 
                 item = await self.inbox.storage(
-                    self.inbox.queue.next_pending, self.endpoint.api_origin, self.endpoint.provider_ref
+                    self.inbox.queue.next_pending,
+                    self.endpoint.api_origin,
+                    self.endpoint.provider_ref
                 )
 
                 if item is None:
@@ -233,13 +239,17 @@ class DeliveryWorker:
 
         if operation_failure is not None or cleanup_failures:
             self.failure = DeliveryWorkerFailed(
-                cause=operation_failure, api_failure=self.api.last_failure,
-                cleanup_failures=cleanup_failures, api_receipt_received=self._api_receipt_received,
+                cause=operation_failure,
+                api_failure=self.api.last_failure,
+                cleanup_failures=cleanup_failures,
+                api_receipt_received=self._api_receipt_received,
             )
 
-            self.on_notice(self.failure, {
-                "event": "delivery_worker_failed", "api_origin": self.endpoint.api_origin,
-                "provider_ref": self.endpoint.provider_ref,
+            self.on_notice(self.failure,
+                {
+                    "event": "delivery_worker_failed",
+                    "api_origin": self.endpoint.api_origin,
+                    "provider_ref": self.endpoint.provider_ref,
             })
 
             if isinstance(operation_failure, asyncio.CancelledError):

@@ -27,10 +27,17 @@ class ExecutionFailureAgeTests(unittest.IsolatedAsyncioTestCase):
         session.retirement_failure = original_cleanup_failure
 
         controller = live_controller(
-            api(Transport(*lifecycle_replies()), probe.scope.api_origin), probe, claims, session,
-            delivery=delivery, on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
-            delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
-            poll_seconds=1, task_settle_seconds=0.1,
+            api(Transport(*lifecycle_replies()), probe.scope.api_origin),
+            probe,
+            claims,
+            session,
+            delivery=delivery,
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=0.1,
         )
 
         selected = record()
@@ -76,7 +83,8 @@ class ExecutionFailureAgeTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(ATTEMPT_REF, snapshot["execution_attempt_ref"], msg=evidence)
             self.assertTrue(snapshot["delivery_acceptance_received"], msg=evidence)
 
-            self.assertIn("failure_age_seconds", snapshot,
+            self.assertIn("failure_age_seconds",
+                          snapshot,
                           msg="The diagnostic identifies the Job and Attempt but not the age of its original lifecycle failure: " + evidence)
 
             self.assertGreaterEqual(snapshot["failure_age_seconds"], 0, msg=evidence)

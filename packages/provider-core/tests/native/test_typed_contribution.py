@@ -337,7 +337,8 @@ class TypedContributionTests(unittest.TestCase):
             return call.scientific_call(values)
 
         def keyword_only(
-            *, values: contribution.CallContext[None, None, science.SumInput, contribution.NoState],
+            *,
+            values: contribution.CallContext[None, None, science.SumInput, contribution.NoState],
         ) -> contribution.ScientificReturn[science.SumResult]:
             return call.scientific_call(values)
 
@@ -386,8 +387,10 @@ class TypedContributionTests(unittest.TestCase):
 
         def wrong_instance(
             values: contribution.CallContext[
-                science.SumResult, science.WeightedSumAnalysis,
-                science.PreparationInput, contribution.NoState,
+                science.SumResult,
+                science.WeightedSumAnalysis,
+                science.PreparationInput,
+                contribution.NoState,
             ],
         ) -> contribution.ScientificReturn[science.PreparationResult]:
             raise AssertionError("This mismatched adapter must not run")
@@ -443,7 +446,8 @@ class TypedContributionTests(unittest.TestCase):
         binding = _weighted_binding()
 
         wrong_input = StateType(
-            name=binding.prepared_input.kind.name, value_type=science.SumResult,
+            name=binding.prepared_input.kind.name,
+            value_type=science.SumResult,
         ).input(name=binding.prepared_input.name, use=contribution.StateUse.CONSUME)
 
         wrong_state = SlotStateBinding(

@@ -52,13 +52,25 @@ async def launched_children():
 
 class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
     # silent-defaults: allow-contract -- Ordinary specimens have bounded direct HTTPS grants; each adversarial case explicitly overrides the relevant grant.
-    def factory(self, url, trust, *, request_bytes=32768, response_bytes=8192,
-                error_response_bytes=None, proxy_socket=None):
+    def factory(self,
+                url,
+                trust,
+                *,
+                request_bytes=32768,
+                response_bytes=8192,
+                error_response_bytes=None,
+                proxy_socket=None):
         return ChatEndpointFactory(
-            spec=ChatEndpointSpec(configuration_id="fixture", model="fixture-model", url=url,
-                                  api_key="PRIVATE_FIXTURE_KEY", reasoning_effort="high"),
-            trust=trust, retirement_seconds=0.6, request_bytes=request_bytes,
-            response_bytes=response_bytes, error_response_bytes=error_response_bytes,
+            spec=ChatEndpointSpec(configuration_id="fixture",
+                                  model="fixture-model",
+                                  url=url,
+                                  api_key="PRIVATE_FIXTURE_KEY",
+                                  reasoning_effort="high"),
+            trust=trust,
+            retirement_seconds=0.6,
+            request_bytes=request_bytes,
+            response_bytes=response_bytes,
+            error_response_bytes=error_response_bytes,
             proxy_socket=proxy_socket,
         )
 
@@ -90,8 +102,11 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             factory = self.factory(url, peer.trust, error_response_bytes=128)
             endpoint = factory(exchange_seconds=3, connect_seconds=1)
 
-            reference = ChatEndpoint(factory.spec, transport=object(), request_bytes=32768,
-                                     response_bytes=8192, error_response_bytes=128)
+            reference = ChatEndpoint(factory.spec,
+                                     transport=object(),
+                                     request_bytes=32768,
+                                     response_bytes=8192,
+                                     error_response_bytes=128)
 
             self.assertEqual(reference.identity, endpoint.identity)
             self.assertTrue(endpoint.retirement_confirmed)
@@ -131,10 +146,15 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(["localhost"], peer.server_names)
 
                 self.assertEqual({
-                    "model": "fixture-model", "messages": messages, "tools": tools,
-                    "tool_choice": "required", "parallel_tool_calls": False,
-                    "stream": False, "reasoning_effort": "high",
-                }, json.loads(peer.request_bodies[0]))
+                    "model": "fixture-model",
+                    "messages": messages,
+                    "tools": tools,
+                    "tool_choice": "required",
+                    "parallel_tool_calls": False,
+                    "stream": False,
+                    "reasoning_effort": "high",
+                },
+                    json.loads(peer.request_bodies[0]))
 
                 self.assertEqual(reference.identity, endpoint.identity)
                 self.assertTrue(endpoint.retirement_confirmed)
@@ -177,7 +197,8 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
         for (status, body, error_bytes) in ((200, completion(), 16), (503, b'{"error":{"message":"busy"}}', 64)):
             with self.subTest(status=status):
                 async with TlsPeer("success", response_body=body, response_status=status) as peer, launched_children() as children:
-                    endpoint = self.factory(peer.origin + "/chat", peer.trust,
+                    endpoint = self.factory(peer.origin + "/chat",
+                                            peer.trust,
                                             error_response_bytes=error_bytes)(exchange_seconds=3, connect_seconds=1)
 
                     try:
@@ -208,9 +229,13 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
 
         for (status, body, headers, response_bytes, error_bytes) in cases:
             with self.subTest(status=status):
-                async with TlsPeer("success", response_status=status, response_body=body,
+                async with TlsPeer("success",
+                                   response_status=status,
+                                   response_body=body,
                                    response_headers=headers) as peer, launched_children() as children:
-                    endpoint = self.factory(peer.origin + "/chat", peer.trust, response_bytes=response_bytes,
+                    endpoint = self.factory(peer.origin + "/chat",
+                                            peer.trust,
+                                            response_bytes=response_bytes,
                                             error_response_bytes=error_bytes)(exchange_seconds=3, connect_seconds=1)
 
                     try:
@@ -230,7 +255,8 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             proxy = str(Path(directory) / "absent-proxy.sock")
 
             async with TlsPeer("success", response_body=completion()) as peer, launched_children() as children:
-                endpoint = self.factory(peer.origin + "/chat", peer.trust,
+                endpoint = self.factory(peer.origin + "/chat",
+                                        peer.trust,
                                         proxy_socket=proxy)(exchange_seconds=3, connect_seconds=1)
 
                 try:
@@ -380,7 +406,9 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
 
                 async with TlsPeer("success", response_factory=response) as peer, launched_children() as children:
                     owner = Interpreter((self.factory(peer.origin + "/chat", peer.trust),),
-                                        timeout_seconds=8, context_bytes=16384, secrets=("PRIVATE_FIXTURE_KEY",))
+                                        timeout_seconds=8,
+                                        context_bytes=16384,
+                                        secrets=("PRIVATE_FIXTURE_KEY",))
 
                     dispatch = AsyncMock(return_value=ToolFinished("prepared"))
                     tools = [{"type": "function", "function": {"name": "prepare", "parameters": {"type": "object"}}}]
@@ -405,8 +433,13 @@ class ChatProcessContractTests(unittest.IsolatedAsyncioTestCase):
             restored = restore_trust(capture_trust(trust))
             self.assertIsInstance(restored, ssl.SSLContext)
 
-            for field in ("minimum_version", "maximum_version", "hostname_checks_common_name",
-                          "verify_flags", "verify_mode", "check_hostname", "options"):
+            for field in ("minimum_version",
+                          "maximum_version",
+                          "hostname_checks_common_name",
+                          "verify_flags",
+                          "verify_mode",
+                          "check_hostname",
+                          "options"):
                 self.assertEqual(getattr(trust, field), getattr(restored, field), msg=field)
 
             self.assertEqual(trust.get_ciphers(), restored.get_ciphers())

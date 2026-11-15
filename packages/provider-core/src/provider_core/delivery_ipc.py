@@ -147,12 +147,16 @@ class DeliveryInbox:
 
                     server = await asyncio.start_unix_server(
                         lambda reader, writer, selected=endpoint: self._client(selected, reader, writer),
-                        sock=listener, limit=MAX_HEADER_BYTES,
+                        sock=listener,
+                        limit=MAX_HEADER_BYTES,
                     )
                 except BaseException as cause:
-                    self.on_failure(cause, {
-                        "event": "delivery_binding_start_failed", "api_origin": endpoint.api_origin,
-                        "provider_ref": endpoint.provider_ref, "socket_path": str(endpoint.socket_path),
+                    self.on_failure(cause,
+                        {
+                            "event": "delivery_binding_start_failed",
+                            "api_origin": endpoint.api_origin,
+                            "provider_ref": endpoint.provider_ref,
+                            "socket_path": str(endpoint.socket_path),
                     })
 
                     raise
@@ -243,8 +247,12 @@ class DeliveryInbox:
         if request.method == b"POST" and len(parts) == 4 and parts[1] == "submit":
             try:
                 item = DeliveryOutcome(
-                    endpoint.api_origin, endpoint.provider_ref, headers.get(b"nmr-job-ref"), parts[3],
-                    TerminalOperation(parts[2]), body,
+                    endpoint.api_origin,
+                    endpoint.provider_ref,
+                    headers.get(b"nmr-job-ref"),
+                    parts[3],
+                    TerminalOperation(parts[2]),
+                    body,
                 )
             except (TypeError, ValueError):
                 raise DeliveryRequestRejected("Delivery refused an invalid terminal operation, identity or request body; correct the producer request.") from None
@@ -261,7 +269,9 @@ class DeliveryInbox:
             rows = await self.storage(self.queue.ipc_inventory, endpoint.api_origin, endpoint.provider_ref)
 
             return {
-                "api_origin": endpoint.api_origin, "provider_ref": endpoint.provider_ref, "items": rows,
+                "api_origin": endpoint.api_origin,
+                "provider_ref": endpoint.provider_ref,
+                "items": rows,
                 "capacity": {"provider_items": self.queue.limits.provider_items, "provider_bytes": self.queue.limits.provider_bytes},
                 "publisher": self.binding_status(endpoint),
             }
@@ -279,8 +289,11 @@ class DeliveryInbox:
     async def _respond(self, connection, writer, status, document):
         content = json.dumps(document, allow_nan=False, separators=(",", ":")).encode("utf-8")
 
-        writer.write(connection.send(h11.Response(status_code=status, headers=[
-            (b"Content-Type", b"application/json"), (b"Content-Length", str(len(content)).encode()), (b"Connection", b"close")
+        writer.write(connection.send(h11.Response(status_code=status,
+            headers=[
+                (b"Content-Type", b"application/json"),
+                (b"Content-Length", str(len(content)).encode()),
+                (b"Connection", b"close")
         ])))
 
         writer.write(connection.send(h11.Data(data=content)))
@@ -320,9 +333,11 @@ class DeliveryInbox:
 
             await self._respond(connection, writer, status, reply)
         except (OSError, ConnectionError, TimeoutError, h11.ProtocolError) as cause:
-            self.on_failure(cause, {
-                "event": "delivery_ipc_failed", "provider_ref": endpoint.provider_ref,
-                "durable_enqueue_confirmed": durable_enqueue_confirmed,
+            self.on_failure(cause,
+                {
+                    "event": "delivery_ipc_failed",
+                    "provider_ref": endpoint.provider_ref,
+                    "durable_enqueue_confirmed": durable_enqueue_confirmed,
             })
         except DeliveryRequestRejected as cause:
             self.on_failure(cause, {"event": "delivery_request_rejected", "provider_ref": endpoint.provider_ref})

@@ -47,7 +47,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         self.assertEqual([], applicable)
 
         (raw, applicable) = self.exercise_property(
-            self.annotation + header + '    status = state.get("completed", 0)\n', accepted=False
+            self.annotation + header + '    status = state.get("completed", 0)\n',
+            accepted=False
         )
 
         self.assertEqual(2, len(raw))
@@ -156,7 +157,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                 self.assertEqual([], applicable)
 
         (raw, applicable) = self.exercise_property(
-            'if not os.environ.get("K", "x") or 0 <= int(os.environ["OTHER"]) <= 255:\n    reject()\n', accepted=False
+            'if not os.environ.get("K", "x") or 0 <= int(os.environ["OTHER"]) <= 255:\n    reject()\n',
+            accepted=False
         )
 
         self.assertEqual(1, len(raw))
@@ -230,7 +232,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
         # The new entry placement must not change existing statement contracts.
         (raw, applicable) = self.exercise_property(
-            self.annotation + 'result = {"kind": record.get("kind", "missing")}\n', accepted=True
+            self.annotation + 'result = {"kind": record.get("kind", "missing")}\n',
+            accepted=True
         )
 
         self.assertEqual(1, len(raw))
@@ -334,7 +337,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         annotation = self.annotation.replace("The protocol requires an origin path", " ")
 
         (raw, applicable) = self.exercise_property(
-            "result = {\n    " + annotation + '    "kind": record.get("kind", "missing"),\n}\n', accepted=False
+            "result = {\n    " + annotation + '    "kind": record.get("kind", "missing"),\n}\n',
+            accepted=False
         )
 
         self.assertEqual(1, len(raw))
@@ -374,7 +378,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(expression=expression):
                 (raw, applicable) = self.exercise_property(
-                    self.annotation + "consume(\n    " + expression + "\n)\n", accepted=False
+                    self.annotation + "consume(\n    " + expression + "\n)\n",
+                    accepted=False
                 )
 
                 self.assertTrue(raw)
@@ -474,7 +479,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(expression=expression):
                 (raw, applicable) = self.exercise_property(
-                    self.annotation + "return (\n    " + expression + "\n)\n", accepted=False
+                    self.annotation + "return (\n    " + expression + "\n)\n",
+                    accepted=False
                 )
 
                 self.assertTrue(raw)
@@ -500,7 +506,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                     self.assertIn(finding, applicable)
 
         (raw, applicable) = self.exercise_property(
-            self.annotation + 'return (\n    payload.get("result", 0)\n)\nstatus = state.get("done", 0)\n', accepted=False
+            self.annotation + 'return (\n    payload.get("result", 0)\n)\nstatus = state.get("done", 0)\n',
+            accepted=False
         )
 
         self.assertEqual(2, len(raw))
@@ -534,7 +541,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for neighbour in ('value = os.environ.get("STATUS", "0")\n', 'environment.pop("OTHER", None)\n'):
             with self.subTest(neighbour=neighbour):
                 (raw, applicable) = self.exercise_property(
-                    annotation + 'environment.pop("MARKER", None)\n' + neighbour, accepted=False
+                    annotation + 'environment.pop("MARKER", None)\n' + neighbour,
+                    accepted=False
                 )
 
                 self.assertEqual(2, len(raw))
@@ -720,7 +728,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         for body in ("raise", "return None"):
             with self.subTest(body=body):
                 (raw, applicable) = self.exercise_property(
-                    "try:\n    inspect()\n" + self.annotation + "except OSError:\n    " + body + "\n", accepted=False
+                    "try:\n    inspect()\n" + self.annotation + "except OSError:\n    " + body + "\n",
+                    accepted=False
                 )
 
                 self.assertEqual([], raw)
@@ -836,7 +845,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(expression=expression):
                 (raw, applicable) = self.exercise_property(
-                    self.annotation + "for item in " + expression + ":\n    pass\n", accepted=False
+                    self.annotation + "for item in " + expression + ":\n    pass\n",
+                    accepted=False
                 )
 
                 self.assertTrue(raw)
@@ -960,14 +970,16 @@ class PythonContractApplicabilityTests(unittest.TestCase):
                     self.assertIn(finding, applicable)
 
         (raw, applicable) = self.exercise_property(
-            self.annotation + "def run(value=" + expression + "):\n    pass\n", accepted=True
+            self.annotation + "def run(value=" + expression + "):\n    pass\n",
+            accepted=True
         )
 
         self.assertEqual(3, len(raw))
         self.assertEqual([], applicable)
 
         (raw, applicable) = self.exercise_property(
-            "try:\n    run()\nexcept Exception:\n    " + self.annotation + "    return " + expression + "\n", accepted=False
+            "try:\n    run()\nexcept Exception:\n    " + self.annotation + "    return " + expression + "\n",
+            accepted=False
         )
 
         strict = [finding for finding in raw if "python exception fallback:" in finding]
@@ -998,7 +1010,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
 
     def test_signature_contract_and_nested_exception_annotation_have_distinct_scopes(self):
         (raw, applicable) = self.exercise_property(
-            self.annotation + "def run(port=parsed.port or 443):\n    return port\n", accepted=True
+            self.annotation + "def run(port=parsed.port or 443):\n    return port\n",
+            accepted=True
         )
 
         self.assertEqual(2, len(raw))
@@ -1063,7 +1076,8 @@ class PythonContractApplicabilityTests(unittest.TestCase):
         ):
             with self.subTest(expression=expression):
                 (raw, applicable) = self.exercise_property(
-                    self.annotation + "def run(value=" + expression + "):\n    pass\n", accepted=False
+                    self.annotation + "def run(value=" + expression + "):\n    pass\n",
+                    accepted=False
                 )
 
                 self.assertTrue(raw)

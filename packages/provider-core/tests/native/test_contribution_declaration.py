@@ -163,10 +163,12 @@ class ContributionDeclarationTests(unittest.TestCase):
             ),
             "asset name": replace(identity, assets=frozenset({replace(asset, name="weights")})),
             "asset media type": replace(
-                identity, assets=frozenset({replace(asset, media_type="application/octet-stream")}),
+                identity,
+                assets=frozenset({replace(asset, media_type="application/octet-stream")}),
             ),
             "asset byte count": replace(
-                identity, assets=frozenset({replace(asset, size_bytes=asset.size_bytes + 1)}),
+                identity,
+                assets=frozenset({replace(asset, size_bytes=asset.size_bytes + 1)}),
             ),
             "contract version": replace(identity, contract_version=2),
         }

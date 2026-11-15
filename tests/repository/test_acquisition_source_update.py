@@ -47,7 +47,8 @@ class SourceUpdateTests(unittest.TestCase):
 
     def manifest(self, version, payload):
         return {
-            "release_version": version, "source_revision": "a" * 40,
+            "release_version": version,
+            "source_revision": "a" * 40,
             "payload_files": {
                 name: {"sha256": hashlib.sha256(data).hexdigest(), "size": len(data), "mode": 0o644}
                 for (name, data) in payload.items()
@@ -85,7 +86,8 @@ class SourceUpdateTests(unittest.TestCase):
                     archive.addfile(member)
 
         self.pin.write_text(json.dumps({
-            "version": "2.0.0", "archive_sha256": hashlib.sha256(self.archive.read_bytes()).hexdigest(),
+            "version": "2.0.0",
+            "archive_sha256": hashlib.sha256(self.archive.read_bytes()).hexdigest(),
         }))
 
     def assert_old_source(self):
@@ -130,9 +132,12 @@ class SourceUpdateTests(unittest.TestCase):
 
     def test_unsafe_or_duplicate_archive_members_never_publish(self):
         for (name, kind) in (
-            ("../escape", tarfile.REGTYPE), ("/absolute", tarfile.REGTYPE),
-            ("acquisition_tool/new.py", tarfile.REGTYPE), ("linked", tarfile.SYMTYPE),
-            ("special", tarfile.FIFOTYPE), ("acquisition-manifest.json/child", tarfile.REGTYPE),
+            ("../escape", tarfile.REGTYPE),
+            ("/absolute", tarfile.REGTYPE),
+            ("acquisition_tool/new.py", tarfile.REGTYPE),
+            ("linked", tarfile.SYMTYPE),
+            ("special", tarfile.FIFOTYPE),
+            ("acquisition-manifest.json/child", tarfile.REGTYPE),
         ):
             with self.subTest(name=name):
                 self.write_archive(extra=((name, kind),))

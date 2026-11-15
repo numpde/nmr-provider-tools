@@ -52,14 +52,23 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
                 self.published.set()
 
         return (DeliveryService(
-            self.root / "state", limits=self.limits, bindings=(DeliveryBinding(endpoint, client),),
-            request_seconds=1, retry_initial_seconds=0.01, retry_max_seconds=0.02, on_notice=notice, diagnostic_status=healthy_diagnostics,
-        ), endpoint)
+            self.root / "state",
+            limits=self.limits,
+            bindings=(DeliveryBinding(endpoint, client),),
+            request_seconds=1,
+            retry_initial_seconds=0.01,
+            retry_max_seconds=0.02,
+            on_notice=notice,
+            diagnostic_status=healthy_diagnostics,
+        ),
+            endpoint)
 
     async def test_producer_acknowledgement_and_api_receipt_have_distinct_connected_effects(self):
-        async with api_tls_peer("success", response_body=fail_response(
-            execution_attempt_ref=outcome().execution_attempt_ref,
-            failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
+        async with api_tls_peer("success",
+            response_body=fail_response(
+                execution_attempt_ref=outcome().execution_attempt_ref,
+                failure_code="provider_interrupted",
+                failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
         )) as peer:
             (service, endpoint) = self.service(peer)
             original = asyncio.create_task(service.run())
@@ -173,9 +182,14 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
 
             with self.assertRaisesRegex(ValueError, "host delivery budget"):
                 DeliveryService(
-                    self.root / "unused", limits=QueueLimits(4, 16384, 4, 16384),
-                    bindings=(*service.bindings, other), request_seconds=1,
-                    retry_initial_seconds=0.01, retry_max_seconds=0.02, on_notice=lambda error, facts: None, diagnostic_status=healthy_diagnostics,
+                    self.root / "unused",
+                    limits=QueueLimits(4, 16384, 4, 16384),
+                    bindings=(*service.bindings, other),
+                    request_seconds=1,
+                    retry_initial_seconds=0.01,
+                    retry_max_seconds=0.02,
+                    on_notice=lambda error, facts: None,
+                    diagnostic_status=healthy_diagnostics,
                 )
 
             self.assertFalse((self.root / "unused").exists())
@@ -226,8 +240,11 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(endpoint.socket_path.exists())
             self.assertEqual(peer.requests, [])
 
-            self.assertEqual(self.notices[0][1], {
-                "event": "delivery_binding_missing", "api_origin": item.api_origin, "provider_ref": item.provider_ref,
+            self.assertEqual(self.notices[0][1],
+                {
+                    "event": "delivery_binding_missing",
+                    "api_origin": item.api_origin,
+                    "provider_ref": item.provider_ref,
             })
 
         reopened = DeliveryQueue(self.root / "state", limits=self.limits)
@@ -245,9 +262,11 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             def flush(self):
                 pass
 
-        async with api_tls_peer("success", response_body=fail_response(
-            execution_attempt_ref=outcome().execution_attempt_ref,
-            failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
+        async with api_tls_peer("success",
+            response_body=fail_response(
+                execution_attempt_ref=outcome().execution_attempt_ref,
+                failure_code="provider_interrupted",
+                failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
         )) as peer:
             notices = DeliveryNotices(BrokenStream(), secrets=())
             self.addCleanup(notices.close)
@@ -295,9 +314,14 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             self.addCleanup(notices.close)
 
             service = DeliveryService(
-                self.root / "state", limits=self.limits, bindings=(*template.bindings, DeliveryBinding(second, other_api)),
-                request_seconds=1, retry_initial_seconds=0.01, retry_max_seconds=0.02,
-                on_notice=notices, diagnostic_status=notices.status,
+                self.root / "state",
+                limits=self.limits,
+                bindings=(*template.bindings, DeliveryBinding(second, other_api)),
+                request_seconds=1,
+                retry_initial_seconds=0.01,
+                retry_max_seconds=0.02,
+                on_notice=notices,
+                diagnostic_status=notices.status,
             )
 
             with self.assertRaises(DeliveryUnavailable):

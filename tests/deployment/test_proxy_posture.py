@@ -76,7 +76,8 @@ class ImageBuildProxyInputTests(unittest.TestCase):
                 _PROXY.parse_destination(f"CONNECT example.invalid:{port} HTTP/1.1\r\n\r\n".encode())
 
         self.assertEqual(
-            ("CONNECT", "example.invalid", 443), _PROXY.parse_destination(b"CONNECT example.invalid:443 HTTP/1.1\r\n\r\n")[:3]
+            ("CONNECT", "example.invalid", 443),
+            _PROXY.parse_destination(b"CONNECT example.invalid:443 HTTP/1.1\r\n\r\n")[:3]
         )
 
     def test_complete_headers_preserve_the_received_remainder(self):
@@ -460,7 +461,8 @@ class ImageBuildProxyTransportTests(unittest.TestCase):
             _PROXY.relay(left, right)
 
         self.assertEqual(
-            events, ["client EOF", "server write shutdown", "response forwarded", "server EOF", "client write shutdown"]
+            events,
+            ["client EOF", "server write shutdown", "response forwarded", "server EOF", "client write shutdown"]
         )
 
         self.assertEqual(snapshots, [([left, right], 120), ([right], 119), ([right], 120)])
@@ -504,7 +506,8 @@ class ImageBuildProxyWorkerTests(unittest.TestCase):
         )
 
         self.assertTrue(
-            hasattr(_PROXY, required), msg=f"Proxy worker cannot prove {name}: provider_core.bound_http_proxy does not own {required}."
+            hasattr(_PROXY, required),
+            msg=f"Proxy worker cannot prove {name}: provider_core.bound_http_proxy does not own {required}."
         )
 
     def test_overload_does_not_start_a_thread(self):
@@ -764,7 +767,9 @@ def _run_main(server, ready):
         patch.object(_PROXY, "require_interface"),
         patch.object(_PROXY.socket, "socket") as probe_factory,
         patch.object(
-            _PROXY.sys, "argv", ["image-build-proxy.py", "--interface", "eth0", "--port", "0", "--ready-file", str(ready)]
+            _PROXY.sys,
+            "argv",
+            ["image-build-proxy.py", "--interface", "eth0", "--port", "0", "--ready-file", str(ready)]
         ),
     ):
         factory.return_value.__enter__.return_value = server

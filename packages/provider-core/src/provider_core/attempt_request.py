@@ -227,7 +227,11 @@ def read_complete_body(body, *, execution_attempt_ref):
     """Validate retained completion without changing the bytes to be sent."""
 
     document = _outcome_document(
-        body, "complete", 2097152, execution_attempt_ref, ("result_schema_id", "canonical_result_base64")
+        body,
+        "complete",
+        2097152,
+        execution_attempt_ref,
+        ("result_schema_id", "canonical_result_base64")
     )
 
     _scalar_text(document["result_schema_id"], "result schema identity")

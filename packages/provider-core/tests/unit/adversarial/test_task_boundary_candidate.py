@@ -15,7 +15,9 @@ class TaskBoundaryCandidateTests(unittest.TestCase):
                 with self.subTest(owner=owner, failure=failure):
                     completed = subprocess.run(
                         [sys.executable, "-I", "-B", str(witness), owner, failure],
-                        capture_output=True, text=True, timeout=10,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
                     )
 
                     self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
@@ -30,7 +32,9 @@ class TaskBoundaryCandidateTests(unittest.TestCase):
                 with self.subTest(stage=stage, failure=failure):
                     completed = subprocess.run(
                         [sys.executable, "-I", "-B", str(witness), stage, failure],
-                        capture_output=True, text=True, timeout=10,
+                        capture_output=True,
+                        text=True,
+                        timeout=10,
                     )
 
                     self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
@@ -48,7 +52,9 @@ class TaskBoundaryCandidateTests(unittest.TestCase):
 
                         completed = subprocess.run(
                             [sys.executable, "-I", "-B", str(witness), owner, failure],
-                            capture_output=True, text=True, timeout=10,
+                            capture_output=True,
+                            text=True,
+                            timeout=10,
                         )
 
                         self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
@@ -74,7 +80,9 @@ class TaskBoundaryCandidateTests(unittest.TestCase):
             with self.subTest(stage=stage, variant=variant):
                 completed = subprocess.run(
                     [sys.executable, "-I", "-B", str(witness), stage, variant],
-                    capture_output=True, text=True, timeout=10,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
                 )
 
                 self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)

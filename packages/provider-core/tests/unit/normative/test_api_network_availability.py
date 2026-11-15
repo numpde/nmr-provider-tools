@@ -115,23 +115,38 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
     # silent-defaults: allow-contract -- Ordinary reads have neither effect flag; the operation matrix explicitly supplies both flags.
     async def failed_exchange(self, client, method, path, *, issuance=False, mutation=False):
         with self.assertRaises(ApiFailure) as caught:
-            await client._exchange("controlled availability", method=method, path=path, query=b"",
-                                   maximum_bytes=4096, issuance=issuance, attempt_mutation=mutation)
+            await client._exchange("controlled availability",
+                                   method=method,
+                                   path=path,
+                                   query=b"",
+                                   maximum_bytes=4096,
+                                   issuance=issuance,
+                                   attempt_mutation=mutation)
 
         return caught.exception
 
     async def test_causal_availability_has_no_wrapper_order_or_dns_errno_prediction(self):
         positives = [socket.gaierror(code, "resolver failure") for code in (socket.EAI_AGAIN, socket.EAI_NONAME, socket.EAI_FAIL)]
 
-        positives += [ConnectionResetError(errno.ECONNRESET, "reset"), TimeoutError(),
-                      ssl.SSLEOFError(), ssl.SSLZeroReturnError(), anyio.EndOfStream(), anyio.BrokenResourceError()]
+        positives += [ConnectionResetError(errno.ECONNRESET, "reset"),
+                      TimeoutError(),
+                      ssl.SSLEOFError(),
+                      ssl.SSLZeroReturnError(),
+                      anyio.EndOfStream(),
+                      anyio.BrokenResourceError()]
 
         positives += [wrapper(ExceptionGroup("all addresses", [ConnectionRefusedError(), TimeoutError()])),
                       wrapper(wrapper(socket.gaierror(socket.EAI_NONAME, "resolver"), httpcore.ReadError))]
 
-        negatives = [RuntimeError(), ValueError(), PermissionError(errno.EACCES, "denied"),
-                     ssl.SSLCertVerificationError(), ssl.CertificateError(), ssl.SSLError(1, "hard TLS failure"),
-                     httpcore.RemoteProtocolError(), httpcore.LocalProtocolError(), httpcore.PoolTimeout(),
+        negatives = [RuntimeError(),
+                     ValueError(),
+                     PermissionError(errno.EACCES, "denied"),
+                     ssl.SSLCertVerificationError(),
+                     ssl.CertificateError(),
+                     ssl.SSLError(1, "hard TLS failure"),
+                     httpcore.RemoteProtocolError(),
+                     httpcore.LocalProtocolError(),
+                     httpcore.PoolTimeout(),
                      ExceptionGroup("mixed", [ConnectionRefusedError(), RuntimeError()]),
                      ExceptionGroup("mixed TLS", [TimeoutError(), ssl.SSLCertVerificationError()])]
 
@@ -194,7 +209,9 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                 with patch("provider_core.network.httpcore.AnyIOBackend", return_value=Backend(error=original)):
                     failure = await self.failed_exchange(client, method, path, issuance=issuance, mutation=mutation)
 
-                checks = dict(read=client.can_retry_read, hello=client.can_refresh_hello, start=client.can_replay_start,
+                checks = dict(read=client.can_retry_read,
+                              hello=client.can_refresh_hello,
+                              start=client.can_replay_start,
                               terminal=client.can_replay_terminal,
                               progress=lambda error: client.can_defer_phase_progress(error, execution_attempt_ref=ATTEMPT_REF),
                               grant=lambda error: client.can_renew_read_grant(error, job_ref="job:example", upload_ref=UPLOAD_REF))
@@ -293,8 +310,10 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         grant_path = f"/provider/v1/jobs/job:example/uploads/{UPLOAD_REF}/read-capability"
 
         for (status, topology, malformed, read_allowed) in (
-            (200, b"dev-local", False, True), (200, b"wrong", False, False),
-            (200, b"dev-local", True, False), (500, b"dev-local", False, True),
+            (200, b"dev-local", False, True),
+            (200, b"wrong", False, False),
+            (200, b"dev-local", True, False),
+            (500, b"dev-local", False, True),
             (429, b"dev-local", False, True),
         ):
             for (method, path) in (("GET", "/provider/v1/jobs/job:example/uploads"), ("POST", grant_path)):
@@ -347,8 +366,12 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(client.can_retry_read(failure))
 
     async def test_typed_io_preserves_explicit_mixed_causes_and_exact_connection_family(self):
-        for kind in (httpcore.ReadTimeout, httpcore.ConnectTimeout, TimeoutError, ssl.SSLEOFError,
-                     socket.gaierror, ConnectionError):
+        for kind in (httpcore.ReadTimeout,
+                     httpcore.ConnectTimeout,
+                     TimeoutError,
+                     ssl.SSLEOFError,
+                     socket.gaierror,
+                     ConnectionError):
             for (leaf, expected) in ((ConnectionResetError(), True),
                                    (ExceptionGroup("all available", [TimeoutError(), ConnectionRefusedError()]), True),
                                    (ExceptionGroup("mixed local", [TimeoutError(), RuntimeError()]), False),
@@ -359,8 +382,11 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
                     facts = await self.capture_connect(original)
                     self.assertIs(network_availability(original, facts, network_failure=original), expected)
 
-        for (kind, expected) in ((httpcore.ReadTimeout, True), (TimeoutError, True),
-                               (httpcore.ConnectError, False), (ConnectionError, False), (ssl.SSLEOFError, False)):
+        for (kind, expected) in ((httpcore.ReadTimeout, True),
+                               (TimeoutError, True),
+                               (httpcore.ConnectError, False),
+                               (ConnectionError, False),
+                               (ssl.SSLEOFError, False)):
             with self.subTest(kind=kind.__name__, implementation_cancel=True):
                 original = kind()
                 original.__cause__ = asyncio.CancelledError()
@@ -376,8 +402,10 @@ class ApiNetworkAvailabilityTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_sdk_deadline_preserves_explicit_native_cancellation_cause(self):
         for (cause, expected) in (
-            (None, True), (ConnectionResetError(), True),
-            (ssl.SSLCertVerificationError(), False), (RuntimeError(), False),
+            (None, True),
+            (ConnectionResetError(), True),
+            (ssl.SSLCertVerificationError(), False),
+            (RuntimeError(), False),
             (ExceptionGroup("mixed", [TimeoutError(), RuntimeError()]), False),
         ):
             with self.subTest(cause=type(cause).__name__):

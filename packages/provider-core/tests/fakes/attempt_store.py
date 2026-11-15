@@ -19,5 +19,8 @@ def record(key="retained:one"):
 
 def admission(**changes):
     return read_start(
-        start_response(**changes), job_ref="job:example", analysis_kind_ref="nmr_predict", provider_ref="provider:example"
+        start_response(**changes),
+        job_ref="job:example",
+        analysis_kind_ref="nmr_predict",
+        provider_ref="provider:example"
     )

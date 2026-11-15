@@ -42,7 +42,8 @@ class SignedHelloTests(unittest.IsolatedAsyncioTestCase):
                 }
 
                 self.assertEqual(
-                    parse(headers[b"content-digest"], tltype="dictionary")["sha-256"][0], hashlib.sha256(body).digest()
+                    parse(headers[b"content-digest"], tltype="dictionary")["sha-256"][0],
+                    hashlib.sha256(body).digest()
                 )
 
                 base = b"\n".join(

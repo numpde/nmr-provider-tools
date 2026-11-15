@@ -203,8 +203,11 @@ def _scientific_call_shape(
 
     if isinstance(scientific_call, _PlainCall):
         return _ScientificCallShape(
-            instance=None, analysis=None, input=scientific_call.input_type,
-            state=NoState, output=scientific_call.result_type,
+            instance=None,
+            analysis=None,
+            input=scientific_call.input_type,
+            state=NoState,
+            output=scientific_call.result_type,
         )
 
     parameters = _positional_parameters(scientific_call, count=1, label="Scientific call")
@@ -340,8 +343,10 @@ class ConfiguredIdentity:
             "contract_version": self.contract_version,
             "configuration": configuration,
             "assets": [
-                {"name": asset.name, "media_type": asset.media_type,
-                 "digest": asset.digest, "size_bytes": asset.size_bytes}
+                {"name": asset.name,
+                 "media_type": asset.media_type,
+                 "digest": asset.digest,
+                 "size_bytes": asset.size_bytes}
                 for asset in sorted(self.assets, key=lambda asset: asset.name)
             ],
         }
@@ -741,7 +746,8 @@ class CallBinding[InputT, StateT, OutputT]:
     state_binding: StateBinding[StateT] = field(repr=False)
 
     scientific_call: Callable[
-        [CallContext[Any, Any, InputT, StateT]], ScientificReturn[OutputT]
+        [CallContext[Any, Any, InputT, StateT]],
+        ScientificReturn[OutputT]
     ] = field(repr=False)
 
     result_codec: PayloadCodec[OutputT] = field(repr=False)
@@ -836,7 +842,8 @@ class CallBinding[InputT, StateT, OutputT]:
         interruption: InterruptionSupport,
         progress: bool,
         scientific_call: Callable[
-            [CallContext[Any, Any, InputT, StateT]], ScientificReturn[OutputT]
+            [CallContext[Any, Any, InputT, StateT]],
+            ScientificReturn[OutputT]
         ],
         state_binding: DeclaredStateBinding[StateT] | None = None,
     ) -> CallBinding[InputT, StateT, OutputT]:
@@ -915,15 +922,24 @@ class CallBinding[InputT, StateT, OutputT]:
         """Bind an ordinary unary calculation with no state/control hooks."""
 
         _require_callable_signature(
-            function, parameter_types=(input_type,), return_type=result_type,
+            function,
+            parameter_types=(input_type,),
+            return_type=result_type,
             label="Plain scientific function",
         )
 
         return CallBinding.from_json_dataclasses(
-            name=name, input_type=input_type, state_type=NoState, result_type=result_type,
-            input_format=input_format, result_format=result_format,
-            state_outputs=(), resources=resources,
-            concurrency=concurrency, interruption=InterruptionSupport.NONE, progress=False,
+            name=name,
+            input_type=input_type,
+            state_type=NoState,
+            result_type=result_type,
+            input_format=input_format,
+            result_format=result_format,
+            state_outputs=(),
+            resources=resources,
+            concurrency=concurrency,
+            interruption=InterruptionSupport.NONE,
+            progress=False,
             scientific_call=_PlainCall(function, input_type, result_type),
         )
 
@@ -957,7 +973,9 @@ class CallBinding[InputT, StateT, OutputT]:
             scientific_control = control
 
         context = CallContext(
-            instance=instance, analysis=analysis, scientific_input=scientific_input,
+            instance=instance,
+            analysis=analysis,
+            scientific_input=scientific_input,
             state=self.state_binding.bind(live_states),
             control=scientific_control,
         )
@@ -1073,13 +1091,20 @@ class ImplementationBinding[InstanceT, AnalysisT]:
         for call in calls:
             descriptions.append(call.description)
 
-        object.__setattr__(self, "description", ImplementationDescription(
-            binding_id=self.identity.binding_id, binding_revision=self.identity.revision,
-            contract_version=self.identity.contract_version,
-            configuration=self.identity.configuration, assets=self.identity.assets,
-            calls=frozenset(descriptions), resident_resources=self.resident_resources,
-            isolation=self.isolation,
-        ))
+        object.__setattr__(
+            self,
+            "description",
+            ImplementationDescription(
+                binding_id=self.identity.binding_id,
+                binding_revision=self.identity.revision,
+                contract_version=self.identity.contract_version,
+                configuration=self.identity.configuration,
+                assets=self.identity.assets,
+                calls=frozenset(descriptions),
+                resident_resources=self.resident_resources,
+                isolation=self.isolation,
+            )
+        )
 
         if self.instance is None:
             instance_type = NoneType

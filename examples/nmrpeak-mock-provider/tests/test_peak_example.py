@@ -37,8 +37,12 @@ from .fakes import RecordingReceiver, ScriptedEndpointFactory
 
 
 def candidate(*, carbon):
-    document = {"formula": "C2H6O", "proton_peaks": [{
-        "centroid": "1.2", "integral": 3, "multiplicity": "triplet", "couplings": ["7"],
+    document = {"formula": "C2H6O",
+        "proton_peaks": [{
+            "centroid": "1.2",
+            "integral": 3,
+            "multiplicity": "triplet",
+            "couplings": ["7"],
     }]}
 
     if carbon:

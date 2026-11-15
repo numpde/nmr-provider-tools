@@ -37,11 +37,15 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
             async with TlsPeer("success", response_body=body) as peer:
                 factory = ChatEndpointFactory(
-                    spec=ChatEndpointSpec(configuration_id="reply-boundary", model="fixture",
-                                          url=peer.origin + "/chat", api_key="PRIVATE_FIXTURE_KEY",
+                    spec=ChatEndpointSpec(configuration_id="reply-boundary",
+                                          model="fixture",
+                                          url=peer.origin + "/chat",
+                                          api_key="PRIVATE_FIXTURE_KEY",
                                           reasoning_effort=None),
-                    trust=peer.trust, retirement_seconds=0.6,
-                    request_bytes=32768, response_bytes=8192,
+                    trust=peer.trust,
+                    retirement_seconds=0.6,
+                    request_bytes=32768,
+                    response_bytes=8192,
                 )
 
                 def observe_endpoint(**settings):
@@ -50,11 +54,15 @@ class ModelReplyBoundaryTests(unittest.IsolatedAsyncioTestCase):
 
                     return endpoint
 
-                interpreter = Interpreter((observe_endpoint,), timeout_seconds=10,
-                                          context_bytes=16384, secrets=("PRIVATE_FIXTURE_KEY",))
+                interpreter = Interpreter((observe_endpoint,),
+                                          timeout_seconds=10,
+                                          context_bytes=16384,
+                                          secrets=("PRIVATE_FIXTURE_KEY",))
 
-                tools = [{"type": "function", "function": {
-                    "name": "prepare", "parameters": {"type": "object", "properties": {}}}}]
+                tools = [{"type": "function",
+                    "function": {
+                        "name": "prepare",
+                        "parameters": {"type": "object", "properties": {}}}}]
 
                 dispatch = AsyncMock(return_value=ToolFinished("prepared"))
                 deadline = asyncio.get_running_loop().time() + 3

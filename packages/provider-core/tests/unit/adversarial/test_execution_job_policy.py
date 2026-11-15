@@ -20,14 +20,29 @@ class ExecutionJobPolicyFailureTests(unittest.IsolatedAsyncioTestCase):
         (store, _, claim) = await live_attempt()
 
         for (states, error_type) in (
-            (None, TypeError), ("open", TypeError), ({"open"}, TypeError), (["open"], TypeError),
-            (frozenset(), ValueError), (frozenset({"unknown"}), ValueError),
-            (frozenset({"open", "unknown"}), ValueError), (frozenset({1}), ValueError),
-            (frozenset({"cancelled"}), ValueError), (frozenset({"open", "cancelled"}), ValueError),
+            (None, TypeError),
+            ("open", TypeError),
+            ({"open"}, TypeError),
+            (["open"], TypeError),
+            (frozenset(), ValueError),
+            (frozenset({"unknown"}), ValueError),
+            (frozenset({"open", "unknown"}), ValueError),
+            (frozenset({1}), ValueError),
+            (frozenset({"cancelled"}), ValueError),
+            (frozenset({"open", "cancelled"}), ValueError),
         ):
             with self.subTest(states=states), self.assertRaises(error_type):
-                live_executor(api(Transport(), store.scope.api_origin), store, claim, Session(store),
-                                delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=states, poll_seconds=0.01, task_settle_seconds=0.1)
+                live_executor(api(Transport(), store.scope.api_origin),
+                                store,
+                                claim,
+                                Session(store),
+                                delivery=RecordingDelivery(),
+                                on_delivery_retry=Mock(),
+                                delivery_retry_initial_seconds=0.01,
+                                delivery_retry_max_seconds=0.04,
+                                allowed_job_states=states,
+                                poll_seconds=0.01,
+                                task_settle_seconds=0.1)
 
         claim.release(owner=claim.lifecycle_owner)
 
@@ -39,9 +54,17 @@ class ExecutionJobPolicyFailureTests(unittest.IsolatedAsyncioTestCase):
                     session = Session(store)
                     transport = Transport(reply(observation(state=state, job_state=job_state)))
 
-                    executor = live_executor(api(transport, store.scope.api_origin), store, claim, session,
-                                               delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open", "closed"}),
-                                               poll_seconds=0.01, task_settle_seconds=0.1)
+                    executor = live_executor(api(transport, store.scope.api_origin),
+                                               store,
+                                               claim,
+                                               session,
+                                               delivery=RecordingDelivery(),
+                                               on_delivery_retry=Mock(),
+                                               delivery_retry_initial_seconds=0.01,
+                                               delivery_retry_max_seconds=0.04,
+                                               allowed_job_states=frozenset({"open", "closed"}),
+                                               poll_seconds=0.01,
+                                               task_settle_seconds=0.1)
 
                     with self.assertRaises(ExecutionFailed) as failed:
                         await executor.run(acknowledged)
@@ -72,8 +95,17 @@ class ExecutionJobPolicyFailureTests(unittest.IsolatedAsyncioTestCase):
 
         client.read_attempt = read_attempt
 
-        executor = live_executor(client, store, claim, session, delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=states,
-                                   poll_seconds=0.01, task_settle_seconds=0.1)
+        executor = live_executor(client,
+                                   store,
+                                   claim,
+                                   session,
+                                   delivery=RecordingDelivery(),
+                                   on_delivery_retry=Mock(),
+                                   delivery_retry_initial_seconds=0.01,
+                                   delivery_retry_max_seconds=0.04,
+                                   allowed_job_states=states,
+                                   poll_seconds=0.01,
+                                   task_settle_seconds=0.1)
 
         try:
             with self.assertRaises(ExecutionFailed) as failed:

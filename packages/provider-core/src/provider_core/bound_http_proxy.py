@@ -382,7 +382,11 @@ def _query_ipv4(
 
 
 def resolve_ipv4_bound(
-    host: str, interface: str, *, deadline: float, dns_servers: tuple[str, ...] | None = None
+    host: str,
+    interface: str,
+    *,
+    deadline: float,
+    dns_servers: tuple[str, ...] | None = None
 ) -> tuple[str, ...]:
     """Follow bounded IPv4 aliases without using an unbound system resolver."""
 
@@ -401,7 +405,8 @@ def resolve_ipv4_bound(
             _remaining(deadline, "DNS resolution")
         except TimeoutError as expired:
             raise ProxyResolutionDeadline(
-                "Cannot resolve proxy destination: the shared DNS deadline elapsed.", (*failures, expired)
+                "Cannot resolve proxy destination: the shared DNS deadline elapsed.",
+                (*failures, expired)
             ) from expired
 
         try:
@@ -830,7 +835,9 @@ def main() -> None:
     parser.add_argument("--ready-file", type=Path, required=True)
 
     parser.add_argument(
-        "--resolver-file", type=Path, help="Captured DNS configuration; no fallback to host or container resolvers."
+        "--resolver-file",
+        type=Path,
+        help="Captured DNS configuration; no fallback to host or container resolvers."
     )
 
     args = parser.parse_args()

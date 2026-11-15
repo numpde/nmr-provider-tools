@@ -125,7 +125,12 @@ def unit_files(root, context, endpoint, config):
     name = "engine-cache-gc-" + hashlib.sha256(endpoint.encode()).hexdigest()[:16]
 
     command = " ".join(argument(value) for value in (
-        "/bin/bash", str(root / "host/tools/engine_cache_gc.sh"), "run", context, endpoint, str(config)))
+        "/bin/bash",
+        str(root / "host/tools/engine_cache_gc.sh"),
+        "run",
+        context,
+        endpoint,
+        str(config)))
 
     service = ("[Unit]\nDescription=Unused BuildKit cache collection for one local engine\n\n"
                "[Service]\nType=oneshot\nTimeoutStartSec=360\nExecStart=:" + command + "\n")

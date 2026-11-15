@@ -8,7 +8,10 @@ import provider_core.contribution as contribution
 import provider_core.contribution_declaration as declaration
 
 from provider_core.state_slots import (
-    SlotStateBinding, StateInputSlot, StateType, StateOutputSlot,
+    SlotStateBinding,
+    StateInputSlot,
+    StateType,
+    StateOutputSlot,
 )
 
 from . import science
@@ -16,14 +19,19 @@ from . import science
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class WeightedSumBinding(contribution.ImplementationBinding[
-    science.WeightedSumModel, science.WeightedSumAnalysis,
+    science.WeightedSumModel,
+    science.WeightedSumAnalysis,
 ]):
     prepare: contribution.CallBinding[
-        science.PreparationInput, contribution.NoState, science.PreparationResult,
+        science.PreparationInput,
+        contribution.NoState,
+        science.PreparationResult,
     ]
 
     calculate: contribution.CallBinding[
-        contribution.NoInput, science.CalculationState, science.PredictionResult,
+        contribution.NoInput,
+        science.CalculationState,
+        science.PredictionResult,
     ]
 
     prepared_output: StateOutputSlot[science.PreparedValues]
@@ -33,7 +41,9 @@ class WeightedSumBinding(contribution.ImplementationBinding[
 @dataclass(frozen=True, slots=True, kw_only=True)
 class SumBinding(contribution.ImplementationBinding[None, None]):
     run: contribution.CallBinding[
-        science.SumInput, contribution.NoState, science.SumResult,
+        science.SumInput,
+        contribution.NoState,
+        science.SumResult,
     ]
 
 
@@ -55,11 +65,13 @@ def weighted_sum_binding(
     prepared_kind = StateType(name="dummy.prepared-values.v1", value_type=science.PreparedValues)
 
     prepared_output = prepared_kind.output(
-        name="normalized", dispose=science.dispose_prepared,
+        name="normalized",
+        dispose=science.dispose_prepared,
     )
 
     prepared_input = prepared_kind.input(
-        name="candidate", use=contribution.StateUse.CONSUME,
+        name="candidate",
+        use=contribution.StateUse.CONSUME,
     )
 
     calculation_state = SlotStateBinding(
@@ -78,8 +90,10 @@ def weighted_sum_binding(
 
     def prepare(
         context: contribution.CallContext[
-            science.WeightedSumModel, science.WeightedSumAnalysis,
-            science.PreparationInput, contribution.NoState,
+            science.WeightedSumModel,
+            science.WeightedSumAnalysis,
+            science.PreparationInput,
+            contribution.NoState,
         ],
     ) -> contribution.ScientificReturn[science.PreparationResult]:
         prepared = science.prepare(
@@ -94,8 +108,10 @@ def weighted_sum_binding(
 
     def calculate(
         context: contribution.CallContext[
-            science.WeightedSumModel, science.WeightedSumAnalysis,
-            contribution.NoInput, science.CalculationState,
+            science.WeightedSumModel,
+            science.WeightedSumAnalysis,
+            contribution.NoInput,
+            science.CalculationState,
         ],
     ) -> contribution.ScientificReturn[science.PredictionResult]:
         control = context.require_control()

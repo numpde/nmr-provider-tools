@@ -9,7 +9,10 @@ from provider_core.analysis import PreparedAnalysis
 from provider_core.attempt_record import MAX_EVIDENCE_BYTES, ProtectedEvidence
 
 from provider_core.producer_checkpoint import (
-    MAX_CHECKPOINT_BYTES, AcknowledgedCheckpoint, EnteredCheckpoint, EvidenceDigest,
+    MAX_CHECKPOINT_BYTES,
+    AcknowledgedCheckpoint,
+    EnteredCheckpoint,
+    EvidenceDigest,
     encode_checkpoint,
 )
 
@@ -61,7 +64,11 @@ class PreparedIdentityTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=1,
             task_settle_seconds=0.1,
         ).run(acknowledged)

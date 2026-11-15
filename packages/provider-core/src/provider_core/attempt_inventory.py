@@ -72,7 +72,12 @@ def read_attempt_inventory(raw, *, limit):
 
 def _read_item(item):
     if type(item) is not dict or set(item) != {
-        "analysis_kind_ref", "execution_attempt_ref", "job_ref", "provider_attempt_key", "state", "started_at",
+        "analysis_kind_ref",
+        "execution_attempt_ref",
+        "job_ref",
+        "provider_attempt_key",
+        "state",
+        "started_at",
     }:
         raise ResponseRejected("Inventory Attempt fields do not match the supported item schema")
 
@@ -87,5 +92,9 @@ def _read_item(item):
     if item["state"] != "in_progress":
         raise ResponseRejected("Inventory Attempt state must be in_progress")
 
-    return InventoryAttempt(item["analysis_kind_ref"], item["execution_attempt_ref"], item["job_ref"],
-                            item["provider_attempt_key"], item["state"], read_timestamp(item["started_at"]))
+    return InventoryAttempt(item["analysis_kind_ref"],
+                            item["execution_attempt_ref"],
+                            item["job_ref"],
+                            item["provider_attempt_key"],
+                            item["state"],
+                            read_timestamp(item["started_at"]))

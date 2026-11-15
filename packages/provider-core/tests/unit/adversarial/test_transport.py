@@ -77,7 +77,9 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.assertRaises(ExchangeFailed) as caught:
                 await transport.exchange_file(
-                    httpx.Request("GET", "https://api.example/input"), output_fd=output.fileno(), maximum_bytes=3
+                    httpx.Request("GET", "https://api.example/input"),
+                    output_fd=output.fileno(),
+                    maximum_bytes=3
                 )
 
             self.assertIsInstance(caught.exception.primary, OSError)
@@ -123,7 +125,9 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         # silent-defaults: allow-contract -- The long budget lets cancellation win; the short budget exercises exchange expiry.
         transport = HttpTransport(
-            trust=ssl.create_default_context(), exchange_seconds=2 if cancel else 0.1, retirement_seconds=0.03
+            trust=ssl.create_default_context(),
+            exchange_seconds=2 if cancel else 0.1,
+            retirement_seconds=0.03
         )
 
         owner = object()
@@ -223,7 +227,9 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             ):
                 with self.assertRaises(error_type):
                     await self.transport().exchange_file(
-                        httpx.Request("GET", "https://api.example/input"), output_fd=descriptor, maximum_bytes=4
+                        httpx.Request("GET", "https://api.example/input"),
+                        output_fd=descriptor,
+                        maximum_bytes=4
                     )
 
                 factory.assert_not_called()
@@ -249,7 +255,8 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
                         self.subTest(descriptor=descriptor),
                         patch("provider_core.transport.OwnedNetworkBackend", wraps=OwnedNetworkBackend) as network,
                         patch(
-                            "provider_core.transport.httpcore.AsyncConnectionPool", return_value=Client(Stream([b"data"]))
+                            "provider_core.transport.httpcore.AsyncConnectionPool",
+                            return_value=Client(Stream([b"data"]))
                         ) as client,
                     ):
                         transport = self.transport()
@@ -290,7 +297,9 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
             # silent-defaults: allow-contract -- The long budget lets cancellation win; the short budget exercises file-output expiry.
             transport = HttpTransport(
-                trust=ssl.create_default_context(), exchange_seconds=2 if cancel else 0.1, retirement_seconds=0.03
+                trust=ssl.create_default_context(),
+                exchange_seconds=2 if cancel else 0.1,
+                retirement_seconds=0.03
             )
 
             owner = object()
@@ -361,7 +370,9 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         ):
             with self.assertRaises(asyncio.CancelledError):
                 await transport.exchange_file(
-                    httpx.Request("GET", "https://api.example/input"), output_fd=output.fileno(), maximum_bytes=4
+                    httpx.Request("GET", "https://api.example/input"),
+                    output_fd=output.fileno(),
+                    maximum_bytes=4
                 )
 
             factory.assert_not_called()
@@ -370,7 +381,10 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_ipv6_proxy_destination_refuses_before_any_network_owner_is_created(self):
         transport = HttpTransport(
-            trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=1, proxy_socket="/run/proxy.sock"
+            trust=ssl.create_default_context(),
+            exchange_seconds=1,
+            retirement_seconds=1,
+            proxy_socket="/run/proxy.sock"
         )
 
         with (
@@ -387,8 +401,12 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_invalid_unix_socket_paths_refuse_before_client_creation_without_echoing_them(self):
         for (path, error_type) in (
-            ("", ValueError), ("PRIVATE relative", ValueError), ("/PRIVATE\x00socket", ValueError),
-            ("/" + "x" * 107, ValueError), ("/PRIVATE\ud800", ValueError), (7, TypeError),
+            ("", ValueError),
+            ("PRIVATE relative", ValueError),
+            ("/PRIVATE\x00socket", ValueError),
+            ("/" + "x" * 107, ValueError),
+            ("/PRIVATE\ud800", ValueError),
+            (7, TypeError),
         ):
             with self.subTest(kind=type(path).__name__), self.assertRaises(error_type) as caught:
                 HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=1, proxy_socket=path)
@@ -610,7 +628,8 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
 
         with (
             patch(
-                "provider_core.transport.httpcore.AsyncConnectionPool", return_value=SlowCloseClient(Stream([], failure=primary))
+                "provider_core.transport.httpcore.AsyncConnectionPool",
+                return_value=SlowCloseClient(Stream([], failure=primary))
             ),
             self.assertRaises(ExchangeFailed) as caught,
         ):
@@ -691,7 +710,9 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             self.assertRaises(ExchangeFailed),
         ):
             await self.transport().exchange(
-                httpx.Request("GET", "https://api.example"), maximum_bytes=4, account_bytes=received.append
+                httpx.Request("GET", "https://api.example"),
+                maximum_bytes=4,
+                account_bytes=received.append
             )
 
         self.assertEqual(received, [3, 2])

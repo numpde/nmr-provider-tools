@@ -48,8 +48,12 @@ from provider_core.delivery_worker import require_delivery_retry_settings
 from provider_core.job_input import VerifiedJobInput
 
 from provider_core.producer_checkpoint import (
-    AcknowledgedCheckpoint, DeliveryAcceptedCheckpoint, EnteredCheckpoint,
-    EvidenceDigest, SuppressedCheckpoint, TerminalSelectedCheckpoint,
+    AcknowledgedCheckpoint,
+    DeliveryAcceptedCheckpoint,
+    EnteredCheckpoint,
+    EvidenceDigest,
+    SuppressedCheckpoint,
+    TerminalSelectedCheckpoint,
 )
 
 from provider_core.transport import ExchangeFailed
@@ -392,7 +396,9 @@ class AttemptExecutor:
             raise ValueError("Execution requires the scoped delivery binding and its protected retry observer.")
 
         require_execution_settings(
-            allowed_job_states=allowed_job_states, poll_seconds=poll_seconds, task_settle_seconds=task_settle_seconds
+            allowed_job_states=allowed_job_states,
+            poll_seconds=poll_seconds,
+            task_settle_seconds=task_settle_seconds
         )
 
         require_delivery_retry_settings(delivery_retry_initial_seconds, delivery_retry_max_seconds)
@@ -599,7 +605,9 @@ class AttemptExecutor:
 
         if instructions is None:
             instructions = await self._api(
-                self.api.job_input, acknowledged.start.input, analysis_kind_ref=acknowledged.start.analysis_kind_ref
+                self.api.job_input,
+                acknowledged.start.input,
+                analysis_kind_ref=acknowledged.start.analysis_kind_ref
             )
 
         await self._progress("preparing")
@@ -628,7 +636,8 @@ class AttemptExecutor:
 
         self._handoff_wait.add_done_callback(_observe_task_failure)
 
-        await asyncio.wait({self._handoff_wait, self._retirement_task}, timeout=self._task_settle_seconds,
+        await asyncio.wait({self._handoff_wait, self._retirement_task},
+                           timeout=self._task_settle_seconds,
                            return_when=asyncio.FIRST_EXCEPTION)
 
         if self._handoff_wait.done():
@@ -821,7 +830,8 @@ class AttemptExecutor:
         if not self._task.done():
             raise _SettlementPending(
                 "Analysis task has not stopped; retain ownership and settle the original task",
-                executor=self, task=self._task,
+                executor=self,
+                task=self._task,
             )
 
         task = self._task
@@ -966,7 +976,9 @@ class AttemptExecutor:
 
         if recovery is None:
             observed = await self._api(
-                self.api.read_attempt, self._record.admission.execution_attempt_ref, job_ref=self._record.start.input.job_ref
+                self.api.read_attempt,
+                self._record.admission.execution_attempt_ref,
+                job_ref=self._record.start.input.job_ref
             )
 
             self._require_observed_active(observed)
@@ -985,7 +997,8 @@ class AttemptExecutor:
                 # retirement grace must not postpone scientific retirement.
                 # https://docs.python.org/3.12/library/asyncio-task.html#waiting-primitives
                 (done, _) = await asyncio.wait(
-                    {self._observation_wait}, timeout=max(0, deadline - asyncio.get_running_loop().time())
+                    {self._observation_wait},
+                    timeout=max(0, deadline - asyncio.get_running_loop().time())
                 )
 
                 if not done:
@@ -1204,8 +1217,12 @@ class AttemptExecutor:
         else:
             raise TypeError("Analysis session returned an unsupported outcome; preserve it for binding diagnosis")
 
-        return DeliveryOutcome(self.scope.api_origin, self.scope.provider_ref,
-                               self._record.start.input.job_ref, reference, operation, body)
+        return DeliveryOutcome(self.scope.api_origin,
+                               self.scope.provider_ref,
+                               self._record.start.input.job_ref,
+                               reference,
+                               operation,
+                               body)
 
     async def _handoff(self):
         self._require_live_permission()
@@ -1219,8 +1236,10 @@ class AttemptExecutor:
         self._delivery_outcome = outcome
 
         self._checkpoint = TerminalSelectedCheckpoint(
-            self._checkpoint, self._delivery_outcome.operation,
-            self._delivery_outcome.body_sha256, len(self._delivery_outcome.body),
+            self._checkpoint,
+            self._delivery_outcome.operation,
+            self._delivery_outcome.body_sha256,
+            len(self._delivery_outcome.body),
         )
 
         delay = self._delivery_retry_initial
@@ -1330,7 +1349,8 @@ class AttemptExecutor:
                 if not self._retirement_task.done():
                     raise _SettlementPending(
                         "Original session retirement has not finished; retain it before worker reuse.",
-                        executor=self, task=self._retirement_task,
+                        executor=self,
+                        task=self._retirement_task,
                     )
 
                 task = self._retirement_task
@@ -1347,8 +1367,10 @@ class AttemptExecutor:
         self._cancel_task()
         self._cancel_observation_wait()
 
-        operations = [self._settle_task, self._settle_observation_wait,
-                      self._settle_handoff, self._retire_delivery]
+        operations = [self._settle_task,
+                      self._settle_observation_wait,
+                      self._settle_handoff,
+                      self._retire_delivery]
 
         if self._retirement is _Retirement.NOT_ATTEMPTED or self._retirement_task is not None:
             # Do not retry failed normal retirement while handling its own error.

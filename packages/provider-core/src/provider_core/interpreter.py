@@ -78,7 +78,11 @@ type RecordKind = Literal["rejected_proposal", "tool_observation", "unverified_i
 
 class ToolDispatch(Protocol):
     async def __call__(
-        self, name: str, arguments: Document, *, not_after: float
+        self,
+        name: str,
+        arguments: Document,
+        *,
+        not_after: float
     ) -> ToolReply | ToolFinished: ...
 
 
@@ -86,7 +90,11 @@ class ConstraintReader(Protocol):
     """Return provider metadata, or NotImplemented to use the declared schema."""
 
     async def __call__(
-        self, tool: str, field: str | None, *, not_after: float
+        self,
+        tool: str,
+        field: str | None,
+        *,
+        not_after: float
     ) -> object: ...
 
 
@@ -98,7 +106,11 @@ class ModelEndpoint(Protocol):
     def retirement_confirmed(self) -> bool: ...
 
     async def complete(
-        self, messages: list[Document], tools: list[Document], *, not_after: float
+        self,
+        messages: list[Document],
+        tools: list[Document],
+        *,
+        not_after: float
     ) -> Document: ...
 
     async def retire(self) -> None: ...
@@ -444,7 +456,8 @@ class Interpreter:
             if failures and not isinstance(failure, InterpretationFailed):
                 context = ConversationFailed(
                     "Earlier interpreter model failures preceded this operation failure.",
-                    cause=failure.__cause__, endpoint_failures=failures,
+                    cause=failure.__cause__,
+                    endpoint_failures=failures,
                 )
 
                 raise failure from context
@@ -483,7 +496,11 @@ def _now() -> float:
 
 def _encode(value: object) -> bytes:
     return json.dumps(
-        value, ensure_ascii=True, allow_nan=False, sort_keys=True, separators=(",", ":")
+        value,
+        ensure_ascii=True,
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":")
     ).encode("ascii")
 
 
@@ -503,7 +520,10 @@ def _no_secrets(value: object, secrets: tuple[str, ...]) -> None:
 
 
 def _tool(
-    name: str, description: str, properties: Document, required: list[str]
+    name: str,
+    description: str,
+    properties: Document,
+    required: list[str]
 ) -> Document:
     return {
         "type": "function",
@@ -584,7 +604,11 @@ class _History:
             self._unavailable += 1
 
         record = _HistoryRecord(
-            ref=f"record-{self._sequence}", visit=visit, kind=kind, tool=tool, data=data
+            ref=f"record-{self._sequence}",
+            visit=visit,
+            kind=kind,
+            tool=tool,
+            data=data
         )
 
         self._records[record.ref] = record
@@ -644,15 +668,21 @@ class _History:
             if record is not None:
                 # silent-defaults: allow-contract -- A missing optional cursor means the beginning of this already-validated record's content.
                 results[index] = self._read_page(
-                    record, query["cursor"] if "cursor" in query else 0, results[:index], results[index + 1:], fits,
+                    record,
+                    query["cursor"] if "cursor" in query else 0,
+                    results[:index],
+                    results[index + 1:],
+                    fits,
                 )
 
         return {"records": results}
 
     @staticmethod
     def _read_page(
-        record: _HistoryRecord, cursor: int,
-        previous: list[Document], following: list[Document],
+        record: _HistoryRecord,
+        cursor: int,
+        previous: list[Document],
+        following: list[Document],
         fits: Callable[[Document], bool],
     ) -> Document:
         if cursor > len(record.data):
@@ -781,14 +811,17 @@ class _ReadInterpretationRecords:
             "a record is not proof of current source validity.",
             {
                 "records": {
-                    "type": "array", "minItems": 1, "maxItems": 8,
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": 8,
                     "items": {
                         "type": "object",
                         "properties": {
                             "ref": {"type": "string"},
                             "cursor": {"type": "integer", "minimum": 0},
                         },
-                        "required": ["ref"], "additionalProperties": False,
+                        "required": ["ref"],
+                        "additionalProperties": False,
                     },
                 },
             },
@@ -803,7 +836,10 @@ class _ProviderTools:
     """Capture the provider's declared capabilities once per interpretation."""
 
     def __init__(
-        self, definitions: list[Document], dispatch: ToolDispatch, describe: ConstraintReader | None
+        self,
+        definitions: list[Document],
+        dispatch: ToolDispatch,
+        describe: ConstraintReader | None
     ):
         self.definitions = json.loads(_encode(definitions))
 
@@ -864,7 +900,9 @@ def _retryable(failure: ChatFailed) -> bool:
     from provider_core.network import network_availability
 
     return network_availability(
-        exchange.primary, exchange.network_io, network_failure=exchange.network_failure
+        exchange.primary,
+        exchange.network_io,
+        network_failure=exchange.network_failure
     )
 
 
@@ -941,9 +979,10 @@ class _ModelVisit:
 
                     raise
 
-        self._tools = _Tools(tools, (
-            _DescribeInputConstraints(tools.schemas, guarded_reader),
-            _ReadInterpretationRecords(self._read_history),
+        self._tools = _Tools(tools,
+            (
+                _DescribeInputConstraints(tools.schemas, guarded_reader),
+                _ReadInterpretationRecords(self._read_history),
         ))
 
         self._service = None
@@ -1016,7 +1055,8 @@ class _ModelVisit:
 
             if _now() >= self._deadline:
                 raise ChatFailed(
-                    "model_deadline", "Cannot send interpreter turn: this model's time allocation expired."
+                    "model_deadline",
+                    "Cannot send interpreter turn: this model's time allocation expired."
                 )
 
             try:
@@ -1088,7 +1128,8 @@ class _ModelVisit:
 
         def fits(value: Document) -> bool:
             size = self.conversation.feedback_context_bytes(
-                self._feedback(value, budget), messages_suffix=suffix,
+                self._feedback(value, budget),
+                messages_suffix=suffix,
             )
 
             return size + _CLOCK_ENCODING_RESERVE_BYTES <= self._context_bytes
@@ -1108,7 +1149,8 @@ class _ModelVisit:
                 outcome = await self._dispatch_provider(name, arguments)
         except ModelWindowExpired as expired:
             raise ConversationFailed(
-                "This model's inspection window expired after provider work settled.", cause=expired,
+                "This model's inspection window expired after provider work settled.",
+                cause=expired,
             ) from expired
 
         if type(outcome) is ToolReply:
@@ -1127,7 +1169,9 @@ class _ModelVisit:
             outcome = await self._tools.dispatch(name, arguments, not_after=self._deadline)
         except ModelReportedInterpretationProblem as report:
             self._history.remember(
-                self.number, "unverified_interpretation_problem", name,
+                self.number,
+                "unverified_interpretation_problem",
+                name,
                 {"claim": report.model_summary},
             )
 
@@ -1136,7 +1180,9 @@ class _ModelVisit:
             raise
         except ToolRejected as rejection:
             self._history.remember(
-                self.number, "rejected_proposal", name,
+                self.number,
+                "rejected_proposal",
+                name,
                 {**captured_arguments, "rejection": str(rejection)},
             )
 
@@ -1148,7 +1194,9 @@ class _ModelVisit:
 
         if type(outcome) is ToolReply:
             self._history.remember(
-                self.number, "tool_observation", name,
+                self.number,
+                "tool_observation",
+                name,
                 {**captured_arguments, "value": outcome.value},
             )
 

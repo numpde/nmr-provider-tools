@@ -87,7 +87,9 @@ def selected_start(label):
     base = record("shutdown:" + label)
 
     return StartPending(
-        scope(), base.analysis_kind_ref, replace(base.input, job_ref=job),
+        scope(),
+        base.analysis_kind_ref,
+        replace(base.input, job_ref=job),
         retained_start(job_ref=job, provider_attempt_key="shutdown:" + label),
     )
 
@@ -149,7 +151,8 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             if request.url.path.endswith("/progress"):
                 progress = json.loads(request.content)
 
-                return reply(progress_response(execution_attempt_ref=self.attempt, phase=progress["phase"],
+                return reply(progress_response(execution_attempt_ref=self.attempt,
+                                               phase=progress["phase"],
                                                condition_code=progress["condition_code"]))
 
             if request.method == "GET":
@@ -165,11 +168,16 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
             factory = ChatEndpointFactory(
                 spec=ChatEndpointSpec(
-                    configuration_id="prose-interpreter-shutdown-test", model="local-test-peer",
-                    url=peer.origin + "/hang", api_key="PRIVATE_FIXTURE_KEY", reasoning_effort=None,
+                    configuration_id="prose-interpreter-shutdown-test",
+                    model="local-test-peer",
+                    url=peer.origin + "/hang",
+                    api_key="PRIVATE_FIXTURE_KEY",
+                    reasoning_effort=None,
                 ),
-                trust=peer.trust, retirement_seconds=cleanup_seconds,
-                request_bytes=32768, response_bytes=8192,
+                trust=peer.trust,
+                retirement_seconds=cleanup_seconds,
+                request_bytes=32768,
+                response_bytes=8192,
             )
 
             def observed_factory(**settings):
@@ -181,7 +189,10 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 return self.endpoint
 
             self.interpreter = Interpreter(
-                (observed_factory,), timeout_seconds=30, context_bytes=16384, secrets=("PRIVATE_FIXTURE_KEY",),
+                (observed_factory,),
+                timeout_seconds=30,
+                context_bytes=16384,
+                secrets=("PRIVATE_FIXTURE_KEY",),
             )
 
         async def prepare(self, acknowledged, instructions, *, report_condition):
@@ -195,8 +206,10 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 self.tool_dispatches += 1
                 raise AssertionError("The unanswered HTTPS request unexpectedly dispatched scientific work")
 
-            tools = [{"type": "function", "function": {
-                "name": "prepare", "parameters": {"type": "object", "properties": {}},
+            tools = [{"type": "function",
+                "function": {
+                    "name": "prepare",
+                    "parameters": {"type": "object", "properties": {}},
             }}]
 
             return (await self.interpreter.run([], tools, dispatch)).value
@@ -289,12 +302,20 @@ async def shutdown_scenario(schedule, seed, directory, facts):
         jobs_api_replies = JobsApiReplies(pending)
 
         controller = AttemptController.live(
-            api(jobs_api_replies, scope().api_origin), claims, session,
-            scope=scope(), stopping=asyncio.Event(), start_policy=LiveStartPolicy(1, Mock(), Mock()),
+            api(jobs_api_replies, scope().api_origin),
+            claims,
+            session,
+            scope=scope(),
+            stopping=asyncio.Event(),
+            start_policy=LiveStartPolicy(1, Mock(), Mock()),
             preverified_input=verify_job_input(response(job_ref=pending.input.job_ref), feed=pending.input),
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
-            delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-            poll_seconds=0.01, task_settle_seconds=0.05,
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            allowed_job_states=frozenset({"open"}),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            poll_seconds=0.01,
+            task_settle_seconds=0.05,
         )
 
         patches.enter_context(patch.object(chat_process.asyncio, "create_subprocess_exec", side_effect=observed_launch))
@@ -344,7 +365,8 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 if isinstance(result, asyncio.CancelledError):
                     cancelled_observers += 1
 
-                note("join_observer_finished", observer_number=observer_number + 1,
+                note("join_observer_finished",
+                     observer_number=observer_number + 1,
                      cancelled=isinstance(result, asyncio.CancelledError))
 
             await asyncio.wait_for(original_exchange.stop.wait(), 2)
@@ -375,14 +397,17 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
                 async with TlsPeer("success", response_body=completion) as independent_peer:
                     independent = ReplyRun(
-                        independent_peer, claims, f"job:independent-{seed}",
+                        independent_peer,
+                        claims,
+                        f"job:independent-{seed}",
                         InterpretedSession,
                     )
 
                     independent.session.science.release.set()
 
                     independent_result = await asyncio.wait_for(
-                        independent.controller.run(independent.pending), 6)
+                        independent.controller.run(independent.pending),
+                        6)
 
                     original_waiter = exit_observer_tasks[0]
 
@@ -404,7 +429,8 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                         "original_transport_held": not http_transport.retirement_confirmed,
                         "original_job_owned": claims.owns_job(pending.scope, pending.input.job_ref),
                         "independent_job_released": not claims.owns_job(
-                            independent.pending.scope, independent.pending.input.job_ref),
+                            independent.pending.scope,
+                            independent.pending.input.job_ref),
                         "live_claim_count": len(claims.live_owners()),
                     }
 
@@ -447,9 +473,12 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 try:
                     await asyncio.wait_for(http_transport.exchange_decoded(
                         httpx.Request("POST", peer.origin + "/replacement", content=b"{}"),
-                        maximum_bytes=8192, error_maximum_bytes=8192,
-                        owner=object(), not_after=loop.time() + 30,
-                    ), 1)
+                        maximum_bytes=8192,
+                        error_maximum_bytes=8192,
+                        owner=object(),
+                        not_after=loop.time() + 30,
+                    ),
+                        1)
                 except ExchangeFailed:
                     facts["held"]["replacement_http_request_refused"] = True
                 else:
@@ -508,11 +537,13 @@ async def shutdown_scenario(schedule, seed, directory, facts):
                 "original_driver_retained": controller._driver is original_driver,
                 "request_deadline_unchanged": original_exchange.deadline == original_deadline,
                 "stop_time_unchanged": original_exchange.stopped_at == original_stop_time,
-                "prepare_calls": session.prepare_calls, "execute_calls": session.execute_calls,
+                "prepare_calls": session.prepare_calls,
+                "execute_calls": session.execute_calls,
                 "tool_dispatches": session.tool_dispatches,
                 "start_count": sum(request.url.path.endswith("/start") for (request, _) in jobs_api_replies.calls),
                 "http_request_count": len(peer.requests),
-                "child_count": len(children), "child_pids": [child.pid for child in children],
+                "child_count": len(children),
+                "child_pids": [child.pid for child in children],
                 "child_returncodes": [child.returncode for child in children],
                 "child_still_alive": [process_is_alive(child.pid) for child in children],
                 "child_stdin_closed": [child.stdin.is_closing() for child in children],
@@ -573,8 +604,10 @@ async def main(report, mode, seed):
     except BaseException as failure:
         import traceback
 
-        verdict = {"fixture_failure": type(failure).__name__, "traceback": traceback.format_exc(),
-                   "current_scenario": current, "completed_scenarios": completed}
+        verdict = {"fixture_failure": type(failure).__name__,
+                   "traceback": traceback.format_exc(),
+                   "current_scenario": current,
+                   "completed_scenarios": completed}
 
     temporary = report.with_suffix(".pending")
     temporary.write_text(json.dumps(verdict, sort_keys=True))

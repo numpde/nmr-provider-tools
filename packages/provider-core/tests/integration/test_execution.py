@@ -28,11 +28,19 @@ from tests.fakes.job_input import response
 
 class ExecutionIntegrationTests(unittest.IsolatedAsyncioTestCase):
     async def test_start_prepare_execute_handoff_and_separate_signed_publication_under_one_claim(self):
-        replies = [start_response(), observation(), response(), progress_response(),
-            progress_response(condition_code="waiting_capacity"), progress_response(), observation(),
-            progress_response(phase="running"), observation(),
-            progress_response(phase="running", condition_code="waiting_capacity"), progress_response(phase="running"),
-            observation(), complete_response(result_schema_id="result.v1")]
+        replies = [start_response(),
+            observation(),
+            response(),
+            progress_response(),
+            progress_response(condition_code="waiting_capacity"),
+            progress_response(),
+            observation(),
+            progress_response(phase="running"),
+            observation(),
+            progress_response(phase="running", condition_code="waiting_capacity"),
+            progress_response(phase="running"),
+            observation(),
+            complete_response(result_schema_id="result.v1")]
 
         async with api_tls_peer("success", response_bodies=replies) as peer:
             selected_scope = replace(scope(), api_origin=peer.origin)
@@ -58,9 +66,14 @@ class ExecutionIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
                 endpoint = DeliveryEndpoint(peer.origin, selected_scope.provider_ref, root / "ipc/http.sock")
 
-                relay = DeliveryService(root / "delivery", limits=QueueLimits(4, 16384, 8, 32768),
-                    bindings=(DeliveryBinding(endpoint, sender),), request_seconds=1, retry_initial_seconds=0.01,
-                    retry_max_seconds=0.02, on_notice=notice, diagnostic_status=healthy_diagnostics)
+                relay = DeliveryService(root / "delivery",
+                    limits=QueueLimits(4, 16384, 8, 32768),
+                    bindings=(DeliveryBinding(endpoint, sender),),
+                    request_seconds=1,
+                    retry_initial_seconds=0.01,
+                    retry_max_seconds=0.02,
+                    on_notice=notice,
+                    diagnostic_status=healthy_diagnostics)
 
                 relay_task = asyncio.create_task(relay.run())
                 delivery = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
@@ -70,10 +83,17 @@ class ExecutionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     await asyncio.wait_for(relay.ready.wait(), 1)
                     acknowledged = await AttemptStarter.live(client, claim, scope=selected_scope).start(pending)
 
-                    accepted = await live_executor(client, store, claim, session,
-                        delivery=delivery, on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
-                        delivery_retry_max_seconds=0.02, allowed_job_states=frozenset({"open"}),
-                        poll_seconds=1, task_settle_seconds=0.1).run(acknowledged)
+                    accepted = await live_executor(client,
+                        store,
+                        claim,
+                        session,
+                        delivery=delivery,
+                        on_delivery_retry=Mock(),
+                        delivery_retry_initial_seconds=0.01,
+                        delivery_retry_max_seconds=0.02,
+                        allowed_job_states=frozenset({"open"}),
+                        poll_seconds=1,
+                        task_settle_seconds=0.1).run(acknowledged)
 
                     self.assertIs(type(accepted), DeliveryAcceptedCheckpoint)
                     self.assertEqual(store.records, (accepted,))

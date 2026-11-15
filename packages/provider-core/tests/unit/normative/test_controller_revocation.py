@@ -28,7 +28,9 @@ class PreparedHandleSession(LiveSession):
 
     async def prepare(self, acknowledged, instructions, *, report_condition):
         self.returned_handle = await super().prepare(
-            acknowledged, instructions, report_condition=report_condition,
+            acknowledged,
+            instructions,
+            report_condition=report_condition,
         )
 
         return self.returned_handle
@@ -43,14 +45,20 @@ def controller_for(transport, claims, session):
     """Give the real controller explicit API, relay, preparation and stop owners."""
 
     return AttemptController.live(
-        api(transport, scope().api_origin), claims, session,
-        scope=scope(), stopping=asyncio.Event(),
+        api(transport, scope().api_origin),
+        claims,
+        session,
+        scope=scope(),
+        stopping=asyncio.Event(),
         start_policy=LiveStartPolicy(cadence_seconds=0.01, on_retry=Mock(), on_recovered=Mock()),
         preverified_input=verify_job_input(response(), feed=record().input),
-        delivery=RecordingDelivery(), on_delivery_retry=Mock(),
+        delivery=RecordingDelivery(),
+        on_delivery_retry=Mock(),
         allowed_job_states=frozenset({"open"}),
-        delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-        poll_seconds=1, task_settle_seconds=0.05,
+        delivery_retry_initial_seconds=0.01,
+        delivery_retry_max_seconds=0.04,
+        poll_seconds=1,
+        task_settle_seconds=0.05,
     )
 
 
@@ -64,8 +72,10 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
                     revoked = reply(observation(**stop))
 
                     transport = Transport(
-                        reply(start_response()), reply(observation()),
-                        reply(progress_response()), revoked,
+                        reply(start_response()),
+                        reply(observation()),
+                        reply(progress_response()),
+                        revoked,
                     )
 
                     controller = controller_for(transport, claims, session)
@@ -112,8 +122,11 @@ class PreparedHandleRevocationTests(unittest.IsolatedAsyncioTestCase):
                 (claims, session) = (AttemptClaims.live(), PreparedHandleSession())
 
                 transport = Transport(
-                    reply(start_response()), reply(observation()), reply(progress_response()),
-                    reply(observation()), reply(progress_response(phase="running")),
+                    reply(start_response()),
+                    reply(observation()),
+                    reply(progress_response()),
+                    reply(observation()),
+                    reply(progress_response(phase="running")),
                     reply(observation(**stop)),
                 )
 

@@ -29,7 +29,9 @@ from tests.fakes.conversation import call
 from tests.fakes.tls_peer import TlsPeer
 
 from tests.integration.chat.adversarial.test_model_reply_permission import (
-    ObservedAPI, PreparedExecutionGateSession, ReplyRun,
+    ObservedAPI,
+    PreparedExecutionGateSession,
+    ReplyRun,
 )
 
 
@@ -68,7 +70,8 @@ class _ControlledStart(ObservedAPI):
 
             if self.disposition == "accepted":
                 return reply(start_response(
-                    job_ref=self.job, execution_attempt_ref=self.reference))
+                    job_ref=self.job,
+                    execution_attempt_ref=self.reference))
 
             raise AssertionError("START gate released without a selected API disposition")
 
@@ -110,7 +113,9 @@ class LifecycleOrders(RuleBasedStateMachine):
                 raise
 
         self._observer = patch.object(
-            AttemptExecutor, "_require_observed_active", observed_check)
+            AttemptExecutor,
+            "_require_observed_active",
+            observed_check)
 
         self._observer.start()
 
@@ -118,7 +123,8 @@ class LifecycleOrders(RuleBasedStateMachine):
         self.stack = AsyncExitStack()
 
         self.claims = AttemptClaims.live(limits=LiveAttemptLimits(
-            maximum_attempts=2, maximum_control_bytes=262144,
+            maximum_attempts=2,
+            maximum_control_bytes=262144,
             maximum_pending_terminal_bytes=4194304,
         ))
 
@@ -138,7 +144,9 @@ class LifecycleOrders(RuleBasedStateMachine):
                 TlsPeer("success", response_factory=partial(model_reply, gate=released, identity=name)))
 
             self.cases[name] = ReplyRun(
-                peer, self.claims, "job:" + name,
+                peer,
+                self.claims,
+                "job:" + name,
                 _UnknownOutcome if name == "a" else PreparedExecutionGateSession,
                 transport_type=_ControlledStart,
                 start_policy=LiveStartPolicy(1, Mock(), Mock(), maximum_replays=0),
@@ -385,7 +393,8 @@ class LifecycleOrders(RuleBasedStateMachine):
             assert not exact_science.done()
 
             assert self.claims.owns_job(
-                successor.pending.scope, successor.pending.input.job_ref)
+                successor.pending.scope,
+                successor.pending.input.job_ref)
 
         self._act("late_released_owner_observation", name, repeat)
 
@@ -493,7 +502,8 @@ class LifecycleOrders(RuleBasedStateMachine):
 
             if self.tasks:
                 await asyncio.wait_for(
-                    asyncio.gather(*self.tasks.values(), return_exceptions=True), 12)
+                    asyncio.gather(*self.tasks.values(), return_exceptions=True),
+                    12)
 
             await self.stack.aclose()
 

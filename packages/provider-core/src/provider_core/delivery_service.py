@@ -98,16 +98,23 @@ class DeliveryService:
             raise failure
 
         self.inbox = DeliveryInbox(
+            self.queue,
             # repo-check: allow-tuple-generator -- The inbox retains its complete endpoint collection for its lifetime.
-            self.queue, tuple(binding.endpoint for binding in self.bindings), request_seconds=self.request_seconds,
-            on_accepted=self._accepted, on_failure=self.on_notice,
+            tuple(binding.endpoint for binding in self.bindings),
+            request_seconds=self.request_seconds,
+            on_accepted=self._accepted,
+            on_failure=self.on_notice,
             binding_status=self._binding_status,
         )
 
         for binding in self.bindings:
             worker = DeliveryWorker(
-                self.inbox, binding.endpoint, binding.api, retry_initial_seconds=self.retry_initial_seconds,
-                retry_max_seconds=self.retry_max_seconds, on_notice=self.on_notice,
+                self.inbox,
+                binding.endpoint,
+                binding.api,
+                retry_initial_seconds=self.retry_initial_seconds,
+                retry_max_seconds=self.retry_max_seconds,
+                on_notice=self.on_notice,
             )
 
             self.workers[(binding.endpoint.api_origin, binding.endpoint.provider_ref)] = worker

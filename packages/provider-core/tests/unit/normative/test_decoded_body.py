@@ -150,8 +150,12 @@ class DecodedBodyTests(unittest.TestCase):
 
     def test_configuration_errors_and_reuse_are_local_defects(self):
         for (limit, error_type) in (
-            (0, ValueError), (-1, ValueError), (True, TypeError), (1.5, TypeError),
-            (sys.maxsize, ValueError), (sys.maxsize + 1, ValueError),
+            (0, ValueError),
+            (-1, ValueError),
+            (True, TypeError),
+            (1.5, TypeError),
+            (sys.maxsize, ValueError),
+            (sys.maxsize + 1, ValueError),
         ):
             with self.subTest(limit=limit), self.assertRaises(error_type):
                 DecodedBody((), maximum_bytes=limit)

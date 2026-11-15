@@ -236,7 +236,10 @@ class ServiceProxyRefusalTests(unittest.TestCase):
                 str(path),
                 "--ready-file",
                 str(ready),
-                "--status-directory", directory, "--log-level", "INFO",
+                "--status-directory",
+                directory,
+                "--log-level",
+                "INFO",
             ]
 
             output = io.StringIO()
@@ -295,7 +298,9 @@ class ServiceProxyRefusalTests(unittest.TestCase):
 
             with (
                 patch.object(
-                    bound_http_proxy, "receive_headers", return_value=(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n", b"")
+                    bound_http_proxy,
+                    "receive_headers",
+                    return_value=(b"CONNECT api.example:443 HTTP/1.1\r\n\r\n", b"")
                 ),
                 patch.object(bound_http_proxy, "connect_bound", side_effect=failure),
                 capture_proxy_logs(errors),

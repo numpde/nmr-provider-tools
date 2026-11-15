@@ -265,5 +265,9 @@ def read_fail(raw, *, execution_attempt_ref, failure_code, failure_message):
         raise ResponseRejected("Failure acknowledgement does not match the retained failure code and message")
 
     return AttemptFailure(
-        execution_attempt_ref, failure_code, failure_message, read_timestamp(document["committed_at"]), document["replayed"]
+        execution_attempt_ref,
+        failure_code,
+        failure_message,
+        read_timestamp(document["committed_at"]),
+        document["replayed"]
     )

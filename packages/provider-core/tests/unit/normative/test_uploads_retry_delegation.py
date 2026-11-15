@@ -61,8 +61,12 @@ class JobUploadsRetryDelegationTests(unittest.IsolatedAsyncioTestCase):
 
 class UploadRetryInterruptionTests(unittest.IsolatedAsyncioTestCase):
     def transfer(self, store):
-        return UploadTransfer("job:example", store=store, store_origin="https://store.example",
-                              remaining=lambda: 2, before_request=lambda: None, account=lambda _count: None)
+        return UploadTransfer("job:example",
+                              store=store,
+                              store_origin="https://store.example",
+                              remaining=lambda: 2,
+                              before_request=lambda: None,
+                              account=lambda _count: None)
 
     async def test_actual_store_deadline_interruption_refuses_late_temporary_failure(self):
         (_, api, _, _) = file_sources()
@@ -101,7 +105,9 @@ class UploadRetryInterruptionTests(unittest.IsolatedAsyncioTestCase):
         # A supplied compatible store cannot use that flag to override its record.
         original = temporary_read_error()
 
-        outcome = ExchangeFailed("synthetic store failure", primary=original, network_failure=original,
+        outcome = ExchangeFailed("synthetic store failure",
+                                 primary=original,
+                                 network_failure=original,
                                  cleanup_failures=(RuntimeError("synthetic cleanup failure"),))
 
         class SuppliedStore:

@@ -35,7 +35,11 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         (self.accepted, self.failures) = (Mock(), Mock())
 
         self.inbox = DeliveryInbox(
-            self.queue, (self.endpoint,), request_seconds=1, on_accepted=self.accepted, on_failure=self.failures,
+            self.queue,
+            (self.endpoint,),
+            request_seconds=1,
+            on_accepted=self.accepted,
+            on_failure=self.failures,
             binding_status=Mock(return_value={"state": "inbox_only", "message": "No API publisher is attached to this test inbox.", "diagnostics": healthy_diagnostics()}),
         )
 
@@ -78,8 +82,12 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         for index in range(MAX_PROVIDER_ITEMS):
             reference = "execution_attempt:sha256:" + f"{index:064x}"
 
-            item = DeliveryOutcome(self.endpoint.api_origin, self.endpoint.provider_ref, "job:" + "j" * 124,
-                                   reference, TerminalOperation.FAIL, fail_body(reference, "provider_interrupted", "fixture"))
+            item = DeliveryOutcome(self.endpoint.api_origin,
+                                   self.endpoint.provider_ref,
+                                   "job:" + "j" * 124,
+                                   reference,
+                                   TerminalOperation.FAIL,
+                                   fail_body(reference, "provider_interrupted", "fixture"))
 
             self.queue.enqueue(item)
             self.queue.hold(item, "🧪" * 512)
@@ -100,13 +108,25 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         for index in range(MAX_PROVIDER_ITEMS + 1):
             reference = "execution_attempt:sha256:" + f"{index:064x}"
 
-            item = DeliveryOutcome(self.endpoint.api_origin, self.endpoint.provider_ref, "job:legacy", reference,
-                                   TerminalOperation.FAIL, fail_body(reference, "provider_interrupted", "retained exact body"))
+            item = DeliveryOutcome(self.endpoint.api_origin,
+                                   self.endpoint.provider_ref,
+                                   "job:legacy",
+                                   reference,
+                                   TerminalOperation.FAIL,
+                                   fail_body(reference, "provider_interrupted", "retained exact body"))
 
             self.queue._db.execute(
                 "INSERT INTO outstanding VALUES(?,?,?,?,?,?,?,?,?,?,NULL)",
-                (item.api_origin, item.provider_ref, item.execution_attempt_ref, item.job_ref, item.operation.value,
-                 item.body, item.body_sha256, "pending", 1.0, None),
+                (item.api_origin,
+                 item.provider_ref,
+                 item.execution_attempt_ref,
+                 item.job_ref,
+                 item.operation.value,
+                 item.body,
+                 item.body_sha256,
+                 "pending",
+                 1.0,
+                 None),
             )
 
             expected.append(item)
@@ -133,7 +153,9 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         await self.client.submit(item)
 
         self.inbox.binding_status = lambda endpoint: {
-            "state": "inbox_only", "diagnostics": "display format changed", "new_diagnostic": {"count": 2},
+            "state": "inbox_only",
+            "diagnostics": "display format changed",
+            "new_diagnostic": {"count": 2},
         }
 
         pending = await self.client.pending()

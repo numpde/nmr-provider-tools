@@ -16,7 +16,8 @@ class UnixHTTPTests(unittest.IsolatedAsyncioTestCase):
 
             with patch("httpcore.AnyIOBackend.connect_tcp", new=AsyncMock(side_effect=AssertionError("TCP fallback"))) as tcp:
                 reply = await transport.exchange(
-                    httpx.Request("POST", DELIVERY_ORIGIN + "/submit", content=b"EXACT_BODY\n"), maximum_bytes=2
+                    httpx.Request("POST", DELIVERY_ORIGIN + "/submit", content=b"EXACT_BODY\n"),
+                    maximum_bytes=2
                 )
 
             self.assertEqual((reply.status, reply.body), (200, b"ok"))

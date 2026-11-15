@@ -19,7 +19,10 @@ class PeakContribution(sdk.Contribution):
     candidate = prepared_state_type.input(use=sdk.StateUse.CONSUME)
 
     def __init__(
-        self, *, configuration: science.Settings, checkpoint_path: Path,
+        self,
+        *,
+        configuration: science.Settings,
+        checkpoint_path: Path,
         create_model: Callable[[], science.Model],
     ) -> None:
         """Retain inputs without opening the checkpoint or creating the model."""
@@ -37,7 +40,8 @@ class PeakContribution(sdk.Contribution):
         self.model = self.create_model()
 
         with open_checkpoint(
-            path=self.checkpoint_path, expected_sha256=self.configuration.checkpoint_sha256,
+            path=self.checkpoint_path,
+            expected_sha256=self.configuration.checkpoint_sha256,
         ) as checkpoint:
             self.model.load(checkpoint=checkpoint)
 

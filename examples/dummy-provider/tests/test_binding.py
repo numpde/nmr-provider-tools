@@ -130,7 +130,11 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
         )
 
         expected = contribution.ResourceRequirement(
-            kind="cpu", amount=1, unit="thread", selector="generic", exclusive=False,
+            kind="cpu",
+            amount=1,
+            unit="thread",
+            selector="generic",
+            exclusive=False,
         )
 
         for binding in (weighted, self.sum_binding()):
@@ -169,7 +173,10 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
                 reformatted_bindings = (reformatted, self.sum_binding())
 
         for (original, changed, same_values) in zip(
-            original_bindings, updated_bindings, reformatted_bindings, strict=True,
+            original_bindings,
+            updated_bindings,
+            reformatted_bindings,
+            strict=True,
         ):
             with self.subTest(binding=original.description.binding_id):
                 self.assertNotEqual(original.description.binding_revision, changed.description.binding_revision)

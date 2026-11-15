@@ -120,7 +120,8 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
 
     installer = installer_release(source / "requirements/installer-release.json")
 
-    _add(files, "acquisition_tool/installer/wheels/" + installer["name"],
+    _add(files,
+         "acquisition_tool/installer/wheels/" + installer["name"],
          wheel_bytes(pool / installer["name"], installer))
 
     dependencies[installer["name"]] = installer["sha256"]
@@ -161,7 +162,9 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
         "source_revision": revision,
         "payload_files": payload_inventory,
         "dependency_inputs": dependencies,
-    }, sort_keys=True, indent=2) + "\n").encode()
+    },
+        sort_keys=True,
+        indent=2) + "\n").encode()
 
     _add(files, "acquisition-manifest.json", manifest)
 
@@ -170,7 +173,9 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
     source_inventory = dict(payload_inventory)
 
     source_inventory["acquisition-manifest.json"] = {
-        "sha256": hashlib.sha256(manifest).hexdigest(), "size": len(manifest), "mode": 0o644,
+        "sha256": hashlib.sha256(manifest).hexdigest(),
+        "size": len(manifest),
+        "mode": 0o644,
     }
 
     return (files, {"source_files": source_inventory, "dependency_inputs": dependencies})
@@ -178,7 +183,12 @@ def contents(pool, source, core_wheel, pin, *, revision, wheelhouse_bundle):
 
 def build(pool, output, source, core_wheel, pin, *, revision, wheelhouse_bundle):
     (files, source_record) = contents(
-        pool, source, core_wheel, pin, revision=revision, wheelhouse_bundle=wheelhouse_bundle,
+        pool,
+        source,
+        core_wheel,
+        pin,
+        revision=revision,
+        wheelhouse_bundle=wheelhouse_bundle,
     )
 
     with tempfile.NamedTemporaryFile(

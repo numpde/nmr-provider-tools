@@ -103,7 +103,9 @@ async def run_sum(*, host, hosted, operation_id):
 
     operation = analysis.submit_method(
         method=hosted.contribution.calculate,
-        scientific_input=Numbers(values=(1, 2)), states=(), reservation=reservation,
+        scientific_input=Numbers(values=(1, 2)),
+        states=(),
+        reservation=reservation,
         policy=OperationPolicy(
             queue_stop_request_seconds=5,
             execution_stop_request_seconds=5,
@@ -253,8 +255,11 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         operations = [analysis.submit_method(
-            method=instance.calculate, scientific_input=Numbers(values=(1,)),
-            states=(), reservation=reservation, policy=operation_policy,
+            method=instance.calculate,
+            scientific_input=Numbers(values=(1,)),
+            states=(),
+            reservation=reservation,
+            policy=operation_policy,
         ) for _ in range(2)]
 
         self.assertIsNot(expr1=operations[0], expr2=operations[1])
@@ -332,9 +337,12 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                 analysis.submit_method(method=method,  scientific_input=Numbers(values=(1,)), states=(), reservation=reservation, policy=operation_policy)
 
         refused = analysis.submit(invocation=Invocation(
-            operation_id="portable", target=first.reference(method=first.contribution.calculate),
+            operation_id="portable",
+            target=first.reference(method=first.contribution.calculate),
             payload=first.call(method=first.contribution.calculate).input_codec.encode(value=Numbers(values=(1,))),
-            states=(), reservation=reservation, policy=operation_policy,
+            states=(),
+            reservation=reservation,
+            policy=operation_policy,
         ))
 
         self.assertIsInstance(obj=refused, cls=NotAdmitted)
@@ -826,7 +834,8 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             futures = [executor.submit(compete) for _ in range(2)]
 
             results = await asyncio.gather(
-                *[asyncio.wrap_future(future=future) for future in futures], return_exceptions=True,
+                *[asyncio.wrap_future(future=future) for future in futures],
+                return_exceptions=True,
             )
 
         self.assertCountEqual(first=[HostedContribution, ValueError], second=[type(result) for result in results])

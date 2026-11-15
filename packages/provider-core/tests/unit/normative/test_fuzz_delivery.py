@@ -15,8 +15,12 @@ from tests.fakes.delivery import outcome
 
 class DeliveryFaultSequenceTests(unittest.TestCase):
     def material(self, provider):
-        fields = {"origin": "https://api.example", "profile": "dev-local", "topology": "dev-local",
-                  "provider_ref": provider, "exchange_seconds": 10, "retirement_seconds": 5,
+        fields = {"origin": "https://api.example",
+                  "profile": "dev-local",
+                  "topology": "dev-local",
+                  "provider_ref": provider,
+                  "exchange_seconds": 10,
+                  "retirement_seconds": 5,
                   "credential_file": "/synthetic/credential"}
 
         (_, _, material) = api_settings_with_material(fields, Mock(return_value=encoded(document(principal_ref=provider))))
@@ -106,7 +110,8 @@ class DeliveryFaultSequenceTests(unittest.TestCase):
                                         queue.enqueue_handoff(changed)
 
                                     changed_body = outcome(provider=item.outcome.provider_ref,
-                                                           suffix=item.outcome.execution_attempt_ref[-1], message="different bytes")
+                                                           suffix=item.outcome.execution_attempt_ref[-1],
+                                                           message="different bytes")
 
                                     with self.assertRaises(DeliveryConflict):
                                         queue.remove_published(changed_body)

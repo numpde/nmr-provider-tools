@@ -138,11 +138,14 @@ class ChatEndpointFactory:
         return ChatEndpoint(
             self.spec,
             transport=SupervisedChatTransport(
-                trust=self.trust, exchange_seconds=exchange_seconds,
-                connect_seconds=connect_seconds, retirement_seconds=self.retirement_seconds,
+                trust=self.trust,
+                exchange_seconds=exchange_seconds,
+                connect_seconds=connect_seconds,
+                retirement_seconds=self.retirement_seconds,
                 proxy_socket=self.proxy_socket,
             ),
-            request_bytes=self.request_bytes, response_bytes=self.response_bytes,
+            request_bytes=self.request_bytes,
+            response_bytes=self.response_bytes,
             error_response_bytes=self.error_response_bytes,
         )
 
@@ -316,8 +319,11 @@ class ChatEndpoint:
 
         try:
             response = await self._transport.exchange_decoded(
-                wire, maximum_bytes=self._response_bytes, error_maximum_bytes=self._error_response_bytes,
-                owner=self, not_after=not_after,
+                wire,
+                maximum_bytes=self._response_bytes,
+                error_maximum_bytes=self._error_response_bytes,
+                owner=self,
+                not_after=not_after,
             )
         except asyncio.CancelledError as interruption:
             failure = ChatFailed(

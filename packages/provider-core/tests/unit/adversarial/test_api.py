@@ -57,7 +57,8 @@ class ApiReadFailureTests(unittest.IsolatedAsyncioTestCase):
         for headers in cases:
             with self.subTest(headers=headers), self.assertRaises(ApiFailure):
                 await self.api(Transport(reply(response(), headers=headers))).job_input(
-                    facts(), analysis_kind_ref="nmr_prediction"
+                    facts(),
+                    analysis_kind_ref="nmr_prediction"
                 )
 
     async def test_verification_failure_preserves_useful_reason_and_response(self):

@@ -43,7 +43,11 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=0.01,
             task_settle_seconds=0.1,
             observation_recovery=ObservationRecovery(
@@ -119,7 +123,11 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=0.01,
             task_settle_seconds=0.1,
             observation_recovery=ObservationRecovery(
@@ -210,7 +218,10 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
                     raise
 
         transport = BlockedCondition(
-            reply(b"maintenance", status=503), reply(observation()), reply(response()), reply(progress_response())
+            reply(b"maintenance", status=503),
+            reply(observation()),
+            reply(response()),
+            reply(progress_response())
         )
 
         executor = live_executor(
@@ -218,7 +229,11 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=0.01,
             task_settle_seconds=0.1,
             observation_recovery=ObservationRecovery(
@@ -302,7 +317,11 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=0.01,
             task_settle_seconds=0.1,
             observation_recovery=ObservationRecovery(

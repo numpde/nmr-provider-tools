@@ -13,16 +13,21 @@ from tests.fakes.dummy_provider.binding import sum_binding, weighted_sum_binding
 @dataclass(frozen=True, slots=True, kw_only=True)
 class MismatchedBinding(contribution.ImplementationBinding[None, None]):
     run: contribution.CallBinding[
-        science.SumInput, contribution.NoState, science.PreparationResult,
+        science.SumInput,
+        contribution.NoState,
+        science.PreparationResult,
     ]
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class MixedBinding(contribution.ImplementationBinding[
-    science.WeightedSumModel, science.WeightedSumAnalysis,
+    science.WeightedSumModel,
+    science.WeightedSumAnalysis,
 ]):
     run: contribution.CallBinding[
-        science.SumInput, contribution.NoState, science.SumResult,
+        science.SumInput,
+        contribution.NoState,
+        science.SumResult,
     ]
 
 
@@ -126,8 +131,11 @@ class ConfiguredMemberTests(unittest.TestCase):
             self.assertFalse(analysis.is_open)
 
             returned = binding.run.invoke(
-                model, analysis, science.SumInput(values=(1, 2, 3)),
-                {}, UnusedControl(),
+                model,
+                analysis,
+                science.SumInput(values=(1, 2, 3)),
+                {},
+                UnusedControl(),
             )
 
             self.assertEqual(science.SumResult(total=6, count=3), returned.value)

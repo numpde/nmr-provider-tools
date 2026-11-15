@@ -45,7 +45,8 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
             worker = AsyncMock(return_value=prediction())
             session = MagnetSession(store, interpreter, worker)
 
-            expected = {"schema_id": RESULT_SCHEMA_ID, "provider_attempt_key": "retained-start:01",
+            expected = {"schema_id": RESULT_SCHEMA_ID,
+                        "provider_attempt_key": "retained-start:01",
                         "model_input": {"smiles": "  CCO  ", "h_solvent": "CDCl3", "c_solvent": "CDCl3"},
                         "prediction": prediction()}
 
@@ -136,8 +137,17 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
         return (pending, store, AttemptClaims.live().claim_live(pending, lifecycle_owner=store))
 
     def _executor(self, client, store, claim, session):
-        return live_executor(client, store, claim, session,
-                               delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.02, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1)
+        return live_executor(client,
+                               store,
+                               claim,
+                               session,
+                               delivery=RecordingDelivery(),
+                               on_delivery_retry=Mock(),
+                               delivery_retry_initial_seconds=0.01,
+                               delivery_retry_max_seconds=0.02,
+                               allowed_job_states=frozenset({"open"}),
+                               poll_seconds=1,
+                               task_settle_seconds=0.1)
 
     # silent-defaults: allow-contract -- This selects the documented synthetic preparation seam, without claiming real Magnet integration.
     def _run_replies(self, *, preparation_only=False):
@@ -146,5 +156,8 @@ class MagnetAdaptationTests(unittest.IsolatedAsyncioTestCase):
         if preparation_only:
             return beginning
 
-        return (*beginning, reply(observation()), reply(progress_response(phase="running")),
-                reply(observation()), reply(observation()))
+        return (*beginning,
+                reply(observation()),
+                reply(progress_response(phase="running")),
+                reply(observation()),
+                reply(observation()))

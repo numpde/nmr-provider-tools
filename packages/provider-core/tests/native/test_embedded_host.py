@@ -215,7 +215,10 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         analysis = host.open_analysis("local-call", allocation_names=("one",))
 
         invocation = _invocation(
-            analysis, binding, operation_id="sum", call_name="run",
+            analysis,
+            binding,
+            operation_id="sum",
+            call_name="run",
             payload=b'{"values":[4,5]}',
         )
 
@@ -231,8 +234,11 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(operation, analysis.submit(original_invocation))
 
         another = analysis.submit_call(
-            binding.run, payload=b'{"values":[6]}', states=(),
-            reservation=invocation.reservation, policy=invocation.policy,
+            binding.run,
+            payload=b'{"values":[6]}',
+            states=(),
+            reservation=invocation.reservation,
+            policy=invocation.policy,
         )
 
         self.assertIsNot(operation, another)
@@ -247,15 +253,21 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         with self.assertRaisesRegex(ValueError, "before a configured binding owns it"):
             analysis.submit_call(
-                replace(binding.run),  payload=b'{"values":[1]}',
-                states=(), reservation=reservation, policy=_operation_policy(),
+                replace(binding.run),
+                payload=b'{"values":[1]}',
+                states=(),
+                reservation=reservation,
+                policy=_operation_policy(),
             )
 
         for target in ("run", ref(binding.run)):
             with self.subTest(target=target), self.assertRaises(TypeError):
                 analysis.submit_call(
-                    target,  payload=b'{"values":[1]}',
-                    states=(), reservation=reservation, policy=_operation_policy(),
+                    target,
+                    payload=b'{"values":[1]}',
+                    states=(),
+                    reservation=reservation,
+                    policy=_operation_policy(),
                 )
 
         self.assertEqual({}, host.operations)
@@ -268,21 +280,29 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         analysis = host.open_analysis("local-stop", allocation_names=("one",))
         (reservation,) = analysis.reservations
 
-        wrong_revision = replace(binding, identity=replace(
-            binding.identity, implementation="dummy.sum.another",
+        wrong_revision = replace(binding,
+            identity=replace(
+                binding.identity,
+                implementation="dummy.sum.another",
         ))
 
         foreign = analysis.submit_call(
-            wrong_revision.run,  payload=b'{"values":[1]}',
-            states=(), reservation=reservation, policy=_operation_policy(),
+            wrong_revision.run,
+            payload=b'{"values":[1]}',
+            states=(),
+            reservation=reservation,
+            policy=_operation_policy(),
         )
 
         self.assertIsInstance(foreign, NotAdmitted)
         self.assertEqual({}, host.operations)
 
         operation = analysis.submit_call(
-            binding.run,  payload=b'{"values":[1]}',
-            states=(), reservation=reservation, policy=_operation_policy(),
+            binding.run,
+            payload=b'{"values":[1]}',
+            states=(),
+            reservation=reservation,
+            policy=_operation_policy(),
         )
 
         operation.request_stop()
@@ -554,7 +574,10 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         operation = analysis.submit(
             _invocation(
-                analysis, binding, operation_id="prepare", call_name="prepare",
+                analysis,
+                binding,
+                operation_id="prepare",
+                call_name="prepare",
                 payload=b'{"values":[1,2]}',
             ),
         )
@@ -570,21 +593,26 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         mismatches = (
             (
-                "call", operation.reference,
+                "call",
+                operation.reference,
                 replace(observed, target=ref(binding.calculate)),
                 "another producer call or configured revision",
             ),
             (
-                "revision", operation.reference,
+                "revision",
+                operation.reference,
                 replace(observed, target=replace(observed.target, binding_revision=changed_identity.revision)),
                 "another producer call or configured revision",
             ),
             (
-                "operation observation", other_operation, observed,
+                "operation observation",
+                other_operation,
+                observed,
                 "another producer operation",
             ),
             (
-                "same call swapped state", other_operation,
+                "same call swapped state",
+                other_operation,
                 replace(observed, operation=other_operation),
                 "provenance differs from its producer observation",
             ),
@@ -609,8 +637,12 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         (_, result) = await self.success(
             analysis.submit(
                 _invocation(
-                    analysis, binding, operation_id="calculate", call_name="calculate",
-                    payload=b"{}", states=(argument,),
+                    analysis,
+                    binding,
+                    operation_id="calculate",
+                    call_name="calculate",
+                    payload=b"{}",
+                    states=(argument,),
                 ),
             ),
             binding.calculate.result_codec,
@@ -629,7 +661,10 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         producer = analysis.submit(
             _invocation(
-                analysis, binding, operation_id="prepare", call_name="prepare",
+                analysis,
+                binding,
+                operation_id="prepare",
+                call_name="prepare",
                 payload=b'{"values":[1,2]}',
             ),
         )
@@ -640,8 +675,12 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         consumer = analysis.submit(
             _invocation(
-                analysis, binding, operation_id="stopped-consumer", call_name="calculate",
-                payload=b"{}", states=(argument,),
+                analysis,
+                binding,
+                operation_id="stopped-consumer",
+                call_name="calculate",
+                payload=b"{}",
+                states=(argument,),
             ),
         )
 
@@ -659,8 +698,12 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         (_, result) = await self.success(
             analysis.submit(
                 _invocation(
-                    analysis, binding, operation_id="permitted", call_name="calculate",
-                    payload=b"{}", states=(binding.prepared_input.bind(handle),),
+                    analysis,
+                    binding,
+                    operation_id="permitted",
+                    call_name="calculate",
+                    payload=b"{}",
+                    states=(binding.prepared_input.bind(handle),),
                 ),
             ),
             binding.calculate.result_codec,
@@ -679,12 +722,15 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         def prepare(
             context: CallContext[
-                science.WeightedSumModel, science.WeightedSumAnalysis,
-                science.PreparationInput, NoState,
+                science.WeightedSumModel,
+                science.WeightedSumAnalysis,
+                science.PreparationInput,
+                NoState,
             ],
         ) -> ScientificReturn[science.PreparationResult]:
             malformed_state = replace(
-                original.prepared_output.returned(invalid_value), dispose=disposed.append,
+                original.prepared_output.returned(invalid_value),
+                dispose=disposed.append,
             )
 
             return ScientificReturn(
@@ -693,7 +739,8 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
             )
 
         binding = replace(
-            original, prepare=replace(original.prepare, scientific_call=prepare),
+            original,
+            prepare=replace(original.prepare, scientific_call=prepare),
         )
 
         host = self.host({"weighted": binding})
@@ -701,7 +748,10 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
 
         operation = analysis.submit(
             _invocation(
-                analysis, binding, operation_id="prepare", call_name="prepare",
+                analysis,
+                binding,
+                operation_id="prepare",
+                call_name="prepare",
                 payload=b'{"values":[1,2]}',
             ),
         )
@@ -894,8 +944,11 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         unsupported_bindings = (
             replace(original, identity=replace(original.identity, contract_version=2)),
             replace(original, isolation=IsolationRequirement.DEDICATED_PROCESS),
-            replace(original, run=replace(original.run, description=replace(
-                original.run.description, concurrency=ConcurrencyRequirement.PROCESS_SERIAL,
+            replace(original,
+                run=replace(original.run,
+                    description=replace(
+                        original.run.description,
+                        concurrency=ConcurrencyRequirement.PROCESS_SERIAL,
             ))),
         )
 

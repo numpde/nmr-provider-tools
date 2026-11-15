@@ -60,7 +60,11 @@ class ConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
             store,
             claim,
             session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
             poll_seconds=0.01,
             task_settle_seconds=0.1,
             condition_recovery=ConditionRecovery(1, 0.04, retry, recovered),
@@ -89,7 +93,8 @@ class ConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
         # silent-defaults: allow-contract -- Only an observed condition acknowledgement is retained; absence remains None.
         self.assertEqual(
-            json.loads(requests[0].content)["condition_code"], None if failed_put in (3, 6) else "waiting_capacity"
+            json.loads(requests[0].content)["condition_code"],
+            None if failed_put in (3, 6) else "waiting_capacity"
         )
 
         self.assertIsNone(executor.last_failure)

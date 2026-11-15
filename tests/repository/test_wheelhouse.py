@@ -118,7 +118,8 @@ class WheelhouseTests(unittest.TestCase):
         thread.start()
 
         try:
-            pin = {"name": "synthetic-tool.pyz", "sha256": hashlib.sha256(content).hexdigest(),
+            pin = {"name": "synthetic-tool.pyz",
+                   "sha256": hashlib.sha256(content).hexdigest(),
                    "url": f"http://127.0.0.1:{server.server_port}/synthetic-tool.pyz"}
 
             with patch.object(provider_core_acquire, "require_download_proxy"):
@@ -165,8 +166,10 @@ class WheelhouseTests(unittest.TestCase):
         report = self.root / "report.json"
 
         def write_report(path):
-            report.write_text(json.dumps({"version": "1", "install": [{"download_info": {
-                "url": path.as_uri(), "archive_info": {"hashes": {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()}}}}]}))
+            report.write_text(json.dumps({"version": "1",
+                "install": [{"download_info": {
+                    "url": path.as_uri(),
+                    "archive_info": {"hashes": {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()}}}}]}))
 
         write_report(self.pool / self.cached.name)
 

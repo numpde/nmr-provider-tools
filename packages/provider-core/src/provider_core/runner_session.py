@@ -199,7 +199,10 @@ class RunnerSession:
 
                     if retirement.reason == "exited" and not self._local_interruption:
                         self._original_exit = OriginalWorkerExit(
-                            self.role, self.generation, self.operation, retirement.returncode,
+                            self.role,
+                            self.generation,
+                            self.operation,
+                            retirement.returncode,
                         )
             except Exception as cause:
                 # A partial frame cannot restart at its remaining bytes. Retain
@@ -210,7 +213,8 @@ class RunnerSession:
 
         if not self.retirement.scratch_released:
             raise LifecycleRejected("Runner child stopped but its scratch cleanup remains unconfirmed.",
-                                    returncode=self.retirement.returncode, scratch_released=False)
+                                    returncode=self.retirement.returncode,
+                                    scratch_released=False)
 
     def _receive_retirement(self, deadline):
         reply = receive_document(self.control, deadline=deadline)

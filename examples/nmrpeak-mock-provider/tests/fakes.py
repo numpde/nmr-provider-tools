@@ -31,12 +31,14 @@ class ScriptedEndpoint:
         if index >= len(self.proposals):
             raise RuntimeError("The recorded interpreter has no further response")
 
-        return {"role": "assistant", "tool_calls": [{
-            "id": str(index), "type": "function",
-            "function": {
-                "name": "prepare",
-                "arguments": json.dumps(obj=self.proposals[index]),
-            },
+        return {"role": "assistant",
+            "tool_calls": [{
+                "id": str(index),
+                "type": "function",
+                "function": {
+                    "name": "prepare",
+                    "arguments": json.dumps(obj=self.proposals[index]),
+                },
         }]}
 
     async def retire(self) -> None:

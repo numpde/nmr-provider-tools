@@ -17,17 +17,28 @@ from tests.fakes.execution import live_attempt, live_executor
 
 
 def unavailable_with_retry_after():
-    return reply(b"unavailable", status=503, headers=(
-        *response_headers(status=503, request_id=b"request:test"), (b"retry-after", b"1"),
+    return reply(b"unavailable",
+        status=503,
+        headers=(
+            *response_headers(status=503, request_id=b"request:test"),
+            (b"retry-after", b"1"),
     ))
 
 
 def make_executor(store, claim, session, transport, *, window, on_retry=None):
     return live_executor(
-        api(transport, store.scope.api_origin), store, claim, session,
-        delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01,
-        delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=0.01,
-        task_settle_seconds=0.1, condition_recovery=ConditionRecovery(window, 0.04, on_retry or Mock(), Mock()),
+        api(transport, store.scope.api_origin),
+        store,
+        claim,
+        session,
+        delivery=RecordingDelivery(),
+        on_delivery_retry=Mock(),
+        delivery_retry_initial_seconds=0.01,
+        delivery_retry_max_seconds=0.04,
+        allowed_job_states=frozenset({"open"}),
+        poll_seconds=0.01,
+        task_settle_seconds=0.1,
+        condition_recovery=ConditionRecovery(window, 0.04, on_retry or Mock(), Mock()),
     )
 
 
@@ -49,7 +60,8 @@ class ConditionRetryAfterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(original.status, 503)
         self.assertEqual(original.retry_after_seconds, 1)
 
-        self.assertEqual(len(transport.condition_requests), 1,
+        self.assertEqual(len(transport.condition_requests),
+                         1,
                          "The same condition must not be sent before the server's retry floor")
 
         on_retry.assert_not_called()

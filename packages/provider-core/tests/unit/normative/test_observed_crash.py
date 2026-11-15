@@ -46,13 +46,20 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
 
     def controller(self, session, transport, *, observation_recovery=None):
         return AttemptController.live(
-            api(transport, scope().api_origin), AttemptClaims.live(), session,
-            scope=scope(), stopping=asyncio.Event(),
+            api(transport, scope().api_origin),
+            AttemptClaims.live(),
+            session,
+            scope=scope(),
+            stopping=asyncio.Event(),
             start_policy=LiveStartPolicy(cadence_seconds=1, on_retry=Mock(), on_recovered=Mock()),
             preverified_input=verify_job_input(response(), feed=record().input),
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
-            delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-            poll_seconds=1, task_settle_seconds=1,
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            allowed_job_states=frozenset({"open"}),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            poll_seconds=1,
+            task_settle_seconds=1,
             observation_recovery=observation_recovery,
         )
 
@@ -136,11 +143,14 @@ class ObservedCrashTests(unittest.IsolatedAsyncioTestCase):
                 return await super().exchange(request, maximum_bytes=maximum_bytes, owner=owner)
 
         recovery = ObservationRecovery(
-            gap_seconds=6, backoff_max_seconds=0.04,
-            on_retry=Mock(side_effect=OSError("Logging sink failed")), on_recovered=Mock(),
+            gap_seconds=6,
+            backoff_max_seconds=0.04,
+            on_retry=Mock(side_effect=OSError("Logging sink failed")),
+            on_recovered=Mock(),
         )
 
-        controller = self.controller(session, OutageDuringCrash(*self.transport("preparing").replies),
+        controller = self.controller(session,
+                                     OutageDuringCrash(*self.transport("preparing").replies),
                                      observation_recovery=recovery)
 
         controller._poll_seconds = 0.01

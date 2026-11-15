@@ -107,8 +107,10 @@ def require_read_grant(grant, *, job_ref):
     if type(grant) is not ReadGrant or grant.job_ref != job_ref:
         raise ResponseRejected("Read grant must belong to the selected Job")
 
-    _byte_facts({"upload_ref": grant.upload_ref, "byte_length": grant.byte_length,
-                 "content_hash": grant.content_hash}, pending_allowed=False)
+    _byte_facts({"upload_ref": grant.upload_ref,
+                 "byte_length": grant.byte_length,
+                 "content_hash": grant.content_hash},
+        pending_allowed=False)
 
     _grant_target_and_token(grant.download_url, grant.capability)
 
@@ -170,7 +172,8 @@ def read_grant(raw, *, job_ref, upload_ref):
     document = read_document(raw, GRANT_RESPONSE_BYTES)
 
     _fields(
-        document, {"schema_id", "upload_ref", "method", "download_url", "byte_length", "content_hash", "capability", "expires_at"}
+        document,
+        {"schema_id", "upload_ref", "method", "download_url", "byte_length", "content_hash", "capability", "expires_at"}
     )
 
     if document["schema_id"] != "nmr.upload.read_capability.response.v1" or document["upload_ref"] != upload_ref:
@@ -185,5 +188,11 @@ def read_grant(raw, *, job_ref, upload_ref):
     _grant_target_and_token(url, token)
 
     return ReadGrant(
-        job_ref, upload_ref, document["byte_length"], document["content_hash"], url, token, _expiry(document["expires_at"])
+        job_ref,
+        upload_ref,
+        document["byte_length"],
+        document["content_hash"],
+        url,
+        token,
+        _expiry(document["expires_at"])
     )

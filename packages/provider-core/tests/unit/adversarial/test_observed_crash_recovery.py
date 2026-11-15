@@ -39,14 +39,21 @@ class ObservedCrashRecoveryTests(unittest.IsolatedAsyncioTestCase):
 
     def controller(self, session, transport, recovery, *, poll_seconds):
         return AttemptController.live(
-            api(transport, scope().api_origin), AttemptClaims.live(), session,
-            scope=scope(), stopping=asyncio.Event(),
+            api(transport, scope().api_origin),
+            AttemptClaims.live(),
+            session,
+            scope=scope(),
+            stopping=asyncio.Event(),
             start_policy=LiveStartPolicy(cadence_seconds=1, on_retry=Mock(), on_recovered=Mock()),
             preverified_input=verify_job_input(response(), feed=record().input),
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
             allowed_job_states=frozenset({"open"}),
-            delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-            poll_seconds=poll_seconds, task_settle_seconds=1, observation_recovery=recovery,
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            poll_seconds=poll_seconds,
+            task_settle_seconds=1,
+            observation_recovery=recovery,
         )
 
     def initial_replies(self):

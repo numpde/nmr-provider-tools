@@ -33,10 +33,18 @@ class ObservationRetryAfterTests(unittest.IsolatedAsyncioTestCase):
             if observer is not None:
                 observer(clock)
 
-        executor = live_executor(api(transport, probe.scope.api_origin), probe, claim, Session(probe),
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=.01,
-            delivery_retry_max_seconds=.04, allowed_job_states=frozenset({"open"}), poll_seconds=.1,
-            task_settle_seconds=.1, observation_recovery=ObservationRecovery(gap, .2, retry, Mock()))
+        executor = live_executor(api(transport, probe.scope.api_origin),
+            probe,
+            claim,
+            Session(probe),
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=.01,
+            delivery_retry_max_seconds=.04,
+            allowed_job_states=frozenset({"open"}),
+            poll_seconds=.1,
+            task_settle_seconds=.1,
+            observation_recovery=ObservationRecovery(gap, .2, retry, Mock()))
 
         executor._record = executor._acknowledged = acknowledged
 

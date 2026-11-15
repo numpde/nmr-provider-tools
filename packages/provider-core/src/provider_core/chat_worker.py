@@ -19,8 +19,12 @@ import httpx
 from provider_core.chat_tls import restore_trust
 
 from provider_core.chat_wire import (
-    METADATA_BYTES, decoded_bytes, failure_message, read_request,
-    response_message, write_message,
+    METADATA_BYTES,
+    decoded_bytes,
+    failure_message,
+    read_request,
+    response_message,
+    write_message,
 )
 
 from provider_core.decoded_body import require_decoded_limit
@@ -31,9 +35,22 @@ from provider_core.transport_errors import ExchangeFailed
 # One outbound exchange has a closed data-only protocol schema.
 # repo-check: allow-module-constant
 _REQUEST_FIELDS = frozenset({
-    "version", "kind", "method", "url", "headers", "body", "request_bytes",
-    "trust", "exchange_seconds", "connect_seconds", "retirement_seconds",
-    "not_after", "maximum_bytes", "error_maximum_bytes", "proxy_socket", "trust_directory",
+    "version",
+    "kind",
+    "method",
+    "url",
+    "headers",
+    "body",
+    "request_bytes",
+    "trust",
+    "exchange_seconds",
+    "connect_seconds",
+    "retirement_seconds",
+    "not_after",
+    "maximum_bytes",
+    "error_maximum_bytes",
+    "proxy_socket",
+    "trust_directory",
 })
 
 
@@ -159,7 +176,8 @@ async def _exchange(document, cancellation):
         trust = restore_trust(document["trust"], directory=document["trust_directory"])
 
         transport = HttpTransport(
-            trust=trust, exchange_seconds=document["exchange_seconds"],
+            trust=trust,
+            exchange_seconds=document["exchange_seconds"],
             connect_seconds=document["connect_seconds"],
             retirement_seconds=document["retirement_seconds"],
             proxy_socket=document["proxy_socket"],
@@ -170,9 +188,11 @@ async def _exchange(document, cancellation):
         # This is the parent's unchanged monotonic deadline. Construction and
         # trust restoration consume it; neither can grant a new exchange budget.
         response = await transport.exchange_decoded(
-            request, maximum_bytes=document["maximum_bytes"],
+            request,
+            maximum_bytes=document["maximum_bytes"],
             error_maximum_bytes=document["error_maximum_bytes"],
-            owner=owner, not_after=document["not_after"],
+            owner=owner,
+            not_after=document["not_after"],
         )
     except (KeyboardInterrupt, SystemExit):
         raise

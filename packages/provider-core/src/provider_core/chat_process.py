@@ -86,8 +86,10 @@ class SupervisedChatTransport:
     """
 
     def __init__(self, *, trust, exchange_seconds, connect_seconds, retirement_seconds, proxy_socket=None):
-        require_transport_settings(trust=trust, exchange_seconds=exchange_seconds,
-                                   retirement_seconds=retirement_seconds, proxy_socket=proxy_socket)
+        require_transport_settings(trust=trust,
+                                   exchange_seconds=exchange_seconds,
+                                   retirement_seconds=retirement_seconds,
+                                   proxy_socket=proxy_socket)
 
         if not (type(connect_seconds) in (int, float) and math.isfinite(connect_seconds) and connect_seconds > 0):
             raise ValueError("Cannot configure interpreter child: connect_seconds must be finite positive seconds")
@@ -134,12 +136,14 @@ class SupervisedChatTransport:
 
             if remaining <= 0:
                 if exchange.stopped_at is None:
-                    self._stop(exchange, TimeoutError("Model HTTP exchange exceeded its original absolute deadline"),
+                    self._stop(exchange,
+                               TimeoutError("Model HTTP exchange exceeded its original absolute deadline"),
                                at=exchange.deadline)
 
                     continue
 
-                self._fail(exchange, _ExitPending("Interpreter child exit remains unconfirmed; retain its original owner"),
+                self._fail(exchange,
+                           _ExitPending("Interpreter child exit remains unconfirmed; retain its original owner"),
                            "Cannot retire interpreter HTTP child: process exit remains unconfirmed")
 
                 break
@@ -212,12 +216,20 @@ class SupervisedChatTransport:
         content = request.content
 
         document = {
-            "version": 1, "kind": "request", "method": request.method, "url": str(request.url),
+            "version": 1,
+            "kind": "request",
+            "method": request.method,
+            "url": str(request.url),
             "headers": [[encoded_bytes(name), encoded_bytes(value)] for (name, value) in request.headers.raw],
-            "body": encoded_bytes(content), "request_bytes": len(content), "trust": self._trust,
-            "exchange_seconds": self._exchange_seconds, "connect_seconds": self._connect_seconds,
-            "retirement_seconds": self._retirement_seconds, "not_after": deadline,
-            "maximum_bytes": maximum_bytes, "error_maximum_bytes": error_maximum_bytes,
+            "body": encoded_bytes(content),
+            "request_bytes": len(content),
+            "trust": self._trust,
+            "exchange_seconds": self._exchange_seconds,
+            "connect_seconds": self._connect_seconds,
+            "retirement_seconds": self._retirement_seconds,
+            "not_after": deadline,
+            "maximum_bytes": maximum_bytes,
+            "error_maximum_bytes": error_maximum_bytes,
             "proxy_socket": self._proxy_socket,
         }
 
@@ -279,7 +291,8 @@ class SupervisedChatTransport:
             await asyncio.wait({task, stop}, timeout=remaining, return_when=asyncio.FIRST_COMPLETED)
 
             if exchange.stopped_at is None and asyncio.get_running_loop().time() >= exchange.deadline:
-                self._stop(exchange, TimeoutError("Model HTTP exchange exceeded its original absolute deadline"),
+                self._stop(exchange,
+                           TimeoutError("Model HTTP exchange exceeded its original absolute deadline"),
                            at=exchange.deadline)
 
             return task.done() and exchange.stopped_at is None
@@ -312,9 +325,13 @@ class SupervisedChatTransport:
             # Only the launcher marker is inherited. Model credentials and TLS
             # material travel through the owned pipe, never argv or environment.
             exchange.launch = _owned(asyncio.create_subprocess_exec(
-                *_worker_command(), str(len(raw)), stdin=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
-                env={"PROVIDER_CORE_IN_CONTAINER": "1"}, close_fds=True,
+                *_worker_command(),
+                str(len(raw)),
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+                env={"PROVIDER_CORE_IN_CONTAINER": "1"},
+                close_fds=True,
             ))
 
             await self._until_stop(exchange, exchange.launch)

@@ -54,7 +54,8 @@ class DeploymentBindingTests(unittest.TestCase):
         self.assertEqual("mapped", parse_deployment_bindings(literal).bindings[0].route["mode"])
 
         external = literal.replace(b'mode = "mapped"', b'mode = "external"').replace(
-            b'addresses = ["127.0.0.1=127.0.0.1"]', b'resolver_file = "/synthetic/resolver"',
+            b'addresses = ["127.0.0.1=127.0.0.1"]',
+            b'resolver_file = "/synthetic/resolver"',
         )
 
         self.assertEqual("external", parse_deployment_bindings(external).bindings[0].route["mode"])
@@ -71,7 +72,8 @@ class DeploymentBindingTests(unittest.TestCase):
         literal = definition(1).replace(b"api.example", b"0.0.0.0").replace(b"=127.0.0.1", b"=0.0.0.0")
 
         external = literal.replace(b'mode = "mapped"', b'mode = "external"').replace(
-            b'addresses = ["0.0.0.0=0.0.0.0"]', b'resolver_file = "/synthetic/resolver"',
+            b'addresses = ["0.0.0.0=0.0.0.0"]',
+            b'resolver_file = "/synthetic/resolver"',
         )
 
         for raw in (peer, literal, external):
@@ -87,9 +89,20 @@ class DeploymentBindingTests(unittest.TestCase):
             path.write_bytes(definition(2))
 
             result = subprocess.run(
-                [sys.executable, "-I", "-B", "-m", "provider_core.deployment_binding",
-                 "describe-binding", "--definition", str(path), "--binding", "fixture-1"],
-                capture_output=True, text=True, check=False, timeout=5,
+                [sys.executable,
+                 "-I",
+                 "-B",
+                 "-m",
+                 "provider_core.deployment_binding",
+                 "describe-binding",
+                 "--definition",
+                 str(path),
+                 "--binding",
+                 "fixture-1"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
             )
 
         self.assertEqual(0, result.returncode, result.stderr)
@@ -99,7 +112,8 @@ class DeploymentBindingTests(unittest.TestCase):
             "socket_path": "/run/delivery/delivery.sock",
             "socket_group_id": 65532,
             "input_paths": ["/synthetic/signing.json"],
-        }, json.loads(result.stdout))
+        },
+            json.loads(result.stdout))
 
     def test_selected_binding_derives_wire_identity_volume_and_group_without_opening_credentials(self):
         with patch("provider_core.deployment_binding.read_startup_file") as read:

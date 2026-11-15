@@ -192,7 +192,10 @@ class SourceAccess:
             return self._scope_entries(source, infos, _member_index(infos))
 
     def _scope_entries(
-        self, source: SourceRef, infos: list[ZipInfo], members: dict[str, tuple[ZipInfo, ...]]
+        self,
+        source: SourceRef,
+        infos: list[ZipInfo],
+        members: dict[str, tuple[ZipInfo, ...]]
     ) -> tuple[SourceEntry, ...]:
         if source.member is not None:
             info = self._indexed_member(members, source.member)

@@ -43,18 +43,32 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             stopping = asyncio.Event()
 
         return AttemptController.live(
-            api(transport, scope().api_origin), claims, session, scope=scope(), stopping=stopping,
-            start_policy=policy, preverified_input=preverified_input,
+            api(transport, scope().api_origin),
+            claims,
+            session,
+            scope=scope(),
+            stopping=stopping,
+            start_policy=policy,
+            preverified_input=preverified_input,
             admission_stopping=admission_stopping,
             allow_active_start_replay=allow_active_start_replay,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
-            delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-            poll_seconds=poll_seconds, task_settle_seconds=0.05,
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            allowed_job_states=frozenset({"open"}),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            poll_seconds=poll_seconds,
+            task_settle_seconds=0.05,
         )
 
     def lifecycle(self):
-        return Transport(reply(start_response()), reply(observation()), reply(progress_response()), reply(observation()),
-                         reply(progress_response(phase="running")), reply(observation()), reply(observation()))
+        return Transport(reply(start_response()),
+                         reply(observation()),
+                         reply(progress_response()),
+                         reply(observation()),
+                         reply(progress_response(phase="running")),
+                         reply(observation()),
+                         reply(observation()))
 
     async def test_full_live_controller_uses_same_input_and_releases_after_delivery_and_cleanup(self):
         claims = AttemptClaims.live()
@@ -103,7 +117,8 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         claims = AttemptClaims.live()
 
         controller = self.controller(
-            self.lifecycle(), claims=claims,
+            self.lifecycle(),
+            claims=claims,
             preverified_input=verify_job_input(response(), feed=record().input),
         )
 
@@ -148,7 +163,9 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         (claims, session) = (AttemptClaims.live(), LiveSession())
         session.release.clear()
 
-        controller = self.controller(self.lifecycle(), claims=claims, session=session,
+        controller = self.controller(self.lifecycle(),
+                                     claims=claims,
+                                     session=session,
                                      preverified_input=verify_job_input(response(), feed=record().input))
 
         (ready, created) = (asyncio.Event(), [])
@@ -215,7 +232,9 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(supplied.is_set())
         self.assertEqual(stopped.api._transport.calls, [])
 
-        sibling = self.controller(self.lifecycle(), claims=claims, stopping=supplied,
+        sibling = self.controller(self.lifecycle(),
+                                  claims=claims,
+                                  stopping=supplied,
                                   preverified_input=verify_job_input(response(), feed=record().input))
 
         self.assertIs(type(await sibling.run(record())), DeliveryAcceptedCheckpoint)
@@ -268,7 +287,9 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                 return result
 
         controller = self.controller(
-            self.lifecycle(), session=PausedPreparation(), admission_stopping=admission,
+            self.lifecycle(),
+            session=PausedPreparation(),
+            admission_stopping=admission,
             preverified_input=verify_job_input(response(), feed=record().input),
         )
 
@@ -361,7 +382,8 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
         session = PausedPreparation()
 
-        controller = self.controller(self.lifecycle(), session=session,
+        controller = self.controller(self.lifecycle(),
+                                     session=session,
                                      preverified_input=verify_job_input(response(), feed=record().input))
 
         task = asyncio.create_task(controller.run(record()))
@@ -409,7 +431,8 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         next(normal.replies)
         transport = Transport(reply(b"maintenance", status=503), reply(start_response(replayed=True)), *normal.replies)
 
-        controller = self.controller(transport, allow_active_start_replay=True,
+        controller = self.controller(transport,
+                                     allow_active_start_replay=True,
                                      preverified_input=verify_job_input(response(), feed=record().input))
 
         with patch("provider_core.controller.random.uniform", return_value=1):
@@ -426,7 +449,9 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_permanent_malformed_or_unsettled_start_failure_never_replays(self):
         for response in (
-            reply(b"denied", status=401), reply(b"conflict", status=409), reply(b"invalid success"),
+            reply(b"denied", status=401),
+            reply(b"conflict", status=409),
+            reply(b"invalid success"),
             reply(b"maintenance", status=503, headers=response_headers(status=503, topology=b"web")),
             ExchangeFailed("Certificate rejected", primary=ssl.SSLCertVerificationError()),
             ExchangeFailed("Cleanup failed", primary=httpcore.ReadTimeout(), cleanup_failures=(OSError(),)),
@@ -585,10 +610,12 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                         job = f"job:stopped-{index}"
                         identity = {"job_ref": job, "execution_attempt_ref": f"execution_attempt:sha256:{index:064x}"}
 
-                        pending = replace(record(), input=replace(record().input, job_ref=job),
+                        pending = replace(record(),
+                                          input=replace(record().input, job_ref=job),
                                           body=retained_start(job_ref=job, provider_attempt_key=f"key:{index}"))
 
-                        transport = Transport(reply(start_response(**identity)), reply(observation(**identity)),
+                        transport = Transport(reply(start_response(**identity)),
+                                              reply(observation(**identity)),
                                               reply(progress_response(execution_attempt_ref=identity["execution_attempt_ref"])),
                                               reply(observation(**identity, **stop)))
 
@@ -596,7 +623,10 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                         session.release.clear()
 
                         controller = self.controller(
-                            transport, claims=claims, session=session, poll_seconds=0.01,
+                            transport,
+                            claims=claims,
+                            session=session,
+                            poll_seconds=0.01,
                             preverified_input=verify_job_input(response(job_ref=job), feed=pending.input),
                         )
 
@@ -634,7 +664,8 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(["prepare", "retire"], session.events)
 
                     if cycle == 0:
-                        next_job = self.controller(self.lifecycle(), claims=claims,
+                        next_job = self.controller(self.lifecycle(),
+                                                   claims=claims,
                                                    preverified_input=verify_job_input(response(), feed=record().input))
 
                         try:
@@ -659,11 +690,17 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         # This controller proof injects its client into the explicit transport.
         # Factory-owned child I/O has its own real-TLS recovery regression.
         endpoint = ChatEndpoint(
-            ChatEndpointSpec(configuration_id="model", model="fixture", url="https://model.invalid/chat",
-                             api_key="fixture-only", reasoning_effort=None),
-            transport=HttpTransport(trust=ssl.create_default_context(), exchange_seconds=30,
-                                    connect_seconds=1, retirement_seconds=1),
-            request_bytes=4096, response_bytes=4096,
+            ChatEndpointSpec(configuration_id="model",
+                             model="fixture",
+                             url="https://model.invalid/chat",
+                             api_key="fixture-only",
+                             reasoning_effort=None),
+            transport=HttpTransport(trust=ssl.create_default_context(),
+                                    exchange_seconds=30,
+                                    connect_seconds=1,
+                                    retirement_seconds=1),
+            request_bytes=4096,
+            response_bytes=4096,
         )
 
         class ModelPreparation(LiveSession):
@@ -686,7 +723,10 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
         claims = AttemptClaims.live()
 
         controller = self.controller(
-            transport, claims=claims, session=ModelPreparation(), poll_seconds=0.01,
+            transport,
+            claims=claims,
+            session=ModelPreparation(),
+            poll_seconds=0.01,
             preverified_input=verify_job_input(response(), feed=record().input),
         )
 
@@ -726,12 +766,16 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                         await reading.wait()
                         raise phase_error
 
-                transport = ConcurrentStop(reply(start_response()), reply(observation()),
-                                           reply(progress_response()), revocation)
+                transport = ConcurrentStop(reply(start_response()),
+                                           reply(observation()),
+                                           reply(progress_response()),
+                                           revocation)
 
                 claims = AttemptClaims.live()
 
-                controller = self.controller(transport, claims=claims, session=FailedPreparation(),
+                controller = self.controller(transport,
+                                             claims=claims,
+                                             session=FailedPreparation(),
                                              preverified_input=verify_job_input(response(), feed=record().input),
                                              poll_seconds=0.01)
 

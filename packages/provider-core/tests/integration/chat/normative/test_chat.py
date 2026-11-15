@@ -25,14 +25,20 @@ class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
         message = {"role": "assistant", "content": "fixture reply"}
         body = json.dumps({"choices": [{"message": message, "finish_reason": "stop"}]}).encode()
 
-        async with TlsPeer("success", response_body=gzip.compress(body),
+        async with TlsPeer("success",
+                           response_body=gzip.compress(body),
                            response_headers=((b"Content-Encoding", b"gzip"),)) as peer:
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.5)
 
             endpoint = ChatEndpoint(
-                ChatEndpointSpec(configuration_id="compressed", model="fixture", url=peer.origin + "/chat",
-                                 api_key="PRIVATE_KEY", reasoning_effort=None),
-                transport=transport, request_bytes=4096, response_bytes=4096,
+                ChatEndpointSpec(configuration_id="compressed",
+                                 model="fixture",
+                                 url=peer.origin + "/chat",
+                                 api_key="PRIVATE_KEY",
+                                 reasoning_effort=None),
+                transport=transport,
+                request_bytes=4096,
+                response_bytes=4096,
             )
 
             self.addAsyncCleanup(endpoint.retire)
@@ -99,7 +105,10 @@ class ChatCarrierTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn(peer.origin.encode(), endpoint.identity)
 
             rotated = ChatEndpoint(
-                replace(spec, api_key="ROTATED_KEY"), transport=transport, request_bytes=16384, response_bytes=4096
+                replace(spec, api_key="ROTATED_KEY"),
+                transport=transport,
+                request_bytes=16384,
+                response_bytes=4096
             )
 
             self.assertEqual(rotated.identity, endpoint.identity)

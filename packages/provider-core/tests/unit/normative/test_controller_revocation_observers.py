@@ -34,12 +34,14 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
             session.release.set()
 
             results = await asyncio.wait_for(
-                asyncio.gather(first, second, return_exceptions=True), 1,
+                asyncio.gather(first, second, return_exceptions=True),
+                1,
             )
 
             for result in results:
                 self.assertIs(
-                    failure.cause.cause.observation, result,
+                    failure.cause.cause.observation,
+                    result,
                     "Concurrent observers must share completed revocation, not compete for settlement",
                 )
 
@@ -92,7 +94,8 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
             observed = await asyncio.wait_for(resumed, 1)
 
             self.assertIs(
-                failure.cause.cause.observation, observed,
+                failure.cause.cause.observation,
+                observed,
                 "Cancelling a settlement observer must not disqualify the original revocation",
             )
 
@@ -133,7 +136,8 @@ class RevocationObserverTests(unittest.IsolatedAsyncioTestCase):
             session.release.set()
 
             results = await asyncio.wait_for(
-                asyncio.gather(continuation, external, return_exceptions=True), 1,
+                asyncio.gather(continuation, external, return_exceptions=True),
+                1,
             )
 
             self.assertIs(failure.cause.cause.observation, results[0])

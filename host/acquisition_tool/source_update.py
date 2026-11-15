@@ -84,7 +84,10 @@ def read_manifest(data):
         )
 
     if set(manifest) != {
-        "release_version", "source_revision", "payload_files", "dependency_inputs",
+        "release_version",
+        "source_revision",
+        "payload_files",
+        "dependency_inputs",
     }:
         raise ValueError("Acquisition manifest must identify its release, source, payload and dependency inputs.")
 
@@ -394,9 +397,18 @@ def update(source_dir, pin_file):
     try:
         with tempfile.TemporaryDirectory(prefix="provider-tools-release-") as temporary:
             subprocess.run([
-                "gh", "release", "download", f"v{pin['version']}",
-                "--repo", "numpde/nmr-provider-tools", "--dir", temporary, "--pattern", name,
-            ], check=True)
+                "gh",
+                "release",
+                "download",
+                f"v{pin['version']}",
+                "--repo",
+                "numpde/nmr-provider-tools",
+                "--dir",
+                temporary,
+                "--pattern",
+                name,
+            ],
+                check=True)
 
             manifest = _import_verified_old(source, pin, Path(temporary) / name)
             published = True

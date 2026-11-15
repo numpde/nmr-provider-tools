@@ -26,7 +26,8 @@ def release_inputs(pin, runtime_lock):
     (release_version, wheel_digest) = (release["version"], release["wheel_sha256"])
 
     if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", release_version) or not re.fullmatch(
-        r"[0-9a-f]{64}", wheel_digest
+        r"[0-9a-f]{64}",
+        wheel_digest
     ):
         raise ValueError("Cannot use delivery release: invalid pinned version or wheel hash.")
 
@@ -60,7 +61,8 @@ def missing_wheels(release, pool):
 
     for (wheel_name, expected_sha256) in release_wheels(release).items():
         if not re.fullmatch(r"[A-Za-z0-9_.+!-]+\.whl", wheel_name) or not re.fullmatch(
-            r"[0-9a-f]{64}", expected_sha256
+            r"[0-9a-f]{64}",
+            expected_sha256
         ):
             raise ValueError("Cannot use delivery release: malformed pinned wheel identity.")
 
@@ -101,8 +103,15 @@ def publish_release_wheels(tool, pool, artifacts):
 
         subprocess.run(
             [
-                sys.executable, "-I", "-B", str(tool),
-                "acquire", "--lock", str(acquisition_lock), "--pool", str(pool),
+                sys.executable,
+                "-I",
+                "-B",
+                str(tool),
+                "acquire",
+                "--lock",
+                str(acquisition_lock),
+                "--pool",
+                str(pool),
             ],
             check=True,
         )

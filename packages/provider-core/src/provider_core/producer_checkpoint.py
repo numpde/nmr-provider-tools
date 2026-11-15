@@ -14,8 +14,14 @@ import re
 from dataclasses import asdict, dataclass
 
 from provider_core.attempt_record import (
-    MAX_PENDING_RECORD_BYTES, ProtectedEvidence, RecoveryScope, StartPending, SuppressionReason, TerminalOperation,
-    _admission_bytes, _encode_pending,
+    MAX_PENDING_RECORD_BYTES,
+    ProtectedEvidence,
+    RecoveryScope,
+    StartPending,
+    SuppressionReason,
+    TerminalOperation,
+    _admission_bytes,
+    _encode_pending,
 )
 
 from provider_core.attempt_request import _scalar_text
@@ -102,8 +108,10 @@ class AcknowledgedCheckpoint:
                 "An acknowledgement checkpoint requires its exact pending START."
             )
 
-        read_start(_admission_bytes(self.admission), job_ref=self.start.input.job_ref,
-                   analysis_kind_ref=self.start.analysis_kind_ref, provider_ref=self.start.scope.provider_ref)
+        read_start(_admission_bytes(self.admission),
+                   job_ref=self.start.input.job_ref,
+                   analysis_kind_ref=self.start.analysis_kind_ref,
+                   provider_ref=self.start.scope.provider_ref)
 
 
 @dataclass(frozen=True, slots=True)
@@ -223,15 +231,19 @@ def _document(checkpoint):
         return {"kind": "start_pending", "start": json.loads(_encode_pending(checkpoint))}
 
     if type(checkpoint) is AcknowledgedCheckpoint:
-        return {"kind": "acknowledged", "start": json.loads(_encode_pending(checkpoint.start)),
+        return {"kind": "acknowledged",
+                "start": json.loads(_encode_pending(checkpoint.start)),
                 "admission": json.loads(_admission_bytes(checkpoint.admission))}
 
     if type(checkpoint) is EnteredCheckpoint:
         return {"kind": "entered", "acknowledgement": _document(checkpoint.acknowledgement), "prepared": asdict(checkpoint.prepared)}
 
     if type(checkpoint) is TerminalSelectedCheckpoint:
-        return {"kind": "terminal_selected", "attempt": _document(checkpoint.attempt), "operation": checkpoint.operation.value,
-                "body_sha256": checkpoint.body_sha256, "body_bytes": checkpoint.body_bytes}
+        return {"kind": "terminal_selected",
+                "attempt": _document(checkpoint.attempt),
+                "operation": checkpoint.operation.value,
+                "body_sha256": checkpoint.body_sha256,
+                "body_bytes": checkpoint.body_bytes}
 
     if type(checkpoint) is DeliveryAcceptedCheckpoint:
         return {"kind": "delivery_accepted", "selection": _document(checkpoint.selection)}

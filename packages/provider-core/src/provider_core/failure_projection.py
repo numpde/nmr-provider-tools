@@ -232,8 +232,10 @@ def owned_details(error):
 
     if kind is ObservedWorkerCrash:
         details.update({
-            "phase": error.phase, "returncode": error.native_exit.returncode,
-            "worker_role": error.native_exit.role, "worker_generation": error.native_exit.generation,
+            "phase": error.phase,
+            "returncode": error.native_exit.returncode,
+            "worker_role": error.native_exit.role,
+            "worker_generation": error.native_exit.generation,
             "worker_operation": error.native_exit.operation,
         })
 
@@ -262,13 +264,16 @@ def owned_details(error):
 
     if kind is ExecutionFailed and type(error.attempt) is AcknowledgedAttempt:
         details.update(
-            job_ref=error.attempt.admission.job_ref, execution_attempt_ref=error.attempt.admission.execution_attempt_ref,
+            job_ref=error.attempt.admission.job_ref,
+            execution_attempt_ref=error.attempt.admission.execution_attempt_ref,
             delivery_acceptance_received=error.delivery_acceptance is not None,
         )
 
     if kind is ObservationGapExpired:
         details.update(
-            gap_seconds=error.gap_seconds, read_started=error.read_started, observation_pending=error.observation_pending
+            gap_seconds=error.gap_seconds,
+            read_started=error.read_started,
+            observation_pending=error.observation_pending
         )
 
     if kind is ConditionRecoveryExpired:
@@ -320,7 +325,8 @@ def owned_details(error):
 
     if kind is ExchangeFailed and type(error.process) is ChatProcessResult:
         # silent-defaults: allow-contract -- No sent signal has no last-signal identity; retain that absence alongside its zero count.
-        details.update(model_http_pid=error.process.pid, model_http_returncode=error.process.returncode,
+        details.update(model_http_pid=error.process.pid,
+                       model_http_returncode=error.process.returncode,
                        model_http_signals_sent=len(error.process.signals_sent),
                        model_http_last_signal=error.process.signals_sent[-1] if error.process.signals_sent else None)
 

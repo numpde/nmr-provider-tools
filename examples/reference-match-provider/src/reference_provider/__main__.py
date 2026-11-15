@@ -8,8 +8,10 @@ import sys
 from provider_core.failure_collection import FailureCollector
 
 from provider_core.hosting import (
-    NotAdmitted, ResultConsumption,
-    observe_cleanup, observe_completion,
+    NotAdmitted,
+    ResultConsumption,
+    observe_cleanup,
+    observe_completion,
 )
 
 from .provider import open_provider

@@ -22,7 +22,10 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
                 with self.subTest(status=status):
                     async with UnixProxy(peer.origin, "refuse", refusal_status=status) as proxy:
                         transport = HttpTransport(
-                            trust=peer.trust, exchange_seconds=1, retirement_seconds=0.3, proxy_socket=proxy.path
+                            trust=peer.trust,
+                            exchange_seconds=1,
+                            retirement_seconds=0.3,
+                            proxy_socket=proxy.path
                         )
 
                         with self.assertRaises(ExchangeFailed) as caught:
@@ -41,7 +44,10 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
                 with self.subTest(mode=mode):
                     async with UnixProxy(peer.origin, mode) as proxy:
                         transport = HttpTransport(
-                            trust=peer.trust, exchange_seconds=1, retirement_seconds=0.3, proxy_socket=proxy.path
+                            trust=peer.trust,
+                            exchange_seconds=1,
+                            retirement_seconds=0.3,
+                            proxy_socket=proxy.path
                         )
 
                         with (
@@ -68,7 +74,8 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
 
                 with (
                     patch(
-                        "httpcore.AnyIOBackend.connect_tcp", new=AsyncMock(side_effect=AssertionError("direct TCP attempted"))
+                        "httpcore.AnyIOBackend.connect_tcp",
+                        new=AsyncMock(side_effect=AssertionError("direct TCP attempted"))
                     ) as tcp,
                     self.assertRaises(ExchangeFailed),
                 ):
@@ -84,7 +91,10 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.3, proxy_socket=proxy.path)
 
             request = httpx.Request(
-                "POST", peer.origin + "/chat", headers={"Authorization": "Bearer PRIVATE_MODEL_KEY"}, content=b"PRIVATE_BODY"
+                "POST",
+                peer.origin + "/chat",
+                headers={"Authorization": "Bearer PRIVATE_MODEL_KEY"},
+                content=b"PRIVATE_BODY"
             )
 
             with self.assertRaises(ExchangeFailed):
@@ -104,7 +114,10 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
                 with self.subTest(peer=peer_mode, cancel=interrupt):
                     async with TlsPeer(peer_mode) as peer, UnixProxy(peer.origin, proxy_mode) as proxy:
                         transport = HttpTransport(
-                            trust=peer.trust, exchange_seconds=0.15, retirement_seconds=0.3, proxy_socket=proxy.path
+                            trust=peer.trust,
+                            exchange_seconds=0.15,
+                            retirement_seconds=0.3,
+                            proxy_socket=proxy.path
                         )
 
                         started = asyncio.get_running_loop().time()
@@ -148,7 +161,10 @@ class UnixTunnelFailureTests(unittest.IsolatedAsyncioTestCase):
         try:
             async with TlsPeer("success") as peer, TlsPeer("success") as unrelated, UnixProxy(peer.origin, "tunnel") as proxy:
                 transport = HttpTransport(
-                    trust=unrelated.trust, exchange_seconds=1, retirement_seconds=0.3, proxy_socket=proxy.path
+                    trust=unrelated.trust,
+                    exchange_seconds=1,
+                    retirement_seconds=0.3,
+                    proxy_socket=proxy.path
                 )
 
                 with self.assertRaises(ExchangeFailed) as caught:

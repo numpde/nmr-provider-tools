@@ -73,17 +73,37 @@ class RunningSupervisor:
         lifetime = ["--owner-session-lifetime"] if operation_seconds is None else ["--operation-seconds", str(operation_seconds)]
 
         # silent-defaults: allow-contract -- Absent synthetic worker argv selects this fixture worker; nonempty argv injects an explicit fault.
-        self.command = [sys.executable, "-m", "provider_core.runner", "--role", self.role, "--socket", str(self.path),
-             "--scratch", str(self.scratch), "--status-directory", str(self.status), *lifetime,
-             "--startup-seconds", "1", "--terminate-seconds", "0.1", "--kill-seconds", "1", "--cleanup-seconds", "1",
-             "--", *(worker_argv or [sys.executable, "-c", WORKER])]
+        self.command = [sys.executable,
+             "-m",
+             "provider_core.runner",
+             "--role",
+             self.role,
+             "--socket",
+             str(self.path),
+             "--scratch",
+             str(self.scratch),
+             "--status-directory",
+             str(self.status),
+             *lifetime,
+             "--startup-seconds",
+             "1",
+             "--terminate-seconds",
+             "0.1",
+             "--kill-seconds",
+             "1",
+             "--cleanup-seconds",
+             "1",
+             "--",
+             *(worker_argv or [sys.executable, "-c", WORKER])]
 
         self._start()
 
     def _start(self):
         self.process = subprocess.Popen(
             self.command,
-            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
         )
 
         deadline = time.monotonic() + 5

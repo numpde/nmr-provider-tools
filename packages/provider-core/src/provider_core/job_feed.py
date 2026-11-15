@@ -63,7 +63,11 @@ def read_jobs_page(raw, *, analysis_kind_ref, has_provider_execution_attempt, li
     document = read_document(raw, PAGE_RESPONSE_BYTES)
 
     if type(document) is not dict or set(document) != {
-        "schema_id", "analysis_kind_ref", "has_provider_execution_attempt", "jobs", "next_cursor",
+        "schema_id",
+        "analysis_kind_ref",
+        "has_provider_execution_attempt",
+        "jobs",
+        "next_cursor",
     }:
         raise ResponseRejected("Job discovery response fields do not match the supported page schema")
 
@@ -85,14 +89,21 @@ def read_jobs_page(raw, *, analysis_kind_ref, has_provider_execution_attempt, li
     except (TypeError, ValueError) as cause:
         raise ResponseRejected(str(cause)) from None
 
-    return JobPage(analysis_kind_ref, has_provider_execution_attempt,
+    return JobPage(analysis_kind_ref,
+                   has_provider_execution_attempt,
                    # repo-check: allow-tuple-generator -- The admitted JobPage retains server order in one immutable collection.
-                   tuple(_read_job(item, analysis_kind_ref) for item in jobs), document["next_cursor"])
+                   tuple(_read_job(item, analysis_kind_ref) for item in jobs),
+                   document["next_cursor"])
 
 
 def _read_job(item, analysis_kind_ref):
     if type(item) is not dict or set(item) != {
-        "job_ref", "analysis_kind_ref", "input_fingerprint", "input_schema_id", "input_byte_length", "created_at",
+        "job_ref",
+        "analysis_kind_ref",
+        "input_fingerprint",
+        "input_schema_id",
+        "input_byte_length",
+        "created_at",
     }:
         raise ResponseRejected("Discovered Job fields do not match the supported item schema")
 

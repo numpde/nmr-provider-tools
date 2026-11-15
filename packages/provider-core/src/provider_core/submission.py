@@ -9,8 +9,15 @@ require_container()
 from provider_core.contribution import CallBinding, NoInput, ref
 
 from provider_core.hosting import (
-    AnalysisExecution, Invocation, NotAdmitted, Observation, Operation,
-    OperationPolicy, ReservationRef, StateArgument, observe_completion,
+    AnalysisExecution,
+    Invocation,
+    NotAdmitted,
+    Observation,
+    Operation,
+    OperationPolicy,
+    ReservationRef,
+    StateArgument,
+    observe_completion,
 )
 
 

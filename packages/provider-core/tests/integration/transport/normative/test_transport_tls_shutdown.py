@@ -18,7 +18,8 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
         """A TLS goodbye must not replace the error that stopped the request."""
 
         async with TlsPeer(
-            "success", response_headers=((b"bad header", b"value"),),
+            "success",
+            response_headers=((b"bad header", b"value"),),
             response_body=b"unread" * 16384,
         ) as peer:
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.3)
@@ -61,7 +62,9 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
                     raw.settimeout(3)
 
                     with peer.server_trust.wrap_socket(
-                        raw, server_side=True, suppress_ragged_eofs=False,
+                        raw,
+                        server_side=True,
+                        suppress_ragged_eofs=False,
                     ) as connection:
                         request = bytearray()
 
@@ -84,7 +87,9 @@ class TlsShutdownTests(unittest.IsolatedAsyncioTestCase):
                         return closed
 
             transport = HttpTransport(
-                trust=peer.trust, exchange_seconds=2, retirement_seconds=0.5,
+                trust=peer.trust,
+                exchange_seconds=2,
+                retirement_seconds=0.5,
                 proxy_socket=proxy_path,
             )
 

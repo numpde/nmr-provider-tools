@@ -109,7 +109,8 @@ class ObservedWorkerCrash(RuntimeError):
         status = f"signal {-code}" if code < 0 else f"exit status {code}"
 
         return AnalysisFailure(
-            "worker_crashed", f"Worker exited unexpectedly during {phase} ({status}). No verified outcome was returned.",
+            "worker_crashed",
+            f"Worker exited unexpectedly during {phase} ({status}). No verified outcome was returned.",
             self.evidence,
         )
 
@@ -172,11 +173,18 @@ class AnalysisSession(Protocol):
     """
 
     async def prepare(
-        self, acknowledged: AcknowledgedAttempt, instructions: VerifiedJobInput, *, report_condition: ReportCondition
+        self,
+        acknowledged: AcknowledgedAttempt,
+        instructions: VerifiedJobInput,
+        *,
+        report_condition: ReportCondition
     ) -> PreparedAnalysis | AnalysisFailure: ...
 
     async def execute(
-        self, prepared: PreparedAnalysis, *, report_condition: ReportCondition
+        self,
+        prepared: PreparedAnalysis,
+        *,
+        report_condition: ReportCondition
     ) -> AnalysisSuccess | AnalysisFailure: ...
 
     async def retire(self) -> None: ...

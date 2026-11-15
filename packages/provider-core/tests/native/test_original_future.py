@@ -16,8 +16,10 @@ class OriginalFutureTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(value, await await_original(original, deadline=None))
 
     async def test_exact_thread_failure_and_notes_survive_repeated_observation(self):
-        for failure in (TimeoutError("native timeout"), asyncio.CancelledError("native interruption"),
-                        KeyboardInterrupt("native interrupt"), SystemExit(7)):
+        for failure in (TimeoutError("native timeout"),
+                        asyncio.CancelledError("native interruption"),
+                        KeyboardInterrupt("native interrupt"),
+                        SystemExit(7)):
             with self.subTest(kind=type(failure).__name__):
                 original = Future()
                 failure.add_note("original thread evidence")

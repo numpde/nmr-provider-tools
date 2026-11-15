@@ -31,8 +31,12 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
 
         self.addCleanup(self.queue.close)
 
-        self.inbox = DeliveryInbox(self.queue, (), request_seconds=1, on_accepted=Mock(),
-                                   on_failure=Mock(), binding_status=Mock())
+        self.inbox = DeliveryInbox(self.queue,
+                                   (),
+                                   request_seconds=1,
+                                   on_accepted=Mock(),
+                                   on_failure=Mock(),
+                                   binding_status=Mock())
 
         self.addAsyncCleanup(self.inbox.close)
         self.notices = []
@@ -51,8 +55,12 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
             if facts["event"] in stop_events:
                 worker.request_stop()
 
-        worker = DeliveryWorker(self.inbox, endpoint, client, retry_initial_seconds=0.04,
-                                retry_max_seconds=0.08, on_notice=notice)
+        worker = DeliveryWorker(self.inbox,
+                                endpoint,
+                                client,
+                                retry_initial_seconds=0.04,
+                                retry_max_seconds=0.08,
+                                on_notice=notice)
 
         return worker
 
@@ -75,9 +83,12 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
         peer.response_headers = response_headers(status=503, request_id=b"request:b4-publication-outage")
 
         return json.dumps({
-            "type": "urn:nmr-api:problem:service-unavailable", "title": "Service unavailable", "status": 503,
+            "type": "urn:nmr-api:problem:service-unavailable",
+            "title": "Service unavailable",
+            "status": 503,
             "instance": "urn:nmr-api:request:b4-publication-outage",
-            "request_id": "request:b4-publication-outage", "code": "service_unavailable",
+            "request_id": "request:b4-publication-outage",
+            "code": "service_unavailable",
         }).encode()
 
     async def test_retry_warnings_report_elapsed_wait_and_matching_receipt_reports_recovery(self):
@@ -103,7 +114,8 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
             (peer.response_status, peer.response_headers) = (200, response_headers())
 
             return fail_response(execution_attempt_ref=item.execution_attempt_ref,
-                                 failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
+                                 failure_code="provider_interrupted",
+                                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
 
         async with api_tls_peer("success", response_factory=response, response_mode=response_mode) as peer:
             item = replace(outcome(), api_origin=peer.origin)
@@ -113,7 +125,9 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
             # A notice must not include time before this owner began publishing.
             await asyncio.sleep(0.12)
 
-            worker = self.worker(peer, trust=peer.trust, stop_events={"delivery_published"},
+            worker = self.worker(peer,
+                                 trust=peer.trust,
+                                 stop_events={"delivery_published"},
                                  restore_after_retries=restored)
 
             worker_started = loop.time()
@@ -121,7 +135,8 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
             evidence = self.evidence()
 
             self.assertEqual(["delivery_retry", "delivery_retry", "delivery_published"],
-                             [facts["event"] for (_, facts, _) in self.notices], msg=evidence)
+                             [facts["event"] for (_, facts, _) in self.notices],
+                             msg=evidence)
 
             self.assertEqual([item.body] * 3, peer.request_bodies, msg=evidence)
             self.assertEqual([True] * 3, request_owners, msg=evidence)
@@ -141,7 +156,8 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
                 for (name, value) in item.acceptance().items():
                     self.assertEqual(value, facts[name], msg=evidence)
 
-                self.assertIn("publication_wait_seconds", facts,
+                self.assertIn("publication_wait_seconds",
+                              facts,
                               msg="The operator cannot tell how long this exact report has lacked a publication receipt: " + evidence)
 
                 age = facts["publication_wait_seconds"]
@@ -171,30 +187,36 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
 
             if body == first.body:
                 return fail_response(execution_attempt_ref=first.execution_attempt_ref,
-                                     failure_code="provider_interrupted", failure_message="WRONG_RECEIPT")
+                                     failure_code="provider_interrupted",
+                                     failure_message="WRONG_RECEIPT")
 
             return fail_response(execution_attempt_ref=second.execution_attempt_ref,
-                                 failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
+                                 failure_code="provider_interrupted",
+                                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
 
         async with api_tls_peer("success", response_factory=response) as peer:
             (first, second) = (replace(outcome(), api_origin=peer.origin), replace(second, api_origin=peer.origin))
             self.queue.enqueue(first)
             self.queue.enqueue(second)
 
-            worker = self.worker(peer, trust=peer.trust, stop_events={"delivery_published"},
+            worker = self.worker(peer,
+                                 trust=peer.trust,
+                                 stop_events={"delivery_published"},
                                  restore_after_retries=restored)
 
             await asyncio.wait_for(worker.run(), 3)
             evidence = self.evidence()
 
             self.assertEqual(["delivery_retry", "delivery_held", "delivery_published"],
-                             [facts["event"] for (_, facts, _) in self.notices], msg=evidence)
+                             [facts["event"] for (_, facts, _) in self.notices],
+                             msg=evidence)
 
             self.assertEqual([first.body, first.body, second.body], peer.request_bodies, msg=evidence)
             retained = self.queue.inventory(first.api_origin, first.provider_ref)
 
             self.assertEqual([(first.execution_attempt_ref, "held")],
-                             [(row["execution_attempt_ref"], row["state"]) for row in retained], msg=evidence)
+                             [(row["execution_attempt_ref"], row["state"]) for row in retained],
+                             msg=evidence)
 
             for (_, facts, _) in self.notices:
                 if facts["execution_attempt_ref"] == first.execution_attempt_ref:
@@ -221,7 +243,9 @@ class DeliveryProgressNoticeTests(unittest.IsolatedAsyncioTestCase):
                 item = replace(outcome(), api_origin=peer.origin)
                 self.queue.enqueue(item)
 
-                worker = self.worker(peer, trust=other_trust.trust, stop_events=set(),
+                worker = self.worker(peer,
+                                     trust=other_trust.trust,
+                                     stop_events=set(),
                                      restore_after_retries=asyncio.Event())
 
                 await asyncio.wait_for(worker.run(), 3)

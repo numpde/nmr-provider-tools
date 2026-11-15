@@ -528,7 +528,8 @@ async def observe_completion(operation: Operation) -> Observation:
 
     while not observation.finished:
         observation = await operation.observe(
-            after=observation.revision, wait_seconds=1,
+            after=observation.revision,
+            wait_seconds=1,
         )
 
     return observation
@@ -553,7 +554,8 @@ async def observe_cleanup(
 
     while not observation.settled and not observation.failures:
         observation = await control.observe(
-            after=observation.revision, wait_seconds=1,
+            after=observation.revision,
+            wait_seconds=1,
         )
 
     causes = [failure.cause for failure in observation.failures]

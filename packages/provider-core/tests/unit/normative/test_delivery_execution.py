@@ -20,15 +20,27 @@ from tests.fakes.api import api
 
 
 def success_transport():
-    return Transport(reply(observation()), reply(response()), reply(progress_response()), reply(observation()),
-                     reply(progress_response(phase="running")), reply(observation()), reply(observation()))
+    return Transport(reply(observation()),
+                     reply(response()),
+                     reply(progress_response()),
+                     reply(observation()),
+                     reply(progress_response(phase="running")),
+                     reply(observation()),
+                     reply(observation()))
 
 
 def executor_at(store, acknowledged, claim, session, delivery):
-    return live_executor(api(success_transport(), store.scope.api_origin), store, claim, session,
-                           delivery=delivery, on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
-                           delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-                           poll_seconds=0.01, task_settle_seconds=1)
+    return live_executor(api(success_transport(), store.scope.api_origin),
+                           store,
+                           claim,
+                           session,
+                           delivery=delivery,
+                           on_delivery_retry=Mock(),
+                           allowed_job_states=frozenset({"open"}),
+                           delivery_retry_initial_seconds=0.01,
+                           delivery_retry_max_seconds=0.04,
+                           poll_seconds=0.01,
+                           task_settle_seconds=1)
 
 
 class FullUntilReleased(RecordingDelivery):

@@ -154,7 +154,9 @@ class InProcessExecutionHost:
 
     # silent-defaults: allow-contract -- No file assets, no resident requirements and shared-process execution describe the ordinary embedded contribution contract.
     def adopt(
-        self, *, contribution: Contribution,
+        self,
+        *,
+        contribution: Contribution,
         requirements: frozenset[ResourceRequirement],
         assets: AssetAccess = NoAssets(),
         resident_resources: frozenset[ResourceRequirement] = frozenset(),
@@ -173,8 +175,12 @@ class InProcessExecutionHost:
         allocation_name = uuid4().hex
 
         hosted = HostedContribution(
-            contribution=contribution, host=self.identity, allocation_name=allocation_name,
-            requirements=requirements, resident_resources=resident_resources, isolation=isolation,
+            contribution=contribution,
+            host=self.identity,
+            allocation_name=allocation_name,
+            requirements=requirements,
+            resident_resources=resident_resources,
+            isolation=isolation,
         )
 
         _require_supported_binding(hosted)
@@ -203,7 +209,10 @@ class InProcessExecutionHost:
             raise RuntimeError("The embedded host belongs to its original event loop.")
 
     def open_analysis(
-        self, analysis_id: str | None = None, *, allocation_names: tuple[str, ...] | None = None,
+        self,
+        analysis_id: str | None = None,
+        *,
+        allocation_names: tuple[str, ...] | None = None,
         allocations: frozenset[AllocationRef] | None = None,
     ) -> InProcessAnalysisExecutor:
         """Reserve exact allocation handles and create an analysis identity.
@@ -450,9 +459,13 @@ class InProcessAnalysisExecutor:
 
     # silent-defaults: allow-contract -- NoInput represents absent payload; omitted start deadlines leave policy clocks in force.
     def submit_method(
-        self, *, method: Callable,
-        scientific_input: object = NoInput(), states: tuple[StateArgument, ...],
-        reservation: ReservationRef, policy: OperationPolicy,
+        self,
+        *,
+        method: Callable,
+        scientific_input: object = NoInput(),
+        states: tuple[StateArgument, ...],
+        reservation: ReservationRef,
+        policy: OperationPolicy,
         start_not_after: float | None = None,
     ) -> Operation | NotAdmitted:
         """Ask the SDK to run an exported method on the reserved scientific object.
@@ -483,12 +496,16 @@ class InProcessAnalysisExecutor:
 
         return self.submit_call(
             call=call,
-            payload=call.encode_input(value=scientific_input), states=states,
-            reservation=reservation, policy=policy, start_not_after=start_not_after,
+            payload=call.encode_input(value=scientific_input),
+            states=states,
+            reservation=reservation,
+            policy=policy,
+            start_not_after=start_not_after,
         )
 
     def submit(
-        self, invocation: Invocation,
+        self,
+        invocation: Invocation,
     ) -> Operation | NotAdmitted:
         """Retain portable request identity until this analysis closes."""
 

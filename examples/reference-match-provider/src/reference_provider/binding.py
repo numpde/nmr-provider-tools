@@ -34,5 +34,7 @@ class ReferenceMatcher(sdk.Contribution):
             raise RuntimeError("Cannot match a query before the reference index has been initialized")
 
         return science.match(
-            index=self.loaded_index, settings=self.configuration.settings, candidate=candidate,
+            index=self.loaded_index,
+            settings=self.configuration.settings,
+            candidate=candidate,
         )

@@ -144,7 +144,8 @@ def select_wheels(lock, pool, extra_pools=(), required_files=None, lock_fd=None)
                 "-r",
                 str(frozen),
             ],
-            check=True, pass_fds=borrowed_descriptors,
+            check=True,
+            pass_fds=borrowed_descriptors,
         )
 
         return wheel_inputs_from_report(frozen, pool, report, extra_pools, required_files)

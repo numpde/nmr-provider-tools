@@ -108,7 +108,8 @@ class JobsControlTransport(Transport):
             sent = json.loads(request.content)
 
             return reply(progress_response(execution_attempt_ref=self.attempt_ref,
-                                           phase=sent["phase"], condition_code=sent["condition_code"]))
+                                           phase=sent["phase"],
+                                           condition_code=sent["condition_code"]))
 
         if request.method == "GET":
             return reply(observation(job_ref=self.job_ref, execution_attempt_ref=self.attempt_ref))
@@ -191,7 +192,8 @@ async def run_outage(directory, *, mode, backlog, seed):
             return await scientific_worker.call(operation, job)
 
     successful_reply = json.dumps({"choices": [{
-        "message": call("prepare", "prepare_scientific_input", {}), "finish_reason": "tool_calls",
+        "message": call("prepare", "prepare_scientific_input", {}),
+        "finish_reason": "tool_calls",
     }]}).encode()
 
     def failed_service_mode(_request, body):
@@ -242,9 +244,11 @@ async def run_outage(directory, *, mode, backlog, seed):
                 await release_original_receipt.wait()
 
             receipt = complete_response(
-                execution_attempt_ref=reference, result_schema_id=schema,
+                execution_attempt_ref=reference,
+                result_schema_id=schema,
                 analysis_result_ref="analysis_result:sha256:" + sha256(body).hexdigest(),
-                result_fingerprint="sha256:" + sha256(content).hexdigest(), result_byte_length=len(content),
+                result_fingerprint="sha256:" + sha256(content).hexdigest(),
+                result_byte_length=len(content),
             )
         else:
             (code, message) = read_fail_body(body, execution_attempt_ref=reference)
@@ -277,8 +281,10 @@ async def run_outage(directory, *, mode, backlog, seed):
             model_seconds = (healthy_interpretation_seconds if
                              job_ref.endswith(("original-result", "healthy-during-outage")) else interpretation_seconds)
 
-            self.interpreter = Interpreter((service,), timeout_seconds=model_seconds,
-                                           context_bytes=16384, secrets=("B4_TEST_CREDENTIAL",))
+            self.interpreter = Interpreter((service,),
+                                           timeout_seconds=model_seconds,
+                                           context_bytes=16384,
+                                           secrets=("B4_TEST_CREDENTIAL",))
 
         async def prepare(self, acknowledged, instructions, *, report_condition):
             nonlocal peak_claims
@@ -299,8 +305,10 @@ async def run_outage(directory, *, mode, backlog, seed):
 
                 return ToolFinished(self.handle)
 
-            tools = [{"type": "function", "function": {
-                "name": "prepare_scientific_input", "parameters": {"type": "object", "properties": {}},
+            tools = [{"type": "function",
+                "function": {
+                    "name": "prepare_scientific_input",
+                    "parameters": {"type": "object", "properties": {}},
             }}]
 
             try:
@@ -309,7 +317,8 @@ async def run_outage(directory, *, mode, backlog, seed):
                 self.failure = failure
 
                 unavailable = AnalysisFailure(
-                    "interpreter_unavailable", "The prose service was unavailable within this Job's interpretation deadline.",
+                    "interpreter_unavailable",
+                    "The prose service was unavailable within this Job's interpretation deadline.",
                     ProtectedEvidence("fixture.interpreter.failure.v1", b"original interpreter failure retained"),
                 )
 
@@ -324,7 +333,8 @@ async def run_outage(directory, *, mode, backlog, seed):
             value = await science("execute", self.job_ref)
             self.handle = None
 
-            return AnalysisSuccess("fixture.counted_science.v1", json.dumps(value).encode(),
+            return AnalysisSuccess("fixture.counted_science.v1",
+                                   json.dumps(value).encode(),
                                    ProtectedEvidence("fixture.science.evidence.v1", b"one scientific execution"))
 
         async def retire(self):
@@ -339,7 +349,9 @@ async def run_outage(directory, *, mode, backlog, seed):
 
     async with AsyncExitStack() as stack:
         failed_peer = await stack.enter_async_context(TlsPeer(
-            "success", response_factory=failed_service_response, response_mode=failed_service_mode,
+            "success",
+            response_factory=failed_service_response,
+            response_mode=failed_service_mode,
         ))
 
         healthy_peer = await stack.enter_async_context(TlsPeer("success", response_body=successful_reply))
@@ -347,9 +359,15 @@ async def run_outage(directory, *, mode, backlog, seed):
 
         # repo-check: allow-tuple-generator -- The two configured peers must be retained in a fixed ordered pair for later endpoint ownership inspection.
         observed_factories = tuple(ObservedFactory(ChatEndpointFactory(
-            spec=ChatEndpointSpec(configuration_id=name, model="local-prose-test-model",
-                                  url=peer.origin + "/chat", api_key="B4_TEST_CREDENTIAL", reasoning_effort=None),
-            trust=peer.trust, retirement_seconds=retirement_seconds, request_bytes=32768, response_bytes=8192,
+            spec=ChatEndpointSpec(configuration_id=name,
+                                  model="local-prose-test-model",
+                                  url=peer.origin + "/chat",
+                                  api_key="B4_TEST_CREDENTIAL",
+                                  reasoning_effort=None),
+            trust=peer.trust,
+            retirement_seconds=retirement_seconds,
+            request_bytes=32768,
+            response_bytes=8192,
         )) for (name, peer) in (("unavailable-prose-service", failed_peer), ("independent-prose-service", healthy_peer)))
 
         failed_service = ObservedProseService(observed_factories[0])
@@ -362,8 +380,12 @@ async def run_outage(directory, *, mode, backlog, seed):
         delivery_transport = HttpTransport(trust=jobs_peer.trust, exchange_seconds=8, retirement_seconds=retirement_seconds)
         delivery_api = api(delivery_transport, jobs_peer.origin)
 
-        publisher = DeliveryWorker(inbox, endpoint, delivery_api, retry_initial_seconds=0.01,
-                                   retry_max_seconds=0.04, on_notice=delivery_notice)
+        publisher = DeliveryWorker(inbox,
+                                   endpoint,
+                                   delivery_api,
+                                   retry_initial_seconds=0.01,
+                                   retry_max_seconds=0.04,
+                                   on_notice=delivery_notice)
 
         local_delivery = DurableHandoff(inbox, endpoint, publisher)
         tasks = []
@@ -383,18 +405,28 @@ async def run_outage(directory, *, mode, backlog, seed):
             job_ref = "job:b4-" + name
             base = record("b4:" + name)
 
-            pending = StartPending(selected_scope, base.analysis_kind_ref, replace(base.input, job_ref=job_ref),
+            pending = StartPending(selected_scope,
+                                   base.analysis_kind_ref,
+                                   replace(base.input, job_ref=job_ref),
                                    retained_start(job_ref=job_ref, provider_attempt_key="b4:" + name))
 
             (session, control) = (ScientificSession(job_ref, service), JobsControlTransport(job_ref))
 
             controller = AttemptController.live(
-                api(control, selected_scope.api_origin), claims, session, scope=selected_scope,
-                stopping=stopping, start_policy=LiveStartPolicy(0.01, Mock(), Mock()),
+                api(control, selected_scope.api_origin),
+                claims,
+                session,
+                scope=selected_scope,
+                stopping=stopping,
+                start_policy=LiveStartPolicy(0.01, Mock(), Mock()),
                 preverified_input=verify_job_input(response(job_ref=job_ref), feed=pending.input),
-                delivery=local_delivery, on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
-                delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-                poll_seconds=1, task_settle_seconds=retirement_seconds,
+                delivery=local_delivery,
+                on_delivery_retry=Mock(),
+                allowed_job_states=frozenset({"open"}),
+                delivery_retry_initial_seconds=0.01,
+                delivery_retry_max_seconds=0.04,
+                poll_seconds=1,
+                task_settle_seconds=retirement_seconds,
             )
 
             await controller.run(pending)
@@ -403,11 +435,16 @@ async def run_outage(directory, *, mode, backlog, seed):
             if session.failure is not None:
                 diagnostic = failure_evidence(session.failure, secrets=("B4_TEST_CREDENTIAL",))
 
-            job = {"name": name, "attempt_ref": control.attempt_ref,
-                   "prepare_calls": session.prepare_calls, "scientific_prepare_calls": session.scientific_prepare_calls,
-                   "execute_calls": session.execute_calls, "failed": session.failure is not None,
+            job = {"name": name,
+                   "attempt_ref": control.attempt_ref,
+                   "prepare_calls": session.prepare_calls,
+                   "scientific_prepare_calls": session.scientific_prepare_calls,
+                   "execute_calls": session.execute_calls,
+                   "failed": session.failure is not None,
                    "starts": sum(request.url.path.endswith("/start") for (request, _) in control.calls),
-                   "shutdown_ready": controller.shutdown_ready, "started_at": control.start_times[0], "finished_at": loop.time(),
+                   "shutdown_ready": controller.shutdown_ready,
+                   "started_at": control.start_times[0],
+                   "finished_at": loop.time(),
                    "diagnostic": diagnostic}
 
             jobs.append(job)
@@ -456,7 +493,8 @@ async def run_outage(directory, *, mode, backlog, seed):
             await run_job("original-result", healthy_service)
             original_report = local_delivery.items[0]
 
-            tasks = [asyncio.create_task(restore_service()), asyncio.create_task(drive_backlog()),
+            tasks = [asyncio.create_task(restore_service()),
+                     asyncio.create_task(drive_backlog()),
                      asyncio.create_task(healthy_work_and_original_receipt())]
 
             await asyncio.wait_for(asyncio.gather(*tasks), backlog * (interpretation_seconds + retirement_seconds) + 8)
@@ -472,29 +510,43 @@ async def run_outage(directory, *, mode, backlog, seed):
                         if endpoint._transport.last_process_result is not None]
 
             return {
-                "mode": mode, "seed": seed, "backlog": backlog, "maximum_attempts": maximum_attempts,
-                "outage_seconds": outage_seconds, "request_ceiling": request_ceiling,
-                "minimum_request_delay": minimum_delay, "recovery_seconds": recovery_seconds,
-                "receipt_release_phase": receipt_release_phase, "requests": requests,
+                "mode": mode,
+                "seed": seed,
+                "backlog": backlog,
+                "maximum_attempts": maximum_attempts,
+                "outage_seconds": outage_seconds,
+                "request_ceiling": request_ceiling,
+                "minimum_request_delay": minimum_delay,
+                "recovery_seconds": recovery_seconds,
+                "receipt_release_phase": receipt_release_phase,
+                "requests": requests,
                 "retry_observations": failed_service.retry_observations,
-                "trace": trace, "jobs": jobs,
-                "restored_at": restored_at, "publication_times": published, "notices": notices,
-                "peak_claims": peak_claims, "peak_prose_connections": peak_prose_connections,
-                "provider_pid": os.getpid(), "scientific_worker_before": scientific_worker.initial,
+                "trace": trace,
+                "jobs": jobs,
+                "restored_at": restored_at,
+                "publication_times": published,
+                "notices": notices,
+                "peak_claims": peak_claims,
+                "peak_prose_connections": peak_prose_connections,
+                "provider_pid": os.getpid(),
+                "scientific_worker_before": scientific_worker.initial,
                 "scientific_worker_after": await science("snapshot"),
                 "original_report_acceptance": original_report.acceptance(),
                 "original_report_bytes_sent_once": jobs_peer.request_bodies.count(original_report.body) == 1,
                 "original_report_receipt": json.loads(publication_receipts[0]),
                 "original_report_sha256": sha256(original_report.body).hexdigest(),
-                "submitted_reports": len(local_delivery.items), "published_reports": len(published),
+                "submitted_reports": len(local_delivery.items),
+                "published_reports": len(published),
                 "all_report_bytes_preserved": sorted(item.body for item in local_delivery.items) == sorted(jobs_peer.request_bodies),
                 "publisher_running": not publisher_task.done(),
                 "queue_inventory": queue.inventory(selected_scope.api_origin, selected_scope.provider_ref),
-                "final_claims": len(claims.live_owners()), "open_peer_connections": peer_connections,
+                "final_claims": len(claims.live_owners()),
+                "open_peer_connections": peer_connections,
                 "all_http_owners_retired": all(endpoint.retirement_confirmed for endpoint in carriers),
                 "children": [{"pid": child.pid, "returncode": child.returncode, "alive": _process_alive(child.pid)}
                              for child in children],
-                "idle_descriptors": idle_descriptors, "final_descriptors": _descriptors(),
+                "idle_descriptors": idle_descriptors,
+                "final_descriptors": _descriptors(),
             }
         finally:
             release_original_receipt.set()

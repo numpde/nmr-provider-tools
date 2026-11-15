@@ -60,7 +60,8 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
             peer.response_headers = response_headers()
 
             return fail_response(execution_attempt_ref=items[1].execution_attempt_ref,
-                                 failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
+                                 failure_code="provider_interrupted",
+                                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
 
         async with api_tls_peer("success", response_factory=reply) as peer:
             items = [replace(item, api_origin=peer.origin) for item in items]
@@ -70,12 +71,18 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
             for index in range(2):
                 credential = encoded(document(principal_ref="provider:test", credential_ref=f"credential:test-{index}"))
 
-                fields = {"origin": peer.origin, "profile": "dev-local", "topology": "dev-local",
-                          "provider_ref": "provider:test", "exchange_seconds": 2, "retirement_seconds": 1,
-                          "credential_file": "/gone/key", "ca_file": "/gone/ca"}
+                fields = {"origin": peer.origin,
+                          "profile": "dev-local",
+                          "topology": "dev-local",
+                          "provider_ref": "provider:test",
+                          "exchange_seconds": 2,
+                          "retirement_seconds": 1,
+                          "credential_file": "/gone/key",
+                          "ca_file": "/gone/ca"}
 
                 (settings, _, material) = api_settings_with_material(
-                    fields, lambda _path, **options: credential if options["label"] == "API signing credential" else ca)
+                    fields,
+                    lambda _path, **options: credential if options["label"] == "API signing credential" else ca)
 
                 keys.append(settings.identity.private_key)
                 materials.append(material)
@@ -102,10 +109,15 @@ class AuthorizationRecoveryTests(unittest.IsolatedAsyncioTestCase):
                         if facts["event"] == "delivery_published" and facts["execution_attempt_ref"] == items[1].execution_attempt_ref:
                             published.set()
 
-                    service = SharedDeliveryService(root / "state", limits=limits,
-                        socket=SharedDeliverySocket(root / "ipc/http.sock", None), proxy_socket=root / "proxy.sock",
-                        request_seconds=2, retry_initial_seconds=0.01, retry_max_seconds=0.02,
-                        on_notice=notice, diagnostic_status=Mock())
+                    service = SharedDeliveryService(root / "state",
+                        limits=limits,
+                        socket=SharedDeliverySocket(root / "ipc/http.sock", None),
+                        proxy_socket=root / "proxy.sock",
+                        request_seconds=2,
+                        retry_initial_seconds=0.01,
+                        retry_max_seconds=0.02,
+                        on_notice=notice,
+                        diagnostic_status=Mock())
 
                     task = asyncio.create_task(service.run())
 

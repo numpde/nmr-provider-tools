@@ -82,7 +82,9 @@ class DeliveryClient:
         self.endpoint = endpoint
 
         self._transport = UnixHttpTransport(
-            socket_path=str(endpoint.socket_path), exchange_seconds=exchange_seconds, retirement_seconds=retirement_seconds
+            socket_path=str(endpoint.socket_path),
+            exchange_seconds=exchange_seconds,
+            retirement_seconds=retirement_seconds
         )
 
         self.last_failure = None
@@ -112,7 +114,8 @@ class DeliveryClient:
         try:
             response = await self._transport.exchange(
                 httpx.Request(method, DELIVERY_ORIGIN + path, headers=headers, content=body),
-                maximum_bytes=MAX_IPC_RESPONSE_BYTES, owner=self,
+                maximum_bytes=MAX_IPC_RESPONSE_BYTES,
+                owner=self,
             )
         except asyncio.CancelledError as interruption:
             # silent-defaults: allow-contract -- Interrupted POST handoff retains uncertainty; an interrupted status read requested no enqueue.
@@ -127,7 +130,8 @@ class DeliveryClient:
             # silent-defaults: allow-contract -- POST exchange failure retains the exact outcome; a status-read failure requests only transport retirement.
             self.last_failure = DeliveryUnavailable(
                 ("Cannot confirm local delivery acceptance. Retain the identical outcome; settle this connection before retrying."
-                 if submitting else "Cannot read delivery status; settle this connection before retrying the read."), cause=cause
+                 if submitting else "Cannot read delivery status; settle this connection before retrying the read."),
+                cause=cause
             )
 
             raise self.last_failure from None
@@ -142,7 +146,8 @@ class DeliveryClient:
             # silent-defaults: allow-contract -- A refused POST cannot confirm acceptance; a refused read reports unavailable metadata.
             self.last_failure = DeliveryUnavailable(
                 ("The local delivery service cannot accept work; retain this outcome and inspect its operator status."
-                 if submitting else "Delivery status is unavailable; inspect the service's operator diagnostics."), status=503
+                 if submitting else "Delivery status is unavailable; inspect the service's operator diagnostics."),
+                status=503
             )
 
             raise self.last_failure
@@ -166,7 +171,10 @@ class DeliveryClient:
             raise ValueError("The accepted outcome belongs to another configured delivery binding.")
 
         reply = await self._request(
-            "POST", f"/submit/{item.operation.value}/{item.execution_attempt_ref}", body=item.body, job_ref=item.job_ref
+            "POST",
+            f"/submit/{item.operation.value}/{item.execution_attempt_ref}",
+            body=item.body,
+            job_ref=item.job_ref
         )
 
         if reply != item.acceptance():

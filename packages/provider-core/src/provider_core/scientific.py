@@ -23,11 +23,25 @@ from types import NoneType
 from typing import Any, ClassVar, Protocol, get_args, get_origin, get_type_hints
 
 from provider_core.contribution import (
-    CallBinding, CallDescription, CallRef,
-    ConcurrencyRequirement, ImplementationDescription, InterruptionSupport,
-    IsolationRequirement, NoInput, ProgressEvent, ResourceRequirement,
-    ScientificControl, ScientificReturn, StateUse,
-    _MethodCall, _ScientificCallShape, _require_state_kinds, _require_resource_requirements, description_document, ref,
+    CallBinding,
+    CallDescription,
+    CallRef,
+    ConcurrencyRequirement,
+    ImplementationDescription,
+    InterruptionSupport,
+    IsolationRequirement,
+    NoInput,
+    ProgressEvent,
+    ResourceRequirement,
+    ScientificControl,
+    ScientificReturn,
+    StateUse,
+    _MethodCall,
+    _ScientificCallShape,
+    _require_state_kinds,
+    _require_resource_requirements,
+    description_document,
+    ref,
 )
 
 from provider_core.payload import JsonDataclassCodec, PayloadCodec
@@ -213,9 +227,14 @@ def operation(
     """
 
     declaration = _Declaration(
-        state_inputs=state_inputs, state_outputs=state_outputs, resources=requirements,
-        concurrency=concurrency, interruption=interruption, progress=progress,
-        input_codec=input_codec, result_codec=result_codec,
+        state_inputs=state_inputs,
+        state_outputs=state_outputs,
+        resources=requirements,
+        concurrency=concurrency,
+        interruption=interruption,
+        progress=progress,
+        input_codec=input_codec,
+        result_codec=result_codec,
     )
 
     def decorate(function: Callable) -> Callable:
@@ -405,7 +424,10 @@ def _lifecycle(*, owner: type, name: str, keywords: dict[str, type]) -> _Lifecyc
 
 
 def _compile_method(
-    *, contribution: type[Contribution], name: str, function: Callable,
+    *,
+    contribution: type[Contribution],
+    name: str,
+    function: Callable,
     resources: frozenset[ResourceRequirement],
 ) -> CallBinding:
     _synchronous(function=function, label=f"Operation {name!r}")
@@ -497,10 +519,14 @@ def _compile_method(
     result_codec = _codec(value_type=output, supplied=declaration.result_codec)
 
     callback = _MethodCall(
-        function=function, receiver=parameters[0].name,
+        function=function,
+        receiver=parameters[0].name,
         shape=_ScientificCallShape(
-            instance=contribution, analysis=analysis_type,
-            input=input_type, state=state_binding.value_type, output=output,
+            instance=contribution,
+            analysis=analysis_type,
+            input=input_type,
+            state=state_binding.value_type,
+            output=output,
         ),
         input_parameter=input_name,
         analysis_parameter=analysis_parameter,
@@ -512,15 +538,20 @@ def _compile_method(
 
     return CallBinding(
         description=CallDescription(
-            name=name, input_format=input_codec.format, result_format=result_codec.format,
+            name=name,
+            input_format=input_codec.format,
+            result_format=result_codec.format,
             state_inputs=state_binding.parameters,
             state_outputs=tuple(output_descriptions),
             resources=resources if declaration.resources is None else declaration.resources,
-            concurrency=declaration.concurrency, interruption=declaration.interruption,
+            concurrency=declaration.concurrency,
+            interruption=declaration.interruption,
             progress=declaration.progress,
         ),
-        input_codec=input_codec, state_binding=state_binding,
-        scientific_call=callback, result_codec=result_codec,
+        input_codec=input_codec,
+        state_binding=state_binding,
+        scientific_call=callback,
+        result_codec=result_codec,
         _output_slots=declaration.state_outputs,
     )
 
@@ -587,7 +618,9 @@ class HostedContribution:
 
         for (name, function) in members:
             call = _compile_method(
-                contribution=contribution_type, name=name, function=function,
+                contribution=contribution_type,
+                name=name,
+                function=function,
                 resources=self.requirements,
             )
 
@@ -601,9 +634,12 @@ class HostedContribution:
         description = ImplementationDescription(
             binding_id="allocation:" + host + ":" + allocation_name.encode(encoding="utf-8").hex(),
             binding_revision="configured-v3:sha256:" + "0" * 64,
-            contract_version=1, configuration=None, assets=frozenset(),
+            contract_version=1,
+            configuration=None,
+            assets=frozenset(),
             calls=frozenset(call_descriptions),
-            resident_resources=self.resident_resources, isolation=self.isolation,
+            resident_resources=self.resident_resources,
+            isolation=self.isolation,
         )
 
         document = description_document(description=description)
@@ -624,10 +660,16 @@ class HostedContribution:
         revision = "configured-v3:sha256:" + hashlib.sha256(string=encoded_contract).hexdigest()
         object.__setattr__(self, "description", replace(description, binding_revision=revision))
 
-        object.__setattr__(self, "allocation", AllocationRef(
-            host=host, allocation=allocation_name,
-            binding_id=self.description.binding_id, binding_revision=revision,
-        ))
+        object.__setattr__(
+            self,
+            "allocation",
+            AllocationRef(
+                host=host,
+                allocation=allocation_name,
+                binding_id=self.description.binding_id,
+                binding_revision=revision,
+            )
+        )
 
     def call(self, *, method: Callable) -> CallBinding:
         """Select an exported method of this receiver without string dispatch."""

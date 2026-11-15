@@ -116,7 +116,9 @@ def receive_greeting(connection, *, deadline):
         _remaining(connection, deadline)
 
         (first, ancillary, flags, _) = connection.recvmsg(
-            1, socket.CMSG_SPACE(8 * array.array("i").itemsize), socket.MSG_CMSG_CLOEXEC
+            1,
+            socket.CMSG_SPACE(8 * array.array("i").itemsize),
+            socket.MSG_CMSG_CLOEXEC
         )
 
         unexpected = False

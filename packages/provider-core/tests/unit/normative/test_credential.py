@@ -27,7 +27,13 @@ class ProviderCredentialTests(unittest.TestCase):
                 identity = SigningIdentity("https://api.example", credential.credential_ref, credential.private_key)
 
                 request = signed_request(
-                    identity, method="GET", path="/provider/v1/jobs", query=b"", body=None, created=1700000000, nonce=bytes(16)
+                    identity,
+                    method="GET",
+                    path="/provider/v1/jobs",
+                    query=b"",
+                    body=None,
+                    created=1700000000,
+                    nonce=bytes(16)
                 )
 
                 self.assertIn('keyid="credential:example"', request.headers["Signature-Input"])

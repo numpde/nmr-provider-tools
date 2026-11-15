@@ -37,7 +37,9 @@ class ConversationTests(unittest.IsolatedAsyncioTestCase):
         failure = ChatFailed("request_limit", "Earlier request did not fit; not sent.")
 
         conversation = ToolConversation(
-            (endpoint("first", failure), endpoint("second", call("done", "prepare", {}))), max_turns=2, secrets=()
+            (endpoint("first", failure), endpoint("second", call("done", "prepare", {}))),
+            max_turns=2,
+            secrets=()
         )
 
         async def dispatch(_name, _arguments):

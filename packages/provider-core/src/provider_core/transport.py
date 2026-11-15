@@ -331,7 +331,11 @@ class HttpTransport:
     # silent-defaults: allow-contract -- HTTPS remains required unless a direct model transport explicitly admits HTTP.
     def __init__(self, *, trust, exchange_seconds, retirement_seconds, proxy_socket=None, allow_http=False, connect_seconds=None):
         require_transport_settings(
-            trust=trust, exchange_seconds=exchange_seconds, retirement_seconds=retirement_seconds, proxy_socket=proxy_socket, allow_http=allow_http
+            trust=trust,
+            exchange_seconds=exchange_seconds,
+            retirement_seconds=retirement_seconds,
+            proxy_socket=proxy_socket,
+            allow_http=allow_http
         )
 
         self._trust = trust
@@ -445,7 +449,10 @@ class HttpTransport:
             wire_request = httpcore.Request(
                 method=request.method,
                 url=httpcore.URL(
-                    scheme=request.url.raw_scheme, host=request.url.raw_host, port=request.url.port, target=request.url.raw_path
+                    scheme=request.url.raw_scheme,
+                    host=request.url.raw_host,
+                    port=request.url.port,
+                    target=request.url.raw_path
                 ),
                 headers=request.headers.raw,
                 content=request.content,
@@ -515,7 +522,10 @@ class HttpTransport:
                 outcome.response = HttpResponse(head.status, head.headers, bytes(body))
             else:
                 outcome.response = HttpFileResponse(
-                    head.status, head.headers, file_body.byte_length, "sha256:" + file_body.digest.hexdigest()
+                    head.status,
+                    head.headers,
+                    file_body.byte_length,
+                    "sha256:" + file_body.digest.hexdigest()
                 )
         except BaseException as failure:
             # The owner observes this task separately, so cancellation cannot
@@ -626,14 +636,28 @@ class HttpTransport:
         """
 
         return await self._exchange(
-            request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=None,
-            before_body=before_body, decoder_factory=None, not_after=not_after,
+            request,
+            maximum_bytes=maximum_bytes,
+            account_bytes=account_bytes,
+            owner=owner,
+            output_fd=None,
+            before_body=before_body,
+            decoder_factory=None,
+            not_after=not_after,
         )
 
     # silent-defaults: allow-contract -- HTTP 200 selects the success limit unless the caller names another supported status.
     async def exchange_decoded(
-        self, request, *, maximum_bytes, error_maximum_bytes, success_status=200,
-        account_bytes=None, owner=None, before_body=None, not_after=None,
+        self,
+        request,
+        *,
+        maximum_bytes,
+        error_maximum_bytes,
+        success_status=200,
+        account_bytes=None,
+        owner=None,
+        before_body=None,
+        not_after=None,
     ):
         """Decode one bounded entity under the original exchange and retirement.
 
@@ -661,9 +685,14 @@ class HttpTransport:
             return DecodedBody(head.headers, maximum_bytes=limit)
 
         return await self._exchange(
-            request, maximum_bytes=max(maximum_bytes, error_maximum_bytes),
-            account_bytes=account_bytes, owner=owner, output_fd=None,
-            before_body=before_body, decoder_factory=decoder_for, not_after=not_after,
+            request,
+            maximum_bytes=max(maximum_bytes, error_maximum_bytes),
+            account_bytes=account_bytes,
+            owner=owner,
+            output_fd=None,
+            before_body=before_body,
+            decoder_factory=decoder_for,
+            not_after=not_after,
         )
 
     async def exchange_file(self, request, *, output_fd, maximum_bytes, account_bytes=None, owner=None, before_body=None, not_after=None):
@@ -688,8 +717,14 @@ class HttpTransport:
             raise ValueError("Cannot receive HTTP response in a file: output_fd must be a non-negative descriptor")
 
         return await self._exchange(
-            request, maximum_bytes=maximum_bytes, account_bytes=account_bytes, owner=owner, output_fd=output_fd,
-            before_body=before_body, decoder_factory=None, not_after=not_after,
+            request,
+            maximum_bytes=maximum_bytes,
+            account_bytes=account_bytes,
+            owner=owner,
+            output_fd=output_fd,
+            before_body=before_body,
+            decoder_factory=None,
+            not_after=not_after,
         )
 
     async def _exchange(self, request, *, maximum_bytes, account_bytes, owner, output_fd, before_body, decoder_factory, not_after):
@@ -727,7 +762,8 @@ class HttpTransport:
         received = _Outcome()
 
         task = asyncio.create_task(
-            self._perform(request, maximum_bytes, account_bytes, received, output_fd, before_body, decoder_factory, not_after), name="provider-core-http-exchange"
+            self._perform(request, maximum_bytes, account_bytes, received, output_fd, before_body, decoder_factory, not_after),
+            name="provider-core-http-exchange"
         )
 
         exchange = _Exchange(task, received, owner, not_after)

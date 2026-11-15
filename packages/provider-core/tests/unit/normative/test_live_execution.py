@@ -44,8 +44,11 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
             replies.append(reply(response()))
 
         replies.extend([
-            reply(progress_response()), reply(observation()), reply(progress_response(phase="running")),
-            reply(observation()), reply(observation()),
+            reply(progress_response()),
+            reply(observation()),
+            reply(progress_response(phase="running")),
+            reply(observation()),
+            reply(observation()),
         ])
 
         transport = Transport(*replies)
@@ -54,10 +57,18 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
         (session, delivery) = (LiveSession(), RecordingDelivery())
 
         executor = AttemptExecutor.live(
-            client, claim, session, scope=scope(), preverified_input=verified,
-            delivery=delivery, on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
-            delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-            poll_seconds=1, task_settle_seconds=0.05,
+            client,
+            claim,
+            session,
+            scope=scope(),
+            preverified_input=verified,
+            delivery=delivery,
+            on_delivery_retry=Mock(),
+            allowed_job_states=frozenset({"open"}),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            poll_seconds=1,
+            task_settle_seconds=0.05,
         )
 
         owner.executor = executor
@@ -85,10 +96,18 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
         await executor.run(acknowledged)
 
         replacement = AttemptExecutor.live(
-            executor.api, claim, LiveSession(), scope=scope(), preverified_input=verified,
-            delivery=delivery, on_delivery_retry=Mock(), allowed_job_states=frozenset({"open"}),
-            delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-            poll_seconds=1, task_settle_seconds=0.05,
+            executor.api,
+            claim,
+            LiveSession(),
+            scope=scope(),
+            preverified_input=verified,
+            delivery=delivery,
+            on_delivery_retry=Mock(),
+            allowed_job_states=frozenset({"open"}),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            poll_seconds=1,
+            task_settle_seconds=0.05,
         )
 
         with self.assertRaises(ExecutionRefused):
@@ -126,7 +145,8 @@ class LiveExecutionTests(unittest.IsolatedAsyncioTestCase):
             self.assertFalse(executor.retirement_confirmed)
             pending = record("key:other")
 
-            other = replace(pending, input=replace(pending.input, job_ref="job:other"),
+            other = replace(pending,
+                            input=replace(pending.input, job_ref="job:other"),
                             body=start_body("job:other", "key:other"))
 
             self.assertTrue(claims.claim_live(other, lifecycle_owner=object()).active)

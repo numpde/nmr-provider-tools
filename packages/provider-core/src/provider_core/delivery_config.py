@@ -46,7 +46,9 @@ def _binding(table):
     _fields(table, {"api", "socket_path", "socket_group_id", "proxy_socket"}, "binding")
     (settings, provider_ref) = api_settings(table["api"], read_startup_file)
 
-    endpoint = DeliveryEndpoint(settings.identity.origin, provider_ref, _path(table["socket_path"], "delivery socket"),
+    endpoint = DeliveryEndpoint(settings.identity.origin,
+                                provider_ref,
+                                _path(table["socket_path"], "delivery socket"),
                                 socket_group_id=table["socket_group_id"])
 
     http = replace(settings.http, proxy_socket=str(_path(table["proxy_socket"], "API proxy socket")))
@@ -68,9 +70,17 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
     except (UnicodeError, ValueError) as cause:
         raise DeliveryConfigurationRejected("require UTF-8 TOML within 65536 bytes.", cause=cause) from None
 
-    _fields(document, {
-        "schema_id", "state_directory", "request_seconds", "retry_initial_seconds", "retry_max_seconds", "limits", "bindings",
-    }, "configuration")
+    _fields(document,
+        {
+            "schema_id",
+            "state_directory",
+            "request_seconds",
+            "retry_initial_seconds",
+            "retry_max_seconds",
+            "limits",
+            "bindings",
+        },
+        "configuration")
 
     if document["schema_id"] != "provider-core.delivery.v1":
         raise DeliveryConfigurationRejected("require schema provider-core.delivery.v1.")
@@ -85,11 +95,15 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
         # Only existing code-owned admission errors cross this translation.
         # TOML parsing is outside it so parser excerpts never become messages.
         return DeliveryService(
-            _path(document["state_directory"], "delivery state"), limits=QueueLimits(**document["limits"]),
+            _path(document["state_directory"], "delivery state"),
+            limits=QueueLimits(**document["limits"]),
             # repo-check: allow-tuple-generator -- Freeze the completely admitted binding set before constructing its service.
-            bindings=tuple(_binding(table) for table in bindings), request_seconds=document["request_seconds"],
-            retry_initial_seconds=document["retry_initial_seconds"], retry_max_seconds=document["retry_max_seconds"],
-            on_notice=on_notice, diagnostic_status=diagnostic_status,
+            bindings=tuple(_binding(table) for table in bindings),
+            request_seconds=document["request_seconds"],
+            retry_initial_seconds=document["retry_initial_seconds"],
+            retry_max_seconds=document["retry_max_seconds"],
+            on_notice=on_notice,
+            diagnostic_status=diagnostic_status,
         )
     except DeliveryConfigurationRejected:
         raise

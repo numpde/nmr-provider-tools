@@ -20,7 +20,10 @@ class ProviderHttpShutdownTests(unittest.TestCase):
 
             process = subprocess.Popen(
                 (sys.executable, "-I", "-B", str(fixture), str(report_path), mode, str(seed)),
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, start_new_session=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                start_new_session=True,
                 env={**os.environ, "TMPDIR": directory},
             )
 
@@ -76,8 +79,13 @@ class ProviderHttpShutdownTests(unittest.TestCase):
     def assert_original_http_child_retired(self, facts):
         evidence = json.dumps(facts, sort_keys=True)
 
-        for flag in ("shutdown_ready", "work_settled", "session_retired", "http_retirement_confirmed",
-                     "original_driver_retained", "request_deadline_unchanged", "stop_time_unchanged"):
+        for flag in ("shutdown_ready",
+                     "work_settled",
+                     "session_retired",
+                     "http_retirement_confirmed",
+                     "original_driver_retained",
+                     "request_deadline_unchanged",
+                     "stop_time_unchanged"):
             self.assertTrue(facts[flag], msg=evidence)
 
         self.assertIn("ExecutionStopRequested", facts["controller_failure_types"], msg=evidence)
@@ -132,8 +140,11 @@ class ProviderHttpShutdownTests(unittest.TestCase):
         for flag in ("shutdown_ready", "session_retired", "http_retirement_confirmed"):
             self.assertFalse(held[flag], msg=evidence)
 
-        for flag in ("original_owner_retained", "original_exchange_retained", "replacement_job_refused",
-                     "replacement_http_request_refused", "trust_directory_exists"):
+        for flag in ("original_owner_retained",
+                     "original_exchange_retained",
+                     "replacement_job_refused",
+                     "replacement_http_request_refused",
+                     "trust_directory_exists"):
             self.assertTrue(held[flag], msg=evidence)
 
         self.assertEqual(1, held["claim_count"], msg=evidence)
@@ -187,9 +198,12 @@ class ProviderHttpShutdownTests(unittest.TestCase):
         held = facts["held"]
 
         for field in (
-            "original_owner_retained", "original_exchange_retained",
-            "original_job_refused", "replacement_http_request_refused",
-            "trust_directory_exists", "actual_child_exit_observed",
+            "original_owner_retained",
+            "original_exchange_retained",
+            "original_job_refused",
+            "replacement_http_request_refused",
+            "trust_directory_exists",
+            "actual_child_exit_observed",
         ):
             self.assertTrue(held[field], msg=facts["trace"])
 
@@ -201,10 +215,13 @@ class ProviderHttpShutdownTests(unittest.TestCase):
         independent = facts["independent"]
         self.assertEqual("DeliveryAcceptedCheckpoint", independent["result_type"])
 
-        self.assertEqual((1, 1, 1, 1, 1), (
-            independent["start_count"], independent["preparations"],
-            independent["executions"], independent["retirements"],
-            independent["local_terminal_acks"],
+        self.assertEqual((1, 1, 1, 1, 1),
+            (
+                independent["start_count"],
+                independent["preparations"],
+                independent["executions"],
+                independent["retirements"],
+                independent["local_terminal_acks"],
         ))
 
         self.assertEqual(1, independent["http_requests"])
@@ -216,9 +233,12 @@ class ProviderHttpShutdownTests(unittest.TestCase):
         self.assertEqual([True], independent["child_stdin_closed"])
 
         for field in (
-            "original_child_exited", "original_waiter_unfinished",
-            "original_observation_gate_closed", "original_transport_held",
-            "original_job_owned", "independent_job_released",
+            "original_child_exited",
+            "original_waiter_unfinished",
+            "original_observation_gate_closed",
+            "original_transport_held",
+            "original_job_owned",
+            "independent_job_released",
         ):
             self.assertTrue(independent[field], msg=facts["trace"])
 

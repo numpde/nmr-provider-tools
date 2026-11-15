@@ -91,10 +91,16 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
             notices = DeliveryNotices(stream, secrets=())
             notices.set_level("WARNING")
 
-            service = SharedDeliveryService(root / "state", limits=QueueLimits(4, 16384, 8, 32768),
-                socket=SharedDeliverySocket(root / "ipc/http.sock", None), proxy_socket=root / "absent.sock",
-                request_seconds=1, retry_initial_seconds=1, retry_max_seconds=1,
-                on_notice=notices, diagnostic_status=notices.status, status_directory=root / "status")
+            service = SharedDeliveryService(root / "state",
+                limits=QueueLimits(4, 16384, 8, 32768),
+                socket=SharedDeliverySocket(root / "ipc/http.sock", None),
+                proxy_socket=root / "absent.sock",
+                request_seconds=1,
+                retry_initial_seconds=1,
+                retry_max_seconds=1,
+                on_notice=notices,
+                diagnostic_status=notices.status,
+                status_directory=root / "status")
 
             task = asyncio.create_task(service.run())
 
@@ -123,7 +129,9 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
                 material = DeliveryHandoffTests().material()
 
                 client = SharedDeliveryClient(DeliveryEndpoint(item.api_origin, item.provider_ref, root / "ipc/http.sock"),
-                                              material, exchange_seconds=1, retirement_seconds=1)
+                                              material,
+                                              exchange_seconds=1,
+                                              retirement_seconds=1)
 
                 self.assertEqual(await client.submit(item), DeliveryHandoff(item, material).acceptance())
                 await client.retire()
@@ -141,10 +149,16 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
 
             notice = Mock()
 
-            service = SharedDeliveryService(root / "state", limits=QueueLimits(4, 16384, 8, 32768),
-                socket=SharedDeliverySocket(root / "ipc/http.sock", None), proxy_socket=root / "absent.sock",
-                request_seconds=1, retry_initial_seconds=1, retry_max_seconds=1,
-                on_notice=notice, diagnostic_status=Mock(), status_directory=root / "status")
+            service = SharedDeliveryService(root / "state",
+                limits=QueueLimits(4, 16384, 8, 32768),
+                socket=SharedDeliverySocket(root / "ipc/http.sock", None),
+                proxy_socket=root / "absent.sock",
+                request_seconds=1,
+                retry_initial_seconds=1,
+                retry_max_seconds=1,
+                on_notice=notice,
+                diagnostic_status=Mock(),
+                status_directory=root / "status")
 
             task = asyncio.create_task(service.run())
 
@@ -181,7 +195,9 @@ class ServiceObservationTests(unittest.IsolatedAsyncioTestCase):
                     item = outcome(provider="provider:example")
 
                     client = SharedDeliveryClient(DeliveryEndpoint(item.api_origin, item.provider_ref, root / "ipc/http.sock"),
-                                                  material, exchange_seconds=1, retirement_seconds=1)
+                                                  material,
+                                                  exchange_seconds=1,
+                                                  retirement_seconds=1)
 
                     self.assertEqual(await client.submit(item), DeliveryHandoff(item, material).acceptance())
                     await client.retire()

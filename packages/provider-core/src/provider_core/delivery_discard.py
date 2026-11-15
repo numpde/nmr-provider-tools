@@ -54,7 +54,9 @@ def main():
         state = options.state_directory
     else:
         document = tomllib.loads(read_startup_file(
-            options.config, maximum_bytes=65536, label="delivery configuration"
+            options.config,
+            maximum_bytes=65536,
+            label="delivery configuration"
         ).decode("utf-8"))
 
         if document["schema_id"] != "provider-core.delivery.v1":
@@ -75,11 +77,13 @@ def main():
         if options.list_held:
             items = queue.inventory(options.api_origin, options.provider_ref)
 
-            print(json.dumps({"api_origin": options.api_origin, "provider_ref": options.provider_ref,
+            print(json.dumps({"api_origin": options.api_origin,
+                              "provider_ref": options.provider_ref,
                               "outstanding_items": len(items),
                               "pending": [item for item in items if item["state"] == "pending"],
                               "held": [item for item in items
-                                       if item["state"] == "held"]}, sort_keys=True))
+                                       if item["state"] == "held"]},
+                sort_keys=True))
         else:
             queue.discard_held(options.api_origin, options.provider_ref, options.execution_attempt_ref, options.body_sha256)
     finally:

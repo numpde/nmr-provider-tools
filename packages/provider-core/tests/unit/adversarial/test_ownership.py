@@ -41,7 +41,9 @@ class AttemptOwnershipTests(unittest.IsolatedAsyncioTestCase):
             reserve(claims, other_lane)
 
         other_job = replace(
-            pending, input=replace(pending.input, job_ref="job:other"), body=start_body("job:other", "retained:one")
+            pending,
+            input=replace(pending.input, job_ref="job:other"),
+            body=start_body("job:other", "retained:one")
         )
 
         with self.assertRaises(OwnershipRefused):

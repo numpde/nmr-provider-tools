@@ -19,11 +19,14 @@ class DeliveryLoggingTests(unittest.TestCase):
         failures = []
 
         for _ in range(4):
-            api = ApiFailure("publish Attempt failure", "owned diagnostic " * 500,
+            api = ApiFailure("publish Attempt failure",
+                             "owned diagnostic " * 500,
                              response=HttpResponse(503, ((b"x-request-id", b"request:delivery"),), b"PRIVATE_BODY"))
 
-            failures.append(DeliveryWorkerFailed(cause=api, api_failure=api,
-                cleanup_failures=(OSError(errno.EIO, "PRIVATE_NATIVE"),), api_receipt_received=False))
+            failures.append(DeliveryWorkerFailed(cause=api,
+                api_failure=api,
+                cleanup_failures=(OSError(errno.EIO, "PRIVATE_NATIVE"),),
+                api_receipt_received=False))
 
         notices(ExceptionGroup("Independent binding failures", failures), {"event": "delivery_failed"})
         self.assertGreater(len(output.getvalue().encode()), 4096)
@@ -59,8 +62,10 @@ class DeliveryLoggingTests(unittest.TestCase):
         notices = DeliveryNotices(output, secrets=("PRIVATE_SECRET",))
         self.addCleanup(notices.close)
 
-        notices(ApiFailure("publish Attempt failure", 'token="PRIVATE_TOKEN"'), {
-            "event": "delivery_retry", "safe_detail": "PRIVATE_SECRET",
+        notices(ApiFailure("publish Attempt failure", 'token="PRIVATE_TOKEN"'),
+            {
+                "event": "delivery_retry",
+                "safe_detail": "PRIVATE_SECRET",
         })
 
         self.assertNotIn("PRIVATE", output.getvalue())

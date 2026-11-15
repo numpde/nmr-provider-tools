@@ -53,7 +53,9 @@ class ProviderLifetime:
             raise LifetimeRefused("Provider lifetime directory must be canonical, caller-owned and mode 0700.")
 
         self._descriptor = os.open(
-            self._root / ".checkpoint-owner.lock", os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600,
+            self._root / ".checkpoint-owner.lock",
+            os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC,
+            0o600,
         )
 
         try:

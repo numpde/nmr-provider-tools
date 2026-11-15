@@ -12,14 +12,17 @@ from provider_core.interpreter import InterpretationFailed, Interpreter, ProseSe
 from tests.fakes.conversation import call, endpoint
 
 
-TOOLS = [{"type": "function", "function": {
-    "name": "prepare", "parameters": {"type": "object", "properties": {}},
+TOOLS = [{"type": "function",
+    "function": {
+        "name": "prepare",
+        "parameters": {"type": "object", "properties": {}},
 }}]
 
 
 # silent-defaults: allow-contract -- The fixture's default Retry-After header requests one second; tests override it to probe alternate server advice.
 def unavailable(wait=b"1"):
-    return ChatFailed("http_status", "The prose interpretation service is temporarily unavailable.",
+    return ChatFailed("http_status",
+                      "The prose interpretation service is temporarily unavailable.",
                       response=SimpleNamespace(status=503, headers=((b"Retry-After", wait),)))
 
 
@@ -147,7 +150,8 @@ class ProseServiceTests(unittest.IsolatedAsyncioTestCase):
         prepare.assert_awaited_once()
 
     async def test_authentication_refusal_does_not_become_temporary_unavailability(self):
-        denied = ChatFailed("http_status", "Prose service authentication was refused.",
+        denied = ChatFailed("http_status",
+                            "Prose service authentication was refused.",
                             response=SimpleNamespace(status=401, headers=((b"Retry-After", b"60"),)))
 
         carrier = endpoint("protected-service", denied)

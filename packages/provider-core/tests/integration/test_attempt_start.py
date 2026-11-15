@@ -24,7 +24,10 @@ class AttemptStartIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
             for _ in range(2):
                 result = await api.start_attempt(
-                    body, job_ref="job:example", analysis_kind_ref="nmr_predict", provider_ref="provider:example"
+                    body,
+                    job_ref="job:example",
+                    analysis_kind_ref="nmr_predict",
+                    provider_ref="provider:example"
                 )
 
                 await asyncio.wait_for(peer.closed.wait(), 1)
@@ -76,7 +79,10 @@ class AttemptStartIntegrationTests(unittest.IsolatedAsyncioTestCase):
 
             request = asyncio.create_task(
                 api.start_attempt(
-                    retained_start(), job_ref="job:example", analysis_kind_ref="nmr_predict", provider_ref="provider:example"
+                    retained_start(),
+                    job_ref="job:example",
+                    analysis_kind_ref="nmr_predict",
+                    provider_ref="provider:example"
                 )
             )
 

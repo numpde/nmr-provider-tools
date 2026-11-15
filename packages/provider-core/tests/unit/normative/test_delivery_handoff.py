@@ -20,8 +20,12 @@ class DeliveryHandoffTests(unittest.TestCase):
     def material(self):
         credential = encoded(document())
 
-        fields = {"origin": "https://api.example", "profile": "dev-local", "topology": "dev-local",
-                  "provider_ref": "provider:example", "exchange_seconds": 10, "retirement_seconds": 5,
+        fields = {"origin": "https://api.example",
+                  "profile": "dev-local",
+                  "topology": "dev-local",
+                  "provider_ref": "provider:example",
+                  "exchange_seconds": 10,
+                  "retirement_seconds": 5,
                   "credential_file": "/private/credential"}
 
         (_, _, material) = api_settings_with_material(fields, Mock(return_value=credential))

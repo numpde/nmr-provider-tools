@@ -88,8 +88,12 @@ class DeliveryDiagnosticsTests(unittest.TestCase):
         self.assertNotIn("PRIVATE_SQL_TEXT", json.dumps(unreported))
 
     def test_api_effect_and_independent_cleanup_reach_the_core_renderer_without_payloads(self):
-        api = ApiFailure("publish Attempt failure", "received API refusal", response=HttpResponse(
-            429, ((b"x-request-id", b"request:delivery"), (b"authorization", b"Bearer PRIVATE_HEADER")), b"PRIVATE_BODY"
+        api = ApiFailure("publish Attempt failure",
+            "received API refusal",
+            response=HttpResponse(
+                429,
+                ((b"x-request-id", b"request:delivery"), (b"authorization", b"Bearer PRIVATE_HEADER")),
+                b"PRIVATE_BODY"
         ))
 
         api.attempt_mutation_may_have_committed = True

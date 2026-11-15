@@ -28,9 +28,12 @@ class CheckerDependencyTests(unittest.TestCase):
         self.capture.mkdir()
 
         self.package = {
-            "name": "make", "version": "4.3-4.1", "file": "make_4.3-4.1_amd64.deb",
+            "name": "make",
+            "version": "4.3-4.1",
+            "file": "make_4.3-4.1_amd64.deb",
             "url": "https://deb.debian.org/debian/pool/main/m/make-dfsg/make_4.3-4.1_amd64.deb",
-            "size": 4, "sha256": hashlib.sha256(b"make").hexdigest(),
+            "size": 4,
+            "sha256": hashlib.sha256(b"make").hexdigest(),
         }
 
         self.artifact = self.pool / self.package["file"]

@@ -16,7 +16,8 @@ class DeliveryAvailabilityTests(unittest.TestCase):
     def setUp(self):
         self.client = DeliveryClient(
             DeliveryEndpoint("https://api.example", "provider:example", Path("/tmp/delivery-test.sock")),
-            exchange_seconds=1, retirement_seconds=1,
+            exchange_seconds=1,
+            retirement_seconds=1,
         )
 
     def failure(self, primary, **facts):

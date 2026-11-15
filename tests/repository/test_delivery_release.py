@@ -49,7 +49,8 @@ class DeliveryReleaseTests(unittest.TestCase):
 
     def test_missing_release_is_passed_to_shared_publisher(self):
         with patch.object(delivery_image, "require_download_proxy"), patch.object(
-            delivery_image, "publish_release_wheels"
+            delivery_image,
+            "publish_release_wheels"
         ) as publish:
             delivery_image.acquire_release(None, None, self.pool, Path("tool.pyz"))
 
@@ -58,7 +59,9 @@ class DeliveryReleaseTests(unittest.TestCase):
 
     def test_publisher_failure_is_reported(self):
         with patch.object(delivery_image, "require_download_proxy"), patch.object(
-            delivery_image, "publish_release_wheels", side_effect=ValueError("downloaded bytes differ")
+            delivery_image,
+            "publish_release_wheels",
+            side_effect=ValueError("downloaded bytes differ")
         ):
             with self.assertRaisesRegex(ValueError, "downloaded bytes"):
                 delivery_image.acquire_release(None, None, self.pool, Path("tool.pyz"))
@@ -83,7 +86,9 @@ class DeliveryReleaseTests(unittest.TestCase):
             inode = self.wheel.stat().st_ino
 
             with patch.object(delivery_image, "requirements"), patch.object(
-                delivery_image, "missing_wheels", return_value=[]
+                delivery_image,
+                "missing_wheels",
+                return_value=[]
             ), patch.object(delivery_image, "select_wheels", return_value=selected):
                 delivery_image.capture_image_inputs(None, None, self.pool, destination)
 
@@ -113,7 +118,9 @@ class DeliveryReleaseTests(unittest.TestCase):
                         "files": {self.wheel.name: self.digest}}
 
             with patch.object(core_environment, "select_wheels", return_value=selected), patch.object(
-                core_environment, "install_locked", return_value=selected
+                core_environment,
+                "install_locked",
+                return_value=selected
             ) as install, patch.object(core_environment.subprocess, "run"):
                 core_environment.install_environment(root, lock, self.pool, selected)
 

@@ -6,8 +6,13 @@ import unittest
 from provider_core.embedded_host import InProcessExecutionHost
 
 from provider_core.hosting import (
-    Failure, NotAdmitted, OperationPolicy, Outcome, ResultState,
-    observe_cleanup, observe_completion,
+    Failure,
+    NotAdmitted,
+    OperationPolicy,
+    Outcome,
+    ResultState,
+    observe_cleanup,
+    observe_completion,
 )
 
 from provider_core.scientific import Contribution, operation
@@ -80,9 +85,10 @@ class ObservationTests(unittest.IsolatedAsyncioTestCase):
         original = ValueError("Science failed")
         interruption = KeyboardInterrupt("Observation was interrupted")
 
-        failed = replace(self.observation, failures=(
-            Failure(phase="science", cause=original),
-            Failure(phase="backend", cause=interruption),
+        failed = replace(self.observation,
+            failures=(
+                Failure(phase="science", cause=original),
+                Failure(phase="backend", cause=interruption),
         ))
 
         with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:

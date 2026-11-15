@@ -87,10 +87,15 @@ def current_inputs(root):
     # Call the existing input owners rather than copy their fingerprint recipe.
     selected_inputs = run(
         [
-            "bash", "-eu", "-o", "pipefail", "-c",
+            "bash",
+            "-eu",
+            "-o",
+            "pipefail",
+            "-c",
             'root=$1; source "$root/host/tools/checker_inputs.sh"; checker_fingerprint checker; '
             'source "$root/host/tools/delivery_identity.sh"; delivery_recipe_identity; checker_fingerprint bootstrap',
-            "bash", str(root),
+            "bash",
+            str(root),
         ]
     )
 
@@ -263,7 +268,12 @@ def retire(root, docker, current, *, staged=(), operations=Path("/tmp")):
         container_images = [
             json.loads(line)
             for line in docker(
-                "inspect", "--type", "container", "--format", "{{json .Image}}", *batch
+                "inspect",
+                "--type",
+                "container",
+                "--format",
+                "{{json .Image}}",
+                *batch
             ).splitlines()
         ]
 
@@ -281,8 +291,13 @@ def retire(root, docker, current, *, staged=(), operations=Path("/tmp")):
         owned_image_ids.update(
             ids(
                 docker(
-                    "image", "ls", "--all", "--quiet", "--no-trunc",
-                    "--filter", "label=" + _LABEL + label,
+                    "image",
+                    "ls",
+                    "--all",
+                    "--quiet",
+                    "--no-trunc",
+                    "--filter",
+                    "label=" + _LABEL + label,
                 )
             )
         )
@@ -310,8 +325,12 @@ def retire(root, docker, current, *, staged=(), operations=Path("/tmp")):
 
         borrowers = ids(
             docker(
-                "ps", "--all", "--quiet", "--no-trunc",
-                "--filter", "ancestor=" + image_id,
+                "ps",
+                "--all",
+                "--quiet",
+                "--no-trunc",
+                "--filter",
+                "ancestor=" + image_id,
             ),
             container=True,
         )

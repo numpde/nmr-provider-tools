@@ -34,8 +34,12 @@ from provider_core.upload_response import require_job_ref, require_read_grant, r
 
 
 from provider_core.upload_file import (
-    UploadFailed, UploadFileReadFailed, UploadInputRejected,
-    VerifiedUpload, VerifiedUploadFile, read_upload_file,
+    UploadFailed,
+    UploadFileReadFailed,
+    UploadInputRejected,
+    VerifiedUpload,
+    VerifiedUploadFile,
+    read_upload_file,
 )
 
 
@@ -255,7 +259,8 @@ class _UploadFile:
             pending.worker.result()
         except Exception as cause:
             raise UploadFailed(
-                f"cannot {pending.operation} the private source file; inspect the protected cause", cause=cause
+                f"cannot {pending.operation} the private source file; inspect the protected cause",
+                cause=cause
             ) from None
 
     def shutdown(self):
@@ -501,7 +506,8 @@ class UploadTransfer:
     def _retain_file_cleanup(self, failure):
         if isinstance(self.last_failure, UploadInputRejected):
             self.last_failure = UploadFailed(
-                "input selection was rejected and private-file cleanup remains unresolved", cause=self.last_failure
+                "input selection was rejected and private-file cleanup remains unresolved",
+                cause=self.last_failure
             )
 
         # A pending wait supplies no new filesystem result. Keep the concrete
@@ -573,7 +579,8 @@ class UploadTransfer:
 
         if self._file.close_uncertain and self._file.pending is None:
             raise UploadFailed(
-                "private-file descriptor closure is unconfirmed; retire the enclosing process", cause=self.last_failure
+                "private-file descriptor closure is unconfirmed; retire the enclosing process",
+                cause=self.last_failure
             )
 
         self._active = True
@@ -589,7 +596,8 @@ class UploadTransfer:
             self._retain_file_cleanup(failure)
 
             raise UploadFailed(
-                "private-file cleanup remains unresolved; preserve its file and original I/O", cause=self.last_failure
+                "private-file cleanup remains unresolved; preserve its file and original I/O",
+                cause=self.last_failure
             ) from None
         finally:
             self._active = False
@@ -645,12 +653,19 @@ class UploadTransfer:
             async with deadline:
                 if output_fd is None:
                     response = await self._store.exchange(
-                        request, maximum_bytes=grant.byte_length, account_bytes=self._account_bytes, before_body=admit,
+                        request,
+                        maximum_bytes=grant.byte_length,
+                        account_bytes=self._account_bytes,
+                        before_body=admit,
                     )
                 else:
                     response = await self._store.exchange_file(
-                        request, output_fd=output_fd, maximum_bytes=grant.byte_length,
-                        account_bytes=self._account_bytes, owner=self._exchange_owner, before_body=admit,
+                        request,
+                        output_fd=output_fd,
+                        maximum_bytes=grant.byte_length,
+                        account_bytes=self._account_bytes,
+                        owner=self._exchange_owner,
+                        before_body=admit,
                     )
 
                 self._store_outcome = response
@@ -721,8 +736,13 @@ class JobUploads:
         self._grant_issued = False
 
         self._transfer_owner = UploadTransfer(
-            job_ref, store=store, store_origin=store_origin, remaining=self._remaining_seconds,
-            before_request=self._reserve_transfer_request, account=self._account_bytes, exchange_owner=self,
+            job_ref,
+            store=store,
+            store_origin=store_origin,
+            remaining=self._remaining_seconds,
+            before_request=self._reserve_transfer_request,
+            account=self._account_bytes,
+            exchange_owner=self,
         )
 
     @property
@@ -753,7 +773,8 @@ class JobUploads:
 
             if self._recovery_failure is not failure:
                 self._recovery_failure = BaseExceptionGroup(
-                    "Source acquisition recovery observations", (self._recovery_failure, failure)
+                    "Source acquisition recovery observations",
+                    (self._recovery_failure, failure)
                 )
 
     def _retain_grant_issuance(self, failure):
@@ -871,7 +892,10 @@ class JobUploads:
     def _recovery_exhausted(self, reason, failure):
         if isinstance(failure, UploadFailed):
             exhausted = UploadRecoveryExhausted(
-                reason, response=failure.response, cause=failure, cleanup_failures=failure.cleanup_failures,
+                reason,
+                response=failure.response,
+                cause=failure,
+                cleanup_failures=failure.cleanup_failures,
                 interruption=failure.interruption,
             )
 
@@ -906,13 +930,15 @@ class JobUploads:
             remaining = self._require_request_capacity()
         except UploadFailed as exhausted:
             raise self._recovery_exhausted(
-                "source recovery exhausted its original budgets: " + exhausted.reason, failure,
+                "source recovery exhausted its original budgets: " + exhausted.reason,
+                failure,
             ) from None
 
         if seconds >= remaining:
             raise self._recovery_exhausted(
                 f"source recovery wait of {seconds:g} seconds cannot fit with only {remaining:g} seconds "
-                "remaining before the original deadline", failure,
+                "remaining before the original deadline",
+                failure,
             ) from None
 
     async def _retire_recovery(self, failure, *, store_owner):
@@ -999,7 +1025,9 @@ class JobUploads:
                     type(api_failure) is ApiFailure and (
                         self._api.can_retry_read(api_failure)
                         or selected is not None and self._api.can_renew_read_grant(
-                            api_failure, job_ref=self.job_ref, upload_ref=selected.upload_ref,
+                            api_failure,
+                            job_ref=self.job_ref,
+                            upload_ref=selected.upload_ref,
                         )
                     )
                 )
@@ -1131,7 +1159,9 @@ class JobUploads:
 
             async def acquire():
                 return await self._transfer_owner.acquire_file(
-                    lambda: self._grant(selected), directory_fd=directory_fd, retirement_seconds=retirement_seconds,
+                    lambda: self._grant(selected),
+                    directory_fd=directory_fd,
+                    retirement_seconds=retirement_seconds,
                 )
 
             return await self._recover_source(acquire, selected=selected, store_owner=self)

@@ -31,7 +31,8 @@ class ReferenceScienceTests(unittest.TestCase):
         ))
 
         report = science.match(
-            science.build_index(references), science.MatchSettings(minimum_score=0),
+            science.build_index(references),
+            science.MatchSettings(minimum_score=0),
             science.VectorInput(values=(1, 0)),
         )
 
@@ -64,8 +65,11 @@ class ReferenceScienceTests(unittest.TestCase):
 
     def test_negative_nonfinite_boolean_and_empty_vectors_are_rejected(self):
         for (values, error) in (
-            ((-1,), ValueError), ((float("nan"),), ValueError),
-            ((float("inf"),), ValueError), ((True,), TypeError), ((), ValueError),
+            ((-1,), ValueError),
+            ((float("nan"),), ValueError),
+            ((float("inf"),), ValueError),
+            ((True,), TypeError),
+            ((), ValueError),
         ):
             with self.subTest(values=values):
                 with self.assertRaises(error):

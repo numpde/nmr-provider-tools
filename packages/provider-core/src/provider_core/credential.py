@@ -91,7 +91,8 @@ def parse_provider_credential(raw):
         require_credential_ref(document["credential_ref"])
     except ValueError as cause:
         raise CredentialRejected(
-            "principal_ref must identify a provider and credential_ref a signing credential.", cause=cause
+            "principal_ref must identify a provider and credential_ref a signing credential.",
+            cause=cause
         ) from None
 
     private_key = _signing_key(document)

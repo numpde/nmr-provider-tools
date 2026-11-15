@@ -110,7 +110,8 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             operation = analysis.submit_method(
                 method=contribution.prepare,
                 scientific_input=science.PreparationInput(values=(1, 2, 3)),
-                states=(), reservation=reservation,
+                states=(),
+                reservation=reservation,
                 policy=OperationPolicy(
                     queue_stop_request_seconds=5,
                     execution_stop_request_seconds=5,
@@ -177,7 +178,9 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         rejected = analysis.submit_method(
             method=weighted_binding.contribution.prepare,
              scientific_input=science.PreparationInput(values=()),
-            states=(), reservation=reservation, policy=operation_policy,
+            states=(),
+            reservation=reservation,
+            policy=operation_policy,
         )
 
         rejection = await observe_completion(operation=rejected)
@@ -201,7 +204,8 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("normalized", preparation_observation.states[0].name)
 
         prepared = await WeightedSum.normalized.reference(
-            call=prepare_call, operation=preparation_operation,
+            call=prepare_call,
+            operation=preparation_operation,
         )
 
         calculation_state = WeightedSum.candidate.bind(handle=prepared)

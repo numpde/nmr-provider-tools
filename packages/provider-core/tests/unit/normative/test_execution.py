@@ -31,8 +31,17 @@ class ExecutionTests(unittest.IsolatedAsyncioTestCase):
         session = Session(store)
 
         executor = live_executor(
-            api(transport, store.scope.api_origin), store, claim, session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1
+            api(transport, store.scope.api_origin),
+            store,
+            claim,
+            session,
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=0.1
         )
 
         terminal = await executor.run(acknowledged)
@@ -51,12 +60,23 @@ class ExecutionTests(unittest.IsolatedAsyncioTestCase):
         session = Session(store)
 
         session.preparation = AnalysisFailure(
-            "input_rejected", "Supply a geometry.", ProtectedEvidence("evidence.v1", b"reason")
+            "input_rejected",
+            "Supply a geometry.",
+            ProtectedEvidence("evidence.v1", b"reason")
         )
 
         terminal = await live_executor(
-            api(transport, store.scope.api_origin), store, claim, session,
-            delivery=RecordingDelivery(), on_delivery_retry=Mock(), delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04, allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1
+            api(transport, store.scope.api_origin),
+            store,
+            claim,
+            session,
+            delivery=RecordingDelivery(),
+            on_delivery_retry=Mock(),
+            delivery_retry_initial_seconds=0.01,
+            delivery_retry_max_seconds=0.04,
+            allowed_job_states=frozenset({"open"}),
+            poll_seconds=1,
+            task_settle_seconds=0.1
         ).run(acknowledged)
 
         self.assertEqual([event[0] for event in session.events], ["prepare", "retire"])

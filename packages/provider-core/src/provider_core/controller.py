@@ -141,12 +141,29 @@ class AttemptController:
 
     @classmethod
     # silent-defaults: allow-contract -- Note 010 chooses the 2 MiB report ceiling and refuses unproved active replays; supplied input explicitly replaces the post-START read.
-    def live(cls, api, claims, session, *, scope, stopping, start_policy,
-             maximum_terminal_bytes=2097152, preverified_input=None, allow_active_start_replay=False, **settings):
+    def live(cls,
+             api,
+             claims,
+             session,
+             *,
+             scope,
+             stopping,
+             start_policy,
+             maximum_terminal_bytes=2097152,
+             preverified_input=None,
+             allow_active_start_replay=False,
+             **settings):
         return cls(
-            api, scope, claims, session, maximum_terminal_bytes=maximum_terminal_bytes,
-            preverified_input=preverified_input, stopping=stopping, start_policy=start_policy,
-            allow_active_start_replay=allow_active_start_replay, **settings,
+            api,
+            scope,
+            claims,
+            session,
+            maximum_terminal_bytes=maximum_terminal_bytes,
+            preverified_input=preverified_input,
+            stopping=stopping,
+            start_policy=start_policy,
+            allow_active_start_replay=allow_active_start_replay,
+            **settings,
         )
 
     def __init__(
@@ -218,7 +235,9 @@ class AttemptController:
             )
 
         require_execution_settings(
-            allowed_job_states=allowed_job_states, poll_seconds=poll_seconds, task_settle_seconds=task_settle_seconds
+            allowed_job_states=allowed_job_states,
+            poll_seconds=poll_seconds,
+            task_settle_seconds=task_settle_seconds
         )
 
         require_delivery_retry_settings(delivery_retry_initial_seconds, delivery_retry_max_seconds)
@@ -338,7 +357,9 @@ class AttemptController:
         # One retained operation observes original work and normal settlement.
         # Concurrent or cancelled observers cannot replace or interrupt it.
         tasks = {task for task in (
-            executor._task, executor._retirement_task, executor._observation_wait,
+            executor._task,
+            executor._retirement_task,
+            executor._observation_wait,
         ) if task is not None}
 
         if tasks:
@@ -430,7 +451,8 @@ class AttemptController:
             claim.require(self.scope, execution.attempt.admission.execution_attempt_ref)
         except OwnershipRefused as cause:
             raise ControllerRefused("Cannot confirm a held Attempt: the selected START is not held by this controller.") from ExceptionGroup(
-                "Retained execution failure and independent ownership refusal", (failure, cause),
+                "Retained execution failure and independent ownership refusal",
+                (failure, cause),
             )
 
         return failure
@@ -598,7 +620,9 @@ class AttemptController:
             raise ControllerRefused("Verified input differs from the selected START; no request was sent")
 
         self._claim = self._claims.claim_live(
-            pending, lifecycle_owner=self, maximum_terminal_bytes=self._maximum_terminal_bytes,
+            pending,
+            lifecycle_owner=self,
+            maximum_terminal_bytes=self._maximum_terminal_bytes,
         )
 
         self._defer_start(pending, None, False)
@@ -647,8 +671,12 @@ class AttemptController:
         )
 
         return AttemptExecutor.live(
-            self.api, self._claim, self.session, scope=self.scope,
-            preverified_input=self._preverified_input, **settings,
+            self.api,
+            self._claim,
+            self.session,
+            scope=self.scope,
+            preverified_input=self._preverified_input,
+            **settings,
         )
 
     def require_execution_ready(self, claim, executor, acknowledged):

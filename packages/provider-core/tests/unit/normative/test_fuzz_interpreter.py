@@ -30,11 +30,13 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
 
                 for (index, action) in enumerate(actions):
                     if randomizer.choice((False, True)):
-                        replies.append(ChatFailed("http_status", "Synthetic unavailable response.",
+                        replies.append(ChatFailed("http_status",
+                                                  "Synthetic unavailable response.",
                                                   response=SimpleNamespace(status=503, headers=((b"Retry-After", b"0"),))))
 
                     # silent-defaults: allow-contract -- Rejection scenarios invoke preparation; inspection has no effect.
-                    replies.append(call(f"{visit}-{index}", "inspect" if action == "inspect" else "prepare",
+                    replies.append(call(f"{visit}-{index}",
+                                        "inspect" if action == "inspect" else "prepare",
                                         {"accepted": False}))
 
                 expected_inspections += actions.count("inspect")

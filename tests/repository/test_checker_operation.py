@@ -181,9 +181,29 @@ exit "$status"
         self.assertEqual(["verify", "source", "project", "native"], (self.directory / "identity-events").read_text().splitlines())
 
         self.assertEqual(
-            ["2", "unix:///fixture-selected.sock", "pinned-image", "--interpreter", "/probe/python",
-             "--user-uid", "0", "--user-gid", "0", "--memory-bytes", "67108864", "--pids-limit", "16",
-             "--nano-cpus", "1000000000", "--map", "uid", "inverse", "1001", "--map", "gid", "inverse", "1002"],
+            ["2",
+             "unix:///fixture-selected.sock",
+             "pinned-image",
+             "--interpreter",
+             "/probe/python",
+             "--user-uid",
+             "0",
+             "--user-gid",
+             "0",
+             "--memory-bytes",
+             "67108864",
+             "--pids-limit",
+             "16",
+             "--nano-cpus",
+             "1000000000",
+             "--map",
+             "uid",
+             "inverse",
+             "1001",
+             "--map",
+             "gid",
+             "inverse",
+             "1002"],
             (self.directory / "identity-arguments").read_text().splitlines(),
         )
 

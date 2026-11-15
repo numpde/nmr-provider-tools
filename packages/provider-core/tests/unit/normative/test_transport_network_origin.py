@@ -27,8 +27,10 @@ class TransportNetworkOriginTests(unittest.IsolatedAsyncioTestCase):
                 listener.bind(str(path))
                 path.chmod(0o600)
 
-            transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1,
-                                      retirement_seconds=1, proxy_socket=str(path))
+            transport = HttpTransport(trust=ssl.create_default_context(),
+                                      exchange_seconds=1,
+                                      retirement_seconds=1,
+                                      proxy_socket=str(path))
 
             client = api(transport, "https://api.example")
 
@@ -50,8 +52,10 @@ class TransportNetworkOriginTests(unittest.IsolatedAsyncioTestCase):
             connect.__cause__ = explicit
             self.assertFalse(temporary_io_failure(connect, 8))
 
-        for incidental in (OSError("private local failure"), RuntimeError("private local failure"),
-                           httpcore.ReadError("private read"), httpcore.WriteError("private write")):
+        for incidental in (OSError("private local failure"),
+                           RuntimeError("private local failure"),
+                           httpcore.ReadError("private read"),
+                           httpcore.WriteError("private write")):
             incidental.__context__ = refused
             self.assertFalse(temporary_io_failure(incidental, 8))
 
@@ -73,7 +77,8 @@ class TransportNetworkOriginTests(unittest.IsolatedAsyncioTestCase):
                 with patch("provider_core.transport.httpcore.AsyncConnectionPool", return_value=client):
                     with self.assertRaises(ExchangeFailed) as caught:
                         await transport.exchange(httpx.Request("GET", "https://store.example/bytes"),
-                                                 maximum_bytes=1, account_bytes=account)
+                                                 maximum_bytes=1,
+                                                 account_bytes=account)
 
                 self.assertIs(caught.exception.primary, original)
                 self.assertIs(caught.exception.network_failure, stream_failure)
@@ -85,7 +90,8 @@ class TransportNetworkOriginTests(unittest.IsolatedAsyncioTestCase):
         transport = HttpTransport(trust=ssl.create_default_context(), exchange_seconds=1, retirement_seconds=1)
 
         with patch.object(client, "handle_async_request", side_effect=original), patch(
-            "provider_core.transport.httpcore.AsyncConnectionPool", return_value=client
+            "provider_core.transport.httpcore.AsyncConnectionPool",
+            return_value=client
         ):
             with self.assertRaises(ExchangeFailed) as caught:
                 await transport.exchange(httpx.Request("GET", "https://store.example/bytes"), maximum_bytes=1)

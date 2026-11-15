@@ -43,9 +43,14 @@ def retry_allowed(failure):
 # silent-defaults: allow-contract -- These fixtures model a response-read failure unless a case names another original I/O stage.
 def observed_failure(primary, *, stage="read", **facts):
     return ExchangeFailed(
-        "The original HTTP exchange failed.", primary=primary, network_failure=primary,
-        network_io=NetworkIOObservation(stage=stage, error=primary,
-                                        cause=primary.__cause__, context=primary.__context__), **facts,
+        "The original HTTP exchange failed.",
+        primary=primary,
+        network_failure=primary,
+        network_io=NetworkIOObservation(stage=stage,
+                                        error=primary,
+                                        cause=primary.__cause__,
+                                        context=primary.__context__),
+        **facts,
     )
 
 
@@ -57,7 +62,8 @@ class ChatWireAvailabilityTests(unittest.TestCase):
                 native = cancellation if shared else asyncio.CancelledError(str(cancellation))
 
                 original = ExchangeFailed(
-                    "Original absolute deadline expired.", primary=TimeoutError("original deadline"),
+                    "Original absolute deadline expired.",
+                    primary=TimeoutError("original deadline"),
                     network_failure=native,
                     network_io=NetworkIOObservation(stage="read", error=cancellation, deadline_cancelled=True),
                 )
@@ -114,14 +120,17 @@ class ChatWireAvailabilityTests(unittest.TestCase):
         primary = httpcore.RemoteProtocolError("peer disconnected without response headers")
 
         eof = ExchangeFailed(
-            "Reply lost after dispatch.", primary=primary, network_failure=primary,
+            "Reply lost after dispatch.",
+            primary=primary,
+            network_failure=primary,
             network_io=NetworkIOObservation(stage="read", eof=True),
         )
 
         without_eof = observed_failure(httpcore.RemoteProtocolError(str(primary)))
 
         for (expected, original) in (
-            (True, eof), (False, without_eof),
+            (True, eof),
+            (False, without_eof),
             (True, observed_failure(httpcore.ConnectError("proxy refusal"), proxy_connect_status=503)),
             (False, observed_failure(httpcore.ConnectError("proxy refusal"), proxy_connect_status=407)),
         ):
@@ -137,8 +146,12 @@ class ChatWireAvailabilityTests(unittest.TestCase):
                 primary = FileNotFoundError(errno.ENOENT, "configured proxy is absent")
 
                 original = ExchangeFailed(
-                    "Cannot connect to the selected proxy.", primary=primary, network_failure=primary,
-                    network_io=NetworkIOObservation(stage="connect_unix", error=primary, unix_path=path,
+                    "Cannot connect to the selected proxy.",
+                    primary=primary,
+                    network_failure=primary,
+                    network_io=NetworkIOObservation(stage="connect_unix",
+                                                    error=primary,
+                                                    unix_path=path,
                                                     configured_unix_path="/private/model.sock"),
                 )
 
@@ -152,8 +165,10 @@ class ChatWireAvailabilityTests(unittest.TestCase):
             with self.subTest(expected_retry=expected):
                 primary = httpcore.ConnectError("both address attempts failed")
 
-                primary.__cause__ = ExceptionGroup("original connection attempts", (
-                    ConnectionRefusedError(errno.ECONNREFUSED, "refused"), last,
+                primary.__cause__ = ExceptionGroup("original connection attempts",
+                    (
+                        ConnectionRefusedError(errno.ECONNREFUSED, "refused"),
+                        last,
                 ))
 
                 original = observed_failure(primary, stage="connect_tcp")

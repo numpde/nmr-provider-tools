@@ -35,7 +35,10 @@ class BoundProxyTests(unittest.TestCase):
                 patch.object(bound_http_proxy, "_query_ipv4", return_value=({"api.example": ["192.0.2.1"]}, {})) as query, \
                 patch.object(bound_http_proxy.time, "monotonic", return_value=0):
             addresses = bound_http_proxy.resolve_ipv4_bound(
-                "api.example", "wlan0", deadline=30, dns_servers=("192.0.2.53",))
+                "api.example",
+                "wlan0",
+                deadline=30,
+                dns_servers=("192.0.2.53",))
 
         self.assertEqual(addresses, ("192.0.2.1",))
         query.assert_called_once_with("api.example", "192.0.2.53", "wlan0", deadline=30)
@@ -380,7 +383,9 @@ class BoundProxyTests(unittest.TestCase):
                 patch.object(bound_http_proxy.socket, "socket", return_value=probe),
                 patch.object(bound_http_proxy, "ProxyServer") as server,
                 patch.object(
-                    bound_http_proxy.sys, "argv", ["proxy", "--interface", "eth0", "--port", "0", "--ready-file", str(ready)]
+                    bound_http_proxy.sys,
+                    "argv",
+                    ["proxy", "--interface", "eth0", "--port", "0", "--ready-file", str(ready)]
                 ),
                 self.assertRaises(PermissionError),
             ):

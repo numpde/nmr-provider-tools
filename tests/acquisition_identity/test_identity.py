@@ -45,7 +45,9 @@ class IdentityTests(unittest.TestCase):
             result = subprocess.run(
                 [sys.executable, "-I", "-S", "-B", str(entrypoint), *arguments],
                 env=os.environ | {"PYTHONPATH": str(poison.parent)},
-                capture_output=True, text=True, check=False,
+                capture_output=True,
+                text=True,
+                check=False,
             )
 
             self.assertEqual(17, result.returncode, msg=result.stderr)
@@ -57,12 +59,20 @@ class IdentityTests(unittest.TestCase):
         self.addCleanup(temporary.cleanup)
         self.receipt = Path(temporary.name) / "retired"
 
-        self.argv = ["--endpoint", "unix:///fixture/engine.sock", "--image", "fixture:local",
-                     "--host-uid", "1000", "--host-gid", "2000",
-                     "--retired-receipt", str(self.receipt)]
+        self.argv = ["--endpoint",
+                     "unix:///fixture/engine.sock",
+                     "--image",
+                     "fixture:local",
+                     "--host-uid",
+                     "1000",
+                     "--host-gid",
+                     "2000",
+                     "--retired-receipt",
+                     str(self.receipt)]
 
         self.observation = ProbeResult(IdMap([IdRange(0, 1000, 1)]),
-                                       IdMap([IdRange(0, 2000, 1)]), "a" * 64)
+                                       IdMap([IdRange(0, 2000, 1)]),
+                                       "a" * 64)
 
     def run_entrypoint(self):
         (output, diagnostic) = (io.StringIO(), io.StringIO())
@@ -73,10 +83,24 @@ class IdentityTests(unittest.TestCase):
         return (status, output.getvalue(), diagnostic.getvalue())
 
     def mapping_arguments(self, *projections):
-        arguments = ["--endpoint", "unix:///fixture/engine.sock", "--image", "fixture:local",
-                     "--interpreter", "/usr/local/bin/python3.12", "--user-uid", "65532", "--user-gid", "65532",
-                     "--memory-bytes", "33554432", "--pids-limit", "4", "--nano-cpus", "250000000",
-                     "--retired-receipt", str(self.receipt)]
+        arguments = ["--endpoint",
+                     "unix:///fixture/engine.sock",
+                     "--image",
+                     "fixture:local",
+                     "--interpreter",
+                     "/usr/local/bin/python3.12",
+                     "--user-uid",
+                     "65532",
+                     "--user-gid",
+                     "65532",
+                     "--memory-bytes",
+                     "33554432",
+                     "--pids-limit",
+                     "4",
+                     "--nano-cpus",
+                     "250000000",
+                     "--retired-receipt",
+                     str(self.receipt)]
 
         for projection in projections:
             arguments.extend(("--map", *projection))
@@ -87,11 +111,13 @@ class IdentityTests(unittest.TestCase):
     def test_mixed_directions_and_multiple_ids_share_one_bounded_observation(self, probe):
         probe.return_value = ProbeResult(
             IdMap([IdRange(0, 1000, 1), IdRange(1, 100000, 65536)]),
-            IdMap([IdRange(0, 2000, 1), IdRange(1, 200000, 65536)]), "a" * 64,
+            IdMap([IdRange(0, 2000, 1), IdRange(1, 200000, 65536)]),
+            "a" * 64,
         )
 
         self.argv = self.mapping_arguments(("uid", "forward", "1000"),
-                                           ("gid", "inverse", "2000"), ("uid", "forward", "65532"))
+                                           ("gid", "inverse", "2000"),
+                                           ("uid", "forward", "65532"))
 
         self.assertEqual((0, "100999 0 165531\n", ""), self.run_entrypoint())
         probe.assert_called_once()
@@ -129,7 +155,8 @@ class IdentityTests(unittest.TestCase):
         position = missing_ceiling.index("--pids-limit")
         del missing_ceiling[position:position + 2]
 
-        cases = (missing_ceiling, complete + ["--host-uid", "1000", "--host-gid", "2000"],
+        cases = (missing_ceiling,
+                 complete + ["--host-uid", "1000", "--host-gid", "2000"],
                  self.mapping_arguments(("uid", "repair", "0")),
                  self.mapping_arguments(("pid", "forward", "0")),
                  self.mapping_arguments(("uid", "forward", "-1")))

@@ -105,7 +105,9 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
                     api.member = replace(api.member, byte_length=len(body), content_hash=fingerprint)
 
                     api.grant = replace(
-                        api.grant, byte_length=len(body), content_hash=fingerprint,
+                        api.grant,
+                        byte_length=len(body),
+                        content_hash=fingerprint,
                         download_url=peer.origin + "/upload/v1/uploads/" + UPLOAD_REF + "/bytes",
                     )
 
@@ -152,7 +154,11 @@ class UploadAcquisitionIntegrationTests(unittest.IsolatedAsyncioTestCase):
             transport = HttpTransport(trust=peer.trust, exchange_seconds=1, retirement_seconds=0.3)
 
             owner = JobUploads(
-                "job:example", api=api, store=transport, store_origin=peer.origin, limits=UploadLimits(8, 8, 10, 5)
+                "job:example",
+                api=api,
+                store=transport,
+                store_origin=peer.origin,
+                limits=UploadLimits(8, 8, 10, 5)
             )
 
             await owner.inspect()

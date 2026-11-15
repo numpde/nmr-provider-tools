@@ -31,9 +31,13 @@ class DeploymentRouteTests(unittest.TestCase):
         return parse_deployment_bindings(raw).selected("fixture-0")
 
     def render(self, binding, **changes):
-        arguments = {"image": "sha256:" + "a" * 64, "interpreter": "/opt/provider/bin/python",
-                     "namespace": "provider-one", "uid": 65532, "gid": 65532,
-                     "storage": NamedRouteVolume(), "input_sources": {}}
+        arguments = {"image": "sha256:" + "a" * 64,
+                     "interpreter": "/opt/provider/bin/python",
+                     "namespace": "provider-one",
+                     "uid": 65532,
+                     "gid": 65532,
+                     "storage": NamedRouteVolume(),
+                     "input_sources": {}}
 
         arguments.update(changes)
 
@@ -171,9 +175,14 @@ class DeploymentRouteTests(unittest.TestCase):
         self.assertNotIn("ports", proxy)
 
     def test_invalid_identity_image_namespace_storage_and_relocation_refuse(self):
-        for changes in ({"uid": 0}, {"gid": True}, {"image": "mutable:latest"},
-                        {"service_name": "API"}, {"service_name": ""},
-                        {"namespace": "UPPER"}, {"interpreter": "python"}, {"storage": None},
+        for changes in ({"uid": 0},
+                        {"gid": True},
+                        {"image": "mutable:latest"},
+                        {"service_name": "API"},
+                        {"service_name": ""},
+                        {"namespace": "UPPER"},
+                        {"interpreter": "python"},
+                        {"storage": None},
                         {"storage": RouteDirectory(Path("/runtime/../private"))},
                         {"input_sources": {"/not-granted": "/captured"}},
                         {"input_sources": {"/synthetic/signing.json": "/captured,unsafe"}}):
@@ -212,11 +221,34 @@ class DeploymentRouteTests(unittest.TestCase):
             source.chmod(0o600)
 
             result = subprocess.run(
-                [sys.executable, "-I", "-B", "-m", "provider_core.deployment_route", "render",
-                 "--definition", str(source), "--binding", "fixture-0", "--service-name", "api", "--image", "sha256:" + "a" * 64,
-                 "--interpreter", "/opt/provider/bin/python", "--namespace", "fixture", "--uid", "65532",
-                 "--gid", "65532", "--directory", "/runtime/private-api"],
-                capture_output=True, text=True, check=False, timeout=5,
+                [sys.executable,
+                 "-I",
+                 "-B",
+                 "-m",
+                 "provider_core.deployment_route",
+                 "render",
+                 "--definition",
+                 str(source),
+                 "--binding",
+                 "fixture-0",
+                 "--service-name",
+                 "api",
+                 "--image",
+                 "sha256:" + "a" * 64,
+                 "--interpreter",
+                 "/opt/provider/bin/python",
+                 "--namespace",
+                 "fixture",
+                 "--uid",
+                 "65532",
+                 "--gid",
+                 "65532",
+                 "--directory",
+                 "/runtime/private-api"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
             )
 
         self.assertEqual(0, result.returncode, result.stderr)
@@ -236,8 +268,11 @@ class DeploymentRouteTests(unittest.TestCase):
             with patch("provider_core.deployment_route.os.geteuid", return_value=0), patch(
                 "provider_core.deployment_route.os.fchown"
             ) as chown, patch("provider_core.deployment_route.os.open", wraps=os.open) as opened, patch(
-                "provider_core.deployment_route.Path.lstat", return_value=SimpleNamespace(
-                    st_uid=65532, st_gid=65532, st_mode=observed.st_mode)
+                "provider_core.deployment_route.Path.lstat",
+                return_value=SimpleNamespace(
+                    st_uid=65532,
+                    st_gid=65532,
+                    st_mode=observed.st_mode)
             ):
                 initialize_route(65532, 65532, root)
 
@@ -252,7 +287,8 @@ class DeploymentRouteTests(unittest.TestCase):
             root_status = SimpleNamespace(st_uid=0, st_gid=0, st_mode=stat.S_IFDIR | 0o755)
 
             with patch("provider_core.deployment_route.os.geteuid", return_value=0), patch(
-                "provider_core.deployment_route.os.fstat", return_value=root_status
+                "provider_core.deployment_route.os.fstat",
+                return_value=root_status
             ), patch("provider_core.deployment_route.os.fchown") as chown:
                 initialize_route(65532, 65532, root)
 
@@ -261,7 +297,8 @@ class DeploymentRouteTests(unittest.TestCase):
             (root / "retained").write_bytes(b"retained")
 
             with patch("provider_core.deployment_route.os.geteuid", return_value=0), patch(
-                "provider_core.deployment_route.os.fstat", return_value=root_status
+                "provider_core.deployment_route.os.fstat",
+                return_value=root_status
             ), patch("provider_core.deployment_route.os.fchown") as chown:
                 with self.assertRaises(RouteProjectionRejected):
                     initialize_route(65532, 65532, root)
@@ -296,7 +333,8 @@ class DeploymentRouteTests(unittest.TestCase):
                 raise cleanup
 
             with patch("provider_core.deployment_route.os.geteuid", return_value=0), patch(
-                "provider_core.deployment_route.os.fstat", side_effect=primary
+                "provider_core.deployment_route.os.fstat",
+                side_effect=primary
             ), patch("provider_core.deployment_route.os.close", side_effect=close_then_fail):
                 with self.assertRaises(BaseExceptionGroup) as failed:
                     initialize_route(65532, 65532, root)

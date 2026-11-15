@@ -152,8 +152,13 @@ def warm_worker():
 class WarmWorker:
     async def start(self):
         self.process = await asyncio.create_subprocess_exec(
-            sys.executable, "-I", "-B", str(Path(__file__).resolve()), "warm-worker",
-            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+            sys.executable,
+            "-I",
+            "-B",
+            str(Path(__file__).resolve()),
+            "warm-worker",
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
 
@@ -234,7 +239,8 @@ async def scenario(marker, report):
                 sent = json.loads(request.content)
 
                 return reply(progress_response(execution_attempt_ref=self.reference,
-                                               phase=sent["phase"], condition_code=sent["condition_code"]))
+                                               phase=sent["phase"],
+                                               condition_code=sent["condition_code"]))
 
             if request.method == "GET":
                 return reply(observation(job_ref=self.job, execution_attempt_ref=self.reference))
@@ -250,16 +256,22 @@ async def scenario(marker, report):
             self.retired = False
 
             factory = ChatEndpointFactory(
-                spec=ChatEndpointSpec(configuration_id="recovery-fixture", model="fixture", url=endpoint,
-                                      api_key="PRIVATE_FIXTURE_KEY", reasoning_effort=None),
-                trust=trust, retirement_seconds=CLEANUP_SECONDS,
-                request_bytes=32768, response_bytes=8192,
+                spec=ChatEndpointSpec(configuration_id="recovery-fixture",
+                                      model="fixture",
+                                      url=endpoint,
+                                      api_key="PRIVATE_FIXTURE_KEY",
+                                      reasoning_effort=None),
+                trust=trust,
+                retirement_seconds=CLEANUP_SECONDS,
+                request_bytes=32768,
+                response_bytes=8192,
             )
 
             self.interpreter = Interpreter(
                 (factory,),
                 timeout_seconds=BLOCKED_MODEL_SECONDS if endpoint.endswith("/hang") else HEALTHY_MODEL_SECONDS,
-                context_bytes=16384, secrets=("PRIVATE_FIXTURE_KEY",),
+                context_bytes=16384,
+                secrets=("PRIVATE_FIXTURE_KEY",),
             )
 
         async def prepare(self, acknowledged, instructions, *, report_condition):
@@ -279,8 +291,10 @@ async def scenario(marker, report):
 
                 return ToolFinished(self.handle)
 
-            tools = [{"type": "function", "function": {
-                "name": "prepare", "parameters": {"type": "object", "properties": {}}}}]
+            tools = [{"type": "function",
+                "function": {
+                    "name": "prepare",
+                    "parameters": {"type": "object", "properties": {}}}}]
 
             try:
                 result = await self.interpreter.run([], tools, dispatch)
@@ -288,7 +302,8 @@ async def scenario(marker, report):
                 self.failure = failure
 
                 failed = AnalysisFailure(
-                    "interpreter_failed", "The model request did not complete within its time allowance.",
+                    "interpreter_failed",
+                    "The model request did not complete within its time allowance.",
                     ProtectedEvidence("fixture.interpreter.failure.v1", b"original failure retained by session"),
                 )
             except ConversationRetirementFailed as failure:
@@ -309,7 +324,8 @@ async def scenario(marker, report):
             result = await self.worker.call("execute", self.job)
             self.handle = None
 
-            return AnalysisSuccess("fixture.result.v1", json.dumps(result).encode(),
+            return AnalysisSuccess("fixture.result.v1",
+                                   json.dumps(result).encode(),
                                    ProtectedEvidence("fixture.result.evidence.v1", b"one fixture execution"))
 
         async def retire(self):
@@ -367,7 +383,9 @@ async def scenario(marker, report):
                         job = "job:" + name
                         base = record("recovery:" + name)
 
-                        pending = StartPending(scope(), base.analysis_kind_ref, replace(base.input, job_ref=job),
+                        pending = StartPending(scope(),
+                                               base.analysis_kind_ref,
+                                               replace(base.input, job_ref=job),
                                                retained_start(job_ref=job, provider_attempt_key="recovery:" + name))
 
                         # silent-defaults: allow-contract -- The middle Job alone selects the injected fault; warmup and recovery use the healthy route.
@@ -376,14 +394,20 @@ async def scenario(marker, report):
                         transport = ApiTransport(job, index)
 
                         controller = AttemptController.live(
-                            api(transport, scope().api_origin), claims, session,
-                            scope=scope(), stopping=stopping,
+                            api(transport, scope().api_origin),
+                            claims,
+                            session,
+                            scope=scope(),
+                            stopping=stopping,
                             start_policy=LiveStartPolicy(0.01, Mock(), Mock()),
                             preverified_input=verify_job_input(response(job_ref=job), feed=pending.input),
-                            delivery=RecordingDelivery(), on_delivery_retry=Mock(),
+                            delivery=RecordingDelivery(),
+                            on_delivery_retry=Mock(),
                             allowed_job_states=frozenset({"open"}),
-                            delivery_retry_initial_seconds=0.01, delivery_retry_max_seconds=0.04,
-                            poll_seconds=1, task_settle_seconds=0.1,
+                            delivery_retry_initial_seconds=0.01,
+                            delivery_retry_max_seconds=0.04,
+                            poll_seconds=1,
+                            task_settle_seconds=0.1,
                         )
 
                         controllers.append(controller)
@@ -437,19 +461,25 @@ async def scenario(marker, report):
                 failures.update(_failure_types(session.failure))
 
             result = {
-                "provider_pid": os.getpid(), "started_jobs": started, "finished_jobs": finished,
+                "provider_pid": os.getpid(),
+                "started_jobs": started,
+                "finished_jobs": finished,
                 "next_job_completed": "next" in finished,
                 "recovery_budget_seconds": RECOVERY_SECONDS,
                 # silent-defaults: allow-contract -- An unfinished next Job has no elapsed completion time and fails its separate completion assertion first.
                 "next_job_seconds": None if "completed" not in timing else timing["completed"] - timing["started"],
-                "peer_paths": paths, "warm_worker_before": worker.initial, "warm_worker_after": final_worker,
+                "peer_paths": paths,
+                "warm_worker_before": worker.initial,
+                "warm_worker_after": final_worker,
                 "session_preparations": [session.prepare_calls for session in sessions],
                 "session_executions": [session.execute_calls for session in sessions],
                 "tool_calls": sum(session.tool_calls for session in sessions),
-                "claim_count": len(claims.live_owners()), "failure_types": sorted(failures),
+                "claim_count": len(claims.live_owners()),
+                "failure_types": sorted(failures),
                 "deliveries": [item.operation.value for controller in controllers for item in controller.delivery.items],
                 "fault": {"read_cancelled": any(event["kind"] == "read_cancelled" for event in events),
-                          "cleanup_engaged": bool(engaged), "pid": fault_pid,
+                          "cleanup_engaged": bool(engaged),
+                          "pid": fault_pid,
                           "term_ignored": any(event["kind"] == "term_ignored" for event in events),
                           "owner_still_alive": alive},
             }

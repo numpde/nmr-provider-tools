@@ -53,21 +53,45 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         output.mkdir()
         command = pip_command(python)
 
-        subprocess.run([*command, "wheel", "--no-index", "--no-deps", "--no-build-isolation",
-                        "--wheel-dir", str(output), str(source)], check=True, capture_output=True, text=True)
+        subprocess.run([*command,
+                        "wheel",
+                        "--no-index",
+                        "--no-deps",
+                        "--no-build-isolation",
+                        "--wheel-dir",
+                        str(output),
+                        str(source)],
+            check=True,
+            capture_output=True,
+            text=True)
 
         (wheel,) = output.glob("*.whl")
         lock = self.root / "requirements.lock"
         lock.write_text("installer-fixture==1.0 --hash=sha256:" + hashlib.sha256(wheel.read_bytes()).hexdigest() + "\n")
 
-        subprocess.run([*command, "install", "--no-index", "--no-deps", "--require-hashes",
-                        "--find-links", str(output), "-r", str(lock)], check=True, capture_output=True, text=True)
+        subprocess.run([*command,
+                        "install",
+                        "--no-index",
+                        "--no-deps",
+                        "--require-hashes",
+                        "--find-links",
+                        str(output),
+                        "-r",
+                        str(lock)],
+            check=True,
+            capture_output=True,
+            text=True)
 
-        result = subprocess.run([str(python), "-I", "-B", "-c",
+        result = subprocess.run([str(python),
+                                 "-I",
+                                 "-B",
+                                 "-c",
                                  "import json, pip, sys, installer_fixture; "
                                  "assert installer_fixture.VALUE == 42; "
                                  "print(json.dumps([pip.__version__, pip.__file__, sys.prefix]))"],
-                                check=True, capture_output=True, text=True)
+                                check=True,
+                                capture_output=True,
+                                text=True)
 
         (version, installed, prefix) = json.loads(result.stdout)
         self.assertEqual(self.record["name"].split("-")[1], version)
@@ -78,7 +102,8 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         python = installer.create_environment(self.root / "consumer")
 
         site = Path(subprocess.check_output(
-            [str(python), "-I", "-B", "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"], text=True,
+            [str(python), "-I", "-B", "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"],
+            text=True,
         ).strip())
 
         for (source, issued) in INSTALLER_SOURCES:
@@ -90,7 +115,10 @@ def build_wheel(wheel_directory, config_settings=None, metadata_directory=None):
         (site / "tools").mkdir()
         (site / "tools/__init__.py").write_text("raise AssertionError('consumer tools must not supply the SDK guard')\n")
 
-        command = [str(python), "-I", "-B", "-c",
+        command = [str(python),
+                   "-I",
+                   "-B",
+                   "-c",
                    "from acquisition_tool.installer.tools.installer import create_environment"]
 
         environment = os.environ | {"NMR_PROVIDER_TOOLS_IN_CONTAINER": "1"}

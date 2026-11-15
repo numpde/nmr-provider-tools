@@ -73,14 +73,19 @@ checker_call() {
 ''')
 
             environment = os.environ | {
-                'PROBE_ROOT': str(root), 'PROBE_PROJECT': 'delivery-test',
+                'PROBE_ROOT': str(root),
+                'PROBE_PROJECT': 'delivery-test',
                 'PROBE_IMAGE': 'sha256:' + 'a' * 64,
-                'PROBE_DIGEST': 'b' * 64, 'PROBE_SCENARIO': scenario,
+                'PROBE_DIGEST': 'b' * 64,
+                'PROBE_SCENARIO': scenario,
             }
 
             result = subprocess.run(
                 ['bash', str(tools / 'delivery_retire_old.sh'), environment['PROBE_PROJECT'], environment['PROBE_IMAGE']],
-                env=environment, text=True, capture_output=True, check=False,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
             )
 
             remaining = (root / 'volumes').read_text().splitlines()

@@ -101,7 +101,8 @@ def unguarded_sources(root):
     failures = [
         str(path.relative_to(root))
         for path in sorted(sources)
-        if not has_early_guard(path.read_text(), package_marker=path.name == "__init__.py",
+        if not has_early_guard(path.read_text(),
+                               package_marker=path.name == "__init__.py",
                                package=".".join(path.parent.relative_to(root).parts))
     ]
 
@@ -110,7 +111,9 @@ def unguarded_sources(root):
         for path in sorted(portable_sources)
         if path != core_root / "container_guard.py"
         and not has_early_guard(
-            path.read_text(), package_marker=path.name == "__init__.py", guard_module="provider_core.container_guard"
+            path.read_text(),
+            package_marker=path.name == "__init__.py",
+            guard_module="provider_core.container_guard"
         )
     )
 

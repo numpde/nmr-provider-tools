@@ -22,9 +22,16 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
 
     def contender(self, mode):
         result = subprocess.run([
-            sys.executable, "-I", "-B", str(Path(__file__).parents[2] / "fakes/lifetime_contender.py"),
-            mode, str(self.root),
-        ], capture_output=True, text=True, timeout=5)
+            sys.executable,
+            "-I",
+            "-B",
+            str(Path(__file__).parents[2] / "fakes/lifetime_contender.py"),
+            mode,
+            str(self.root),
+        ],
+            capture_output=True,
+            text=True,
+            timeout=5)
 
         self.assertEqual(0, result.returncode, result.stderr)
 
@@ -47,9 +54,17 @@ class ProviderLifetimeTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_process_death_releases_the_same_lock_inode(self):
         child = subprocess.Popen([
-            sys.executable, "-I", "-B", str(Path(__file__).parents[2] / "fakes/lifetime_contender.py"),
-            "hold", str(self.root),
-        ], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            sys.executable,
+            "-I",
+            "-B",
+            str(Path(__file__).parents[2] / "fakes/lifetime_contender.py"),
+            "hold",
+            str(self.root),
+        ],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True)
 
         try:
             self.assertTrue(select.select([child.stdout], [], [], 5)[0], "Lifetime child did not report readiness")

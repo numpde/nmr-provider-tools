@@ -15,10 +15,18 @@ from unittest.mock import Mock
 
 class ExecutionUnavailable(importlib.abc.MetaPathFinder):
     blocked = {
-        "provider_core.controller", "provider_core.execution", "provider_core.analysis",
-        "provider_core.runner", "provider_core.runner_protocol", "provider_core.runner_session",
-        "provider_core.starting", "nmrnet_provider", "nmrnet_inference",
-        "magnet_provider", "rdkit", "torch",
+        "provider_core.controller",
+        "provider_core.execution",
+        "provider_core.analysis",
+        "provider_core.runner",
+        "provider_core.runner_protocol",
+        "provider_core.runner_session",
+        "provider_core.starting",
+        "nmrnet_provider",
+        "nmrnet_inference",
+        "magnet_provider",
+        "rdkit",
+        "torch",
     }
 
     def find_spec(self, fullname, path, target=None):
@@ -54,7 +62,11 @@ async def prove_handoff():
         endpoint = client_module.DeliveryEndpoint("https://api.example", "provider:test", root / "ipc/http.sock")
 
         inbox = ipc.DeliveryInbox(
-            queue, (endpoint,), request_seconds=1, on_accepted=Mock(), on_failure=Mock(),
+            queue,
+            (endpoint,),
+            request_seconds=1,
+            on_accepted=Mock(),
+            on_failure=Mock(),
             binding_status=Mock(return_value={"state": "inbox_only", "diagnostics": {}}),
         )
 

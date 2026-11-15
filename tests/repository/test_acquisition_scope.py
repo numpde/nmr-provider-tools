@@ -35,14 +35,21 @@ source "$ACQUISITION_SOURCE_ROOT/acquisition_tool/owner.sh"
 ''' + body
 
         environment = {
-            **os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}', 'ENGINE_STATE': str(root),
-            'IDENTITY_RECEIPT': 'exact', 'IDENTITY_OUTPUT': '17 19 23 29\n',
-            'IDENTITY_STATUS': '0', 'IDENTITY_DIAGNOSTIC': '',
+            **os.environ,
+            'PATH': f'{binary}:{os.environ["PATH"]}',
+            'ENGINE_STATE': str(root),
+            'IDENTITY_RECEIPT': 'exact',
+            'IDENTITY_OUTPUT': '17 19 23 29\n',
+            'IDENTITY_STATUS': '0',
+            'IDENTITY_DIAGNOSTIC': '',
             'ACQUISITION_SOURCE_ROOT': str(Path(__file__).resolve().parents[2] / 'host'),
         }
 
-        process = subprocess.Popen(['bash', '-c', script], env=environment,
-                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+        process = subprocess.Popen(['bash', '-c', script],
+                                   env=environment,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE,
+                                   start_new_session=True)
 
         def stop():
             if process.poll() is None:
@@ -68,9 +75,16 @@ printf '%s %s\n' "$uid" "$gid"
         self.assertEqual(b'17 19\n17 19\n', stdout)
 
         self.assertEqual([
-            'unix:///selected.sock', 'fixture:identity', str(os.geteuid()), str(os.getegid()),
-            'unix:///selected.sock', 'fixture:identity', '1007', '2009',
-        ], (root / 'identity-arguments').read_text().splitlines())
+            'unix:///selected.sock',
+            'fixture:identity',
+            str(os.geteuid()),
+            str(os.getegid()),
+            'unix:///selected.sock',
+            'fixture:identity',
+            '1007',
+            '2009',
+        ],
+            (root / 'identity-arguments').read_text().splitlines())
 
     def test_generalized_projection_preserves_order_policy_and_retirement(self):
         (status, stdout, stderr, root) = self.run_mapping(r'''
@@ -88,18 +102,56 @@ printf '%s\n' "${values[*]}"
         arguments = (root / 'identity-projection-arguments').read_text().splitlines()
 
         self.assertEqual([
-            '--endpoint', 'unix:///selected.sock', '--image', 'fixture:identity',
-            '--interpreter', '/usr/local/bin/python3', '--user-uid', '0', '--user-gid', '0',
-            '--userns', 'host', '--memory-bytes', '67108864', '--pids-limit', '8',
-            '--nano-cpus', '250000000', '--map', 'uid', 'forward', '1007',
-            '--map', 'gid', 'inverse', '2009', '--map', 'uid', 'inverse', '0',
-            '--map', 'gid', 'forward', '0', '--retired-receipt',
-        ], arguments[:-1])
+            '--endpoint',
+            'unix:///selected.sock',
+            '--image',
+            'fixture:identity',
+            '--interpreter',
+            '/usr/local/bin/python3',
+            '--user-uid',
+            '0',
+            '--user-gid',
+            '0',
+            '--userns',
+            'host',
+            '--memory-bytes',
+            '67108864',
+            '--pids-limit',
+            '8',
+            '--nano-cpus',
+            '250000000',
+            '--map',
+            'uid',
+            'forward',
+            '1007',
+            '--map',
+            'gid',
+            'inverse',
+            '2009',
+            '--map',
+            'uid',
+            'inverse',
+            '0',
+            '--map',
+            'gid',
+            'forward',
+            '0',
+            '--retired-receipt',
+        ],
+            arguments[:-1])
 
     def test_generalized_projection_rejects_malformed_output_without_replacing_values(self):
-        for output in ('', '17 19', '17 19\n', '17 19 23 29 31\n', '17 19 23 29',
-                       '17 19 23 29\nextra\n', '017 19 23 29\n', '17 19 23 4294967295\n',
-                       '17 19 23 -1\n', '17 19 23 29 \n', '17  19 23 29\n'):
+        for output in ('',
+                       '17 19',
+                       '17 19\n',
+                       '17 19 23 29 31\n',
+                       '17 19 23 29',
+                       '17 19 23 29\nextra\n',
+                       '017 19 23 29\n',
+                       '17 19 23 4294967295\n',
+                       '17 19 23 -1\n',
+                       '17 19 23 29 \n',
+                       '17  19 23 29\n'):
             with self.subTest(output=output):
                 # Shell quoting keeps the scenario bytes literal, including newlines.
                 literal = "'" + output.replace("'", "'\\''") + "'"
@@ -131,9 +183,13 @@ printf '%s %s\n' "$status" "${values[*]}"
                 self.assertFalse((root / 'identity-projection-arguments').exists())
 
     def test_generalized_projection_requires_success_and_exact_retirement(self):
-        for (receipt, result, expected) in (('exact', 2, 2), ('exact', 129, 129), ('exact', 130, 130),
-                                          ('exact', 143, 143), ('absent', 0, 2),
-                                          ('malformed', 0, 2), ('absent', 130, 2)):
+        for (receipt, result, expected) in (('exact', 2, 2),
+                                          ('exact', 129, 129),
+                                          ('exact', 130, 130),
+                                          ('exact', 143, 143),
+                                          ('absent', 0, 2),
+                                          ('malformed', 0, 2),
+                                          ('absent', 130, 2)):
             with self.subTest(receipt=receipt, result=result):
                 (status, stdout, stderr, root) = self.run_mapping(
                     f'export IDENTITY_RECEIPT={receipt} IDENTITY_STATUS={result}\n' + r'''
@@ -151,9 +207,13 @@ printf '%s %s\n' "$status" "${values[*]}"
                 self.assertIn(b'original probe failure', stderr)
 
     def test_invalid_mapping_arguments_do_not_probe_or_replace_outputs(self):
-        for arguments in ('', 'uid', 'uid gid', 'uid gid fixture:image 1007',
+        for arguments in ('',
+                          'uid',
+                          'uid gid',
+                          'uid gid fixture:image 1007',
                           'uid gid fixture:image 1007 2009 extra',
-                          'uid gid fixture:image "" 2009', 'uid gid fixture:image 1007 ""'):
+                          'uid gid fixture:image "" 2009',
+                          'uid gid fixture:image 1007 ""'):
             with self.subTest(arguments=arguments):
                 (status, stdout, stderr, root) = self.run_mapping(r'''
 NMR_SELECTED_DOCKER_ENDPOINT=unix:///selected.sock
@@ -183,9 +243,16 @@ printf '%s %s\n' "$uid" "$gid"
         self.assertEqual(b'17 19\n', stdout)
 
         self.assertEqual([
-            'unix:///scope.sock', 'fixture:identity', '1007', '2009',
-            'unix:///standalone-b.sock', 'fixture:identity', '1007', '2009',
-        ], (root / 'identity-arguments').read_text().splitlines())
+            'unix:///scope.sock',
+            'fixture:identity',
+            '1007',
+            '2009',
+            'unix:///standalone-b.sock',
+            'fixture:identity',
+            '1007',
+            '2009',
+        ],
+            (root / 'identity-arguments').read_text().splitlines())
 
     def test_missing_active_endpoint_never_falls_back_to_standalone_selection(self):
         for mutation in ('_acq_endpoint=', 'unset _acq_endpoint'):
@@ -319,16 +386,24 @@ acquisition_scope --endpoint unix:///var/run/docker.sock --bootstrap-image fixtu
         if 'NATIVE_CORRUPT_REMOVAL_ROLE' in injected:
             (binary / 'mv').symlink_to(Path(__file__).resolve().parent / 'fixtures/native_command.py')
 
-            injected.update(NATIVE_CONTROL=str(root / 'native-control'), NATIVE_PUBLICATION_FAILURE='none',
-                            NATIVE_STATUS_MUTATION='none', NATIVE_CORRUPT_READY='1')
+            injected.update(NATIVE_CONTROL=str(root / 'native-control'),
+                            NATIVE_PUBLICATION_FAILURE='none',
+                            NATIVE_STATUS_MUTATION='none',
+                            NATIVE_CORRUPT_READY='1')
 
-        environment = {**os.environ, 'PATH': f'{binary}:{os.environ["PATH"]}',
-                       'ACQUISITION_COMPOSE_EXIT': '0', 'FAIL_COMPOSE_DOWN': '0',
+        environment = {**os.environ,
+                       'PATH': f'{binary}:{os.environ["PATH"]}',
+                       'ACQUISITION_COMPOSE_EXIT': '0',
+                       'FAIL_COMPOSE_DOWN': '0',
                        'HOLD_COMPOSE_WORKER': '0',
-                       'STATE': str(root), 'ENGINE_STATE': str(root), **injected}
+                       'STATE': str(root),
+                       'ENGINE_STATE': str(root),
+                       **injected}
 
-        process = subprocess.Popen(['bash', '-c', script], env=environment,
-                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        process = subprocess.Popen(['bash', '-c', script],
+                                   env=environment,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE,
                                    start_new_session=True)
 
         def stop():
@@ -348,7 +423,8 @@ for attempt in 1 2; do
     acquisition_compose_worker offline result "$STATE/caller.yml" worker-offline || return "$?"
     printf 'result=%s\n' "$result"
 done
-''', env={'ACQUISITION_COMPOSE_EXIT': '7'})
+''',
+            env={'ACQUISITION_COMPOSE_EXIT': '7'})
 
         self.assertEqual(b'package-output\nresult=7\npackage-output\nresult=7\n',
                          self.assert_exit(process, root, 0))
@@ -365,7 +441,8 @@ acquisition_compose_worker offline result "$STATE/caller.yml" worker-offline
 status=$?
 printf 'result=%s\n' "$result"
 return "$status"
-''', env={'FAIL_COMPOSE_DOWN': '1'})
+''',
+            env={'FAIL_COMPOSE_DOWN': '1'})
 
         (stdout, stderr) = process.communicate(timeout=15)
         self.assertEqual(2, process.returncode, msg=stderr)
@@ -377,7 +454,8 @@ return "$status"
         (process, root) = self.launch(r'''
 printf 'services: {}\n' > "$STATE/caller.yml"
 acquisition_compose_worker offline result "$STATE/caller.yml" worker-offline
-''', env={'HOLD_COMPOSE_WORKER': '1'})
+''',
+            env={'HOLD_COMPOSE_WORKER': '1'})
 
         self.wait_marker(process, root / 'compose-held')
         process.send_signal(signal.SIGTERM)
@@ -517,9 +595,19 @@ return 2
     def test_failed_readiness_retains_private_causes_after_container_retirement(self):
         cases = (
             ('stopped', b'stopped\n', b'false\n', b'', 1, '0', b'stopped before becoming ready'),
-            ('inspect-failed', b'inspect-failed 37\n', b'', b'private inspect cause\n', 1, '23',
+            ('inspect-failed',
+             b'inspect-failed 37\n',
+             b'',
+             b'private inspect cause\n',
+             1,
+             '23',
              b'running state could not be verified'),
-            ('malformed', b'invalid-state\n', b'private malformed state\n', b'', 1, '0',
+            ('malformed',
+             b'invalid-state\n',
+             b'private malformed state\n',
+             b'',
+             1,
+             '0',
              b'running state could not be verified'),
             ('exhausted', b'checks-exhausted\n', b'true\n', b'', 100, '37', b'did not become ready'),
         )
@@ -530,7 +618,8 @@ return 2
                     (process, root) = self.launch(
                         'acquisition_set_route system; '
                         'acquisition_worker online status fixture:local grants application',
-                        env={'READINESS_ROLE': role, 'READINESS_SCENARIO': scenario,
+                        env={'READINESS_ROLE': role,
+                             'READINESS_SCENARIO': scenario,
                              'READINESS_LOG_STATUS': log_status})
 
                     (stdout, stderr) = process.communicate(timeout=20)
@@ -559,15 +648,19 @@ return 2
                     if log_status != '0':
                         self.assertIn(f'logs (status {log_status})'.encode(), stderr)
 
-                    for private in (b'private inspect cause', b'private malformed state',
-                                    b'private container stdout', b'private container stderr'):
+                    for private in (b'private inspect cause',
+                                    b'private malformed state',
+                                    b'private container stdout',
+                                    b'private container stderr'):
                         self.assertNotIn(private, stdout + stderr)
 
                     self.assertEqual(0o700, operation.stat().st_mode & 0o777)
                     evidence = operation / role
 
                     expected = {
-                        'readiness-reason': reason, 'state': state, 'state.stderr': inspect_error,
+                        'readiness-reason': reason,
+                        'state': state,
+                        'state.stderr': inspect_error,
                         'logs': b'private container stdout\n',
                         'logs.stderr': b'private container stderr\n',
                         'log-status': (log_status + '\n').encode(),
@@ -594,9 +687,15 @@ return 2
                     receipt.write_bytes(b'x' * size)
 
                     result = subprocess.run(
-                        ['bash', '-c', 'source host/acquisition_tool/owner.sh; '
-                         '_acq_private_receipt_below_limit "$1"', 'bash', str(receipt)],
-                        capture_output=True, timeout=5, check=False)
+                        ['bash',
+                            '-c',
+                            'source host/acquisition_tool/owner.sh; '
+                         '_acq_private_receipt_below_limit "$1"',
+                            'bash',
+                            str(receipt)],
+                        capture_output=True,
+                        timeout=5,
+                        check=False)
 
                     self.assertEqual(expected_status, result.returncode, msg=result.stderr)
                     self.assertEqual(b'', result.stdout)
@@ -613,7 +712,8 @@ return 2
             with self.subTest(fault=fault):
                 (process, root) = self.launch(
                     'acquisition_set_route system; '
-                    'acquisition_worker online status fixture:local grants application', env=environment)
+                    'acquisition_worker online status fixture:local grants application',
+                    env=environment)
 
                 (stdout, stderr) = process.communicate(timeout=20)
                 operation = Path((root / 'scratch').read_text().strip())
@@ -746,7 +846,8 @@ return 2
                     (process, root) = self.launch(
                         'acquisition_set_route system; '
                         'acquisition_worker online status fixture:local grants application',
-                        env={'FAIL_CREATE_ROLE': role, 'FAILED_CREATE_OUTPUT': output,
+                        env={'FAIL_CREATE_ROLE': role,
+                             'FAILED_CREATE_OUTPUT': output,
                              'HOLD_FAILED_CREATE': '1'})
 
                     try:
@@ -883,8 +984,10 @@ printf '%s %s\n' "$status" "$report_status"
 
     def test_incomplete_relay_setup_cannot_admit_a_later_worker(self):
         cases = (
-            {'WORKER_STATUS': '0', 'READINESS_ROLE': 'relay',
-             'READINESS_SCENARIO': 'stopped', 'READINESS_LOG_STATUS': '0'},
+            {'WORKER_STATUS': '0',
+             'READINESS_ROLE': 'relay',
+             'READINESS_SCENARIO': 'stopped',
+             'READINESS_LOG_STATUS': '0'},
             {'WORKER_STATUS': '0', 'INVALID_RELAY_STATE': '1'},
         )
 
@@ -897,7 +1000,8 @@ acquisition_worker online status fixture:first grants application || first=$?
 acquisition_worker online status fixture:second grants application || second=$?
 printf '%s %s\n' "$first" "$second"
 return "$first"
-''', env=environment)
+''',
+                    env=environment)
 
                 (stdout, stderr) = process.communicate(timeout=20)
                 operation = Path((root / 'scratch').read_text().strip())
@@ -925,7 +1029,8 @@ acquisition_set_route system
 acquisition_worker online first fixture:first grants application || return $?
 acquisition_worker online second fixture:second grants application || return $?
 printf '%s %s\n' "$first" "$second"
-''', env={'WORKER_STATUS': '7'})
+''',
+            env={'WORKER_STATUS': '7'})
 
         self.assertEqual(b'7 7\n', self.assert_exit(process, root, 0))
         self.assertEqual('4', (root / 'counter').read_text())
@@ -1188,7 +1293,8 @@ if [[ $NATIVE_CORRUPT_REMOVAL_ROLE == worker-1 ]]; then
 fi
 printf '%s %s\n' "$first" "$second" > "$STATE/callback-status"
 return "$first"
-''', env=environment)
+''',
+                    env=environment)
 
                 self.wait_marker(process, root / 'native-control')
                 observed = json.loads((root / 'native-control').read_text())

@@ -17,8 +17,10 @@ IDENTIFIER = "sha256:" + "d" * 64
 
 
 def image(**changes):
-    value = {"Id": IDENTIFIER, "Labels": {"org.nmr-provider-tools.inputs": OLD},
-             "RepoTags": ["nmr-provider-tools/checker:" + OLD], "RepoDigests": [],
+    value = {"Id": IDENTIFIER,
+             "Labels": {"org.nmr-provider-tools.inputs": OLD},
+             "RepoTags": ["nmr-provider-tools/checker:" + OLD],
+             "RepoDigests": [],
              "Created": "2020-01-01T00:00:00Z"}
 
     return value | changes
@@ -73,7 +75,8 @@ class Engine:
 class ImageRetirementTests(unittest.TestCase):
     def test_legacy_delivery_metadata_preserves_only_that_image(self):
         legacy = image(Id="sha256:" + "e" * 64,
-                       Labels={"org.nmr-provider-tools.role": "delivery"}, RepoTags=[])
+                       Labels={"org.nmr-provider-tools.role": "delivery"},
+                       RepoTags=[])
 
         self.assertEqual([IDENTIFIER], select_images([legacy, image()], set(), CURRENT))
 
@@ -126,7 +129,8 @@ class ImageRetirementTests(unittest.TestCase):
             image(RepoTags=["nmr-provider-tools/checker:" + OLD, "foreign/retained:latest"]),
             image(Labels={"org.nmr-provider-tools.role": "delivery",
                           "org.nmr-provider-tools.inputs": OLD,
-                          "org.nmr-provider-tools.recipe": CURRENT[1]}, RepoTags=[]),
+                          "org.nmr-provider-tools.recipe": CURRENT[1]},
+                RepoTags=[]),
             image(Labels={}, RepoTags=["nmr-provider-tools/wheelhouse-tool:local"]),
         ]
 
@@ -135,7 +139,10 @@ class ImageRetirementTests(unittest.TestCase):
                 self.assertEqual([], select_images([value], set(), CURRENT))
 
         self.assertEqual(select_images([image(Labels={"org.nmr-provider-tools.role": "wheelhouse-tool"},
-                                             RepoTags=[])], set(), CURRENT), [IDENTIFIER])
+                                             RepoTags=[])],
+            set(),
+            CURRENT),
+            [IDENTIFIER])
 
     def test_incomplete_metadata_fails_before_any_removal(self):
         with tempfile.TemporaryDirectory() as directory:

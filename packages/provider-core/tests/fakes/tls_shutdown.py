@@ -68,7 +68,9 @@ class ShutdownPeer:
         self.stack.enter_context(patch.object(TLSStream, "unwrap", observe_shutdown))
 
         self.transport = HttpTransport(
-            trust=certificate.trust, exchange_seconds=1, retirement_seconds=0.3,
+            trust=certificate.trust,
+            exchange_seconds=1,
+            retirement_seconds=0.3,
             proxy_socket=proxy_path,
         )
 

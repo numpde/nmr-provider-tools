@@ -19,8 +19,19 @@ from provider_core.process_status import ProcessStatus
 
 class SharedDeliveryService(DeliveryService):
     # silent-defaults: allow-contract -- A fresh queue has no legacy publication inputs to associate.
-    def __init__(self, directory, *, limits, socket, proxy_socket, request_seconds, retry_initial_seconds,
-                 retry_max_seconds, on_notice, diagnostic_status, legacy_material=(), live_configuration=None,
+    def __init__(self,
+                 directory,
+                 *,
+                 limits,
+                 socket,
+                 proxy_socket,
+                 request_seconds,
+                 retry_initial_seconds,
+                 retry_max_seconds,
+                 on_notice,
+                 diagnostic_status,
+                 legacy_material=(),
+                 live_configuration=None,
                  status_directory=None):
         if not (type(request_seconds) in (int, float) and math.isfinite(request_seconds) and request_seconds > 0):
             raise ValueError("Delivery IPC request deadline must be finite positive seconds.")
@@ -68,8 +79,11 @@ class SharedDeliveryService(DeliveryService):
         if held:
             self.on_notice(None, {"event": "delivery_legacy_rows_held", "count": held})
 
-        self.inbox = SharedDeliveryInbox(self.queue, self.socket, request_seconds=self.request_seconds,
-                                         on_accepted=self._accepted, on_failure=self.on_notice)
+        self.inbox = SharedDeliveryInbox(self.queue,
+                                         self.socket,
+                                         request_seconds=self.request_seconds,
+                                         on_accepted=self._accepted,
+                                         on_failure=self.on_notice)
 
         await self.inbox.start()
 
@@ -173,8 +187,11 @@ class SharedDeliveryService(DeliveryService):
 
                 endpoint = DeliveryEndpoint(origin, provider, self.socket.socket_path, self.socket.socket_group_id)
 
-                worker = SharedDeliveryWorker(self.inbox, endpoint, self.proxy_socket,
-                    retry_initial_seconds=self.retry_initial_seconds, retry_max_seconds=self.retry_max_seconds,
+                worker = SharedDeliveryWorker(self.inbox,
+                    endpoint,
+                    self.proxy_socket,
+                    retry_initial_seconds=self.retry_initial_seconds,
+                    retry_max_seconds=self.retry_max_seconds,
                     on_notice=self.on_notice)
 
                 self.workers[key] = worker
@@ -216,7 +233,8 @@ class SharedDeliveryService(DeliveryService):
             # silent-defaults: allow-contract -- A future timestamp does not establish a nonnegative age.
             overview["oldest_pending_age_seconds"] = age if age is not None and age >= 0 else None
 
-        return {"queue": overview, "queue_observation_age_seconds": time.monotonic() - self.overview_at,
+        return {"queue": overview,
+                "queue_observation_age_seconds": time.monotonic() - self.overview_at,
                 "pending_publishers": len(bindings),
                 "paused_publishers": sum(worker.paused for worker in self.workers.values()),
                 "limits": {"total_items": self.limits.total_items, "total_body_bytes": self.limits.total_bytes}}

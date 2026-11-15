@@ -11,7 +11,11 @@ import unittest
 from unittest.mock import AsyncMock, Mock
 
 from provider_core.hosting import (
-    CleanupObservation, Failure, OperationRef, ResultConsumption, ResultRef,
+    CleanupObservation,
+    Failure,
+    OperationRef,
+    ResultConsumption,
+    ResultRef,
 )
 
 
@@ -24,7 +28,10 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
 
         if release is None:
             release = SimpleNamespace(observe=AsyncMock(return_value=CleanupObservation(
-                revision=1, settled=True, allowance_expired=False, failures=(),
+                revision=1,
+                settled=True,
+                allowance_expired=False,
+                failures=(),
             )))
 
         operation = SimpleNamespace(
@@ -164,7 +171,9 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
         cause = OSError("Result disposal failed")
 
         release = SimpleNamespace(observe=AsyncMock(return_value=CleanupObservation(
-            revision=1, settled=False, allowance_expired=False,
+            revision=1,
+            settled=False,
+            allowance_expired=False,
             failures=(Failure("cleanup", cause),),
         )))
 
@@ -309,7 +318,9 @@ class ResultConsumptionTests(unittest.IsolatedAsyncioTestCase):
             await finish.wait()
 
             return CleanupObservation(
-                revision=1, settled=False, allowance_expired=False,
+                revision=1,
+                settled=False,
+                allowance_expired=False,
                 failures=(Failure("cleanup", cause),),
             )
 

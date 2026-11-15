@@ -27,8 +27,15 @@ from tests.fakes.unix_proxy import UnixProxy
 
 async def _launch_daemon(path):
     return await asyncio.create_subprocess_exec(
-        sys.executable, "-I", "-B", "-m", "provider_core.delivery_main", "--config", str(path),
-        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        sys.executable,
+        "-I",
+        "-B",
+        "-m",
+        "provider_core.delivery_main",
+        "--config",
+        str(path),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
     )
 
 
@@ -101,10 +108,20 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 config.chmod(0o600)
 
                 process = await asyncio.create_subprocess_exec(
-                    sys.executable, "-I", "-B", "-m", "provider_core.delivery_discard",
-                    "--config", str(config), "--api-origin", "https://PRIVATE_ORIGIN.example",
-                    "--provider-ref", "provider:PRIVATE_PROVIDER", "--list-held",
-                    stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                    sys.executable,
+                    "-I",
+                    "-B",
+                    "-m",
+                    "provider_core.delivery_discard",
+                    "--config",
+                    str(config),
+                    "--api-origin",
+                    "https://PRIVATE_ORIGIN.example",
+                    "--provider-ref",
+                    "provider:PRIVATE_PROVIDER",
+                    "--list-held",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                 )
 
                 try:
@@ -119,9 +136,11 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     await _reap_daemon(process)
 
     async def test_installed_command_delivers_once_through_proxy_then_sigterm_retires_it(self):
-        async with api_tls_peer("success", response_body=fail_response(
-            execution_attempt_ref=outcome().execution_attempt_ref,
-            failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
+        async with api_tls_peer("success",
+            response_body=fail_response(
+                execution_attempt_ref=outcome().execution_attempt_ref,
+                failure_code="provider_interrupted",
+                failure_message="SCIENTIFIC_PAYLOAD_NEEDLE"
         )) as peer:
             async with UnixProxy(peer.origin, "tunnel") as proxy:
                 with tempfile.TemporaryDirectory() as directory:
@@ -135,8 +154,15 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     files.write(raw)
 
                     process = await asyncio.create_subprocess_exec(
-                        sys.executable, "-I", "-B", "-m", "provider_core.delivery_main", "--config", str(files.path),
-                        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                        sys.executable,
+                        "-I",
+                        "-B",
+                        "-m",
+                        "provider_core.delivery_main",
+                        "--config",
+                        str(files.path),
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
                     )
 
                     endpoint = DeliveryEndpoint(peer.origin, "provider:example", root / "ipc/http.sock")
@@ -190,8 +216,15 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
             files.write(b"PRIVATE_CANARY malformed TOML")
 
             process = await asyncio.create_subprocess_exec(
-                sys.executable, "-I", "-B", "-m", "provider_core.delivery_main", "--config", str(files.path),
-                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                sys.executable,
+                "-I",
+                "-B",
+                "-m",
+                "provider_core.delivery_main",
+                "--config",
+                str(files.path),
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
 
             try:
@@ -230,12 +263,15 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 return None  # Full body received; lose only this API acknowledgement.
 
             return complete_response(execution_attempt_ref=item.execution_attempt_ref,
-                                     result_schema_id="fixture.result", replayed=True)
+                                     result_schema_id="fixture.result",
+                                     replayed=True)
 
         async with api_tls_peer("success", response_factory=accept_then_lose) as peer:
             async with UnixProxy(peer.origin, "tunnel") as proxy:
                 with tempfile.TemporaryDirectory() as directory:
-                    (files, endpoint, credential) = _configured_binding(Path(directory) / "binding", peer, proxy,
+                    (files, endpoint, credential) = _configured_binding(Path(directory) / "binding",
+                        peer,
+                        proxy,
                         provider="provider:example")
 
                     # The minimum jittered retry wait is 15s, longer than bounded
@@ -246,7 +282,8 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                     configured = files.path.read_bytes()
                     item = replace(outcome(provider=endpoint.provider_ref), api_origin=peer.origin)
 
-                    item = replace(item, operation=TerminalOperation.COMPLETE,
+                    item = replace(item,
+                                   operation=TerminalOperation.COMPLETE,
                                    body=complete_body(item.execution_attempt_ref, "fixture.result", b"result bytes") + b"\n")
 
                     client = DeliveryClient(endpoint, exchange_seconds=1, retirement_seconds=0.2)
@@ -309,16 +346,20 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
                 peer_a.response_status = 503
                 peer_a.response_headers = response_headers(status=503, request_id=b"request:api-a-outage")
 
-                return json.dumps({"type": "urn:nmr-api:problem:service-unavailable", "title": "Service unavailable",
-                    "status": 503, "instance": "urn:nmr-api:request:api-a-outage",
-                    "request_id": "request:api-a-outage", "code": "service_unavailable"}).encode()
+                return json.dumps({"type": "urn:nmr-api:problem:service-unavailable",
+                    "title": "Service unavailable",
+                    "status": 503,
+                    "instance": "urn:nmr-api:request:api-a-outage",
+                    "request_id": "request:api-a-outage",
+                    "code": "service_unavailable"}).encode()
 
             peer_a.response_status = 200
             peer_a.response_headers = response_headers()
             effects["a"] += 1
 
             return fail_response(execution_attempt_ref=first.execution_attempt_ref,
-                failure_code="provider_interrupted", failure_message="PRIVATE_BINDING_A_PAYLOAD")
+                failure_code="provider_interrupted",
+                failure_message="PRIVATE_BINDING_A_PAYLOAD")
 
         async def api_b(request, body):
             self.assertEqual(request.split(b"\r\n", 1)[0], b"POST /provider/v1/execution-attempts/fail HTTP/1.1")
@@ -327,7 +368,8 @@ class DeliveryProcessTests(unittest.IsolatedAsyncioTestCase):
             effects["b"] += 1
 
             return fail_response(execution_attempt_ref=second.execution_attempt_ref,
-                failure_code="provider_interrupted", failure_message="PRIVATE_BINDING_B_PAYLOAD")
+                failure_code="provider_interrupted",
+                failure_message="PRIVATE_BINDING_B_PAYLOAD")
 
         async with api_tls_peer("success", response_factory=api_a) as peer_a, api_tls_peer("success", response_factory=api_b) as peer_b:
             async with UnixProxy(peer_a.origin, "tunnel") as proxy_a, UnixProxy(peer_b.origin, "tunnel") as proxy_b:

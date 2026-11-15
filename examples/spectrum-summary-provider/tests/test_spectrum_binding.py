@@ -71,7 +71,11 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_bindings_declare_only_call_resources_and_no_scientific_lifetimes(self) -> None:
         expected = contribution.ResourceRequirement(
-            kind="cpu", amount=1, unit="thread", selector="generic", exclusive=False,
+            kind="cpu",
+            amount=1,
+            unit="thread",
+            selector="generic",
+            exclusive=False,
         )
 
         provider = await self.provider()

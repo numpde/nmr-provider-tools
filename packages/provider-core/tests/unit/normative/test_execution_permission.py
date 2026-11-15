@@ -23,12 +23,20 @@ def controlled(session_type, stopping, admission_stopping):
     transport = Transport(*lifecycle_replies())
 
     controller = AttemptController.live(
-        api(transport, probe.scope.api_origin), AttemptClaims.live(), session,
-        scope=probe.scope, stopping=stopping, admission_stopping=admission_stopping,
+        api(transport, probe.scope.api_origin),
+        AttemptClaims.live(),
+        session,
+        scope=probe.scope,
+        stopping=stopping,
+        admission_stopping=admission_stopping,
         start_policy=LiveStartPolicy(0.001, Mock(), Mock()),
-        delivery=delivery, on_delivery_retry=Mock(),
-        delivery_retry_initial_seconds=0.001, delivery_retry_max_seconds=0.002,
-        allowed_job_states=frozenset({"open"}), poll_seconds=1, task_settle_seconds=0.1,
+        delivery=delivery,
+        on_delivery_retry=Mock(),
+        delivery_retry_initial_seconds=0.001,
+        delivery_retry_max_seconds=0.002,
+        allowed_job_states=frozenset({"open"}),
+        poll_seconds=1,
+        task_settle_seconds=0.1,
     )
 
     probe.controller = controller
@@ -143,13 +151,21 @@ def composed(session_type, transport, *, observation_recovery, poll_seconds):
     (session, delivery) = (session_type(probe), RecordingDelivery())
 
     controller = AttemptController.live(
-        api(transport, probe.scope.api_origin), AttemptClaims.live(), session,
-        scope=probe.scope, stopping=asyncio.Event(), admission_stopping=asyncio.Event(),
+        api(transport, probe.scope.api_origin),
+        AttemptClaims.live(),
+        session,
+        scope=probe.scope,
+        stopping=asyncio.Event(),
+        admission_stopping=asyncio.Event(),
         start_policy=LiveStartPolicy(0.001, Mock(), Mock()),
-        delivery=delivery, on_delivery_retry=Mock(),
-        delivery_retry_initial_seconds=0.001, delivery_retry_max_seconds=0.002,
-        allowed_job_states=frozenset({"open"}), poll_seconds=poll_seconds,
-        task_settle_seconds=0.1, observation_recovery=observation_recovery,
+        delivery=delivery,
+        on_delivery_retry=Mock(),
+        delivery_retry_initial_seconds=0.001,
+        delivery_retry_max_seconds=0.002,
+        allowed_job_states=frozenset({"open"}),
+        poll_seconds=poll_seconds,
+        task_settle_seconds=0.1,
+        observation_recovery=observation_recovery,
     )
 
     probe.controller = controller
@@ -319,8 +335,10 @@ class ExecutionPermissionAdditionalTests(unittest.IsolatedAsyncioTestCase):
 
         recovery = ObservationRecovery(1, 0.1, Mock(), Mock())
 
-        (controller, session, delivery) = composed(DeadlineDispatch, transport,
-            observation_recovery=recovery, poll_seconds=0.001)
+        (controller, session, delivery) = composed(DeadlineDispatch,
+            transport,
+            observation_recovery=recovery,
+            poll_seconds=0.001)
 
         session.transport = transport
 

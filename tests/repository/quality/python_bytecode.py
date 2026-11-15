@@ -30,9 +30,31 @@ class Finding:
 
 _COMPILERS = {"pip", "venv", "ensurepip", "build", "setuptools", "compileall", "py_compile"}
 
-_SKIP = {".git", ".agents", ".codex", ".aws", "secrets", "tests", "test", "fixtures", "docs", "notes",
-         "vendor", "vendored", "third_party", "bootstrap", "generated", "node_modules", "dependencies",
-         ".venv", "venv", "__pycache__", ".work", ".cache", "build", "dist", "release-artifacts"}
+_SKIP = {".git",
+         ".agents",
+         ".codex",
+         ".aws",
+         "secrets",
+         "tests",
+         "test",
+         "fixtures",
+         "docs",
+         "notes",
+         "vendor",
+         "vendored",
+         "third_party",
+         "bootstrap",
+         "generated",
+         "node_modules",
+         "dependencies",
+         ".venv",
+         "venv",
+         "__pycache__",
+         ".work",
+         ".cache",
+         "build",
+         "dist",
+         "release-artifacts"}
 
 _PYTHON = re.compile(r"python(?:3(?:\.\d+)?)?$")
 _ENV = "PYTHONDONTWRITEBYTECODE"

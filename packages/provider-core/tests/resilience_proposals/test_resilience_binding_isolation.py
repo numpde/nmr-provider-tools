@@ -35,7 +35,8 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
 
         async def response(_request, _body):
             return fail_response(execution_attempt_ref=second.execution_attempt_ref,
-                                 failure_code="provider_interrupted", failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
+                                 failure_code="provider_interrupted",
+                                 failure_message="SCIENTIFIC_PAYLOAD_NEEDLE")
 
         async with api_tls_peer("success", response_factory=response) as peer:
             first = replace(first, api_origin=peer.origin)
@@ -46,12 +47,18 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
             for item in (first, second):
                 credential = encoded(document(principal_ref=item.provider_ref))
 
-                fields = {"origin": peer.origin, "profile": "dev-local", "topology": "dev-local",
-                          "provider_ref": item.provider_ref, "exchange_seconds": 2, "retirement_seconds": 1,
-                          "credential_file": "/fixture/credential", "ca_file": "/fixture/ca"}
+                fields = {"origin": peer.origin,
+                          "profile": "dev-local",
+                          "topology": "dev-local",
+                          "provider_ref": item.provider_ref,
+                          "exchange_seconds": 2,
+                          "retirement_seconds": 1,
+                          "credential_file": "/fixture/credential",
+                          "ca_file": "/fixture/ca"}
 
                 (_, _, material) = api_settings_with_material(
-                    fields, lambda _path, **options: credential if options["label"] == "API signing credential" else ca)
+                    fields,
+                    lambda _path, **options: credential if options["label"] == "API signing credential" else ca)
 
                 materials.append(material)
 
@@ -85,9 +92,15 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
                             published.set()
 
                     service = SharedDeliveryService(
-                        root / "state", limits=limits, socket=SharedDeliverySocket(root / "ipc/socket", None),
-                        proxy_socket=root / "proxy.sock", request_seconds=2, retry_initial_seconds=0.01,
-                        retry_max_seconds=0.02, on_notice=notice, diagnostic_status=Mock())
+                        root / "state",
+                        limits=limits,
+                        socket=SharedDeliverySocket(root / "ipc/socket", None),
+                        proxy_socket=root / "proxy.sock",
+                        request_seconds=2,
+                        retry_initial_seconds=0.01,
+                        retry_max_seconds=0.02,
+                        on_notice=notice,
+                        diagnostic_status=Mock())
 
                     clients = []
 
@@ -99,8 +112,10 @@ class BindingIsolationTests(unittest.IsolatedAsyncioTestCase):
 
                             for (item, material) in zip((first, second), materials):
                                 clients.append(SharedDeliveryClient(
-                                    DeliveryEndpoint(peer.origin, item.provider_ref, root / "ipc/socket"), material,
-                                    exchange_seconds=2, retirement_seconds=1))
+                                    DeliveryEndpoint(peer.origin, item.provider_ref, root / "ipc/socket"),
+                                    material,
+                                    exchange_seconds=2,
+                                    retirement_seconds=1))
 
                             self.assertEqual(await clients[0].submit(first), DeliveryHandoff(first, materials[0]).acceptance())
                             await asyncio.wait_for(failed.wait(), 5)

@@ -29,7 +29,11 @@ class AcquisitionBundleTests(unittest.TestCase):
                     "NMR_SELECTED_DOCKER_ENDPOINT": "unix:///fixture.sock",
                     "WHEELHOUSE_INPUT_ORIGIN": "command line",
                     "WHEELHOUSE_INPUT": directory,
-                }, capture_output=True, text=True, timeout=10, check=False)
+                },
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False)
 
             self.assertNotEqual(0, result.returncode)
             self.assertEqual("", result.stdout)
@@ -81,7 +85,12 @@ class AcquisitionBundleTests(unittest.TestCase):
         return (source, wheel, identity, pin)
 
     def build(self, root, output, source, wheel, pin):
-        return build(root, output, source, wheel, pin, revision="a" * 40,
+        return build(root,
+                     output,
+                     source,
+                     wheel,
+                     pin,
+                     revision="a" * 40,
                      wheelhouse_bundle=root / "wheelhouse-tool-0.5.9.pyz")
 
     def test_rebuild_has_identical_bytes_and_normalized_source_provenance(self):
@@ -152,7 +161,8 @@ class AcquisitionBundleTests(unittest.TestCase):
             old_pin = pin.read_text()
 
             pin.write_text(re.sub(r'sha256 = "[0-9a-f]{64}"',
-                                  'sha256 = "' + hashlib.sha256(identity.read_bytes()).hexdigest() + '"', old_pin))
+                                  'sha256 = "' + hashlib.sha256(identity.read_bytes()).hexdigest() + '"',
+                                  old_pin))
 
             archive_path = root / "bundle.tar.gz"
             self.build(root, archive_path, source, wheel, pin)
