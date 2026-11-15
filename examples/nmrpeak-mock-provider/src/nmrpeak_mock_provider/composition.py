@@ -17,25 +17,24 @@ def adopt_offerings(
     requested_requirements: frozenset[ResourceRequirement],
     hf_settings: Settings,
     chf_settings: Settings,
+    hf_checkpoint_path: Path,
+    chf_checkpoint_path: Path,
     create_model: Callable[[], Model],
 ) -> frozenset[HostedContribution]:
     """Assemble science from the selected deployment's settings and model constructor.
 
     Provider startup supplies typed settings and create_model. This helper builds
-    Hf and Chf around that constructor and the packaged checkpoint substitutes,
+    Hf and Chf around that constructor and deployment-selected checkpoints,
     then asks EmbeddedHost to retain each exact object before initialization.
     """
-    package = files(anchor=__package__)
-    # This example uses packaged JSON checkpoint substitutes. Provider startup
-    # selected their expected digests in hf_settings and chf_settings.
     hf = Hf(
         configuration=hf_settings,
-        checkpoint_path=Path(str(package.joinpath("hf.json"))),
+        checkpoint_path=hf_checkpoint_path,
         create_model=create_model,
     )
     chf = Chf(
         configuration=chf_settings,
-        checkpoint_path=Path(str(package.joinpath("chf.json"))),
+        checkpoint_path=chf_checkpoint_path,
         create_model=create_model,
     )
     return frozenset({

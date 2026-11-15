@@ -122,6 +122,9 @@ async def open_provider(
             requested_requirements=requested_requirements,
             hf_settings=Settings(**provider_config["science"]["hf"]["settings"]),
             chf_settings=Settings(**provider_config["science"]["chf"]["settings"]),
+            # Resolve model locations beside the selected deployment document.
+            hf_checkpoint_path=PROVIDER_CONFIG_PATH.parent / provider_config["science"]["hf"]["checkpoint_path"],
+            chf_checkpoint_path=PROVIDER_CONFIG_PATH.parent / provider_config["science"]["chf"]["checkpoint_path"],
             create_model=create_model,
         )
         yield Provider(

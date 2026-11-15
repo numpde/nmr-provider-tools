@@ -68,11 +68,18 @@ selector = "generic"
 # Configure HF and CHF separately. Before loading, check each checkpoint's
 # contents against the expected digest. Limit the number of input tokens,
 # generated candidates and characters in each candidate string.
+# Checkpoint paths are relative to this deployment document.
+[science.hf]
+checkpoint_path = "checkpoints/hf.json"
+
 [science.hf.settings]
 checkpoint_sha256 = "f0cd7060781da0663e8ab6f8ed9df357b5acae8528f349291e8f4cc6a9721825"
 maximum_input_tokens = 64
 beam_size = 2
 maximum_candidate_characters = 64
+
+[science.chf]
+checkpoint_path = "checkpoints/chf.json"
 
 [science.chf.settings]
 checkpoint_sha256 = "367c6761437cd17944e812e2d91425f356fc8238be4b4f7c917b2368167fa9f3"
