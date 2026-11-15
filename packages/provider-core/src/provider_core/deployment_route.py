@@ -58,7 +58,16 @@ def _path(value):
 
 
 def _identity(uid, gid):
-    if not (all(type(value) is int and 1 <= value <= 4294967294 for value in (uid, gid))):
+    if not (type(uid) is (expected_type := int)):
+        raise RouteProjectionRejected(f"Cannot grant API route identity: {type(uid)=} ≠ {expected_type=}")
+
+    if not (1 <= uid <= 4294967294):
+        raise RouteProjectionRejected("Cannot grant API route identity: require explicit nonzero Linux UID and GID.")
+
+    if not (type(gid) is (expected_type := int)):
+        raise RouteProjectionRejected(f"Cannot grant API route identity: {type(gid)=} ≠ {expected_type=}")
+
+    if not (1 <= gid <= 4294967294):
         raise RouteProjectionRejected("Cannot grant API route identity: require explicit nonzero Linux UID and GID.")
 
 
@@ -199,22 +208,35 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
     Omitted service_name preserves delivery's identity-derived service roles.
     """
 
-    if not (type(binding) is DeploymentBinding):
-        raise RouteProjectionRejected("Cannot render API route: select an admitted DeploymentBinding.")
+    if not (type(binding) is (expected_type := DeploymentBinding)):
+        raise RouteProjectionRejected(f"{type(binding)=} ≠ {expected_type=}")
 
-    if type(image) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
+    if not (type(image) is (expected_image_type := str)):
+        raise RouteProjectionRejected(f"Cannot render API route: {type(image)=} ≠ {expected_image_type=}")
+
+    if re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
         raise RouteProjectionRejected("Cannot render API route: select an immutable full image ID.")
 
-    if type(namespace) is not str or re.fullmatch(r"[a-z0-9][a-z0-9_-]*", namespace) is None:
+    if not (type(namespace) is (expected_namespace_type := str)):
+        raise RouteProjectionRejected(f"Cannot render API route: {type(namespace)=} ≠ {expected_namespace_type=}")
+
+    if re.fullmatch(r"[a-z0-9][a-z0-9_-]*", namespace) is None:
         raise RouteProjectionRejected("Cannot render API route: select a lowercase Compose namespace containing letters, digits, hyphens or underscores.")
 
-    if service_name is not None and (type(service_name) is not str or re.fullmatch(r"[a-z0-9][a-z0-9_-]*", service_name) is None):
-        raise RouteProjectionRejected("Cannot render API route: an explicit service name requires lowercase letters, digits, hyphens or underscores.")
+    if service_name is not None:
+        if not (type(service_name) is (expected_service_name_type := str)):
+            raise RouteProjectionRejected(f"Cannot render API route: {type(service_name)=} ≠ {expected_service_name_type=}")
+
+        if re.fullmatch(r"[a-z0-9][a-z0-9_-]*", service_name) is None:
+            raise RouteProjectionRejected("Cannot render API route: an explicit service name requires lowercase letters, digits, hyphens or underscores.")
 
     _identity(uid, gid)
     interpreter = _path(interpreter)
 
-    if type(input_sources) is not dict or not set(input_sources) <= set(input_paths((binding,))):
+    if not (type(input_sources) is (expected_input_sources_type := dict)):
+        raise RouteProjectionRejected(f"Cannot relocate API route inputs: {type(input_sources)=} ≠ {expected_input_sources_type=}")
+
+    if not (set(input_sources) <= set(input_paths((binding,)))):
         raise RouteProjectionRejected("Cannot relocate API route inputs: only files granted by the selected binding may be mapped.")
 
     for target in input_sources.values():

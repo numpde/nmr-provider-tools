@@ -13,8 +13,8 @@ from provider_core.payload import JsonDataclassCodec
 
 
 def _sha256_digest(content: bytes) -> str:
-    if not (type(content) is bytes):
-        raise TypeError("content must be bytes")
+    if not (type(content) is (expected_type := bytes)):
+        raise TypeError(f"{type(content)=} ≠ {expected_type=}")
 
     return "sha256:" + hashlib.sha256(content).hexdigest()
 

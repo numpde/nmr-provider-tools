@@ -51,8 +51,8 @@ class SharedDeliveryConfiguration:
             document = tomllib.loads(raw.decode("utf-8"))
             table = document["outbox"]
 
-            if not (type(table) is dict):
-                raise TypeError(f"Unexpected {type(table)=}; outbox settings must be an object")
+            if not (type(table) is (expected_type := dict)):
+                raise TypeError(f"{type(table)=} ≠ {expected_type=}")
 
             limits = QueueLimits(table["provider_items"], table["provider_bytes"], table["total_items"], table["total_bytes"])
             (initial, maximum, level) = (table["retry_initial_seconds"], table["retry_max_seconds"], table["log_level"])

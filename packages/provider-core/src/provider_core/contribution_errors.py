@@ -12,19 +12,17 @@ class CallRejected(Exception):
     message: str
 
     def __init__(self, code: str, message: str) -> None:
-        if not (type(code) is str):
+        if not (type(code) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(code)=}; "
-                "A rejection code must match [a-z][a-z0-9_]{0,63}"
+                f"{type(code)=} ≠ {expected_type=}"
             )
 
         if re.fullmatch(r"[a-z][a-z0-9_]{0,63}\Z", code) is None:
             raise ValueError("A rejection code must match [a-z][a-z0-9_]{0,63}")
 
-        if not (type(message) is str):
+        if not (type(message) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(message)=}; "
-                "A rejection needs a nonempty explanatory message"
+                f"{type(message)=} ≠ {expected_type=}"
             )
 
         if not (message):

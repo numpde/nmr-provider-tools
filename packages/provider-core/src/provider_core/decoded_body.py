@@ -34,10 +34,9 @@ class DecodedBodyRejected(ValueError):
     """A closed safe reason; native codec evidence remains the protected cause."""
 
     def __init__(self, reason):
-        if not (type(reason) is str):
+        if not (type(reason) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(reason)=}; "
-                "Unknown decoded-body rejection reason"
+                f"{type(reason)=} ≠ {expected_type=}"
             )
 
         if not (reason in _MESSAGES):
@@ -169,10 +168,9 @@ def _codings(headers):
 def require_decoded_limit(maximum_bytes):
     """Admit the sentinel allowance before the transport dispatches any I/O."""
 
-    if not (type(maximum_bytes) is int):
+    if not (type(maximum_bytes) is (expected_type := int)):
         raise TypeError(
-            f"Unexpected {type(maximum_bytes)=}; "
-            "HTTP content decoding requires a positive integer below the native allocation limit"
+            f"{type(maximum_bytes)=} ≠ {expected_type=}"
         )
 
     if not (0 < maximum_bytes < sys.maxsize):

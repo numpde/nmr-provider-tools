@@ -56,10 +56,9 @@ class ReadGrant:
 
 
 def require_job_ref(value):
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            "Job reference must be job: followed by 1 through 124 letters, digits, underscores, dots or hyphens"
+            f"{type(value)=} ≠ {expected_type=}"
         )
 
     if re.fullmatch(r"job:[A-Za-z0-9_.-]{1,124}", value) is None:
@@ -67,12 +66,18 @@ def require_job_ref(value):
 
 
 def require_upload_ref(value):
-    if type(value) is not str or re.fullmatch(r"upload:sha256:[0-9a-f]{64}", value) is None:
+    if not (type(value) is (expected_type := str)):
+        raise ResponseRejected(f"{type(value)=} ≠ {expected_type=}")
+
+    if re.fullmatch(r"upload:sha256:[0-9a-f]{64}", value) is None:
         raise ResponseRejected("Upload reference must be upload:sha256: followed by 64 lowercase hexadecimal digits")
 
 
 def _fields(document, names):
-    if type(document) is not dict or set(document) != names:
+    if not (type(document) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+
+    if set(document) != names:
         raise ResponseRejected("Response fields do not match the supported Upload wire schema")
 
 
@@ -80,7 +85,10 @@ def _byte_facts(document, *, pending_allowed):
     require_upload_ref(document["upload_ref"])
     length = document["byte_length"]
 
-    if type(length) is not int or not 1 <= length <= 9223372036854775807:
+    if not (type(length) is (expected_type := int)):
+        raise ResponseRejected(f"{type(length)=} ≠ {expected_type=}")
+
+    if not (1 <= length <= 9223372036854775807):
         raise ResponseRejected("Upload byte_length must be a positive signed 64-bit integer")
 
     fingerprint = document["content_hash"]
@@ -88,15 +96,27 @@ def _byte_facts(document, *, pending_allowed):
     if pending_allowed and fingerprint is None:
         return
 
-    if type(fingerprint) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint) is None:
+    if not (type(fingerprint) is (expected_type := str)):
+        raise ResponseRejected(f"{type(fingerprint)=} ≠ {expected_type=}")
+
+    if re.fullmatch(r"sha256:[0-9a-f]{64}", fingerprint) is None:
         raise ResponseRejected("Upload content_hash must be a lowercase SHA-256 fingerprint")
 
 
 def _grant_target_and_token(url, token):
-    if type(url) is not str or not url.startswith("https://") or len(url) > 359:
+    if not (type(url) is (expected_type := str)):
+        raise ResponseRejected(f"{type(url)=} ≠ {expected_type=}")
+
+    if not (url.startswith("https://")):
         raise ResponseRejected("Grant download_url must be an HTTPS URL of at most 359 characters")
 
-    if type(token) is not str or not 1 <= len(token) <= 2048:
+    if len(url) > 359:
+        raise ResponseRejected("Grant download_url must be an HTTPS URL of at most 359 characters")
+
+    if not (type(token) is (expected_type := str)):
+        raise ResponseRejected(f"{type(token)=} ≠ {expected_type=}")
+
+    if not (1 <= len(token) <= 2048):
         raise ResponseRejected("Grant capability must contain 1 through 2048 characters")
 
 
@@ -104,7 +124,10 @@ def require_read_grant(grant, *, job_ref):
     """Admit a caller-supplied grant's facts without claiming API issuance."""
     require_job_ref(job_ref)
 
-    if type(grant) is not ReadGrant or grant.job_ref != job_ref:
+    if not (type(grant) is (expected_type := ReadGrant)):
+        raise ResponseRejected(f"{type(grant)=} ≠ {expected_type=}")
+
+    if grant.job_ref != job_ref:
         raise ResponseRejected("Read grant must belong to the selected Job")
 
     _byte_facts({"upload_ref": grant.upload_ref,
@@ -114,7 +137,13 @@ def require_read_grant(grant, *, job_ref):
 
     _grant_target_and_token(grant.download_url, grant.capability)
 
-    if type(grant.expires_at) is not datetime or grant.expires_at.tzinfo is None or grant.expires_at.utcoffset() != timedelta(0):
+    if not (type((actual_expires_at := grant.expires_at)) is (expected_type := datetime)):
+        raise ResponseRejected(f"{type(actual_expires_at)=} ≠ {expected_type=}")
+
+    if grant.expires_at.tzinfo is None:
+        raise ResponseRejected("Read grant expiry must be a UTC datetime")
+
+    if grant.expires_at.utcoffset() != timedelta(0):
         raise ResponseRejected("Read grant expiry must be a UTC datetime")
 
 
@@ -129,7 +158,10 @@ def read_membership(raw, *, job_ref):
 
     members = document["uploads"]
 
-    if type(members) is not list or len(members) > 64:
+    if not (type(members) is (expected_type := list)):
+        raise ResponseRejected(f"{type(members)=} ≠ {expected_type=}")
+
+    if len(members) > 64:
         raise ResponseRejected("Membership must contain an array of at most 64 Uploads")
 
     admitted = []
@@ -139,11 +171,13 @@ def read_membership(raw, *, job_ref):
         _byte_facts(member, pending_allowed=True)
         description = member["description"]
 
-        if (
-            type(description) is not str
-            or len(description) > 4096
-            or any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in description)
-        ):
+        if not (type(description) is (expected_type := str)):
+            raise ResponseRejected(f"{type(description)=} ≠ {expected_type=}")
+
+        if len(description) > 4096:
+            raise ResponseRejected("Upload description must contain at most 4096 Unicode scalar values without NUL")
+
+        if any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in description):
             raise ResponseRejected("Upload description must contain at most 4096 Unicode scalar values without NUL")
 
         if admitted and member["upload_ref"] <= admitted[-1].upload_ref:
@@ -156,10 +190,10 @@ def read_membership(raw, *, job_ref):
 
 def _expiry(value):
     # Match the API renderer: UTC seconds, or exactly six nonzero fraction digits.
-    if (
-        type(value) is not str
-        or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.(?!000000)[0-9]{6})?Z", value) is None
-    ):
+    if not (type(value) is (expected_type := str)):
+        raise ResponseRejected(f"{type(value)=} ≠ {expected_type=}")
+
+    if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.(?!000000)[0-9]{6})?Z", value) is None:
         raise ResponseRejected("Grant expiry must be canonical UTC seconds or six nonzero fractional digits")
 
     try:

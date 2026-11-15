@@ -50,7 +50,10 @@ def read_attempt_inventory(raw, *, limit):
     """Admit all rows before exposing a page; preserve the server's ordering."""
     document = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if type(document) is not dict or set(document) != {"schema_id", "attempts", "next_cursor"}:
+    if not (type(document) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+
+    if set(document) != {"schema_id", "attempts", "next_cursor"}:
         raise ResponseRejected("Attempt inventory response fields do not match the supported page schema")
 
     if document["schema_id"] != "nmr.provider.execution_attempts.list.response.v1":
@@ -58,7 +61,13 @@ def read_attempt_inventory(raw, *, limit):
 
     attempts = document["attempts"]
 
-    if type(attempts) is not list or len(attempts) > MAX_PAGE_ITEMS or len(attempts) > limit:
+    if not (type(attempts) is (expected_type := list)):
+        raise ResponseRejected(f"{type(attempts)=} ≠ {expected_type=}")
+
+    if len(attempts) > MAX_PAGE_ITEMS:
+        raise ResponseRejected("Attempt inventory exceeds the requested or supported item count")
+
+    if len(attempts) > limit:
         raise ResponseRejected("Attempt inventory exceeds the requested or supported item count")
 
     try:
@@ -71,7 +80,10 @@ def read_attempt_inventory(raw, *, limit):
 
 
 def _read_item(item):
-    if type(item) is not dict or set(item) != {
+    if not (type(item) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(item)=} ≠ {expected_type=}")
+
+    if set(item) != {
         "analysis_kind_ref",
         "execution_attempt_ref",
         "job_ref",

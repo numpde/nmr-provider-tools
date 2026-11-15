@@ -203,8 +203,8 @@ class LiveProxyConfiguration:
 
         table = document.get("api_proxy")
 
-        if not (type(table) is dict):
-            raise ServiceRefused("Proxy configuration requires an api_proxy table.")
+        if not (type(table) is (expected_type := dict)):
+            raise ServiceRefused(f"{type(table)=} ≠ {expected_type=}")
 
         maximum = table.get("max_connections")
         level = table.get("log_level")
@@ -217,10 +217,16 @@ class LiveProxyConfiguration:
 
         authorities = table.get("allowed_authorities")
 
-        if type(maximum) is not int or maximum <= 0:
+        if not (type(maximum) is (expected_maximum_type := int)):
+            raise ServiceRefused(f"{type(maximum)=} ≠ {expected_maximum_type=}")
+
+        if maximum <= 0:
             raise ServiceRefused("Proxy max_connections must be a positive integer.")
 
-        if type(delay) not in (int, float) or not 0 <= delay <= bound_http_proxy.HEADER_SECONDS:
+        if not (type(delay) in (expected_delay_type := (int, float))):
+            raise ServiceRefused(f"{type(delay)=} ≠ {expected_delay_type=}")
+
+        if not (0 <= delay <= bound_http_proxy.HEADER_SECONDS):
             raise ServiceRefused("Proxy max_admission_delay_seconds must be between 0 and 30 seconds.")
 
         if not (order in ("ready", "fifo")):
@@ -229,20 +235,28 @@ class LiveProxyConfiguration:
         if not (level in ("INFO", "DEBUG", "WARNING")):
             raise ServiceRefused("Proxy log_level must be INFO, DEBUG or WARNING.")
 
-        if type(authorities) is not list or any(type(value) is not str for value in authorities):
-            raise ServiceRefused("Proxy allowed_authorities must be a list of authorities.")
+        if not (type(authorities) is (expected_authorities_type := list)):
+            raise ServiceRefused(f"{type(authorities)=} ≠ {expected_authorities_type=}")
+
+        for authority in authorities:
+            if not (type(authority) is (expected_type := str)):
+                raise ServiceRefused(f"{type(authority)=} ≠ {expected_type=}")
 
         # silent-defaults: allow-contract -- External routes need no mapped address table.
         route = table.get("route", {})  # silent-defaults: allow-empty-get -- External routes need no mapping table.
 
-        if not (type(route) is dict):
-            raise ServiceRefused("Proxy route settings must be a table.")
+        if not (type(route) is (expected_type := dict)):
+            raise ServiceRefused(f"{type(route)=} ≠ {expected_type=}")
 
         # silent-defaults: allow-contract -- External routes have no mapped addresses.
         addresses = route.get("addresses", [])  # silent-defaults: allow-empty-get -- External routes have no mapped addresses.
 
-        if type(addresses) is not list or any(type(value) is not str for value in addresses):
-            raise ServiceRefused("Proxy route addresses must be a list of mappings.")
+        if not (type(addresses) is (expected_addresses_type := list)):
+            raise ServiceRefused(f"{type(addresses)=} ≠ {expected_addresses_type=}")
+
+        for route_address in addresses:
+            if not (type(route_address) is (expected_type := str)):
+                raise ServiceRefused(f"{type(route_address)=} ≠ {expected_type=}")
 
         if self.mode == "external" and addresses:
             raise ServiceRefused("External service proxy does not accept local address mappings.")
@@ -466,8 +480,15 @@ def socket_grant(path, ready, *, socket_group_id=None):
             parent = path.parent.lstat()
             shared = socket_group_id is not None
 
-            if shared and (type(socket_group_id) is not int or socket_group_id <= 0 or socket_group_id != os.getegid()):
-                raise ServiceRefused("Cannot start service proxy: the shared socket group must be the proxy's primary GID.")
+            if shared:
+                if not (type(socket_group_id) is (expected_type := int)):
+                    raise ServiceRefused(f"Cannot start service proxy: {type(socket_group_id)=} ≠ {expected_type=}")
+
+                if socket_group_id <= 0:
+                    raise ServiceRefused("Cannot start service proxy: the shared socket group must be the proxy's primary GID.")
+
+                if socket_group_id != os.getegid():
+                    raise ServiceRefused("Cannot start service proxy: the shared socket group must be the proxy's primary GID.")
 
             # silent-defaults: allow-contract -- Directory modes follow the selected shared or private grant.
             parent_modes = (0o710, 0o2710) if shared else (0o700,)

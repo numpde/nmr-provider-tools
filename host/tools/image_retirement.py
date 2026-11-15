@@ -139,11 +139,14 @@ def retained_image_ids(directory):
 def metadata(raw, expected):
     inspected_images = [json.loads(line) for line in raw.splitlines()]
 
-    if (
-        len(inspected_images) != len(expected)
-        or any(type(image) is not dict for image in inspected_images)
-        or {image.get("Id") for image in inspected_images} != set(expected)
-    ):
+    if len(inspected_images) != len(expected):
+        raise RetirementRefused("Docker image inspection was incomplete.")
+
+    for inspected_image in inspected_images:
+        if not (type(inspected_image) is (expected_type := dict)):
+            raise RetirementRefused(f"{type(inspected_image)=} ≠ {expected_type=}")
+
+    if {image.get("Id") for image in inspected_images} != set(expected):
         raise RetirementRefused("Docker image inspection was incomplete.")
 
     return inspected_images
@@ -162,27 +165,40 @@ def select_images(images, protected, current):
             image.get("RepoDigests"),
         )
 
-        if (
-            type(image_id) is not str
-            or _ID.fullmatch(image_id) is None
-            or "RepoTags" not in image
-            or "RepoDigests" not in image
-            or image_labels is not None and (
-                type(image_labels) is not dict
-                or any(
-                    type(key) is not str or type(value) is not str
-                    for (key, value) in image_labels.items()
-                )
-            )
-            or any(
-                value is not None and (
-                    type(value) is not list
-                    or any(type(item) is not str for item in value)
-                )
-                for value in (image_tags, image_digests)
-            )
-        ):
+        if not (type(image_id) is (expected_type := str)):
+            raise RetirementRefused(f"{type(image_id)=} ≠ {expected_type=}")
+
+        if _ID.fullmatch(image_id) is None:
             raise RetirementRefused("Docker returned malformed image ownership or aliases.")
+
+        if not ("RepoTags" in image):
+            raise RetirementRefused("Docker returned malformed image ownership or aliases.")
+
+        if not ("RepoDigests" in image):
+            raise RetirementRefused("Docker returned malformed image ownership or aliases.")
+
+        if image_labels is not None:
+
+            if not (type(image_labels) is (expected_image_labels_type := dict)):
+                raise RetirementRefused(f"{type(image_labels)=} ≠ {expected_image_labels_type=}")
+
+            for (label_name, label_text) in image_labels.items():
+                if not (type(label_name) is (expected_type := str)):
+                    raise RetirementRefused(f"{type(label_name)=} ≠ {expected_type=}")
+
+                if not (type(label_text) is (expected_type := str)):
+                    raise RetirementRefused(f"{type(label_text)=} ≠ {expected_type=}")
+
+        for image_aliases in (image_tags, image_digests):
+            if image_aliases is None:
+                continue
+
+            if not (type(image_aliases) is (expected_type := list)):
+                raise RetirementRefused(f"{type(image_aliases)=} ≠ {expected_type=}")
+
+            for image_alias in image_aliases:
+                if not (type(image_alias) is (expected_type := str)):
+                    raise RetirementRefused(f"{type(image_alias)=} ≠ {expected_type=}")
 
         # silent-defaults: allow-contract -- Docker reports absent optional Labels as null; only that absence means no labels.
         image_labels = {} if image_labels is None else image_labels
@@ -277,11 +293,15 @@ def retire(root, docker, current, *, staged=(), operations=Path("/tmp")):
             ).splitlines()
         ]
 
-        if len(container_images) != len(batch) or any(
-            type(item) is not str or _ID.fullmatch(item) is None
-            for item in container_images
-        ):
+        if len(container_images) != len(batch):
             raise RetirementRefused("Container image references were incomplete.")
+
+        for container_image_id in container_images:
+            if not (type(container_image_id) is (expected_type := str)):
+                raise RetirementRefused(f"{type(container_image_id)=} ≠ {expected_type=}")
+
+            if _ID.fullmatch(container_image_id) is None:
+                raise RetirementRefused("Container image references were incomplete.")
 
         protected_images.update(container_images)
 

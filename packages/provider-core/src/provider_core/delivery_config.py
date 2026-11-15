@@ -31,12 +31,24 @@ class DeliveryConfigurationRejected(ValueError):
 
 
 def _fields(table, fields, label):
-    if type(table) is not dict or set(table) != fields:
+    if not (type(table) is (expected_type := dict)):
+        raise DeliveryConfigurationRejected(f"{label=}; {type(table)=} ≠ {expected_type=}")
+
+    if set(table) != fields:
         raise DeliveryConfigurationRejected(f"{label} must contain exactly its documented fields.")
 
 
 def _path(value, label):
-    if type(value) is not str or not value or "\x00" in value or not Path(value).is_absolute():
+    if not (type(value) is (expected_type := str)):
+        raise DeliveryConfigurationRejected(f"{label=}; {type(value)=} ≠ {expected_type=}")
+
+    if not (value):
+        raise DeliveryConfigurationRejected(f"{label} requires an explicit absolute container path.")
+
+    if "\x00" in value:
+        raise DeliveryConfigurationRejected(f"{label} requires an explicit absolute container path.")
+
+    if not (Path(value).is_absolute()):
         raise DeliveryConfigurationRejected(f"{label} requires an explicit absolute container path.")
 
     return Path(value)
@@ -88,7 +100,10 @@ def load_delivery_service(path, *, on_notice, diagnostic_status):
     _fields(document["limits"], {"provider_items", "provider_bytes", "total_items", "total_bytes"}, "limits")
     bindings = document["bindings"]
 
-    if type(bindings) is not list or not 1 <= len(bindings) <= MAX_BINDINGS:
+    if not (type(bindings) is (expected_type := list)):
+        raise DeliveryConfigurationRejected(f"{type(bindings)=} ≠ {expected_type=}")
+
+    if not (1 <= len(bindings) <= MAX_BINDINGS):
         raise DeliveryConfigurationRejected("require between one and sixteen explicit bindings.")
 
     try:

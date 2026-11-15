@@ -92,13 +92,18 @@ class LiveStartPolicy:
 
     def __post_init__(self):
         for (name, value) in (("cadence_seconds", self.cadence_seconds), ("window_seconds", self.window_seconds)):
-            if not (type(value) in (int, float) and math.isfinite(value) and value > 0):
+            if not (type(value) in (expected_value_type := (int, float))):
+                raise TypeError(f"{name=}; {type(value)=} ≠ {expected_value_type=}")
+
+            if not (math.isfinite(value)):
                 raise ValueError(f"Live START {name} must be finite positive seconds")
 
-        if not (type(self.maximum_replays) is int):
+            if not (value > 0):
+                raise ValueError(f"Live START {name} must be finite positive seconds")
+
+        if not (type((actual_maximum_replays := self.maximum_replays)) is (expected_type := int)):
             raise TypeError(
-                f"Unexpected {type(self.maximum_replays)=}; "
-                "One live START invocation permits zero or one exact replay"
+                f"{type(actual_maximum_replays)=} ≠ {expected_type=}"
             )
 
         if not (0 <= self.maximum_replays <= 1):
@@ -192,46 +197,42 @@ class AttemptController:
     ):
         claims._require_live_view()
 
-        if not (type(scope) is RecoveryScope):
+        if not (type(scope) is (expected_type := RecoveryScope)):
             raise TypeError(
-                f"Unexpected {type(scope)=}; "
-                "Cannot configure Attempt controller: scope must be an admitted RecoveryScope"
+                f"{type(scope)=} ≠ {expected_type=}"
             )
 
         if api.origin != scope.api_origin:
             raise ValueError("Cannot configure Attempt controller: signing origin differs from the selected scope")
 
-        if preverified_input is not None and type(preverified_input) is not VerifiedJobInput:
-            raise ValueError("Attempt controller requires the actual verified Job input or an explicit post-START read")
+        if preverified_input is not None and type(preverified_input) is not (expected_preverified_input_type := VerifiedJobInput):
+            raise TypeError(f"{type(preverified_input)=} ≠ {expected_preverified_input_type=}")
 
-        if type(stopping) is not asyncio.Event or type(start_policy) is not LiveStartPolicy:
-            raise TypeError(
-                f"Unexpected {type(stopping)=}, {type(start_policy)=}; "
-                "Live Attempt controller requires its stop event and admitted LiveStartPolicy"
-            )
+        if not (type(stopping) is (expected_type := asyncio.Event)):
+            raise TypeError(f"{type(stopping)=} ≠ {expected_type=}")
+
+        if not (type(start_policy) is (expected_type := LiveStartPolicy)):
+            raise TypeError(f"{type(start_policy)=} ≠ {expected_type=}")
 
         if admission_stopping is None:
             admission_stopping = stopping
 
-        if not (type(admission_stopping) is asyncio.Event):
+        if not (type(admission_stopping) is (expected_type := asyncio.Event)):
             raise TypeError(
-                f"Unexpected {type(admission_stopping)=}; "
-                "Live Attempt admission stopping requires an asyncio Event"
+                f"{type(admission_stopping)=} ≠ {expected_type=}"
             )
 
-        if not (type(maximum_terminal_bytes) is int):
+        if not (type(maximum_terminal_bytes) is (expected_type := int)):
             raise TypeError(
-                f"Unexpected {type(maximum_terminal_bytes)=}; "
-                "Live terminal allowance must cover 16384 through 2097152 encoded request bytes"
+                f"{type(maximum_terminal_bytes)=} ≠ {expected_type=}"
             )
 
         if not (16384 <= maximum_terminal_bytes <= 2097152):
             raise ValueError("Live terminal allowance must cover 16384 through 2097152 encoded request bytes")
 
-        if not (type(allow_active_start_replay) is bool):
+        if not (type(allow_active_start_replay) is (expected_type := bool)):
             raise TypeError(
-                f"Unexpected {type(allow_active_start_replay)=}; "
-                "Live Attempt controller requires an explicit boolean active-replay decision"
+                f"{type(allow_active_start_replay)=} ≠ {expected_type=}"
             )
 
         require_execution_settings(
@@ -381,19 +382,29 @@ class AttemptController:
         """
         executor = self._operation
 
-        if (self._lifetime is not _Lifetime.HELD
-                or failure is not self.last_failure
-                or type(failure) is not ControllerFailed
-                or type(executor) is not AttemptExecutor
-                or type(failure.cause) is not ExecutionFailed
-                or failure.cause is not executor.last_failure):
+        if not (self._lifetime is _Lifetime.HELD):
+            raise ControllerRefused("Cannot confirm a held Attempt: this controller has no matching retained execution failure.") from self.last_failure
+
+        if not (failure is self.last_failure):
+            raise ControllerRefused("Cannot confirm a held Attempt: this controller has no matching retained execution failure.") from self.last_failure
+
+        if not (type(failure) is (expected_failure_type := ControllerFailed)):
+            raise ControllerRefused(f"Cannot confirm a held Attempt: {type(failure)=} ≠ {expected_failure_type=}") from self.last_failure
+
+        if not (type(executor) is (expected_executor_type := AttemptExecutor)):
+            raise ControllerRefused(f"Cannot confirm a held Attempt: {type(executor)=} ≠ {expected_executor_type=}") from self.last_failure
+
+        if not (type((actual_cause := failure.cause)) is (expected_cause_type := ExecutionFailed)):
+            raise ControllerRefused(f"Cannot confirm a held Attempt: {type(actual_cause)=} ≠ {expected_cause_type=}") from self.last_failure
+
+        if not (failure.cause is executor.last_failure):
             raise ControllerRefused("Cannot confirm a held Attempt: this controller has no matching retained execution failure.") from self.last_failure
 
         execution = failure.cause
         reason = execution.cause
 
-        if not (type(reason) in (AnalysisOutcomeUnresolved, UploadRecoveryExhausted, ObservationGapExpired)):
-            raise ControllerRefused("Cannot confirm a held Attempt: this failure is not an admitted unresolved analysis, source exhaustion or observation gap.") from failure
+        if not (type(reason) in (expected_type := (AnalysisOutcomeUnresolved, UploadRecoveryExhausted, ObservationGapExpired))):
+            raise ControllerRefused(f"{type(reason)=} ≠ {expected_type=}") from failure
 
         admitted_api_failure = None
 
@@ -441,11 +452,19 @@ class AttemptController:
             # active claim; two separate inventory queries cannot prove that link.
             claim.require_start(pending)
 
-            if (type(execution.attempt) is not AcknowledgedAttempt
-                    or type(self._acknowledged) is not AcknowledgedAttempt
-                    or execution.attempt is not executor._record
-                    or execution.attempt.start != pending
-                    or execution.attempt.admission is not self._acknowledged.admission):
+            if not (type((actual_attempt := execution.attempt)) is (expected_attempt_type := AcknowledgedAttempt)):
+                raise ControllerRefused(f"Cannot confirm a held Attempt: {type(actual_attempt)=} ≠ {expected_attempt_type=}") from failure
+
+            if not (type((actual_acknowledged := self._acknowledged)) is (expected_acknowledged_type := AcknowledgedAttempt)):
+                raise ControllerRefused(f"Cannot confirm a held Attempt: {type(actual_acknowledged)=} ≠ {expected_acknowledged_type=}") from failure
+
+            if not (execution.attempt is executor._record):
+                raise ControllerRefused("Cannot confirm a held Attempt: its retained admission differs from this selected Attempt.") from failure
+
+            if execution.attempt.start != pending:
+                raise ControllerRefused("Cannot confirm a held Attempt: its retained admission differs from this selected Attempt.") from failure
+
+            if not (execution.attempt.admission is self._acknowledged.admission):
                 raise ControllerRefused("Cannot confirm a held Attempt: its retained admission differs from this selected Attempt.") from failure
 
             claim.require(self.scope, execution.attempt.admission.execution_attempt_ref)
@@ -495,8 +514,8 @@ class AttemptController:
                 self._link_interruption(cause)
                 raise
 
-            if not (isinstance(cause, Exception)):
-                raise BaseExceptionGroup("Attempt admission raised a process-control exception", (cause, self.last_failure)) from None
+            if not (isinstance(cause, (expected_type := Exception))):
+                raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
             if not (cleanup_fatal is None):
                 raise BaseExceptionGroup("Attempt admission failed during cleanup", (cleanup_fatal, self.last_failure)) from None
@@ -596,8 +615,8 @@ class AttemptController:
                 self._link_interruption(interruption)
                 raise
 
-            if not (isinstance(cause, Exception)):
-                raise BaseExceptionGroup("Attempt lifecycle raised a process-control exception", (cause, self.last_failure)) from None
+            if not (isinstance(cause, (expected_type := Exception))):
+                raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
             if not (cleanup_fatal is None):
                 raise BaseExceptionGroup("Attempt cleanup raised a process-control exception", (cleanup_fatal, self.last_failure)) from None
@@ -613,7 +632,10 @@ class AttemptController:
                 self._lifetime = _Lifetime.HELD
 
     def _reserve_start(self, pending):
-        if type(pending) is not StartPending or pending.scope != self.scope:
+        if not (type(pending) is (expected_type := StartPending)):
+            raise ControllerRefused(f"{type(pending)=} ≠ {expected_type=}")
+
+        if pending.scope != self.scope:
             raise ControllerRefused("Live START requires the selected API, provider, lane and generation")
 
         if self._preverified_input is not None and self._preverified_input.identity != pending.input:
@@ -706,13 +728,21 @@ class AttemptController:
         if isinstance(self._operation, AttemptExecutor):
             executor = self._operation
 
-            if (
-                executor.claim is not claim or executor._active or executor._observing
-                or not executor.retirement_confirmed
-                or (type(executor._checkpoint) not in (DeliveryAcceptedCheckpoint, SuppressedCheckpoint)
-                    and executor.settled_revocation is None)
-            ):
+            if not (executor.claim is claim):
                 raise ControllerRefused("Cannot release live ownership before the executor settles cleanup and records a delivery, suppression or server revocation disposition")
+
+            if executor._active:
+                raise ControllerRefused("Cannot release live ownership before the executor settles cleanup and records a delivery, suppression or server revocation disposition")
+
+            if executor._observing:
+                raise ControllerRefused("Cannot release live ownership before the executor settles cleanup and records a delivery, suppression or server revocation disposition")
+
+            if not (executor.retirement_confirmed):
+                raise ControllerRefused("Cannot release live ownership before the executor settles cleanup and records a delivery, suppression or server revocation disposition")
+
+            if (type((actual_checkpoint := executor._checkpoint)) not in (expected_type := (DeliveryAcceptedCheckpoint, SuppressedCheckpoint))
+                    and executor.settled_revocation is None):
+                raise ControllerRefused(f"{type(actual_checkpoint)=} ≠ {expected_type=}")
 
             return
 
@@ -885,8 +915,8 @@ class AttemptController:
                         raise cause
 
                 for cause in failures:
-                    if not (isinstance(cause, Exception)):
-                        raise BaseExceptionGroup("Attempt settlement raised a process-control exception", (cause, self.last_failure)) from None
+                    if not (isinstance(cause, (expected_type := Exception))):
+                        raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
                 raise self.last_failure from None
 
@@ -899,8 +929,8 @@ class AttemptController:
             except (Exception, BaseExceptionGroup) as cause:
                 self._remember(cause, cleanup=True)
 
-                if not (isinstance(cause, Exception)):
-                    raise BaseExceptionGroup("Attempt delivery retirement raised a process-control exception", (cause, self.last_failure)) from None
+                if not (isinstance(cause, (expected_type := Exception))):
+                    raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
                 raise self.last_failure from None
 

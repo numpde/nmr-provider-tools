@@ -32,15 +32,20 @@ from provider_core.task_boundary import contain_task_exit
 
 
 def positive_seconds(value):
-    if not (type(value) in (int, float) and math.isfinite(value) and 0 < value):
+    if not (type(value) in (expected_type := (int, float))):
+        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
+
+    if not (math.isfinite(value)):
+        raise ValueError("Execution allowances must be finite positive seconds.")
+
+    if not (0 < value):
         raise ValueError("Execution allowances must be finite positive seconds.")
 
 
 def _identity(value, label):
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            f"{label} must be a nonempty identity without whitespace or control characters"
+            f"{label=}; {type(value)=} ≠ {expected_type=}"
         )
 
     if not (value and all(character.isprintable() and not character.isspace() for character in value)):
@@ -48,10 +53,9 @@ def _identity(value, label):
 
 
 def _digest(value, label):
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            f"{label} must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest"
+            f"{label=}; {type(value)=} ≠ {expected_type=}"
         )
 
     if re.fullmatch(r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z", value) is None:
@@ -75,21 +79,21 @@ class BackendCapabilities:
             ("concurrency", self.concurrency, ConcurrencyRequirement),
             ("interruption", self.interruption, InterruptionSupport),
         ):
-            if not (type(values) is frozenset):
-                raise TypeError(f"Unexpected {type(values)=}; backend {name=} support must be a frozenset")
+            if not (type(values) is (expected_values_type := frozenset)):
+                raise TypeError(f"{name=}; {type(values)=} ≠ {expected_values_type=}")
 
             if not (values):
                 raise ValueError(f"Backend {name=} support cannot be empty")
 
             for value in values:
                 if not (type(value) is expected_type):
-                    raise TypeError(f"Unexpected {type(value)=}; backend {name=} support requires {expected_type=}")
+                    raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
 
         if any(version <= 0 for version in self.contract_versions):
             raise ValueError(f"Backend contract versions must be positive; {self.contract_versions=}")
 
-        if not (type(self.progress) is bool):
-            raise TypeError(f"Unexpected {type(self.progress)=}; backend progress support must be boolean")
+        if not (type((actual_progress := self.progress)) is (expected_progress_type := bool)):
+            raise TypeError(f"{type(actual_progress)=} ≠ {expected_progress_type=}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,10 +138,9 @@ class OperationRef:
         _identity(self.host, "Host identity")
         _identity(self.analysis, "Analysis identity")
 
-        if not (type(self.operation_id) is str):
+        if not (type((actual_operation_id := self.operation_id)) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(self.operation_id)=}; "
-                "Operation identity must contain 1 through 160 characters"
+                f"{type(actual_operation_id)=} ≠ {expected_type=}"
             )
 
         if not (0 < len(self.operation_id) <= 160):
@@ -164,10 +167,9 @@ class StateRef:
         _identity(self.state_id, "State identity")
         _identity(self.kind, "Scientific state kind")
 
-        if not (type(self.producer) is OperationRef):
+        if not (type((actual_producer := self.producer)) is (expected_type := OperationRef)):
             raise TypeError(
-                f"Unexpected {type(self.producer)=}; "
-                "State producer must be an OperationRef from the same host and analysis"
+                f"{type(actual_producer)=} ≠ {expected_type=}"
             )
 
         if (self.producer.host, self.producer.analysis) != (self.host, self.analysis):
@@ -180,10 +182,9 @@ class ResultRef:
     result_id: str
 
     def __post_init__(self):
-        if not (type(self.operation) is OperationRef):
+        if not (type((actual_operation := self.operation)) is (expected_type := OperationRef)):
             raise TypeError(
-                f"Unexpected {type(self.operation)=}; "
-                "Result reference requires an OperationRef"
+                f"{type(actual_operation)=} ≠ {expected_type=}"
             )
 
         _identity(self.result_id, "Result identity")
@@ -197,10 +198,9 @@ class StateArgument:
     def __post_init__(self):
         _identity(self.name, "State argument name")
 
-        if not (type(self.reference) is StateRef):
+        if not (type((actual_reference := self.reference)) is (expected_type := StateRef)):
             raise TypeError(
-                f"Unexpected {type(self.reference)=}; "
-                "State argument requires a StateRef"
+                f"{type(actual_reference)=} ≠ {expected_type=}"
             )
 
 
@@ -214,10 +214,9 @@ class StateResult:
     def __post_init__(self):
         _identity(self.name, "State output name")
 
-        if not (type(self.reference) is StateRef):
+        if not (type((actual_reference := self.reference)) is (expected_type := StateRef)):
             raise TypeError(
-                f"Unexpected {type(self.reference)=}; "
-                "State output requires a StateRef"
+                f"{type(actual_reference)=} ≠ {expected_type=}"
             )
 
 
@@ -258,10 +257,24 @@ class OperationPolicy:
         ):
             positive_seconds(value)
 
-        if not (all(type(value) is int and 0 < value for value in (
+        (
+            reject_encoded_input_over_bytes,
+            reject_encoded_result_over_bytes,
+        ) = (
             self.reject_encoded_input_over_bytes,
             self.reject_encoded_result_over_bytes,
-        ))):
+        )
+
+        if not (type(reject_encoded_input_over_bytes) is (expected_type := int)):
+            raise TypeError(f"{type(reject_encoded_input_over_bytes)=} ≠ {expected_type=}")
+
+        if not (0 < reject_encoded_input_over_bytes):
+            raise ValueError("Input and result allowances must be positive byte counts.")
+
+        if not (type(reject_encoded_result_over_bytes) is (expected_type := int)):
+            raise TypeError(f"{type(reject_encoded_result_over_bytes)=} ≠ {expected_type=}")
+
+        if not (0 < reject_encoded_result_over_bytes):
             raise ValueError("Input and result allowances must be positive byte counts.")
 
 
@@ -293,33 +306,48 @@ class Invocation:
 
     def __post_init__(self):
         if self.start_not_after is not None:
-            if not (type(self.start_not_after) in (int, float)):
-                raise TypeError(f"Unexpected {type(self.start_not_after)=}; a start deadline must be a finite execution-clock value")
+            if not (type((actual_start_not_after := self.start_not_after)) in (expected_type := (int, float))):
+                raise TypeError(f"{type(actual_start_not_after)=} ≠ {expected_type=}")
 
             if not (math.isfinite(self.start_not_after)):
                 raise ValueError(f"Cannot set a start deadline with {self.start_not_after=}; expected a finite execution-clock value")
 
-        if not (type(self.operation_id) is str):
+        if not (type((actual_operation_id := self.operation_id)) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(self.operation_id)=}; "
-                "An invocation needs an operation ID of 1 through 160 characters."
+                f"{type(actual_operation_id)=} ≠ {expected_type=}"
             )
 
         if not (0 < len(self.operation_id) <= 160):
             raise ValueError("An invocation needs an operation ID of 1 through 160 characters.")
 
-        if not (
-            type(self.target) is CallRef
-            and type(self.payload) is bytes
-            and type(self.states) is tuple
-            and all(type(item) is StateArgument for item in self.states)
-            and type(self.reservation) is ReservationRef
-            and type(self.policy) is OperationPolicy
-        ):
-            raise TypeError(
-                f"Unexpected {type(self.target)=}, {type(self.payload)=}, {type(self.states)=}, {type(self.reservation)=}, {type(self.policy)=}; "
-                "Invocation fields must use the declared immutable hosting records."
-            )
+        target_call_ref = self.target
+
+        if not (type(target_call_ref) is (expected_type := CallRef)):
+            raise TypeError(f"{type(target_call_ref)=} ≠ {expected_type=}")
+
+        payload = self.payload
+
+        if not (type(payload) is (expected_type := bytes)):
+            raise TypeError(f"{type(payload)=} ≠ {expected_type=}")
+
+        state_arguments = self.states
+
+        if not (type(state_arguments) is (expected_type := tuple)):
+            raise TypeError(f"{type(state_arguments)=} ≠ {expected_type=}")
+
+        for state_argument in state_arguments:
+            if not (type(state_argument) is (expected_type := StateArgument)):
+                raise TypeError(f"{type(state_argument)=} ≠ {expected_type=}")
+
+        reservation_ref = self.reservation
+
+        if not (type(reservation_ref) is (expected_type := ReservationRef)):
+            raise TypeError(f"{type(reservation_ref)=} ≠ {expected_type=}")
+
+        operation_policy = self.policy
+
+        if not (type(operation_policy) is (expected_type := OperationPolicy)):
+            raise TypeError(f"{type(operation_policy)=} ≠ {expected_type=}")
 
 
 class AdmissionCode(Enum):
@@ -339,16 +367,14 @@ class NotAdmitted:
     message: str
 
     def __post_init__(self):
-        if not (type(self.code) is AdmissionCode):
+        if not (type((actual_code := self.code)) is (expected_type := AdmissionCode)):
             raise TypeError(
-                f"Unexpected {type(self.code)=}; "
-                "Non-admission requires an AdmissionCode"
+                f"{type(actual_code)=} ≠ {expected_type=}"
             )
 
-        if not (type(self.message) is str):
+        if not (type((actual_message := self.message)) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(self.message)=}; "
-                "Non-admission requires an explanatory message"
+                f"{type(actual_message)=} ≠ {expected_type=}"
             )
 
         if not (self.message):

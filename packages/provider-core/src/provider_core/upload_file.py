@@ -58,7 +58,10 @@ class VerifiedUpload:
     data: bytes = field(repr=False)
 
     def __post_init__(self):
-        if type(self.data) is not bytes or len(self.data) != self.byte_length:
+        if not (type((actual_data := self.data)) is (expected_type := bytes)):
+            raise UploadFailed(f"{type(actual_data)=} ≠ {expected_type=}")
+
+        if len(self.data) != self.byte_length:
             raise UploadFailed("source byte length differs from its transfer receipt")
 
         if "sha256:" + hashlib.sha256(self.data).hexdigest() != self.content_hash:
@@ -92,21 +95,39 @@ def read_upload_file(receipt, *, directory_fd, maximum_bytes):
     Composition retains the source until reader quiescence or confirmed stop.
     """
 
-    if not (type(receipt) is VerifiedUploadFile):
-        raise UploadFileReadFailed("a verified-file receipt is required before reading source bytes")
+    if not (type(receipt) is (expected_type := VerifiedUploadFile)):
+        raise UploadFileReadFailed(f"{type(receipt)=} ≠ {expected_type=}")
 
-    if type(directory_fd) is not int or directory_fd < 0:
+    if not (type(directory_fd) is (expected_directory_fd_type := int)):
+        raise UploadFileReadFailed(f"{type(directory_fd)=} ≠ {expected_directory_fd_type=}")
+
+    if directory_fd < 0:
         raise UploadFileReadFailed("reading a private source requires an explicit open directory descriptor")
 
-    if type(maximum_bytes) is not int or maximum_bytes <= 0:
+    if not (type(maximum_bytes) is (expected_maximum_bytes_type := int)):
+        raise UploadFileReadFailed(f"{type(maximum_bytes)=} ≠ {expected_maximum_bytes_type=}")
+
+    if maximum_bytes <= 0:
         raise UploadFileReadFailed("the reader's source byte ceiling must be a positive integer")
 
-    if type(receipt.byte_length) is not int or not 0 <= receipt.byte_length <= maximum_bytes:
+    if not (type((actual_byte_length := receipt.byte_length)) is (expected_byte_length_type := int)):
+        raise UploadFileReadFailed(f"{type(actual_byte_length)=} ≠ {expected_byte_length_type=}")
+
+    if not (0 <= receipt.byte_length <= maximum_bytes):
         raise UploadFileReadFailed("the receipt's source byte length is outside the reader's explicit ceiling")
 
     name = receipt.name
 
-    if type(name) is not str or name in ("", ".", "..") or "/" in name or "\0" in name:
+    if not (type(name) is (expected_name_type := str)):
+        raise UploadFileReadFailed(f"{type(name)=} ≠ {expected_name_type=}")
+
+    if name in ("", ".", ".."):
+        raise UploadFileReadFailed("the private source locator must be one non-dot basename in the granted directory")
+
+    if "/" in name:
+        raise UploadFileReadFailed("the private source locator must be one non-dot basename in the granted directory")
+
+    if "\0" in name:
         raise UploadFileReadFailed("the private source locator must be one non-dot basename in the granted directory")
 
     try:

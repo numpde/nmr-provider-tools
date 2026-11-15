@@ -41,19 +41,17 @@ class ChatEndpointSpec:
     reasoning_effort: str | None
 
     def __post_init__(self):
-        if not (type(self.configuration_id) is str):
+        if not (type((actual_configuration_id := self.configuration_id)) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(self.configuration_id)=}; "
-                "Cannot configure interpreter endpoint: configuration_id must be a bounded ASCII identifier."
+                f"{type(actual_configuration_id)=} ≠ {expected_type=}"
             )
 
         if re.fullmatch(r"[A-Za-z0-9_.-]{1,128}", self.configuration_id) is None:
             raise ValueError("Cannot configure interpreter endpoint: configuration_id must be a bounded ASCII identifier.")
 
-        if not (type(self.model) is str):
+        if not (type((actual_model := self.model)) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(self.model)=}; "
-                "Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes."
+                f"{type(actual_model)=} ≠ {expected_type=}"
             )
 
         if not (self.model.strip() and self.model.isprintable() and len(self.model.encode('utf-8')) <= 512):
@@ -61,27 +59,30 @@ class ChatEndpointSpec:
                 "Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes."
             )
 
-        if not (type(self.api_key) is str):
+        if not (type((actual_api_key := self.api_key)) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(self.api_key)=}; "
-                "Cannot configure interpreter endpoint: an explicit header-safe API key is required."
+                f"{type(actual_api_key)=} ≠ {expected_type=}"
             )
 
         if not (self.api_key) or any(not 32 < ord(char) < 127 for char in self.api_key):
             raise ValueError("Cannot configure interpreter endpoint: an explicit header-safe API key is required.")
 
-        if self.reasoning_effort is not None and (
-            type(self.reasoning_effort) is not str
-            or not self.reasoning_effort
-            or not self.reasoning_effort.isascii()
-            or not self.reasoning_effort.isalnum()
-        ):
-            raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
+        if self.reasoning_effort is not None:
+            if not (type((actual_reasoning_effort := self.reasoning_effort)) is (expected_reasoning_effort_type := str)):
+                raise TypeError(f"Cannot configure interpreter endpoint: {type(actual_reasoning_effort)=} ≠ {expected_reasoning_effort_type=}")
 
-        if not (type(self.url) is str):
+            if not (self.reasoning_effort):
+                raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
+
+            if not (self.reasoning_effort.isascii()):
+                raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
+
+            if not (self.reasoning_effort.isalnum()):
+                raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
+
+        if not (type((actual_url := self.url)) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(self.url)=}; "
-                "Cannot configure interpreter endpoint: URL must be canonical ASCII HTTPS text."
+                f"{type(actual_url)=} ≠ {expected_type=}"
             )
 
         if any(not 32 < ord(char) < 127 for char in self.url):
@@ -230,7 +231,16 @@ def _endpoint_error(response, messages, key):
 def require_chat_limits(*, request_bytes, response_bytes):
     """Admit carrier limits before startup gives it a transport."""
 
-    if any(type(value) is not int or value <= 0 for value in (request_bytes, response_bytes)):
+    if not (type(request_bytes) is (expected_type := int)):
+        raise TypeError(f"Cannot configure interpreter carrier: {type(request_bytes)=} ≠ {expected_type=}")
+
+    if not (0 < request_bytes):
+        raise ValueError("Cannot configure interpreter carrier: request and response byte limits must be positive integers.")
+
+    if not (type(response_bytes) is (expected_type := int)):
+        raise TypeError(f"Cannot configure interpreter carrier: {type(response_bytes)=} ≠ {expected_type=}")
+
+    if not (0 < response_bytes):
         raise ValueError("Cannot configure interpreter carrier: request and response byte limits must be positive integers.")
 
 
@@ -243,10 +253,9 @@ class ChatEndpoint:
     """
 
     def __init__(self, spec, *, transport, request_bytes, response_bytes, error_response_bytes=None):
-        if not (type(spec) is ChatEndpointSpec):
+        if not (type(spec) is (expected_type := ChatEndpointSpec)):
             raise TypeError(
-                f"Unexpected {type(spec)=}; "
-                "Cannot configure interpreter carrier: explicit ChatEndpointSpec is required."
+                f"{type(spec)=} ≠ {expected_type=}"
             )
 
         require_chat_limits(request_bytes=request_bytes, response_bytes=response_bytes)
@@ -355,16 +364,24 @@ class ChatEndpoint:
         try:
             document = read_document(response.body, self._response_bytes)
 
-            if type(document) is not dict or type(document.get("choices")) is not list or len(document["choices"]) != 1:
+            if not (type(document) is (expected_type := dict)):
+                raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+
+            if not (type((document_choices := document.get("choices"))) is (expected_type := list)):
+                raise ResponseRejected(f"{type(document_choices)=} ≠ {expected_type=}")
+
+            if len(document["choices"]) != 1:
                 raise ResponseRejected("Model reply must contain exactly one completion.")
 
             choice = document["choices"][0]
 
-            if (
-                type(choice) is not dict
-                or type(choice.get("message")) is not dict
-                or choice["message"].get("role") != "assistant"
-            ):
+            if not (type(choice) is (expected_type := dict)):
+                raise ResponseRejected(f"{type(choice)=} ≠ {expected_type=}")
+
+            if not (type((choice_message := choice.get("message"))) is (expected_type := dict)):
+                raise ResponseRejected(f"{type(choice_message)=} ≠ {expected_type=}")
+
+            if choice["message"].get("role") != "assistant":
                 raise ResponseRejected("Model reply must contain one assistant message.")
 
             if choice.get("finish_reason") == "length":

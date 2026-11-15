@@ -41,8 +41,8 @@ class StateType[T]:
     value_type: type[T]
 
     def __post_init__(self) -> None:
-        if not (isinstance(self.value_type, type)):
-            raise TypeError("A scientific state kind must name a concrete Python type")
+        if not (isinstance((actual_value_type := self.value_type), (expected_type := type))):
+            raise TypeError(f"{type(actual_value_type)=} ≠ {expected_type=}")
 
         if self.name is None:
             object.__setattr__(self, "name", self.value_type.__module__ + "." + self.value_type.__qualname__)
@@ -87,7 +87,10 @@ class StateOutputSlot[T]:
         if self.name is not None:
             StateOutput(name=self.name, kind=self.kind.name)
 
-        if not isinstance(self.kind.value_type, type) or not callable(self.dispose):
+        if not (isinstance((actual_value_type := self.kind.value_type), (expected_type := type))):
+            raise TypeError(f"{type(actual_value_type)=} ≠ {expected_type=}")
+
+        if not (callable(self.dispose)):
             raise TypeError("An output slot needs a concrete scientific type and disposer")
 
     def __set_name__(self, owner: type, name: str) -> None:
@@ -200,8 +203,8 @@ class StateInputSlot[T]:
         """Read a host-admitted live value while preserving its concrete type."""
         value = values[self.name]
 
-        if not (type(value) is self.kind.value_type):
-            raise TypeError(f"State input {self.name!r} requires {self.kind.value_type.__qualname__}")
+        if not (type(value) is (expected_type := self.kind.value_type)):
+            raise TypeError(f"{self.name=}; {type(value)=} ≠ {expected_type=}")
 
         return cast(T, value)
 
@@ -215,11 +218,18 @@ class SlotStateBinding[T]:
     assemble: Callable[[Mapping[str, object]], T]
 
     def __post_init__(self) -> None:
-        if not isinstance(self.value_type, type) or not callable(self.assemble):
+        if not (isinstance((actual_value_type := self.value_type), (expected_type := type))):
+            raise TypeError(f"{type(actual_value_type)=} ≠ {expected_type=}")
+
+        if not (callable(self.assemble)):
             raise TypeError("A scientific state binding needs a concrete type and assembler")
 
-        if type(self.inputs) is not tuple or any(type(slot) is not StateInputSlot for slot in self.inputs):
-            raise TypeError("State inputs must be an immutable tuple of StateInputSlot objects")
+        if not (type((actual_inputs := self.inputs)) is (expected_type := tuple)):
+            raise TypeError(f"{type(actual_inputs)=} ≠ {expected_type=}")
+
+        for state_input_slot in self.inputs:
+            if not (type(state_input_slot) is (expected_type := StateInputSlot)):
+                raise TypeError(f"{type(state_input_slot)=} ≠ {expected_type=}")
 
         if len(set(self.names)) != len(self.inputs):
             raise ValueError("Consumer input slot names must be unique")
@@ -255,7 +265,7 @@ class SlotStateBinding[T]:
 
         state = self.assemble(values)
 
-        if not (type(state) is self.value_type):
-            raise TypeError(f"Scientific state assembler must return {self.value_type.__qualname__}")
+        if not (type(state) is (expected_type := self.value_type)):
+            raise TypeError(f"{type(state)=} ≠ {expected_type=}")
 
         return state

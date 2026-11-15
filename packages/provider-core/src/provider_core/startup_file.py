@@ -25,7 +25,16 @@ class StartupFileRejected(ValueError):
 
 # silent-defaults: allow-contract -- Public configuration and CA inputs forbid group/other writes; credentials additionally require private caller-owned 0400/0600 files.
 def read_startup_file(path, *, maximum_bytes, label, secret=False):
-    if not isinstance(path, (str, Path)) or not str(path) or "\x00" in str(path) or not Path(path).is_absolute():
+    if not (isinstance(path, (expected_type := (str, Path)))):
+        raise StartupFileRejected(f"{label=}; {type(path)=} ≠ {expected_type=}")
+
+    if not (str(path)):
+        raise StartupFileRejected(f"{label} requires an explicit absolute container path.")
+
+    if "\x00" in str(path):
+        raise StartupFileRejected(f"{label} requires an explicit absolute container path.")
+
+    if not (Path(path).is_absolute()):
         raise StartupFileRejected(f"{label} requires an explicit absolute container path.")
 
     try:

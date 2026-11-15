@@ -33,7 +33,13 @@ class SharedDeliveryService(DeliveryService):
                  legacy_material=(),
                  live_configuration=None,
                  status_directory=None):
-        if not (type(request_seconds) in (int, float) and math.isfinite(request_seconds) and request_seconds > 0):
+        if not (type(request_seconds) in (expected_type := (int, float))):
+            raise TypeError(f"{type(request_seconds)=} ≠ {expected_type=}")
+
+        if not (math.isfinite(request_seconds)):
+            raise ValueError("Delivery IPC request deadline must be finite positive seconds.")
+
+        if not (request_seconds > 0):
             raise ValueError("Delivery IPC request deadline must be finite positive seconds.")
 
         require_delivery_retry_settings(retry_initial_seconds, retry_max_seconds)

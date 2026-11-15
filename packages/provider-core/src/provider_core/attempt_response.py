@@ -61,10 +61,9 @@ class AttemptProgress:
 
 
 def require_attempt_ref(value):
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            "Execution Attempt reference must be execution_attempt:sha256: followed by 64 lowercase hexadecimal digits"
+            f"{type(value)=} ≠ {expected_type=}"
         )
 
     if re.fullmatch(r"execution_attempt:sha256:[0-9a-f]{64}", value) is None:
@@ -76,7 +75,10 @@ def require_attempt_ref(value):
 def read_attempt(raw, *, execution_attempt_ref, job_ref):
     document = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if type(document) is not dict or set(document) != {"schema_id", "execution_attempt_ref", "job_ref", "state", "job_state"}:
+    if not (type(document) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+
+    if set(document) != {"schema_id", "execution_attempt_ref", "job_ref", "state", "job_state"}:
         raise ResponseRejected("Response fields do not match the supported Execution Attempt read schema")
 
     if document["schema_id"] != "nmr.provider.execution_attempt_read_response.v1":
@@ -88,7 +90,10 @@ def read_attempt(raw, *, execution_attempt_ref, job_ref):
     if not (document["state"] in ("in_progress", "succeeded", "failed", "expired")):
         raise ResponseRejected("Execution Attempt state must be in_progress, succeeded, failed or expired")
 
-    if type(document["job_state"]) is not str or document["job_state"] not in JOB_STATES:
+    if not (type((document_job_state := document["job_state"])) is (expected_type := str)):
+        raise ResponseRejected(f"{type(document_job_state)=} ≠ {expected_type=}")
+
+    if not (document["job_state"] in JOB_STATES):
         raise ResponseRejected("Job state must be open, closed or cancelled")
 
     return AttemptObservation(execution_attempt_ref, job_ref, document["state"], document["job_state"])
@@ -103,7 +108,10 @@ def read_start(raw, *, job_ref, analysis_kind_ref, provider_ref):
     """
     document = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if type(document) is not dict or set(document) != {
+    if not (type(document) is (expected_document_type := dict)):
+        raise ResponseRejected(f"{type(document)=} ≠ {expected_document_type=}")
+
+    if set(document) != {
         "schema_id",
         "execution_attempt_ref",
         "job_ref",
@@ -133,8 +141,8 @@ def read_start(raw, *, job_ref, analysis_kind_ref, provider_ref):
     if not (document["state"] in ("in_progress", "succeeded", "failed", "expired")):
         raise ResponseRejected("Execution Attempt state must be in_progress, succeeded, failed or expired")
 
-    if not (type(document["replayed"]) is bool):
-        raise ResponseRejected("Attempt replayed must be a boolean")
+    if not (type((document_replayed := document["replayed"])) is (expected_type := bool)):
+        raise ResponseRejected(f"{type(document_replayed)=} ≠ {expected_type=}")
 
     timestamp = read_timestamp(document["started_at"])
 
@@ -158,7 +166,10 @@ def read_progress(raw, *, execution_attempt_ref, phase, condition_code):
     """
     document = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if type(document) is not dict or set(document) != {
+    if not (type(document) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+
+    if set(document) != {
         "schema_id",
         "execution_attempt_ref",
         "phase",
@@ -208,7 +219,10 @@ def _outcome_response(raw, operation, execution_attempt_ref, fields):
     # Authority: pinned provider/schemas/execution_attempt_{complete,fail}_response.v1.schema.json.
     document = read_document(raw, ATTEMPT_RESPONSE_BYTES)
 
-    if type(document) is not dict or set(document) != {"schema_id", "execution_attempt_ref", "committed_at", "replayed", *fields}:
+    if not (type(document) is (expected_document_type := dict)):
+        raise ResponseRejected(f"{type(document)=} ≠ {expected_document_type=}")
+
+    if set(document) != {"schema_id", "execution_attempt_ref", "committed_at", "replayed", *fields}:
         raise ResponseRejected("Response fields do not match the supported Attempt outcome schema")
 
     if (
@@ -217,8 +231,8 @@ def _outcome_response(raw, operation, execution_attempt_ref, fields):
     ):
         raise ResponseRejected("Outcome response schema or Attempt identity differs from the publication")
 
-    if not (type(document["replayed"]) is bool):
-        raise ResponseRejected("Outcome replayed must be a boolean")
+    if not (type((document_replayed := document["replayed"])) is (expected_type := bool)):
+        raise ResponseRejected(f"{type(document_replayed)=} ≠ {expected_type=}")
 
     return document
 
@@ -237,12 +251,20 @@ def read_complete(raw, *, execution_attempt_ref, result_schema_id, result):
         result_schema_id,
         fingerprint,
         len(result),
-    ) or type(document["result_byte_length"]) is not int:
+    ):
         raise ResponseRejected("Completion acknowledgement does not match the retained result schema, SHA-256 or byte length")
+
+    if not (type((document_result_byte_length := document["result_byte_length"])) is (expected_type := int)):
+        raise ResponseRejected(f"{type(document_result_byte_length)=} ≠ {expected_type=}")
 
     result_ref = document["analysis_result_ref"]
 
-    if type(result_ref) is not str or re.fullmatch(r"analysis_result:sha256:[0-9a-f]{64}", result_ref) is None:
+    if not (type(result_ref) is (expected_type := str)):
+        raise ResponseRejected(
+            f"{type(result_ref)=} ≠ {expected_type=}"
+        )
+
+    if re.fullmatch(r"analysis_result:sha256:[0-9a-f]{64}", result_ref) is None:
         raise ResponseRejected(
             "Analysis result reference must be analysis_result:sha256: followed by 64 lowercase hexadecimal digits"
         )

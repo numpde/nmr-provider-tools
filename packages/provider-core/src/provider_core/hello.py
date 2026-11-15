@@ -44,10 +44,9 @@ class HelloAccepted:
 
 
 def _require_text(value, name, maximum):
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            f"Cannot announce provider: {name} must be Unicode text"
+            f"{name=}; {type(value)=} ≠ {expected_type=}"
         )
 
     if not (1 <= len(value) <= maximum):
@@ -67,10 +66,9 @@ def hello_body(*, display_name, description, analysis_offerings):
     _require_text(display_name, "display name", 128)
     _require_text(description, "description", 1024)
 
-    if not (type(analysis_offerings) is tuple):
+    if not (type(analysis_offerings) is (expected_type := tuple)):
         raise TypeError(
-            f"Unexpected {type(analysis_offerings)=}; "
-            "Cannot announce provider: analysis offerings must be a tuple of at most 64 entries"
+            f"{type(analysis_offerings)=} ≠ {expected_type=}"
         )
 
     if not (len(analysis_offerings) <= 64):
@@ -79,10 +77,9 @@ def hello_body(*, display_name, description, analysis_offerings):
     (offerings, kinds) = ([], set())
 
     for offering in analysis_offerings:
-        if not (type(offering) is AnalysisOffering):
+        if not (type(offering) is (expected_type := AnalysisOffering)):
             raise TypeError(
-                f"Unexpected {type(offering)=}; "
-                "Cannot announce provider: each entry must be an AnalysisOffering"
+                f"{type(offering)=} ≠ {expected_type=}"
             )
 
         if offering.analysis_kind_ref in kinds:
@@ -112,7 +109,10 @@ def read_hello(raw, *, provider_ref):
     """Bind a closed receipt to composition's expected provider, never to key spelling."""
     document = read_document(raw, HELLO_RESPONSE_BYTES)
 
-    if type(document) is not dict or set(document) != {"schema_id", "provider_ref", "accepted_at"}:
+    if not (type(document) is (expected_type := dict)):
+        raise ResponseRejected(f"{type(document)=} ≠ {expected_type=}")
+
+    if set(document) != {"schema_id", "provider_ref", "accepted_at"}:
         raise ResponseRejected("Response fields do not match the supported Hello receipt schema")
 
     if document["schema_id"] != "nmr.provider.hello_response.v1":

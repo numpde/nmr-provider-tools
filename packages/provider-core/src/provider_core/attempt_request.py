@@ -22,10 +22,9 @@ from provider_core.upload_response import require_job_ref
 
 
 def require_provider_attempt_key(value):
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            "Provider attempt key must contain 1 through 128 ASCII letters, digits, dots, underscores, colons or hyphens"
+            f"{type(value)=} ≠ {expected_type=}"
         )
 
     if re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", value) is None:
@@ -57,10 +56,9 @@ def require_start_body(body, *, job_ref):
     except ResponseRejected as cause:
         raise ValueError(f"Cannot start Execution Attempt: retained request is invalid: {cause}") from None
 
-    if not (type(document) is dict):
+    if not (type(document) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(document)=}; "
-            "Cannot start Execution Attempt: retained request fields do not match the start schema"
+            f"{type(document)=} ≠ {expected_type=}"
         )
 
     if set(document) != {"schema_id", "job_ref", "provider_attempt_key"}:
@@ -73,10 +71,9 @@ def require_start_body(body, *, job_ref):
 
 
 def require_analysis_kind(value):
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            "Analysis kind must be a lower snake-case catalog key of at most 128 characters"
+            f"{type(value)=} ≠ {expected_type=}"
         )
 
     if not (len(value) <= 128 and re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) is not None):
@@ -94,14 +91,21 @@ def progress_body(phase, condition_code):
     if not (phase in ("preparing", "running")):
         raise ValueError("Cannot report Attempt progress: phase must be preparing or running")
 
-    if condition_code is not None and (
-        type(condition_code) is not str
-        or len(condition_code) > 128
-        or re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", condition_code) is None
-    ):
-        raise ValueError(
-            "Cannot report Attempt progress: condition code must be null or a lower snake-case public code of at most 128 characters"
-        )
+    if condition_code is not None:
+        if not (type(condition_code) is (expected_type := str)):
+            raise TypeError(
+                f"Cannot report Attempt progress: {type(condition_code)=} ≠ {expected_type=}"
+            )
+
+        if not (len(condition_code) <= 128):
+            raise ValueError(
+                "Cannot report Attempt progress: condition code must be null or a lower snake-case public code of at most 128 characters"
+            )
+
+        if re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", condition_code) is None:
+            raise ValueError(
+                "Cannot report Attempt progress: condition code must be null or a lower snake-case public code of at most 128 characters"
+            )
 
     return json.dumps(
         {
@@ -114,10 +118,9 @@ def progress_body(phase, condition_code):
 
 
 def require_provider_ref(value):
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            "Provider reference must be provider: followed by 1 through 119 letters, digits, underscores, dots or hyphens"
+            f"{type(value)=} ≠ {expected_type=}"
         )
 
     if re.fullmatch(r"provider:[A-Za-z0-9_.-]{1,119}", value) is None:
@@ -127,10 +130,9 @@ def require_provider_ref(value):
 
 
 def _scalar_text(value, label):
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            f"Cannot publish Attempt outcome: {label} must contain 1 through 1024 Unicode scalar values without NUL"
+            f"{label=}; {type(value)=} ≠ {expected_type=}"
         )
 
     if not (1 <= len(value) <= 1024) or any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value):
@@ -138,10 +140,9 @@ def _scalar_text(value, label):
 
 
 def _failure_code(value):
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            "Cannot publish Attempt failure: code must be lower snake-case ASCII of at most 128 characters"
+            f"{type(value)=} ≠ {expected_type=}"
         )
 
     if not (len(value) <= 128 and re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", value) is not None):
@@ -157,10 +158,9 @@ def complete_body(execution_attempt_ref, result_schema_id, result):
     require_attempt_ref(execution_attempt_ref)
     _scalar_text(result_schema_id, "result schema identity")
 
-    if not (type(result) is bytes):
+    if not (type(result) is (expected_type := bytes)):
         raise TypeError(
-            f"Unexpected {type(result)=}; "
-            "Cannot publish Attempt result: content must be immutable bytes with length 1 through 786432"
+            f"{type(result)=} ≠ {expected_type=}"
         )
 
     if not (1 <= len(result) <= 786432):
@@ -205,10 +205,9 @@ def _outcome_document(body, operation, limit, execution_attempt_ref, fields):
     except ResponseRejected as cause:
         raise ValueError(f"Cannot publish Attempt outcome: retained request is invalid: {cause}") from None
 
-    if not (type(document) is dict):
+    if not (type(document) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(document)=}; "
-            "Cannot publish Attempt outcome: retained fields do not match the terminal request schema"
+            f"{type(document)=} ≠ {expected_type=}"
         )
 
     if set(document) != {"schema_id", "execution_attempt_ref", *fields}:
@@ -237,10 +236,9 @@ def read_complete_body(body, *, execution_attempt_ref):
     _scalar_text(document["result_schema_id"], "result schema identity")
     encoded = document["canonical_result_base64"]
 
-    if not (type(encoded) is str):
+    if not (type(encoded) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(encoded)=}; "
-            "Cannot publish Attempt result: base64 content must contain 1 through 1048576 characters"
+            f"{type(encoded)=} ≠ {expected_type=}"
         )
 
     if not (1 <= len(encoded) <= 1048576):

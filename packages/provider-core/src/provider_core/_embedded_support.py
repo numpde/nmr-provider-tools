@@ -67,11 +67,11 @@ class Allocation:
     assets: AssetAccess = field(default_factory=NoAssets)
 
     def __post_init__(self):
-        if not (type(self.name) is str):
-            raise TypeError("Allocation name must be a string")
+        if not (type((actual_name := self.name)) is (expected_type := str)):
+            raise TypeError(f"{type(actual_name)=} ≠ {expected_type=}")
 
-        if not (isinstance(self.binding, (ImplementationBinding, HostedContribution))):
-            raise TypeError(f"Unexpected {type(self.binding)=}; an allocation requires a scientific binding")
+        if not (isinstance((actual_binding := self.binding), (expected_type := (ImplementationBinding, HostedContribution)))):
+            raise TypeError(f"{type(actual_binding)=} ≠ {expected_type=}")
 
         if not (0 < len(self.name) <= 160):
             raise ValueError("Allocation name must contain between 1 and 160 characters.")
@@ -105,14 +105,20 @@ class _Changes:
     async def wait(self, after, wait_seconds):
         self.require_loop()
 
-        if not (after is None or type(after) is int and 0 <= after <= self.revision):
-            raise ValueError("Observation cursor must belong to this owner's current history.")
+        if after is not None:
+            if not (type(after) is (expected_type := int)):
+                raise TypeError(f"{type(after)=} ≠ {expected_type=}")
 
-        if not (
-            type(wait_seconds) in (int, float)
-            and math.isfinite(wait_seconds)
-            and 0 <= wait_seconds
-        ):
+            if not (0 <= after <= self.revision):
+                raise ValueError("Observation cursor must belong to this owner's current history.")
+
+        if not (type(wait_seconds) in (expected_type := (int, float))):
+            raise TypeError(f"{type(wait_seconds)=} ≠ {expected_type=}")
+
+        if not (math.isfinite(wait_seconds)):
+            raise ValueError("Observation wait must be finite nonnegative seconds.")
+
+        if not (0 <= wait_seconds):
             raise ValueError("Observation wait must be finite nonnegative seconds.")
 
         if after == self.revision and wait_seconds:

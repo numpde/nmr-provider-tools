@@ -64,10 +64,9 @@ class RecoveryScope:
         require_provider_ref(self.provider_ref)
 
         for value in (self.consumer_id, self.generation_id):
-            if not (type(value) is str):
+            if not (type(value) is (expected_type := str)):
                 raise TypeError(
-                    f"Unexpected {type(value)=}; "
-                    "Cannot bind recovery scope: consumer and generation identities require 1 through 1024 Unicode scalar values without NUL"
+                    f"{type(value)=} ≠ {expected_type=}"
                 )
 
             if not (1 <= len(value) <= 1024) or any(c == "\x00" or 0xD800 <= ord(c) <= 0xDFFF for c in value):
@@ -86,10 +85,14 @@ class StartPending:
     body: bytes = field(repr=False)
 
     def __post_init__(self):
-        if type(self.scope) is not RecoveryScope or type(self.input) is not FeedInputFacts:
+        if not (type((actual_scope := self.scope)) is (expected_type := RecoveryScope)):
             raise TypeError(
-                f"Unexpected {type(self.scope)=}, {type(self.input)=}; "
-                "Cannot retain pending start: recovery scope and admitted input identity are required"
+                f"{type(actual_scope)=} ≠ {expected_type=}"
+            )
+
+        if not (type((actual_input := self.input)) is (expected_type := FeedInputFacts)):
+            raise TypeError(
+                f"{type(actual_input)=} ≠ {expected_type=}"
             )
 
         require_analysis_kind(self.analysis_kind_ref)
@@ -102,18 +105,16 @@ class LocalExecutionPhase(Enum):
 
 
 def _admission_bytes(admission):
-    if not (type(admission) is AttemptAdmission):
+    if not (type(admission) is (expected_type := AttemptAdmission)):
         raise TypeError(
-            f"Unexpected {type(admission)=}; "
-            "Cannot retain acknowledgement: an admitted Attempt response is required"
+            f"{type(admission)=} ≠ {expected_type=}"
         )
 
     timestamp = admission.started_at
 
-    if not (type(timestamp) is datetime):
+    if not (type(timestamp) is (expected_type := datetime)):
         raise TypeError(
-            f"Unexpected {type(timestamp)=}; "
-            "Cannot retain acknowledgement: its start timestamp must be a UTC datetime"
+            f"{type(timestamp)=} ≠ {expected_type=}"
         )
 
     if timestamp.utcoffset() != timedelta(0):
@@ -142,16 +143,22 @@ class AcknowledgedAttempt:
     prepared_identity: "ProtectedEvidence | None" = field(default=None, repr=False)
 
     def __post_init__(self):
-        if type(self.start) is not StartPending or type(self.local_phase) is not LocalExecutionPhase:
+        if not (type((actual_start := self.start)) is (expected_type := StartPending)):
             raise TypeError(
-                f"Unexpected {type(self.start)=}, {type(self.local_phase)=}; "
-                "Cannot retain acknowledgement: original start and explicit local execution phase are required"
+                f"{type(actual_start)=} ≠ {expected_type=}"
             )
 
-        if self.prepared_identity is not None and (
-            type(self.prepared_identity) is not ProtectedEvidence or self.local_phase is not LocalExecutionPhase.EXECUTION_ENTERED
-        ):
-            raise ValueError("Cannot retain prepared identity: protected evidence belongs to the execution-entry transition.")
+        if not (type((actual_local_phase := self.local_phase)) is (expected_type := LocalExecutionPhase)):
+            raise TypeError(
+                f"{type(actual_local_phase)=} ≠ {expected_type=}"
+            )
+
+        if self.prepared_identity is not None:
+            if not (type((actual_prepared_identity := self.prepared_identity)) is (expected_prepared_identity_type := ProtectedEvidence)):
+                raise TypeError(f"Cannot retain prepared identity: {type(actual_prepared_identity)=} ≠ {expected_prepared_identity_type=}")
+
+            if not (self.local_phase is LocalExecutionPhase.EXECUTION_ENTERED):
+                raise ValueError("Cannot retain prepared identity: protected evidence belongs to the execution-entry transition.")
 
         try:
             read_start(
@@ -186,10 +193,9 @@ class ProtectedEvidence:
     def __post_init__(self):
         _scalar_text(self.schema_id, "evidence schema identity")
 
-        if not (type(self.content) is bytes):
+        if not (type((actual_content := self.content)) is (expected_type := bytes)):
             raise TypeError(
-                f"Unexpected {type(self.content)=}; "
-                "Cannot retain required evidence: immutable content must contain 1 through 262144 bytes; evidence is never truncated"
+                f"{type(actual_content)=} ≠ {expected_type=}"
             )
 
         if not (1 <= len(self.content) <= MAX_EVIDENCE_BYTES):
@@ -211,19 +217,17 @@ def acknowledge_start(start, admission):
 def mark_execution_entered(record, prepared_identity):
     """Record intent before invoking a prepared handle; never infer actual execution."""
 
-    if not (type(record) is AcknowledgedAttempt):
+    if not (type(record) is (expected_type := AcknowledgedAttempt)):
         raise TypeError(
-            f"Unexpected {type(record)=}; "
-            "Cannot enter execution: an acknowledged Attempt that has not entered is required"
+            f"{type(record)=} ≠ {expected_type=}"
         )
 
     if not (record.local_phase is LocalExecutionPhase.NOT_ENTERED):
         raise ValueError("Cannot enter execution: an acknowledged Attempt that has not entered is required")
 
-    if not (type(prepared_identity) is ProtectedEvidence):
+    if not (type(prepared_identity) is (expected_type := ProtectedEvidence)):
         raise TypeError(
-            f"Unexpected {type(prepared_identity)=}; "
-            "Cannot enter execution: protected identity of the prepared candidate is required."
+            f"{type(prepared_identity)=} ≠ {expected_type=}"
         )
 
     return replace(record, local_phase=LocalExecutionPhase.EXECUTION_ENTERED, prepared_identity=prepared_identity)

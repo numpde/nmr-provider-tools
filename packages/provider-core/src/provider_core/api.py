@@ -143,10 +143,9 @@ def require_api_topology(value):
     credential profile 'run' is not the response topology 'web'. No default.
     """
 
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            "Cannot configure Provider API: expected topology must be dev-local, dev or web"
+            f"{type(value)=} ≠ {expected_type=}"
         )
 
     if not (value in {"dev-local", "dev", "web"}):
@@ -797,16 +796,14 @@ class ProviderAPI:
         these observations from its authenticated feed before calling this method.
         """
 
-        if not (type(feed) is FeedInputFacts):
+        if not (type(feed) is (expected_type := FeedInputFacts)):
             raise TypeError(
-                f"Unexpected {type(feed)=}; "
-                "Cannot read Job input: admitted feed identity is required"
+                f"{type(feed)=} ≠ {expected_type=}"
             )
 
-        if not (type(analysis_kind_ref) is str):
+        if not (type(analysis_kind_ref) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(analysis_kind_ref)=}; "
-                "Cannot read Job input: analysis kind must be a lower snake-case catalog key of at most 128 characters"
+                f"{type(analysis_kind_ref)=} ≠ {expected_type=}"
             )
 
         if not (len(analysis_kind_ref) <= 128 and re.fullmatch('[a-z][a-z0-9]*(?:_[a-z0-9]+)*', analysis_kind_ref) is not None):

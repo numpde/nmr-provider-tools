@@ -432,7 +432,7 @@ class TypedContributionTests(unittest.TestCase):
     def test_output_slot_inventory_cannot_be_mutated_after_construction(self):
         call = _weighted_binding().prepare
 
-        with self.assertRaisesRegex(TypeError, "immutable tuple"):
+        with self.assertRaisesRegex(expected_exception=TypeError, expected_regex=r"type\(actual_output_slots\)=.*list.* ≠ expected_output_slots_type=.*tuple"):
             replace(call, _output_slots=list(call._output_slots))
 
     def test_state_input_kind_and_consumption_cannot_diverge(self):

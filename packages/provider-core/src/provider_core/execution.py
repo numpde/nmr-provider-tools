@@ -82,7 +82,13 @@ class _SettlementPending(TimeoutError):
 
 
 def require_observation_gap(seconds):
-    if not (type(seconds) in (int, float) and math.isfinite(seconds) and 0 < seconds):
+    if not (type(seconds) in (expected_type := (int, float))):
+        raise TypeError(f"{type(seconds)=} ≠ {expected_type=}")
+
+    if not (math.isfinite(seconds)):
+        raise ValueError("Observation gap_seconds must be finite and positive")
+
+    if not (0 < seconds):
         raise ValueError("Observation gap_seconds must be finite and positive")
 
 
@@ -103,7 +109,13 @@ class ObservationRecovery:
         require_observation_gap(self.gap_seconds)
         value = self.backoff_max_seconds
 
-        if not (type(value) in (int, float) and math.isfinite(value) and 0 < value):
+        if not (type(value) in (expected_type := (int, float))):
+            raise TypeError(f"{type(value)=} ≠ {expected_type=}")
+
+        if not (math.isfinite(value)):
+            raise ValueError("Observation backoff_max_seconds must be finite and positive")
+
+        if not (0 < value):
             raise ValueError("Observation backoff_max_seconds must be finite and positive")
 
         if not callable(self.on_retry) or not callable(self.on_recovered):
@@ -125,7 +137,13 @@ class ConditionRecovery:
 
     def __post_init__(self):
         for (name, value) in (("window_seconds", self.window_seconds), ("backoff_max_seconds", self.backoff_max_seconds)):
-            if not (type(value) in (int, float) and math.isfinite(value) and 0 < value):
+            if not (type(value) in (expected_type := (int, float))):
+                raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
+
+            if not (math.isfinite(value)):
+                raise ValueError(f"Condition recovery {name} must be finite positive seconds")
+
+            if not (0 < value):
                 raise ValueError(f"Condition recovery {name} must be finite positive seconds")
 
         if not callable(self.on_retry) or not callable(self.on_recovered):
@@ -146,8 +164,8 @@ class ConditionRecoveryExpired(TimeoutError):
 
 
 def require_condition_recovery(policy):
-    if policy is not None and type(policy) is not ConditionRecovery:
-        raise ValueError("Condition recovery must be an admitted policy or explicit fail-stop None")
+    if policy is not None and type(policy) is not (expected_type := ConditionRecovery):
+        raise TypeError(f"{type(policy)=} ≠ {expected_type=}")
 
 
 class ObservationGapExpired(TimeoutError):
@@ -185,8 +203,8 @@ class ObservationGapExpired(TimeoutError):
 
 
 def require_observation_recovery(policy):
-    if policy is not None and type(policy) is not ObservationRecovery:
-        raise ValueError("Observation recovery must be an admitted policy or explicit fail-stop None")
+    if policy is not None and type(policy) is not (expected_type := ObservationRecovery):
+        raise TypeError(f"{type(policy)=} ≠ {expected_type=}")
 
 
 def require_phase_progress_observer(observer):
@@ -319,10 +337,9 @@ def _observe_task_failure(task):
 def require_execution_settings(*, allowed_job_states, poll_seconds, task_settle_seconds):
     """Validate before either a controller or executor accepts its session."""
 
-    if not (type(allowed_job_states) is frozenset):
+    if not (type(allowed_job_states) is (expected_type := frozenset)):
         raise TypeError(
-            f"Unexpected {type(allowed_job_states)=}; "
-            "Cannot configure execution: allowed_job_states must be a nonempty frozenset of open or closed; cancelled Jobs stop work"
+            f"{type(allowed_job_states)=} ≠ {expected_type=}"
         )
 
     if not (allowed_job_states) or not (allowed_job_states <= JOB_STATES) or "cancelled" in allowed_job_states:
@@ -331,7 +348,13 @@ def require_execution_settings(*, allowed_job_states, poll_seconds, task_settle_
         )
 
     for (name, seconds) in (("poll_seconds", poll_seconds), ("task_settle_seconds", task_settle_seconds)):
-        if not (type(seconds) in (int, float) and math.isfinite(seconds) and 0 < seconds):
+        if not (type(seconds) in (expected_seconds_type := (int, float))):
+            raise TypeError(f"{name=}; {type(seconds)=} ≠ {expected_seconds_type=}")
+
+        if not (math.isfinite(seconds)):
+            raise ValueError(f"Cannot configure execution: {name} must be finite and positive")
+
+        if not (0 < seconds):
             raise ValueError(f"Cannot configure execution: {name} must be finite and positive")
 
 
@@ -379,17 +402,16 @@ class AttemptExecutor:
     ):
         claim.require_live(scope)
 
-        if not (type(scope) is RecoveryScope):
+        if not (type(scope) is (expected_type := RecoveryScope)):
             raise TypeError(
-                f"Unexpected {type(scope)=}; "
-                "Cannot configure execution: scope must be an admitted RecoveryScope"
+                f"{type(scope)=} ≠ {expected_type=}"
             )
 
         if api.origin != scope.api_origin:
             raise ValueError("Cannot configure execution: signing origin differs from the selected scope")
 
-        if preverified_input is not None and type(preverified_input) is not VerifiedJobInput:
-            raise ValueError("Execution requires the actual verified Job input or an explicit post-START read")
+        if preverified_input is not None and type(preverified_input) is not (expected_preverified_input_type := VerifiedJobInput):
+            raise TypeError(f"{type(preverified_input)=} ≠ {expected_preverified_input_type=}")
 
         if ((delivery.endpoint.api_origin, delivery.endpoint.provider_ref)
                 != (scope.api_origin, scope.provider_ref) or not callable(on_delivery_retry)):
@@ -528,12 +550,16 @@ class AttemptExecutor:
         if self._started:
             raise ExecutionRefused("This executor already accepted a run; settlement cannot authorize another execution")
 
-        if (
-            type(acknowledged) is not AcknowledgedAttempt
-            or acknowledged.local_phase is not LocalExecutionPhase.NOT_ENTERED
-            or acknowledged.admission.state != "in_progress"
-            or acknowledged.start.scope != self.scope
-        ):
+        if not (type(acknowledged) is (expected_acknowledged_type := AcknowledgedAttempt)):
+            raise ExecutionRefused(f"{type(acknowledged)=} ≠ {expected_acknowledged_type=}")
+
+        if not (acknowledged.local_phase is LocalExecutionPhase.NOT_ENTERED):
+            raise ExecutionRefused("Execution requires a matching active acknowledgement that has never entered science")
+
+        if acknowledged.admission.state != "in_progress":
+            raise ExecutionRefused("Execution requires a matching active acknowledgement that has never entered science")
+
+        if acknowledged.start.scope != self.scope:
             raise ExecutionRefused("Execution requires a matching active acknowledgement that has never entered science")
 
         self.claim.require_start(acknowledged.start)
@@ -586,8 +612,8 @@ class AttemptExecutor:
                 self._link_interruption(interruption)
                 raise
 
-            if not (isinstance(cause, Exception)):
-                raise BaseExceptionGroup("Analysis lifecycle raised a process-control exception", (cause, self.last_failure)) from None
+            if not (isinstance(cause, (expected_type := Exception))):
+                raise BaseExceptionGroup(f"{type(cause)=} ≠ {expected_type=}", (cause, self.last_failure)) from None
 
             if not (cleanup_fatal is None):
                 raise BaseExceptionGroup("Analysis cleanup raised a process-control exception", (cleanup_fatal, self.last_failure)) from None
@@ -616,10 +642,9 @@ class AttemptExecutor:
         if type(prepared) is AnalysisFailure:
             self._outcome = prepared
         else:
-            if not (type(prepared) is PreparedAnalysis):
+            if not (type(prepared) is (expected_type := PreparedAnalysis)):
                 raise TypeError(
-                    f"Unexpected {type(prepared)=}; "
-                    "Cannot execute analysis: preparation must return its handle and protected candidate identity."
+                    f"{type(prepared)=} ≠ {expected_type=}"
                 )
 
             entered = mark_execution_entered(acknowledged, prepared.identity)
@@ -729,18 +754,39 @@ class AttemptExecutor:
         self._require_live_permission()
         native = crash.native_exit
 
-        if (
-            crash.owner is not self.session or crash.acknowledged is not self._acknowledged
-            or crash.phase != reporter.phase or self._cancel_requested
-            or asyncio.current_task().cancelling()
-            or self._observed_crash is not None or self._outcome is not None
-            or type(self._checkpoint) not in (AcknowledgedCheckpoint, EnteredCheckpoint)
-            or crash.runner.original_exit is not native
-            or (native.role, native.generation, native.operation)
-            != (crash.runner.role, crash.runner.generation, crash.runner.operation)
-            or (self._observation_deadline is not None
-                and asyncio.get_running_loop().time() >= self._observation_deadline)
-        ):
+        if not (crash.owner is self.session):
+            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+
+        if not (crash.acknowledged is self._acknowledged):
+            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+
+        if crash.phase != reporter.phase:
+            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+
+        if self._cancel_requested:
+            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+
+        if asyncio.current_task().cancelling():
+            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+
+        if not (self._observed_crash is None):
+            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+
+        if not (self._outcome is None):
+            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+
+        if not (type((actual_checkpoint := self._checkpoint)) in (expected_type := (AcknowledgedCheckpoint, EnteredCheckpoint))):
+            raise ExecutionRefused(f"Cannot report this crash: {type(actual_checkpoint)=} ≠ {expected_type=}")
+
+        if not (crash.runner.original_exit is native):
+            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+
+        if ((native.role, native.generation, native.operation)
+            != (crash.runner.role, crash.runner.generation, crash.runner.operation)):
+            raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
+
+        if (self._observation_deadline is not None
+                and asyncio.get_running_loop().time() >= self._observation_deadline):
             raise ExecutionRefused("Cannot report this crash: its original Attempt, active phase or native worker association does not match this owner")
 
         outcome = crash.public_failure()
@@ -1497,15 +1543,29 @@ class AttemptExecutor:
         confirm worker retirement or authorize another calculation.
         """
 
-        if (
-            not self._active
-            or self._observing
-            or self.last_failure is None
-            or type(self._outcome) not in (AnalysisSuccess, AnalysisFailure)
-            or type(self._checkpoint) not in (AcknowledgedCheckpoint, EnteredCheckpoint)
-        ):
+        if not (self._active):
             raise ExecutionRefused(
                 "Cannot record suppression: this interrupted executor has no unselected returned analysis"
+            )
+
+        if self._observing:
+            raise ExecutionRefused(
+                "Cannot record suppression: this interrupted executor has no unselected returned analysis"
+            )
+
+        if self.last_failure is None:
+            raise ExecutionRefused(
+                "Cannot record suppression: this interrupted executor has no unselected returned analysis"
+            )
+
+        if not (type((actual_outcome := self._outcome)) in (expected_type := (AnalysisSuccess, AnalysisFailure))):
+            raise ExecutionRefused(
+                f"Cannot record suppression: {type(actual_outcome)=} ≠ {expected_type=}"
+            )
+
+        if not (type((actual_checkpoint := self._checkpoint)) in (expected_type := (AcknowledgedCheckpoint, EnteredCheckpoint))):
+            raise ExecutionRefused(
+                f"Cannot record suppression: {type(actual_checkpoint)=} ≠ {expected_type=}"
             )
 
         if (

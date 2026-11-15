@@ -9,8 +9,8 @@ from provider_core.contribution_errors import ScientificRejection
 
 
 def _finite(value: object) -> float:
-    if not (type(value) in (int, float)):
-        raise TypeError("Reference matching requires numeric values; booleans are not measurements")
+    if not (type(value) in (expected_type := (int, float))):
+        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
 
     if not (math.isfinite(value) and 0 <= value):
         raise ValueError("Reference matching requires finite nonnegative numeric values")
@@ -23,8 +23,8 @@ class VectorInput:
     values: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        if not (type(self.values) is tuple):
-            raise TypeError("A matching vector requires an immutable tuple of values")
+        if not (type((actual_values := self.values)) is (expected_type := tuple)):
+            raise TypeError(f"{type(actual_values)=} ≠ {expected_type=}")
 
         if not (self.values):
             raise ValueError("A matching vector requires at least one channel value")
@@ -43,8 +43,8 @@ class Reference:
     values: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        if not (type(self.label) is str):
-            raise TypeError("Reference label must be a string")
+        if not (type((actual_label := self.label)) is (expected_type := str)):
+            raise TypeError(f"{type(actual_label)=} ≠ {expected_type=}")
 
         if not (self.label.strip()):
             raise ValueError("Each matching reference requires a nonempty label")
@@ -60,8 +60,12 @@ class ReferenceSet:
     entries: tuple[Reference, ...]
 
     def __post_init__(self) -> None:
-        if type(self.entries) is not tuple or any(type(entry) is not Reference for entry in self.entries):
-            raise TypeError("A reference library requires an immutable tuple of Reference records")
+        if not (type((actual_entries := self.entries)) is (expected_type := tuple)):
+            raise TypeError(f"{type(actual_entries)=} ≠ {expected_type=}")
+
+        for entry in self.entries:
+            if not (type(entry) is (expected_type := Reference)):
+                raise TypeError(f"{type(entry)=} ≠ {expected_type=}")
 
         if not (self.entries):
             raise ValueError("A reference library requires a nonempty immutable tuple of references")

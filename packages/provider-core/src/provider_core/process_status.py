@@ -92,24 +92,41 @@ def read_status(path, role):
 
     fields = {"role", "pid", "start_ticks", "updated_monotonic", "phase"}
 
-    if not (type(value) is dict):
+    if not (type(value) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            "Process status has an unsupported shape."
+            f"{type(value)=} ≠ {expected_type=}"
         )
 
     if not (set(value) in (fields, fields | {"details"})):
         raise ValueError("Process status has an unsupported shape.")
 
-    if "details" in value and type(value["details"]) is not dict:
-        raise ValueError("Process status details must be an object.")
+    if "details" in value and type((value_details := value["details"])) is not (expected_value_details_type := dict):
+        raise TypeError(f"{type(value_details)=} ≠ {expected_value_details_type=}")
 
-    if value["role"] != role or any(type(value[name]) is not int or value[name] <= 0 for name in ("pid", "start_ticks")):
+    if value["role"] != role:
+        raise ValueError("Process status has a different role or invalid process identity.")
+
+    if not (type((value_pid := value['pid'])) is (expected_value_pid_type := int)):
+        raise TypeError(f"{type(value_pid)=} ≠ {expected_value_pid_type=}")
+
+    if not (0 < value['pid']):
+        raise ValueError("Process status has a different role or invalid process identity.")
+
+    if not (type((value_start_ticks := value['start_ticks'])) is (expected_value_start_ticks_type := int)):
+        raise TypeError(f"{type(value_start_ticks)=} ≠ {expected_value_start_ticks_type=}")
+
+    if not (0 < value['start_ticks']):
         raise ValueError("Process status has a different role or invalid process identity.")
 
     updated = value["updated_monotonic"]
 
-    if not (type(updated) in (int, float) and math.isfinite(updated) and 0 <= updated):
+    if not (type(updated) in (expected_updated_type := (int, float))):
+        raise TypeError(f"{type(updated)=} ≠ {expected_updated_type=}")
+
+    if not (math.isfinite(updated)):
+        raise ValueError("Process status has an invalid timestamp.")
+
+    if not (0 <= updated):
         raise ValueError("Process status has an invalid timestamp.")
 
     if _start_ticks(value["pid"]) != value["start_ticks"]:

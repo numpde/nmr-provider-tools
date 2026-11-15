@@ -33,10 +33,9 @@ def native_config(path):
     configuration_bytes = path.read_bytes()
     document = json.loads(configuration_bytes)
 
-    if not (type(document) is dict):
+    if not (type(document) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(document)=}; "
-            "The native engine configuration must be a JSON object."
+            f"{type(document)=} ≠ {expected_type=}"
         )
 
     return (configuration_bytes, document)
@@ -50,19 +49,17 @@ def configured(document):
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
     builder_settings = proposed_configuration.setdefault("builder", {})
 
-    if not (type(builder_settings) is dict):
+    if not (type(builder_settings) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(builder_settings)=}; "
-            "Native builder configuration is not an object."
+            f"{type(builder_settings)=} ≠ {expected_type=}"
         )
 
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
     gc_settings = builder_settings.setdefault("gc", {})
 
-    if not (type(gc_settings) is dict):
+    if not (type(gc_settings) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(gc_settings)=}; "
-            "Native builder.gc configuration is not an object."
+            f"{type(gc_settings)=} ≠ {expected_type=}"
         )
 
     gc_settings.update(DEFAULTS)
@@ -74,16 +71,14 @@ def configured(document):
 def limits(document):
     gc_settings = document["builder"]["gc"]
 
-    if not (type(gc_settings) is dict):
+    if not (type(gc_settings) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(gc_settings)=}; "
-            "Native builder.gc configuration must be an object."
+            f"{type(gc_settings)=} ≠ {expected_type=}"
         )
 
-    if not (type(gc_settings.get("enabled")) is bool):
+    if not (type((gc_settings_enabled := gc_settings.get("enabled"))) is (expected_type := bool)):
         raise TypeError(
-            f"Unexpected {type(gc_settings.get('enabled'))=}; "
-            "Native builder.gc must explicitly enable or disable cache collection."
+            f"{type(gc_settings_enabled)=} ≠ {expected_type=}"
         )
 
     if not gc_settings["enabled"]:
@@ -99,7 +94,10 @@ def limits(document):
     for setting in ("defaultReservedSpace", "defaultMaxUsedSpace", "defaultMinFreeSpace"):
         threshold = gc_settings.get(setting)
 
-        if type(threshold) not in (str, int) or type(threshold) is str and (
+        if not (type(threshold) in (expected_threshold_type := (str, int))):
+            raise TypeError(f"{type(threshold)=} ≠ {expected_threshold_type=}")
+
+        if type(threshold) is str and (
             not threshold or any(character.isspace() or ord(character) < 32 for character in threshold)
         ):
             raise ValueError(f"Native builder.gc.{setting} requires its literal space threshold.")

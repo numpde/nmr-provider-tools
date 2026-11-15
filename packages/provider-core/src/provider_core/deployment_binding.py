@@ -31,12 +31,21 @@ from provider_core.startup_file import StartupFileRejected, read_startup_file
 
 
 def _fields(table, expected, label):
-    if type(table) is not dict or set(table) != set(expected):
+    if not (type(table) is (expected_type := dict)):
+        raise BindingDefinitionRejected(f"{label=}; {type(table)=} ≠ {expected_type=}")
+
+    if set(table) != set(expected):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} must contain exactly its documented fields.")
 
 
 def _absolute_path(value, label):
-    if not (type(value) is str and value and not any(character in value for character in ("\0", "\n", "\r", ","))):
+    if not (type(value) is (expected_type := str)):
+        raise BindingDefinitionRejected(f"{label=}; {type(value)=} ≠ {expected_type=}")
+
+    if not (value):
+        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} requires an absolute path without mount delimiters.")
+
+    if any(character in value for character in ("\0", "\n", "\r", ",")):
         raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {label} requires an absolute path without mount delimiters.")
 
     path = Path(value)
@@ -88,7 +97,10 @@ class DeploymentBindings:
 
 
 def _route(table, origin):
-    if type(table) is not dict or "mode" not in table:
+    if not (type(table) is (expected_table_type := dict)):
+        raise BindingDefinitionRejected(f"Cannot admit delivery route: {type(table)=} ≠ {expected_table_type=}")
+
+    if not ("mode" in table):
         raise BindingDefinitionRejected("Cannot admit delivery route: choose local, mapped or external mode explicitly.")
 
     mode = table["mode"]
@@ -105,16 +117,20 @@ def _route(table, origin):
 
     _fields(table, required, "route")
 
-    if not (type(table["interface"]) is str):
-        raise BindingDefinitionRejected("Cannot admit delivery route: interface must be an explicit Linux interface name.")
+    if not (type((table_interface := table["interface"])) is (expected_type := str)):
+        raise BindingDefinitionRejected(f"{type(table_interface)=} ≠ {expected_type=}")
 
     require_interface_name(table["interface"])
 
     if not (table["log_level"] in ("INFO", "DEBUG", "WARNING")):
         raise BindingDefinitionRejected("Cannot admit delivery route: log_level must be INFO, DEBUG or WARNING.")
 
-    if mode == "local" and (type(table["network_id"]) is not str or re.fullmatch(r"[0-9a-f]{64}", table["network_id"]) is None):
-        raise BindingDefinitionRejected("Cannot admit local delivery route: network_id must be the full immutable Docker network ID.")
+    if mode == "local":
+        if not (type((table_network_id := table["network_id"])) is (expected_table_network_id_type := str)):
+            raise BindingDefinitionRejected(f"Cannot admit local delivery route: {type(table_network_id)=} ≠ {expected_table_network_id_type=}")
+
+        if re.fullmatch(r"[0-9a-f]{64}", table["network_id"]) is None:
+            raise BindingDefinitionRejected("Cannot admit local delivery route: network_id must be the full immutable Docker network ID.")
 
     if mode == "external":
         _absolute_path(table["resolver_file"], "resolver file")
@@ -122,8 +138,12 @@ def _route(table, origin):
     else:
         addresses = table["addresses"]
 
-        if type(addresses) is not list or any(type(value) is not str for value in addresses):
-            raise BindingDefinitionRejected("Cannot admit delivery route: addresses must be explicit hostname=IPv4 strings.")
+        if not (type(addresses) is (expected_addresses_type := list)):
+            raise BindingDefinitionRejected(f"Cannot admit delivery route: {type(addresses)=} ≠ {expected_addresses_type=}")
+
+        for address in addresses:
+            if not (type(address) is (expected_type := str)):
+                raise BindingDefinitionRejected(f"Cannot admit delivery route: {type(address)=} ≠ {expected_type=}")
 
     parsed = urlsplit(origin)
 
@@ -153,16 +173,34 @@ def _parse_deployment_bindings(raw):
     _fields(document, {"project", "uid", "gid", "request_seconds", "retry_initial_seconds", "retry_max_seconds", "limits", "bindings"}, "definition")
     (project, uid, gid) = (document["project"], document["uid"], document["gid"])
 
-    if not (type(project) is str and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,62}", project) is not None):
+    if not (type(project) is (expected_type := str)):
+        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(project)=} ≠ {expected_type=}")
+
+    if not (re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,62}", project) is not None):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: project requires a lowercase Compose name of up to 63 characters.")
 
-    if not (all(type(value) is int and 1 <= value <= 4294967294 for value in (uid, gid))):
+    if not (type(uid) is (expected_uid_type := int)):
+        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(uid)=} ≠ {expected_uid_type=}")
+
+    if not (1 <= uid <= 4294967294):
+        raise BindingDefinitionRejected("Cannot admit delivery bindings: uid and gid must be explicit nonzero Linux identities.")
+
+    if not (type(gid) is (expected_gid_type := int)):
+        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(gid)=} ≠ {expected_gid_type=}")
+
+    if not (1 <= gid <= 4294967294):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: uid and gid must be explicit nonzero Linux identities.")
 
     for key in ("request_seconds", "retry_initial_seconds", "retry_max_seconds"):
         value = document[key]
 
-        if not (type(value) in (int, float) and math.isfinite(value) and 0 < value):
+        if not (type(value) in (expected_type := (int, float))):
+            raise BindingDefinitionRejected(f"{type(value)=} ≠ {expected_type=}")
+
+        if not (math.isfinite(value)):
+            raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {key} requires finite positive seconds.")
+
+        if not (0 < value):
             raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {key} requires finite positive seconds.")
 
     if not (document["retry_initial_seconds"] <= document["retry_max_seconds"]):
@@ -178,7 +216,10 @@ def _parse_deployment_bindings(raw):
 
     rows = document["bindings"]
 
-    if not (type(rows) is list and 1 <= len(rows) <= MAX_BINDINGS):
+    if not (type(rows) is (expected_type := list)):
+        raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(rows)=} ≠ {expected_type=}")
+
+    if not (1 <= len(rows) <= MAX_BINDINGS):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: require one through sixteen explicit bindings.")
 
     (bindings, names, identities) = ([], set(), set())
@@ -187,7 +228,13 @@ def _parse_deployment_bindings(raw):
         _fields(row, {"name", "socket_path", "api", "route"}, "binding")
         name = row["name"]
 
-        if not (type(name) is str and re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}", name) is not None and name not in names):
+        if not (type(name) is (expected_type := str)):
+            raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {type(name)=} ≠ {expected_type=}")
+
+        if not (re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,62}", name) is not None):
+            raise BindingDefinitionRejected("Cannot admit delivery bindings: names must be unique ASCII identifiers of up to 63 characters.")
+
+        if not (name not in names):
             raise BindingDefinitionRejected("Cannot admit delivery bindings: names must be unique ASCII identifiers of up to 63 characters.")
 
         require_api_fields(row["api"])

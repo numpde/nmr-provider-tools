@@ -259,7 +259,13 @@ class _Exchange:
 
 
 def _positive_seconds(value):
-    if not (type(value) in (int, float) and math.isfinite(value) and 0 < value):
+    if not (type(value) in (expected_type := (int, float))):
+        raise TypeError(f"Cannot configure HTTP exchange: {type(value)=} ≠ {expected_type=}")
+
+    if not (math.isfinite(value)):
+        raise ValueError("Cannot configure HTTP exchange: time limits must be finite positive seconds")
+
+    if not (0 < value):
         raise ValueError("Cannot configure HTTP exchange: time limits must be finite positive seconds")
 
     return value
@@ -268,10 +274,9 @@ def _positive_seconds(value):
 def require_unix_socket_path(path):
     """Admit the pathname limit shared by the two explicit Unix transports."""
 
-    if not (type(path) is str):
+    if not (type(path) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(path)=}; "
-            "Cannot configure Unix socket: supply an absolute UTF-8 pathname without NUL."
+            f"{type(path)=} ≠ {expected_type=}"
         )
 
     if not (path.startswith("/")) or "\0" in path:
@@ -291,19 +296,17 @@ def require_unix_socket_path(path):
 def require_transport_settings(*, trust, exchange_seconds, retirement_seconds, proxy_socket=None, allow_http=False):
     """Admit TLS and deadlines before composition acquires any transport."""
 
-    if not (isinstance(trust, ssl.SSLContext)):
+    if not (isinstance(trust, (expected_type := ssl.SSLContext))):
         raise TypeError(
-            f"Unexpected {type(trust)=}; "
-            "Cannot configure HTTPS exchange: TLS must verify the certificate and hostname"
+            f"{type(trust)=} ≠ {expected_type=}"
         )
 
     if trust.verify_mode != ssl.CERT_REQUIRED or not (trust.check_hostname):
         raise ValueError("Cannot configure HTTPS exchange: TLS must verify the certificate and hostname")
 
-    if not (type(allow_http) is bool):
+    if not (type(allow_http) is (expected_type := bool)):
         raise TypeError(
-            f"Unexpected {type(allow_http)=}; "
-            "Cannot configure HTTP exchange: allow_http must be a boolean"
+            f"{type(allow_http)=} ≠ {expected_type=}"
         )
 
     if allow_http and proxy_socket is not None:
@@ -675,10 +678,9 @@ class HttpTransport:
         require_decoded_limit(maximum_bytes)
         require_decoded_limit(error_maximum_bytes)
 
-        if not (type(success_status) is int):
+        if not (type(success_status) is (expected_type := int)):
             raise TypeError(
-                f"Unexpected {type(success_status)=}; "
-                "Cannot decode HTTP response: success_status must be an integer HTTP status from 100 through 599"
+                f"{type(success_status)=} ≠ {expected_type=}"
             )
 
         if not (100 <= success_status <= 599):
@@ -712,10 +714,9 @@ class HttpTransport:
         and finalization.
         """
 
-        if not (type(output_fd) is int):
+        if not (type(output_fd) is (expected_type := int)):
             raise TypeError(
-                f"Unexpected {type(output_fd)=}; "
-                "Cannot receive HTTP response in a file: output_fd must be a non-negative descriptor"
+                f"{type(output_fd)=} ≠ {expected_type=}"
             )
 
         if not (0 <= output_fd):
@@ -736,10 +737,9 @@ class HttpTransport:
         if not (self._active is None):
             raise ExchangeFailed("Cannot start HTTP exchange: an earlier exchange is active or its retirement is unconfirmed")
 
-        if not (type(maximum_bytes) is int):
+        if not (type(maximum_bytes) is (expected_type := int)):
             raise TypeError(
-                f"Unexpected {type(maximum_bytes)=}; "
-                "Cannot receive HTTP response: byte limit must be a non-negative integer"
+                f"{type(maximum_bytes)=} ≠ {expected_type=}"
             )
 
         if not (0 <= maximum_bytes):

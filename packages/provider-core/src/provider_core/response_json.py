@@ -34,7 +34,10 @@ def _reject_constant(_value):
 
 
 def read_document(raw, limit):
-    if type(raw) is not bytes or len(raw) > limit:
+    if not (type(raw) is (expected_type := bytes)):
+        raise ResponseRejected(f"{type(raw)=} ≠ {expected_type=}")
+
+    if len(raw) > limit:
         raise ResponseRejected(f"Response must be immutable bytes within the {limit}-byte route limit")
 
     try:
@@ -54,10 +57,10 @@ def read_document(raw, limit):
 def read_timestamp(value):
     """Admit UTC rendering shared by the pinned provider Job and Attempt schemas."""
 
-    if (
-        type(value) is not str
-        or re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.(?!000000)[0-9]{6})?Z", value) is None
-    ):
+    if not (type(value) is (expected_type := str)):
+        raise ResponseRejected(f"{type(value)=} ≠ {expected_type=}")
+
+    if re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.(?!000000)[0-9]{6})?Z", value) is None:
         raise ResponseRejected("Response timestamp must be canonical UTC seconds or six nonzero fractional digits")
 
     try:

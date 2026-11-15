@@ -84,8 +84,8 @@ class InProcessExecutionHost:
             ("state_values", state_values),
             ("progress_records", progress_records),
         ):
-            if not (type(value) is int):
-                raise TypeError(f"Unexpected {type(value)=}; {name=} requires an integer")
+            if not (type(value) is (expected_type := int)):
+                raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
 
             if not (0 < value):
                 raise ValueError(f"Expected a positive capacity for {name=}; received {value=}")
@@ -94,22 +94,26 @@ class InProcessExecutionHost:
             ("initialization_seconds", initialization_seconds),
             ("retirement_seconds", retirement_seconds),
         ):
-            if not (type(value) in (int, float)):
-                raise TypeError(f"Unexpected {type(value)=}; {name=} requires a number of seconds")
+            if not (type(value) in (expected_type := (int, float))):
+                raise TypeError(f"{name=}; {type(value)=} ≠ {expected_type=}")
 
             positive_seconds(value=value)
 
-        if not (
-            type(allocations) is tuple
-            and all(type(item) is Allocation for item in allocations)
-        ):
-            raise TypeError(f"Unexpected {type(allocations)=}; supply a tuple of Allocation records")
+        if not (type(allocations) is (expected_type := tuple)):
+            raise TypeError(f"{type(allocations)=} ≠ {expected_type=}")
+
+        for allocation in allocations:
+            if not (type(allocation) is (expected_type := Allocation)):
+                raise TypeError(f"{type(allocation)=} ≠ {expected_type=}")
 
         if len({item.name for item in allocations}) != len(allocations):
             raise ValueError("Allocation names must be unique within a host.")
 
-        if any(not isinstance(item.binding, ImplementationBinding) for item in allocations):
-            raise TypeError("Object contributions must be handed over with host.adopt")
+        for allocation in allocations:
+            binding = allocation.binding
+
+            if not (isinstance(binding, (expected_type := ImplementationBinding))):
+                raise TypeError(f"{type(binding)=} ≠ {expected_type=}")
 
         self.loop = asyncio.get_running_loop()
         self.identity = uuid4().hex
@@ -226,8 +230,12 @@ class InProcessExecutionHost:
             if analysis_id is not None or allocation_names is not None:
                 raise TypeError("Choose allocation handles or the legacy named analysis arguments")
 
-            if type(allocations) is not frozenset or any(type(item) is not AllocationRef for item in allocations):
-                raise TypeError(f"Unexpected {type(allocations)=}; supply a frozenset containing allocation handles")
+            if not (type(allocations) is (expected_type := frozenset)):
+                raise TypeError(f"{type(allocations)=} ≠ {expected_type=}")
+
+            for reference in allocations:
+                if not (type(reference) is (expected_type := AllocationRef)):
+                    raise TypeError(f"{type(reference)=} ≠ {expected_type=}")
 
             for reference in allocations:
                 resident = self.residents.get(reference.allocation)
@@ -242,11 +250,11 @@ class InProcessExecutionHost:
         if self.retiring:
             raise CapacityUnavailable("The host is retiring and refuses new analyses.")
 
-        if not (type(analysis_id) is str):
-            raise TypeError(f"Unexpected {type(analysis_id)=}; an analysis identity must be a string")
+        if not (type(analysis_id) is (expected_type := str)):
+            raise TypeError(f"{type(analysis_id)=} ≠ {expected_type=}")
 
-        if not (type(allocation_names) is tuple):
-            raise TypeError(f"Unexpected {type(allocation_names)=}; supply an immutable tuple of allocation names")
+        if not (type(allocation_names) is (expected_type := tuple)):
+            raise TypeError(f"{type(allocation_names)=} ≠ {expected_type=}")
 
         if not (
             0 < len(analysis_id) <= 160
@@ -291,8 +299,8 @@ class InProcessExecutionHost:
         """Pool administration retires one exact allocation and its current analysis."""
         self._require_loop()
 
-        if not (type(reference) is AllocationRef):
-            raise TypeError(f"Unexpected {type(reference)=}; allocation retirement requires an AllocationRef")
+        if not (type(reference) is (expected_type := AllocationRef)):
+            raise TypeError(f"{type(reference)=} ≠ {expected_type=}")
 
         if reference.host != self.identity:
             raise ValueError("Allocation retirement requires this host's exact AllocationRef.")
@@ -408,8 +416,8 @@ class InProcessAnalysisExecutor:
         """Return this analysis's reservation for an exact allocation handle."""
         self.host._require_loop()
 
-        if not (type(allocation) is AllocationRef):
-            raise TypeError(f"Unexpected {type(allocation)=}; supply an allocation handle")
+        if not (type(allocation) is (expected_type := AllocationRef)):
+            raise TypeError(f"{type(allocation)=} ≠ {expected_type=}")
 
         resident = self.host.residents.get(allocation.allocation)
 
@@ -442,8 +450,8 @@ class InProcessAnalysisExecutor:
         A returned handle means the request was admitted, not that it ran or succeeded.
         """
 
-        if not (type(call) is CallBinding):
-            raise TypeError("Local call submission requires a bound CallBinding member")
+        if not (type(call) is (expected_type := CallBinding)):
+            raise TypeError(f"{type(call)=} ≠ {expected_type=}")
 
         invocation = Invocation(
             operation_id=uuid4().hex,
@@ -486,8 +494,8 @@ class InProcessAnalysisExecutor:
 
         hosted = self.science[reservation.allocation].resident.binding
 
-        if not (isinstance(hosted, HostedContribution)):
-            raise TypeError(f"Unexpected {type(hosted)=}; method submission requires an adopted contribution")
+        if not (isinstance(hosted, (expected_type := HostedContribution))):
+            raise TypeError(f"{type(hosted)=} ≠ {expected_type=}")
 
         if not (getattr(method, "__self__", None) is hosted.contribution):
             raise ValueError("Submit an exported bound method of the reserved contribution")
@@ -521,8 +529,8 @@ class InProcessAnalysisExecutor:
         """Admit work and retain portable request identity for the open analysis."""
         self.host._require_loop()
 
-        if not (type(invocation) is Invocation):
-            raise TypeError(f"Unexpected {type(invocation)=}; submit requires an Invocation")
+        if not (type(invocation) is (expected_type := Invocation)):
+            raise TypeError(f"{type(invocation)=} ≠ {expected_type=}")
 
         operation_key = (self.identity, invocation.operation_id)
 

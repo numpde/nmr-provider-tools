@@ -22,10 +22,12 @@ class SharedDeliverySocket:
     def __post_init__(self):
         require_unix_socket_path(str(self.socket_path))
 
-        if self.socket_group_id is not None and (
-            type(self.socket_group_id) is not int or not 1 <= self.socket_group_id <= 4294967294
-        ):
-            raise ValueError("Delivery socket group must be an explicit nonzero GID.")
+        if self.socket_group_id is not None:
+            if not (type((actual_socket_group_id := self.socket_group_id)) is (expected_type := int)):
+                raise TypeError(f"{type(actual_socket_group_id)=} ≠ {expected_type=}")
+
+            if not (1 <= self.socket_group_id <= 4294967294):
+                raise ValueError("Delivery socket group must be an explicit nonzero GID.")
 
 
 class SharedDeliveryInbox(DeliveryInbox):

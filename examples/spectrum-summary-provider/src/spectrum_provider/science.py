@@ -9,8 +9,8 @@ from provider_core.contribution_errors import ScientificRejection
 
 
 def _finite_number(value: object, *, label: str) -> float:
-    if not (type(value) in (int, float)):
-        raise TypeError(f"{label} must be a finite number; booleans are not measurements")
+    if not (type(value) in (expected_type := (int, float))):
+        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
     if not (math.isfinite(value)):
         raise ValueError(f"{label} must be finite")
@@ -19,8 +19,8 @@ def _finite_number(value: object, *, label: str) -> float:
 
 
 def _finite_samples(values: object, *, label: str) -> tuple[float, ...]:
-    if not (type(values) is tuple):
-        raise TypeError(f"Spectrum {label} must be an immutable tuple")
+    if not (type(values) is (expected_type := tuple)):
+        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
 
     samples = []
 
@@ -91,8 +91,12 @@ class PeakReport:
     peaks: tuple[Peak, ...]
 
     def __post_init__(self) -> None:
-        if type(self.peaks) is not tuple or any(type(peak) is not Peak for peak in self.peaks):
-            raise TypeError("A peak report requires an immutable tuple of Peak records")
+        if not (type((actual_peaks := self.peaks)) is (expected_type := tuple)):
+            raise TypeError(f"{type(actual_peaks)=} ≠ {expected_type=}")
+
+        for peak in self.peaks:
+            if not (type(peak) is (expected_type := Peak)):
+                raise TypeError(f"{type(peak)=} ≠ {expected_type=}")
 
 
 def subtract_baseline(spectrum: Spectrum, settings: BaselineSettings) -> Spectrum:

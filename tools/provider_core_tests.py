@@ -38,11 +38,9 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
         distribution_name = project["name"]
         distribution_version = project["version"]
 
-        if not (isinstance(distribution_name, str)):
+        if not (isinstance(distribution_name, (expected_type := str))):
             raise TypeError(
-                f"Unexpected {type(distribution_name)=}; "
-                f"Cannot install example {metadata.parent.name!r}: distribution "
-                "name must use lowercase letters, digits and single hyphens."
+                f"{metadata.parent.name=}; {type(distribution_name)=} ≠ {expected_type=}"
             )
 
         if re.fullmatch(
@@ -60,11 +58,9 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
                 "names must be unique and must not shadow provider-core."
             )
 
-        if not (isinstance(distribution_version, str)):
+        if not (isinstance(distribution_version, (expected_type := str))):
             raise TypeError(
-                f"Unexpected {type(distribution_version)=}; "
-                f"Cannot install example {distribution_name!r}: "
-                "a three-part version is required."
+                f"{distribution_name=}; {type(distribution_version)=} ≠ {expected_type=}"
             )
 
         if re.fullmatch(

@@ -86,10 +86,9 @@ class DeliveryOutcome:
         require_job_ref(self.job_ref)
         require_attempt_ref(self.execution_attempt_ref)
 
-        if not (type(self.operation) is TerminalOperation):
+        if not (type((actual_operation := self.operation)) is (expected_type := TerminalOperation)):
             raise TypeError(
-                f"Unexpected {type(self.operation)=}; "
-                "Delivery requires an explicit complete or fail operation."
+                f"{type(actual_operation)=} ≠ {expected_type=}"
             )
 
         parser = read_complete_body if self.operation is TerminalOperation.COMPLETE else read_fail_body
@@ -125,12 +124,40 @@ class QueueLimits:
     total_bytes: int
 
     def __post_init__(self):
-        if any(type(value) is not int or value <= 0 for value in (
+        (
+            provider_items,
+            provider_bytes,
+            total_items,
+            total_bytes,
+        ) = (
             self.provider_items,
             self.provider_bytes,
             self.total_items,
-            self.total_bytes
-        )):
+            self.total_bytes,
+        )
+
+        if not (type(provider_items) is (expected_type := int)):
+            raise TypeError(f"{type(provider_items)=} ≠ {expected_type=}")
+
+        if not (0 < provider_items):
+            raise ValueError("Delivery queue item and byte limits must be positive integers.")
+
+        if not (type(provider_bytes) is (expected_type := int)):
+            raise TypeError(f"{type(provider_bytes)=} ≠ {expected_type=}")
+
+        if not (0 < provider_bytes):
+            raise ValueError("Delivery queue item and byte limits must be positive integers.")
+
+        if not (type(total_items) is (expected_type := int)):
+            raise TypeError(f"{type(total_items)=} ≠ {expected_type=}")
+
+        if not (0 < total_items):
+            raise ValueError("Delivery queue item and byte limits must be positive integers.")
+
+        if not (type(total_bytes) is (expected_type := int)):
+            raise TypeError(f"{type(total_bytes)=} ≠ {expected_type=}")
+
+        if not (0 < total_bytes):
             raise ValueError("Delivery queue item and byte limits must be positive integers.")
 
         if not (self.provider_items <= MAX_PROVIDER_ITEMS):
@@ -144,10 +171,9 @@ class DeliveryQueue:
     """The sole connection owns pending data; producers never open this database."""
 
     def __init__(self, directory, *, limits):
-        if not (type(limits) is QueueLimits):
+        if not (type(limits) is (expected_type := QueueLimits)):
             raise TypeError(
-                f"Unexpected {type(limits)=}; "
-                "Delivery storage requires explicit queue limits."
+                f"{type(limits)=} ≠ {expected_type=}"
             )
 
         (self.limits, self.directory) = (limits, directory)
@@ -269,10 +295,9 @@ class DeliveryQueue:
     def enqueue_handoff(self, handoff):
         from provider_core.delivery_handoff import DeliveryHandoff
 
-        if not (type(handoff) is DeliveryHandoff):
+        if not (type(handoff) is (expected_type := DeliveryHandoff)):
             raise TypeError(
-                f"Unexpected {type(handoff)=}; "
-                "Delivery requires a complete publication handoff."
+                f"{type(handoff)=} ≠ {expected_type=}"
             )
 
         return self._enqueue(handoff.outcome, handoff.publication_bytes(), handoff.acceptance())
@@ -360,10 +385,9 @@ class DeliveryQueue:
         from provider_core.api_config import ApiPublicationMaterial, api_settings_from_material
         from provider_core.delivery_handoff import publication_bytes
 
-        if not (type(material) is ApiPublicationMaterial):
+        if not (type(material) is (expected_type := ApiPublicationMaterial)):
             raise TypeError(
-                f"Unexpected {type(material)=}; "
-                "Legacy delivery requires its original publication material."
+                f"{type(material)=} ≠ {expected_type=}"
             )
 
         (settings, provider_ref) = api_settings_from_material(
@@ -512,10 +536,9 @@ class DeliveryQueue:
     def hold(self, item, reason):
         """Retain a reviewed operator explanation, never raw remote response text."""
 
-        if not (type(reason) is str):
+        if not (type(reason) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(reason)=}; "
-                "A held delivery requires a bounded operator explanation."
+                f"{type(reason)=} ≠ {expected_type=}"
             )
 
         if not (1 <= len(reason) <= 512):
@@ -536,10 +559,9 @@ class DeliveryQueue:
         require_provider_ref(provider_ref)
         require_attempt_ref(attempt_ref)
 
-        if not (type(body_sha256) is str):
+        if not (type(body_sha256) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(body_sha256)=}; "
-                "Discard requires the held payload's exact SHA-256 from its metadata."
+                f"{type(body_sha256)=} ≠ {expected_type=}"
             )
 
         if re.fullmatch(r"sha256:[0-9a-f]{64}", body_sha256) is None:

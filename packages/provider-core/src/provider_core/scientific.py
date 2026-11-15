@@ -261,11 +261,12 @@ class _NamedStates:
     value_type: type = dict
 
     def __post_init__(self) -> None:
-        if not (type(self.inputs) is tuple):
-            raise TypeError(f"Unexpected {type(self.inputs)=}; scientific state inputs must be an immutable tuple")
+        if not (type((actual_inputs := self.inputs)) is (expected_type := tuple)):
+            raise TypeError(f"{type(actual_inputs)=} ≠ {expected_type=}")
 
-        if any(type(slot) is not StateInputSlot for slot in self.inputs):
-            raise TypeError("Scientific state inputs must contain StateInputSlot records")
+        for state_input_slot in self.inputs:
+            if not (type(state_input_slot) is (expected_type := StateInputSlot)):
+                raise TypeError(f"{type(state_input_slot)=} ≠ {expected_type=}")
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -359,8 +360,8 @@ def _schema(*, annotation: object, seen: frozenset[type]) -> object:
 
 def _codec(*, value_type: type, supplied: PayloadCodec | None) -> PayloadCodec:
     if supplied is not None:
-        if not (isinstance(supplied, PayloadCodec)):
-            raise TypeError(f"Unexpected {type(supplied)=}; an explicit scientific codec must implement PayloadCodec")
+        if not (isinstance(supplied, (expected_type := PayloadCodec))):
+            raise TypeError(f"{type(supplied)=} ≠ {expected_type=}")
 
         if not (supplied.value_type is value_type):
             raise TypeError("Scientific codec type differs from the method annotation")
@@ -589,8 +590,8 @@ class HostedContribution:
     _analysis_close: _LifecycleMethod | None = field(init=False, repr=False, compare=False)
 
     def __post_init__(self, host: str, allocation_name: str) -> None:
-        if not (isinstance(self.contribution, Contribution)):
-            raise TypeError(f"Unexpected {type(self.contribution)=}; adoption requires a configured Contribution instance")
+        if not (isinstance((actual_contribution := self.contribution), (expected_type := Contribution))):
+            raise TypeError(f"{type(actual_contribution)=} ≠ {expected_type=}")
 
         contribution_type = type(self.contribution)
 
@@ -604,8 +605,8 @@ class HostedContribution:
         object.__setattr__(self, "_analysis_close", None)
 
         if analysis_type is not None:
-            if not (isinstance(analysis_type, type)):
-                raise TypeError(f"Unexpected {type(analysis_type)=}; analysis_type must name an Analysis class")
+            if not (isinstance(analysis_type, (expected_type := type))):
+                raise TypeError(f"{type(analysis_type)=} ≠ {expected_type=}")
 
             if not (issubclass(analysis_type, Analysis)):
                 raise TypeError("analysis_type must inherit Analysis")

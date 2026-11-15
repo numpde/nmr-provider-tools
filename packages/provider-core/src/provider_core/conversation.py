@@ -52,10 +52,9 @@ class TextCorrection:
         if self.user_content is None:
             return
 
-        if not (type(self.user_content) is str):
+        if not (type((actual_user_content := self.user_content)) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(self.user_content)=}; "
-                "Text correction requires a user instruction supplied as text or None."
+                f"{type(actual_user_content)=} ≠ {expected_type=}"
             )
 
         if not (self.user_content):
@@ -146,10 +145,9 @@ def independent_interruption_failure(failure):
 def require_turn_limit(max_turns):
     """Admit the conversation budget before startup acquires model carriers."""
 
-    if not (type(max_turns) is int):
+    if not (type(max_turns) is (expected_type := int)):
         raise TypeError(
-            f"Unexpected {type(max_turns)=}; "
-            "Cannot configure interpretation: the total model-turn limit must be a positive integer."
+            f"{type(max_turns)=} ≠ {expected_type=}"
         )
 
     if not (0 < max_turns):
@@ -176,10 +174,9 @@ class ToolConversation:
     """
 
     def __init__(self, endpoints, *, max_turns, secrets, text_correction=None, argument_bytes=None, max_corrections=None):
-        if not (type(endpoints) is tuple):
+        if not (type(endpoints) is (expected_type := tuple)):
             raise TypeError(
-                f"Unexpected {type(endpoints)=}; "
-                "Cannot configure interpretation: provide a nonempty ordered tuple of endpoints."
+                f"{type(endpoints)=} ≠ {expected_type=}"
             )
 
         if not (endpoints):
@@ -190,30 +187,29 @@ class ToolConversation:
         if max_corrections is not None:
             require_turn_limit(max_corrections)
 
-        if not (type(secrets) is tuple):
+        if not (type(secrets) is (expected_type := tuple)):
             raise TypeError(
-                f"Unexpected {type(secrets)=}; "
-                "Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings."
+                f"{type(secrets)=} ≠ {expected_type=}"
             )
 
         for secret in secrets:
-            if not (type(secret) is str):
+            if not (type(secret) is (expected_type := str)):
                 raise TypeError(
-                    f"Unexpected {type(secret)=}; "
-                    "Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings."
+                    f"{type(secret)=} ≠ {expected_type=}"
                 )
 
         if any(not secret for secret in secrets):
             raise ValueError("Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings.")
 
-        if text_correction is not None and type(text_correction) is not TextCorrection:
-            raise TypeError(
-                f"Unexpected {type(text_correction)=}; "
-                "Cannot configure interpretation: text_correction must be TextCorrection or None."
-            )
+        if text_correction is not None and not (type(text_correction) is (expected_type := TextCorrection)):
+            raise TypeError(f"{type(text_correction)=} ≠ {expected_type=}")
 
-        if argument_bytes is not None and (type(argument_bytes) is not int or argument_bytes <= 0):
-            raise ValueError("Cannot configure interpretation: argument_bytes must be a positive integer or None.")
+        if argument_bytes is not None:
+            if not (type(argument_bytes) is (expected_type := int)):
+                raise TypeError(f"{type(argument_bytes)=} ≠ {expected_type=}")
+
+            if not (0 < argument_bytes):
+                raise ValueError("Cannot configure interpretation: argument_bytes must be a positive integer or None.")
 
         (self._endpoints, self._max_turns) = (endpoints, max_turns)
         self._argument_bytes = argument_bytes
@@ -431,10 +427,9 @@ class ToolConversation:
                     tuple(self.correction_failures)
                 )
 
-            if not (type(outcome) is ToolReply):
+            if not (type(outcome) is (expected_type := ToolReply)):
                 raise TypeError(
-                    f"Unexpected {type(outcome)=}; "
-                    "Interpreter tool dispatch must return ToolReply, ToolFinished or ToolHandoff."
+                    f"{type(outcome)=} ≠ {expected_type=}"
                 )
 
             self._feedback(call["id"], outcome.value)
@@ -459,18 +454,23 @@ class ToolConversation:
             raise ConversationFailed("Interpretation retired before a decision could be accepted.")
 
     def _admit_carrier(self, message):
-        if type(message) is not dict or message.get("role") != "assistant":
+        if not (type(message) is (expected_type := dict)):
+            raise ConversationFailed(f"{type(message)=} ≠ {expected_type=}")
+
+        if message.get("role") != "assistant":
             raise ConversationFailed("Cannot interpret model action: the reply is not an assistant message.")
 
         canonical = {"role": "assistant"}
 
         for text_field in ("content", "reasoning_content"):
             if text_field in message:
-                if message[text_field] is not None and type(message[text_field]) is not str:
-                    raise ConversationFailed("Cannot interpret model action: assistant text has a malformed carrier.")
+                assistant_text = message[text_field]
 
-                self._require_no_secrets(message[text_field])
-                canonical[text_field] = message[text_field]
+                if assistant_text is not None and not (type(assistant_text) is (expected_type := str)):
+                    raise ConversationFailed(f"{text_field=}; {type(assistant_text)=} ≠ {expected_type=}")
+
+                self._require_no_secrets(assistant_text)
+                canonical[text_field] = assistant_text
 
         calls = message.get("tool_calls")
 
@@ -478,39 +478,62 @@ class ToolConversation:
                 and self._text_correction.user_content is not None):
             return (canonical, [])
 
-        if type(calls) is not list or not calls:
+        if not (type(calls) is (expected_type := list)):
+            raise ConversationFailed(f"{type(calls)=} ≠ {expected_type=}")
+
+        if not (calls):
             raise ConversationFailed("Cannot interpret model action: the reply supplies no identifiable tool call.")
 
         identifiers = set()
         admitted = []
 
         for call in calls:
+            if not (type(call) is (expected_type := dict)):
+                raise ConversationFailed(f"{type(call)=} ≠ {expected_type=}")
+
+            call_id = call.get("id")
+
+            if not (type(call_id) is (expected_type := str)):
+                raise ConversationFailed(f"{type(call_id)=} ≠ {expected_type=}")
+
             if (
-                type(call) is not dict
-                or type(call.get("id")) is not str
-                or re.fullmatch(r"[!-~]{1,128}", call["id"]) is None
-                or call["id"] in self._seen_ids
-                or call["id"] in identifiers
+                re.fullmatch(r"[!-~]{1,128}", call_id) is None
+                or call_id in self._seen_ids
+                or call_id in identifiers
                 or call.get("type") != "function"
-                or type(call.get("function")) is not dict
-                or type(call["function"].get("name")) is not str
-                or re.fullmatch(r"[A-Za-z0-9_-]{1,64}", call["function"]["name"]) is None
-                or type(call["function"].get("arguments")) is not str
             ):
                 raise ConversationFailed(
                     "Cannot interpret model action: tool identity, function or argument carrier is malformed or repeated."
                 )
 
-            identifiers.add(call["id"])
-            self._require_no_secrets((call["id"], call["function"]["name"]))
+            function = call.get("function")
+
+            if not (type(function) is (expected_type := dict)):
+                raise ConversationFailed(f"{type(function)=} ≠ {expected_type=}")
+
+            function_name = function.get("name")
+
+            if not (type(function_name) is (expected_type := str)):
+                raise ConversationFailed(f"{type(function_name)=} ≠ {expected_type=}")
+
+            if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", function_name) is None:
+                raise ConversationFailed("Cannot interpret model action: tool identity, function or argument carrier is malformed or repeated.")
+
+            function_arguments = function.get("arguments")
+
+            if not (type(function_arguments) is (expected_type := str)):
+                raise ConversationFailed(f"{type(function_arguments)=} ≠ {expected_type=}")
+
+            identifiers.add(call_id)
+            self._require_no_secrets((call_id, function_name))
 
             admitted.append(
                 {
-                    "id": call["id"],
+                    "id": call_id,
                     "type": "function",
                     "function": {
-                        "name": call["function"]["name"],
-                        "arguments": call["function"]["arguments"],
+                        "name": function_name,
+                        "arguments": function_arguments,
                     },
                 }
             )
@@ -544,8 +567,8 @@ class ToolConversation:
         ) as cause:
             raise ToolRejected("Tool arguments must be one JSON object with unique fields and finite values.") from cause
 
-        if not (type(arguments) is dict):
-            raise ToolRejected("Tool arguments must be one JSON object.")
+        if not (type(arguments) is (expected_type := dict)):
+            raise ToolRejected(f"{type(arguments)=} ≠ {expected_type=}")
 
         self._require_no_secrets(arguments)
 

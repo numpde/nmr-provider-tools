@@ -101,6 +101,12 @@ def _type_rejection_operands(*, expression: ast.expr, rejecting: bool) -> list[a
 
     operator = expression.ops[0]
 
+    if (rejecting and isinstance(operator, ast.NotIn)) or (not rejecting and isinstance(operator, ast.In)):
+        if _type_call(expression=expression.left):
+            return [expression.left.args[0]]
+
+        return []
+
     if (rejecting and isinstance(operator, (ast.IsNot, ast.NotEq))) or (
         not rejecting and isinstance(operator, (ast.Is, ast.Eq))
     ):
@@ -202,6 +208,8 @@ class TypeErrorPostureTests(unittest.TestCase):
             "str is not type(value)",
             "str != type(value)",
             "not isinstance(value, str)",
+            "type(value) not in (int, float)",
+            "not (type(value) in (expected_types := (int, float)))",
             "not isinstance(value, (str, bytes)) or not value",
             "value == '' or not isinstance(value, str)",
             "not (type(value) is str and valid(value))",

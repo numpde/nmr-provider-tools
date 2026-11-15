@@ -29,8 +29,8 @@ def _encoded(value):
 
 
 def _decoded(value):
-    if not (type(value) is str):
-        raise DeliveryHandoffRejected("Delivery handoff requires encoded immutable bytes.")
+    if not (type(value) is (expected_type := str)):
+        raise DeliveryHandoffRejected(f"{type(value)=} ≠ {expected_type=}")
 
     try:
         raw = base64.b64decode(value, validate=True)
@@ -62,8 +62,11 @@ class DeliveryHandoff:
     publication: ApiPublicationMaterial
 
     def __post_init__(self):
-        if type(self.outcome) is not DeliveryOutcome or type(self.publication) is not ApiPublicationMaterial:
-            raise DeliveryHandoffRejected("Delivery handoff requires an outcome and its publication material.")
+        if not (type((actual_outcome := self.outcome)) is (expected_type := DeliveryOutcome)):
+            raise DeliveryHandoffRejected(f"{type(actual_outcome)=} ≠ {expected_type=}")
+
+        if not (type((actual_publication := self.publication)) is (expected_type := ApiPublicationMaterial)):
+            raise DeliveryHandoffRejected(f"{type(actual_publication)=} ≠ {expected_type=}")
 
         if (self.outcome.api_origin, self.outcome.provider_ref) != (self.publication.origin, self.publication.provider_ref):
             raise DeliveryHandoffRejected("Delivery outcome and publication material require the same API and provider identity.")
@@ -108,19 +111,28 @@ def read_delivery_handoff(raw):
     try:
         document = read_document(raw, MAX_HANDOFF_BYTES)
 
-        if type(document) is not dict or set(document) != {"api", "credential", "ca", "outcome"}:
+        if not (type(document) is (expected_type := dict)):
+            raise DeliveryHandoffRejected(f"{type(document)=} ≠ {expected_type=}")
+
+        if set(document) != {"api", "credential", "ca", "outcome"}:
             raise DeliveryHandoffRejected("Delivery handoff requires its documented fields.")
 
         (api, outcome) = (document["api"], document["outcome"])
 
-        if type(api) is not dict or type(outcome) is not dict or set(outcome) != {
+        if not (type(api) is (expected_type := dict)):
+            raise DeliveryHandoffRejected(f"{type(api)=} ≠ {expected_type=}")
+
+        if not (type(outcome) is (expected_type := dict)):
+            raise DeliveryHandoffRejected(f"{type(outcome)=} ≠ {expected_type=}")
+
+        if (set(outcome) != {
             "api_origin",
             "provider_ref",
             "job_ref",
             "execution_attempt_ref",
             "operation",
             "body"
-        }:
+        }):
             raise DeliveryHandoffRejected("Delivery handoff requires complete API and outcome fields.")
 
         credential = _decoded(document["credential"])

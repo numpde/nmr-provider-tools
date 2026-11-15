@@ -101,10 +101,9 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     if projected_artifact.get("path") != "/wheels/" + packaging_wheel_name or "url" in projected_artifact:
         raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
 
-    if not (type(projected_hashes) is dict):
+    if not (type(projected_hashes) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(projected_hashes)=}; "
-            "Cannot qualify wheelhouse bundle: projected hashes must be an object."
+            f"{type(projected_hashes)=} ≠ {expected_type=}"
         )
 
     if projected_hashes.get("sha256") != packaging_digest:
@@ -216,10 +215,9 @@ def qualify_wheelhouse_bundle(bundle, scratch):
 def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
     """Validate the pinned source inventory before extracting or importing code."""
 
-    if not (type(expected_source_files) is dict):
+    if not (type(expected_source_files) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(expected_source_files)=}; "
-            "Cannot qualify acquisition source bundle: source inventory must be an object."
+            f"{type(expected_source_files)=} ≠ {expected_type=}"
         )
 
     if not (expected_source_files):
@@ -246,10 +244,9 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
 
             expected_member = expected_source_files.get(member.name)
 
-            if not (type(expected_member) is dict):
+            if not (type(expected_member) is (expected_type := dict)):
                 raise TypeError(
-                    f"Unexpected {type(expected_member)=}; "
-                    "Cannot qualify acquisition source bundle: member inventory must be an object."
+                    f"{type(expected_member)=} ≠ {expected_type=}"
                 )
 
             if set(expected_member) != {"sha256", "size", "mode"} or member.size != expected_member["size"] or member.mode != expected_member["mode"]:
@@ -369,10 +366,9 @@ def unpack_source(archive, destination, version):
 
 
 def source_payload(source, inventory):
-    if not (type(inventory) is dict):
+    if not (type(inventory) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(inventory)=}; "
-            "Cannot qualify package: the pre-build source inventory must be an object."
+            f"{type(inventory)=} ≠ {expected_type=}"
         )
 
     if not (inventory):
@@ -388,11 +384,9 @@ def source_payload(source, inventory):
                 "has unsupported entries."
             )
 
-        if not (type(facts) is dict):
+        if not (type(facts) is (expected_type := dict)):
             raise TypeError(
-                f"Unexpected {type(facts)=}; "
-                "Cannot qualify package: the recorded source inventory "
-                "has unsupported entries."
+                f"{type(facts)=} ≠ {expected_type=}"
             )
 
         if set(facts) != {"sha256", "size", "mode"}:

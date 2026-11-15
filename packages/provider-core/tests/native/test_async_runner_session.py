@@ -350,11 +350,11 @@ class AsyncNativeWireTests(unittest.IsolatedAsyncioTestCase):
         await self.assert_native_failure(SystemExit("native read exit"), setup=False)
 
     async def test_inherited_cap_requires_positive_finite_absolute_seconds(self):
-        for cap in (0, -1, float("inf"), float("nan"), True):
-            with self.subTest(cap=cap), self.assertRaises(ValueError):
+        for (cap, expected_error) in ((0, ValueError), (-1, ValueError), (float("inf"), ValueError), (float("nan"), ValueError), (True, TypeError)):
+            with self.subTest(cap=cap), self.assertRaises(expected_exception=expected_error):
                 AsyncRunnerSession(self.session, not_after=cap)
 
-            with self.subTest(setup_cap=cap), self.assertRaises(ValueError):
+            with self.subTest(setup_cap=cap), self.assertRaises(expected_exception=expected_error):
                 AsyncRunnerSession(self.session, setup_not_after=cap)
 
     async def test_expired_inherited_cap_never_connects_or_starts_a_control_read(self):

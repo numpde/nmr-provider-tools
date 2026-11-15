@@ -145,11 +145,9 @@ def _build_candidate(source, runtime_lock, build_lock, pool, output, lock_fd):
                 "provider-core and a three-part release version."
             )
 
-        if not (type(release_version) is str):
+        if not (type(release_version) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(release_version)=}; "
-                "Cannot build provider-core release: metadata must identify "
-                "provider-core and a three-part release version."
+                f"{type(release_version)=} ≠ {expected_type=}"
             )
 
         if not (re.fullmatch(

@@ -42,7 +42,7 @@ class ProviderCredentialBoundaryTests(unittest.TestCase):
     def test_matching_keys_with_another_algorithm_cannot_claim_ed25519(self):
         artifact = document(key=X25519PrivateKey.generate())
 
-        with self.assertRaisesRegex(CredentialRejected, "both keys must use Ed25519"):
+        with self.assertRaisesRegex(expected_exception=CredentialRejected, expected_regex=r"type\(public_key\)=.*X25519PublicKey.* ≠ expected_type=.*Ed25519PublicKey"):
             parse_provider_credential(encoded(artifact))
 
     def test_public_key_padding_bits_must_be_canonical(self):

@@ -220,13 +220,37 @@ class RunnerSession:
     def _receive_retirement(self, deadline):
         reply = receive_document(self.control, deadline=deadline)
 
-        if (
-            set(reply) != {"kind", "generation", "operation", "returncode", "scratch_released", "reason"}
-            or reply["kind"] != "retired" or reply["generation"] != self.generation
-            or reply["operation"] != self.operation or type(reply["returncode"]) is not int
-            or type(reply["scratch_released"]) is not bool
-            or reply["reason"] not in ("exited", "owner_lost", "deadline", "shutdown")
-        ):
+        if set(reply) != {"kind", "generation", "operation", "returncode", "scratch_released", "reason"}:
+            raise LifecycleRejected(
+                "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
+            )
+
+        if reply["kind"] != "retired":
+            raise LifecycleRejected(
+                "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
+            )
+
+        if reply["generation"] != self.generation:
+            raise LifecycleRejected(
+                "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
+            )
+
+        if reply["operation"] != self.operation:
+            raise LifecycleRejected(
+                "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
+            )
+
+        if not (type((reply_returncode := reply["returncode"])) is (expected_type := int)):
+            raise LifecycleRejected(
+                f"{type(reply_returncode)=} ≠ {expected_type=}"
+            )
+
+        if not (type((reply_scratch_released := reply["scratch_released"])) is (expected_type := bool)):
+            raise LifecycleRejected(
+                f"{type(reply_scratch_released)=} ≠ {expected_type=}"
+            )
+
+        if not (reply["reason"] in ("exited", "owner_lost", "deadline", "shutdown")):
             raise LifecycleRejected(
                 "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
             )

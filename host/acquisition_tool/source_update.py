@@ -43,10 +43,9 @@ def read_pin(path):
     (data, _metadata) = _regular_bytes(Path(path))
     pin = _json(data, f"release pin {path}")
 
-    if not (type(pin) is dict):
+    if not (type(pin) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(pin)=}; "
-            f"Cannot read release pin {path}: require version and archive_sha256."
+            f"{path=}; {type(pin)=} ≠ {expected_type=}"
         )
 
     if set(pin) != {"version", "archive_sha256"} or not (_version(pin["version"])) or not (_checksum(pin["archive_sha256"])):
@@ -56,10 +55,9 @@ def read_pin(path):
 
 
 def _relative_name(name):
-    if not (type(name) is str):
+    if not (type(name) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(name)=}; "
-            "Acquisition inventory contains an empty or non-text file path."
+            f"{type(name)=} ≠ {expected_type=}"
         )
 
     if not (name) or "\0" in name:
@@ -77,10 +75,9 @@ def read_manifest(data):
     """Admit the recorded inventory, excluding only the manifest's own bytes."""
     manifest = _json(data, "acquisition-manifest.json")
 
-    if not (type(manifest) is dict):
+    if not (type(manifest) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(manifest)=}; "
-            "Acquisition manifest must identify its release, source, payload and dependency inputs."
+            f"{type(manifest)=} ≠ {expected_type=}"
         )
 
     if set(manifest) != {
@@ -94,10 +91,9 @@ def read_manifest(data):
     if not (_version(manifest["release_version"])):
         raise ValueError("Acquisition manifest has no exact release version or Git source revision.")
 
-    if not (type(manifest["source_revision"]) is str):
+    if not (type((manifest_source_revision := manifest["source_revision"])) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(manifest['source_revision'])=}; "
-            "Acquisition manifest has no exact release version or Git source revision."
+            f"{type(manifest_source_revision)=} ≠ {expected_type=}"
         )
 
     if not (re.fullmatch(r"[0-9a-f]{40}", manifest["source_revision"])):
@@ -105,10 +101,9 @@ def read_manifest(data):
 
     entries = manifest["payload_files"]
 
-    if not (type(entries) is dict):
+    if not (type(entries) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(entries)=}; "
-            "Acquisition manifest must inventory its payload without hashing itself."
+            f"{type(entries)=} ≠ {expected_type=}"
         )
 
     if not (entries) or "acquisition-manifest.json" in entries:
@@ -120,28 +115,25 @@ def read_manifest(data):
         if any(parent.as_posix() in entries for parent in path.parents):
             raise ValueError(f"Acquisition payload file conflicts with a parent path: {name!r}.")
 
-        if not (type(entry) is dict):
+        if not (type(entry) is (expected_type := dict)):
             raise TypeError(
-                f"Unexpected {type(entry)=}; "
-                f"Acquisition payload has invalid file metadata: {name!r}."
+                f"{name=}; {type(entry)=} ≠ {expected_type=}"
             )
 
         if not (set(entry) == {"sha256", "size", "mode"} and _checksum(entry["sha256"])):
             raise ValueError(f"Acquisition payload has invalid file metadata: {name!r}.")
 
-        if not (type(entry["size"]) is int):
+        if not (type((entry_size := entry["size"])) is (expected_type := int)):
             raise TypeError(
-                f"Unexpected {type(entry['size'])=}; "
-                f"Acquisition payload has invalid file metadata: {name!r}."
+                f"{name=}; {type(entry_size)=} ≠ {expected_type=}"
             )
 
         if not (0 <= entry["size"]):
             raise ValueError(f"Acquisition payload has invalid file metadata: {name!r}.")
 
-        if not (type(entry["mode"]) is int):
+        if not (type((entry_mode := entry["mode"])) is (expected_type := int)):
             raise TypeError(
-                f"Unexpected {type(entry['mode'])=}; "
-                f"Acquisition payload has invalid file metadata: {name!r}."
+                f"{name=}; {type(entry_mode)=} ≠ {expected_type=}"
             )
 
         if not (entry["mode"] in (0o644, 0o755)):
@@ -149,17 +141,20 @@ def read_manifest(data):
 
     dependencies = manifest["dependency_inputs"]
 
-    if not (type(dependencies) is dict):
+    if not (type(dependencies) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(dependencies)=}; "
-            "Acquisition dependency inputs must map artifact names to SHA-256 checksums."
+            f"{type(dependencies)=} ≠ {expected_type=}"
         )
 
     for (name, checksum) in dependencies.items():
-        if type(name) is not str or type(checksum) is not str:
+        if not (type(name) is (expected_name_type := str)):
             raise TypeError(
-                f"Unexpected {type(name)=}, {type(checksum)=}; "
-                "Acquisition dependency inputs must map artifact names to SHA-256 checksums."
+                f"{type(name)=} ≠ {expected_name_type=}"
+            )
+
+        if not (type(checksum) is (expected_checksum_type := str)):
+            raise TypeError(
+                f"{type(checksum)=} ≠ {expected_checksum_type=}"
             )
 
         if not name or not _checksum(checksum):

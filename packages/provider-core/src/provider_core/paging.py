@@ -23,10 +23,9 @@ def require_cursor(value):
     if value is None:
         return
 
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            "Cursor must be canonical unpadded base64url text or None for the first page"
+            f"{type(value)=} ≠ {expected_type=}"
         )
 
     if re.fullmatch(r"[A-Za-z0-9_-]+", value) is None:
@@ -42,10 +41,9 @@ def require_cursor(value):
 
 
 def paging_query(*, limit, cursor):
-    if not (type(limit) is int):
+    if not (type(limit) is (expected_type := int)):
         raise TypeError(
-            f"Unexpected {type(limit)=}; "
-            "Page limit must be an integer from 1 through 100"
+            f"{type(limit)=} ≠ {expected_type=}"
         )
 
     if not (1 <= limit <= MAX_PAGE_ITEMS):

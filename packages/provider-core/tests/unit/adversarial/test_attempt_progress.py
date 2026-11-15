@@ -22,17 +22,17 @@ class AttemptProgressFailureTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def test_invalid_snapshot_never_dispatches(self):
-        for (phase, condition) in (
-            ("done", None),
-            ([], None),
-            ("preparing", "secret/url"),
-            ("running", ""),
-            ("running", "x" * 129),
-            ("running", True),
+        for (phase, condition, expected_error) in (
+            ("done", None, ValueError),
+            ([], None, ValueError),
+            ("preparing", "secret/url", ValueError),
+            ("running", "", ValueError),
+            ("running", "x" * 129, ValueError),
+            ("running", True, TypeError),
         ):
             transport = Transport()
 
-            with self.subTest(phase=phase), self.assertRaises(ValueError):
+            with self.subTest(phase=phase), self.assertRaises(expected_exception=expected_error):
                 await self.api(transport).progress_attempt(ATTEMPT_REF, phase=phase, condition_code=condition)
 
             self.assertEqual(transport.calls, [])

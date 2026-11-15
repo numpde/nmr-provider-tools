@@ -23,10 +23,9 @@ from http_sf import ser
 def _https_origin(value):
     """Admit one HTTPS origin; never reinterpret credentials or a URL path."""
 
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            "Cannot configure signing: supply one ASCII HTTPS origin without whitespace"
+            f"{type(value)=} ≠ {expected_type=}"
         )
 
     if not (value) or any(ord(c) <= 32 or ord(c) >= 127 for c in value):
@@ -89,10 +88,9 @@ class SigningIdentity:
 
         require_credential_ref(self.credential_ref)
 
-        if not (isinstance(self.private_key, Ed25519PrivateKey)):
+        if not (isinstance((actual_private_key := self.private_key), (expected_type := Ed25519PrivateKey))):
             raise TypeError(
-                f"Unexpected {type(self.private_key)=}; "
-                "Cannot configure signing: an Ed25519 private key is required"
+                f"{type(actual_private_key)=} ≠ {expected_type=}"
             )
 
         object.__setattr__(self, "origin", origin)
@@ -102,10 +100,9 @@ class SigningIdentity:
 def require_credential_ref(value):
     """Admit the reference grammar shared by issued artifacts and signed requests."""
 
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            "Cannot configure signing: credential reference must use bounded credential:name segments"
+            f"{type(value)=} ≠ {expected_type=}"
         )
 
     if not (len(value) <= 128 and re.fullmatch('credential:[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)*', value) is not None):
@@ -115,28 +112,25 @@ def require_credential_ref(value):
 def _request_target(method, path, query):
     """Reject ambiguous target forms before a client can normalize signed bytes."""
 
-    if not (type(method) is str):
+    if not (type(method) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(method)=}; "
-            "Cannot sign request: method must be an uppercase ASCII HTTP method"
+            f"{type(method)=} ≠ {expected_type=}"
         )
 
     if re.fullmatch(r"[A-Z]+", method) is None:
         raise ValueError("Cannot sign request: method must be an uppercase ASCII HTTP method")
 
-    if not (type(path) is str):
+    if not (type(path) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(path)=}; "
-            "Cannot sign request: path must be absolute, with query supplied separately and no fragment"
+            f"{type(path)=} ≠ {expected_type=}"
         )
 
     if not (path.startswith("/")) or path.startswith("//") or "?" in path or "#" in path:
         raise ValueError("Cannot sign request: path must be absolute, with query supplied separately and no fragment")
 
-    if not (type(query) is bytes):
+    if not (type(query) is (expected_type := bytes)):
         raise TypeError(
-            f"Unexpected {type(query)=}; "
-            "Cannot sign request: query must be immutable ASCII bytes"
+            f"{type(query)=} ≠ {expected_type=}"
         )
 
     try:
@@ -160,25 +154,22 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
     """
     target = _request_target(method, path, query)
 
-    if body is not None and type(body) is not bytes:
+    if body is not None and type(body) is not (expected_body_type := bytes):
         raise TypeError(
-            f"Unexpected {type(body)=}; "
-            "Cannot sign request: body must be immutable bytes or None"
+            f"{type(body)=} ≠ {expected_body_type=}"
         )
 
-    if not (type(created) is int):
+    if not (type(created) is (expected_type := int)):
         raise TypeError(
-            f"Unexpected {type(created)=}; "
-            "Cannot sign request: timestamp and 300-second expiry must fit structured-field integers"
+            f"{type(created)=} ≠ {expected_type=}"
         )
 
     if not (0 <= created <= 999999999999699):
         raise ValueError("Cannot sign request: timestamp and 300-second expiry must fit structured-field integers")
 
-    if not (type(nonce) is bytes):
+    if not (type(nonce) is (expected_type := bytes)):
         raise TypeError(
-            f"Unexpected {type(nonce)=}; "
-            "Cannot sign request: nonce must contain exactly 16 random bytes"
+            f"{type(nonce)=} ≠ {expected_type=}"
         )
 
     if len(nonce) != 16:

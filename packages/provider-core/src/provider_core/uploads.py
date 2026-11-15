@@ -54,16 +54,21 @@ class UploadLimits:
 
     def __post_init__(self):
         for value in (self.per_source_bytes, self.total_bytes, self.requests):
-            if not (type(value) is int):
+            if not (type(value) is (expected_type := int)):
                 raise TypeError(
-                    f"Unexpected {type(value)=}; "
-                    "Cannot configure Upload acquisition: byte and request limits must be positive integers"
+                    f"{type(value)=} ≠ {expected_type=}"
                 )
 
             if not (0 < value):
                 raise ValueError("Cannot configure Upload acquisition: byte and request limits must be positive integers")
 
-        if not (type(self.seconds) in (int, float) and math.isfinite(self.seconds) and 0 < self.seconds):
+        if not (type((actual_seconds := self.seconds)) in (expected_seconds_type := (int, float))):
+            raise TypeError(f"Cannot configure Upload acquisition: {type(actual_seconds)=} ≠ {expected_seconds_type=}")
+
+        if not (math.isfinite(self.seconds)):
+            raise ValueError("Cannot configure Upload acquisition: duration must be finite positive seconds")
+
+        if not (0 < self.seconds):
             raise ValueError("Cannot configure Upload acquisition: duration must be finite positive seconds")
 
 
@@ -88,23 +93,33 @@ class UploadRecovery:
     on_retry: object = field(repr=False)
 
     def __post_init__(self):
-        if not (type(self.maximum_attempts) is int):
+        if not (type((actual_maximum_attempts := self.maximum_attempts)) is (expected_type := int)):
             raise TypeError(
-                f"Unexpected {type(self.maximum_attempts)=}; "
-                "Upload recovery requires a positive integer attempt limit including the initial attempt"
+                f"{type(actual_maximum_attempts)=} ≠ {expected_type=}"
             )
 
         if not (0 < self.maximum_attempts):
             raise ValueError("Upload recovery requires a positive integer attempt limit including the initial attempt")
 
         for seconds in (self.initial_seconds, self.maximum_seconds):
-            if not (type(seconds) in (int, float) and math.isfinite(seconds) and 0 < seconds):
+            if not (type(seconds) in (expected_seconds_type := (int, float))):
+                raise TypeError(f"{type(seconds)=} ≠ {expected_seconds_type=}")
+
+            if not (math.isfinite(seconds)):
+                raise ValueError("Upload recovery pacing requires finite positive seconds")
+
+            if not (0 < seconds):
                 raise ValueError("Upload recovery pacing requires finite positive seconds")
 
         if not (self.initial_seconds <= self.maximum_seconds):
             raise ValueError("Upload recovery initial wait cannot exceed its maximum wait")
 
-        if not isinstance(self.stopping, asyncio.Event) or not callable(self.on_retry):
+        if not (isinstance((actual_stopping := self.stopping), (expected_stopping_type := asyncio.Event))):
+            raise TypeError(
+                f"{type(actual_stopping)=} ≠ {expected_stopping_type=}"
+            )
+
+        if not (callable(self.on_retry)):
             raise TypeError(
                 f"Unexpected {type(self.stopping)=}; "
                 "Upload recovery requires a scientific stop Event and protected synchronous retry observer"
@@ -114,10 +129,9 @@ class UploadRecovery:
 def require_store_origin(value):
     """Require an explicit canonical origin before any bearer can be attached."""
 
-    if not (type(value) is str):
+    if not (type(value) is (expected_type := str)):
         raise TypeError(
-            f"Unexpected {type(value)=}; "
-            "Cannot configure Upload store: origin must be visible ASCII HTTPS text"
+            f"{type(value)=} ≠ {expected_type=}"
         )
 
     if any(ord(c) <= 32 or ord(c) >= 127 for c in value):
@@ -365,7 +379,13 @@ class UploadTransfer:
     def _remaining_seconds(self):
         seconds = self._remaining()
 
-        if type(seconds) not in (int, float) or not math.isfinite(seconds) or seconds <= 0:
+        if not (type(seconds) in (expected_type := (int, float))):
+            raise UploadFailed(f"{type(seconds)=} ≠ {expected_type=}")
+
+        if not (math.isfinite(seconds)):
+            raise UploadFailed("source transfer requires a positive finite remaining deadline")
+
+        if seconds <= 0:
             raise UploadFailed("source transfer requires a positive finite remaining deadline")
 
         return seconds
@@ -402,10 +422,19 @@ class UploadTransfer:
             if not (callable(grant_factory)):
                 raise TypeError("Upload transfer requires an async grant factory")
 
-            if type(directory_fd) is not int or directory_fd < 0:
+            if not (type(directory_fd) is (expected_type := int)):
+                raise UploadFailed(f"{type(directory_fd)=} ≠ {expected_type=}")
+
+            if directory_fd < 0:
                 raise UploadFailed("private-file acquisition requires an open directory descriptor")
 
-            if type(retirement_seconds) not in (int, float) or not math.isfinite(retirement_seconds) or retirement_seconds <= 0:
+            if not (type(retirement_seconds) in (expected_type := (int, float))):
+                raise UploadFailed(f"{type(retirement_seconds)=} ≠ {expected_type=}")
+
+            if not (math.isfinite(retirement_seconds)):
+                raise UploadFailed("private-file cleanup requires explicit finite positive retirement seconds")
+
+            if retirement_seconds <= 0:
                 raise UploadFailed("private-file cleanup requires explicit finite positive retirement seconds")
 
             file = self._file = _UploadFile(directory_fd, retirement_seconds)
@@ -713,16 +742,14 @@ class JobUploads:
     def __init__(self, job_ref, *, api, store, store_origin, limits, recovery=None):
         require_job_ref(job_ref)
 
-        if not (type(limits) is UploadLimits):
+        if not (type(limits) is (expected_type := UploadLimits)):
             raise TypeError(
-                f"Unexpected {type(limits)=}; "
-                "Cannot configure Upload acquisition: explicit UploadLimits are required"
+                f"{type(limits)=} ≠ {expected_type=}"
             )
 
-        if recovery is not None and type(recovery) is not UploadRecovery:
+        if recovery is not None and type(recovery) is not (expected_recovery_type := UploadRecovery):
             raise TypeError(
-                f"Unexpected {type(recovery)=}; "
-                "Cannot configure Upload acquisition: recovery must be an explicit UploadRecovery policy"
+                f"{type(recovery)=} ≠ {expected_recovery_type=}"
             )
 
         self.job_ref = job_ref

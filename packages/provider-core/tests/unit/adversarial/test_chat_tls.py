@@ -298,7 +298,7 @@ class CapturedModelTrustTests(unittest.TestCase):
         snapshot = capture_trust(https_trust(self.certificate, label="fixture"))
         snapshot["version"] = True
 
-        with self.assertRaisesRegex(TLSCaptureRejected, "schema"):
+        with self.assertRaisesRegex(expected_exception=TLSCaptureRejected, expected_regex=r"type\(snapshot_version\)=<class 'bool'> ≠ expected_type=<class 'int'>"):
             restore_trust(snapshot)
 
     def test_message_callback_and_loaded_client_key_are_explicitly_unsupported(self):

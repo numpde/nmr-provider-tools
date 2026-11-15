@@ -19,8 +19,8 @@ class ResultVerbosity(StrEnum):
 
     @classmethod
     def parse(cls, value):
-        if not (type(value) is str):
-            raise TypeError(f"Unexpected {type(value) = }")
+        if not (type(value) is (expected_type := str)):
+            raise TypeError(f"{type(value)=} ≠ {expected_type=}")
 
         try:
             return cls(value)

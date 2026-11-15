@@ -14,8 +14,8 @@ from provider_core.contribution_errors import ScientificRejection
 
 
 def _finite_float(value: object, *, label: str) -> float:
-    if not (type(value) in (int, float)):
-        raise TypeError(f"{label} must be a number")
+    if not (type(value) in (expected_type := (int, float))):
+        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
     if not (math.isfinite(value)):
         raise ValueError(f"{label} must be a finite number")
@@ -24,8 +24,8 @@ def _finite_float(value: object, *, label: str) -> float:
 
 
 def _finite_values(values: object, *, label: str) -> tuple[float, ...]:
-    if not (type(values) is tuple):
-        raise TypeError(f"{label} must be a tuple")
+    if not (type(values) is (expected_type := tuple)):
+        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
 
     # repo-check: allow-tuple-generator -- portable scientific values must stay immutable
     return tuple(
@@ -85,8 +85,8 @@ class PreparationResult:
     count: int
 
     def __post_init__(self) -> None:
-        if not (type(self.count) is int):
-            raise TypeError("count must be an integer")
+        if not (type((actual_count := self.count)) is (expected_type := int)):
+            raise TypeError(f"{type(actual_count)=} ≠ {expected_type=}")
 
         if not (0 < self.count):
             raise ValueError("count must be a positive integer")
@@ -100,8 +100,8 @@ class PredictionResult:
     def __post_init__(self) -> None:
         object.__setattr__(self, "total", _finite_float(self.total, label="prediction total"))
 
-        if not (type(self.count) is int):
-            raise TypeError("count must be an integer")
+        if not (type((actual_count := self.count)) is (expected_type := int)):
+            raise TypeError(f"{type(actual_count)=} ≠ {expected_type=}")
 
         if not (0 < self.count):
             raise ValueError("count must be a positive integer")
@@ -115,8 +115,8 @@ class SumResult:
     def __post_init__(self) -> None:
         object.__setattr__(self, "total", _finite_float(self.total, label="sum total"))
 
-        if not (type(self.count) is int):
-            raise TypeError("count must be an integer")
+        if not (type((actual_count := self.count)) is (expected_type := int)):
+            raise TypeError(f"{type(actual_count)=} ≠ {expected_type=}")
 
         if not (0 < self.count):
             raise ValueError("count must be a positive integer")
@@ -225,8 +225,8 @@ def prepare(
 ) -> PreparedValues:
     """Reject one candidate without discarding the analysis itself."""
 
-    if not (type(candidate) is PreparationInput):
-        raise TypeError("Preparation requires PreparationInput")
+    if not (type(candidate) is (expected_type := PreparationInput)):
+        raise TypeError(f"{type(candidate)=} ≠ {expected_type=}")
 
     if not (analysis.is_open):
         raise RuntimeError("Cannot prepare input for a closed analysis")
@@ -267,8 +267,8 @@ def calculate(
     analysis: WeightedSumAnalysis,
     state: CalculationState,
 ) -> PredictionResult:
-    if not (type(state) is CalculationState):
-        raise TypeError("Calculation requires CalculationState")
+    if not (type(state) is (expected_type := CalculationState)):
+        raise TypeError(f"{type(state)=} ≠ {expected_type=}")
 
     if not (analysis.is_open):
         raise RuntimeError("Cannot calculate for a closed analysis")
@@ -300,8 +300,8 @@ def calculate(
 
 
 def sum_values(summation: SumInput) -> SumResult:
-    if not (type(summation) is SumInput):
-        raise TypeError("Summation requires SumInput")
+    if not (type(summation) is (expected_type := SumInput)):
+        raise TypeError(f"{type(summation)=} ≠ {expected_type=}")
 
     if not (summation.values):
         raise ScientificInputRejected(

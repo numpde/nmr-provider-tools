@@ -125,15 +125,15 @@ def _https_from_material(table, label, raw):
 
 def _read_https_settings(table, label, read_file):
     _require_explicit_tls_environment()
-    raw = None
+    ca_bytes = None
 
     if "ca_file" in table:
-        raw = read_file(table["ca_file"], maximum_bytes=1048576, label=label + " CA")
+        ca_bytes = read_file(table["ca_file"], maximum_bytes=1048576, label=label + " CA")
 
-        if not (type(raw) is bytes):
-            raise ApiConfigurationRejected(f"Cannot load {label} CA: the selected reader did not return bytes.")
+        if not (type(ca_bytes) is (expected_type := bytes)):
+            raise ApiConfigurationRejected(f"{label=}; CA reader: {type(ca_bytes)=} ≠ {expected_type=}")
 
-    return (_https_from_material(table, label, raw), raw)
+    return (_https_from_material(table, label, ca_bytes), ca_bytes)
 
 
 def https_settings(table, label, read_file):
@@ -146,7 +146,13 @@ def https_settings(table, label, read_file):
 def require_api_fields(table):
     required = {"origin", "profile", "topology", "provider_ref", "credential_file", "exchange_seconds", "retirement_seconds"}
 
-    if type(table) is not dict or not required <= table.keys() or table.keys() - required - {"ca_file"}:
+    if not (type(table) is (expected_type := dict)):
+        raise ApiConfigurationRejected(f"{type(table)=} ≠ {expected_type=}")
+
+    if not (required <= table.keys()):
+        raise ApiConfigurationRejected("API must contain exactly its documented fields.")
+
+    if table.keys() - required - {"ca_file"}:
         raise ApiConfigurationRejected("API must contain exactly its documented fields.")
 
 
@@ -192,15 +198,25 @@ def api_settings_from_material(table, *, credential_bytes, ca_bytes=None):
     """Construct the API owner from retained credential and optional CA bytes."""
     required = {"origin", "profile", "topology", "provider_ref", "exchange_seconds", "retirement_seconds"}
 
-    if type(table) is not dict or set(table) != required:
+    if not (type(table) is (expected_type := dict)):
+        raise ApiConfigurationRejected(f"{type(table)=} ≠ {expected_type=}")
+
+    if set(table) != required:
         raise ApiConfigurationRejected("API publication settings must contain the documented non-file fields.")
 
-    if type(credential_bytes) is not bytes or len(credential_bytes) > MAX_CREDENTIAL_BYTES:
+    if not (type(credential_bytes) is (expected_type := bytes)):
+        raise ApiConfigurationRejected(f"{type(credential_bytes)=} ≠ {expected_type=}")
+
+    if len(credential_bytes) > MAX_CREDENTIAL_BYTES:
         raise ApiConfigurationRejected("API signing credential requires bounded issued-document bytes.")
 
     (identity, provider_ref) = _signing_identity(table, credential_bytes)
 
-    if ca_bytes is not None and (type(ca_bytes) is not bytes or len(ca_bytes) > 1048576):
-        raise ApiConfigurationRejected("API CA requires bytes within the 1048576-byte limit.")
+    if ca_bytes is not None:
+        if not (type(ca_bytes) is (expected_ca_bytes_type := bytes)):
+            raise ApiConfigurationRejected(f"{type(ca_bytes)=} ≠ {expected_ca_bytes_type=}")
+
+        if len(ca_bytes) > 1048576:
+            raise ApiConfigurationRejected("API CA requires bytes within the 1048576-byte limit.")
 
     return (ApiSettings(identity, _https_from_material(table, "API", ca_bytes), table["topology"]), provider_ref)

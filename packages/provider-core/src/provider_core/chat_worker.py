@@ -73,26 +73,30 @@ class _Cancellation:
 
 
 def _positive_seconds(value):
-    if not (type(value) in (int, float) and math.isfinite(value) and value > 0):
+    if not (type(value) in (expected_type := (int, float))):
+        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
+
+    if not (math.isfinite(value)):
+        raise ValueError("Interpreter child requires finite positive timing settings")
+
+    if not (value > 0):
         raise ValueError("Interpreter child requires finite positive timing settings")
 
     return value
 
 
 def _request(document):
-    if not (type(document) is dict):
+    if not (type(document) is (expected_type := dict)):
         raise TypeError(
-            f"Unexpected {type(document)=}; "
-            "Interpreter child request has an unknown schema"
+            f"{type(document)=} ≠ {expected_type=}"
         )
 
     if document.keys() != _REQUEST_FIELDS:
         raise ValueError("Interpreter child request has an unknown schema")
 
-    if not (type(document["version"]) is int):
+    if not (type((document_version := document["version"])) is (expected_type := int)):
         raise TypeError(
-            f"Unexpected {type(document['version'])=}; "
-            "Interpreter child request has an unknown schema"
+            f"{type(document_version)=} ≠ {expected_type=}"
         )
 
     if document["version"] != 1 or document["kind"] != "request":
@@ -101,10 +105,9 @@ def _request(document):
     for field in ("method", "url"):
         value = document[field]
 
-        if not (type(value) is str):
+        if not (type(value) is (expected_type := str)):
             raise TypeError(
-                f"Unexpected {type(value)=}; "
-                "Interpreter child request method and URL must be text"
+                f"{type(value)=} ≠ {expected_type=}"
             )
 
         if not (0 < len(value) <= METADATA_BYTES):
@@ -112,10 +115,9 @@ def _request(document):
 
     pairs = document["headers"]
 
-    if not (type(pairs) is list):
+    if not (type(pairs) is (expected_type := list)):
         raise TypeError(
-            f"Unexpected {type(pairs)=}; "
-            "Interpreter child headers must be a list"
+            f"{type(pairs)=} ≠ {expected_type=}"
         )
 
     if not (len(pairs) <= 65536):
@@ -125,10 +127,9 @@ def _request(document):
     remaining = METADATA_BYTES
 
     for pair in pairs:
-        if not (type(pair) is list):
+        if not (type(pair) is (expected_type := list)):
             raise TypeError(
-                f"Unexpected {type(pair)=}; "
-                "Interpreter child header must be a two-element list"
+                f"{type(pair)=} ≠ {expected_type=}"
             )
 
         if len(pair) != 2:
@@ -143,10 +144,9 @@ def _request(document):
 
     limit = document["request_bytes"]
 
-    if not (type(limit) is int):
+    if not (type(limit) is (expected_type := int)):
         raise TypeError(
-            f"Unexpected {type(limit)=}; "
-            "Interpreter child request byte allowance must be an integer"
+            f"{type(limit)=} ≠ {expected_type=}"
         )
 
     if not (0 <= limit):

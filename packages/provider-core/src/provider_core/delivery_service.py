@@ -44,7 +44,13 @@ class DeliveryService:
         if not (len(bindings) * limits.provider_items <= limits.total_items and len(bindings) * limits.provider_bytes <= limits.total_bytes):
             raise ValueError("The host delivery budget must cover the configured provider shares; reduce their allowances or increase the host budget.")
 
-        if not (type(request_seconds) in (int, float) and math.isfinite(request_seconds) and 0 < request_seconds):
+        if not (type(request_seconds) in (expected_type := (int, float))):
+            raise TypeError(f"{type(request_seconds)=} ≠ {expected_type=}")
+
+        if not (math.isfinite(request_seconds)):
+            raise ValueError("Delivery IPC request deadline must be finite positive seconds.")
+
+        if not (0 < request_seconds):
             raise ValueError("Delivery IPC request deadline must be finite positive seconds.")
 
         require_delivery_retry_settings(retry_initial_seconds, retry_max_seconds)

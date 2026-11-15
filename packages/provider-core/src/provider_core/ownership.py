@@ -35,19 +35,39 @@ class LiveAttemptLimits:
     maximum_pending_terminal_bytes: int = 16777216
 
     def __post_init__(self):
-        if any(type(value) is not int or value <= 0 for value in (
+        (
+            maximum_attempts,
+            maximum_control_bytes,
+            maximum_pending_terminal_bytes,
+        ) = (
             self.maximum_attempts,
             self.maximum_control_bytes,
             self.maximum_pending_terminal_bytes,
-        )):
+        )
+
+        if not (type(maximum_attempts) is (expected_type := int)):
+            raise TypeError(f"{type(maximum_attempts)=} ≠ {expected_type=}")
+
+        if not (0 < maximum_attempts):
+            raise ValueError("Live Attempt limits require positive integer allowances")
+
+        if not (type(maximum_control_bytes) is (expected_type := int)):
+            raise TypeError(f"{type(maximum_control_bytes)=} ≠ {expected_type=}")
+
+        if not (0 < maximum_control_bytes):
+            raise ValueError("Live Attempt limits require positive integer allowances")
+
+        if not (type(maximum_pending_terminal_bytes) is (expected_type := int)):
+            raise TypeError(f"{type(maximum_pending_terminal_bytes)=} ≠ {expected_type=}")
+
+        if not (0 < maximum_pending_terminal_bytes):
             raise ValueError("Live Attempt limits require positive integer allowances")
 
 
 def _identity(scope, reference):
-    if not (type(scope) is RecoveryScope):
+    if not (type(scope) is (expected_type := RecoveryScope)):
         raise TypeError(
-            f"Unexpected {type(scope)=}; "
-            "Attempt ownership requires an admitted recovery scope"
+            f"{type(scope)=} ≠ {expected_type=}"
         )
 
     require_attempt_ref(reference)
@@ -57,10 +77,9 @@ def _identity(scope, reference):
 
 
 def _start_identity(pending):
-    if not (type(pending) is StartPending):
+    if not (type(pending) is (expected_type := StartPending)):
         raise TypeError(
-            f"Unexpected {type(pending)=}; "
-            "Start ownership requires an admitted pending-start record"
+            f"{type(pending)=} ≠ {expected_type=}"
         )
 
     # nmr-api-v1 6a163b7a9cc1e2c7485b681c0b2b969c7c20e6c8,
@@ -73,10 +92,9 @@ def _start_identity(pending):
 
 class AttemptClaims:
     def __init__(self, *, limits):
-        if not (type(limits) is LiveAttemptLimits):
+        if not (type(limits) is (expected_type := LiveAttemptLimits)):
             raise TypeError(
-                f"Unexpected {type(limits)=}; "
-                "Live Attempt claims require admitted LiveAttemptLimits"
+                f"{type(limits)=} ≠ {expected_type=}"
             )
 
         self._claims = {}
@@ -90,19 +108,17 @@ class AttemptClaims:
 
     # silent-defaults: allow-contract -- Note 010 reserves the existing 2 MiB wire ceiling unless the live owner declares a smaller sufficient allowance.
     def claim_live(self, pending, *, lifecycle_owner, maximum_terminal_bytes=2097152):
-        if not (type(pending) is StartPending):
+        if not (type(pending) is (expected_type := StartPending)):
             raise TypeError(
-                f"Unexpected {type(pending)=}; "
-                "Live selection requires an admitted pending START and its exact lifecycle owner"
+                f"{type(pending)=} ≠ {expected_type=}"
             )
 
         if lifecycle_owner is None:
             raise ValueError("Live selection requires an admitted pending START and its exact lifecycle owner")
 
-        if not (type(maximum_terminal_bytes) is int):
+        if not (type(maximum_terminal_bytes) is (expected_type := int)):
             raise TypeError(
-                f"Unexpected {type(maximum_terminal_bytes)=}; "
-                "Live terminal allowance must cover 16384 through 2097152 encoded request bytes"
+                f"{type(maximum_terminal_bytes)=} ≠ {expected_type=}"
             )
 
         if not (16384 <= maximum_terminal_bytes <= 2097152):
@@ -150,10 +166,9 @@ class AttemptClaims:
         """Exclude a held Job across lanes without copying its lifecycle state."""
         self._require_live_view()
 
-        if not (type(scope) is RecoveryScope):
+        if not (type(scope) is (expected_type := RecoveryScope)):
             raise TypeError(
-                f"Unexpected {type(scope)=}; "
-                "Live Job exclusion requires an admitted recovery scope"
+                f"{type(scope)=} ≠ {expected_type=}"
             )
 
         require_job_ref(job_ref)

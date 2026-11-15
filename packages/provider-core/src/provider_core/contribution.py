@@ -32,8 +32,8 @@ from provider_core.payload import (
 
 
 def _identity(value: object, label: str) -> None:
-    if not (type(value) is str):
-        raise TypeError(f"{label} must be a string")
+    if not (type(value) is (expected_type := str)):
+        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
     if not (
         value
@@ -46,38 +46,39 @@ def _identity(value: object, label: str) -> None:
 
 
 def _digest(value: object, label: str) -> None:
-    if not (type(value) is str):
-        raise TypeError(f"{label} must be a string")
+    if not (type(value) is (expected_type := str)):
+        raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
     if re.fullmatch(pattern=r"sha256:[0-9a-f]{64}\Z", string=value) is None:
         raise ValueError(f"{label} must be a lowercase sha256:<64 hex characters> digest")
 
 
 def _binding_revision(value: object) -> None:
-    if not (type(value) is str):
-        raise TypeError("Binding revision must be a string")
+    if not (type(value) is (expected_type := str)):
+        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
 
     if re.fullmatch(pattern=r"(?:sha256:|configured-v[23]:sha256:)[0-9a-f]{64}\Z", string=value) is None:
         raise ValueError("Binding revision must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest")
 
 
 def _records(values: object, record_type: type[object], label: str) -> None:
-    if not (
-        type(values) is tuple
-        and all(type(value) is record_type for value in values)
-    ):
-        raise TypeError(f"{label} must be an immutable tuple of {record_type.__name__} records")
+    if not (type(values) is (expected_type := tuple)):
+        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
+
+    for value in values:
+        if not (type(value) is (expected_type := record_type)):
+            raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
 
 def _set_records(values: object, record_type: type[object], label: str) -> None:
     """Require an immutable unordered inventory with records of the declared type."""
 
-    if not (type(values) is frozenset):
-        raise TypeError(f"Unexpected {type(values)=}; {label=} requires a frozenset")
+    if not (type(values) is (expected_type := frozenset)):
+        raise TypeError(f"{label=}; {type(values)=} ≠ {expected_type=}")
 
     for value in values:
-        if not (type(value) is record_type):
-            raise TypeError(f"Unexpected {type(value)=}; {label=} requires {record_type=}")
+        if not (type(value) is (expected_type := record_type)):
+            raise TypeError(f"{label=}; {type(value)=} ≠ {expected_type=}")
 
 
 def _unique(values: Collection[object], key: Callable[[object], object], label: str) -> None:
@@ -152,18 +153,15 @@ def _require_callable_signature(
     hints = _resolved_callable_hints(callable_, label=label)
 
     for (parameter, expected_type) in zip(parameters, parameter_types, strict=True):
-        actual_type = hints.get(parameter.name)
+        parameter_annotation = hints.get(parameter.name)
 
-        if not (actual_type is expected_type):
-            raise TypeError(
-                f"{label} parameter {parameter.name!r} annotation must be exactly "
-                f"{expected_type.__qualname__}"
-            )
+        if not (parameter_annotation is expected_type):
+            raise TypeError(f"{label=}; {parameter.name=}; {parameter_annotation=} ≠ {expected_type=}")
 
-    if not (hints.get("return") is return_type):
-        raise TypeError(
-            f"{label} return annotation must be exactly {return_type.__qualname__}"
-        )
+    return_annotation = hints.get("return")
+
+    if not (return_annotation is (expected_type := return_type)):
+        raise TypeError(f"{label=}; {return_annotation=} ≠ {expected_type=}")
 
 
 def _constructed_type(
@@ -181,15 +179,17 @@ def _constructed_type(
     hints = _resolved_callable_hints(callable_, label=label)
 
     for (parameter, expected_type) in zip(parameters, parameter_types, strict=True):
-        if not (hints.get(parameter.name) is expected_type):
-            raise TypeError(
-                f"{label} parameter {parameter.name!r} annotation must be exactly "
-                f"{expected_type.__qualname__}"
-            )
+        parameter_annotation = hints.get(parameter.name)
+
+        if not (parameter_annotation is expected_type):
+            raise TypeError(f"{label=}; {parameter.name=}; {parameter_annotation=} ≠ {expected_type=}")
 
     constructed_type = hints.get("return")
 
-    if not isinstance(constructed_type, type) or constructed_type is NoneType:
+    if not (isinstance(constructed_type, (expected_constructed_type_type := type))):
+        raise TypeError(f"{label=}; {type(constructed_type)=} ≠ {expected_constructed_type_type=}")
+
+    if constructed_type is NoneType:
         raise TypeError(f"{label} must declare one concrete return type")
 
     return constructed_type
@@ -219,8 +219,17 @@ def _scientific_call_shape(
 
     (instance_type, analysis_type, input_type, state_type) = get_args(context_type)
 
-    if not (all(isinstance(value, type) for value in (instance_type, analysis_type, input_type, state_type))):
-        raise TypeError("Scientific context parameters must name concrete types")
+    if not (isinstance(instance_type, (expected_instance_type_type := type))):
+        raise TypeError(f"{type(instance_type)=} ≠ {expected_instance_type_type=}")
+
+    if not (isinstance(analysis_type, (expected_analysis_type_type := type))):
+        raise TypeError(f"{type(analysis_type)=} ≠ {expected_analysis_type_type=}")
+
+    if not (isinstance(input_type, (expected_input_type_type := type))):
+        raise TypeError(f"{type(input_type)=} ≠ {expected_input_type_type=}")
+
+    if not (isinstance(state_type, (expected_state_type_type := type))):
+        raise TypeError(f"{type(state_type)=} ≠ {expected_state_type_type=}")
 
     return_annotation = resolved_annotations.get("return")
 
@@ -229,8 +238,8 @@ def _scientific_call_shape(
 
     (output_type,) = get_args(return_annotation)
 
-    if not (isinstance(output_type, type)):
-        raise TypeError("Scientific call output annotation must be a concrete type")
+    if not (isinstance(output_type, (expected_type := type))):
+        raise TypeError(f"{type(output_type)=} ≠ {expected_type=}")
 
     return _ScientificCallShape(
         instance=instance_type,
@@ -290,8 +299,8 @@ class AssetDescription:
         _identity(self.media_type, "Asset media type")
         _digest(self.digest, "Asset digest")
 
-        if not (type(self.size_bytes) is int):
-            raise TypeError("Asset byte count must be an integer")
+        if not (type((actual_size_bytes := self.size_bytes)) is (expected_type := int)):
+            raise TypeError(f"{type(actual_size_bytes)=} ≠ {expected_type=}")
 
         if not (0 < self.size_bytes):
             raise ValueError("Asset byte count must be a positive integer")
@@ -321,14 +330,14 @@ class ConfiguredIdentity:
         if not (self.implementation.isascii()):
             raise ValueError("Implementation identity must be ASCII")
 
-        if not (type(self.contract_version) is int):
-            raise TypeError("Contract version must be an integer")
+        if not (type((actual_contract_version := self.contract_version)) is (expected_type := int)):
+            raise TypeError(f"{type(actual_contract_version)=} ≠ {expected_type=}")
 
         if not (0 < self.contract_version):
             raise ValueError("Contract version must be a positive integer")
 
-        if self.configuration is not None and type(self.configuration) is not ConfigurationDescription:
-            raise TypeError("Configuration must be a ConfigurationDescription or None")
+        if self.configuration is not None and type((actual_configuration := self.configuration)) is not (expected_configuration_type := ConfigurationDescription):
+            raise TypeError(f"{type(actual_configuration)=} ≠ {expected_configuration_type=}")
 
         _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
         _unique(self.assets, lambda asset: asset.name, "Scientific assets")
@@ -377,8 +386,8 @@ class ResourceRequirement:
         _identity(self.kind, "Resource kind")
         _identity(self.unit, "Resource unit")
 
-        if not (type(self.amount) is int):
-            raise TypeError("Resource amount must be an integer")
+        if not (type((actual_amount := self.amount)) is (expected_type := int)):
+            raise TypeError(f"{type(actual_amount)=} ≠ {expected_type=}")
 
         if not (0 < self.amount):
             raise ValueError("Resource amount must be a positive integer")
@@ -386,8 +395,8 @@ class ResourceRequirement:
         if self.selector is not None:
             _identity(self.selector, "Resource selector")
 
-        if not (type(self.exclusive) is bool):
-            raise TypeError("Resource exclusivity must be boolean")
+        if not (type((actual_exclusive := self.exclusive)) is (expected_type := bool)):
+            raise TypeError(f"{type(actual_exclusive)=} ≠ {expected_type=}")
 
     @property
     def identity(self) -> tuple[str, str, str | None]:
@@ -397,12 +406,12 @@ class ResourceRequirement:
 def _require_resource_requirements(resource_requirements: object) -> None:
     """Require unordered immutable needs with one quantity per resource identity."""
 
-    if not (type(resource_requirements) is frozenset):
-        raise TypeError(f"Unexpected {type(resource_requirements)=}; supply a frozenset of ResourceRequirement records")
+    if not (type(resource_requirements) is (expected_type := frozenset)):
+        raise TypeError(f"{type(resource_requirements)=} ≠ {expected_type=}")
 
     for resource_requirement in resource_requirements:
-        if not (type(resource_requirement) is ResourceRequirement):
-            raise TypeError(f"Unexpected {type(resource_requirement)=}; expected a ResourceRequirement record")
+        if not (type(resource_requirement) is (expected_type := ResourceRequirement)):
+            raise TypeError(f"{type(resource_requirement)=} ≠ {expected_type=}")
 
     _unique(
         values=resource_requirements,
@@ -421,8 +430,8 @@ class StateParameter:
         _identity(self.name, "State parameter name")
         _identity(self.kind, "Scientific state kind")
 
-        if not (type(self.use) is StateUse):
-            raise TypeError("State use must be a declared StateUse")
+        if not (type((actual_use := self.use)) is (expected_type := StateUse)):
+            raise TypeError(f"{type(actual_use)=} ≠ {expected_type=}")
 
 
 @runtime_checkable
@@ -465,8 +474,11 @@ class ProgressEvent:
             raise ValueError("Progress completed and total must be supplied together")
 
         if self.completed is not None:
-            if type(self.completed) is not int or type(self.total) is not int:
-                raise TypeError("Progress counts must be integers")
+            if not (type((actual_completed := self.completed)) is (expected_type := int)):
+                raise TypeError(f"{type(actual_completed)=} ≠ {expected_type=}")
+
+            if not (type((actual_total := self.total)) is (expected_type := int)):
+                raise TypeError(f"{type(actual_total)=} ≠ {expected_type=}")
 
             if not (0 <= self.completed <= self.total and 0 < self.total):
                 raise ValueError("Progress counts must satisfy 0 <= completed <= total and total > 0")
@@ -536,14 +548,14 @@ class CallDescription:
         _unique(self.state_outputs, lambda value: value.name, "State outputs")
         _require_resource_requirements(resource_requirements=self.resources)
 
-        if not (type(self.concurrency) is ConcurrencyRequirement):
-            raise TypeError("Call concurrency must be a declared ConcurrencyRequirement")
+        if not (type((actual_concurrency := self.concurrency)) is (expected_type := ConcurrencyRequirement)):
+            raise TypeError(f"{type(actual_concurrency)=} ≠ {expected_type=}")
 
-        if not (type(self.interruption) is InterruptionSupport):
-            raise TypeError("Call interruption must be a declared InterruptionSupport")
+        if not (type((actual_interruption := self.interruption)) is (expected_type := InterruptionSupport)):
+            raise TypeError(f"{type(actual_interruption)=} ≠ {expected_type=}")
 
-        if not (type(self.progress) is bool):
-            raise TypeError("Call progress declaration must be boolean")
+        if not (type((actual_progress := self.progress)) is (expected_type := bool)):
+            raise TypeError(f"{type(actual_progress)=} ≠ {expected_type=}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -561,19 +573,18 @@ class ImplementationDescription:
         _identity(self.binding_id, "Binding identity")
         _binding_revision(self.binding_revision)
 
-        if not (type(self.contract_version) is int):
-            raise TypeError("Contract version must be an integer")
+        if not (type((actual_contract_version := self.contract_version)) is (expected_type := int)):
+            raise TypeError(f"{type(actual_contract_version)=} ≠ {expected_type=}")
 
         if not (1 <= self.contract_version):
             raise ValueError("Contract version must be a positive integer")
 
         if (
             self.configuration is not None
-            and type(self.configuration) is not ConfigurationDescription
+            and type((actual_configuration := self.configuration)) is not (expected_configuration_type := ConfigurationDescription)
         ):
             raise TypeError(
-                "Implementation configuration must be a ConfigurationDescription "
-                "or None"
+                f"{type(actual_configuration)=} ≠ {expected_configuration_type=}"
             )
 
         _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
@@ -586,8 +597,8 @@ class ImplementationDescription:
         _unique(self.calls, lambda value: value.name, "Call descriptions")
         _require_resource_requirements(resource_requirements=self.resident_resources)
 
-        if not (type(self.isolation) is IsolationRequirement):
-            raise TypeError("Implementation isolation must be a declared IsolationRequirement")
+        if not (type((actual_isolation := self.isolation)) is (expected_type := IsolationRequirement)):
+            raise TypeError(f"{type(actual_isolation)=} ≠ {expected_type=}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -757,15 +768,15 @@ class CallBinding[InputT, StateT, OutputT]:
     _output_slots: tuple[StateOutputBinding[Any], ...] = field(default=(), repr=False)
 
     def __post_init__(self) -> None:
-        if not (type(self.description) is CallDescription):
-            raise TypeError("A call binding requires its CallDescription")
+        if not (type((actual_description := self.description)) is (expected_description_type := CallDescription)):
+            raise TypeError(f"{type(actual_description)=} ≠ {expected_description_type=}")
 
         for (codec, label) in (
             (self.input_codec, "Input codec"),
             (self.result_codec, "Result codec"),
         ):
-            if not (isinstance(codec, PayloadCodec)):
-                raise TypeError(f"{label} must implement PayloadCodec")
+            if not (isinstance(codec, (expected_codec_type := PayloadCodec))):
+                raise TypeError(f"{label=}; {type(codec)=} ≠ {expected_codec_type=}")
 
         if self.input_codec.format != self.description.input_format:
             raise ValueError("Input codec format differs from the call description")
@@ -773,8 +784,8 @@ class CallBinding[InputT, StateT, OutputT]:
         if self.result_codec.format != self.description.result_format:
             raise ValueError("Result codec format differs from the call description")
 
-        if not (isinstance(self.state_binding, StateBinding)):
-            raise TypeError("State binding must implement StateBinding")
+        if not (isinstance((actual_state_binding := self.state_binding), (expected_state_binding_type := StateBinding))):
+            raise TypeError(f"{type(actual_state_binding)=} ≠ {expected_state_binding_type=}")
 
         # repo-check: allow-tuple-generator -- StateBinding.names requires an immutable ordered tuple matching the declared state fields.
         declared_state_names = tuple(
@@ -786,8 +797,8 @@ class CallBinding[InputT, StateT, OutputT]:
             raise ValueError("State binding fields differ from the call's declared state inputs")
 
         if self.description.state_inputs:
-            if not (isinstance(self.state_binding, DeclaredStateBinding)):
-                raise TypeError("Stateful calls require a binding that owns typed state declarations")
+            if not (isinstance((actual_state_binding := self.state_binding), (expected_state_binding_type := DeclaredStateBinding))):
+                raise TypeError(f"{type(actual_state_binding)=} ≠ {expected_state_binding_type=}")
 
             if self.state_binding.parameters != self.description.state_inputs:
                 raise ValueError("State binding kind/use differs from the call's declared inputs")
@@ -797,14 +808,17 @@ class CallBinding[InputT, StateT, OutputT]:
 
         _callback(self.scientific_call, "Scientific call")
 
-        if not (type(self._output_slots) is tuple):
-            raise TypeError("Scientific output slots must be an immutable tuple")
+        if not (type((actual_output_slots := self._output_slots)) is (expected_output_slots_type := tuple)):
+            raise TypeError(f"{type(actual_output_slots)=} ≠ {expected_output_slots_type=}")
 
         output_descriptions = []
 
         for slot in self._output_slots:
-            if not isinstance(slot, StateOutputBinding) or not isinstance(slot.value_type, type):
-                raise TypeError("Scientific output slots require a concrete Python value type")
+            if not (isinstance(slot, (expected_slot_type := StateOutputBinding))):
+                raise TypeError(f"{type(slot)=} ≠ {expected_slot_type=}")
+
+            if not (isinstance((actual_value_type := slot.value_type), (expected_value_type_type := type))):
+                raise TypeError(f"{type(actual_value_type)=} ≠ {expected_value_type_type=}")
 
             output_descriptions.append(slot.description)
 
@@ -813,16 +827,13 @@ class CallBinding[InputT, StateT, OutputT]:
 
         call_shape = _scientific_call_shape(self.scientific_call)
 
-        for (actual_type, expected_type, role) in (
+        for (declared_type, expected_type, role) in (
             (call_shape.input, self.input_codec.value_type, "input"),
             (call_shape.state, self.state_binding.value_type, "state"),
             (call_shape.output, self.result_codec.value_type, "output"),
         ):
-            if not (actual_type is expected_type):
-                raise TypeError(
-                    f"Scientific call {role} annotation must be exactly "
-                    f"{expected_type.__qualname__}"
-                )
+            if not (declared_type is expected_type):
+                raise TypeError(f"{role=}; {declared_type=} ≠ {expected_type=}")
 
         object.__setattr__(self, "_shape", call_shape)
 
@@ -1036,14 +1047,14 @@ class ImplementationBinding[InstanceT, AnalysisT]:
             self.analysis.dispose(analysis)
 
     def __post_init__(self) -> None:
-        if not (type(self.identity) is ConfiguredIdentity):
-            raise TypeError("A binding requires one ConfiguredIdentity")
+        if not (type((actual_identity := self.identity)) is (expected_type := ConfiguredIdentity)):
+            raise TypeError(f"{type(actual_identity)=} ≠ {expected_type=}")
 
-        if self.instance is not None and type(self.instance) is not InstanceHooks:
-            raise TypeError("Instance hooks must be InstanceHooks or None")
+        if self.instance is not None and type((actual_instance := self.instance)) is not (expected_instance_type := InstanceHooks):
+            raise TypeError(f"{type(actual_instance)=} ≠ {expected_instance_type=}")
 
-        if self.analysis is not None and type(self.analysis) is not AnalysisHooks:
-            raise TypeError("Analysis hooks must be AnalysisHooks or None")
+        if self.analysis is not None and type((actual_analysis := self.analysis)) is not (expected_analysis_type := AnalysisHooks):
+            raise TypeError(f"{type(actual_analysis)=} ≠ {expected_analysis_type=}")
 
         bound_calls = []
         member_hints = get_type_hints(type(self), include_extras=True)
@@ -1061,8 +1072,8 @@ class ImplementationBinding[InstanceT, AnalysisT]:
 
                 continue
 
-            if not (type(declaration) is CallBinding):
-                raise TypeError(f"Declared call member {member.name!r} must contain a CallBinding")
+            if not (type(declaration) is (expected_type := CallBinding)):
+                raise TypeError(f"{member.name=}; {type(declaration)=} ≠ {expected_type=}")
 
             expected_types = get_args(annotation)
 
@@ -1216,8 +1227,8 @@ def ref[InputT, StateT, OutputT](call: CallBinding[InputT, StateT, OutputT]) -> 
 def description_document(description: ImplementationDescription) -> dict[str, object]:
     """Return the scheduler-facing, JSON-compatible view of one binding."""
 
-    if not (type(description) is ImplementationDescription):
-        raise TypeError("Description export requires an ImplementationDescription")
+    if not (type(description) is (expected_type := ImplementationDescription)):
+        raise TypeError(f"{type(description)=} ≠ {expected_type=}")
 
     # Requirements are unordered; canonical array order keeps exported revisions stable.
     # Compare selector presence before its value so None never compares with a string.

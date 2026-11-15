@@ -66,23 +66,26 @@ class ObservedWorkerCrash(RuntimeError):
     """
 
     def __init__(self, acknowledged, *, phase, owner, runner, evidence, cause):
-        if not (type(acknowledged) is AcknowledgedAttempt):
+        if not (type(acknowledged) is (expected_type := AcknowledgedAttempt)):
             raise TypeError(
-                f"Unexpected {type(acknowledged)=}; "
-                "Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence"
+                f"{type(acknowledged)=} ≠ {expected_type=}"
             )
 
         if phase not in ("preparing", "running") or owner is None:
             raise ValueError("Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence")
 
-        if type(runner) is not RunnerSession or type(evidence) is not ProtectedEvidence:
+        if not (type(runner) is (expected_runner_type := RunnerSession)):
             raise TypeError(
-                f"Unexpected {type(runner)=}, {type(evidence)=}; "
-                "Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence"
+                f"{type(runner)=} ≠ {expected_runner_type=}"
             )
 
-        if (cause is not None and not isinstance(cause, BaseException)):
-            raise TypeError(f"Unexpected {type(cause)=}; an observed crash cause must be an exception or None")
+        if not (type(evidence) is (expected_evidence_type := ProtectedEvidence)):
+            raise TypeError(
+                f"{type(evidence)=} ≠ {expected_evidence_type=}"
+            )
+
+        if cause is not None and not isinstance(cause, (expected_cause_type := BaseException)):
+            raise TypeError(f"{type(cause)=} ≠ {expected_cause_type=}")
 
         original = runner.original_exit
 
@@ -127,10 +130,9 @@ class PreparedAnalysis:
     identity: ProtectedEvidence = field(repr=False)
 
     def __post_init__(self):
-        if not (type(self.identity) is ProtectedEvidence):
+        if not (type((actual_identity := self.identity)) is (expected_type := ProtectedEvidence)):
             raise TypeError(
-                f"Unexpected {type(self.identity)=}; "
-                "Cannot prepare analysis: protected candidate identity is required before execution."
+                f"{type(actual_identity)=} ≠ {expected_type=}"
             )
 
 

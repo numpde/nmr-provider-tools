@@ -255,10 +255,9 @@ class Interpreter:
         context_bytes: int,
         secrets: tuple[str, ...],
     ):
-        if not (isinstance(endpoint_factories, tuple)):
+        if not (isinstance(endpoint_factories, (expected_type := tuple))):
             raise TypeError(
-                f"Unexpected {type(endpoint_factories)=}; "
-                "Cannot configure interpretation: provide an ordered nonempty tuple of endpoint factories."
+                f"{type(endpoint_factories)=} ≠ {expected_type=}"
             )
 
         if not (endpoint_factories):
@@ -266,29 +265,32 @@ class Interpreter:
                 "Cannot configure interpretation: provide an ordered nonempty tuple of endpoint factories."
             )
 
-        if not (type(timeout_seconds) in (int, float) and math.isfinite(timeout_seconds) and 0 < timeout_seconds):
+        if not (type(timeout_seconds) in (expected_timeout_seconds_type := (int, float))):
+            raise TypeError(f"Cannot configure interpretation: {type(timeout_seconds)=} ≠ {expected_timeout_seconds_type=}")
+
+        if not (math.isfinite(timeout_seconds)):
             raise ValueError("Cannot configure interpretation: timeout_seconds must be finite positive seconds.")
 
-        if not (type(context_bytes) is int):
+        if not (0 < timeout_seconds):
+            raise ValueError("Cannot configure interpretation: timeout_seconds must be finite positive seconds.")
+
+        if not (type(context_bytes) is (expected_type := int)):
             raise TypeError(
-                f"Unexpected {type(context_bytes)=}; "
-                "Cannot configure interpretation: context_bytes must be a positive byte limit."
+                f"{type(context_bytes)=} ≠ {expected_type=}"
             )
 
         if not (0 < context_bytes):
             raise ValueError("Cannot configure interpretation: context_bytes must be a positive byte limit.")
 
-        if not (isinstance(secrets, tuple)):
+        if not (isinstance(secrets, (expected_type := tuple))):
             raise TypeError(
-                f"Unexpected {type(secrets)=}; "
-                "Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings."
+                f"{type(secrets)=} ≠ {expected_type=}"
             )
 
         for secret in secrets:
-            if not (isinstance(secret, str)):
+            if not (isinstance(secret, (expected_type := str))):
                 raise TypeError(
-                    f"Unexpected {type(secret)=}; "
-                    "Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings."
+                    f"{type(secret)=} ≠ {expected_type=}"
                 )
 
         if any(not secret for secret in secrets):
@@ -390,7 +392,10 @@ class Interpreter:
         deadline = _now() + self.timeout_seconds
 
         if not_after is not None:
-            if type(not_after) not in (int, float) or not math.isfinite(not_after):
+            if not (type(not_after) in (expected_type := (int, float))):
+                raise TypeError(f"Cannot start interpretation: {type(not_after)=} ≠ {expected_type=}")
+
+            if not (math.isfinite(not_after)):
                 raise ValueError("Cannot start interpretation: not_after must be a finite monotonic deadline.")
 
             deadline = min(deadline, not_after)
@@ -623,7 +628,17 @@ class _History:
     def read(self, arguments: Document, fits: Callable[[Document], bool]) -> Document:
         queries = arguments.get("records")
 
-        if set(arguments) != {"records"} or not isinstance(queries, list) or not 1 <= len(queries) <= 8:
+        if set(arguments) != {"records"}:
+            raise ToolRejected(
+                "Provide records as a list of one to eight catalogue references with optional cursors."
+            )
+
+        if not (isinstance(queries, (expected_type := list))):
+            raise ToolRejected(
+                f"{type(queries)=} ≠ {expected_type=}"
+            )
+
+        if not (1 <= len(queries) <= 8):
             raise ToolRejected(
                 "Provide records as a list of one to eight catalogue references with optional cursors."
             )
@@ -631,17 +646,24 @@ class _History:
         results: list[Document] = []
 
         for query in queries:
-            if (
-                not isinstance(query, dict)
-                or set(query) - {"ref", "cursor"}
-                or not isinstance(query.get("ref"), str)
-            ):
+            if not (isinstance(query, (expected_type := dict))):
+                raise ToolRejected(f"{type(query)=} ≠ {expected_type=}")
+
+            if set(query) - {"ref", "cursor"}:
                 raise ToolRejected("Each record request needs a ref and an optional integer cursor.")
+
+            if not (isinstance((query_ref := query.get("ref")), (expected_type := str))):
+                raise ToolRejected(f"{type(query_ref)=} ≠ {expected_type=}")
 
             # silent-defaults: allow-contract -- The input schema explicitly permits omitted cursors; zero selects the start of the captured history record.
             cursor = query["cursor"] if "cursor" in query else 0
 
-            if type(cursor) is not int or cursor < 0:
+            if not (type(cursor) is (expected_type := int)):
+                raise ToolRejected(
+                    f"{type(cursor)=} ≠ {expected_type=}"
+                )
+
+            if cursor < 0:
                 raise ToolRejected(
                     "A history cursor must be a nonnegative integer offset in that record's JSON text."
                 )
@@ -745,13 +767,21 @@ class _DescribeInputConstraints:
     async def invoke(self, arguments: Document, *, not_after: float) -> ToolReply:
         (name, path) = (arguments.get("tool"), arguments.get("field"))
 
-        if (
-            set(arguments) - {"tool", "field"}
-            or not isinstance(name, str)
-            or name not in self._schemas
-            or (path is not None and (not isinstance(path, str) or not path))
-        ):
+        if set(arguments) - {"tool", "field"}:
             raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
+
+        if not (isinstance(name, (expected_type := str))):
+            raise ToolRejected(f"{type(name)=} ≠ {expected_type=}")
+
+        if not (name in self._schemas):
+            raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
+
+        if path is not None:
+            if not (isinstance(path, (expected_path_type := str))):
+                raise ToolRejected(f"{type(path)=} ≠ {expected_path_type=}")
+
+            if not (path):
+                raise ToolRejected("Name an available provider tool and optionally a nonempty field path.")
 
         if self._reader is not None:
             metadata = await self._reader(name, path, not_after=not_after)

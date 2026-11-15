@@ -31,8 +31,25 @@ class DeliveryWorkerFailed(RuntimeError):
 def require_delivery_retry_settings(initial_seconds, maximum_seconds):
     """Share admission before service startup and standalone worker construction."""
 
-    if any(type(value) not in (int, float) or not math.isfinite(value) or value <= 0
-           for value in (initial_seconds, maximum_seconds)) or initial_seconds > maximum_seconds:
+    if not (type(initial_seconds) in (expected_type := (int, float))):
+        raise TypeError(f"{type(initial_seconds)=} ≠ {expected_type=}")
+
+    if not (math.isfinite(initial_seconds)):
+        raise ValueError("Delivery retry delays must be finite positive seconds, with initial delay no greater than maximum.")
+
+    if not (0 < initial_seconds):
+        raise ValueError("Delivery retry delays must be finite positive seconds, with initial delay no greater than maximum.")
+
+    if not (type(maximum_seconds) in (expected_type := (int, float))):
+        raise TypeError(f"{type(maximum_seconds)=} ≠ {expected_type=}")
+
+    if not (math.isfinite(maximum_seconds)):
+        raise ValueError("Delivery retry delays must be finite positive seconds, with initial delay no greater than maximum.")
+
+    if not (0 < maximum_seconds):
+        raise ValueError("Delivery retry delays must be finite positive seconds, with initial delay no greater than maximum.")
+
+    if not (initial_seconds <= maximum_seconds):
         raise ValueError("Delivery retry delays must be finite positive seconds, with initial delay no greater than maximum.")
 
 

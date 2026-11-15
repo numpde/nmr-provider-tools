@@ -50,10 +50,9 @@ class AttemptStarter:
     def __init__(self, api, scope, claim):
         claim.require_live(scope)
 
-        if not (type(scope) is RecoveryScope):
+        if not (type(scope) is (expected_type := RecoveryScope)):
             raise TypeError(
-                f"Unexpected {type(scope)=}; "
-                "Cannot configure Attempt start: scope must be an admitted RecoveryScope"
+                f"{type(scope)=} ≠ {expected_type=}"
             )
 
         if api.origin != scope.api_origin:
@@ -80,7 +79,10 @@ class AttemptStarter:
         return await self._start(pending)
 
     async def _start(self, pending):
-        if type(pending) is not StartPending or pending.scope != self.scope:
+        if not (type(pending) is (expected_type := StartPending)):
+            raise StartRefused(f"{type(pending)=} ≠ {expected_type=}")
+
+        if pending.scope != self.scope:
             raise StartRefused("Start requires a pending record matching the current API, provider, lane and generation")
 
         if not (self._pending is None):

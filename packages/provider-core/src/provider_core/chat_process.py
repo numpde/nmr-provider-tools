@@ -91,7 +91,13 @@ class SupervisedChatTransport:
                                    retirement_seconds=retirement_seconds,
                                    proxy_socket=proxy_socket)
 
-        if not (type(connect_seconds) in (int, float) and math.isfinite(connect_seconds) and connect_seconds > 0):
+        if not (type(connect_seconds) in (expected_type := (int, float))):
+            raise TypeError(f"Cannot configure interpreter child: {type(connect_seconds)=} ≠ {expected_type=}")
+
+        if not (math.isfinite(connect_seconds)):
+            raise ValueError("Cannot configure interpreter child: connect_seconds must be finite positive seconds")
+
+        if not (connect_seconds > 0):
             raise ValueError("Cannot configure interpreter child: connect_seconds must be finite positive seconds")
 
         self._trust = capture_trust(trust)
@@ -201,7 +207,13 @@ class SupervisedChatTransport:
         deadline = loop.time() + self._exchange_seconds
 
         if not_after is not None:
-            if not (type(not_after) in (int, float) and math.isfinite(not_after) and not_after > 0):
+            if not (type(not_after) in (expected_type := (int, float))):
+                raise TypeError(f"Cannot start model HTTP exchange: {type(not_after)=} ≠ {expected_type=}")
+
+            if not (math.isfinite(not_after)):
+                raise ValueError("Cannot start model HTTP exchange: not_after must be a finite positive deadline")
+
+            if not (not_after > 0):
                 raise ValueError("Cannot start model HTTP exchange: not_after must be a finite positive deadline")
 
             deadline = min(deadline, not_after)

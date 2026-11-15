@@ -103,11 +103,11 @@ class ConditionRecoveryTests(unittest.IsolatedAsyncioTestCase):
         claim.release(owner=claim.lifecycle_owner)
 
     def test_policy_refuses_unbounded_values_or_missing_observers(self):
-        for seconds in (0, -1, float("inf"), float("nan"), True, "1"):
-            with self.subTest(seconds=seconds), self.assertRaises(ValueError):
+        for (seconds, expected_error) in ((0, ValueError), (-1, ValueError), (float("inf"), ValueError), (float("nan"), ValueError), (True, TypeError), ("1", TypeError)):
+            with self.subTest(seconds=seconds), self.assertRaises(expected_exception=expected_error):
                 ConditionRecovery(seconds, 1, Mock(), Mock())
 
-            with self.subTest(backoff=seconds), self.assertRaises(ValueError):
+            with self.subTest(backoff=seconds), self.assertRaises(expected_exception=expected_error):
                 ConditionRecovery(1, seconds, Mock(), Mock())
 
         for observers in ((None, Mock()), (Mock(), None)):

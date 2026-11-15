@@ -283,11 +283,11 @@ class ObservationRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
         def recovered(_attempt, _failure):
             pass
 
-        for seconds in (0, -1, float("inf"), float("nan"), True):
-            with self.subTest(seconds=seconds), self.assertRaises(ValueError):
+        for (seconds, expected_error) in ((0, ValueError), (-1, ValueError), (float("inf"), ValueError), (float("nan"), ValueError), (True, TypeError)):
+            with self.subTest(seconds=seconds), self.assertRaises(expected_exception=expected_error):
                 ObservationRecovery(seconds, 1, retry, recovered)
 
-            with self.subTest(backoff=seconds), self.assertRaises(ValueError):
+            with self.subTest(backoff=seconds), self.assertRaises(expected_exception=expected_error):
                 ObservationRecovery(1, seconds, retry, recovered)
 
         for observers in ((None, recovered), (retry, None)):

@@ -39,7 +39,10 @@ def token(value):
 
 
 def positive_seconds(value):
-    if not (type(value) in (int, float) and math.isfinite(value) and 0 < value):
+    if not (type(value) in (expected_types := (int, float))):
+        raise TypeError(f"{type(value)=} ≠ {expected_types=}")
+
+    if not (math.isfinite(value) and 0 < value):
         raise ValueError("Runner lifecycle budget must be a finite positive number of seconds.")
 
 
@@ -91,8 +94,8 @@ def receive_document(connection, *, deadline):
     except (ValueError, UnicodeError) as cause:
         raise LifecycleRejected("Runner lifecycle reply is not a complete JSON document.") from cause
 
-    if not (type(value) is dict):
-        raise LifecycleRejected("Runner lifecycle reply must be an object.")
+    if not (type(value) is (expected_type := dict)):
+        raise LifecycleRejected(f"{type(value)=} ≠ {expected_type=}")
 
     return value
 
@@ -147,11 +150,31 @@ def receive_greeting(connection, *, deadline):
         if (
             set(value) != {"kind", "role", "generation", "operation", "lock"}
             or value["kind"] != "opened" or not token(value["generation"]) or not token(value["operation"])
-            or type(value["role"]) is not str or not re.fullmatch(r"[a-z][a-z0-9_-]{0,47}", value["role"])
-            or type(value["lock"]) is not list or len(value["lock"]) != 2
-            or any(type(part) is not int or part < 0 for part in value["lock"])
         ):
             raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
+
+        role = value["role"]
+
+        if not (type(role) is (expected_type := str)):
+            raise LifecycleRejected(f"{type(role)=} ≠ {expected_type=}")
+
+        if not (re.fullmatch(r"[a-z][a-z0-9_-]{0,47}", role)):
+            raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
+
+        lock = value["lock"]
+
+        if not (type(lock) is (expected_type := list)):
+            raise LifecycleRejected(f"{type(lock)=} ≠ {expected_type=}")
+
+        if len(lock) != 2:
+            raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
+
+        for part in lock:
+            if not (type(part) is (expected_type := int)):
+                raise LifecycleRejected(f"{type(part)=} ≠ {expected_type=}")
+
+            if part < 0:
+                raise LifecycleRejected("Runner greeting has invalid generation, operation or lock identity.")
 
         return (value, science)
     except BaseException:

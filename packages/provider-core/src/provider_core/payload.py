@@ -65,8 +65,8 @@ class StateBinding[T](Protocol):
 
 
 def _require_format(value: object) -> None:
-    if not (type(value) is str):
-        raise TypeError(f"Unexpected {type(value)=}; a payload format must be a string")
+    if not (type(value) is (expected_type := str)):
+        raise TypeError(f"{type(value)=} ≠ {expected_type=}")
 
     if not (
         value
@@ -98,8 +98,8 @@ def _object(pairs: list[tuple[str, object]]) -> dict[str, object]:
 
 
 def _read_json(payload: bytes) -> object:
-    if not (type(payload) is bytes):
-        raise TypeError("Payload codecs accept bytes")
+    if not (type(payload) is (expected_type := bytes)):
+        raise TypeError(f"{type(payload)=} ≠ {expected_type=}")
 
     try:
         return json.loads(
@@ -137,7 +137,10 @@ def _resolved_hints(value_type: type[object]) -> dict[str, object]:
 
 
 def _dataclass_fields(value_type: type[object]):
-    if not (isinstance(value_type, type) and is_dataclass(value_type)):
+    if not (isinstance(value_type, (expected_type := type))):
+        raise TypeError(f"{type(value_type)=} ≠ {expected_type=}")
+
+    if not (is_dataclass(value_type)):
         raise TypeError("Portable values must be dataclass types")
 
     parameters = value_type.__dataclass_params__
@@ -262,25 +265,28 @@ def _validate_dataclass(
 
 def _decode_value(value: object, annotation: object, *, path: str) -> object:
     if annotation is str:
-        if not (type(value) is str):
-            raise PayloadRejected("invalid_type", f"{path} must be a string")
+        if not (type(value) is (expected_type := str)):
+            raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_type=}")
 
         return value
 
     if annotation is bool:
-        if not (type(value) is bool):
-            raise PayloadRejected("invalid_type", f"{path} must be a boolean")
+        if not (type(value) is (expected_type := bool)):
+            raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_type=}")
 
         return value
 
     if annotation is int:
-        if not (type(value) is int):
-            raise PayloadRejected("invalid_type", f"{path} must be an integer")
+        if not (type(value) is (expected_type := int)):
+            raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_type=}")
 
         return value
 
     if annotation is float:
-        if type(value) not in (int, float) or not math.isfinite(value):
+        if not (type(value) in (expected_types := (int, float))):
+            raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_types=}")
+
+        if not (math.isfinite(value)):
             raise PayloadRejected(
                 "invalid_type",
                 f"{path} must be a finite number",
@@ -289,8 +295,8 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
         return float(value)
 
     if annotation is NoneType:
-        if not (value is None):
-            raise PayloadRejected("invalid_type", f"{path} must be null")
+        if not (type(value) is (expected_type := NoneType)):
+            raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_type=}")
 
         return None
 
@@ -298,20 +304,22 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
     arguments = get_args(annotation)
 
     if origin is Literal:
-        if value not in arguments or not any(
-            type(value) is type(item)
-            for item in arguments
-        ):
+        if not (value in arguments):
             raise PayloadRejected(
                 "invalid_value",
                 f"{path} is not one of the declared literal values",
             )
 
+        expected_types = [type(item) for item in arguments]
+
+        if not (any(type(value) is expected_type for expected_type in expected_types)):
+            raise PayloadRejected("invalid_value", f"{path=}; {type(value)=} ≠ {expected_types=}")
+
         return value
 
     if origin is tuple:
-        if not (type(value) is list):
-            raise PayloadRejected("invalid_type", f"{path} must be an array")
+        if not (type(value) is (expected_type := list)):
+            raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_type=}")
 
         if len(arguments) == 2 and arguments[1] is Ellipsis:
             # repo-check: allow-tuple-generator -- Decode the provider's variadic tuple annotation into the immutable type its scientific callable requires.
@@ -368,8 +376,8 @@ def _decode_value(value: object, annotation: object, *, path: str) -> object:
 
 
 def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
-    if not (type(value) is dict):
-        raise PayloadRejected("invalid_type", f"{path} must be an object")
+    if not (type(value) is (expected_type := dict)):
+        raise PayloadRejected("invalid_type", f"{path=}; {type(value)=} ≠ {expected_type=}")
 
     (declared_fields, annotations) = _dataclass_fields(value_type)
     fields_by_name = {field.name: field for field in declared_fields}
@@ -417,32 +425,35 @@ def _decode_dataclass(value: object, value_type: type[T], *, path: str) -> T:
 
 def _encode_value(value: object, annotation: object, *, path: str) -> object:
     if annotation is str:
-        if not (type(value) is str):
-            raise TypeError(f"{path} must be str, got {type(value).__qualname__}")
+        if not (type(value) is (expected_type := str)):
+            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
 
         return value
 
     if annotation is bool:
-        if not (type(value) is bool):
-            raise TypeError(f"{path} must be bool, got {type(value).__qualname__}")
+        if not (type(value) is (expected_type := bool)):
+            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
 
         return value
 
     if annotation is int:
-        if not (type(value) is int):
-            raise TypeError(f"{path} must be int, got {type(value).__qualname__}")
+        if not (type(value) is (expected_type := int)):
+            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
 
         return value
 
     if annotation is float:
-        if type(value) not in (int, float) or not math.isfinite(value):
+        if not (type(value) in (expected_types := (int, float))):
+            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_types=}")
+
+        if not (math.isfinite(value)):
             raise TypeError(f"{path} must be a finite float-compatible number")
 
         return float(value)
 
     if annotation is NoneType:
-        if not (value is None):
-            raise TypeError(f"{path} must be None")
+        if not (type(value) is (expected_type := NoneType)):
+            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
 
         return None
 
@@ -450,17 +461,19 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
     arguments = get_args(annotation)
 
     if origin is Literal:
-        if value not in arguments or not any(
-            type(value) is type(item)
-            for item in arguments
-        ):
+        if not (value in arguments):
             raise TypeError(f"{path} is not one of the declared literal values")
+
+        expected_types = [type(item) for item in arguments]
+
+        if not (any(type(value) is expected_type for expected_type in expected_types)):
+            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_types=}")
 
         return value
 
     if origin is tuple:
-        if not (type(value) is tuple):
-            raise TypeError(f"{path} must be tuple")
+        if not (type(value) is (expected_type := tuple)):
+            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
 
         if len(arguments) == 2 and arguments[1] is Ellipsis:
             return [
@@ -497,8 +510,8 @@ def _encode_value(value: object, annotation: object, *, path: str) -> object:
         return _encode_value(value, member, path=path)
 
     if isinstance(annotation, type) and issubclass(annotation, Enum):
-        if not (type(value) is annotation):
-            raise TypeError(f"{path} must be {annotation.__qualname__}")
+        if not (type(value) is (expected_type := annotation)):
+            raise TypeError(f"{path=}; {type(value)=} ≠ {expected_type=}")
 
         return value.value
 
@@ -514,10 +527,9 @@ def _encode_dataclass(
     *,
     path: str,
 ) -> dict[str, object]:
-    if not (type(value) is value_type):
+    if not (type(value) is (expected_type := value_type)):
         raise TypeError(
-            f"{path} must be exactly {value_type.__qualname__}, "
-            f"got {type(value).__qualname__}"
+            f"{path=}; {type(value)=} ≠ {expected_type=}"
         )
 
     (declared_fields, hints) = _dataclass_fields(value_type)
@@ -603,8 +615,8 @@ class DataclassStateBinding[T]:
         return tuple(field.name for field in fields(self.value_type))
 
     def bind(self, values: Mapping[str, object]) -> T:
-        if not (isinstance(values, Mapping)):
-            raise TypeError("Live scientific states must be supplied as a mapping")
+        if not (isinstance(values, (expected_values_type := Mapping))):
+            raise TypeError(f"{type(values)=} ≠ {expected_values_type=}")
 
         if set(values) != set(self.names):
             raise ValueError(
@@ -618,8 +630,7 @@ class DataclassStateBinding[T]:
 
             if not (type(state_value) is expected_type):
                 raise TypeError(
-                    f"Scientific state {name!r} must be exactly "
-                    f"{expected_type.__qualname__}, got {type(state_value).__qualname__}"
+                    f"{name=}; {type(state_value)=} ≠ {expected_type=}"
                 )
 
         return self.value_type(**values)

@@ -66,8 +66,15 @@ def parse_provider_credential(raw):
     except ResponseRejected as cause:
         raise CredentialRejected("supply the original API-issued JSON file within 16384 bytes.", cause=cause) from None
 
-    if type(document) is not dict or set(document) != _FIELDS or any(type(value) is not str for value in document.values()):
+    if not (type(document) is (expected_type := dict)):
+        raise CredentialRejected(f"{type(document)=} ≠ {expected_type=}")
+
+    if set(document) != _FIELDS:
         raise CredentialRejected("the seven API-issued fields must be present and contain text.")
+
+    for (field_name, credential_value) in document.items():
+        if not (type(credential_value) is (expected_type := str)):
+            raise CredentialRejected(f"{field_name=}; {type(credential_value)=} ≠ {expected_type=}")
 
     try:
         canonical = (
@@ -112,8 +119,11 @@ def _signing_key(document):
     except (TypeError, ValueError, UnicodeError, UnsupportedAlgorithm) as cause:
         raise CredentialRejected("decode a base64 DER public key and an unencrypted PEM private key.", cause=cause) from None
 
-    if not isinstance(public_key, Ed25519PublicKey) or not isinstance(private_key, Ed25519PrivateKey):
-        raise CredentialRejected("both keys must use Ed25519.")
+    if not (isinstance(public_key, (expected_type := Ed25519PublicKey))):
+        raise CredentialRejected(f"{type(public_key)=} ≠ {expected_type=}")
+
+    if not (isinstance(private_key, (expected_type := Ed25519PrivateKey))):
+        raise CredentialRejected(f"{type(private_key)=} ≠ {expected_type=}")
 
     if private_key.public_key().public_bytes(Encoding.DER, PublicFormat.SubjectPublicKeyInfo) != public_der:
         raise CredentialRejected("public and private keys do not match.")

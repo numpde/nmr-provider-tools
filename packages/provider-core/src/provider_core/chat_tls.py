@@ -176,10 +176,11 @@ class CapturedSSLContext(ssl.SSLContext):
         if cadata is not None:
             if type(cadata) is str:
                 materials.append(("pem", cadata.encode("ascii")))
-            elif isinstance(cadata, (bytes, bytearray, memoryview)):
-                materials.append(("der", bytes(cadata)))
             else:
-                raise TypeError("CA data must be ASCII PEM text or DER bytes")
+                if not (isinstance(cadata, (expected_types := (bytes, bytearray, memoryview)))):
+                    raise TypeError(f"CA data: {type(cadata)=} ≠ {expected_types=}")
+
+                materials.append(("der", bytes(cadata)))
 
         _require_material_budget((*self._chat_materials, *materials))
 
@@ -321,8 +322,8 @@ def _material_message(kind, value):
 def capture_trust(context):
     """Freeze supported context state; refuse authority that cannot be copied."""
 
-    if not (type(context) is CapturedSSLContext):
-        raise _refuse("the context has no captured original trust material")
+    if not (type(context) is (expected_type := CapturedSSLContext)):
+        raise _refuse(f"{type(context)=} ≠ {expected_type=}")
 
     if not (context._chat_opaque is None):
         raise _refuse(context._chat_opaque)
@@ -359,7 +360,10 @@ def capture_trust(context):
 
 
 def _material_bytes(value):
-    if type(value) is not str or len(value) > ((MAX_TRUST_BYTES + 2) // 3) * 4:
+    if not (type(value) is (expected_type := str)):
+        raise _refuse(f"{type(value)=} ≠ {expected_type=}")
+
+    if len(value) > ((MAX_TRUST_BYTES + 2) // 3) * 4:
         raise _refuse("captured trust material exceeds its fixed allowance")
 
     try:
@@ -373,48 +377,88 @@ def restore_trust(snapshot, *, directory=None):
     """Recreate captured TLS without reading default roots or original paths."""
     expected = {"version", "openssl_version", "materials", "settings", "cipher_expression", "alpn", "ecdh_curve", "facts"}
 
-    if (type(snapshot) is not dict or set(snapshot) != expected
-            or type(snapshot["version"]) is not int or snapshot["version"] != 1
-            or snapshot["openssl_version"] != ssl.OPENSSL_VERSION):
+    if not (type(snapshot) is (expected_type := dict)):
+        raise _refuse(f"{type(snapshot)=} ≠ {expected_type=}")
+
+    if set(snapshot) != expected:
+        raise _refuse("the captured TLS schema or OpenSSL runtime does not match")
+
+    snapshot_version = snapshot["version"]
+
+    if not (type(snapshot_version) is (expected_type := int)):
+        raise _refuse(f"{type(snapshot_version)=} ≠ {expected_type=}")
+
+    if snapshot_version != 1 or snapshot["openssl_version"] != ssl.OPENSSL_VERSION:
         raise _refuse("the captured TLS schema or OpenSSL runtime does not match")
 
     settings = snapshot["settings"]
 
-    if type(settings) is not dict or set(settings) != set(_FIELDS):
+    if not (type(settings) is (expected_type := dict)):
+        raise _refuse(f"{type(settings)=} ≠ {expected_type=}")
+
+    if set(settings) != set(_FIELDS):
         raise _refuse("the captured verification settings are incomplete")
 
-    if (any(type(settings[name]) not in (int, ssl.Options, ssl.VerifyFlags, ssl.TLSVersion)
-            for name in _FIELDS[:4])
-            or any(type(settings[name]) is not bool for name in _FIELDS[4:])):
-        raise _refuse("the captured verification settings are invalid")
+    for name in _FIELDS[:4]:
+        setting = settings[name]
+
+        if not (type(setting) in (expected_types := (int, ssl.Options, ssl.VerifyFlags, ssl.TLSVersion))):
+            raise _refuse(f"{name=}; {type(setting)=} ≠ {expected_types=}")
+
+    for name in _FIELDS[4:]:
+        setting = settings[name]
+
+        if not (type(setting) is (expected_type := bool)):
+            raise _refuse(f"{name=}; {type(setting)=} ≠ {expected_type=}")
 
     material_records = snapshot["materials"]
 
-    if type(material_records) is not list or len(material_records) > MAX_TRUST_MATERIALS:
+    if not (type(material_records) is (expected_type := list)):
+        raise _refuse(f"{type(material_records)=} ≠ {expected_type=}")
+
+    if len(material_records) > MAX_TRUST_MATERIALS:
         raise _refuse("the captured trust material collection is invalid")
 
     materials = []
 
     for item in material_records:
-        if type(item) is not dict or "kind" not in item:
+        if not (type(item) is (expected_type := dict)):
+            raise _refuse(f"{type(item)=} ≠ {expected_type=}")
+
+        if not ("kind" in item):
             raise _refuse("a captured trust material record is invalid")
 
         if item["kind"] == "capath":
-            if (set(item) != {"kind", "entries"} or type(item["entries"]) is not list
-                    or len(item["entries"]) > MAX_TRUST_MATERIALS):
+            if set(item) != {"kind", "entries"}:
+                raise _refuse("a captured hashed trust collection is invalid")
+
+            captured_entries = item["entries"]
+
+            if not (type(captured_entries) is (expected_type := list)):
+                raise _refuse(f"{type(captured_entries)=} ≠ {expected_type=}")
+
+            if len(captured_entries) > MAX_TRUST_MATERIALS:
                 raise _refuse("a captured hashed trust collection is invalid")
 
             (entries, names) = ([], set())
 
-            for entry in item["entries"]:
-                if (type(entry) is not dict or set(entry) != {"name", "data"}
-                        or type(entry["name"]) is not str
-                        or _HASHED_TRUST_FILE.fullmatch(entry["name"]) is None
-                        or entry["name"] in names):
+            for entry in captured_entries:
+                if not (type(entry) is (expected_type := dict)):
+                    raise _refuse(f"{type(entry)=} ≠ {expected_type=}")
+
+                if set(entry) != {"name", "data"}:
                     raise _refuse("a captured hashed trust name is invalid or repeated")
 
-                names.add(entry["name"])
-                entries.append((entry["name"], _material_bytes(entry["data"])))
+                name = entry["name"]
+
+                if not (type(name) is (expected_type := str)):
+                    raise _refuse(f"{type(name)=} ≠ {expected_type=}")
+
+                if _HASHED_TRUST_FILE.fullmatch(name) is None or name in names:
+                    raise _refuse("a captured hashed trust name is invalid or repeated")
+
+                names.add(name)
+                entries.append((name, _material_bytes(entry["data"])))
                 _require_material_budget((*materials, ("capath", tuple(entries))))
 
             materials.append(("capath", tuple(entries)))
@@ -428,18 +472,26 @@ def restore_trust(snapshot, *, directory=None):
     _require_material_budget(materials)
     cipher_expression = snapshot["cipher_expression"]
 
-    if type(cipher_expression) is not str or not 0 < len(cipher_expression) <= 65536:
+    if not (type(cipher_expression) is (expected_type := str)):
+        raise _refuse(f"{type(cipher_expression)=} ≠ {expected_type=}")
+
+    if not (0 < len(cipher_expression) <= 65536):
         raise _refuse("the captured cipher selection is invalid")
 
     alpn = snapshot["alpn"]
 
-    if alpn is not None and (type(alpn) is not list or any(type(value) is not str for value in alpn)):
-        raise _refuse("the captured ALPN selection is invalid")
+    if alpn is not None:
+        if not (type(alpn) is (expected_type := list)):
+            raise _refuse(f"{type(alpn)=} ≠ {expected_type=}")
+
+        for value in alpn:
+            if not (type(value) is (expected_type := str)):
+                raise _refuse(f"{type(value)=} ≠ {expected_type=}")
 
     curve = snapshot["ecdh_curve"]
 
-    if curve is not None and type(curve) is not str:
-        raise _refuse("the captured ECDH selection is invalid")
+    if curve is not None and not (type(curve) is (expected_type := str)):
+        raise _refuse(f"{type(curve)=} ≠ {expected_type=}")
 
     context = _SSL_CONTEXT(ssl.PROTOCOL_TLS_CLIENT)
     owned_directory = None
@@ -451,8 +503,12 @@ def restore_trust(snapshot, *, directory=None):
             context._chat_directory = owned_directory
 
             weakref.finalize(context, owned_directory.cleanup)
-        elif not (type(directory) is str and Path(directory).is_absolute() and Path(directory).is_dir()):
-            raise _refuse("the captured trust directory grant is invalid")
+        else:
+            if not (type(directory) is (expected_type := str)):
+                raise _refuse(f"{type(directory)=} ≠ {expected_type=}")
+
+            if not (Path(directory).is_absolute() and Path(directory).is_dir()):
+                raise _refuse("the captured trust directory grant is invalid")
 
     for (kind, raw) in materials:
         _load_material(context, kind, raw, directory)

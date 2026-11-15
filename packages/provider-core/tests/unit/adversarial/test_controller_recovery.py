@@ -216,13 +216,13 @@ class ControllerRecoveryFailureTests(unittest.IsolatedAsyncioTestCase):
             poll_seconds=1,
             task_settle_seconds=0.1)
 
-        for (key, value) in (("delivery_retry_initial_seconds", True),
-                           ("delivery_retry_initial_seconds", 0),
-                           ("delivery_retry_max_seconds", float("nan")),
-                           ("delivery_retry_max_seconds", float("inf")),
-                           ("delivery_retry_max_seconds", 0.5),
-                           ("on_delivery_retry", None)):
-            with self.subTest(key=key, value=value), self.assertRaises(ValueError):
+        for (key, value, expected_error) in (("delivery_retry_initial_seconds", True, TypeError),
+                           ("delivery_retry_initial_seconds", 0, ValueError),
+                           ("delivery_retry_max_seconds", float("nan"), ValueError),
+                           ("delivery_retry_max_seconds", float("inf"), ValueError),
+                           ("delivery_retry_max_seconds", 0.5, ValueError),
+                           ("on_delivery_retry", None, ValueError)):
+            with self.subTest(key=key, value=value), self.assertRaises(expected_exception=expected_error):
                 live_controller(api(transport, scope().api_origin), store, AttemptClaims.live(), session, **(settings | {key: value}))
 
         self.assertEqual(session.events, [])

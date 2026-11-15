@@ -69,10 +69,12 @@ class DeliveryEndpoint:
         require_provider_ref(self.provider_ref)
         require_unix_socket_path(str(self.socket_path))
 
-        if self.socket_group_id is not None and (
-            type(self.socket_group_id) is not int or not 1 <= self.socket_group_id <= 4294967294
-        ):
-            raise ValueError("Delivery socket group must be an explicit nonzero GID.")
+        if self.socket_group_id is not None:
+            if not (type((actual_socket_group_id := self.socket_group_id)) is (expected_type := int)):
+                raise TypeError(f"{type(actual_socket_group_id)=} ≠ {expected_type=}")
+
+            if not (1 <= self.socket_group_id <= 4294967294):
+                raise ValueError("Delivery socket group must be an explicit nonzero GID.")
 
 
 class DeliveryClient:
@@ -185,7 +187,10 @@ class DeliveryClient:
     def _metadata(self, value):
         fields = {"job_ref", "execution_attempt_ref", "operation", "body_sha256", "body_bytes", "state"}
 
-        if type(value) is not dict or not fields <= value.keys():
+        if not (type(value) is (expected_type := dict)):
+            raise DeliveryRejected(f"{type(value)=} ≠ {expected_type=}")
+
+        if not (fields <= value.keys()):
             raise DeliveryRejected("Delivery metadata is missing its Job, Attempt or retained-body identity.")
 
         try:
@@ -194,9 +199,22 @@ class DeliveryClient:
         except (TypeError, ValueError) as cause:
             raise DeliveryRejected("Delivery metadata has an invalid Job or Attempt identity.") from cause
 
-        if (value["operation"] not in ("complete", "fail") or value["state"] not in ("pending", "held")
-                or type(value["body_sha256"]) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", value["body_sha256"]) is None
-                or type(value["body_bytes"]) is not int or value["body_bytes"] <= 0):
+        if not (value["operation"] in ("complete", "fail")):
+            raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
+
+        if not (value["state"] in ("pending", "held")):
+            raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
+
+        if not (type((value_body_sha256 := value["body_sha256"])) is (expected_type := str)):
+            raise DeliveryRejected(f"{type(value_body_sha256)=} ≠ {expected_type=}")
+
+        if re.fullmatch(r"sha256:[0-9a-f]{64}", value["body_sha256"]) is None:
+            raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
+
+        if not (type((value_body_bytes := value["body_bytes"])) is (expected_type := int)):
+            raise DeliveryRejected(f"{type(value_body_bytes)=} ≠ {expected_type=}")
+
+        if value["body_bytes"] <= 0:
             raise DeliveryRejected("Delivery metadata has an unsupported operation, state or body identity.")
 
         return value
@@ -204,23 +222,46 @@ class DeliveryClient:
     async def pending(self):
         reply = await self._request("GET", "/pending")
 
-        if (type(reply) is not dict or not {"api_origin", "provider_ref", "items", "capacity", "publisher"} <= reply.keys()
-                or (reply["api_origin"], reply["provider_ref"]) != (self.endpoint.api_origin, self.endpoint.provider_ref)
-                or type(reply["items"]) is not list):
+        if not (type(reply) is (expected_type := dict)):
+            raise DeliveryRejected(f"{type(reply)=} ≠ {expected_type=}")
+
+        if not ({"api_origin", "provider_ref", "items", "capacity", "publisher"} <= reply.keys()):
             raise DeliveryRejected("The pending inventory does not belong to the configured delivery binding.")
+
+        if (reply["api_origin"], reply["provider_ref"]) != (self.endpoint.api_origin, self.endpoint.provider_ref):
+            raise DeliveryRejected("The pending inventory does not belong to the configured delivery binding.")
+
+        if not (type((reply_items := reply["items"])) is (expected_type := list)):
+            raise DeliveryRejected(f"{type(reply_items)=} ≠ {expected_type=}")
 
         publisher = reply["publisher"]
 
-        if (type(publisher) is not dict
-                or publisher.get("state") not in ("inbox_only", "starting", "running", "paused", "stopping", "stopped")):
+        if not (type(publisher) is (expected_type := dict)):
+            raise DeliveryRejected(f"{type(publisher)=} ≠ {expected_type=}")
+
+        if not (publisher.get("state") in ("inbox_only", "starting", "running", "paused", "stopping", "stopped")):
             raise DeliveryRejected("Delivery inventory has an unsupported publisher state.")
 
         # Diagnostic text/counters are display facts. Their shape must not
         # prevent ownership or capacity observation; they grant no admission.
         capacity = reply["capacity"]
 
-        if (type(capacity) is not dict or not {"provider_items", "provider_bytes"} <= capacity.keys()
-                or any(type(capacity[name]) is not int or capacity[name] <= 0 for name in ("provider_items", "provider_bytes"))):
+        if not (type(capacity) is (expected_type := dict)):
+            raise DeliveryRejected(f"{type(capacity)=} ≠ {expected_type=}")
+
+        if not ({"provider_items", "provider_bytes"} <= capacity.keys()):
+            raise DeliveryRejected("Delivery inventory requires positive item and byte allowances.")
+
+        if not (type((capacity_provider_items := capacity['provider_items'])) is (expected_capacity_provider_items_type := int)):
+            raise DeliveryRejected(f"{type(capacity_provider_items)=} ≠ {expected_capacity_provider_items_type=}")
+
+        if capacity['provider_items'] <= 0:
+            raise DeliveryRejected("Delivery inventory requires positive item and byte allowances.")
+
+        if not (type((capacity_provider_bytes := capacity['provider_bytes'])) is (expected_capacity_provider_bytes_type := int)):
+            raise DeliveryRejected(f"{type(capacity_provider_bytes)=} ≠ {expected_capacity_provider_bytes_type=}")
+
+        if capacity['provider_bytes'] <= 0:
             raise DeliveryRejected("Delivery inventory requires positive item and byte allowances.")
 
         for item in reply["items"]:

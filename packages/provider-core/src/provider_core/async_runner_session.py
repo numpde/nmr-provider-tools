@@ -24,8 +24,8 @@ async def await_original(original, *, deadline):
     This wait grants no resource retirement or permission to close its inputs.
     """
 
-    if not (isinstance(original, Future)):
-        raise TypeError("Cannot observe thread work: supply its original concurrent Future.")
+    if not (isinstance(original, (expected_type := Future))):
+        raise TypeError(f"{type(original)=} ≠ {expected_type=}")
 
     seconds = None
 
