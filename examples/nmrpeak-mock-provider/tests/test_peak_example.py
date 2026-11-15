@@ -128,7 +128,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         prediction, _ = self.prediction(hosted=self.hf, proposals=(candidate(carbon=False),), name="expired")
         with self.assertRaises(expected_exception=ModelWindowExpired) as raised:
             await prediction.dispatch(
-                name="submit_interpretation", arguments={"value": candidate(carbon=False)},
+                name=prediction.input_tool.name, arguments=candidate(carbon=False),
                 not_after=asyncio.get_running_loop().time() - 1,
             )
         self.assertIsInstance(obj=raised.exception.__cause__, cls=StartDeadlineExpired)
@@ -149,8 +149,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
         deadline = asyncio.get_running_loop().time() + 1
         with patch.object(target=Model, attribute="load", new=held_load):
             original = asyncio.create_task(coro=prediction.dispatch(
-                name="submit_interpretation",
-                arguments={"value": candidate(carbon=False)},
+                name=prediction.input_tool.name,
+                arguments=candidate(carbon=False),
                 not_after=deadline,
             ))
             try:

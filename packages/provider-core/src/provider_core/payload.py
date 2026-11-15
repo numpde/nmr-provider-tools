@@ -465,6 +465,17 @@ class JsonDataclassCodec[T]:
         _require_format(self.format)
         _validate_dataclass(self.value_type, seen=frozenset())
 
+    def json_schema(self) -> dict:
+        """Describe this codec's input structure without replacing runtime admission.
+
+        Requires provider-core[api]; native scientific execution needs no schema
+        library. The document is independent of other exports and keeps local
+        definitions at its root so consumers can use it directly as parameters.
+        """
+        from provider_core._json_schema import dataclass_json_schema
+
+        return dataclass_json_schema(value_type=self.value_type)
+
     def decode(self, payload: bytes) -> T:
         return _decode_dataclass(
             _read_json(payload),

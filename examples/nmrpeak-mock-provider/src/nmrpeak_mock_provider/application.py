@@ -8,7 +8,6 @@ It retains one report receiver attempt; provider.py owns the request lifetime.
 """
 
 from collections.abc import Awaitable, Callable
-import json
 
 from provider_core.contribution_errors import CallRejected
 from provider_core.conversation import ToolFinished, ToolRejected
@@ -18,10 +17,11 @@ from provider_core.hosting import (
     observe_cleanup, observe_completion,
 )
 from provider_core.interpreter import Interpreter, ModelWindowExpired
+from provider_core.input_tool import InputTool
 from provider_core.scientific import HostedContribution
 
-from .binding import Chf, PeakContribution
-from .composition import interpretation_messages, interpretation_tools
+from .binding import PeakContribution
+from .composition import interpretation_messages
 
 
 class Prediction:
@@ -41,6 +41,10 @@ class Prediction:
         self.hosted = hosted
         self.interpreter = interpreter
         self.policy = policy
+        self.input_tool = InputTool(
+            call=hosted.call(method=hosted.contribution.prepare),
+            description="Submit the formula and source-faithful NMR peaks for validation.",
+        )
         self.receive = receive
         self.consumption: ResultConsumption | None = None
         self.preparations = []
@@ -49,14 +53,11 @@ class Prediction:
 
     async def dispatch(self, name: str, arguments: dict, *, not_after: float) -> ToolFinished:
         """Handle Interpreter's input proposal by submitting prepare to the SDK."""
-        if name != "submit_interpretation" or set(arguments) != {"value"}:
-            raise ToolRejected("Submit the complete scientific input under value")
         if self.prepared is not None:
             raise RuntimeError("This request already has an accepted interpretation")
-        contribution = self.hosted.contribution
-        call = self.hosted.call(method=contribution.prepare)
+        call = self.input_tool.call
         try:
-            candidate = call.input_codec.decode(payload=json.dumps(obj=arguments["value"]).encode(encoding="utf-8"))
+            candidate = self.input_tool.decode(name=name, arguments=arguments)
         except CallRejected as cause:
             # Tell Interpreter which input the language model needs to correct.
             # Loading and execution failures propagate as their original exceptions.
@@ -64,7 +65,7 @@ class Prediction:
         reservation, = self.execution.reservations
         try:
             operation = self.execution.submit_method(
-                method=contribution.prepare,
+                method=self.hosted.contribution.prepare,
                 scientific_input=candidate,
                 states=(),
                 reservation=reservation,
@@ -94,12 +95,12 @@ class Prediction:
     async def interpret(self, *, source: str) -> None:
         """Extract this offering's scientific input from the supplied source text.
 
-        The request caller supplies source text, not tool schemas or an HF/CHF
-        switch. The selected scientific object determines which spectra to ask for.
+        The request caller supplies source text. The selected scientific method
+        already declares its input type; the SDK derives its tool schema.
         """
         await self.interpreter.run(
             messages=interpretation_messages(source=source),
-            tools=interpretation_tools(carbon=isinstance(self.hosted.contribution, Chf)),
+            tools=[self.input_tool.definition],
             dispatch=self.dispatch,
         )
 

@@ -28,8 +28,8 @@ class ScriptedEndpoint:
         return {"role": "assistant", "tool_calls": [{
             "id": str(index), "type": "function",
             "function": {
-                "name": "submit_interpretation",
-                "arguments": json.dumps(obj={"value": self.proposals[index]}),
+                "name": "prepare",
+                "arguments": json.dumps(obj=self.proposals[index]),
             },
         }]}
 

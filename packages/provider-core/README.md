@@ -7,6 +7,7 @@ inference, offerings, model configuration and their execution policy.
 ## Contents
 
 - [Scientific contributions](#scientific-contributions)
+- [Scientific input tools](#scientific-input-tools)
 - [Attempts and capacity](#attempts-and-capacity)
 - [Crashes and recovery](#crashes-and-recovery)
 - [Shared result delivery](#shared-result-delivery)
@@ -17,32 +18,61 @@ inference, offerings, model configuration and their execution policy.
 - [Package and qualification](#package-and-qualification)
 - [Source history](#source-history)
 
+
 ## Scientific contributions
 
-`provider_core.scientific.Contribution[Config]` defines a host-managed scientific
-instance. Providers implement ordinary keyword-only methods marked with
-`@operation()` and read immutable scientific settings through
-`self.configuration`. Optional `initialize(assets=...)` and `close()` methods
-own loaded instance resources. An optional `Analysis[ContributionType]` owns a
-separate scientific session for each analysis.
+`provider_core.scientific.Contribution` is the base for scientific objects whose
+lifetime the SDK manages. Providers construct their objects with ordinary Python
+arguments and implement keyword-only methods marked with `@operation()`.
+Optional `initialize(assets=...)` and `close()` methods own loaded instance
+resources. An optional `Analysis[ContributionType]` owns a separate scientific
+session for each analysis.
 
-An SDK `Registration` combines the contribution class, configuration and
-execution requirements without loading science. Allocations
-create independent instances. Provider workflows select actual class methods;
-`EmbeddedAnalysis.submit_method(reservation=..., method=..., scientific_input=...,
-...)` uses the existing permission, operation and state-ownership path. Workflows
-using portable `Invocation` obtain addresses with
-`registration.reference(method=...)`.
+Provider setup passes each exact object to `host.adopt(contribution=...,
+requirements=...)`. The returned hosted handle exposes its compiled methods and
+allocation. Workflows submit actual bound methods through
+`EmbeddedAnalysis.submit_method(method=..., scientific_input=..., reservation=...,
+policy=...)`. Portable `Invocation` callers obtain addresses with
+`hosted.reference(method=...)`.
 
-The SDK derives configured-v3 revisions from configuration and the declared
-execution contract. The class supplies the component name; the reservation
-selects its configured allocation. Installed code identity belongs to deployment's
-artifact provenance and is not asserted by this contract revision.
-The SDK owns serialization and lifecycle mechanics; providers
-own scientific meaning and operation ordering. See the
+Configured-v3 revisions summarize the declared execution contract and input/result
+schemas. Settings, model provenance and installed code identity remain provider
+and deployment responsibilities. The SDK owns serialization and lifecycle;
+providers own scientific meaning and operation ordering. See the
 [implemented interface](../../notes/086_configured_science_boundary.md) and the
-[three standalone examples](../../examples/README.md). This authoring API adds
-no automatic retries, worker pool, Jobs service or deployment authority.
+[standalone examples](../../examples/README.md). This authoring API adds no
+automatic retries, worker pool, Jobs service or deployment authority.
+
+## Scientific input tools
+
+Providers using interpretation can expose an existing scientific method without
+writing a second input schema. Install `provider-core[api]`; scientific records
+remain ordinary frozen/slotted dataclasses.
+
+```python
+from provider_core.input_tool import InputTool
+
+tool = InputTool(
+    call=hosted.call(method=hosted.contribution.prepare),
+    description="Submit source-faithful spectrum data for validation.",
+)
+```
+
+Pass `[tool.definition]` to `Interpreter.run`. In dispatch, use
+`tool.decode(name=name, arguments=arguments)` to construct the declared input,
+then submit scientific validation through execution. The tool derives its name
+from the compiled method and uses the input record's fields as parameters;
+providers supply no protocol name, wrapper field or duplicate record definition.
+
+Schema generation uses Pydantic internally; encoding and runtime admission still
+use the original codec. Defaulted fields remain optional, nullable required fields
+remain required, and unknown fields are forbidden in nested records. Definitions
+and references remain rooted in the exported schema. Tool generation supports the
+exact built-in JsonDataclassCodec, not custom codecs with guessed JSON semantics.
+It does not force an endpoint's strict mode or replace scientific validation.
+
+See [the research and tradeoffs](../../notes/087_scientific_input_tool_schemas.md)
+and the standalone NMRPeak mock example for the full request lifetime.
 
 ## Attempts and capacity
 

@@ -47,21 +47,3 @@ def adopt_offerings(
 def interpretation_messages(*, source: str) -> list[dict]:
     instructions = files(anchor=__package__).joinpath("interpreter.md").read_text(encoding="utf-8")
     return [{"role": "system", "content": instructions}, {"role": "user", "content": source}]
-
-
-def interpretation_tools(*, carbon: bool) -> list[dict]:
-    """Describe the selected offering; the typed input codec admits its values."""
-    peak = {"type": "object", "properties": {
-        "centroid": {"type": "string"}, "integral": {"type": "integer"},
-        "multiplicity": {"type": "string"},
-        "couplings": {"type": "array", "items": {"type": "string"}},
-    }, "required": ["centroid", "integral", "multiplicity", "couplings"], "additionalProperties": False}
-    properties = {"formula": {"type": "string"}, "proton_peaks": {"type": "array", "items": peak}}
-    if carbon:
-        properties["carbon_peaks"] = {"type": "array", "items": {"type": "string"}}
-    value = {"type": "object", "properties": properties, "required": list(properties), "additionalProperties": False}
-    return [{"type": "function", "function": {
-        "name": "submit_interpretation",
-        "description": "Submit the formula and source-faithful NMR peaks for validation.",
-        "parameters": {"type": "object", "properties": {"value": value}, "required": ["value"], "additionalProperties": False},
-    }}]

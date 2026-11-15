@@ -15,7 +15,7 @@ config/deployments/localhost/
 src/nmrpeak_mock_provider/
     provider.py      provider setup and per-request lifetimes
     application.py   interpretation → validation → generation → report consumption
-    composition.py   explicit HF/CHF assembly and interpretation tool schemas
+    composition.py   explicit HF/CHF assembly and interpretation instructions
     binding.py       scientific methods, initialization and prepared-state ports
     science.py       scientific records, model interface and result admission
     checkpoint.py    verification and loading through one open file
@@ -73,8 +73,11 @@ async callable accepting encoded report bytes. The test supplies these same
 inputs using recorded source text, scripted model replies and an in-memory
 receiver. It does not construct SDK execution sessions or arrange their cleanup.
 
-`open_prediction` creates a request's interpreter and execution session. Application
-code chooses the interpretation schema from the selected HF/CHF scientific object.
+`open_prediction` creates a request's interpreter and execution session. The SDK
+InputTool derives the tool name and schema from the selected scientific method
+and decodes its arguments through that method's existing input codec. Provider
+code supplies the scientific description without copying fields or choosing a
+schema through an HF/CHF switch.
 The interpreter asks a language model to extract spectrum data, then asks the SDK
 to run the offering's scientific validation method. Correctable input errors go
 back to the language model; model-loading and scientific failures propagate as
@@ -135,3 +138,8 @@ workflow, change beam size using external deployment configuration, and exercise
 input correction, retained delivery, concurrent waits, cancellation and original
 failure propagation. Lower-level scientific tests cover checkpoint errors,
 partially loaded models, prepared-input consumption and candidate validation.
+
+The example declares `provider-core[api]` for shared schema generation. Scientific
+records remain standard frozen/slotted dataclasses; providers need no Pydantic
+models, decorators or imports. See
+[the schema research and decision](../../notes/087_scientific_input_tool_schemas.md).
