@@ -7,7 +7,6 @@ from importlib.resources import files
 import tomllib
 
 import provider_core.scientific as sdk
-from provider_core.embedded_host import EmbeddedHost
 
 from . import science
 
@@ -96,29 +95,9 @@ class Sum(sdk.Contribution):
         return science.sum_values(summation=summation)
 
 
-def _configured_cpu_requirement() -> sdk.ResourceRequirement:
+def read_resource_requirements() -> frozenset[sdk.ResourceRequirement]:
+    """Read this example's call requirements from its resource configuration."""
     requirements_file = files(anchor=__package__).joinpath("resources.toml")
-    return sdk.ResourceRequirement(**tomllib.loads(requirements_file.read_text(encoding="utf-8")))
-
-
-def create_weighted_sum_binding(
-    *, host: EmbeddedHost,
-    settings: science.WeightedSumSettings, coefficients: science.CoefficientSet,
-) -> sdk.HostedContribution:
-    """Provider-owned assembly helper; adoption creates no live science.
-
-    Callers explicitly invoke this helper. Its name has no SDK meaning; the
-    exported methods and lifecycle contract belong to WeightedSum.
-    """
-    return host.adopt(
-        contribution=WeightedSum(configuration=WeightedSumConfig(settings=settings, coefficients=coefficients)),
-        requirements=frozenset({_configured_cpu_requirement()}),
-    )
-
-
-def create_sum_binding(*, host: EmbeddedHost) -> sdk.HostedContribution:
-    """Provider-owned assembly for the independently callable stateless sum."""
-    return host.adopt(
-        contribution=Sum(),
-        requirements=frozenset({_configured_cpu_requirement()}),
-    )
+    return frozenset({sdk.ResourceRequirement(
+        **tomllib.loads(requirements_file.read_text(encoding="utf-8")),
+    )})

@@ -11,7 +11,7 @@ import unittest
 from unittest.mock import patch
 
 from dummy_provider import science
-from dummy_provider.binding import WeightedSum, create_weighted_sum_binding
+from dummy_provider.binding import WeightedSum, WeightedSumConfig, read_resource_requirements
 from provider_core.contribution import ProgressEvent
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import (
@@ -57,10 +57,12 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             retirement_seconds=5,
         )
         self.addAsyncCleanup(self.retire_host, host)
-        hosted = create_weighted_sum_binding(
-            host=host,
-            settings=science.WeightedSumSettings(scale=2, offset=1),
-            coefficients=science.CoefficientSet(values=(1, 2, 3)),
+        hosted = host.adopt(
+            contribution=WeightedSum(configuration=WeightedSumConfig(
+                settings=science.WeightedSumSettings(scale=2, offset=1),
+                coefficients=science.CoefficientSet(values=(1, 2, 3)),
+            )),
+            requirements=read_resource_requirements(),
         )
         contribution = hosted.contribution
         failure = OSError("Cannot finish loading model coefficients")
@@ -118,10 +120,12 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             **host_options,
         )
         self.addAsyncCleanup(self.retire_host, host)
-        weighted_binding = create_weighted_sum_binding(
-            host=host,
-            settings=science.WeightedSumSettings(scale=2, offset=1),
-            coefficients=science.CoefficientSet(values=(1, 2, 3)),
+        weighted_binding = host.adopt(
+            contribution=WeightedSum(configuration=WeightedSumConfig(
+                settings=science.WeightedSumSettings(scale=2, offset=1),
+                coefficients=science.CoefficientSet(values=(1, 2, 3)),
+            )),
+            requirements=read_resource_requirements(),
         )
 
         analysis = host.open_analysis(

@@ -42,8 +42,8 @@ capture settings and bookkeeping; `close` also supports retirement before use.
 ## Starting another provider
 
 Copy this project into a new provider repository, rename the distribution and
-import package, implement its scientific functions, and adapt the binding
-factories. Test scientific behavior directly; test the production binding
+import package, implement its scientific functions, and construct your scientific
+objects before passing them directly to `host.adopt`. Test scientific behavior directly; test the production binding
 through the execution backend that the provider actually uses.
 
 Keep the shared allocation, dispatch, ownership and retirement rules tested in

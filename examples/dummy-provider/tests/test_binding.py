@@ -17,7 +17,7 @@ import provider_core.contribution as contribution
 from provider_core.embedded_host import EmbeddedHost
 from provider_core.hosting import observe_cleanup
 from dummy_provider import science
-from dummy_provider.binding import Sum, WeightedSum, create_sum_binding, create_weighted_sum_binding
+from dummy_provider.binding import Sum, WeightedSum, WeightedSumConfig, read_resource_requirements
 
 
 class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
@@ -36,12 +36,13 @@ class DummyBindingTests(unittest.IsolatedAsyncioTestCase):
         await observe_cleanup(control=self.host.retire())
 
     def weighted_binding(self, *, settings, coefficients):
-        return create_weighted_sum_binding(
-            host=self.host,  settings=settings, coefficients=coefficients,
+        return self.host.adopt(
+            contribution=WeightedSum(configuration=WeightedSumConfig(settings=settings, coefficients=coefficients)),
+            requirements=read_resource_requirements(),
         )
 
     def sum_binding(self):
-        return create_sum_binding(host=self.host, )
+        return self.host.adopt(contribution=Sum(), requirements=read_resource_requirements())
 
     async def test_installed_distribution_contains_the_scientific_package(self) -> None:
         installed_distribution = metadata.distribution("dummy-provider-example")
