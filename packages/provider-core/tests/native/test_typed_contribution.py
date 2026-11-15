@@ -123,10 +123,10 @@ class TypedContributionTests(unittest.TestCase):
 
         for binding, calls in ((bindings[0], (bindings[0].prepare, bindings[0].calculate)), (bindings[1], (bindings[1].run,))):
             with self.subTest(binding_id=binding.description.binding_id):
-                self.assertIs(type(binding.description.calls), tuple)
+                self.assertIs(type(binding.description.calls), frozenset)
                 self.assertEqual(
-                    [call.description for call in calls],
-                    list(binding.description.calls),
+                    frozenset(call.description for call in calls),
+                    binding.description.calls,
                 )
 
                 for call in calls:

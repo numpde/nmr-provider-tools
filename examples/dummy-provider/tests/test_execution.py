@@ -79,7 +79,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
             patch("dummy_provider.science.dispose_model", wraps=science.dispose_model) as dispose,
             patch("dummy_provider.science.prepare", wraps=science.prepare) as prepare,
         ):
-            analysis = host.open_analysis(allocations=(hosted.allocation,))
+            analysis = host.open_analysis(allocations=frozenset({hosted.allocation}))
             reservation, = analysis.reservations
             operation = analysis.submit_method(
                 method=contribution.prepare,
@@ -125,7 +125,7 @@ class DummyInstalledExecutionTests(unittest.IsolatedAsyncioTestCase):
         )
 
         analysis = host.open_analysis(
-            allocations=(weighted_binding.allocation,),
+            allocations=frozenset({weighted_binding.allocation}),
         )
         (reservation,) = analysis.reservations
         prepare_call, calculate_call = weighted_binding.call(method=WeightedSum.prepare), weighted_binding.call(method=WeightedSum.calculate)

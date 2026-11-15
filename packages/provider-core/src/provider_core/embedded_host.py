@@ -148,9 +148,9 @@ class EmbeddedHost:
         return hosted
 
     @property
-    def allocations(self):
-        # repo-check: allow-tuple-generator -- The host API returns an allocation snapshot rather than a live view of mutable residents.
-        return tuple(resident.reference for resident in self.residents.values())
+    def allocations(self) -> frozenset[AllocationRef]:
+        """Snapshot the hosted scientific allocations without promising an order."""
+        return frozenset(resident.reference for resident in self.residents.values())
 
     def _require_loop(self):
         if asyncio.get_running_loop() is not self.loop:
@@ -158,7 +158,7 @@ class EmbeddedHost:
 
     def open_analysis(
         self, analysis_id: str | None = None, *, allocation_names: tuple[str, ...] | None = None,
-        allocations: tuple[AllocationRef, ...] | None = None,
+        allocations: frozenset[AllocationRef] | None = None,
     ) -> EmbeddedAnalysis:
         """Reserve exact allocation handles and create an analysis identity.
 
@@ -169,8 +169,8 @@ class EmbeddedHost:
         if allocations is not None:
             if analysis_id is not None or allocation_names is not None:
                 raise TypeError("Choose allocation handles or the legacy named analysis arguments")
-            if type(allocations) is not tuple or any(type(item) is not AllocationRef for item in allocations):
-                raise TypeError(f"Unexpected {type(allocations)=}; supply a tuple containing allocation handles")
+            if type(allocations) is not frozenset or any(type(item) is not AllocationRef for item in allocations):
+                raise TypeError(f"Unexpected {type(allocations)=}; supply a frozenset containing allocation handles")
             for reference in allocations:
                 resident = self.residents.get(reference.allocation)
                 if resident is None or resident.reference != reference:
@@ -288,8 +288,7 @@ class EmbeddedAnalysis:
             resident.name: _ScientificAnalysis(resident)
             for resident in residents
         }
-        # repo-check: allow-tuple-generator -- Analysis custody retains the exact ordered reservation references admitted at creation.
-        self.reservations = tuple(
+        self.reservations = frozenset(
             ReservationRef(
                 host=host.identity,
                 analysis=identity,

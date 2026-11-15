@@ -58,76 +58,30 @@ def _digest(value, label):
 class BackendCapabilities:
     """Execution semantics a backend can enforce before accepting work."""
 
-    contract_versions: tuple[int, ...]
-    isolation: tuple[IsolationRequirement, ...]
-    concurrency: tuple[ConcurrencyRequirement, ...]
-    interruption: tuple[InterruptionSupport, ...]
+    contract_versions: frozenset[int]
+    isolation: frozenset[IsolationRequirement]
+    concurrency: frozenset[ConcurrencyRequirement]
+    interruption: frozenset[InterruptionSupport]
     progress: bool
 
     def __post_init__(self):
-        if not (type(self.contract_versions) is tuple):
-            raise TypeError(
-                f"Unexpected {type(self.contract_versions)=}; "
-                "Backend contract versions must be a tuple of distinct positive integers"
-            )
-        for version in self.contract_versions:
-            if type(version) is not int:
-                raise TypeError(
-                    f"Unexpected {type(version)=}; "
-                    "Backend contract versions must be distinct positive integers"
-                )
-        if not (self.contract_versions and all(0 < version for version in self.contract_versions) and len(set(self.contract_versions)) == len(self.contract_versions)):
-            raise ValueError("Backend contract versions must be distinct positive integers")
-        if not (type(self.isolation) is tuple):
-            raise TypeError(
-                f"Unexpected {type(self.isolation)=}; "
-                "Backend isolation support must be a distinct immutable nonempty tuple"
-            )
-        if not (self.isolation):
-            raise ValueError("Backend isolation support must be a distinct immutable nonempty tuple")
-        for requirement in self.isolation:
-            if type(requirement) is not IsolationRequirement:
-                raise TypeError(
-                    f"Unexpected {type(requirement)=}; "
-                    "Backend isolation entries must be IsolationRequirement values"
-                )
-        if not (len(set(self.isolation)) == len(self.isolation)):
-            raise ValueError("Backend isolation support must be a distinct immutable nonempty tuple")
-        if not (type(self.concurrency) is tuple):
-            raise TypeError(
-                f"Unexpected {type(self.concurrency)=}; "
-                "Backend concurrency support must be a distinct immutable nonempty tuple"
-            )
-        if not (self.concurrency):
-            raise ValueError("Backend concurrency support must be a distinct immutable nonempty tuple")
-        for requirement in self.concurrency:
-            if type(requirement) is not ConcurrencyRequirement:
-                raise TypeError(
-                    f"Unexpected {type(requirement)=}; "
-                    "Backend concurrency entries must be ConcurrencyRequirement values"
-                )
-        if not (len(set(self.concurrency)) == len(self.concurrency)):
-            raise ValueError("Backend concurrency support must be a distinct immutable nonempty tuple")
-        if not (type(self.interruption) is tuple):
-            raise TypeError(
-                f"Unexpected {type(self.interruption)=}; "
-                "Backend interruption support must be a distinct immutable nonempty tuple"
-            )
-        if not (self.interruption):
-            raise ValueError("Backend interruption support must be a distinct immutable nonempty tuple")
-        for support in self.interruption:
-            if type(support) is not InterruptionSupport:
-                raise TypeError(
-                    f"Unexpected {type(support)=}; "
-                    "Backend interruption entries must be InterruptionSupport values"
-                )
-        if not (len(set(self.interruption)) == len(self.interruption)):
-            raise ValueError("Backend interruption support must be a distinct immutable nonempty tuple")
+        for name, values, expected_type in (
+            ("contract_versions", self.contract_versions, int),
+            ("isolation", self.isolation, IsolationRequirement),
+            ("concurrency", self.concurrency, ConcurrencyRequirement),
+            ("interruption", self.interruption, InterruptionSupport),
+        ):
+            if type(values) is not frozenset:
+                raise TypeError(f"Unexpected {type(values)=}; backend {name=} support must be a frozenset")
+            if not values:
+                raise ValueError(f"Backend {name=} support cannot be empty")
+            for value in values:
+                if type(value) is not expected_type:
+                    raise TypeError(f"Unexpected {type(value)=}; backend {name=} support requires {expected_type=}")
+        if any(version <= 0 for version in self.contract_versions):
+            raise ValueError(f"Backend contract versions must be positive; {self.contract_versions=}")
         if type(self.progress) is not bool:
-            raise TypeError(
-                f"Unexpected {type(self.progress)=}; "
-                "Backend progress support must be boolean"
-            )
+            raise TypeError(f"Unexpected {type(self.progress)=}; backend progress support must be boolean")
 
 
 @dataclass(frozen=True, slots=True)
@@ -503,7 +457,7 @@ class PoolAdministration(Protocol):
     def capabilities(self) -> BackendCapabilities: ...
 
     @property
-    def allocations(self) -> tuple[AllocationRef, ...]: ...
+    def allocations(self) -> frozenset[AllocationRef]: ...
 
     def retire_allocation(self, reference: AllocationRef) -> InstanceRetirement: ...
 

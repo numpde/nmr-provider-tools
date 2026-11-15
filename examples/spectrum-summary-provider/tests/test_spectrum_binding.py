@@ -52,7 +52,8 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_independent_bindings_share_the_typed_spectrum_format(self) -> None:
         bindings = self.bindings()
-        baseline, peaks = bindings.baseline, bindings.peaks
+        baseline, = [binding for binding in bindings if isinstance(binding.contribution, Baseline)]
+        peaks, = [binding for binding in bindings if isinstance(binding.contribution, Peaks)]
         baseline_call = baseline.call(method=Baseline.run)
         peak_call = peaks.call(method=Peaks.run)
         self.assertNotEqual(baseline.description.binding_id, peaks.description.binding_id)
@@ -77,7 +78,7 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
             kind="cpu", amount=1, unit="thread", selector="generic", exclusive=False,
         )
         bindings = self.bindings()
-        for binding in (bindings.baseline, bindings.peaks):
+        for binding in bindings:
             with self.subTest(binding=binding.description.binding_id):
                 self.assertIs(type(binding.contribution).initialize, sdk.Contribution.initialize)
                 self.assertIsNone(binding.contribution.analysis_type)
@@ -89,7 +90,8 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_provider_settings_remain_local_to_each_implementation(self) -> None:
         original = self.bindings()
-        original_baseline, original_peaks = original.baseline, original.peaks
+        original_baseline, = [binding for binding in original if isinstance(binding.contribution, Baseline)]
+        original_peaks, = [binding for binding in original if isinstance(binding.contribution, Peaks)]
         package = resources.files("spectrum_provider")
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -101,19 +103,22 @@ class SpectrumBindingTests(unittest.IsolatedAsyncioTestCase):
             root.joinpath("settings.toml").write_text(configured, encoding="utf-8")
             with patch("spectrum_provider.binding.files", return_value=root):
                 changed = self.bindings()
-                changed_baseline, same_peaks = changed.baseline, changed.peaks
+                changed_baseline, = [binding for binding in changed if isinstance(binding.contribution, Baseline)]
+                same_peaks, = [binding for binding in changed if isinstance(binding.contribution, Peaks)]
                 root.joinpath("settings.toml").write_text(
                     "# Formatting does not change scientific settings\n" + configured,
                     encoding="utf-8",
                 )
                 reformatted = self.bindings()
-                reformatted_baseline, reformatted_peaks = reformatted.baseline, reformatted.peaks
+                reformatted_baseline, = [binding for binding in reformatted if isinstance(binding.contribution, Baseline)]
+                reformatted_peaks, = [binding for binding in reformatted if isinstance(binding.contribution, Peaks)]
                 root.joinpath("settings.toml").write_text(
                     "[baseline]\nbaseline = 2.0\n[peaks]\nminimum_height = 4.0\n",
                     encoding="utf-8",
                 )
                 changed_peak_settings = self.bindings()
-                same_baseline, changed_peaks = changed_peak_settings.baseline, changed_peak_settings.peaks
+                same_baseline, = [binding for binding in changed_peak_settings if isinstance(binding.contribution, Baseline)]
+                changed_peaks, = [binding for binding in changed_peak_settings if isinstance(binding.contribution, Peaks)]
 
         self.assertNotEqual(original_baseline.contribution.configuration, changed_baseline.contribution.configuration)
         self.assertEqual(original_peaks.description.binding_revision, same_peaks.description.binding_revision)

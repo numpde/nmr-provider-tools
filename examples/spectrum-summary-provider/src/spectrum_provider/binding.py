@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from importlib.resources import files
 import tomllib
 
@@ -32,28 +31,22 @@ class Peaks(sdk.Contribution):
         return science.detect_peaks(spectrum=spectrum, settings=self.configuration)
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
-class SpectrumBindings:
-    baseline: sdk.HostedContribution
-    peaks: sdk.HostedContribution
-
-
 def create_bindings(
     *, host: EmbeddedHost,
-) -> SpectrumBindings:
+) -> frozenset[sdk.HostedContribution]:
     """Provider-owned assembly; the workflow chooses how these calls compose."""
     package = files(anchor=__package__)
     settings = tomllib.loads(package.joinpath("settings.toml").read_text(encoding="utf-8"))
     requirement = sdk.ResourceRequirement(
         **tomllib.loads(package.joinpath("resources.toml").read_text(encoding="utf-8"))
     )
-    return SpectrumBindings(
-        baseline=host.adopt(
+    return frozenset({
+        host.adopt(
             contribution=Baseline(configuration=science.BaselineSettings(**settings["baseline"])),
             requirements=frozenset({requirement}),
         ),
-        peaks=host.adopt(
+        host.adopt(
             contribution=Peaks(configuration=science.PeakSettings(**settings["peaks"])),
             requirements=frozenset({requirement}),
         ),
-    )
+    })

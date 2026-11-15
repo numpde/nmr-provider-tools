@@ -58,7 +58,7 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                     ("first", (3, 4, 0, 0), "pattern-a"),
                     ("second", (0, 0, 1, 1), "pattern-b"),
                 ):
-                    analysis = host.open_analysis(allocations=(binding.allocation,))
+                    analysis = host.open_analysis(allocations=frozenset({binding.allocation}))
                     reservation, = analysis.reservations
                     operation = analysis.submit_method(
                         method=binding.contribution.match,

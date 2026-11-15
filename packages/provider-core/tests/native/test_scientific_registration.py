@@ -141,7 +141,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_released_local_operations_leave_no_submission_history(self):
         hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
-        analysis = self.host.open_analysis(allocations=(hosted.allocation,))
+        analysis = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation, = analysis.reservations
         operation_policy = OperationPolicy(
             queue_stop_request_seconds=5,
@@ -219,7 +219,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             contribution=instance,
             requirements=frozenset({ResourceRequirement(kind="cpu", amount=1, unit="thread")}),
         )
-        analysis = self.host.open_analysis(allocations=(hosted.allocation,))
+        analysis = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation = analysis.reservation(allocation=hosted.allocation)
         operation_policy = OperationPolicy(
             queue_stop_request_seconds=5,
@@ -239,11 +239,11 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         other = new_host()
         self.addAsyncCleanup(self.retire, host=other)
         with self.assertRaises(expected_exception=ValueError):
-            other.open_analysis(allocations=(hosted.allocation,))
+            other.open_analysis(allocations=frozenset({hosted.allocation}))
         await observe_cleanup(control=analysis.close())
         await self.retire(host=self.host)
         with self.assertRaises(expected_exception=CapacityUnavailable):
-            self.host.open_analysis(allocations=(hosted.allocation,))
+            self.host.open_analysis(allocations=frozenset({hosted.allocation}))
 
     async def asyncSetUp(self):
         self.host = new_host()
@@ -285,7 +285,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
         first = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
         second = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
-        analysis = self.host.open_analysis(allocations=(first.allocation, second.allocation))
+        analysis = self.host.open_analysis(allocations=frozenset({first.allocation, second.allocation}))
         reservation = analysis.reservation(allocation=second.allocation)
         operation_policy = OperationPolicy(
             queue_stop_request_seconds=5,
@@ -358,7 +358,8 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                 return super().calculate(numbers=numbers)
 
         hosted = adopt(host=self.host, contribution=UnrestrictedSum(configuration=Settings(scale=2)))
-        self.assertEqual(first=frozenset(), second=hosted.description.calls[0].resources)
+        call, = hosted.description.calls
+        self.assertEqual(first=frozenset(), second=call.resources)
         self.assertEqual(first=1, second=len(hosted.requirements))
 
     async def test_hosted_handles_form_stable_sets_for_unhashable_science(self):
@@ -378,10 +379,22 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn(member=first_handle, container=offerings)
         self.assertIn(member=second_handle, container=offerings)
 
+    async def test_allocation_inventory_can_be_selected_without_an_ordered_conversion(self):
+        first = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
+        second = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=3)))
+        self.assertEqual(first=frozenset({first.allocation, second.allocation}), second=self.host.allocations)
+        execution = self.host.open_analysis(allocations=self.host.allocations)
+        self.assertEqual(first=2, second=len(execution.reservations))
+        self.assertIsInstance(obj=execution.reservations, cls=frozenset)
+        for hosted in (first, second):
+            reservation = execution.reservation(allocation=hosted.allocation)
+            self.assertEqual(first=hosted.allocation.binding_id, second=reservation.binding_id)
+        await observe_cleanup(control=execution.close())
+
     async def test_session_stop_preserves_results_and_prevents_more_science(self):
         instance = Sum(configuration=Settings(scale=2))
         hosted = adopt(host=self.host, contribution=instance)
-        execution = self.host.open_analysis(allocations=(hosted.allocation,))
+        execution = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation = execution.reservation(allocation=hosted.allocation)
         first = execution.submit_method(
             method=instance.calculate,
@@ -420,7 +433,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
     async def test_invalid_or_expired_start_deadlines_admit_no_work(self):
         instance = Sum(configuration=Settings(scale=2))
         hosted = adopt(host=self.host, contribution=instance)
-        execution = self.host.open_analysis(allocations=(hosted.allocation,))
+        execution = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation = execution.reservation(allocation=hosted.allocation)
         for invalid in (True, "later", float("nan"), float("inf")):
             with self.subTest(invalid=invalid):
@@ -453,7 +466,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
     async def test_expired_start_deadline_is_not_masked_by_full_result_capacity(self):
         instance = Sum(configuration=Settings(scale=2))
         hosted = adopt(host=self.host, contribution=instance)
-        execution = self.host.open_analysis(allocations=(hosted.allocation,))
+        execution = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation = execution.reservation(allocation=hosted.allocation)
         held = execution.submit_method(
             method=instance.calculate,
@@ -493,7 +506,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
         instance = HeldSum(configuration=Settings(scale=2))
         hosted = adopt(host=self.host, contribution=instance)
-        execution = self.host.open_analysis(allocations=(hosted.allocation,))
+        execution = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation = execution.reservation(allocation=hosted.allocation)
         first = execution.submit_method(
             method=instance.calculate,
@@ -538,7 +551,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
         instance = LoadingSum(configuration=Settings(scale=2))
         hosted = adopt(host=self.host, contribution=instance)
-        execution = self.host.open_analysis(allocations=(hosted.allocation,))
+        execution = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         deadline = asyncio.get_running_loop().time() + 1
         operation = execution.submit_method(
             method=instance.calculate,
@@ -614,7 +627,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
                 with self.assertRaisesRegex(expected_exception=TypeError, expected_regex=method):
                     adopt(host=self.host, contribution=instance)
                 self.assertEqual(first=0, second=instance.closes)
-        self.assertEqual(first=(), second=self.host.allocations)
+        self.assertEqual(first=frozenset(), second=self.host.allocations)
 
     async def test_unsupported_operations_fail_before_initialization(self):
         class AsyncSum(Sum):
@@ -661,7 +674,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             adopt(host=self.host, contribution=instance, amount=0)
         self.assertEqual(first=0, second=instance.initializations)
         self.assertEqual(first=0, second=instance.closes)
-        self.assertEqual(first=(), second=self.host.allocations)
+        self.assertEqual(first=frozenset(), second=self.host.allocations)
         hosted = adopt(host=self.host, contribution=instance, amount=2)
         self.assertIs(expr1=instance, expr2=hosted.contribution)
 
@@ -675,7 +688,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             )
         self.assertEqual(first=0, second=instance.initializations)
         self.assertEqual(first=0, second=instance.closes)
-        self.assertEqual(first=(), second=self.host.allocations)
+        self.assertEqual(first=frozenset(), second=self.host.allocations)
         hosted = adopt(host=self.host, contribution=instance)
         self.assertIs(expr1=instance, expr2=hosted.contribution)
 
@@ -687,7 +700,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
         for host in (self.host, other):
             with self.assertRaises(expected_exception=ValueError):
                 adopt(host=host, contribution=instance)
-        self.assertEqual(first=(), second=other.allocations)
+        self.assertEqual(first=frozenset(), second=other.allocations)
         await self.retire(host=self.host)
         self.assertEqual(first=0, second=instance.initializations)
         self.assertEqual(first=1, second=instance.closes)
@@ -737,7 +750,7 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_reservation_rejects_foreign_ownership_and_missing_input_before_dispatch(self):
         hosted = adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
-        analysis = self.host.open_analysis(allocations=(hosted.allocation,))
+        analysis = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         reservation, = analysis.reservations
         operation_policy = OperationPolicy(
             queue_stop_request_seconds=5,

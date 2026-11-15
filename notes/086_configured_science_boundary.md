@@ -67,7 +67,7 @@ The SDK creates allocation, analysis and operation identities. Provider code
 passes handles rather than choosing names:
 
 ```python
-analysis = host.open_analysis(allocations=(hosted.allocation,))
+analysis = host.open_analysis(allocations=frozenset({hosted.allocation}))
 reservation = analysis.reservation(allocation=hosted.allocation)
 ```
 

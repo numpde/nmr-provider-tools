@@ -81,7 +81,7 @@ async def run_demo() -> None:
                 timeout_seconds=15, context_bytes=factory.context_bytes, secrets=(),
             )
             cleanup_requests.append(interpreter.retire)
-            execution = host.open_analysis(allocations=(hosted.allocation,))
+            execution = host.open_analysis(allocations=frozenset({hosted.allocation}))
             cleanup_requests.append(partial(close_analysis, execution=execution))
             prediction = Prediction(
                 execution=execution, hosted=hosted, interpreter=interpreter,

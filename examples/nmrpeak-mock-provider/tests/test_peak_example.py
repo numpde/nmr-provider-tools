@@ -76,7 +76,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             context_bytes=factory.context_bytes, secrets=(),
         )
         self.addAsyncCleanup(interpreter.retire)
-        execution = self.host.open_analysis(allocations=(hosted.allocation,))
+        execution = self.host.open_analysis(allocations=frozenset({hosted.allocation}))
         self.addAsyncCleanup(self.close_analysis, execution=execution)
         return Prediction(
             execution=execution, hosted=hosted, interpreter=interpreter,

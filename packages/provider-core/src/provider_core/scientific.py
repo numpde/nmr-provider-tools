@@ -518,8 +518,8 @@ class HostedContribution:
         description = ImplementationDescription(
             binding_id="allocation:" + host + ":" + allocation_name.encode(encoding="utf-8").hex(),
             binding_revision="configured-v3:sha256:" + "0" * 64,
-            contract_version=1, configuration=None, assets=(),
-            calls=tuple(call_descriptions),
+            contract_version=1, configuration=None, assets=frozenset(),
+            calls=frozenset(call_descriptions),
             resident_resources=self.resident_resources, isolation=self.isolation,
         )
         document = description_document(description=description)

@@ -289,7 +289,7 @@ class EmbeddedHostTests(unittest.IsolatedAsyncioTestCase):
         description = description_document(weighted.description)
 
         self.assertEqual("shared_process", description["isolation"])
-        self.assertEqual(["prepare", "calculate"], [c["name"] for c in description["calls"]])
+        self.assertEqual(["calculate", "prepare"], [c["name"] for c in description["calls"]])
         self.assertIsNone(ordinary.description.configuration)
 
         host = self.host({"weighted": weighted, "sum": ordinary})

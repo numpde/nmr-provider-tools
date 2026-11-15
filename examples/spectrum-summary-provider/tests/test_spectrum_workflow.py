@@ -73,8 +73,9 @@ class SpectrumWorkflowTests(unittest.IsolatedAsyncioTestCase):
         bindings = create_bindings(
             host=host,
         )
-        baseline, peaks = bindings.baseline, bindings.peaks
-        analysis = host.open_analysis(allocations=(baseline.allocation, peaks.allocation))
+        baseline, = [binding for binding in bindings if isinstance(binding.contribution, Baseline)]
+        peaks, = [binding for binding in bindings if isinstance(binding.contribution, Peaks)]
+        analysis = host.open_analysis(allocations=frozenset({baseline.allocation, peaks.allocation}))
         baseline_reservation = analysis.reservation(allocation=baseline.allocation)
         peak_reservation = analysis.reservation(allocation=peaks.allocation)
         operation_policy = OperationPolicy(

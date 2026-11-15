@@ -109,7 +109,7 @@ provenance remains provider-owned. Local submission uses the actual receiver
 hardware availability must be established by the environment running the provider.
 
 The SDK supplies execution identities. Use allocation handles with
-`host.open_analysis(allocations=(hosted.allocation,))`, retain returned operation
+`host.open_analysis(allocations=frozenset({hosted.allocation}))`, retain returned operation
 handles, and observe those handles to resume waiting. Each new submission means
 new work. State kinds and ports derive their names from Python types and class
 attributes rather than manually assigned labels.

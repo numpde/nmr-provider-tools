@@ -46,7 +46,7 @@ async def run_demo() -> None:
     try:
         binding = create_binding(host=host)
         for name, values in (("first", (3, 4, 0, 0)), ("second", (0, 0, 1, 1))):
-            analysis = host.open_analysis(allocations=(binding.allocation,))
+            analysis = host.open_analysis(allocations=frozenset({binding.allocation}))
             cleanup_requests.append(analysis.close)
             reservation, = analysis.reservations
             operation = analysis.submit_method(

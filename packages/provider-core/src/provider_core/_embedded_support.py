@@ -28,13 +28,10 @@ from provider_core.scientific import AssetAccess, NoAssets, HostedContribution
 # This describes the backend's implemented features, not operator-selectable settings.
 # repo-check: allow-module-constant
 EMBEDDED_CAPABILITIES = BackendCapabilities(
-    contract_versions=(1,),
-    isolation=(IsolationRequirement.SHARED_PROCESS,),
-    concurrency=(
-        ConcurrencyRequirement.INSTANCE_SERIAL,
-        ConcurrencyRequirement.PARALLEL,
-    ),
-    interruption=(InterruptionSupport.NONE, InterruptionSupport.COOPERATIVE),
+    contract_versions=frozenset({1}),
+    isolation=frozenset({IsolationRequirement.SHARED_PROCESS}),
+    concurrency=frozenset({ConcurrencyRequirement.INSTANCE_SERIAL, ConcurrencyRequirement.PARALLEL}),
+    interruption=frozenset({InterruptionSupport.NONE, InterruptionSupport.COOPERATIVE}),
     progress=True,
 )
 

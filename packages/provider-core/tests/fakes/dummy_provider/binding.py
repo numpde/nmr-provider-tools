@@ -124,7 +124,7 @@ def weighted_sum_binding(
         format_id="dummy.coefficients.v1",
         media_type="application/vnd.nmr-provider-tools.dummy-coefficients+json",
     )
-    assets = (coefficient_asset,)
+    assets = frozenset({coefficient_asset})
 
     prepare_call = contribution.CallBinding.from_json_dataclasses(
         name="prepare",
@@ -205,7 +205,7 @@ def sum_binding() -> SumBinding:
             implementation="dummy.sum.v5",
             contract_version=1,
             configuration=configuration,
-            assets=(),
+            assets=frozenset(),
         ),
         run=run_call,
         resident_resources=frozenset(),

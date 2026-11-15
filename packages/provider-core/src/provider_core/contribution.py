@@ -65,6 +65,15 @@ def _records(values: object, record_type: type[object], label: str) -> None:
         raise TypeError(f"{label} must be an immutable tuple of {record_type.__name__} records")
 
 
+def _set_records(values: object, record_type: type[object], label: str) -> None:
+    """Require an immutable unordered inventory with records of the declared type."""
+    if type(values) is not frozenset:
+        raise TypeError(f"Unexpected {type(values)=}; {label=} requires a frozenset")
+    for value in values:
+        if type(value) is not record_type:
+            raise TypeError(f"Unexpected {type(value)=}; {label=} requires {record_type=}")
+
+
 def _unique(values: Collection[object], key: Callable[[object], object], label: str) -> None:
     if len({key(value) for value in values}) != len(values):
         raise ValueError(f"{label} cannot contain duplicates")
@@ -276,7 +285,7 @@ class ConfiguredIdentity:
     implementation: str
     contract_version: int
     configuration: ConfigurationDescription | None
-    assets: tuple[AssetDescription, ...]
+    assets: frozenset[AssetDescription]
     revision: str = field(init=False)
 
     def __post_init__(self) -> None:
@@ -290,7 +299,7 @@ class ConfiguredIdentity:
             raise ValueError("Contract version must be a positive integer")
         if self.configuration is not None and type(self.configuration) is not ConfigurationDescription:
             raise TypeError("Configuration must be a ConfigurationDescription or None")
-        _records(self.assets, AssetDescription, "Scientific assets")
+        _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
         _unique(self.assets, lambda asset: asset.name, "Scientific assets")
         configuration = None
         if self.configuration is not None:
@@ -303,7 +312,7 @@ class ConfiguredIdentity:
             "assets": [
                 {"name": asset.name, "media_type": asset.media_type,
                  "digest": asset.digest, "size_bytes": asset.size_bytes}
-                for asset in self.assets
+                for asset in sorted(self.assets, key=lambda asset: asset.name)
             ],
         }
         encoded = json.dumps(document, sort_keys=True, ensure_ascii=True, separators=(",", ":")).encode("ascii")
@@ -490,8 +499,8 @@ class ImplementationDescription:
     binding_revision: str
     contract_version: int
     configuration: ConfigurationDescription | None
-    assets: tuple[AssetDescription, ...]
-    calls: tuple[CallDescription, ...]
+    assets: frozenset[AssetDescription]
+    calls: frozenset[CallDescription]
     resident_resources: frozenset[ResourceRequirement]
     isolation: IsolationRequirement
 
@@ -510,9 +519,9 @@ class ImplementationDescription:
                 "Implementation configuration must be a ConfigurationDescription "
                 "or None"
             )
-        _records(self.assets, AssetDescription, "Scientific assets")
+        _set_records(values=self.assets, record_type=AssetDescription, label="Scientific assets")
         _unique(self.assets, lambda value: value.name, "Scientific assets")
-        _records(self.calls, CallDescription, "Call descriptions")
+        _set_records(values=self.calls, record_type=CallDescription, label="Call descriptions")
         if not self.calls:
             raise ValueError("An implementation must declare at least one call")
         _unique(self.calls, lambda value: value.name, "Call descriptions")
@@ -957,7 +966,7 @@ class ImplementationBinding[InstanceT, AnalysisT]:
             binding_id=self.identity.binding_id, binding_revision=self.identity.revision,
             contract_version=self.identity.contract_version,
             configuration=self.identity.configuration, assets=self.identity.assets,
-            calls=tuple(descriptions), resident_resources=self.resident_resources,
+            calls=frozenset(descriptions), resident_resources=self.resident_resources,
             isolation=self.isolation,
         ))
 
@@ -1089,7 +1098,7 @@ def description_document(description: ImplementationDescription) -> dict[str, ob
                 "digest": asset.digest,
                 "size_bytes": asset.size_bytes,
             }
-            for asset in description.assets
+            for asset in sorted(description.assets, key=lambda asset: asset.name)
         ],
         "resident_resources": [
             resource_document(requirement)
@@ -1117,6 +1126,6 @@ def description_document(description: ImplementationDescription) -> dict[str, ob
                 "interruption": call.interruption.value,
                 "progress": call.progress,
             }
-            for call in description.calls
+            for call in sorted(description.calls, key=lambda call: call.name)
         ],
     }
