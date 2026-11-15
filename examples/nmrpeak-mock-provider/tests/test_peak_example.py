@@ -10,6 +10,7 @@ from provider_core.container_guard import require_container
 require_container()
 
 import asyncio
+from copy import deepcopy
 from functools import partial
 from importlib import metadata, resources
 import json
@@ -69,7 +70,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
     def configure_science(self, *, variant: str, **changes) -> None:
         """Change raw external deployment input; real startup still owns admission."""
         document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
-        document["science"][variant]["settings"].update(changes)
+        configured, = document["science"][variant]
+        configured["settings"].update(changes)
         self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
 
     async def test_external_deployment_settings_change_scientific_results(self):
@@ -102,6 +104,42 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 for report in reports:
                     self.assertEqual(first=beam_size, second=len(report["generated_smiles"]))
 
+    async def test_configured_inventory_supports_single_families_and_multiple_models(self):
+        original = self.configuration.read_text(encoding="utf-8")
+        for families in (("hf",), ("chf",), ("hf", "hf"), ("chf", "chf"), ("hf", "chf", "hf")):
+            with self.subTest(families=families):
+                document = tomllib.loads(original)
+                selected = {family: [] for family in families}
+                for family in families:
+                    configured = deepcopy(x=document["science"][family][0])
+                    entries = selected[family]
+                    configured["settings"]["beam_size"] = len(entries) + 1
+                    entries.append(configured)
+                document["science"] = selected
+                self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+                async with self.open_provider() as provider:
+                    self.assertEqual(first=len(families), second=len(provider.offerings))
+                    for offering in provider.offerings:
+                        self.factory.proposals = (candidate(carbon=isinstance(offering.contribution, Chf)),)
+                        receiver = RecordingReceiver()
+                        async with provider.open_prediction(offering=offering, receive=receiver) as prediction:
+                            await prediction.interpret(source="Formula and selected spectra")
+                            await prediction.deliver()
+                        payload, = receiver.payloads
+                        report = json.loads(s=payload)
+                        self.assertEqual(
+                            first=offering.contribution.configuration.beam_size,
+                            second=len(report["generated_smiles"]),
+                        )
+
+    async def test_unknown_scientific_family_fails_during_real_startup(self):
+        document = tomllib.loads(self.configuration.read_text(encoding="utf-8"))
+        document["science"]["unknown"] = document["science"].pop("chf")
+        self.configuration.write_text(data=tomli_w.dumps(document), encoding="utf-8")
+        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex="unsupported family='unknown'"):
+            async with self.open_provider():
+                self.fail(msg="An unsupported scientific family must not yield a provider")
+
     async def test_partial_assembly_failure_retires_the_already_adopted_object(self):
         closed = []
         close = Hf.close
@@ -116,7 +154,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
 
         # The real host rejects the malformed second declaration. Provider startup
         # must still retire the valid first object that it already handed over.
-        with patch(target="nmrpeak_mock_provider.composition.Chf", new=InvalidChf):
+        with patch(target="nmrpeak_mock_provider.provider.Chf", new=InvalidChf):
             with patch.object(target=Hf, attribute="close", new=record_close):
                 with self.assertRaises(expected_exception=TypeError):
                     async with self.open_provider():

@@ -19,7 +19,7 @@ from provider_core.interpreter import EndpointFactory, Interpreter
 from provider_core.scientific import HostedContribution, ResourceRequirement
 
 from .application import Prediction
-from .composition import adopt_offerings
+from .binding import Chf, Hf
 from .science import Model, Settings
 
 
@@ -117,20 +117,28 @@ async def open_provider(
             ResourceRequirement(**resource_requirement)
             for resource_requirement in provider_config["execution"]["resource_requirement"]
         )
-        offerings = adopt_offerings(
-            host=host,
-            requested_requirements=requested_requirements,
-            hf_settings=Settings(**provider_config["science"]["hf"]["settings"]),
-            chf_settings=Settings(**provider_config["science"]["chf"]["settings"]),
-            # Resolve model locations beside the selected deployment document.
-            hf_checkpoint_path=PROVIDER_CONFIG_PATH.parent / provider_config["science"]["hf"]["checkpoint_path"],
-            chf_checkpoint_path=PROVIDER_CONFIG_PATH.parent / provider_config["science"]["chf"]["checkpoint_path"],
-            create_model=create_model,
-        )
+        contribution_types = {"hf": Hf, "chf": Chf}
+        offerings = set()
+        # Family selects a scientific input shape. Each entry is an independently
+        # configured model; several entries can use the same contribution class.
+        for family, configurations in provider_config["science"].items():
+            if family not in contribution_types:
+                raise ValueError(f"Cannot configure scientific offerings: unsupported {family=}")
+            contribution_type = contribution_types[family]
+            for configured in configurations:
+                contribution = contribution_type(
+                    configuration=Settings(**configured["settings"]),
+                    checkpoint_path=PROVIDER_CONFIG_PATH.parent / configured["checkpoint_path"],
+                    create_model=create_model,
+                )
+                offerings.add(host.adopt(
+                    contribution=contribution,
+                    requirements=requested_requirements,
+                ))
         yield Provider(
             host=host,
             operation_policy=operation_policy,
-            offerings=offerings,
+            offerings=frozenset(offerings),
             create_interpreter=partial(
                 Interpreter,
                 endpoint_factories=endpoint_factories,

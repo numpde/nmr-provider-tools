@@ -8,6 +8,7 @@ It retains one report receiver attempt; provider.py owns the request lifetime.
 """
 
 from collections.abc import Awaitable, Callable
+from importlib.resources import files
 
 from provider_core.embedded_host import EmbeddedAnalysis
 from provider_core.hosting import (
@@ -18,7 +19,6 @@ from provider_core.preparation_tool import PreparationTool
 from provider_core.scientific import HostedContribution
 
 from .binding import PeakContribution
-from .composition import interpretation_messages
 
 
 class Prediction:
@@ -57,8 +57,9 @@ class Prediction:
         The request caller supplies source text. The selected scientific method
         already declares its input type; the SDK derives its tool schema.
         """
+        instructions = files(anchor=__package__).joinpath("interpreter.md").read_text(encoding="utf-8")
         await self.interpreter.run(
-            messages=interpretation_messages(source=source),
+            messages=[{"role": "system", "content": instructions}, {"role": "user", "content": source}],
             tools=[self.preparation.definition],
             dispatch=self.preparation.dispatch,
         )

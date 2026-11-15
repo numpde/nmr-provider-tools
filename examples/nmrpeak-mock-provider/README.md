@@ -18,7 +18,6 @@ models/
 src/nmrpeak_mock_provider/
     provider.py      provider setup and per-request lifetimes
     application.py   interpretation → validation → generation → report consumption
-    composition.py   explicit HF/CHF assembly and interpretation instructions
     binding.py       scientific methods, initialization and prepared-state ports
     science.py       scientific records, model interface and result admission
     checkpoint.py    verification and loading through one open file
@@ -46,9 +45,12 @@ Checkpoint paths in the TOML are relative to that deployment document.
 Different deployments can select different scientific settings and
 model constructors without changing the SDK.
 
-`adopt_offerings` constructs HF and CHF with their settings and checkpoint paths,
-then asks the SDK to retain each exact scientific object. It returns an unordered
-frozenset of hosted offerings. Adoption records resource requirements; it does not
+`open_provider` iterates the configured scientific inventory and constructs each
+scientific contribution with its own settings and model path, then gives that exact object to the
+SDK. `[[science.hf]]` and `[[science.chf]]` select input families; omit a family or
+repeat its array entry to enable any number of configured models. There are no
+per-model IDs or fixed HF/CHF slots. The provider exposes an unordered frozenset
+of hosted offerings. Adoption records resource requirements; it does not
 allocate hardware. The deployment must provide the requested CPU/GPU resources.
 Model loading begins when scientific work first needs that object. Interpretation
 limits are passed to each new SDK interpreter, which validates them on construction.

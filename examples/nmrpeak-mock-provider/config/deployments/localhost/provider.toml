@@ -65,11 +65,13 @@ amount = 1
 unit = "thread"
 selector = "generic"
 
+# Each array entry enables one configured model of that scientific input family.
+# Omit a family to disable it; repeat its entry to offer another model or settings.
 # Configure HF and CHF separately. Before loading, check each checkpoint's
 # contents against the expected digest. Limit the number of input tokens,
 # generated candidates and characters in each candidate string.
 # Checkpoint paths are relative to this deployment document.
-[science.hf]
+[[science.hf]]
 checkpoint_path = "../../../models/hf.json"
 
 [science.hf.settings]
@@ -78,7 +80,7 @@ maximum_input_tokens = 64
 beam_size = 2
 maximum_candidate_characters = 64
 
-[science.chf]
+[[science.chf]]
 checkpoint_path = "../../../models/chf.json"
 
 [science.chf.settings]
