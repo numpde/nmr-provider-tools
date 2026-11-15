@@ -37,7 +37,7 @@ def release(path):
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 
     with os.fdopen(descriptor, "rb") as stream:
-        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+        if not (stat.S_ISREG(os.fstat(stream.fileno()).st_mode)):
             raise ValueError("Cannot start the installer: release record must be a regular file.")
 
         record = json.load(stream, object_pairs_hook=unique_fields)
@@ -101,7 +101,7 @@ def wheel_bytes(wheel, record):
     descriptor = os.open(wheel, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 
     with os.fdopen(descriptor, "rb") as source:
-        if not stat.S_ISREG(os.fstat(source.fileno()).st_mode):
+        if not (stat.S_ISREG(os.fstat(source.fileno()).st_mode)):
             raise ValueError("Cannot start the installer: its wheel must be a regular file.")
 
         return checked_bytes(source, record)

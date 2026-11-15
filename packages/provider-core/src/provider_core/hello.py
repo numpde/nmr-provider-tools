@@ -44,13 +44,13 @@ class HelloAccepted:
 
 
 def _require_text(value, name, maximum):
-    if type(value) is not str:
+    if not (type(value) is str):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             f"Cannot announce provider: {name} must be Unicode text"
         )
 
-    if not 1 <= len(value) <= maximum:
+    if not (1 <= len(value) <= maximum):
         raise ValueError(f"Cannot announce provider: {name} has {len(value)} characters; expected 1 through {maximum} Unicode scalars")
 
     if "\0" in value or any(0xD800 <= ord(character) <= 0xDFFF for character in value):
@@ -79,7 +79,7 @@ def hello_body(*, display_name, description, analysis_offerings):
     (offerings, kinds) = ([], set())
 
     for offering in analysis_offerings:
-        if type(offering) is not AnalysisOffering:
+        if not (type(offering) is AnalysisOffering):
             raise TypeError(
                 f"Unexpected {type(offering)=}; "
                 "Cannot announce provider: each entry must be an AnalysisOffering"

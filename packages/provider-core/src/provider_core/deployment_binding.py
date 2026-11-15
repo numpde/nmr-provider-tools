@@ -105,12 +105,12 @@ def _route(table, origin):
 
     _fields(table, required, "route")
 
-    if type(table["interface"]) is not str:
+    if not (type(table["interface"]) is str):
         raise BindingDefinitionRejected("Cannot admit delivery route: interface must be an explicit Linux interface name.")
 
     require_interface_name(table["interface"])
 
-    if table["log_level"] not in ("INFO", "DEBUG", "WARNING"):
+    if not (table["log_level"] in ("INFO", "DEBUG", "WARNING")):
         raise BindingDefinitionRejected("Cannot admit delivery route: log_level must be INFO, DEBUG or WARNING.")
 
     if mode == "local" and (type(table["network_id"]) is not str or re.fullmatch(r"[0-9a-f]{64}", table["network_id"]) is None):
@@ -156,7 +156,7 @@ def _parse_deployment_bindings(raw):
     if not (type(project) is str and re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,62}", project) is not None):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: project requires a lowercase Compose name of up to 63 characters.")
 
-    if not all(type(value) is int and 1 <= value <= 4294967294 for value in (uid, gid)):
+    if not (all(type(value) is int and 1 <= value <= 4294967294 for value in (uid, gid))):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: uid and gid must be explicit nonzero Linux identities.")
 
     for key in ("request_seconds", "retry_initial_seconds", "retry_max_seconds"):
@@ -165,7 +165,7 @@ def _parse_deployment_bindings(raw):
         if not (type(value) in (int, float) and math.isfinite(value) and 0 < value):
             raise BindingDefinitionRejected(f"Cannot admit delivery bindings: {key} requires finite positive seconds.")
 
-    if not document["retry_initial_seconds"] <= document["retry_max_seconds"]:
+    if not (document["retry_initial_seconds"] <= document["retry_max_seconds"]):
         raise BindingDefinitionRejected("Cannot admit delivery bindings: initial retry delay must not exceed maximum delay.")
 
     _fields(document["limits"], {"provider_items", "provider_bytes", "total_items", "total_bytes"}, "limits")

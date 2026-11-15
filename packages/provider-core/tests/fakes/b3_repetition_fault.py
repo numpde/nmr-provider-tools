@@ -221,7 +221,7 @@ async def scenario(marker, report, seed):
         async def retire(self):
             await self.interpreter.retire()
 
-            if not self.interpreter.retirement_confirmed:
+            if not (self.interpreter.retirement_confirmed):
                 raise AssertionError("The original prose-interpreter HTTP child has not retired")
 
             if not self.retired:
@@ -395,7 +395,7 @@ async def scenario(marker, report, seed):
                     while not wanted <= published and time.monotonic() < deadline:
                         await asyncio.sleep(0.005)
 
-                    if not wanted <= published:
+                    if not (wanted <= published):
                         raise AssertionError("Original delivery worker did not drain the exact queued outcomes")
 
                 async def release_receipt_during_fault():

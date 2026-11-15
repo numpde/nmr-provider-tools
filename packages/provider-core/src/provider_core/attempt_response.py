@@ -61,7 +61,7 @@ class AttemptProgress:
 
 
 def require_attempt_ref(value):
-    if type(value) is not str:
+    if not (type(value) is str):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             "Execution Attempt reference must be execution_attempt:sha256: followed by 64 lowercase hexadecimal digits"
@@ -85,7 +85,7 @@ def read_attempt(raw, *, execution_attempt_ref, job_ref):
     if document["execution_attempt_ref"] != execution_attempt_ref or document["job_ref"] != job_ref:
         raise ResponseRejected("Execution Attempt or Job identity differs from the request")
 
-    if document["state"] not in ("in_progress", "succeeded", "failed", "expired"):
+    if not (document["state"] in ("in_progress", "succeeded", "failed", "expired")):
         raise ResponseRejected("Execution Attempt state must be in_progress, succeeded, failed or expired")
 
     if type(document["job_state"]) is not str or document["job_state"] not in JOB_STATES:
@@ -130,10 +130,10 @@ def read_start(raw, *, job_ref, analysis_kind_ref, provider_ref):
     except (TypeError, ValueError) as cause:
         raise ResponseRejected(str(cause)) from None
 
-    if document["state"] not in ("in_progress", "succeeded", "failed", "expired"):
+    if not (document["state"] in ("in_progress", "succeeded", "failed", "expired")):
         raise ResponseRejected("Execution Attempt state must be in_progress, succeeded, failed or expired")
 
-    if type(document["replayed"]) is not bool:
+    if not (type(document["replayed"]) is bool):
         raise ResponseRejected("Attempt replayed must be a boolean")
 
     timestamp = read_timestamp(document["started_at"])
@@ -217,7 +217,7 @@ def _outcome_response(raw, operation, execution_attempt_ref, fields):
     ):
         raise ResponseRejected("Outcome response schema or Attempt identity differs from the publication")
 
-    if type(document["replayed"]) is not bool:
+    if not (type(document["replayed"]) is bool):
         raise ResponseRejected("Outcome replayed must be a boolean")
 
     return document

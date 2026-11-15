@@ -181,7 +181,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
             )
 
             def observed_factory(**settings):
-                if self.endpoint is not None:
+                if not (self.endpoint is None):
                     raise AssertionError("Stopping interpretation created a second HTTP endpoint")
 
                 self.endpoint = factory(**settings)
@@ -225,7 +225,7 @@ async def shutdown_scenario(schedule, seed, directory, facts):
 
             await self.interpreter.retire()
 
-            if not self.interpreter.retirement_confirmed:
+            if not (self.interpreter.retirement_confirmed):
                 raise AssertionError("The session declared cleanup complete while its HTTP child was still owned")
 
             self.retired = True

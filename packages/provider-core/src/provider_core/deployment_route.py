@@ -58,7 +58,7 @@ def _path(value):
 
 
 def _identity(uid, gid):
-    if not all(type(value) is int and 1 <= value <= 4294967294 for value in (uid, gid)):
+    if not (all(type(value) is int and 1 <= value <= 4294967294 for value in (uid, gid))):
         raise RouteProjectionRejected("Cannot grant API route identity: require explicit nonzero Linux UID and GID.")
 
 
@@ -199,7 +199,7 @@ def render_api_route(binding, *, image, interpreter, namespace, uid, gid, storag
     Omitted service_name preserves delivery's identity-derived service roles.
     """
 
-    if type(binding) is not DeploymentBinding:
+    if not (type(binding) is DeploymentBinding):
         raise RouteProjectionRejected("Cannot render API route: select an admitted DeploymentBinding.")
 
     if type(image) is not str or re.fullmatch(r"sha256:[0-9a-f]{64}", image) is None:
@@ -281,7 +281,7 @@ def initialize_route(uid, gid, path, *, shared_group=False):
 
     observed = path.lstat()
 
-    if not stat.S_ISDIR(observed.st_mode):
+    if not (stat.S_ISDIR(observed.st_mode)):
         raise RouteProjectionRejected("Cannot initialize API route volume: its root must be a real directory.")
 
     if (observed.st_uid, observed.st_gid, stat.S_IMODE(observed.st_mode)) == (uid, gid, mode):

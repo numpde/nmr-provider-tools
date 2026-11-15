@@ -117,7 +117,7 @@ def receive_headers(client: socket.socket) -> tuple[bytes, bytes]:
 
         _remaining(deadline, "header read")
 
-        if not chunk:
+        if not (chunk):
             raise ConnectionError("client closed before sending headers")
 
         data.extend(chunk)
@@ -172,7 +172,7 @@ def parse_destination(header: bytes) -> tuple[str, str, int, bytes]:
     # Admit the destination before DNS or socket use; explicit HTTP port zero
     # must not silently choose the scheme default.
     # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/repository_checks/test_image_build_proxy.py#L41
-    if not 1 <= port <= 65535:
+    if not (1 <= port <= 65535):
         raise ValueError("Cannot admit proxy destination: the port must be an integer from 1 to 65535.")
 
     if method == "CONNECT":
@@ -494,7 +494,7 @@ def relay(left: socket.socket, right: socket.socket) -> None:
     while readers:
         (readable, _, _) = select.select(readers, (), (), _remaining(deadline, "relay"))
 
-        if not readable:
+        if not (readable):
             raise TimeoutError("Cannot continue proxy relay: no forwarding completed within 120 seconds.")
 
         for source in readable:
@@ -772,7 +772,7 @@ def require_interface_name(interface: str) -> None:
 
     # Native lookup admits the same device name consumed by SO_BINDTODEVICE.
     # https://github.com/numpde/magnet-deploy/blob/2d4ee50b0359e71900fce9289ea01f46d0f41249/scripts/image-build-proxy.py#L373-L381
-    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,14}", interface):
+    if not (re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,14}", interface)):
         raise ValueError(
             "Cannot start proxy: require an ASCII interface name of 1 through 15 bytes, without paths or whitespace."
         )

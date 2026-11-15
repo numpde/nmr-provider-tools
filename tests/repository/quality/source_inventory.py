@@ -16,7 +16,7 @@ class SourceInventoryError(AssertionError):
 
 
 def _validated_subtree(subtree: str) -> PurePosixPath:
-    if not isinstance(subtree, str):
+    if not (isinstance(subtree, str)):
         raise TypeError("subtree must be a string")
 
     candidate = PurePosixPath(subtree)
@@ -42,7 +42,7 @@ def discover_source_files(*, root: Path, subtree: str) -> tuple[str, ...]:
     Committed immutable context proof belongs to the scientific source checks.
     """
 
-    if not isinstance(root, Path):
+    if not (isinstance(root, Path)):
         raise TypeError("root must be a pathlib.Path")
 
     subtree_path = _validated_subtree(subtree)
@@ -51,7 +51,7 @@ def discover_source_files(*, root: Path, subtree: str) -> tuple[str, ...]:
     if base.is_symlink():
         raise SourceInventoryError(f"{subtree} source root must not be a symlink")
 
-    if not base.is_dir():
+    if not (base.is_dir()):
         raise SourceInventoryError(f"{subtree} source root must be a directory")
 
     discovered: list[str] = []
@@ -65,7 +65,7 @@ def discover_source_files(*, root: Path, subtree: str) -> tuple[str, ...]:
         if path.is_dir():
             continue
 
-        if not path.is_file():
+        if not (path.is_file()):
             raise SourceInventoryError(f"{relative} must be a regular file")
 
         discovered.append(relative)

@@ -25,7 +25,7 @@ def emit(value):
 def main():
     mode = sys.argv[1]
 
-    if mode not in {"success", "reject", "block", "close_output", "block_read"}:
+    if not (mode in {"success", "reject", "block", "close_output", "block_read"}):
         raise ValueError("Unknown scripted child mode")
 
     source = json.loads(sys.stdin.readline())

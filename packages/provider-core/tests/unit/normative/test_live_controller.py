@@ -110,7 +110,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
             async def submit(self, item):
                 bodies.append(item.body)
 
-                if not recovered.is_set():
+                if not (recovered.is_set()):
                     pressured.set()
                     raise DeliveryFull("The authored queue is full")
 
@@ -692,7 +692,7 @@ class LiveControllerTests(unittest.IsolatedAsyncioTestCase):
                         try:
                             accepted = await next_job.run(record())
                         except ControllerFailed as failure:
-                            if type(failure.cause) is not LiveCapacityFull:
+                            if not (type(failure.cause) is LiveCapacityFull):
                                 raise
 
                             self.fail("Two stopped preparations retired without reports, but capacity refused the next Job")

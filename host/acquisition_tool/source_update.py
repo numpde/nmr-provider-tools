@@ -43,7 +43,7 @@ def read_pin(path):
     (data, _metadata) = _regular_bytes(Path(path))
     pin = _json(data, f"release pin {path}")
 
-    if type(pin) is not dict:
+    if not (type(pin) is dict):
         raise TypeError(
             f"Unexpected {type(pin)=}; "
             f"Cannot read release pin {path}: require version and archive_sha256."
@@ -56,7 +56,7 @@ def read_pin(path):
 
 
 def _relative_name(name):
-    if type(name) is not str:
+    if not (type(name) is str):
         raise TypeError(
             f"Unexpected {type(name)=}; "
             "Acquisition inventory contains an empty or non-text file path."
@@ -77,7 +77,7 @@ def read_manifest(data):
     """Admit the recorded inventory, excluding only the manifest's own bytes."""
     manifest = _json(data, "acquisition-manifest.json")
 
-    if type(manifest) is not dict:
+    if not (type(manifest) is dict):
         raise TypeError(
             f"Unexpected {type(manifest)=}; "
             "Acquisition manifest must identify its release, source, payload and dependency inputs."
@@ -105,7 +105,7 @@ def read_manifest(data):
 
     entries = manifest["payload_files"]
 
-    if type(entries) is not dict:
+    if not (type(entries) is dict):
         raise TypeError(
             f"Unexpected {type(entries)=}; "
             "Acquisition manifest must inventory its payload without hashing itself."
@@ -149,7 +149,7 @@ def read_manifest(data):
 
     dependencies = manifest["dependency_inputs"]
 
-    if type(dependencies) is not dict:
+    if not (type(dependencies) is dict):
         raise TypeError(
             f"Unexpected {type(dependencies)=}; "
             "Acquisition dependency inputs must map artifact names to SHA-256 checksums."
@@ -175,7 +175,7 @@ def _regular_bytes(path):
     try:
         metadata = os.fstat(descriptor)
 
-        if not stat.S_ISREG(metadata.st_mode):
+        if not (stat.S_ISREG(metadata.st_mode)):
             raise ValueError(f"Cannot read acquisition input {path}: require a regular file.")
 
         with os.fdopen(descriptor, "rb", closefd=False) as stream:
@@ -229,7 +229,7 @@ def verify(source_dir):
                 actual.add(relative)
                 continue
 
-            if relative not in entries:
+            if not (relative in entries):
                 raise ValueError(f"Acquisition source contains an unrecorded file: {relative}.")
 
             (content, metadata) = _regular_bytes(path)
@@ -271,7 +271,7 @@ def _admit_archive(data, pin):
             if any(parent.as_posix() in names for parent in path.parents):
                 raise ValueError(f"Acquisition archive member conflicts with its parent: {member.name!r}.")
 
-            if not member.isfile():
+            if not (member.isfile()):
                 raise ValueError(f"Acquisition archive contains a link or special member: {member.name!r}.")
 
         if names.count("acquisition-manifest.json") != 1:

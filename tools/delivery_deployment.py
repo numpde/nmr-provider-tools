@@ -555,7 +555,7 @@ def runtime_configuration(path, expected):
     definition = runtime_definition(path, expected)
     encoded_configuration = tomli_w.dumps(daemon_configuration(definition)).encode()
 
-    if not len(encoded_configuration) <= 65536:
+    if not (len(encoded_configuration) <= 65536):
         raise DeliveryDeploymentRejected(
             "Cannot start delivery: the derived SDK configuration exceeds "
             "its 65536-byte contract."
@@ -625,7 +625,7 @@ def initialize(uid, gid, queue, ipc):
         path = _path(target)
         observed_metadata = path.lstat()
 
-        if not stat.S_ISDIR(observed_metadata.st_mode):
+        if not (stat.S_ISDIR(observed_metadata.st_mode)):
             raise DeliveryDeploymentRejected("Delivery volume root must be a real directory.")
 
         if (

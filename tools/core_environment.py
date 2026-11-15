@@ -334,7 +334,7 @@ def source_inventory(source):
                 "size": path.stat().st_size,
                 "mode": path.stat().st_mode & 0o777,
             }
-        elif not path.is_dir():
+        elif not (path.is_dir()):
             raise ValueError("Cannot capture package inventory: source must contain regular files and directories.")
 
     return inventory

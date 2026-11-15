@@ -29,7 +29,7 @@ def _encoded(value):
 
 
 def _decoded(value):
-    if type(value) is not str:
+    if not (type(value) is str):
         raise DeliveryHandoffRejected("Delivery handoff requires encoded immutable bytes.")
 
     try:

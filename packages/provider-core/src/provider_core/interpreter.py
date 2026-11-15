@@ -285,7 +285,7 @@ class Interpreter:
             )
 
         for secret in secrets:
-            if not isinstance(secret, str):
+            if not (isinstance(secret, str)):
                 raise TypeError(
                     f"Unexpected {type(secret)=}; "
                     "Cannot configure interpretation: provide known credentials as an explicit tuple of nonempty strings."
@@ -484,7 +484,7 @@ class Interpreter:
         if failures:
             retained = ConversationRetirementFailed(failures, cause=self.last_failure)
 
-            if interruption is not None:
+            if not (interruption is None):
                 raise interruption from retained
 
             raise retained
@@ -659,7 +659,7 @@ class _History:
 
         # Every requested reference needs a status even when an earlier page
         # consumes the data allowance. Fill pages around those reserved entries.
-        if not fits({"records": results}):
+        if not (fits({"records": results})):
             raise ToolRejected("History reply cannot fit the remaining context; request fewer records.")
 
         for (index, query) in enumerate(queries):
@@ -779,7 +779,7 @@ class _DescribeInputConstraints:
             if isinstance(parent, dict) and "properties" in parent:
                 properties = parent["properties"]
 
-            if part not in properties:
+            if not (part in properties):
                 raise ToolRejected(
                     "The requested field is not declared at that property path; read the full tool schema."
                 )
@@ -873,7 +873,7 @@ class _Tools:
             self.definitions.append(definition)
 
     async def dispatch(self, name: str, arguments: Document, *, not_after: float) -> ToolReply | ToolFinished:
-        if name not in self.provider.schemas:
+        if not (name in self.provider.schemas):
             raise ToolRejected("Choose a tool from the supplied definitions; this tool was not run.")
 
         return await self.provider.dispatch(name, arguments, not_after=not_after)
@@ -1044,7 +1044,7 @@ class _ModelVisit:
         """The endpoint port used by ToolConversation between HTTP attempts."""
         await self._endpoint.retire()
 
-        if not self.retirement_confirmed:
+        if not (self.retirement_confirmed):
             raise ConversationRetirementFailed(
                 ((self.number, RuntimeError("Model HTTP cleanup remains unconfirmed.")),)
             )
@@ -1075,7 +1075,7 @@ class _ModelVisit:
                 self.http_failures.append(failure)
                 await self.retire()
 
-                if not _retryable(failure):
+                if not (_retryable(failure)):
                     raise
 
                 delay = max(random.uniform(0.25, 0.75), _retry_after(failure))

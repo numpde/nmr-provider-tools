@@ -9,7 +9,7 @@ from provider_core.contribution_errors import ScientificRejection
 
 
 def _finite(value: object) -> float:
-    if type(value) not in (int, float):
+    if not (type(value) in (int, float)):
         raise TypeError("Reference matching requires numeric values; booleans are not measurements")
 
     if not (math.isfinite(value) and 0 <= value):
@@ -23,10 +23,10 @@ class VectorInput:
     values: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        if type(self.values) is not tuple:
+        if not (type(self.values) is tuple):
             raise TypeError("A matching vector requires an immutable tuple of values")
 
-        if not self.values:
+        if not (self.values):
             raise ValueError("A matching vector requires at least one channel value")
 
         values = []
@@ -43,15 +43,15 @@ class Reference:
     values: tuple[float, ...]
 
     def __post_init__(self) -> None:
-        if type(self.label) is not str:
+        if not (type(self.label) is str):
             raise TypeError("Reference label must be a string")
 
-        if not self.label.strip():
+        if not (self.label.strip()):
             raise ValueError("Each matching reference requires a nonempty label")
 
         object.__setattr__(self, "values", VectorInput(values=self.values).values)
 
-        if not any(self.values):
+        if not (any(self.values)):
             raise ValueError("A matching reference requires at least one positive channel value")
 
 
@@ -63,7 +63,7 @@ class ReferenceSet:
         if type(self.entries) is not tuple or any(type(entry) is not Reference for entry in self.entries):
             raise TypeError("A reference library requires an immutable tuple of Reference records")
 
-        if not self.entries:
+        if not (self.entries):
             raise ValueError("A reference library requires a nonempty immutable tuple of references")
 
         labels = set()
@@ -83,7 +83,7 @@ class MatchSettings:
     def __post_init__(self) -> None:
         score = _finite(self.minimum_score)
 
-        if not 0 <= score <= 1:
+        if not (0 <= score <= 1):
             raise ValueError("Minimum cosine match score must be between 0 and 1")
 
         object.__setattr__(self, "minimum_score", score)

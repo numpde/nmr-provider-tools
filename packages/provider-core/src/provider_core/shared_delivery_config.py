@@ -29,7 +29,7 @@ class SharedDeliveryConfiguration:
         descriptor = os.open(self.path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
 
         try:
-            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            if not (stat.S_ISREG(os.fstat(descriptor).st_mode)):
                 raise ValueError("Outbox settings must be a regular file.")
 
             raw = bytearray()
@@ -51,7 +51,7 @@ class SharedDeliveryConfiguration:
             document = tomllib.loads(raw.decode("utf-8"))
             table = document["outbox"]
 
-            if type(table) is not dict:
+            if not (type(table) is dict):
                 raise TypeError(f"Unexpected {type(table)=}; outbox settings must be an object")
 
             limits = QueueLimits(table["provider_items"], table["provider_bytes"], table["total_items"], table["total_bytes"])
@@ -59,7 +59,7 @@ class SharedDeliveryConfiguration:
 
             require_delivery_retry_settings(initial, maximum)
 
-            if level not in ("INFO", "DEBUG", "WARNING"):
+            if not (level in ("INFO", "DEBUG", "WARNING")):
                 raise ValueError
         except (KeyError, TypeError, ValueError, UnicodeError, RecursionError, OverflowError):
             raise ValueError("Outbox settings are invalid; require supported queue, retry and log settings.") from None

@@ -11,7 +11,7 @@ from provider_core.api_config import ApiPublicationMaterial
 
 class SharedDeliveryClient:
     def __init__(self, endpoint, publication, *, exchange_seconds, retirement_seconds):
-        if type(publication) is not ApiPublicationMaterial:
+        if not (type(publication) is ApiPublicationMaterial):
             raise TypeError(
                 f"Unexpected {type(publication)=}; "
                 "Delivery endpoint and publication material require the same API and provider identity."

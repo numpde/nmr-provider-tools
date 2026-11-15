@@ -23,7 +23,7 @@ def require_cursor(value):
     if value is None:
         return
 
-    if type(value) is not str:
+    if not (type(value) is str):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             "Cursor must be canonical unpadded base64url text or None for the first page"
@@ -42,7 +42,7 @@ def require_cursor(value):
 
 
 def paging_query(*, limit, cursor):
-    if type(limit) is not int:
+    if not (type(limit) is int):
         raise TypeError(
             f"Unexpected {type(limit)=}; "
             "Page limit must be an integer from 1 through 100"

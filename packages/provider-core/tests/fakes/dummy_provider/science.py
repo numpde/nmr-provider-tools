@@ -21,7 +21,7 @@ def _finite_float(value: object, *, label: str) -> float:
 
 
 def _finite_values(values: object, *, label: str) -> tuple[float, ...]:
-    if type(values) is not tuple:
+    if not (type(values) is tuple):
         raise TypeError(f"{label} must be a tuple")
 
     # repo-check: allow-tuple-generator -- Scientific values are normalized into the immutable tuple required by the model contract.
@@ -64,7 +64,7 @@ class CoefficientSet:
             label="coefficient values",
         )
 
-        if not normalized_values:
+        if not (normalized_values):
             raise ValueError("coefficient values must not be empty")
 
         object.__setattr__(self, "values", normalized_values)
@@ -167,7 +167,7 @@ class PreparedValues:
     values: tuple[float, ...] | None = field(repr=False)
 
     def __post_init__(self) -> None:
-        if not self.values:
+        if not (self.values):
             raise ValueError("prepared values must not be empty")
 
         self.values = _finite_values(self.values, label="prepared values")
@@ -182,10 +182,10 @@ class PreparedValues:
         return len(self.values)
 
     def consume(self, *, analysis: WeightedSumAnalysis) -> tuple[float, ...]:
-        if self.analysis is not analysis:
+        if not (self.analysis is analysis):
             raise RuntimeError("The prepared values belong to another analysis")
 
-        if analysis.accepted_preparation is not self:
+        if not (analysis.accepted_preparation is self):
             raise RuntimeError(
                 "The prepared values are not this analysis's accepted preparation"
             )
@@ -225,7 +225,7 @@ def create_model(
 
 
 def load_model(model: WeightedSumModel) -> None:
-    if model.loaded_coefficients is not None:
+    if not (model.loaded_coefficients is None):
         raise RuntimeError("The model coefficients are already loaded")
 
     model.loaded_coefficients = model.coefficients.values
@@ -257,16 +257,16 @@ def prepare(
 ) -> PreparedValues:
     """Reject one candidate without discarding the analysis itself."""
 
-    if not analysis.is_open:
+    if not (analysis.is_open):
         raise RuntimeError("Cannot prepare input for a closed analysis")
 
-    if not candidate.values:
+    if not (candidate.values):
         raise ScientificInputRejected(
             "empty_input",
             "Preparation input must contain at least one value",
         )
 
-    if analysis.accepted_preparation is not None:
+    if not (analysis.accepted_preparation is None):
         raise ScientificInputRejected(
             "already_prepared",
             "Calculate or discard the accepted preparation before preparing another",
@@ -302,7 +302,7 @@ def calculate(
     analysis: WeightedSumAnalysis,
     state: CalculationState,
 ) -> PredictionResult:
-    if not analysis.is_open:
+    if not (analysis.is_open):
         raise RuntimeError("Cannot calculate for a closed analysis")
 
     loaded_coefficients = analysis.model.loaded_coefficients
@@ -328,7 +328,7 @@ def calculate(
         + analysis.model.settings.scale * weighted_sum
     )
 
-    if not math.isfinite(prediction_total):
+    if not (math.isfinite(prediction_total)):
         raise ArithmeticError("The weighted prediction total is not finite")
 
     return PredictionResult(
@@ -338,7 +338,7 @@ def calculate(
 
 
 def sum_values(summation: SumInput) -> SumResult:
-    if not summation.values:
+    if not (summation.values):
         raise ScientificInputRejected(
             "empty_input",
             "Sum input must contain at least one value",
@@ -346,7 +346,7 @@ def sum_values(summation: SumInput) -> SumResult:
 
     total = math.fsum(summation.values)
 
-    if not math.isfinite(total):
+    if not (math.isfinite(total)):
         raise ArithmeticError("The sum total is not finite")
 
     return SumResult(

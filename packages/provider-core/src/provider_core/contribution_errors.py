@@ -12,7 +12,7 @@ class CallRejected(Exception):
     message: str
 
     def __init__(self, code: str, message: str) -> None:
-        if type(code) is not str:
+        if not (type(code) is str):
             raise TypeError(
                 f"Unexpected {type(code)=}; "
                 "A rejection code must match [a-z][a-z0-9_]{0,63}"

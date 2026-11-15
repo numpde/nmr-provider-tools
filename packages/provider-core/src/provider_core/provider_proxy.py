@@ -46,7 +46,7 @@ def _configure_proxy_logging(level):
     This executable needs no scientific binding merely to configure its logger.
     """
 
-    if level not in ("INFO", "DEBUG", "WARNING"):
+    if not (level in ("INFO", "DEBUG", "WARNING")):
         raise ValueError("Cannot configure proxy logging: choose INFO, DEBUG or WARNING.")
 
     handler = logging.StreamHandler(sys.stderr)
@@ -91,7 +91,7 @@ class ServicePolicy:
 
     @classmethod
     def admit(cls, mode, authorities, addresses):
-        if mode not in ("local", "mapped", "external"):
+        if not (mode in ("local", "mapped", "external")):
             raise ServiceRefused("Cannot configure service proxy: select local, mapped or external routing explicitly.")
 
         admitted = frozenset(authority_parts(value) for value in authorities)
@@ -131,7 +131,7 @@ class ServicePolicy:
         return cls(admitted, tuple(sorted(mapped.items())))
 
     def destination(self, header):
-        if not header.startswith(b"CONNECT "):
+        if not (header.startswith(b"CONNECT ")):
             raise ServiceRefused("Cannot admit service proxy request: only CONNECT tunnels are allowed.")
 
         try:
@@ -144,7 +144,7 @@ class ServicePolicy:
         except (UnicodeError, ValueError):
             raise ServiceRefused("Cannot admit service proxy request: the CONNECT authority is malformed.") from None
 
-        if (host, port) not in self.authorities:
+        if not ((host, port) in self.authorities):
             raise ServiceRefused(
                 "Cannot admit service proxy request: this destination is outside the configured authority grant."
             )
@@ -178,7 +178,7 @@ class LiveProxyConfiguration:
         descriptor = os.open(self.path, os.O_RDONLY | os.O_CLOEXEC | os.O_NOFOLLOW | os.O_NONBLOCK)
 
         try:
-            if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+            if not (stat.S_ISREG(os.fstat(descriptor).st_mode)):
                 raise ServiceRefused("Proxy configuration must be a regular file.")
 
             raw = bytearray()
@@ -203,7 +203,7 @@ class LiveProxyConfiguration:
 
         table = document.get("api_proxy")
 
-        if type(table) is not dict:
+        if not (type(table) is dict):
             raise ServiceRefused("Proxy configuration requires an api_proxy table.")
 
         maximum = table.get("max_connections")
@@ -223,10 +223,10 @@ class LiveProxyConfiguration:
         if type(delay) not in (int, float) or not 0 <= delay <= bound_http_proxy.HEADER_SECONDS:
             raise ServiceRefused("Proxy max_admission_delay_seconds must be between 0 and 30 seconds.")
 
-        if order not in ("ready", "fifo"):
+        if not (order in ("ready", "fifo")):
             raise ServiceRefused("Proxy admission_order must be ready or fifo.")
 
-        if level not in ("INFO", "DEBUG", "WARNING"):
+        if not (level in ("INFO", "DEBUG", "WARNING")):
             raise ServiceRefused("Proxy log_level must be INFO, DEBUG or WARNING.")
 
         if type(authorities) is not list or any(type(value) is not str for value in authorities):
@@ -235,7 +235,7 @@ class LiveProxyConfiguration:
         # silent-defaults: allow-contract -- External routes need no mapped address table.
         route = table.get("route", {})  # silent-defaults: allow-empty-get -- External routes need no mapping table.
 
-        if type(route) is not dict:
+        if not (type(route) is dict):
             raise ServiceRefused("Proxy route settings must be a table.")
 
         # silent-defaults: allow-contract -- External routes have no mapped addresses.
@@ -408,7 +408,7 @@ class ServiceProxyServer(bound_http_proxy.ProxyServer):
         except BaseException as error:
             self.shutdown_request(request)
 
-            if not isinstance(error, Exception):
+            if not (isinstance(error, Exception)):
                 raise
 
             self.handle_error(request, client_address)
@@ -575,7 +575,7 @@ def main():
 
             _configure_proxy_logging(args.log_level)
         else:
-            if not args.live_config.is_absolute():
+            if not (args.live_config.is_absolute()):
                 raise ServiceRefused("Cannot configure service proxy: the live settings path must be absolute.")
 
             live = LiveProxyConfiguration(args.live_config, args.mode)

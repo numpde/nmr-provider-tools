@@ -31,7 +31,7 @@ class ScientificInputToolDefinition:
     description: str
 
     def __post_init__(self) -> None:
-        if type(self.call_binding.input_codec) is not JsonDataclassCodec:
+        if not (type(self.call_binding.input_codec) is JsonDataclassCodec):
             raise TypeError(
                 f"Unexpected {type(self.call_binding.input_codec)=}; "
                 "cannot advertise a scientific input without the built-in JSON dataclass codec"

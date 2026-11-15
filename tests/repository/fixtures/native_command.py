@@ -148,7 +148,7 @@ def fixture_command(name):
 if __name__ == "__main__":
     name = Path(sys.argv[0]).name
 
-    if name not in {"mv", "head", "rm"}:
+    if not (name in {"mv", "head", "rm"}):
         raise SystemExit("Use a named test utility symlink: mv, head or rm.")
 
     raise SystemExit(fixture_command(name))

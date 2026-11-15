@@ -109,7 +109,7 @@ class DeliveryServiceTests(unittest.IsolatedAsyncioTestCase):
             def delayed_enqueue(value):
                 started.set()
 
-                if not release.wait(2):
+                if not (release.wait(2)):
                     raise TimeoutError("Test did not release the original delivery commit.")
 
                 return enqueue(value)

@@ -35,7 +35,7 @@ class WaitingSession(Session):
         except asyncio.CancelledError:
             self.cancel_count += 1
 
-            if not self.resist:
+            if not (self.resist):
                 raise
 
             await self.release.wait()

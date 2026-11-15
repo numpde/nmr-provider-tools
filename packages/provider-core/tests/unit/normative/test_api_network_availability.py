@@ -41,7 +41,7 @@ class RawStream:
         if self.stall is not None:
             await self.stall.wait()
 
-        if self.error is not None:
+        if not (self.error is None):
             raise self.error
 
         return b""
@@ -58,7 +58,7 @@ class RawStream:
         if self.close_gate is not None:
             await self.close_gate.wait()
 
-        if self.close_error is not None:
+        if not (self.close_error is None):
             raise self.close_error
 
         self.closed = True
@@ -70,7 +70,7 @@ class Backend:
         self.error = error
 
     async def connect_tcp(self, **options):
-        if self.error is not None:
+        if not (self.error is None):
             raise self.error
 
         return self.stream

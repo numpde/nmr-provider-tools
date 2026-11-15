@@ -74,7 +74,7 @@ def make_target_body(makefile: str, target: str) -> str:
     lines = makefile.splitlines(keepends=True)
     rule_indexes = [index for (index, line) in enumerate(lines) if _rule_mentions_target(line, target)]
 
-    if not rule_indexes:
+    if not (rule_indexes):
         raise AssertionError(f"Makefile target {target!r} is missing")
 
     if len(rule_indexes) > 1:
@@ -100,7 +100,7 @@ def make_target_body(makefile: str, target: str) -> str:
         else:
             break
 
-    if not recipe:
+    if not (recipe):
         raise AssertionError(f"Makefile target {target!r} has no recipe")
 
     return "".join(recipe)

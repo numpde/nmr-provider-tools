@@ -401,7 +401,7 @@ async def graph_child(stage, variant):
         async def retire(self):
             self.retire_calls += 1
 
-            if self.failure is not None:
+            if not (self.failure is None):
                 raise self.failure
 
             await super().retire()

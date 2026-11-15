@@ -30,7 +30,7 @@ class DeliveryService:
     def __init__(self, directory, *, limits, bindings, request_seconds, retry_initial_seconds, retry_max_seconds, on_notice, diagnostic_status):
         bindings = tuple(bindings)
 
-        if not 1 <= len(bindings) <= MAX_BINDINGS:
+        if not (1 <= len(bindings) <= MAX_BINDINGS):
             raise ValueError("Delivery requires between one and sixteen explicit provider bindings.")
 
         keys = {(binding.endpoint.api_origin, binding.endpoint.provider_ref) for binding in bindings}

@@ -14,7 +14,7 @@ class RawStream:
         self.closed = False
 
     async def aclose(self):
-        if self.close_failure is not None:
+        if not (self.close_failure is None):
             raise self.close_failure
 
         self.closed = True

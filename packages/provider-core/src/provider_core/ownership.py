@@ -44,7 +44,7 @@ class LiveAttemptLimits:
 
 
 def _identity(scope, reference):
-    if type(scope) is not RecoveryScope:
+    if not (type(scope) is RecoveryScope):
         raise TypeError(
             f"Unexpected {type(scope)=}; "
             "Attempt ownership requires an admitted recovery scope"
@@ -57,7 +57,7 @@ def _identity(scope, reference):
 
 
 def _start_identity(pending):
-    if type(pending) is not StartPending:
+    if not (type(pending) is StartPending):
         raise TypeError(
             f"Unexpected {type(pending)=}; "
             "Start ownership requires an admitted pending-start record"
@@ -73,7 +73,7 @@ def _start_identity(pending):
 
 class AttemptClaims:
     def __init__(self, *, limits):
-        if type(limits) is not LiveAttemptLimits:
+        if not (type(limits) is LiveAttemptLimits):
             raise TypeError(
                 f"Unexpected {type(limits)=}; "
                 "Live Attempt claims require admitted LiveAttemptLimits"
@@ -90,7 +90,7 @@ class AttemptClaims:
 
     # silent-defaults: allow-contract -- Note 010 reserves the existing 2 MiB wire ceiling unless the live owner declares a smaller sufficient allowance.
     def claim_live(self, pending, *, lifecycle_owner, maximum_terminal_bytes=2097152):
-        if type(pending) is not StartPending:
+        if not (type(pending) is StartPending):
             raise TypeError(
                 f"Unexpected {type(pending)=}; "
                 "Live selection requires an admitted pending START and its exact lifecycle owner"
@@ -99,7 +99,7 @@ class AttemptClaims:
         if lifecycle_owner is None:
             raise ValueError("Live selection requires an admitted pending START and its exact lifecycle owner")
 
-        if type(maximum_terminal_bytes) is not int:
+        if not (type(maximum_terminal_bytes) is int):
             raise TypeError(
                 f"Unexpected {type(maximum_terminal_bytes)=}; "
                 "Live terminal allowance must cover 16384 through 2097152 encoded request bytes"
@@ -150,7 +150,7 @@ class AttemptClaims:
         """Exclude a held Job across lanes without copying its lifecycle state."""
         self._require_live_view()
 
-        if type(scope) is not RecoveryScope:
+        if not (type(scope) is RecoveryScope):
             raise TypeError(
                 f"Unexpected {type(scope)=}; "
                 "Live Job exclusion requires an admitted recovery scope"
@@ -228,7 +228,7 @@ class _AttemptClaim:
     def require(self, scope, execution_attempt_ref):
         self._registry._require(self)
 
-        if _identity(scope, execution_attempt_ref) not in self._identities:
+        if not (_identity(scope, execution_attempt_ref) in self._identities):
             raise OwnershipRefused("Attempt claim differs from the API, provider or Attempt being used")
 
     def require_live(self, scope):
@@ -278,7 +278,7 @@ class _AttemptClaim:
         if owner is None:
             raise ValueError("Attempt operation requires an explicit owner")
 
-        if self._operation_owner is not None:
+        if not (self._operation_owner is None):
             raise OwnershipRefused("Attempt claim still owns an operation; settle it before another effect")
 
         self._operation_owner = owner
@@ -286,7 +286,7 @@ class _AttemptClaim:
     def finish(self, owner):
         self._registry._require(self)
 
-        if self._operation_owner is not owner:
+        if not (self._operation_owner is owner):
             raise OwnershipRefused("Only the exact operation owner can settle this Attempt claim")
 
         self._operation_owner = None
@@ -304,7 +304,7 @@ class _AttemptClaim:
     def release(self, *, owner=None):
         self._registry._require(self)
 
-        if self._operation_owner is not None:
+        if not (self._operation_owner is None):
             raise OwnershipRefused("Cannot release Attempt claim while an operation remains unresolved")
 
         if owner is None or owner is not self._lifecycle_owner:

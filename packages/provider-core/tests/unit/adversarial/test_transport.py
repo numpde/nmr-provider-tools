@@ -135,10 +135,10 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
         def held_write(descriptor, data):
             loop.call_soon_threadsafe(entered.set)
 
-            if not release.wait(3):
+            if not (release.wait(3)):
                 raise TimeoutError("Test did not release its original file write")
 
-            if late_failure is not None:
+            if not (late_failure is None):
                 raise late_failure
 
             return original_write(descriptor, data)
@@ -292,7 +292,7 @@ class TransportFailureTests(unittest.IsolatedAsyncioTestCase):
             def held_inspection(descriptor):
                 loop.call_soon_threadsafe(entered.set)
 
-                if not release.wait(3):
+                if not (release.wait(3)):
                     raise TimeoutError("Test did not release its original file inspection")
 
                 return fstat(descriptor)

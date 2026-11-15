@@ -38,12 +38,12 @@ class ProviderLifetime:
         self._close_failure = None
 
     def open(self):
-        if self._close_failure is not None:
+        if not (self._close_failure is None):
             raise LifetimeRefused(
                 "Cannot reopen provider lifetime after its lock close failed; release remains unconfirmed."
             ) from self._close_failure
 
-        if self._descriptor is not None:
+        if not (self._descriptor is None):
             raise LifetimeRefused("Provider lifetime already holds its lock; retain its original owner.")
 
         facts = self._root.lstat()
@@ -80,7 +80,7 @@ class ProviderLifetime:
         return self
 
     def close(self):
-        if self._close_failure is not None:
+        if not (self._close_failure is None):
             raise self._close_failure
 
         if self._descriptor is not None:

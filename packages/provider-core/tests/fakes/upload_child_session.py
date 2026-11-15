@@ -93,7 +93,7 @@ class UploadChildSession(ChildSession):
             if self._launch is not None:
                 self.source_cleanup_observed_stopped_child = self.child.process.returncode is not None and self.child.pipes_closed
 
-                if not self.source_cleanup_observed_stopped_child:
+                if not (self.source_cleanup_observed_stopped_child):
                     raise AssertionError("Test binding attempted source cleanup before its exact child stopped")
 
             os.unlink(self.source.name, dir_fd=self.directory_fd)

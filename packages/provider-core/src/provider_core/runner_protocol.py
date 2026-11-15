@@ -62,7 +62,7 @@ def _read(connection, size, deadline):
         if flags & socket.MSG_CTRUNC or ancillary:
             raise LifecycleRejected("Unexpected descriptor transfer in a lifecycle frame.")
 
-        if not chunk:
+        if not (chunk):
             raise LifecycleRejected("Runner control closed before its complete lifecycle reply.")
 
         result.extend(chunk)
@@ -83,7 +83,7 @@ def send_document(connection, value, *, deadline):
 def receive_document(connection, *, deadline):
     size = struct.unpack("!I", _read(connection, 4, deadline))[0]
 
-    if not 0 < size <= MAXIMUM_CONTROL_BYTES:
+    if not (0 < size <= MAXIMUM_CONTROL_BYTES):
         raise LifecycleRejected("Runner lifecycle reply has an invalid byte count.")
 
     try:
@@ -91,7 +91,7 @@ def receive_document(connection, *, deadline):
     except (ValueError, UnicodeError) as cause:
         raise LifecycleRejected("Runner lifecycle reply is not a complete JSON document.") from cause
 
-    if type(value) is not dict:
+    if not (type(value) is dict):
         raise LifecycleRejected("Runner lifecycle reply must be an object.")
 
     return value

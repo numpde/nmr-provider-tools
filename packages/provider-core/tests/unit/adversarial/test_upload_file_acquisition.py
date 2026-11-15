@@ -34,7 +34,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         def held_mode_change(_descriptor, _mode):
             loop.call_soon_threadsafe(entered.set)
 
-            if not release.wait(3):
+            if not (release.wait(3)):
                 raise TimeoutError("Test did not release its original file mode change")
 
             raise failure
@@ -87,7 +87,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             def held_open(name, *args, **kwargs):
                 loop.call_soon_threadsafe(entered.set)
 
-                if not release.wait(3):
+                if not (release.wait(3)):
                     raise TimeoutError("Test did not release original file creation during cleanup")
 
                 return calls.open(name, *args, **kwargs)
@@ -138,10 +138,10 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             def held_open(name, *args, **kwargs):
                 loop.call_soon_threadsafe(entered.set)
 
-                if not release.wait(3):
+                if not (release.wait(3)):
                     raise TimeoutError("Test did not release its original file creation")
 
-                if late_failure is not None:
+                if not (late_failure is None):
                     raise late_failure
 
                 return calls.open(name, *args, **kwargs)
@@ -210,7 +210,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             def held_open(name, *args, **kwargs):
                 loop.call_soon_threadsafe(entered.set)
 
-                if not release.wait(3):
+                if not (release.wait(3)):
                     raise TimeoutError("Test did not release original file creation")
 
                 return calls.open(name, *args, **kwargs)
@@ -277,12 +277,12 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
                 if descriptor in calls.descriptors:
                     loop.call_soon_threadsafe(entered.set)
 
-                    if not release.wait(3):
+                    if not (release.wait(3)):
                         raise TimeoutError("Test did not release its original file close")
 
                     calls.close(descriptor)
 
-                    if late_failure is not None:
+                    if not (late_failure is None):
                         raise late_failure
 
                     return None
@@ -415,7 +415,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             def held_remove(name, *args, **kwargs):
                 loop.call_soon_threadsafe(entered.set)
 
-                if not release.wait(3):
+                if not (release.wait(3)):
                     raise TimeoutError("Test did not release its original file removal")
 
                 return calls.unlink(name, *args, **kwargs)
@@ -473,10 +473,10 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
         def held_write(descriptor, data):
             loop.call_soon_threadsafe(entered.set)
 
-            if not release.wait(3):
+            if not (release.wait(3)):
                 raise TimeoutError("Test did not release its original store write")
 
-            if late_failure is not None:
+            if not (late_failure is None):
                 raise late_failure
 
             return write(descriptor, data)
@@ -633,7 +633,7 @@ class UploadFileAcquisitionTests(unittest.IsolatedAsyncioTestCase):
             def held_remove(name, *args, **kwargs):
                 loop.call_soon_threadsafe(entered.set)
 
-                if not release.wait(3):
+                if not (release.wait(3)):
                     raise TimeoutError("Test did not release its original file removal")
 
                 return calls.unlink(name, *args, **kwargs)

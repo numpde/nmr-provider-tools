@@ -180,7 +180,7 @@ class UploadTransferOwnerTests(unittest.IsolatedAsyncioTestCase):
         def held_write(descriptor, data):
             loop.call_soon_threadsafe(entered.set)
 
-            if not release.wait(3):
+            if not (release.wait(3)):
                 raise TimeoutError("test did not release the original write")
 
             return write(descriptor, data)

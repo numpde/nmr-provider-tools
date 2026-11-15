@@ -52,13 +52,13 @@ class TextCorrection:
         if self.user_content is None:
             return
 
-        if type(self.user_content) is not str:
+        if not (type(self.user_content) is str):
             raise TypeError(
                 f"Unexpected {type(self.user_content)=}; "
                 "Text correction requires a user instruction supplied as text or None."
             )
 
-        if not self.user_content:
+        if not (self.user_content):
             raise ValueError("Text correction requires a nonempty user instruction.")
 
 
@@ -176,7 +176,7 @@ class ToolConversation:
     """
 
     def __init__(self, endpoints, *, max_turns, secrets, text_correction=None, argument_bytes=None, max_corrections=None):
-        if type(endpoints) is not tuple:
+        if not (type(endpoints) is tuple):
             raise TypeError(
                 f"Unexpected {type(endpoints)=}; "
                 "Cannot configure interpretation: provide a nonempty ordered tuple of endpoints."
@@ -190,14 +190,14 @@ class ToolConversation:
         if max_corrections is not None:
             require_turn_limit(max_corrections)
 
-        if type(secrets) is not tuple:
+        if not (type(secrets) is tuple):
             raise TypeError(
                 f"Unexpected {type(secrets)=}; "
                 "Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings."
             )
 
         for secret in secrets:
-            if type(secret) is not str:
+            if not (type(secret) is str):
                 raise TypeError(
                     f"Unexpected {type(secret)=}; "
                     "Cannot configure interpretation: known secrets must be an explicit tuple of nonempty strings."
@@ -431,7 +431,7 @@ class ToolConversation:
                     tuple(self.correction_failures)
                 )
 
-            if type(outcome) is not ToolReply:
+            if not (type(outcome) is ToolReply):
                 raise TypeError(
                     f"Unexpected {type(outcome)=}; "
                     "Interpreter tool dispatch must return ToolReply, ToolFinished or ToolHandoff."
@@ -544,7 +544,7 @@ class ToolConversation:
         ) as cause:
             raise ToolRejected("Tool arguments must be one JSON object with unique fields and finite values.") from cause
 
-        if type(arguments) is not dict:
+        if not (type(arguments) is dict):
             raise ToolRejected("Tool arguments must be one JSON object.")
 
         self._require_no_secrets(arguments)
@@ -602,7 +602,7 @@ class ToolConversation:
         try:
             await endpoint.retire()
 
-            if not endpoint.retirement_confirmed:
+            if not (endpoint.retirement_confirmed):
                 raise RuntimeError("Interpreter endpoint has not confirmed resource retirement.")
         except (Exception, asyncio.CancelledError) as cleanup:
             failure = ConversationRetirementFailed(
@@ -647,7 +647,7 @@ class ToolConversation:
 
             self.last_failure = failure
 
-            if interruption is not None:
+            if not (interruption is None):
                 failure.interruption_cause = interruption.__cause__
 
                 raise interruption from failure

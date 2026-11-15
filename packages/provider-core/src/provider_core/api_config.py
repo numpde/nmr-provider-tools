@@ -130,7 +130,7 @@ def _read_https_settings(table, label, read_file):
     if "ca_file" in table:
         raw = read_file(table["ca_file"], maximum_bytes=1048576, label=label + " CA")
 
-        if type(raw) is not bytes:
+        if not (type(raw) is bytes):
             raise ApiConfigurationRejected(f"Cannot load {label} CA: the selected reader did not return bytes.")
 
     return (_https_from_material(table, label, raw), raw)

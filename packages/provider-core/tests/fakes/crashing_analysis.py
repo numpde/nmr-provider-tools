@@ -66,7 +66,7 @@ class CrashingSession(LiveSession):
     async def execute(self, prepared, *, report_condition):
         self.events.append("execute")
 
-        if prepared is not self.handle:
+        if not (prepared is self.handle):
             raise AssertionError("Foreign scientific handle")
 
         await self._crash()

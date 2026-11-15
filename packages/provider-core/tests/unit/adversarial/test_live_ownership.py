@@ -19,11 +19,11 @@ class Owner:
         self.terminal_ready = False
 
     def require_claim_release_ready(self, claim):
-        if not self.release_ready:
+        if not (self.release_ready):
             raise OwnershipRefused("Original lifecycle remains unresolved")
 
     def require_terminal_release_ready(self, claim):
-        if not self.terminal_ready:
+        if not (self.terminal_ready):
             raise OwnershipRefused("No matching delivery acknowledgement")
 
 

@@ -28,7 +28,7 @@ class UploadTransferCancellationTests(unittest.IsolatedAsyncioTestCase):
         def held_close(fd):
             loop.call_soon_threadsafe(entered.set)
 
-            if not release.wait(2):
+            if not (release.wait(2)):
                 raise TimeoutError("probe failed to release close")
 
             return close(fd)

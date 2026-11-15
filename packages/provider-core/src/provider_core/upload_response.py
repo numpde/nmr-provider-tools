@@ -56,7 +56,7 @@ class ReadGrant:
 
 
 def require_job_ref(value):
-    if type(value) is not str:
+    if not (type(value) is str):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             "Job reference must be job: followed by 1 through 124 letters, digits, underscores, dots or hyphens"

@@ -44,7 +44,7 @@ class ConditionOutageTransport(ConditionTransport):
 
                     return fault
         elif self.condition_body is not None:
-            if not self.retirement_confirmed:
+            if not (self.retirement_confirmed):
                 raise AssertionError("Monitor read preceded original condition PUT retirement")
 
             self.read_after_failure.set()

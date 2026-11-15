@@ -70,7 +70,7 @@ class ConditionTransport(Transport):
                     self.blocked.set()
                     await self.release.wait()
 
-                    if self.failure is not None:
+                    if not (self.failure is None):
                         raise self.failure
 
                 return reply(progress_response(phase=command["phase"], condition_code=command["condition_code"]))

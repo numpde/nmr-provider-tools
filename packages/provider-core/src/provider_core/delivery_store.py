@@ -86,7 +86,7 @@ class DeliveryOutcome:
         require_job_ref(self.job_ref)
         require_attempt_ref(self.execution_attempt_ref)
 
-        if type(self.operation) is not TerminalOperation:
+        if not (type(self.operation) is TerminalOperation):
             raise TypeError(
                 f"Unexpected {type(self.operation)=}; "
                 "Delivery requires an explicit complete or fail operation."
@@ -133,7 +133,7 @@ class QueueLimits:
         )):
             raise ValueError("Delivery queue item and byte limits must be positive integers.")
 
-        if not self.provider_items <= MAX_PROVIDER_ITEMS:
+        if not (self.provider_items <= MAX_PROVIDER_ITEMS):
             raise ValueError("Delivery provider_items cannot exceed 256: the complete pending inventory must fit the supported IPC response envelope.")
 
         if not (self.provider_items <= self.total_items and self.provider_bytes <= self.total_bytes):
@@ -144,7 +144,7 @@ class DeliveryQueue:
     """The sole connection owns pending data; producers never open this database."""
 
     def __init__(self, directory, *, limits):
-        if type(limits) is not QueueLimits:
+        if not (type(limits) is QueueLimits):
             raise TypeError(
                 f"Unexpected {type(limits)=}; "
                 "Delivery storage requires explicit queue limits."
@@ -210,11 +210,11 @@ class DeliveryQueue:
     def _initialize(self):
         version = self._db.execute("PRAGMA user_version").fetchone()[0]
 
-        if version not in (0, 1, 2):
+        if not (version in (0, 1, 2)):
             raise DeliveryStorageFailed("Cannot open delivery storage: its database version is unsupported.")
 
         if version == 0:
-            if self._db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchone() is not None:
+            if not (self._db.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchone() is None):
                 raise DeliveryStorageFailed("Cannot adopt another application's database as the delivery queue.")
 
             with self._transaction("initialize"):
@@ -241,7 +241,7 @@ class DeliveryQueue:
     @contextmanager
     def _access(self, operation):
         with self._serial:
-            if self._failure is not None:
+            if not (self._failure is None):
                 raise self._failure
 
             if self._db is None:
@@ -269,7 +269,7 @@ class DeliveryQueue:
     def enqueue_handoff(self, handoff):
         from provider_core.delivery_handoff import DeliveryHandoff
 
-        if type(handoff) is not DeliveryHandoff:
+        if not (type(handoff) is DeliveryHandoff):
             raise TypeError(
                 f"Unexpected {type(handoff)=}; "
                 "Delivery requires a complete publication handoff."
@@ -360,7 +360,7 @@ class DeliveryQueue:
         from provider_core.api_config import ApiPublicationMaterial, api_settings_from_material
         from provider_core.delivery_handoff import publication_bytes
 
-        if type(material) is not ApiPublicationMaterial:
+        if not (type(material) is ApiPublicationMaterial):
             raise TypeError(
                 f"Unexpected {type(material)=}; "
                 "Legacy delivery requires its original publication material."
@@ -512,7 +512,7 @@ class DeliveryQueue:
     def hold(self, item, reason):
         """Retain a reviewed operator explanation, never raw remote response text."""
 
-        if type(reason) is not str:
+        if not (type(reason) is str):
             raise TypeError(
                 f"Unexpected {type(reason)=}; "
                 "A held delivery requires a bounded operator explanation."
@@ -536,7 +536,7 @@ class DeliveryQueue:
         require_provider_ref(provider_ref)
         require_attempt_ref(attempt_ref)
 
-        if type(body_sha256) is not str:
+        if not (type(body_sha256) is str):
             raise TypeError(
                 f"Unexpected {type(body_sha256)=}; "
                 "Discard requires the held payload's exact SHA-256 from its metadata."

@@ -33,7 +33,7 @@ def native_config(path):
     configuration_bytes = path.read_bytes()
     document = json.loads(configuration_bytes)
 
-    if type(document) is not dict:
+    if not (type(document) is dict):
         raise TypeError(
             f"Unexpected {type(document)=}; "
             "The native engine configuration must be a JSON object."
@@ -50,7 +50,7 @@ def configured(document):
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
     builder_settings = proposed_configuration.setdefault("builder", {})
 
-    if type(builder_settings) is not dict:
+    if not (type(builder_settings) is dict):
         raise TypeError(
             f"Unexpected {type(builder_settings)=}; "
             "Native builder configuration is not an object."
@@ -59,7 +59,7 @@ def configured(document):
     # silent-defaults: allow-contract -- Installation creates absent native GC objects; proof=tests/repository/test_checker_cache_gc.py::EngineCacheGCTests.test_native_policy_merge_preserves_unrelated_fields_and_runtime_reads_it
     gc_settings = builder_settings.setdefault("gc", {})
 
-    if type(gc_settings) is not dict:
+    if not (type(gc_settings) is dict):
         raise TypeError(
             f"Unexpected {type(gc_settings)=}; "
             "Native builder.gc configuration is not an object."
@@ -74,13 +74,13 @@ def configured(document):
 def limits(document):
     gc_settings = document["builder"]["gc"]
 
-    if type(gc_settings) is not dict:
+    if not (type(gc_settings) is dict):
         raise TypeError(
             f"Unexpected {type(gc_settings)=}; "
             "Native builder.gc configuration must be an object."
         )
 
-    if type(gc_settings.get("enabled")) is not bool:
+    if not (type(gc_settings.get("enabled")) is bool):
         raise TypeError(
             f"Unexpected {type(gc_settings.get('enabled'))=}; "
             "Native builder.gc must explicitly enable or disable cache collection."
@@ -119,7 +119,7 @@ def argument(value):
 
 
 def unit_files(root, context, endpoint, config):
-    if not endpoint.startswith("unix:///"):
+    if not (endpoint.startswith("unix:///")):
         raise ValueError("Cache collection requires the selected local Unix engine.")
 
     name = "engine-cache-gc-" + hashlib.sha256(endpoint.encode()).hexdigest()[:16]

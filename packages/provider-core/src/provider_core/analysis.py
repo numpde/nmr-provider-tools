@@ -66,7 +66,7 @@ class ObservedWorkerCrash(RuntimeError):
     """
 
     def __init__(self, acknowledged, *, phase, owner, runner, evidence, cause):
-        if type(acknowledged) is not AcknowledgedAttempt:
+        if not (type(acknowledged) is AcknowledgedAttempt):
             raise TypeError(
                 f"Unexpected {type(acknowledged)=}; "
                 "Observed crash requires its actual admission, scientific owner, phase, native session and bounded evidence"
@@ -127,7 +127,7 @@ class PreparedAnalysis:
     identity: ProtectedEvidence = field(repr=False)
 
     def __post_init__(self):
-        if type(self.identity) is not ProtectedEvidence:
+        if not (type(self.identity) is ProtectedEvidence):
             raise TypeError(
                 f"Unexpected {type(self.identity)=}; "
                 "Cannot prepare analysis: protected candidate identity is required before execution."
@@ -194,5 +194,5 @@ async def retire_session(session):
     """Confirm the protocol result for both pre-start and execution cleanup."""
     result = await session.retire()
 
-    if result is not None:
+    if not (result is None):
         raise TypeError("Session retirement must return None after confirmed cleanup, otherwise raise")

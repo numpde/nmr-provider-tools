@@ -194,7 +194,7 @@ async def client(mode, path):
     finally:
         await transport.retire()
 
-    if not transport.retirement_confirmed:
+    if not (transport.retirement_confirmed):
         raise AssertionError("Original signed exchange did not settle before client exit")
 
     print(json.dumps({"mode": mode, "settled": True, "uid": os.geteuid()}))
@@ -209,7 +209,7 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
 
     mounts = Path("/proc/self/mountinfo").read_text().splitlines()
 
-    if not any(line.split()[4] == str(path.parent) and "ro" in line.split()[5].split(",") for line in mounts):
+    if not (any(line.split()[4] == str(path.parent) and "ro" in line.split()[5].split(",") for line in mounts)):
         raise AssertionError("Shared proxy grant must be mounted read-only")
 
     deadline = time.monotonic() + 10
@@ -246,13 +246,13 @@ def shared_group_socket(mode, path, owner_uid, access_gid):
 
                 response.extend(chunk)
 
-            if not response.startswith(b"HTTP/1.1 403 "):
+            if not (response.startswith(b"HTTP/1.1 403 ")):
                 raise AssertionError("Shared proxy did not refuse the disallowed CONNECT")
 
             try:
                 path.unlink()
             except OSError as failure:
-                if failure.errno not in (errno.EROFS, errno.EACCES, errno.EPERM):
+                if not (failure.errno in (errno.EROFS, errno.EACCES, errno.EPERM)):
                     raise
             else:
                 raise AssertionError("A read-only borrower removed the shared proxy socket")

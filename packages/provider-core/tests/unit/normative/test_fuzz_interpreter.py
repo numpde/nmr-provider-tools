@@ -94,7 +94,7 @@ class InterpreterFaultSequenceTests(unittest.IsolatedAsyncioTestCase):
                 if name == "inspect":
                     return ToolReply({"source": "synthetic observation"})
 
-                if not arguments["accepted"]:
+                if not (arguments["accepted"]):
                     raise ToolRejected("Use the source's supported interpretation.")
 
                 effects.append("one accepted preparation")

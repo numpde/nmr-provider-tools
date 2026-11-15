@@ -42,7 +42,7 @@ class Settings:
 
     def __post_init__(self) -> None:
         for value in (self.maximum_input_tokens, self.beam_size, self.maximum_candidate_characters):
-            if type(value) is not int:
+            if not (type(value) is int):
                 raise TypeError(f"Unexpected {type(value)=}; model limits require integers")
 
             if not (0 < value):
@@ -116,19 +116,19 @@ def dispose_prepared(value: PreparedInput) -> None:
 def validate_candidates(*, candidates: tuple[str, ...], settings: Settings) -> None:
     """Bad model output is an operational failure, never a user correction."""
 
-    if type(candidates) is not tuple:
+    if not (type(candidates) is tuple):
         raise TypeError(f"Unexpected {type(candidates)=}; model output must be a tuple")
 
     candidate_count = len(candidates)
 
-    if not 1 <= candidate_count <= settings.beam_size:
+    if not (1 <= candidate_count <= settings.beam_size):
         raise ValueError(f"Invalid model output: {candidate_count=} exceeds the range 1 through {settings.beam_size=}")
 
     for candidate in candidates:
-        if type(candidate) is not str:
+        if not (type(candidate) is str):
             raise TypeError(f"Unexpected {type(candidate)=}; generated candidates must be strings")
 
         character_count = len(candidate)
 
-        if not 1 <= character_count <= settings.maximum_candidate_characters:
+        if not (1 <= character_count <= settings.maximum_candidate_characters):
             raise ValueError(f"Invalid model output: {character_count=} exceeds the range 1 through {settings.maximum_candidate_characters=}")

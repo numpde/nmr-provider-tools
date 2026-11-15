@@ -54,11 +54,11 @@ class LiveAttemptProbe:
         return (checkpoint,)
 
     def require_execution_ready(self, claim, executor, acknowledged):
-        if executor is not self.executor:
+        if not (executor is self.executor):
             raise AssertionError("Only the original live executor can enter science")
 
     def require_claim_release_ready(self, claim):
-        if claim.operation_owner is not None:
+        if not (claim.operation_owner is None):
             raise AssertionError("The original operation must settle before release")
 
 
@@ -124,7 +124,7 @@ class Session:
 
     # Match the required session port; this recording fixture emits no conditions.
     async def execute(self, prepared, *, report_condition):  # noqa: ARG002
-        if prepared is not self.handle:
+        if not (prepared is self.handle):
             raise AssertionError("foreign prepared handle")
 
         self.events.append(("execute", self.probe.records[0]))
@@ -134,7 +134,7 @@ class Session:
     async def retire(self):
         self.events.append(("retire",))
 
-        if self.retirement_failure is not None:
+        if not (self.retirement_failure is None):
             raise self.retirement_failure
 
 
@@ -174,7 +174,7 @@ async def execute_with_watchdog(executor, acknowledged):
     try:
         await asyncio.wait((task,), timeout=3)
 
-        if not task.done():
+        if not (task.done()):
             raise TimeoutError("Test executor did not finish; cancel and settle its original task")
 
         return task.result()
@@ -183,7 +183,7 @@ async def execute_with_watchdog(executor, acknowledged):
             task.cancel()
             await asyncio.wait((task,), timeout=1)
 
-        if not task.done():
+        if not (task.done()):
             raise TimeoutError("Test executor did not settle after cancellation")
 
         if not task.cancelled():

@@ -34,7 +34,7 @@ class ScriptedChild:
 
     # silent-defaults: allow-contract -- Ordinary child tests lend no descriptors; the Upload lifetime witness explicitly lends its source directory.
     async def start(self, mode, *, pass_fds=()):
-        if self.process is not None:
+        if not (self.process is None):
             raise RuntimeError("Scripted child already exists; retain and stop it instead of replacing it")
 
         self.process = await asyncio.create_subprocess_exec(
@@ -57,7 +57,7 @@ class ScriptedChild:
     async def receive(self):
         line = await self.process.stdout.readline()
 
-        if not line:
+        if not (line):
             raise ChildChannelClosed("Scripted child closed its result channel; confirm that same process stopped before reuse")
 
         return json.loads(line)

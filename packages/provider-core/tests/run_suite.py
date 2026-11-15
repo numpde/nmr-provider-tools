@@ -129,7 +129,7 @@ class _FailureSummaryResult(unittest.TextTestResult):
 
     def stopTestRun(self):
         try:
-            if _ACTIVE_ASYNCIO_OBSERVERS[-1] is not self._asyncio_observer:
+            if not (_ACTIVE_ASYNCIO_OBSERVERS[-1] is self._asyncio_observer):
                 raise RuntimeError("Nested asyncio log observer ownership is inconsistent")
 
             _ACTIVE_ASYNCIO_OBSERVERS.pop()
@@ -237,18 +237,18 @@ def main():
     prefix = Path(sys.prefix).resolve()
     origin = Path(provider_core.__file__).resolve()
 
-    if not origin.is_relative_to(prefix):
+    if not (origin.is_relative_to(prefix)):
         raise RuntimeError("provider_core was not imported from the isolated installed environment")
 
     distribution = importlib.metadata.distribution("provider-core")
 
-    if not Path(distribution.locate_file("provider_core")).resolve().is_relative_to(prefix):
+    if not (Path(distribution.locate_file("provider_core")).resolve().is_relative_to(prefix)):
         raise RuntimeError("provider-core distribution metadata refers outside the installed environment")
 
     root = Path(__file__).parent
     selection = sys.argv[1]
 
-    if selection not in {
+    if not (selection in {
         "native",
         "unit",
         "unit/normative",
@@ -260,13 +260,13 @@ def main():
         "integration/transport",
         "integration/api",
         "integration/delivery",
-    }:
+    }):
         raise ValueError("Unknown provider-core test selection")
 
     suite = unittest.TestSuite()
     patterns = sys.argv[2:]
 
-    if not patterns:
+    if not (patterns):
         raise ValueError("Provider-core discovery requires at least one explicit pattern from its maintained test launcher.")
 
     for pattern in patterns:

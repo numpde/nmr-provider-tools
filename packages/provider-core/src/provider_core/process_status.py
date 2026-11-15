@@ -92,13 +92,13 @@ def read_status(path, role):
 
     fields = {"role", "pid", "start_ticks", "updated_monotonic", "phase"}
 
-    if type(value) is not dict:
+    if not (type(value) is dict):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             "Process status has an unsupported shape."
         )
 
-    if set(value) not in (fields, fields | {"details"}):
+    if not (set(value) in (fields, fields | {"details"})):
         raise ValueError("Process status has an unsupported shape.")
 
     if "details" in value and type(value["details"]) is not dict:
@@ -115,7 +115,7 @@ def read_status(path, role):
     if _start_ticks(value["pid"]) != value["start_ticks"]:
         raise ValueError("Process status belongs to a different process identity.")
 
-    if value["phase"] not in ("ready", "working", "starting", "stopping", "held", "api-unconfirmed"):
+    if not (value["phase"] in ("ready", "working", "starting", "stopping", "held", "api-unconfirmed")):
         raise ValueError("Process status has an unsupported readiness phase.")
 
     return value
@@ -124,10 +124,10 @@ def read_status(path, role):
 def check_status(path, role):
     value = read_status(path, role)
 
-    if not 0 <= time.monotonic() - value["updated_monotonic"] <= 30:
+    if not (0 <= time.monotonic() - value["updated_monotonic"] <= 30):
         raise ValueError("Process status observation expired or has an invalid timestamp.")
 
-    if value["phase"] not in ("ready", "working"):
+    if not (value["phase"] in ("ready", "working")):
         raise ValueError(f"Process is not ready: {value['phase']}.")
 
     return value
@@ -157,7 +157,7 @@ def main():
             value = check_status(options.path, options.role)
 
             if options.details:
-                if "details" not in value:
+                if not ("details" in value):
                     raise ValueError("Process has not published operator details.")
 
                 age = time.monotonic() - value["updated_monotonic"]

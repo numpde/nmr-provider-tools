@@ -24,7 +24,7 @@ class LiveOwner:
         self.executor = None
 
     def require_execution_ready(self, claim, executor, acknowledged):
-        if executor is not self.executor:
+        if not (executor is self.executor):
             raise ExecutionRefused("This is not the original executor retained by the lifecycle owner")
 
 

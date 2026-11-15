@@ -57,7 +57,7 @@ class PreparationTool[PreparedT]:
         operation_policy: OperationPolicy,
         description: str,
     ) -> None:
-        if not any(slot is state_output_slot for slot in call_binding._output_slots):
+        if not (any(slot is state_output_slot for slot in call_binding._output_slots)):
             raise ValueError("Cannot prepare input with an output port not declared by the selected call")
 
         if call_binding.description.state_inputs:
@@ -127,7 +127,7 @@ class PreparationTool[PreparedT]:
         return failure.phase == "start" and isinstance(failure.cause, StartDeadlineExpired)
 
     async def _prepare(self, *, name: str, arguments: dict, not_after: float) -> ToolFinished:
-        if self.prepared_state_handle is not None:
+        if not (self.prepared_state_handle is None):
             raise RuntimeError("This tool already has accepted scientific input")
 
         if self.invocation is not None:
@@ -192,7 +192,7 @@ class PreparationTool[PreparedT]:
             except CallRejected as cause:
                 # Encoding can also raise CallRejected after science succeeded.
                 # Only the scientific rejection outcome permits model correction.
-                if operation_observation.outcome is not Outcome.REJECTED:
+                if not (operation_observation.outcome is Outcome.REJECTED):
                     raise
 
                 raise ToolRejected(cause.message) from cause

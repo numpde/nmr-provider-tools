@@ -50,7 +50,7 @@ class AttemptStarter:
     def __init__(self, api, scope, claim):
         claim.require_live(scope)
 
-        if type(scope) is not RecoveryScope:
+        if not (type(scope) is RecoveryScope):
             raise TypeError(
                 f"Unexpected {type(scope)=}; "
                 "Cannot configure Attempt start: scope must be an admitted RecoveryScope"
@@ -83,7 +83,7 @@ class AttemptStarter:
         if type(pending) is not StartPending or pending.scope != self.scope:
             raise StartRefused("Start requires a pending record matching the current API, provider, lane and generation")
 
-        if self._pending is not None:
+        if not (self._pending is None):
             raise StartRefused("Attempt start still owns unresolved work; settle it before another request")
 
         self.claim.require_live_start(pending)
@@ -150,7 +150,7 @@ class AttemptStarter:
             if self.api.pending_owner is self:
                 await self.api.retire(owner=self)
 
-            if self._unretained is not None:
+            if not (self._unretained is None):
                 raise StartRefused(
                     "Received acknowledgement remains unresolved; retain its owner and reconcile the claim before preparation"
                 )

@@ -80,7 +80,7 @@ def _positive_seconds(value):
 
 
 def _request(document):
-    if type(document) is not dict:
+    if not (type(document) is dict):
         raise TypeError(
             f"Unexpected {type(document)=}; "
             "Interpreter child request has an unknown schema"
@@ -89,7 +89,7 @@ def _request(document):
     if document.keys() != _REQUEST_FIELDS:
         raise ValueError("Interpreter child request has an unknown schema")
 
-    if type(document["version"]) is not int:
+    if not (type(document["version"]) is int):
         raise TypeError(
             f"Unexpected {type(document['version'])=}; "
             "Interpreter child request has an unknown schema"
@@ -125,7 +125,7 @@ def _request(document):
     remaining = METADATA_BYTES
 
     for pair in pairs:
-        if type(pair) is not list:
+        if not (type(pair) is list):
             raise TypeError(
                 f"Unexpected {type(pair)=}; "
                 "Interpreter child header must be a two-element list"

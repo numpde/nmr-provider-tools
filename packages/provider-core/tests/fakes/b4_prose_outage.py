@@ -345,7 +345,7 @@ async def run_outage(directory, *, mode, backlog, seed):
         async def retire(self):
             await self.interpreter.retire()
 
-            if not self.interpreter.retirement_confirmed:
+            if not (self.interpreter.retirement_confirmed):
                 raise AssertionError("The original prose HTTP exchange has not retired")
 
             if not self.retired:

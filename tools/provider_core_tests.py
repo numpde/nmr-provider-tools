@@ -76,10 +76,10 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
                 "a three-part version is required."
             )
 
-        if project.get("dependencies") not in (
+        if not (project.get("dependencies") in (
             [f"provider-core=={core_version}"],
             [f"provider-core[api]=={core_version}"],
-        ):
+        )):
             raise ValueError(
                 f"Cannot install example {distribution_name!r}: its only dependency "
                 f"must be provider-core=={core_version} or its [api] extra."
@@ -88,7 +88,7 @@ def _discover_examples(examples: Path, core_version: str) -> list[tuple[Path, st
         names.add(distribution_name)
         projects.append((metadata.parent, distribution_name, distribution_version))
 
-    if not projects:
+    if not (projects):
         raise ValueError("Cannot qualify installed examples: /examples contains no standalone projects.")
 
     return projects

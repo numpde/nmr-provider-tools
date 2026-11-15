@@ -66,10 +66,10 @@ class CausalDelivery(RecordingDelivery):
             await self._offers_changed.wait_for(lambda: len(self.offers) >= count)
 
     def answer(self, disposition):
-        if disposition not in ("accepted", "full", "retryable", "lost", "rejected"):
+        if not (disposition in ("accepted", "full", "retryable", "lost", "rejected")):
             raise ValueError("Unknown causal delivery disposition")
 
-        if not self.awaiting_answer:
+        if not (self.awaiting_answer):
             raise RuntimeError("No original terminal submission awaits a decision")
 
         self._answered += 1

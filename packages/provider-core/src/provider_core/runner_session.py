@@ -132,7 +132,7 @@ class RunnerSession:
 
                 return
             except OSError as cause:
-                if cause.errno not in (errno.ENOENT, errno.ECONNREFUSED):
+                if not (cause.errno in (errno.ENOENT, errno.ECONNREFUSED)):
                     raise
 
                 self._stop_requested.wait(min(0.02, max(0, deadline - time.monotonic())))
@@ -173,7 +173,7 @@ class RunnerSession:
     def observe_retirement(self, *, deadline=None):
         """Receive cleanup facts without causing retirement (including cap expiry)."""
 
-        if not self._retirement_reader.acquire(blocking=False):
+        if not (self._retirement_reader.acquire(blocking=False)):
             raise LifecycleRejected("Runner retirement already has an original reader; join that observation instead of reading another frame.")
 
         try:
@@ -182,7 +182,7 @@ class RunnerSession:
             self._retirement_reader.release()
 
     def _observe_retirement(self, deadline):
-        if self._observation_failure is not None:
+        if not (self._observation_failure is None):
             raise LifecycleRejected(
                 "Original runner control setup or lifecycle read failed; preserve its cause and use bounded lifecycle recovery, not a second frame read."
             ) from self._observation_failure
@@ -212,7 +212,7 @@ class RunnerSession:
 
                 raise
 
-        if not self.retirement.scratch_released:
+        if not (self.retirement.scratch_released):
             raise LifecycleRejected("Runner child stopped but its scratch cleanup remains unconfirmed.",
                                     returncode=self.retirement.returncode,
                                     scratch_released=False)
@@ -231,7 +231,7 @@ class RunnerSession:
                 "Runner retirement must match this operation and include its exit status, scratch state and supported reason."
             )
 
-        if not -signal.NSIG < reply["returncode"] < 256:
+        if not (-signal.NSIG < reply["returncode"] < 256):
             raise LifecycleRejected("Runner retirement has an impossible operating-system exit status; its cause remains unknown.")
 
         return Retirement(reply["returncode"], reply["scratch_released"], reply["reason"])

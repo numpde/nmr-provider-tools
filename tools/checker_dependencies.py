@@ -76,7 +76,7 @@ def declaration(path):
     if set(package) != {"name", "version", "file", "url", "size", "sha256"}:
         raise ValueError("Cannot admit checker dependency: package identity fields differ.")
 
-    if not all(isinstance(package[key], str) for key in ("name", "version", "file", "url", "sha256")):
+    if not (all(isinstance(package[key], str) for key in ("name", "version", "file", "url", "sha256"))):
         raise ValueError("Cannot admit checker dependency: identity fields must be strings.")
 
     if package["name"] != "make" or re.fullmatch(r"[A-Za-z0-9.+:~_-]+", package["version"]) is None:
@@ -107,7 +107,7 @@ def verify(package, path):
         while chunk := stream.read(1024 * 1024):
             count += len(chunk)
 
-            if not count <= package["size"]:
+            if not (count <= package["size"]):
                 raise ValueError(f"Cannot admit {path}: exceeds declared size {package['size']}.")
 
             checksum.update(chunk)

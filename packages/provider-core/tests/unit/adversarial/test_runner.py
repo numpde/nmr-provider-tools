@@ -71,7 +71,7 @@ class RunnerRefusalTests(unittest.TestCase):
         def original_read(deadline):
             entered.set()
 
-            if not release.wait(2):
+            if not (release.wait(2)):
                 raise TimeoutError("Original lifecycle read was not released by its test owner")
 
             return receive(deadline)

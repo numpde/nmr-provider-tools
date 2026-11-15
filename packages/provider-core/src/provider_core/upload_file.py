@@ -92,7 +92,7 @@ def read_upload_file(receipt, *, directory_fd, maximum_bytes):
     Composition retains the source until reader quiescence or confirmed stop.
     """
 
-    if type(receipt) is not VerifiedUploadFile:
+    if not (type(receipt) is VerifiedUploadFile):
         raise UploadFileReadFailed("a verified-file receipt is required before reading source bytes")
 
     if type(directory_fd) is not int or directory_fd < 0:
@@ -145,7 +145,7 @@ def read_upload_file(receipt, *, directory_fd, maximum_bytes):
                 )
 
                 primary.__cause__ = retained
-            elif primary is not None:
+            elif not (primary is None):
                 raise BaseExceptionGroup("Source reading and independent file closure failed", [primary, cleanup]) from None
             else:
                 raise cleanup from None
@@ -155,7 +155,7 @@ def _read_upload_snapshot(descriptor, receipt):
     try:
         details = os.fstat(descriptor)
 
-        if not stat.S_ISREG(details.st_mode):
+        if not (stat.S_ISREG(details.st_mode)):
             raise UploadFileReadFailed("the opened private source is not a regular file")
 
         if details.st_size != receipt.byte_length:

@@ -143,13 +143,13 @@ def require_api_topology(value):
     credential profile 'run' is not the response topology 'web'. No default.
     """
 
-    if type(value) is not str:
+    if not (type(value) is str):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             "Cannot configure Provider API: expected topology must be dev-local, dev or web"
         )
 
-    if value not in {"dev-local", "dev", "web"}:
+    if not (value in {"dev-local", "dev", "web"}):
         raise ValueError("Cannot configure Provider API: expected topology must be dev-local, dev or web")
 
     return value
@@ -797,7 +797,7 @@ class ProviderAPI:
         these observations from its authenticated feed before calling this method.
         """
 
-        if type(feed) is not FeedInputFacts:
+        if not (type(feed) is FeedInputFacts):
             raise TypeError(
                 f"Unexpected {type(feed)=}; "
                 "Cannot read Job input: admitted feed identity is required"

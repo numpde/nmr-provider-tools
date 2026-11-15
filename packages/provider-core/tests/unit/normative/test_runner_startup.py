@@ -186,7 +186,7 @@ class RunnerStartupTests(unittest.TestCase):
                 super().connect(address)
                 connected.set()
 
-                if not release.wait(1):
+                if not (release.wait(1)):
                     raise TimeoutError("Fixture did not release the successful control connection.")
 
         session = self.session(PausedConnect)

@@ -137,7 +137,7 @@ def warm_worker():
             handles.add(job)
             state["preparations"] += 1
         elif operation == "execute":
-            if job not in handles:
+            if not (job in handles):
                 raise AssertionError("Fixture execution did not own its prepared handle")
 
             handles.remove(job)
@@ -173,7 +173,7 @@ class WarmWorker:
         # Worker IPC is not the original model HTTP request's deadline.
         line = await asyncio.wait_for(self.process.stdout.readline(), 3)
 
-        if not line:
+        if not (line):
             raise AssertionError("The persistent worker stopped before the recovery verdict")
 
         return json.loads(line)
@@ -336,7 +336,7 @@ async def scenario(marker, report):
 
             await self.interpreter.retire()
 
-            if not self.interpreter.retirement_confirmed:
+            if not (self.interpreter.retirement_confirmed):
                 raise AssertionError("Original interpreter has not confirmed retirement")
 
             if not self.retired:

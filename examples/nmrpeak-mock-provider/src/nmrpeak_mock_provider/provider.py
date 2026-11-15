@@ -61,7 +61,7 @@ class Provider:
         Independent work and cleanup errors propagate together without resending.
         """
 
-        if offering not in self.offerings:
+        if not (offering in self.offerings):
             raise ValueError("Cannot open a prediction for an offering outside this provider")
 
         input_interpreter = self.create_interpreter()
@@ -131,7 +131,7 @@ async def open_provider(
         # Family selects a scientific input shape. Each entry is an independently
         # configured model; several entries can use the same contribution class.
         for (family, offering_configs) in provider_config["science"].items():
-            if family not in predictor_classes:
+            if not (family in predictor_classes):
                 raise ValueError(f"Cannot configure scientific offerings: unsupported {family=}")
 
             predictor_class = predictor_classes[family]

@@ -268,7 +268,7 @@ def _positive_seconds(value):
 def require_unix_socket_path(path):
     """Admit the pathname limit shared by the two explicit Unix transports."""
 
-    if type(path) is not str:
+    if not (type(path) is str):
         raise TypeError(
             f"Unexpected {type(path)=}; "
             "Cannot configure Unix socket: supply an absolute UTF-8 pathname without NUL."
@@ -283,7 +283,7 @@ def require_unix_socket_path(path):
         raise ValueError("Cannot configure Unix socket: its pathname must be valid UTF-8.") from None
 
     # Linux sun_path[108] includes its terminating NUL.
-    if not 1 <= size <= 107:
+    if not (1 <= size <= 107):
         raise ValueError("Cannot configure Unix socket: its pathname must fit Linux's 107-byte limit.")
 
 
@@ -300,7 +300,7 @@ def require_transport_settings(*, trust, exchange_seconds, retirement_seconds, p
     if trust.verify_mode != ssl.CERT_REQUIRED or not (trust.check_hostname):
         raise ValueError("Cannot configure HTTPS exchange: TLS must verify the certificate and hostname")
 
-    if type(allow_http) is not bool:
+    if not (type(allow_http) is bool):
         raise TypeError(
             f"Unexpected {type(allow_http)=}; "
             "Cannot configure HTTP exchange: allow_http must be a boolean"
@@ -508,7 +508,7 @@ class HttpTransport:
                 received_bytes += len(chunk)
 
                 if received_bytes > maximum_bytes:
-                    if decoder is not None:
+                    if not (decoder is None):
                         raise DecodedBodyRejected("size_limit")
 
                     raise ExchangeFailed(f"Cannot receive HTTP response: raw body exceeds the {maximum_bytes}-byte limit")
@@ -675,7 +675,7 @@ class HttpTransport:
         require_decoded_limit(maximum_bytes)
         require_decoded_limit(error_maximum_bytes)
 
-        if type(success_status) is not int:
+        if not (type(success_status) is int):
             raise TypeError(
                 f"Unexpected {type(success_status)=}; "
                 "Cannot decode HTTP response: success_status must be an integer HTTP status from 100 through 599"
@@ -733,7 +733,7 @@ class HttpTransport:
         )
 
     async def _exchange(self, request, *, maximum_bytes, account_bytes, owner, output_fd, before_body, decoder_factory, not_after):
-        if self._active is not None:
+        if not (self._active is None):
             raise ExchangeFailed("Cannot start HTTP exchange: an earlier exchange is active or its retirement is unconfirmed")
 
         if not (type(maximum_bytes) is int):
@@ -860,7 +860,7 @@ class HttpTransport:
         if exchange is None:
             return
 
-        if exchange.owner is not owner:
+        if not (exchange.owner is owner):
             raise ExchangeFailed("Cannot retire HTTP exchange: the outstanding operation belongs to another caller")
 
         task = exchange.task
@@ -905,7 +905,7 @@ class HttpTransport:
             if cancellation is None:
                 raise self.last_failure from None
 
-        if cancellation is not None:
+        if not (cancellation is None):
             if self.last_failure is not None and self.last_failure.caller_interruption is None:
                 self.last_failure.caller_interruption = cancellation
 

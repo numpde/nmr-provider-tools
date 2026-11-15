@@ -19,7 +19,7 @@ pool = Path("/wheelhouse")
 (release, _) = release_inputs(Path("/release.json"), Path("/core-runtime.lock"))
 tool = read_json(Path("/wheelhouse-tool-release.json"))
 
-if not tool_present(pool, tool):
+if not (tool_present(pool, tool)):
     raise FileNotFoundError("The pinned wheelhouse tool is missing from the pool.")
 
 name = f"provider_core-{release['version']}-py3-none-any.whl"

@@ -41,7 +41,7 @@ class StateType[T]:
     value_type: type[T]
 
     def __post_init__(self) -> None:
-        if not isinstance(self.value_type, type):
+        if not (isinstance(self.value_type, type)):
             raise TypeError("A scientific state kind must name a concrete Python type")
 
         if self.name is None:
@@ -122,7 +122,7 @@ class StateOutputSlot[T]:
         """
         target = ref(call)
 
-        if not any(slot is self for slot in call._output_slots):
+        if not (any(slot is self for slot in call._output_slots)):
             raise ValueError("Output slot is not declared by this exact call")
 
         observation = await operation.observe(after=None, wait_seconds=0)
@@ -200,7 +200,7 @@ class StateInputSlot[T]:
         """Read a host-admitted live value while preserving its concrete type."""
         value = values[self.name]
 
-        if type(value) is not self.kind.value_type:
+        if not (type(value) is self.kind.value_type):
             raise TypeError(f"State input {self.name!r} requires {self.kind.value_type.__qualname__}")
 
         return cast(T, value)
@@ -255,7 +255,7 @@ class SlotStateBinding[T]:
 
         state = self.assemble(values)
 
-        if type(state) is not self.value_type:
+        if not (type(state) is self.value_type):
             raise TypeError(f"Scientific state assembler must return {self.value_type.__qualname__}")
 
         return state

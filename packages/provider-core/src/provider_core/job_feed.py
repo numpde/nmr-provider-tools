@@ -44,7 +44,7 @@ def jobs_query(*, analysis_kind_ref, has_provider_execution_attempt, limit, curs
     """Encode explicit selection choices once for the signed request target."""
     require_analysis_kind(analysis_kind_ref)
 
-    if type(has_provider_execution_attempt) is not bool:
+    if not (type(has_provider_execution_attempt) is bool):
         raise TypeError(
             f"Unexpected {type(has_provider_execution_attempt)=}; "
             "Job discovery requires an explicit boolean provider-attempt view"

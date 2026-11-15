@@ -32,10 +32,10 @@ class Science(Contribution):
         if self.entered is not None:
             self.entered.set()
 
-            if not self.release.wait(timeout=5):
+            if not (self.release.wait(timeout=5)):
                 raise TimeoutError("Test did not release scientific calculation")
 
-        if self.failure is not None:
+        if not (self.failure is None):
             raise self.failure
 
         return sample

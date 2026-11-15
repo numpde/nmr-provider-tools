@@ -95,7 +95,7 @@ class LiveStartPolicy:
             if not (type(value) in (int, float) and math.isfinite(value) and value > 0):
                 raise ValueError(f"Live START {name} must be finite positive seconds")
 
-        if type(self.maximum_replays) is not int:
+        if not (type(self.maximum_replays) is int):
             raise TypeError(
                 f"Unexpected {type(self.maximum_replays)=}; "
                 "One live START invocation permits zero or one exact replay"
@@ -192,7 +192,7 @@ class AttemptController:
     ):
         claims._require_live_view()
 
-        if type(scope) is not RecoveryScope:
+        if not (type(scope) is RecoveryScope):
             raise TypeError(
                 f"Unexpected {type(scope)=}; "
                 "Cannot configure Attempt controller: scope must be an admitted RecoveryScope"
@@ -213,13 +213,13 @@ class AttemptController:
         if admission_stopping is None:
             admission_stopping = stopping
 
-        if type(admission_stopping) is not asyncio.Event:
+        if not (type(admission_stopping) is asyncio.Event):
             raise TypeError(
                 f"Unexpected {type(admission_stopping)=}; "
                 "Live Attempt admission stopping requires an asyncio Event"
             )
 
-        if type(maximum_terminal_bytes) is not int:
+        if not (type(maximum_terminal_bytes) is int):
             raise TypeError(
                 f"Unexpected {type(maximum_terminal_bytes)=}; "
                 "Live terminal allowance must cover 16384 through 2097152 encoded request bytes"
@@ -228,7 +228,7 @@ class AttemptController:
         if not (16384 <= maximum_terminal_bytes <= 2097152):
             raise ValueError("Live terminal allowance must cover 16384 through 2097152 encoded request bytes")
 
-        if type(allow_active_start_replay) is not bool:
+        if not (type(allow_active_start_replay) is bool):
             raise TypeError(
                 f"Unexpected {type(allow_active_start_replay)=}; "
                 "Live Attempt controller requires an explicit boolean active-replay decision"
@@ -392,7 +392,7 @@ class AttemptController:
         execution = failure.cause
         reason = execution.cause
 
-        if type(reason) not in (AnalysisOutcomeUnresolved, UploadRecoveryExhausted, ObservationGapExpired):
+        if not (type(reason) in (AnalysisOutcomeUnresolved, UploadRecoveryExhausted, ObservationGapExpired)):
             raise ControllerRefused("Cannot confirm a held Attempt: this failure is not an admitted unresolved analysis, source exhaustion or observation gap.") from failure
 
         admitted_api_failure = None
@@ -464,7 +464,7 @@ class AttemptController:
         withdraw future effects, then join before settling its original owners.
         """
 
-        if self._lifetime is not _Lifetime.NEW:
+        if not (self._lifetime is _Lifetime.NEW):
             raise ControllerRefused(
                 "This controller accepts only one run; retain its original invocation and controller for settlement or recovery"
             )
@@ -495,10 +495,10 @@ class AttemptController:
                 self._link_interruption(cause)
                 raise
 
-            if not isinstance(cause, Exception):
+            if not (isinstance(cause, Exception)):
                 raise BaseExceptionGroup("Attempt admission raised a process-control exception", (cause, self.last_failure)) from None
 
-            if cleanup_fatal is not None:
+            if not (cleanup_fatal is None):
                 raise BaseExceptionGroup("Attempt admission failed during cleanup", (cleanup_fatal, self.last_failure)) from None
 
             raise self.last_failure from None
@@ -596,10 +596,10 @@ class AttemptController:
                 self._link_interruption(interruption)
                 raise
 
-            if not isinstance(cause, Exception):
+            if not (isinstance(cause, Exception)):
                 raise BaseExceptionGroup("Attempt lifecycle raised a process-control exception", (cause, self.last_failure)) from None
 
-            if cleanup_fatal is not None:
+            if not (cleanup_fatal is None):
                 raise BaseExceptionGroup("Attempt cleanup raised a process-control exception", (cleanup_fatal, self.last_failure)) from None
 
             if (isinstance(self._operation, AttemptExecutor) and cause is self._operation.last_failure
@@ -716,7 +716,7 @@ class AttemptController:
 
             return
 
-        if not self._retired_by_controller:
+        if not (self._retired_by_controller):
             raise ControllerRefused("Cannot release live ownership before this session's cleanup is confirmed")
 
         if self._start_deferred is not None and not self._start_deferred.may_have_committed:
@@ -885,7 +885,7 @@ class AttemptController:
                         raise cause
 
                 for cause in failures:
-                    if not isinstance(cause, Exception):
+                    if not (isinstance(cause, Exception)):
                         raise BaseExceptionGroup("Attempt settlement raised a process-control exception", (cause, self.last_failure)) from None
 
                 raise self.last_failure from None
@@ -899,7 +899,7 @@ class AttemptController:
             except (Exception, BaseExceptionGroup) as cause:
                 self._remember(cause, cleanup=True)
 
-                if not isinstance(cause, Exception):
+                if not (isinstance(cause, Exception)):
                     raise BaseExceptionGroup("Attempt delivery retirement raised a process-control exception", (cause, self.last_failure)) from None
 
                 raise self.last_failure from None

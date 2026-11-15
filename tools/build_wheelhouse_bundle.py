@@ -33,7 +33,7 @@ def dependency_files(pool, lock):
         wheel_name = f"{package.replace('-', '_')}-{version}-py3-none-any.whl"
         wheel_bytes = (pool / wheel_name).read_bytes()
 
-        if hashlib.sha256(wheel_bytes).hexdigest() not in hashes:
+        if not (hashlib.sha256(wheel_bytes).hexdigest() in hashes):
             raise ValueError(
                 f"Cannot build wheelhouse bundle: {wheel_name} differs from its pinned hash."
             )

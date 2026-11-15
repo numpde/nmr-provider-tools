@@ -41,7 +41,7 @@ class ChatEndpointSpec:
     reasoning_effort: str | None
 
     def __post_init__(self):
-        if type(self.configuration_id) is not str:
+        if not (type(self.configuration_id) is str):
             raise TypeError(
                 f"Unexpected {type(self.configuration_id)=}; "
                 "Cannot configure interpreter endpoint: configuration_id must be a bounded ASCII identifier."
@@ -61,7 +61,7 @@ class ChatEndpointSpec:
                 "Cannot configure interpreter endpoint: model must be nonblank printable UTF-8 text within 512 bytes."
             )
 
-        if type(self.api_key) is not str:
+        if not (type(self.api_key) is str):
             raise TypeError(
                 f"Unexpected {type(self.api_key)=}; "
                 "Cannot configure interpreter endpoint: an explicit header-safe API key is required."
@@ -78,7 +78,7 @@ class ChatEndpointSpec:
         ):
             raise ValueError("Cannot configure interpreter endpoint: reasoning_effort must be an explicit ASCII word or None.")
 
-        if type(self.url) is not str:
+        if not (type(self.url) is str):
             raise TypeError(
                 f"Unexpected {type(self.url)=}; "
                 "Cannot configure interpreter endpoint: URL must be canonical ASCII HTTPS text."
@@ -243,7 +243,7 @@ class ChatEndpoint:
     """
 
     def __init__(self, spec, *, transport, request_bytes, response_bytes, error_response_bytes=None):
-        if type(spec) is not ChatEndpointSpec:
+        if not (type(spec) is ChatEndpointSpec):
             raise TypeError(
                 f"Unexpected {type(spec)=}; "
                 "Cannot configure interpreter carrier: explicit ChatEndpointSpec is required."
@@ -374,7 +374,7 @@ class ChatEndpoint:
                     response=response,
                 )
 
-            if choice.get("finish_reason") not in ("stop", "tool_calls"):
+            if not (choice.get("finish_reason") in ("stop", "tool_calls")):
                 raise ResponseRejected("Model service did not report a completed assistant reply.")
         except ResponseRejected as cause:
             raise ChatFailed(

@@ -26,7 +26,7 @@ class Stream:
         for chunk in self.chunks:
             yield chunk
 
-        if self.failure is not None:
+        if not (self.failure is None):
             raise self.failure
 
     async def aclose(self):
@@ -61,7 +61,7 @@ class Client:
                     # Model physical cleanup that cannot settle until released.
                     pass
 
-        if self.close_failure is not None:
+        if not (self.close_failure is None):
             raise self.close_failure
 
         self.closed = True

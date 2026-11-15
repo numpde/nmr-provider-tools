@@ -23,7 +23,7 @@ from http_sf import ser
 def _https_origin(value):
     """Admit one HTTPS origin; never reinterpret credentials or a URL path."""
 
-    if type(value) is not str:
+    if not (type(value) is str):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             "Cannot configure signing: supply one ASCII HTTPS origin without whitespace"
@@ -89,7 +89,7 @@ class SigningIdentity:
 
         require_credential_ref(self.credential_ref)
 
-        if not isinstance(self.private_key, Ed25519PrivateKey):
+        if not (isinstance(self.private_key, Ed25519PrivateKey)):
             raise TypeError(
                 f"Unexpected {type(self.private_key)=}; "
                 "Cannot configure signing: an Ed25519 private key is required"
@@ -115,7 +115,7 @@ def require_credential_ref(value):
 def _request_target(method, path, query):
     """Reject ambiguous target forms before a client can normalize signed bytes."""
 
-    if type(method) is not str:
+    if not (type(method) is str):
         raise TypeError(
             f"Unexpected {type(method)=}; "
             "Cannot sign request: method must be an uppercase ASCII HTTP method"
@@ -124,7 +124,7 @@ def _request_target(method, path, query):
     if re.fullmatch(r"[A-Z]+", method) is None:
         raise ValueError("Cannot sign request: method must be an uppercase ASCII HTTP method")
 
-    if type(path) is not str:
+    if not (type(path) is str):
         raise TypeError(
             f"Unexpected {type(path)=}; "
             "Cannot sign request: path must be absolute, with query supplied separately and no fragment"
@@ -133,7 +133,7 @@ def _request_target(method, path, query):
     if not (path.startswith("/")) or path.startswith("//") or "?" in path or "#" in path:
         raise ValueError("Cannot sign request: path must be absolute, with query supplied separately and no fragment")
 
-    if type(query) is not bytes:
+    if not (type(query) is bytes):
         raise TypeError(
             f"Unexpected {type(query)=}; "
             "Cannot sign request: query must be immutable ASCII bytes"
@@ -166,7 +166,7 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
             "Cannot sign request: body must be immutable bytes or None"
         )
 
-    if type(created) is not int:
+    if not (type(created) is int):
         raise TypeError(
             f"Unexpected {type(created)=}; "
             "Cannot sign request: timestamp and 300-second expiry must fit structured-field integers"
@@ -175,7 +175,7 @@ def signed_request(identity, *, method, path, query, body, created, nonce):
     if not (0 <= created <= 999999999999699):
         raise ValueError("Cannot sign request: timestamp and 300-second expiry must fit structured-field integers")
 
-    if type(nonce) is not bytes:
+    if not (type(nonce) is bytes):
         raise TypeError(
             f"Unexpected {type(nonce)=}; "
             "Cannot sign request: nonce must contain exactly 16 random bytes"

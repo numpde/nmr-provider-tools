@@ -20,11 +20,11 @@ class Stream:
         if self.stall is not None:
             await self.stall.wait()
 
-        if self.failure is not None:
+        if not (self.failure is None):
             raise self.failure
 
     async def aclose(self):
-        if self.close_failure is not None:
+        if not (self.close_failure is None):
             raise self.close_failure
 
         self.closed = True
@@ -54,7 +54,7 @@ class Client:
         return httpcore.Response(self.status, headers=self.headers, content=self.stream)
 
     async def aclose(self):
-        if self.close_failure is not None:
+        if not (self.close_failure is None):
             raise self.close_failure
 
         self.closed = True

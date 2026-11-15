@@ -28,12 +28,12 @@ def exchange(proxy_port, origin_port, tunnel):
             while b"\r\n\r\n" not in response:
                 block = client.recv(4096)
 
-                if not block:
+                if not (block):
                     raise RuntimeError("CONNECT ended before its response")
 
                 response += block
 
-            if not response.startswith(b"HTTP/1.1 200 "):
+            if not (response.startswith(b"HTTP/1.1 200 ")):
                 raise RuntimeError("CONNECT did not reach the gateway")
 
             client.sendall(b"GET /proof HTTP/1.1\r\nHost: fixture\r\nConnection: close\r\n\r\n")
@@ -49,7 +49,7 @@ def exchange(proxy_port, origin_port, tunnel):
             if len(data) > 65536:
                 raise RuntimeError("origin response exceeded its bound")
 
-        if not data.endswith(b"\r\n\r\nproof"):
+        if not (data.endswith(b"\r\n\r\nproof")):
             raise RuntimeError("relay did not deliver the origin response")
 
 

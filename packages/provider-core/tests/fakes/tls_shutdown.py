@@ -103,7 +103,7 @@ class ShutdownPeer:
                 if self.raw_close_failures:
                     raise self.raw_close_failures.pop(0)
 
-                if self.raw_close_failure is not None:
+                if not (self.raw_close_failure is None):
                     raise self.raw_close_failure
 
                 await close()

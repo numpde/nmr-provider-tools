@@ -48,7 +48,7 @@ def _identity(value, label):
 
 
 def _digest(value, label):
-    if type(value) is not str:
+    if not (type(value) is str):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             f"{label} must be a lowercase sha256, configured-v2:sha256 or configured-v3:sha256 digest"
@@ -75,20 +75,20 @@ class BackendCapabilities:
             ("concurrency", self.concurrency, ConcurrencyRequirement),
             ("interruption", self.interruption, InterruptionSupport),
         ):
-            if type(values) is not frozenset:
+            if not (type(values) is frozenset):
                 raise TypeError(f"Unexpected {type(values)=}; backend {name=} support must be a frozenset")
 
-            if not values:
+            if not (values):
                 raise ValueError(f"Backend {name=} support cannot be empty")
 
             for value in values:
-                if type(value) is not expected_type:
+                if not (type(value) is expected_type):
                     raise TypeError(f"Unexpected {type(value)=}; backend {name=} support requires {expected_type=}")
 
         if any(version <= 0 for version in self.contract_versions):
             raise ValueError(f"Backend contract versions must be positive; {self.contract_versions=}")
 
-        if type(self.progress) is not bool:
+        if not (type(self.progress) is bool):
             raise TypeError(f"Unexpected {type(self.progress)=}; backend progress support must be boolean")
 
 
@@ -164,7 +164,7 @@ class StateRef:
         _identity(self.state_id, "State identity")
         _identity(self.kind, "Scientific state kind")
 
-        if type(self.producer) is not OperationRef:
+        if not (type(self.producer) is OperationRef):
             raise TypeError(
                 f"Unexpected {type(self.producer)=}; "
                 "State producer must be an OperationRef from the same host and analysis"
@@ -180,7 +180,7 @@ class ResultRef:
     result_id: str
 
     def __post_init__(self):
-        if type(self.operation) is not OperationRef:
+        if not (type(self.operation) is OperationRef):
             raise TypeError(
                 f"Unexpected {type(self.operation)=}; "
                 "Result reference requires an OperationRef"
@@ -197,7 +197,7 @@ class StateArgument:
     def __post_init__(self):
         _identity(self.name, "State argument name")
 
-        if type(self.reference) is not StateRef:
+        if not (type(self.reference) is StateRef):
             raise TypeError(
                 f"Unexpected {type(self.reference)=}; "
                 "State argument requires a StateRef"
@@ -214,7 +214,7 @@ class StateResult:
     def __post_init__(self):
         _identity(self.name, "State output name")
 
-        if type(self.reference) is not StateRef:
+        if not (type(self.reference) is StateRef):
             raise TypeError(
                 f"Unexpected {type(self.reference)=}; "
                 "State output requires a StateRef"
@@ -258,10 +258,10 @@ class OperationPolicy:
         ):
             positive_seconds(value)
 
-        if not all(type(value) is int and 0 < value for value in (
+        if not (all(type(value) is int and 0 < value for value in (
             self.reject_encoded_input_over_bytes,
             self.reject_encoded_result_over_bytes,
-        )):
+        ))):
             raise ValueError("Input and result allowances must be positive byte counts.")
 
 
@@ -293,10 +293,10 @@ class Invocation:
 
     def __post_init__(self):
         if self.start_not_after is not None:
-            if type(self.start_not_after) not in (int, float):
+            if not (type(self.start_not_after) in (int, float)):
                 raise TypeError(f"Unexpected {type(self.start_not_after)=}; a start deadline must be a finite execution-clock value")
 
-            if not math.isfinite(self.start_not_after):
+            if not (math.isfinite(self.start_not_after)):
                 raise ValueError(f"Cannot set a start deadline with {self.start_not_after=}; expected a finite execution-clock value")
 
         if not (type(self.operation_id) is str):
@@ -339,7 +339,7 @@ class NotAdmitted:
     message: str
 
     def __post_init__(self):
-        if type(self.code) is not AdmissionCode:
+        if not (type(self.code) is AdmissionCode):
             raise TypeError(
                 f"Unexpected {type(self.code)=}; "
                 "Non-admission requires an AdmissionCode"

@@ -192,7 +192,7 @@ class SupervisedChatTransport:
         self.last_failure = failure
 
     async def exchange_decoded(self, request, *, maximum_bytes, error_maximum_bytes, owner=None, not_after=None):
-        if self._active is not None:
+        if not (self._active is None):
             raise ExchangeFailed("Cannot start model HTTP exchange: the original child retirement is unconfirmed")
 
         require_decoded_limit(maximum_bytes)
@@ -247,10 +247,10 @@ class SupervisedChatTransport:
 
         cancellation = await self._observe(exchange)
 
-        if cancellation is not None:
+        if not (cancellation is None):
             raise cancellation
 
-        if exchange.failure is not None:
+        if not (exchange.failure is None):
             if isinstance(exchange.failure.primary, asyncio.CancelledError):
                 raise exchange.failure.primary
 
@@ -478,7 +478,7 @@ class SupervisedChatTransport:
         if exchange is None:
             return
 
-        if exchange.owner is not owner:
+        if not (exchange.owner is owner):
             raise ExchangeFailed("Cannot retire model HTTP exchange: the original child belongs to another owner")
 
         if exchange.stopped_at is None:
@@ -486,8 +486,8 @@ class SupervisedChatTransport:
 
         cancellation = await self._observe(exchange)
 
-        if cancellation is not None:
+        if not (cancellation is None):
             raise cancellation
 
-        if not exchange.retired:
+        if not (exchange.retired):
             raise exchange.failure

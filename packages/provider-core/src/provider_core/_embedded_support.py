@@ -41,17 +41,17 @@ EMBEDDED_CAPABILITIES = BackendCapabilities(
 def _require_supported_binding(binding):
     """Validate execution features independently of hardware availability."""
 
-    if binding.description.contract_version not in EMBEDDED_CAPABILITIES.contract_versions:
+    if not (binding.description.contract_version in EMBEDDED_CAPABILITIES.contract_versions):
         raise ValueError("The embedded backend does not support this contribution contract version.")
 
-    if binding.description.isolation not in EMBEDDED_CAPABILITIES.isolation:
+    if not (binding.description.isolation in EMBEDDED_CAPABILITIES.isolation):
         raise ValueError("The embedded backend cannot provide this implementation's isolation boundary.")
 
     for call in binding.description.calls:
-        if call.concurrency not in EMBEDDED_CAPABILITIES.concurrency:
+        if not (call.concurrency in EMBEDDED_CAPABILITIES.concurrency):
             raise ValueError("The embedded backend cannot enforce this call's concurrency boundary.")
 
-        if call.interruption not in EMBEDDED_CAPABILITIES.interruption:
+        if not (call.interruption in EMBEDDED_CAPABILITIES.interruption):
             raise ValueError("The embedded backend cannot provide this call's interruption contract.")
 
         if call.progress and not EMBEDDED_CAPABILITIES.progress:
@@ -67,13 +67,13 @@ class Allocation:
     assets: AssetAccess = field(default_factory=NoAssets)
 
     def __post_init__(self):
-        if type(self.name) is not str:
+        if not (type(self.name) is str):
             raise TypeError("Allocation name must be a string")
 
-        if not isinstance(self.binding, (ImplementationBinding, HostedContribution)):
+        if not (isinstance(self.binding, (ImplementationBinding, HostedContribution))):
             raise TypeError(f"Unexpected {type(self.binding)=}; an allocation requires a scientific binding")
 
-        if not 0 < len(self.name) <= 160:
+        if not (0 < len(self.name) <= 160):
             raise ValueError("Allocation name must contain between 1 and 160 characters.")
 
         _require_supported_binding(self.binding)
@@ -93,7 +93,7 @@ class _Changes:
         self.event = asyncio.Event()
 
     def require_loop(self):
-        if asyncio.get_running_loop() is not self.loop:
+        if not (asyncio.get_running_loop() is self.loop):
             raise RuntimeError("Observe and control this owner on its original event loop.")
 
     def changed(self):
@@ -199,7 +199,7 @@ class _Resident:
         self.retired = False
 
     def initialize(self, seconds):
-        if self.failure is not None:
+        if not (self.failure is None):
             raise self.failure
 
         if self.ready:
@@ -246,7 +246,7 @@ class _ScientificAnalysis:
         self.failure = None
 
     def initialize(self):
-        if self.failure is not None:
+        if not (self.failure is None):
             raise self.failure
 
         if self.ready:
@@ -277,7 +277,7 @@ class _State:
         self.disposal_failure = None
 
     def dispose(self):
-        if self.disposal_failure is not None:
+        if not (self.disposal_failure is None):
             raise self.disposal_failure
 
         if self.disposed:

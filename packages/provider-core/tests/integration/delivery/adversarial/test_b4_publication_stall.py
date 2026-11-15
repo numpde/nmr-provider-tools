@@ -55,7 +55,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
 
             loop.call_soon_threadsafe(removal_started.set)
 
-            if not release_removal.wait(5):
+            if not (release_removal.wait(5)):
                 raise AssertionError("The test did not release its original storage operation")
 
             return original_remove(item)
@@ -203,7 +203,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
                 self.failed_once = False
 
             def write(self, text):
-                if not self.failed_once:
+                if not (self.failed_once):
                     self.failed_once = True
 
                     raise OSError("The test operator stream refused its first write")
@@ -219,7 +219,7 @@ class PublicationStorageStallTests(unittest.IsolatedAsyncioTestCase):
             removal_calls.append(item)
             loop.call_soon_threadsafe(removal_started.set)
 
-            if not release_removal.wait(5):
+            if not (release_removal.wait(5)):
                 raise AssertionError("The test did not release its original storage operation")
 
             return original_remove(item)

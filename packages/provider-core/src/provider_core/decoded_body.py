@@ -34,13 +34,13 @@ class DecodedBodyRejected(ValueError):
     """A closed safe reason; native codec evidence remains the protected cause."""
 
     def __init__(self, reason):
-        if type(reason) is not str:
+        if not (type(reason) is str):
             raise TypeError(
                 f"Unexpected {type(reason)=}; "
                 "Unknown decoded-body rejection reason"
             )
 
-        if reason not in _MESSAGES:
+        if not (reason in _MESSAGES):
             raise ValueError("Unknown decoded-body rejection reason")
 
         self.reason = reason

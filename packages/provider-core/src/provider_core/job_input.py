@@ -109,7 +109,7 @@ def _reject_constant(_value):
 
 
 def _read_response(raw):
-    if type(raw) is not bytes:
+    if not (type(raw) is bytes):
         raise JobInputRejected("Cannot verify Job input: response must be immutable bytes.")
 
     if len(raw) > MAX_RESPONSE_BYTES:
@@ -136,7 +136,7 @@ def verify_job_input(response_bytes, *, feed):
     noncanonical base64 are rejected. The source payload is never reserialized.
     """
 
-    if type(feed) is not FeedInputFacts:
+    if not (type(feed) is FeedInputFacts):
         raise JobInputRejected("Cannot verify Job input: admitted feed identity is required.")
 
     document = _read_response(response_bytes)

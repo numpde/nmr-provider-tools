@@ -114,7 +114,7 @@ class UploadRecovery:
 def require_store_origin(value):
     """Require an explicit canonical origin before any bearer can be attached."""
 
-    if type(value) is not str:
+    if not (type(value) is str):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             "Cannot configure Upload store: origin must be visible ASCII HTTPS text"
@@ -248,7 +248,7 @@ class _UploadFile:
         pending = self.pending
         (done, _unfinished) = await asyncio.wait({pending.waiter}, timeout=seconds)
 
-        if not done:
+        if not (done):
             raise UploadFailed(
                 f"waiting to {pending.operation} the private file exceeded its allotted time",
                 cause=TimeoutError("Private Upload file observation deadline expired"),
@@ -282,7 +282,7 @@ class UploadTransfer:
     def __init__(self, job_ref, *, store, store_origin, remaining, before_request, account, exchange_owner=None):
         require_job_ref(job_ref)
 
-        if not all(callable(value) for value in (remaining, before_request, account)):
+        if not (all(callable(value) for value in (remaining, before_request, account))):
             raise TypeError("Upload transfer requires explicit remaining-time, request and byte-accounting owners")
 
         (self.job_ref, self._store) = (job_ref, store)
@@ -375,10 +375,10 @@ class UploadTransfer:
         if self._active:
             raise UploadFailed("another source transfer is active")
 
-        if self._file is not None:
+        if not (self._file is None):
             raise UploadFailed("a private source file remains owned; settle its original I/O and cleanup before more source work")
 
-        if not self._store.retirement_confirmed:
+        if not (self._store.retirement_confirmed):
             raise UploadFailed("previous store resource retirement is unconfirmed; retire its transport before more work")
 
         self._active = True
@@ -399,7 +399,7 @@ class UploadTransfer:
         """
 
         async with self._operation():
-            if not callable(grant_factory):
+            if not (callable(grant_factory)):
                 raise TypeError("Upload transfer requires an async grant factory")
 
             if type(directory_fd) is not int or directory_fd < 0:
@@ -418,7 +418,7 @@ class UploadTransfer:
                     async with deadline:
                         grant = await grant_factory()
                 except TimeoutError as failure:
-                    if not deadline.expired():
+                    if not (deadline.expired()):
                         raise
 
                     prior = self.last_failure
@@ -573,7 +573,7 @@ class UploadTransfer:
         if self._file is None:
             raise UploadFailed("no unresolved private source file is available to settle")
 
-        if not self._store.retirement_confirmed:
+        if not (self._store.retirement_confirmed):
             raise UploadFailed(
                 "store retirement remains unconfirmed; retire the exact transfer before settling its file",
                 cause=self.last_failure,
@@ -676,7 +676,7 @@ class UploadTransfer:
 
                 return response
         except TimeoutError:
-            if not deadline.expired():
+            if not (deadline.expired()):
                 raise
 
             raise UploadFailed("the source session's total deadline expired", cause=self._store.last_failure) from None
@@ -713,7 +713,7 @@ class JobUploads:
     def __init__(self, job_ref, *, api, store, store_origin, limits, recovery=None):
         require_job_ref(job_ref)
 
-        if type(limits) is not UploadLimits:
+        if not (type(limits) is UploadLimits):
             raise TypeError(
                 f"Unexpected {type(limits)=}; "
                 "Cannot configure Upload acquisition: explicit UploadLimits are required"
@@ -806,10 +806,10 @@ class JobUploads:
         if self._active:
             raise UploadFailed("another source operation is active")
 
-        if self._transfer_owner._file is not None:
+        if not (self._transfer_owner._file is None):
             raise UploadFailed("a private source file remains owned; settle its original I/O and cleanup before more source work")
 
-        if not self._store.retirement_confirmed:
+        if not (self._store.retirement_confirmed):
             raise UploadFailed("previous store resource retirement is unconfirmed; retire its transport before more work")
 
         self._active = True
@@ -887,7 +887,7 @@ class JobUploads:
 
             raise
         except TimeoutError:
-            if not deadline.expired():
+            if not (deadline.expired()):
                 raise
 
             if type(resource_owner.last_failure) is ApiFailure:
@@ -987,7 +987,7 @@ class JobUploads:
 
         self.last_failure = record
 
-        if cancellation is not None:
+        if not (cancellation is None):
             raise cancellation from record
 
         fatal = [cause for cause in failures if not isinstance(cause, Exception)]

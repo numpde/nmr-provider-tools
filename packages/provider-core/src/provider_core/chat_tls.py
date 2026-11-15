@@ -89,7 +89,7 @@ def _file_materials(cafile, capath):
         captured = []
 
         for entry in entries:
-            if not entry.is_file():
+            if not (entry.is_file()):
                 raise _refuse("a configured hashed trust entry is not a readable regular file")
 
             captured.append((entry.name, _bounded_file(entry)))
@@ -127,7 +127,7 @@ def _load_material(context, kind, raw, directory):
         # recovered from get_ca_certs(). Loading is eager, so close this private
         # descriptor immediately. Process termination also closes it; there is
         # no named temporary file left behind by a killed HTTP child.
-        if not hasattr(os, "memfd_create"):
+        if not (hasattr(os, "memfd_create")):
             raise _refuse("this platform cannot load captured file trust without retained filesystem paths")
 
         descriptor = os.memfd_create("provider-model-trust", os.MFD_CLOEXEC)
@@ -321,10 +321,10 @@ def _material_message(kind, value):
 def capture_trust(context):
     """Freeze supported context state; refuse authority that cannot be copied."""
 
-    if type(context) is not CapturedSSLContext:
+    if not (type(context) is CapturedSSLContext):
         raise _refuse("the context has no captured original trust material")
 
-    if context._chat_opaque is not None:
+    if not (context._chat_opaque is None):
         raise _refuse(context._chat_opaque)
 
     if (context.protocol != ssl.PROTOCOL_TLS_CLIENT or context.verify_mode != ssl.CERT_REQUIRED

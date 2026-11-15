@@ -114,7 +114,7 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
         def close():
             entered.set()
 
-            if not release.wait(timeout=5):
+            if not (release.wait(timeout=5)):
                 raise TimeoutError("Test did not release the native cleanup gate")
 
             closed.append(True)

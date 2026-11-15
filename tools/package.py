@@ -47,7 +47,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     packaging_wheel_name = f"packaging-{packaging_version}-py3-none-any.whl"
     packaging_digest = digest(Path("/wheelhouse") / packaging_wheel_name)
 
-    if packaging_digest not in accepted_hashes:
+    if not (packaging_digest in accepted_hashes):
         raise ValueError("Cannot qualify wheelhouse bundle: cached packaging wheel differs from its lock.")
 
     selection_lock = scratch / "pylock.toml"
@@ -101,7 +101,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
     if projected_artifact.get("path") != "/wheels/" + packaging_wheel_name or "url" in projected_artifact:
         raise ValueError("Cannot qualify wheelhouse bundle: projected artifact differs from the selected lock.")
 
-    if type(projected_hashes) is not dict:
+    if not (type(projected_hashes) is dict):
         raise TypeError(
             f"Unexpected {type(projected_hashes)=}; "
             "Cannot qualify wheelhouse bundle: projected hashes must be an object."
@@ -216,7 +216,7 @@ def qualify_wheelhouse_bundle(bundle, scratch):
 def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
     """Validate the pinned source inventory before extracting or importing code."""
 
-    if type(expected_source_files) is not dict:
+    if not (type(expected_source_files) is dict):
         raise TypeError(
             f"Unexpected {type(expected_source_files)=}; "
             "Cannot qualify acquisition source bundle: source inventory must be an object."
@@ -246,7 +246,7 @@ def qualify_acquisition_bundle(bundle, scratch, expected_source_files):
 
             expected_member = expected_source_files.get(member.name)
 
-            if type(expected_member) is not dict:
+            if not (type(expected_member) is dict):
                 raise TypeError(
                     f"Unexpected {type(expected_member)=}; "
                     "Cannot qualify acquisition source bundle: member inventory must be an object."
@@ -369,7 +369,7 @@ def unpack_source(archive, destination, version):
 
 
 def source_payload(source, inventory):
-    if type(inventory) is not dict:
+    if not (type(inventory) is dict):
         raise TypeError(
             f"Unexpected {type(inventory)=}; "
             "Cannot qualify package: the pre-build source inventory must be an object."
@@ -388,7 +388,7 @@ def source_payload(source, inventory):
                 "has unsupported entries."
             )
 
-        if type(facts) is not dict:
+        if not (type(facts) is dict):
             raise TypeError(
                 f"Unexpected {type(facts)=}; "
                 "Cannot qualify package: the recorded source inventory "

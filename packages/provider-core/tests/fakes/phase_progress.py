@@ -36,7 +36,7 @@ class PhaseProgressTransport(ConditionTransport):
 
                 return self.phase_failure
         elif self.failed and self.fresh_reads == 0:
-            if not self.retirement_confirmed:
+            if not (self.retirement_confirmed):
                 raise AssertionError("Fresh lifecycle read preceded original PUT retirement")
 
             self.fresh_reads += 1

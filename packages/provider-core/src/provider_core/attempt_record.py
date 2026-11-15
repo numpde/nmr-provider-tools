@@ -64,7 +64,7 @@ class RecoveryScope:
         require_provider_ref(self.provider_ref)
 
         for value in (self.consumer_id, self.generation_id):
-            if type(value) is not str:
+            if not (type(value) is str):
                 raise TypeError(
                     f"Unexpected {type(value)=}; "
                     "Cannot bind recovery scope: consumer and generation identities require 1 through 1024 Unicode scalar values without NUL"
@@ -102,7 +102,7 @@ class LocalExecutionPhase(Enum):
 
 
 def _admission_bytes(admission):
-    if type(admission) is not AttemptAdmission:
+    if not (type(admission) is AttemptAdmission):
         raise TypeError(
             f"Unexpected {type(admission)=}; "
             "Cannot retain acknowledgement: an admitted Attempt response is required"
@@ -110,7 +110,7 @@ def _admission_bytes(admission):
 
     timestamp = admission.started_at
 
-    if type(timestamp) is not datetime:
+    if not (type(timestamp) is datetime):
         raise TypeError(
             f"Unexpected {type(timestamp)=}; "
             "Cannot retain acknowledgement: its start timestamp must be a UTC datetime"
@@ -186,7 +186,7 @@ class ProtectedEvidence:
     def __post_init__(self):
         _scalar_text(self.schema_id, "evidence schema identity")
 
-        if type(self.content) is not bytes:
+        if not (type(self.content) is bytes):
             raise TypeError(
                 f"Unexpected {type(self.content)=}; "
                 "Cannot retain required evidence: immutable content must contain 1 through 262144 bytes; evidence is never truncated"
@@ -211,16 +211,16 @@ def acknowledge_start(start, admission):
 def mark_execution_entered(record, prepared_identity):
     """Record intent before invoking a prepared handle; never infer actual execution."""
 
-    if type(record) is not AcknowledgedAttempt:
+    if not (type(record) is AcknowledgedAttempt):
         raise TypeError(
             f"Unexpected {type(record)=}; "
             "Cannot enter execution: an acknowledged Attempt that has not entered is required"
         )
 
-    if record.local_phase is not LocalExecutionPhase.NOT_ENTERED:
+    if not (record.local_phase is LocalExecutionPhase.NOT_ENTERED):
         raise ValueError("Cannot enter execution: an acknowledged Attempt that has not entered is required")
 
-    if type(prepared_identity) is not ProtectedEvidence:
+    if not (type(prepared_identity) is ProtectedEvidence):
         raise TypeError(
             f"Unexpected {type(prepared_identity)=}; "
             "Cannot enter execution: protected identity of the prepared candidate is required."

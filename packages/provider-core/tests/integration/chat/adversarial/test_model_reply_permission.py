@@ -67,7 +67,7 @@ class CountingScience:
         self.retired_handle = None
 
     async def prepare(self):
-        if self.pending is not None:
+        if not (self.pending is None):
             raise AssertionError("Scientific preparation was repeated")
 
         self.preparations += 1
@@ -139,7 +139,7 @@ class InterpretedSession:
                 try:
                     report_condition.require_execution()
                 except ExecutionStopped:
-                    if self.after_refusal is not None:
+                    if not (self.after_refusal is None):
                         raise self.after_refusal
 
                     raise
@@ -186,7 +186,7 @@ class InterruptedRefusalSession(InterpretedSession):
             except asyncio.CancelledError as interruption:
                 self.interruption = interruption
 
-                if self.interruption_cause is not None:
+                if not (self.interruption_cause is None):
                     raise interruption from self.interruption_cause
 
                 raise
@@ -358,7 +358,7 @@ async def reply_run(claims, job, *, session_type=InterpretedSession):
                     except ControllerFailed:
                         # A failed assertion may leave a deliberately held
                         # claim. Teardown still requires real resource closure.
-                        if not running.controller.work_settled:
+                        if not (running.controller.work_settled):
                             raise
 
 
@@ -634,7 +634,7 @@ class HeldRetirementSession(InterpretedSession):
         self.retiring.set()
         await self.release_retirement.wait()
 
-        if self.retirement_failure is not None:
+        if not (self.retirement_failure is None):
             raise self.retirement_failure
 
         self.retirement_completed = True
@@ -652,7 +652,7 @@ class PreparedExecutionGateSession(HeldRetirementSession):
     async def prepare(self, acknowledged, instructions, *, report_condition):
         prepared = await super().prepare(acknowledged, instructions, report_condition=report_condition)
 
-        if prepared is not self.science.handle:
+        if not (prepared is self.science.handle):
             raise AssertionError("The interpreter substituted a prepared scientific handle")
 
         self.accepted_handle = prepared
@@ -660,7 +660,7 @@ class PreparedExecutionGateSession(HeldRetirementSession):
         return prepared
 
     async def execute(self, prepared, *, report_condition):
-        if prepared is not self.accepted_handle:
+        if not (prepared is self.accepted_handle):
             raise AssertionError("The accepted preparation changed before execution")
 
         self.execution_entered.set()

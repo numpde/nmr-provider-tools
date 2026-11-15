@@ -46,10 +46,10 @@ class _OperationControl:
         return self.operation.stop_signal.is_set()
 
     def report_progress(self, event):
-        if not self.operation.call.description.progress:
+        if not (self.operation.call.description.progress):
             raise RuntimeError("This call did not declare progress reporting.")
 
-        if type(event) is not ProgressEvent:
+        if not (type(event) is ProgressEvent):
             raise TypeError("Scientific progress must be a ProgressEvent.")
 
         progress_receipt = Future()
@@ -226,7 +226,7 @@ class _Operation(_Changes):
 
             phase = "state_adoption"
 
-            if type(scientific_return) is not ScientificReturn:
+            if not (type(scientific_return) is ScientificReturn):
                 raise TypeError("A scientific call binding must return ScientificReturn.")
 
             adoption_receipt = Future()
@@ -242,10 +242,10 @@ class _Operation(_Changes):
             phase = "encoding"
             result_payload = self.call.encode_result(scientific_return.value)
 
-            if type(result_payload) is not bytes:
+            if not (type(result_payload) is bytes):
                 raise TypeError(f"Unexpected {type(result_payload)=}; encoded scientific results must be bytes")
 
-            if not len(result_payload) <= self.invocation.policy.reject_encoded_result_over_bytes:
+            if not (len(result_payload) <= self.invocation.policy.reject_encoded_result_over_bytes):
                 raise ValueError(
                     "Encoded scientific result exceeds its declared byte allowance."
                 )
@@ -476,7 +476,7 @@ class _Operation(_Changes):
     def _require_result(self, result):
         self.require_loop()
 
-        if type(result) is not ResultRef:
+        if not (type(result) is ResultRef):
             raise TypeError(f"Unexpected {type(result)=}; result access requires a ResultRef")
 
         if not (
@@ -491,7 +491,7 @@ class _Operation(_Changes):
     async def read_result(self, result):
         self._require_result(result)
 
-        if self.release is not None:
+        if not (self.release is None):
             raise ValueError(
                 "Release of this exact result has already been authorized."
             )
@@ -555,7 +555,7 @@ class _Operation(_Changes):
         self.result_allowance = 0
 
     def dispose_value(self):
-        if self.disposal_failure is not None:
+        if not (self.disposal_failure is None):
             raise self.disposal_failure
 
         if self.value_disposed:

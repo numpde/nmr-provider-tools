@@ -246,7 +246,7 @@ class DeliveryIPCTests(unittest.IsolatedAsyncioTestCase):
         def blocked_enqueue():
             started.set()
 
-            if not release.wait(2):
+            if not (release.wait(2)):
                 raise TimeoutError("Test did not release the retained SQLite operation.")
 
             return self.queue.enqueue(item)

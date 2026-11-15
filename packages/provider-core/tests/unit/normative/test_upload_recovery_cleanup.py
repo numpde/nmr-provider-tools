@@ -71,7 +71,7 @@ class UploadRecoveryCleanupTests(unittest.IsolatedAsyncioTestCase):
         calls = []
 
         def held_close(fd):
-            if not file_release.wait(2):
+            if not (file_release.wait(2)):
                 raise TimeoutError("test did not release original private close")
 
             return close(fd)

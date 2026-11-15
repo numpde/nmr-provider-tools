@@ -9,17 +9,17 @@ from provider_core.contribution_errors import ScientificRejection
 
 
 def _finite_number(value: object, *, label: str) -> float:
-    if type(value) not in (int, float):
+    if not (type(value) in (int, float)):
         raise TypeError(f"{label} must be a finite number; booleans are not measurements")
 
-    if not math.isfinite(value):
+    if not (math.isfinite(value)):
         raise ValueError(f"{label} must be finite")
 
     return float(value)
 
 
 def _finite_samples(values: object, *, label: str) -> tuple[float, ...]:
-    if type(values) is not tuple:
+    if not (type(values) is tuple):
         raise TypeError(f"Spectrum {label} must be an immutable tuple")
 
     samples = []
@@ -102,7 +102,7 @@ def subtract_baseline(spectrum: Spectrum, settings: BaselineSettings) -> Spectru
     for intensity in spectrum.intensities:
         value = intensity - settings.baseline
 
-        if not math.isfinite(value):
+        if not (math.isfinite(value)):
             raise ArithmeticError("Baseline subtraction produced a nonfinite intensity")
 
         corrected.append(value)

@@ -49,7 +49,7 @@ async def stopped_executor(retirement_failure):
     try:
         await executor.run(acknowledged)
     except ExecutionFailed as failure:
-        if not isinstance(failure.cause, ExecutionStopped):
+        if not (isinstance(failure.cause, ExecutionStopped)):
             raise
     else:
         raise AssertionError("Fixture did not stop the completed result's acceptance")

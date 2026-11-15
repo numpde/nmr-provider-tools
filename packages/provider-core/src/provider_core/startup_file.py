@@ -71,7 +71,7 @@ def read_startup_file(path, *, maximum_bytes, label, secret=False):
         cleanup = cause
 
     if primary is not None and not isinstance(primary, Exception):
-        if cleanup is not None:
+        if not (cleanup is None):
             raise primary from StartupFileRejected(
                 f"{label} close also failed during interruption.",
                 cause=primary.__cause__,

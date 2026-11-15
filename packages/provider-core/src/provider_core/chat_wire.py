@@ -95,7 +95,7 @@ def decoded_bytes(value, maximum):
 
     result = base64.b64decode(value, validate=True)
 
-    if not len(result) <= maximum:
+    if not (len(result) <= maximum):
         raise ValueError("Interpreter child byte field exceeds its admitted limit")
 
     return result
@@ -104,7 +104,7 @@ def decoded_bytes(value, maximum):
 def message_bytes(document):
     raw = json.dumps(document, ensure_ascii=True, allow_nan=False, separators=(",", ":")).encode("ascii")
 
-    if not len(raw) <= 0xffffffff:
+    if not (len(raw) <= 0xffffffff):
         raise ValueError("Interpreter child message exceeds its framing limit")
 
     return raw
@@ -125,7 +125,7 @@ def _size(header, maximum):
 
     (size,) = struct.unpack("!I", header)
 
-    if not 0 < size <= maximum:
+    if not (0 < size <= maximum):
         raise ValueError("Interpreter child message exceeds its admitted limit")
 
     return size
@@ -140,13 +140,13 @@ def read_request(stream, maximum_bytes):
 
     document = read_document(raw, maximum_bytes)
 
-    if type(document) is not dict:
+    if not (type(document) is dict):
         raise TypeError(
             f"Unexpected {type(document)=}; "
             "Interpreter child request must be a JSON object"
         )
 
-    if type(document.get("version")) is not int:
+    if not (type(document.get("version")) is int):
         raise TypeError(
             f"Unexpected {type(document.get('version'))=}; "
             "Interpreter child request has an unknown schema"
@@ -182,7 +182,7 @@ def _read_headers(headers):
     remaining = METADATA_BYTES
 
     for pair in headers:
-        if type(pair) is not list:
+        if not (type(pair) is list):
             raise TypeError(
                 f"Unexpected {type(pair)=}; "
                 "Interpreter child header must be a two-element list"
@@ -194,7 +194,7 @@ def _read_headers(headers):
         (name, value) = (decoded_bytes(part, remaining) for part in pair)
         remaining -= len(name) + len(value)
 
-        if not 0 <= remaining:
+        if not (0 <= remaining):
             raise ValueError("Interpreter child headers exceed their admitted limit")
 
         result.append((name, value))
@@ -203,7 +203,7 @@ def _read_headers(headers):
 
 
 def _status(value):
-    if type(value) is not int:
+    if not (type(value) is int):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             "Interpreter child HTTP status must be an integer"
@@ -236,7 +236,7 @@ def failure_message(failure):
         if identity in seen:
             return seen[identity]
 
-        if not len(nodes) < _ERROR_NODES:
+        if not (len(nodes) < _ERROR_NODES):
             raise ValueError("Interpreter child failure evidence exceeds its graph limit")
 
         index = seen[identity] = len(nodes)
@@ -313,7 +313,7 @@ def _read_failure(document):
         if index is None:
             return None
 
-        if type(index) is not int:
+        if not (type(index) is int):
             raise TypeError(
                 f"Unexpected {type(index)=}; "
                 "Interpreter child failure reference must be an integer graph index"
@@ -346,7 +346,7 @@ def _read_failure(document):
         elif kind in ("builtins.ExceptionGroup", "builtins.BaseExceptionGroup"):
             children = node["children"]
 
-            if type(children) is not list:
+            if not (type(children) is list):
                 raise TypeError(
                     f"Unexpected {type(children)=}; "
                     "Interpreter child exception group must contain a list of graph references"
@@ -384,7 +384,7 @@ def _read_failure(document):
     for (current, node) in zip(errors, nodes):
         (current.__cause__, current.__context__) = (error(node["cause"]), error(node["context"]))
 
-        if type(node["suppress_context"]) is not bool:
+        if not (type(node["suppress_context"]) is bool):
             raise TypeError(
                 f"Unexpected {type(node['suppress_context'])=}; "
                 "Interpreter child failure context flag is malformed"
@@ -439,7 +439,7 @@ def _read_failure(document):
 
     cleanup = document["cleanup"]
 
-    if type(cleanup) is not list:
+    if not (type(cleanup) is list):
         raise TypeError(
             f"Unexpected {type(cleanup)=}; "
             "Interpreter child cleanup obligations must be a list of graph references"
@@ -462,13 +462,13 @@ def _read_failure(document):
 
 
 def read_reply(document, *, maximum_bytes, error_maximum_bytes):
-    if type(document) is not dict:
+    if not (type(document) is dict):
         raise TypeError(
             f"Unexpected {type(document)=}; "
             "Interpreter child reply must be a JSON object"
         )
 
-    if type(document.get("version")) is not int:
+    if not (type(document.get("version")) is int):
         raise TypeError(
             f"Unexpected {type(document.get('version'))=}; "
             "Interpreter child reply has an unknown schema"

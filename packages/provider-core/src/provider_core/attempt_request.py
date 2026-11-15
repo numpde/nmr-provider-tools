@@ -22,7 +22,7 @@ from provider_core.upload_response import require_job_ref
 
 
 def require_provider_attempt_key(value):
-    if type(value) is not str:
+    if not (type(value) is str):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             "Provider attempt key must contain 1 through 128 ASCII letters, digits, dots, underscores, colons or hyphens"
@@ -57,7 +57,7 @@ def require_start_body(body, *, job_ref):
     except ResponseRejected as cause:
         raise ValueError(f"Cannot start Execution Attempt: retained request is invalid: {cause}") from None
 
-    if type(document) is not dict:
+    if not (type(document) is dict):
         raise TypeError(
             f"Unexpected {type(document)=}; "
             "Cannot start Execution Attempt: retained request fields do not match the start schema"
@@ -91,7 +91,7 @@ def progress_body(phase, condition_code):
     exception/input/endpoint text. Grammar checks cannot establish that provenance.
     """
 
-    if phase not in ("preparing", "running"):
+    if not (phase in ("preparing", "running")):
         raise ValueError("Cannot report Attempt progress: phase must be preparing or running")
 
     if condition_code is not None and (
@@ -114,7 +114,7 @@ def progress_body(phase, condition_code):
 
 
 def require_provider_ref(value):
-    if type(value) is not str:
+    if not (type(value) is str):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             "Provider reference must be provider: followed by 1 through 119 letters, digits, underscores, dots or hyphens"
@@ -127,7 +127,7 @@ def require_provider_ref(value):
 
 
 def _scalar_text(value, label):
-    if type(value) is not str:
+    if not (type(value) is str):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             f"Cannot publish Attempt outcome: {label} must contain 1 through 1024 Unicode scalar values without NUL"
@@ -157,7 +157,7 @@ def complete_body(execution_attempt_ref, result_schema_id, result):
     require_attempt_ref(execution_attempt_ref)
     _scalar_text(result_schema_id, "result schema identity")
 
-    if type(result) is not bytes:
+    if not (type(result) is bytes):
         raise TypeError(
             f"Unexpected {type(result)=}; "
             "Cannot publish Attempt result: content must be immutable bytes with length 1 through 786432"
@@ -205,7 +205,7 @@ def _outcome_document(body, operation, limit, execution_attempt_ref, fields):
     except ResponseRejected as cause:
         raise ValueError(f"Cannot publish Attempt outcome: retained request is invalid: {cause}") from None
 
-    if type(document) is not dict:
+    if not (type(document) is dict):
         raise TypeError(
             f"Unexpected {type(document)=}; "
             "Cannot publish Attempt outcome: retained fields do not match the terminal request schema"
@@ -237,7 +237,7 @@ def read_complete_body(body, *, execution_attempt_ref):
     _scalar_text(document["result_schema_id"], "result schema identity")
     encoded = document["canonical_result_base64"]
 
-    if type(encoded) is not str:
+    if not (type(encoded) is str):
         raise TypeError(
             f"Unexpected {type(encoded)=}; "
             "Cannot publish Attempt result: base64 content must contain 1 through 1048576 characters"

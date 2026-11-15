@@ -47,7 +47,7 @@ class Science(Contribution):
         if self.load_entered is not None:
             self.load_entered.set()
 
-            if not self.load_release.wait(timeout=5):
+            if not (self.load_release.wait(timeout=5)):
                 raise TimeoutError("Test did not release scientific loading")
 
     @operation(state_outputs=(prepared,))
@@ -57,10 +57,10 @@ class Science(Contribution):
         if self.entered is not None:
             self.entered.set()
 
-            if not self.release.wait(timeout=5):
+            if not (self.release.wait(timeout=5)):
                 raise TimeoutError("Test did not release scientific preparation")
 
-        if self.failure is not None:
+        if not (self.failure is None):
             raise self.failure
 
         if sample.value < 0:

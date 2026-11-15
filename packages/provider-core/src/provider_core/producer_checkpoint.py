@@ -42,7 +42,7 @@ SCHEMA = "provider_core.producer_checkpoint.v1"
 def checkpoint_volume_name(scope, *, namespace="nmr-api-delivery"):
     """Keep producer control private to its original API/provider/lane/generation."""
 
-    if type(scope) is not RecoveryScope:
+    if not (type(scope) is RecoveryScope):
         raise TypeError(
             f"Unexpected {type(scope)=}; "
             "Checkpoint volume naming requires the admitted recovery scope."
@@ -54,7 +54,7 @@ def checkpoint_volume_name(scope, *, namespace="nmr-api-delivery"):
 
 
 def _require_digest(value):
-    if type(value) is not str:
+    if not (type(value) is str):
         raise TypeError(
             f"Unexpected {type(value)=}; "
             "A control checkpoint digest must be a canonical SHA-256 identity."
@@ -85,7 +85,7 @@ class EvidenceDigest:
 
     @classmethod
     def from_evidence(cls, evidence):
-        if type(evidence) is not ProtectedEvidence:
+        if not (type(evidence) is ProtectedEvidence):
             raise TypeError(
                 f"Unexpected {type(evidence)=}; "
                 "Digest the actual protected prepared identity before retaining control metadata."
@@ -102,7 +102,7 @@ class AcknowledgedCheckpoint:
     admission: AttemptAdmission
 
     def __post_init__(self):
-        if type(self.start) is not StartPending:
+        if not (type(self.start) is StartPending):
             raise TypeError(
                 f"Unexpected {type(self.start)=}; "
                 "An acknowledgement checkpoint requires its exact pending START."
@@ -120,7 +120,7 @@ class EnteredCheckpoint:
     prepared: EvidenceDigest
 
     def __post_init__(self):
-        if type(self.acknowledgement) is not AcknowledgedCheckpoint:
+        if not (type(self.acknowledgement) is AcknowledgedCheckpoint):
             raise TypeError(
                 f"Unexpected {type(self.acknowledgement)=}; "
                 "Execution entry requires an active acknowledgement and only its prepared identity digest."
@@ -129,7 +129,7 @@ class EnteredCheckpoint:
         if self.acknowledgement.admission.state != "in_progress":
             raise ValueError("Execution entry requires an active acknowledgement and only its prepared identity digest.")
 
-        if type(self.prepared) is not EvidenceDigest:
+        if not (type(self.prepared) is EvidenceDigest):
             raise TypeError(
                 f"Unexpected {type(self.prepared)=}; "
                 "Execution entry requires an active acknowledgement and only its prepared identity digest."
@@ -156,7 +156,7 @@ def checkpoint_acknowledgement(checkpoint):
 
 
 def _require_active(checkpoint):
-    if type(checkpoint) not in (AcknowledgedCheckpoint, EnteredCheckpoint):
+    if not (type(checkpoint) in (AcknowledgedCheckpoint, EnteredCheckpoint)):
         raise ValueError("A terminal control decision requires an acknowledged or entered checkpoint.")
 
     if checkpoint_acknowledgement(checkpoint).admission.state != "in_progress":
@@ -175,7 +175,7 @@ class TerminalSelectedCheckpoint:
     def __post_init__(self):
         _require_active(self.attempt)
 
-        if type(self.operation) is not TerminalOperation:
+        if not (type(self.operation) is TerminalOperation):
             raise TypeError(
                 f"Unexpected {type(self.operation)=}; "
                 "Terminal selection requires an explicit complete or fail operation."
@@ -200,7 +200,7 @@ class DeliveryAcceptedCheckpoint:
     selection: TerminalSelectedCheckpoint
 
     def __post_init__(self):
-        if type(self.selection) is not TerminalSelectedCheckpoint:
+        if not (type(self.selection) is TerminalSelectedCheckpoint):
             raise TypeError(
                 f"Unexpected {type(self.selection)=}; "
                 "Delivery acceptance requires the original selected command identity."
@@ -217,7 +217,7 @@ class SuppressedCheckpoint:
     def __post_init__(self):
         _require_active(self.attempt)
 
-        if type(self.reason) is not SuppressionReason:
+        if not (type(self.reason) is SuppressionReason):
             raise TypeError(
                 f"Unexpected {type(self.reason)=}; "
                 "Suppression requires the owned disposition, without scientific payloads."

@@ -15,7 +15,7 @@ def regular_file(path):
     descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
 
     try:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
+        if not (stat.S_ISREG(os.fstat(descriptor).st_mode)):
             raise ValueError(f"Cannot read artifact {path}: expected a regular file without a symlink.")
 
         with os.fdopen(descriptor, "rb", closefd=False) as stream:

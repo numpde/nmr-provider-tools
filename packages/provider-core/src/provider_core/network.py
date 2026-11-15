@@ -259,7 +259,7 @@ class _NetworkByteStream(anyio.abc.ByteStream):
     async def receive(self, max_bytes=65536):
         data = await self.stream.read(max_bytes)
 
-        if not data:
+        if not (data):
             raise anyio.EndOfStream
 
         return data

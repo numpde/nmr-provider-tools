@@ -160,7 +160,7 @@ def worker_pid(channel, command=b"S"):
     while not reply.endswith(b"\n"):
         part = channel.recv(1)
 
-        if not part:
+        if not (part):
             raise RuntimeError("Scientific child closed before reporting its process identity")
 
         reply.extend(part)
