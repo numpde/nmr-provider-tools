@@ -32,6 +32,8 @@ from provider_core.hosting import (
     ResourceState,
     StateArgument,
     positive_seconds,
+    settle_cleanup,
+    _raise_context_failure,
 )
 from provider_core._embedded_operation import _Operation
 from provider_core._embedded_support import (
@@ -46,7 +48,12 @@ from provider_core._embedded_support import (
 
 
 class EmbeddedHost:
-    """Administrative owner of fixed local allocations, separate from analyses."""
+    """Own adopted scientific objects and their local SDK execution resources.
+
+    An async context joins original retirement before propagating cancellation or
+    work failures. Caller-owned request tasks and receivers must finish inside it.
+    A cleanup failure remains visible; scope exit does not claim disposal succeeded.
+    """
 
     capabilities = EMBEDDED_CAPABILITIES
 
@@ -113,6 +120,22 @@ class EmbeddedHost:
         self.state_reserved = 0
         self.retirement = None
         self.retiring = False
+
+    async def __aenter__(self) -> EmbeddedHost:
+        """Keep this host alive around explicitly nested request/resource owners."""
+        return self
+
+    async def __aexit__(self, exception_type, exception, traceback) -> None:
+        """Join original SDK retirement, then propagate work or cleanup failures.
+
+        Caller-owned request tasks and receivers must finish inside this context.
+        Cancellation is deferred while SDK cleanup is pending, not used to force
+        scientific threads to stop. Failure does not claim all resources retired.
+        """
+        try:
+            await settle_cleanup(control=self.retire())
+        except BaseException as cleanup:
+            _raise_context_failure(original=exception, cleanup=cleanup)
 
     # silent-defaults: allow-contract -- No file assets, no resident requirements and shared-process execution describe the ordinary embedded contribution contract.
     def adopt(

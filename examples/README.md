@@ -28,3 +28,10 @@ fails. Matching configuration values do not make deployment choices SDK policy.
 `consume()` starts or joins its original receiver attempt. Context exit settles
 that same attempt before outer resources close, preserving independent errors.
 It does not resend a failed receiver or decide when scientific execution stops.
+
+NMRPeak, Reference and Spectrum use the SDK host context for original retirement and error
+propagation. Reference deliberately keeps analysis cleanup explicit: an earlier
+usable report must be delivered before waiting for a later failed query's
+cleanup. Receiver/request tasks must finish inside the host context. SDK
+`settle_cleanup` defers cancellation while observing pending cleanup; the existing
+`observe_cleanup` remains an interruptible wait.

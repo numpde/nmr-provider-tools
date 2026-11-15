@@ -14,7 +14,7 @@ from pathlib import Path
 import tomllib
 
 from provider_core.embedded_host import EmbeddedHost
-from provider_core.hosting import OperationPolicy, observe_cleanup
+from provider_core.hosting import OperationPolicy, settle_cleanup
 from provider_core.interpreter import EndpointFactory, Interpreter
 from provider_core.scientific import HostedContribution, ResourceRequirement
 
@@ -65,7 +65,7 @@ class Provider:
             execution = self.host.open_analysis(allocations=frozenset({offering.allocation}))
 
             async def close_execution() -> None:
-                await observe_cleanup(control=execution.close())
+                await settle_cleanup(control=execution.close())
 
             cleanup_actions.insert(0, close_execution)
             prediction = Prediction(
@@ -111,8 +111,7 @@ async def open_provider(
     """
     with PROVIDER_CONFIG_PATH.open(mode="rb") as source:
         provider_config = tomllib.load(source)
-    host = EmbeddedHost(**provider_config["execution"]["embedded_host"])
-    try:
+    async with EmbeddedHost(**provider_config["execution"]["embedded_host"]) as host:
         operation_policy = OperationPolicy(**provider_config["execution"]["operation_policy"])
         requested_requirements = frozenset(
             ResourceRequirement(**resource_requirement)
@@ -136,14 +135,3 @@ async def open_provider(
                 **provider_config["interpreter"],
             ),
         )
-    except BaseException as original:
-        try:
-            await observe_cleanup(control=host.retire())
-        except BaseException as cleanup:
-            raise BaseExceptionGroup(
-                "Provider work and retirement failed independently",
-                [original, cleanup],
-            ) from None
-        raise
-    else:
-        await observe_cleanup(control=host.retire())

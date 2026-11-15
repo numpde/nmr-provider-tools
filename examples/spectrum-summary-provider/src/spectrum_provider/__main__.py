@@ -18,98 +18,99 @@ from .science import Spectrum
 
 
 async def run_demo() -> None:
-    """Print one consumed report and observe analysis and host cleanup separately."""
+    """Consume one report, then close analysis before the SDK host context exits.
+
+    Explicit result/analysis observations retain their caller timeouts. The outer
+    host context joins original retirement instead of abandoning pending cleanup
+    when an observer cap expires.
+    """
     # Scientific requirements come from resources.toml; adoption records them
     # without claiming that hardware has been reserved.
-    host = EmbeddedHost(
+    async with EmbeddedHost(
         input_bytes=8192,
         result_bytes=8192,
         state_values=1,
         progress_records=1,
         initialization_seconds=5,
         retirement_seconds=5,
-    )
-    analysis = None
-    workflow = None
-    causes = []
+    ) as host:
+        analysis = None
+        workflow = None
+        causes = []
 
 
-    async def print_report(payload: bytes) -> None:
-        # Flushed stdout is this demo's consumer, not a durable report queue.
-        sys.stdout.buffer.write(payload + b"\n")
-        sys.stdout.buffer.flush()
+        async def print_report(payload: bytes) -> None:
+            # Flushed stdout is this demo's consumer, not a durable report queue.
+            sys.stdout.buffer.write(payload + b"\n")
+            sys.stdout.buffer.flush()
 
-    try:
-        bindings = create_bindings(
-            host=host,
-        )
-        baseline, = [binding for binding in bindings if isinstance(binding.contribution, Baseline)]
-        peaks, = [binding for binding in bindings if isinstance(binding.contribution, Peaks)]
-        analysis = host.open_analysis(allocations=frozenset({baseline.allocation, peaks.allocation}))
-        baseline_reservation = analysis.reservation(allocation=baseline.allocation)
-        peak_reservation = analysis.reservation(allocation=peaks.allocation)
-        baseline_call = baseline.call(method=Baseline.run)
-        operation_policy = OperationPolicy(
-            queue_stop_request_seconds=5,
-            execution_stop_request_seconds=10,
-            cleanup_overdue_flag_seconds=5,
-            reject_encoded_input_over_bytes=4096,
-            reject_encoded_result_over_bytes=4096,
-        )
-        workflow = PeakWorkflow(
-            execution=analysis,
-            baseline=Invocation(
-                target=ref(call=baseline_call),
-                payload=baseline_call.input_codec.encode(
-                    value=Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
+        try:
+            bindings = create_bindings(
+                host=host,
+            )
+            baseline, = [binding for binding in bindings if isinstance(binding.contribution, Baseline)]
+            peaks, = [binding for binding in bindings if isinstance(binding.contribution, Peaks)]
+            analysis = host.open_analysis(allocations=frozenset({baseline.allocation, peaks.allocation}))
+            baseline_reservation = analysis.reservation(allocation=baseline.allocation)
+            peak_reservation = analysis.reservation(allocation=peaks.allocation)
+            baseline_call = baseline.call(method=Baseline.run)
+            operation_policy = OperationPolicy(
+                queue_stop_request_seconds=5,
+                execution_stop_request_seconds=10,
+                cleanup_overdue_flag_seconds=5,
+                reject_encoded_input_over_bytes=4096,
+                reject_encoded_result_over_bytes=4096,
+            )
+            workflow = PeakWorkflow(
+                execution=analysis,
+                baseline=Invocation(
+                    target=ref(call=baseline_call),
+                    payload=baseline_call.input_codec.encode(
+                        value=Spectrum(positions=(0, 1, 2, 3, 4), intensities=(1, 4, 2, 5, 1)),
+                    ),
+                    states=(), reservation=baseline_reservation, policy=operation_policy,
                 ),
-                states=(), reservation=baseline_reservation, policy=operation_policy,
-            ),
-            peaks=peaks.reference(method=Peaks.run),
-            peak_reservation=peak_reservation, policy=operation_policy,
-        )
-        started = workflow.start()
-        if isinstance(started, NotAdmitted):
-            raise RuntimeError(f"Baseline admission refused: {started.code.value}: {started.message}")
-        async with asyncio.timeout(15):
-            result = await workflow.finish()
-        if isinstance(result, NotAdmitted):
-            raise RuntimeError(f"Peak admission refused: {result.code.value}: {result.message}")
-        consumption = ResultConsumption(
-            operation=workflow.peak_operation,
-            result=result.require_result(),
-            receive=print_report,
-        )
-        async with consumption:
+                peaks=peaks.reference(method=Peaks.run),
+                peak_reservation=peak_reservation, policy=operation_policy,
+            )
+            started = workflow.start()
+            if isinstance(started, NotAdmitted):
+                raise RuntimeError(f"Baseline admission refused: {started.code.value}: {started.message}")
             async with asyncio.timeout(15):
-                await consumption.consume()
-    except BaseException as cause:
-        causes.append(cause)
-    finally:
-        if analysis is not None:
-            analysis.request_stop()
-        if workflow is not None and workflow.baseline_release is not None:
-            try:
+                result = await workflow.finish()
+            if isinstance(result, NotAdmitted):
+                raise RuntimeError(f"Peak admission refused: {result.code.value}: {result.message}")
+            consumption = ResultConsumption(
+                operation=workflow.peak_operation,
+                result=result.require_result(),
+                receive=print_report,
+            )
+            async with consumption:
                 async with asyncio.timeout(15):
-                    await observe_cleanup(control=workflow.baseline_release)
-            except BaseException as cause:
-                causes.append(cause)
-        # Try both owners even if one reports failure, preserving every cause.
-        cleanup_requests = []
-        if analysis is not None:
-            cleanup_requests.append(analysis.close)
-        cleanup_requests.append(host.retire)
-        for request in cleanup_requests:
-            try:
-                control = request()
-                async with asyncio.timeout(15):
-                    await observe_cleanup(control=control)
-            except BaseException as cause:
-                causes.append(cause)
-    if len(causes) == 1:
-        raise causes[0]
-    if causes:
-        raise BaseExceptionGroup("The example and its cleanup reported failures.", causes)
+                    await consumption.consume()
+        except BaseException as cause:
+            causes.append(cause)
+        finally:
+            if analysis is not None:
+                analysis.request_stop()
+            if workflow is not None and workflow.baseline_release is not None:
+                try:
+                    async with asyncio.timeout(15):
+                        await observe_cleanup(control=workflow.baseline_release)
+                except BaseException as cause:
+                    causes.append(cause)
+            # Preserve analysis cleanup failures; host retirement follows on scope exit.
+            if analysis is not None:
+                try:
+                    control = analysis.close()
+                    async with asyncio.timeout(15):
+                        await observe_cleanup(control=control)
+                except BaseException as cause:
+                    causes.append(cause)
+        if len(causes) == 1:
+            raise causes[0]
+        if causes:
+            raise BaseExceptionGroup("The example and its cleanup reported failures.", causes)
 
 
 if __name__ == "__main__":

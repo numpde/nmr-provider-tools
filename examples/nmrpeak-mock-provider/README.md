@@ -48,8 +48,9 @@ allocate hardware. The deployment must provide the requested CPU/GPU resources.
 Model loading begins when scientific work first needs that object. Interpretation
 limits are passed to each new SDK interpreter, which validates them on construction.
 
-The provider context retires scientific objects on exit, including after partial
-assembly. The surrounding service must finish its request contexts before leaving
+The provider uses the SDK host context to retire scientific objects on exit,
+including after partial assembly. SDK settlement joins original cleanup before
+propagating observer interruptions; it does not force a running thread to stop. The surrounding service must finish its request contexts before leaving
 it, for example by keeping its request task group inside the provider context.
 Independent work and retirement failures retain their original causes.
 

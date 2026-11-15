@@ -14,9 +14,10 @@ import asyncio
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from enum import Enum
+from functools import partial
 import math
 import re
-from typing import Protocol
+from typing import Never, Protocol
 from uuid import uuid4
 
 from provider_core.contribution import (
@@ -533,6 +534,84 @@ async def observe_cleanup(
     return observation
 
 
+def _observe_owned_task(task: asyncio.Task) -> None:
+    # Retrieve detached diagnostics without replacing the original task or cause.
+    if not task.cancelled():
+        task.exception()
+
+
+def _start_owned_task[ResultT](operation: Callable[[], Awaitable[ResultT]]) -> asyncio.Task[ResultT]:
+    """Start one contained task and retain its diagnostics even between observers."""
+    coroutine = contain_task_exit(operation)
+    try:
+        task = asyncio.create_task(coro=coroutine)
+    except BaseException:
+        coroutine.close()
+        raise
+    task.add_done_callback(_observe_owned_task)
+    return task
+
+
+async def _join_settlement[ResultT](*, task: asyncio.Task[ResultT]) -> ResultT:
+    """Defer observer cancellation until this exact cleanup task returns or fails."""
+    interruptions = []
+    waiter = asyncio.current_task()
+    while True:
+        cancellations_before_wait = waiter.cancelling()
+        try:
+            result = await asyncio.shield(task)
+        except asyncio.CancelledError as cause:
+            # A caller interruption can race with child completion. Retain
+            # it before observing the child's terminal result on the next
+            # pass; the owned task's cancellation instead ends settlement.
+            if waiter.cancelling() > cancellations_before_wait:
+                interruptions.append(cause)
+                continue
+            if interruptions:
+                raise BaseExceptionGroup(
+                    "Cleanup cancellation and interrupted shutdown observation.",
+                    [*interruptions, cause],
+                )
+            raise
+        except BaseException as cause:
+            if interruptions:
+                raise BaseExceptionGroup(
+                    "Cleanup failed while shutdown observation was interrupted.",
+                    [*interruptions, cause],
+                )
+            raise
+        else:
+            if len(interruptions) == 1:
+                raise interruptions[0]
+            if interruptions:
+                raise BaseExceptionGroup("Shutdown observation was interrupted.", interruptions)
+            return result
+
+
+def _raise_context_failure(*, original: BaseException | None, cleanup: BaseException) -> Never:
+    """Keep a lone original cause intact; group independent work and cleanup errors."""
+    if original is None or cleanup is original:
+        raise cleanup
+    raise BaseExceptionGroup(
+        "Context work and SDK cleanup reported failures",
+        [original, cleanup],
+    ) from None
+
+
+async def settle_cleanup(
+    control: AnalysisCleanup | InstanceRetirement | ResultRelease,
+) -> CleanupObservation:
+    """Join already requested cleanup before propagating observer interruptions.
+
+    Unlike observe_cleanup, this shutdown join may wait indefinitely. Repeated
+    cancellation does not cancel cleanup or allow outer resources to close early.
+    Once cleanup returns or reports failure, propagate its original causes and
+    any observer interruptions. An overdue flag alone does not end settlement.
+    This observes the supplied control; it never repeats a cleanup request.
+    """
+    return await _join_settlement(task=_start_owned_task(operation=partial(observe_cleanup, control=control)))
+
+
 class ResultConsumption:
     """Own one receiver attempt and the subsequent release of an exact result.
 
@@ -571,12 +650,7 @@ class ResultConsumption:
         try:
             await self.settle()
         except BaseException as cleanup:
-            if exception is None or cleanup is exception:
-                raise
-            raise BaseExceptionGroup(
-                "Context work and result settlement failed independently",
-                [exception, cleanup],
-            ) from None
+            _raise_context_failure(original=exception, cleanup=cleanup)
 
     @property
     def operation(self) -> Operation:
@@ -594,32 +668,14 @@ class ResultConsumption:
     def release(self) -> ResultRelease | None:
         return self._release
 
-    @staticmethod
-    def _observe_task(task: asyncio.Task) -> None:
-        # A cancelled waiter may leave nobody currently awaiting this task.
-        # Retrieve its diagnostic while retaining the original task and cause.
-        if not task.cancelled():
-            task.exception()
-
     async def _accept(self) -> None:
         payload = await self.operation.read_result(self.result)
         await self._receive(payload)
 
-    @staticmethod
-    def _create_task(operation) -> asyncio.Task:
-        coroutine = contain_task_exit(operation)
-        try:
-            task = asyncio.create_task(coroutine)
-        except BaseException:
-            coroutine.close()
-            raise
-        task.add_done_callback(ResultConsumption._observe_task)
-        return task
-
     def start(self) -> asyncio.Task[None]:
         """Retain the original read/receiver task before its first async effect."""
         if self.acceptance is None:
-            self._acceptance = self._create_task(self._accept)
+            self._acceptance = _start_owned_task(operation=self._accept)
         return self.acceptance
 
     async def wait_for_acceptance(self) -> None:
@@ -651,36 +707,4 @@ class ResultConsumption:
         """
         if self.acceptance is None:
             return None
-        settlement = self._create_task(self.consume)
-        interruptions = []
-        waiter = asyncio.current_task()
-        while True:
-            cancellations_before_wait = waiter.cancelling()
-            try:
-                observation = await asyncio.shield(settlement)
-            except asyncio.CancelledError as cause:
-                # A caller interruption can race with child completion. Retain
-                # it before observing the child's terminal result on the next
-                # pass; a receiver's own cancellation instead ends settlement.
-                if waiter.cancelling() > cancellations_before_wait:
-                    interruptions.append(cause)
-                    continue
-                if interruptions:
-                    raise BaseExceptionGroup(
-                        "Consumption cancellation and interrupted shutdown observation.",
-                        [*interruptions, cause],
-                    )
-                raise
-            except BaseException as cause:
-                if interruptions:
-                    raise BaseExceptionGroup(
-                        "Consumption failed while shutdown observation was interrupted.",
-                        [*interruptions, cause],
-                    )
-                raise
-            else:
-                if len(interruptions) == 1:
-                    raise interruptions[0]
-                if interruptions:
-                    raise BaseExceptionGroup("Shutdown observation was interrupted.", interruptions)
-                return observation
+        return await _join_settlement(task=_start_owned_task(operation=self.consume))

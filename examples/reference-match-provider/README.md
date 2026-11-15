@@ -86,3 +86,10 @@ attributes rather than manually assigned labels.
 Adoption records resource requirements and establishes scientific-object ownership.
 It does not discover or allocate CPU/GPU hardware. The returned allocation handle
 identifies an execution owner, not a hardware grant.
+
+The demo's SDK host context joins original retirement before exiting. Query and
+analysis-cleanup observation waits retain their 15-second caller caps; final host
+settlement can wait longer while the original cleanup is pending. A cap does not
+force science to stop. Earlier usable reports are consumed before waiting for
+cleanup of a later failed query. That ordering is provider policy, so analysis
+cleanup remains explicit.

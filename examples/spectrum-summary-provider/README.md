@@ -117,3 +117,9 @@ attributes rather than manually assigned labels.
 Adoption records resource requirements and establishes scientific-object ownership.
 It does not discover or allocate CPU/GPU hardware. The returned allocation handle
 identifies an execution owner, not a hardware grant.
+
+The SDK host context joins original retirement after receiver settlement,
+intermediate-result release and analysis cleanup. Those explicit observations
+keep their caller timeouts; final host settlement can wait longer rather than
+abandon pending SDK cleanup. Cleanup failure remains an error, not confirmation
+that resources were released.

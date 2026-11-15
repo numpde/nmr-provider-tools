@@ -65,6 +65,18 @@ independent body and settlement failures. Entering does not start delivery, and
 repeated waits never resend. The provider still owns pipeline ordering, execution
 stop decisions and the lifetime of the receiver's external resources.
 
+`EmbeddedHost` is also an async context manager. Put request tasks and receiver
+contexts inside the host lifetime. Its exit requests SDK retirement and joins the
+original cleanup, deferring cancellation until cleanup completes or reports a
+failure. A failure does not establish that every resource retired. The host does
+not join arbitrary caller-owned tasks or receivers.
+
+Use `observe_cleanup(control=...)` for an interruptible observation of retained
+cleanup. Use `settle_cleanup(control=...)` when shutdown must finish observing that
+cleanup before outer resources can close. Settlement can wait indefinitely;
+cleanup's overdue flag does not cancel a scientific thread or end the join. Both
+functions observe an existing control without repeating its cleanup request.
+
 ## Scientific input tools
 
 Providers using interpretation can expose an existing scientific method without

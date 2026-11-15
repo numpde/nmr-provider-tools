@@ -110,8 +110,32 @@ class ReferenceWorkflowTests(unittest.IsolatedAsyncioTestCase):
                 raise cause
             return original_match(index=index, settings=settings, candidate=candidate)
 
+        def observed_host(**options):
+            owner = EmbeddedHost(**options)
+            original_open = owner.open_analysis
+            opened = []
+
+            def open_analysis(*, allocations):
+                analysis = original_open(allocations=allocations)
+                opened.append(analysis)
+                if len(opened) == 2:
+                    original_close = analysis.close
+
+                    def close():
+                        # Report acceptance is independent of the failed query's
+                        # cleanup. Do not delay it behind that cleanup's wait.
+                        self.assertTrue(expr=bool(output.getvalue()), msg="Deliver the prior report before failed-query cleanup")
+                        return original_close()
+
+                    analysis.close = close
+                return analysis
+
+            owner.open_analysis = open_analysis
+            return owner
+
         with (
             patch("reference_provider.science.match", side_effect=fail_second),
+            patch.object(demo, "EmbeddedHost", side_effect=observed_host),
             patch.object(demo, "sys", SimpleNamespace(stdout=SimpleNamespace(buffer=output))),
         ):
             async with asyncio.timeout(15):
