@@ -42,7 +42,7 @@ class WeightedSum(sdk.Contribution):
 
     analysis_type = WeightedAnalysis
     _model: science.WeightedSumModel | None = None
-    prepared_state_type = sdk.StateTypeDescriptor(value_type=science.PreparedValues)
+    prepared_state_type = sdk.StateType(value_type=science.PreparedValues)
     normalized = prepared_state_type.output(dispose=science.dispose_prepared)
     candidate = prepared_state_type.input(use=sdk.StateUse.CONSUME)
 

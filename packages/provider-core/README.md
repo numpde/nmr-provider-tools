@@ -121,9 +121,9 @@ writing a second input schema. Install `provider-core[api]`; scientific records
 remain ordinary frozen/slotted dataclasses.
 
 ```python
-from provider_core.preparation_tool import PreparationToolHandler
+from provider_core.preparation_tool import PreparationTool
 
-preparation_handler = PreparationToolHandler(
+preparation_tool = PreparationTool(
     call_binding=hosted_predictor.call(method=hosted_predictor.contribution.prepare),
     state_output_slot=ScientificContribution.validated,
     analysis_executor=analysis_executor,
@@ -133,12 +133,12 @@ preparation_handler = PreparationToolHandler(
 )
 ```
 
-Pass `tools=[preparation_handler.definition]` and `dispatch=preparation_handler.dispatch` to `Interpreter.run`.
-The SDK decodes proposals, executes preparation, retains `preparation_handler.prepared_state_handle` for the
+Pass `tools=[preparation_tool.definition]` and `dispatch=preparation_tool.dispatch` to `Interpreter.run`.
+The SDK decodes proposals, executes preparation, retains `preparation_tool.prepared_state_handle` for the
 provider's next scientific method, and releases the temporary validation report.
 Input rejection permits model correction; operator failures retain their original
 causes. A confirmed start-window expiry permits the next model to try after the
-original work settles. `preparation_handler.resume()` resumes the original request or release
+original work settles. `preparation_tool.resume()` resumes the original request or release
 after cancellation or a lost reply, without submitting new science.
 
 The provider selects the preparation method and its output port; the SDK does not

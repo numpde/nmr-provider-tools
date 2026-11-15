@@ -11,8 +11,8 @@ from provider_core.contribution_errors import CallRejected
 from provider_core.embedded_host import InProcessExecutionHost
 from provider_core.hosting import NotAdmitted, OperationPolicy, ResultState, StartDeadlineExpired, observe_cleanup, observe_completion
 from provider_core.interpreter import Interpreter
-from provider_core.preparation_tool import PreparationToolHandler
-from provider_core.scientific import AssetAccess, Contribution, ScientificReturn, StateTypeDescriptor, StateUse, operation
+from provider_core.preparation_tool import PreparationTool
+from provider_core.scientific import AssetAccess, Contribution, ScientificReturn, StateType, StateUse, operation
 
 from tests.fakes.conversation import call, endpoint
 
@@ -27,7 +27,7 @@ def dispose(sample: Sample) -> None:
 
 
 class Science(Contribution):
-    kind = StateTypeDescriptor(value_type=Sample)
+    kind = StateType(value_type=Sample)
     prepared = kind.output(dispose=dispose)
     candidate = kind.input(use=StateUse.CONSUME)
 
@@ -66,7 +66,7 @@ class Science(Contribution):
         return candidate
 
 
-class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
+class PreparationToolTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.execution_host = await self.enterAsyncContext(InProcessExecutionHost(
             input_bytes=4096,
@@ -81,7 +81,7 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
         self.hosted_contribution = self.execution_host.adopt(contribution=self.science, requirements=frozenset())
         self.analysis_executor = self.execution_host.open_analysis(allocations=frozenset({self.hosted_contribution.allocation}))
 
-        self.preparation_handler = PreparationToolHandler(
+        self.preparation_tool = PreparationTool(
             call_binding=self.hosted_contribution.call(method=self.science.prepare),
             state_output_slot=Science.prepared,
             analysis_executor=self.analysis_executor,
@@ -97,8 +97,8 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
         )
 
     async def propose(self, *, value):
-        return await self.preparation_handler.dispatch(
-            name=self.preparation_handler.name,
+        return await self.preparation_tool.dispatch(
+            name=self.preparation_tool.name,
             arguments={"value": value},
             not_after=asyncio.get_running_loop().time() + 5,
         )
@@ -119,10 +119,10 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
         )
 
         self.addAsyncCleanup(interpreter.retire)
-        await interpreter.run(messages=[], tools=[self.preparation_handler.definition], dispatch=self.preparation_handler.dispatch)
+        await interpreter.run(messages=[], tools=[self.preparation_tool.definition], dispatch=self.preparation_tool.dispatch)
         self.assertEqual(first=[Sample(value=-1), Sample(value=2)], second=self.science.inputs)
-        self.assertEqual(first=self.preparation_handler.operation.reference, second=self.preparation_handler.prepared_state_handle.producer)
-        observation = await self.preparation_handler.operation.observe(after=None, wait_seconds=0)
+        self.assertEqual(first=self.preparation_tool.operation.reference, second=self.preparation_tool.prepared_state_handle.producer)
+        observation = await self.preparation_tool.operation.observe(after=None, wait_seconds=0)
         self.assertIs(expr1=ResultState.RELEASED, expr2=observation.result_state)
 
     async def test_operator_failure_is_original_and_cannot_restart_preparation(self):
@@ -137,7 +137,7 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_encoding_rejection_is_not_a_correctable_model_proposal(self):
         original = CallRejected(code="encoding", message="Report encoding failed")
-        codec = self.preparation_handler.tool_definition.call_binding.result_codec
+        codec = self.preparation_tool.tool_definition.call_binding.result_codec
         encode = type(codec).encode
 
         def fail_report(owner, value):
@@ -149,7 +149,7 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(expected_exception=CallRejected) as raised:
                 await self.propose(value=1)
         self.assertIs(expr1=original, expr2=raised.exception)
-        self.assertIsNone(obj=self.preparation_handler.prepared_state_handle)
+        self.assertIsNone(obj=self.preparation_tool.prepared_state_handle)
         self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
 
     async def test_report_release_failure_keeps_state_and_forbids_another_proposal(self):
@@ -173,16 +173,16 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(expected_exception=OSError) as raised:
                 await self.propose(value=1)
         self.assertIs(expr1=original, expr2=raised.exception)
-        self.assertIsNotNone(obj=self.preparation_handler.prepared_state_handle)
+        self.assertIsNotNone(obj=self.preparation_tool.prepared_state_handle)
         with self.assertRaises(expected_exception=RuntimeError):
             await self.propose(value=2)
         self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
 
         operation = self.analysis_executor.submit_method(
             method=self.science.consume,
-            states=(Science.candidate.bind(handle=self.preparation_handler.prepared_state_handle),),
-            reservation=self.preparation_handler.reservation_ref,
-            policy=self.preparation_handler.operation_policy,
+            states=(Science.candidate.bind(handle=self.preparation_tool.prepared_state_handle),),
+            reservation=self.preparation_tool.reservation_ref,
+            policy=self.preparation_tool.operation_policy,
         )
 
         self.assertNotIsInstance(obj=operation, cls=NotAdmitted)
@@ -201,7 +201,7 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
         task = asyncio.create_task(coro=self.propose(value=1))
         try:
             self.assertTrue(expr=await asyncio.to_thread(self.science.entered.wait, timeout=2))
-            original = self.preparation_handler.operation
+            original = self.preparation_tool.operation
             with self.assertRaises(expected_exception=RuntimeError):
                 await self.propose(value=0)
             task.cancel()
@@ -212,10 +212,10 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
             self.science.release.set()
             completed = await observe_completion(operation=original)
             completed.require_result()
-            await self.preparation_handler.resume()
+            await self.preparation_tool.resume()
             with self.assertRaises(expected_exception=RuntimeError):
                 await self.propose(value=3)
-            self.assertIs(expr1=original, expr2=self.preparation_handler.operation)
+            self.assertIs(expr1=original, expr2=self.preparation_tool.operation)
             self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
         finally:
             self.science.release.set()
@@ -241,7 +241,7 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
             self.assertIs(expr1=original, expr2=raised.exception)
             with self.assertRaises(expected_exception=RuntimeError):
                 await self.propose(value=2)
-            await self.preparation_handler.resume()
+            await self.preparation_tool.resume()
         self.assertIs(expr1=requests[0], expr2=requests[1])
         self.assertIs(expr1=operations[0], expr2=operations[1])
         self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
@@ -275,13 +275,13 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
 
         task = asyncio.create_task(coro=interpreter.run(
             messages=[],
-            tools=[self.preparation_handler.definition],
-            dispatch=self.preparation_handler.dispatch,
+            tools=[self.preparation_tool.definition],
+            dispatch=self.preparation_tool.dispatch,
         ))
 
         try:
             self.assertTrue(expr=await asyncio.to_thread(self.science.load_entered.wait, timeout=2))
-            expired = self.preparation_handler.operation
+            expired = self.preparation_tool.operation
             await asyncio.sleep(delay=max(0, first_deadline[0] - asyncio.get_running_loop().time()) + 0.01)
             self.assertFalse(expr=task.done())
             self.science.load_release.set()
@@ -292,7 +292,7 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
             self.assertIsInstance(obj=observed.failures[0].cause, cls=StartDeadlineExpired)
             self.assertEqual(first=1, second=self.science.initializations)
             self.assertEqual(first=[Sample(value=2)], second=self.science.inputs)
-            self.assertEqual(first=self.preparation_handler.operation.reference, second=self.preparation_handler.prepared_state_handle.producer)
+            self.assertEqual(first=self.preparation_tool.operation.reference, second=self.preparation_tool.prepared_state_handle.producer)
         finally:
             self.science.load_release.set()
             await asyncio.gather(task, return_exceptions=True)
@@ -323,8 +323,8 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
                 await self.propose(value=1)
             self.assertIs(expr1=original, expr2=raised.exception)
             await observe_cleanup(control=releases[0])
-            await self.preparation_handler.resume()
-            await self.preparation_handler.resume()
+            await self.preparation_tool.resume()
+            await self.preparation_tool.resume()
         self.assertIs(expr1=reports[0], expr2=reports[1])
         self.assertIs(expr1=releases[0], expr2=releases[1])
         self.assertEqual(first=[Sample(value=1)], second=self.science.inputs)
@@ -332,12 +332,12 @@ class PreparationToolHandlerTests(unittest.IsolatedAsyncioTestCase):
     async def test_foreign_output_is_rejected_before_science(self):
         foreign = Science.kind.output(name="foreign", dispose=dispose)
         with self.assertRaises(expected_exception=ValueError):
-            PreparationToolHandler(
-                call_binding=self.preparation_handler.tool_definition.call_binding,
+            PreparationTool(
+                call_binding=self.preparation_tool.tool_definition.call_binding,
                 state_output_slot=foreign,
                 analysis_executor=self.analysis_executor,
-                reservation_ref=self.preparation_handler.reservation_ref,
-                operation_policy=self.preparation_handler.operation_policy,
+                reservation_ref=self.preparation_tool.reservation_ref,
+                operation_policy=self.preparation_tool.operation_policy,
                 description="Cannot prepare into an undeclared output",
             )
 

@@ -22,7 +22,7 @@ from provider_core.state_slots import StateHandle, StateOutputSlot
 from provider_core.submission import Submission
 
 
-class PreparationToolHandler[PreparedT]:
+class PreparationTool[PreparedT]:
     """Accept scientific input through Interpreter and retain its prepared state.
 
     The provider selects the scientific call and its output port. The SDK derives

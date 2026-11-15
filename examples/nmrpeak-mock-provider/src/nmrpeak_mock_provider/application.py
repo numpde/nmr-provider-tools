@@ -17,7 +17,7 @@ from provider_core.hosting import (
 )
 
 from provider_core.interpreter import Interpreter
-from provider_core.preparation_tool import PreparationToolHandler
+from provider_core.preparation_tool import PreparationTool
 from provider_core.scientific import HostedContribution
 from provider_core.submission import Submission
 
@@ -47,7 +47,7 @@ class PredictionWorkflow:
         self.operation_policy = operation_policy
         reservation_ref, = analysis_executor.reservations
 
-        self.preparation_handler = PreparationToolHandler(
+        self.preparation_tool = PreparationTool(
             call_binding=hosted_predictor.call(method=hosted_predictor.contribution.prepare),
             state_output_slot=PeakContribution.validated,
             analysis_executor=analysis_executor,
@@ -70,8 +70,8 @@ class PredictionWorkflow:
 
         await self.interpreter.run(
             messages=[{"role": "system", "content": instructions}, {"role": "user", "content": source}],
-            tools=[self.preparation_handler.definition],
-            dispatch=self.preparation_handler.dispatch,
+            tools=[self.preparation_tool.definition],
+            dispatch=self.preparation_tool.dispatch,
         )
 
     async def deliver(self) -> None:
@@ -101,7 +101,7 @@ class PredictionWorkflow:
 
     async def finish(self):
         """Submit generate once, then wait on the same operation and return its result."""
-        if self.preparation_handler.prepared_state_handle is None:
+        if self.preparation_tool.prepared_state_handle is None:
             raise RuntimeError("Accept an interpretation before generating candidates")
         if self.generation_submission is None:
             reservation_ref, = self.analysis_executor.reservations
@@ -109,7 +109,7 @@ class PredictionWorkflow:
             self.generation_submission = Submission.from_call(
                 analysis_executor=self.analysis_executor,
                 call_binding=self.hosted_predictor.call(method=self.hosted_predictor.contribution.generate),
-                states=(PeakContribution.candidate.bind(handle=self.preparation_handler.prepared_state_handle),),
+                states=(PeakContribution.candidate.bind(handle=self.preparation_tool.prepared_state_handle),),
                 reservation_ref=reservation_ref,
                 operation_policy=self.operation_policy,
             )

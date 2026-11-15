@@ -189,14 +189,14 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             proton_formula_predictor, = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
             async with provider.open_prediction(offering=proton_formula_predictor, receive=RecordingReceiver()) as prediction_workflow:
                 with self.assertRaises(expected_exception=ModelWindowExpired) as raised:
-                    await prediction_workflow.preparation_handler.dispatch(
-                        name=prediction_workflow.preparation_handler.name,
+                    await prediction_workflow.preparation_tool.dispatch(
+                        name=prediction_workflow.preparation_tool.name,
                         arguments=candidate(carbon=False),
                         not_after=asyncio.get_running_loop().time() - 1,
                     )
 
                 self.assertIsInstance(obj=raised.exception.__cause__, cls=StartDeadlineExpired)
-                self.assertIsNone(obj=prediction_workflow.preparation_handler.operation)
+                self.assertIsNone(obj=prediction_workflow.preparation_tool.operation)
                 self.assertIsNone(obj=proton_formula_predictor.contribution.model)
 
     async def test_interpreter_deadline_waits_for_original_loading_to_settle(self):
@@ -214,8 +214,8 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             async with provider.open_prediction(offering=proton_formula_predictor, receive=RecordingReceiver()) as prediction_workflow:
                 deadline = asyncio.get_running_loop().time() + 1
 
-                task = asyncio.create_task(coro=prediction_workflow.preparation_handler.dispatch(
-                    name=prediction_workflow.preparation_handler.name,
+                task = asyncio.create_task(coro=prediction_workflow.preparation_tool.dispatch(
+                    name=prediction_workflow.preparation_tool.name,
                     arguments=candidate(carbon=False),
                     not_after=deadline,
                 ))
@@ -229,10 +229,10 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                         with self.assertRaises(expected_exception=ModelWindowExpired) as raised:
                             await task
                     self.assertIsInstance(obj=raised.exception.__cause__, cls=StartDeadlineExpired)
-                    self.assertIsNotNone(obj=prediction_workflow.preparation_handler.operation)
-                    observed = await prediction_workflow.preparation_handler.operation.observe(after=None, wait_seconds=0)
+                    self.assertIsNotNone(obj=prediction_workflow.preparation_tool.operation)
+                    observed = await prediction_workflow.preparation_tool.operation.observe(after=None, wait_seconds=0)
                     self.assertTrue(expr=observed.finished)
-                    self.assertIsNone(obj=prediction_workflow.preparation_handler.prepared_state_handle)
+                    self.assertIsNone(obj=prediction_workflow.preparation_tool.prepared_state_handle)
                 finally:
                     release.set()
                     await asyncio.gather(task, return_exceptions=True)
@@ -243,7 +243,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             proton_formula_predictor, = [offering for offering in provider.offerings if isinstance(offering.contribution, Hf)]
             async with provider.open_prediction(offering=proton_formula_predictor, receive=RecordingReceiver()) as prediction_workflow:
                 await prediction_workflow.interpret(source="Formula and proton spectrum")
-                self.assertIsNotNone(obj=prediction_workflow.preparation_handler.operation)
+                self.assertIsNotNone(obj=prediction_workflow.preparation_tool.operation)
                 self.assertEqual(first=2, second=len(self.factory.endpoints[0].requests))
 
     async def test_generation_lost_submission_reply_resumes_original_scientific_work(self):
@@ -289,7 +289,7 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
                 # submission must be refused before trying to reuse consumed input.
                 duplicate = prediction_workflow.analysis_executor.submit_method(
                     method=proton_formula_predictor.contribution.generate,
-                    states=(PeakContribution.candidate.bind(handle=prediction_workflow.preparation_handler.prepared_state_handle),),
+                    states=(PeakContribution.candidate.bind(handle=prediction_workflow.preparation_tool.prepared_state_handle),),
                     reservation=reservation,
                     policy=prediction_workflow.operation_policy,
                 )

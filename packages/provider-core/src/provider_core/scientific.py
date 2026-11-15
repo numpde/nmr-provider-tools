@@ -32,7 +32,7 @@ from provider_core.contribution import (
 
 from provider_core.payload import JsonDataclassCodec, PayloadCodec
 from provider_core.hosting import AllocationRef
-from provider_core.state_slots import StateInputSlot, StateTypeDescriptor, StateOutputSlot
+from provider_core.state_slots import StateInputSlot, StateType, StateOutputSlot
 
 
 @dataclass(frozen=True, slots=True, kw_only=True)

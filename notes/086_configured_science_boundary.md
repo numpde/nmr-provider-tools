@@ -77,7 +77,7 @@ records likewise receive generated identities and can be retained for transport
 resubmission. Explicit IDs remain a low-level protocol facility, not an authoring
 requirement.
 
-StateTypeDescriptor(value_type=PreparedInput) derives its identity from the scientific
+StateType(value_type=PreparedInput) derives its identity from the scientific
 Python type. Declare ports as class attributes, such as
 candidate = kind.input(use=StateUse.CONSUME). Python supplies the port name;
 that attribute matches the method's candidate parameter. Inherited ports retain

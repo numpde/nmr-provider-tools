@@ -15,7 +15,7 @@ from provider_core.payload import (
     PayloadRejected,
 )
 
-from provider_core.state_slots import SlotStateBinding, StateTypeDescriptor
+from provider_core.state_slots import SlotStateBinding, StateType
 from tests.fakes.dummy_provider import science
 
 from tests.fakes.dummy_provider.binding import (
@@ -438,7 +438,7 @@ class TypedContributionTests(unittest.TestCase):
     def test_one_state_kind_cannot_mean_different_python_types(self):
         binding = _weighted_binding()
 
-        wrong_input = StateTypeDescriptor(
+        wrong_input = StateType(
             name=binding.prepared_input.kind.name, value_type=science.SumResult,
         ).input(name=binding.prepared_input.name, use=contribution.StateUse.CONSUME)
 

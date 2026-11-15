@@ -23,7 +23,7 @@ from provider_core.hosting import Operation, OperationRef, StateArgument, StateR
 
 
 @dataclass(frozen=True, slots=True)
-class StateTypeDescriptor[T]:
+class StateType[T]:
     """A scientific state type; its qualified Python name supplies the identity.
 
     Explicit names remain available for existing portable contracts. Declare
@@ -52,7 +52,7 @@ class StateTypeDescriptor[T]:
 class StateHandle[T]:
     """A typed view of an observed reference, not a live scientific object."""
 
-    kind: StateTypeDescriptor[T]
+    kind: StateType[T]
     reference: StateRef
     def __post_init__(self) -> None:
         if self.reference.kind != self.kind.name:
@@ -68,7 +68,7 @@ class StateOutputSlot[T]:
     """Own a producer's output identity and its scientific disposal callback."""
 
     name: str | None = None
-    kind: StateTypeDescriptor[T]
+    kind: StateType[T]
     dispose: Callable[[T], None]
     _inferred: bool = field(init=False, repr=False)
 
@@ -139,7 +139,7 @@ class StateInputSlot[T]:
     """Name a consumer input independently of the producer's output name."""
 
     name: str | None = None
-    kind: StateTypeDescriptor[T]
+    kind: StateType[T]
     use: StateUse
     _inferred: bool = field(init=False, repr=False)
 

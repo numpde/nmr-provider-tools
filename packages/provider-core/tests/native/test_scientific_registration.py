@@ -201,9 +201,9 @@ class AdoptionTests(unittest.IsolatedAsyncioTestCase):
             adopt(host=self.host, contribution=Sum(configuration=Settings(scale=2)))
 
     async def test_state_ports_use_python_types_and_attribute_names(self):
-        from provider_core.scientific import StateTypeDescriptor, StateUse
+        from provider_core.scientific import StateType, StateUse
 
-        kind = StateTypeDescriptor(value_type=Total)
+        kind = StateType(value_type=Total)
 
         class Ports:
             produced = kind.output(dispose=lambda value: None)

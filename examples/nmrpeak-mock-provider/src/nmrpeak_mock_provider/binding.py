@@ -14,7 +14,7 @@ from .checkpoint import open_checkpoint
 
 
 class PeakContribution(sdk.Contribution):
-    prepared_state_type = sdk.StateTypeDescriptor(value_type=science.PreparedInput)
+    prepared_state_type = sdk.StateType(value_type=science.PreparedInput)
     validated = prepared_state_type.output(dispose=science.dispose_prepared)
     candidate = prepared_state_type.input(use=sdk.StateUse.CONSUME)
 

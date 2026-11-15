@@ -8,7 +8,7 @@ import provider_core.contribution as contribution
 import provider_core.contribution_declaration as declaration
 
 from provider_core.state_slots import (
-    SlotStateBinding, StateInputSlot, StateTypeDescriptor, StateOutputSlot,
+    SlotStateBinding, StateInputSlot, StateType, StateOutputSlot,
 )
 
 from . import science
@@ -52,7 +52,7 @@ def weighted_sum_binding(
     coefficients: science.CoefficientSet,
 ) -> WeightedSumBinding:
     """Bind immutable settings and coefficients to one weighted model revision."""
-    prepared_kind = StateTypeDescriptor(name="dummy.prepared-values.v1", value_type=science.PreparedValues)
+    prepared_kind = StateType(name="dummy.prepared-values.v1", value_type=science.PreparedValues)
 
     prepared_output = prepared_kind.output(
         name="normalized", dispose=science.dispose_prepared,
