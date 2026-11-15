@@ -137,8 +137,12 @@ The maintained lane builds and installs the SDK and example wheels, then runs
 outside the checkout. Tests run both offerings through the public request
 workflow, change beam size using external deployment configuration, and exercise
 input correction, retained delivery, concurrent waits, cancellation and original
-failure propagation. Lower-level scientific tests cover checkpoint errors,
-partially loaded models, prepared-input consumption and candidate validation.
+failure propagation. Provider tests cover checkpoint errors, partially loaded
+models, consumed-input ports and candidate validation through the same startup
+and request contexts.
+Generic receiver and retirement guarantees are tested in the shared SDK; test
+fixtures select external configuration and substitutes rather than assemble a
+second SDK runtime.
 
 The example declares `provider-core[api]` for shared schema generation. Scientific
 records remain standard frozen/slotted dataclasses; providers need no Pydantic

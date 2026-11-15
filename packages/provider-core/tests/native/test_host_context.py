@@ -77,6 +77,23 @@ class HostContextTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await settle_cleanup(control=original_retire())
 
+    async def test_body_and_native_retirement_failures_preserve_original_causes(self):
+        original = OSError("Owner work failed")
+        cleanup = RuntimeError("Native resource closure failed")
+
+        def close():
+            raise cleanup
+
+        with self.assertRaises(expected_exception=BaseExceptionGroup) as raised:
+            async with host() as owner:
+                owner.adopt(contribution=OwnedScience(close=close), requirements=frozenset())
+                raise original
+        body_failure, retirement_failure = raised.exception.exceptions
+        self.assertIs(expr1=original, expr2=body_failure)
+        observation = await owner.retire().observe(after=None, wait_seconds=0)
+        self.assertIs(expr1=retirement_failure, expr2=observation.failures[0].cause)
+        self.assertEqual(first=(cleanup,), second=retirement_failure.exceptions)
+
     async def test_repeated_cancellation_waits_for_native_resource_close(self):
         entered = Event()
         release = Event()
