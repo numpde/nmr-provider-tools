@@ -54,12 +54,12 @@ class PeakExampleTests(unittest.IsolatedAsyncioTestCase):
             secrets=(),
         )
         directory = Path(self.enterContext(TemporaryDirectory()))
-        self.configuration = directory / "provider.toml"
-        shutil.copytree(
-            src=Path(__file__).parent / "config/deployments/localhost",
-            dst=directory,
-            dirs_exist_ok=True,
-        )
+        self.configuration = directory / "config/deployments/localhost/provider.toml"
+        for name in ("config", "models"):
+            shutil.copytree(
+                src=Path(__file__).parent / name,
+                dst=directory / name,
+            )
         self.enterContext(patch.object(
             target=provider_setup,
             attribute="PROVIDER_CONFIG_PATH",

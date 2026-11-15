@@ -213,14 +213,15 @@ def run_suite(suite: str, patterns: tuple[str, ...]) -> None:
                 )
                 namespace = "example_" + name.replace("-", "_")
                 shutil.copytree(source / "tests", test_tree / "tests/integration" / namespace)
-                # Configuration is supplied alongside the installed application;
-                # these source fixtures deliberately stay outside its wheel.
-                configuration_directory = source / "config"
-                if configuration_directory.is_dir():
-                    shutil.copytree(
-                        src=configuration_directory,
-                        dst=test_tree / "tests/integration" / namespace / "config",
-                    )
+                # Deployment configuration and model data stay outside wheels.
+                # Preserve their relative layout when exercising installed code.
+                for directory_name in ("config", "models"):
+                    directory = source / directory_name
+                    if directory.is_dir():
+                        shutil.copytree(
+                            src=directory,
+                            dst=test_tree / "tests/integration" / namespace / directory_name,
+                        )
 
         # silent-defaults: allow-contract -- Fuzz selects both owned suites; every other admitted selector names one suite.
         selections = ("integration", "unit") if suite == "fuzz" else (suite,)

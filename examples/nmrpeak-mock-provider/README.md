@@ -12,9 +12,9 @@ workflow that a surrounding provider service would invoke.
 ```text
 config/deployments/localhost/
     provider.toml    scientific settings, checkpoint paths, execution and interpretation limits
-    checkpoints/
-        hf.json      HF checkpoint substitute
-        chf.json     CHF checkpoint substitute
+models/
+    hf.json          synthetic HF model data
+    chf.json         synthetic CHF model data
 src/nmrpeak_mock_provider/
     provider.py      provider setup and per-request lifetimes
     application.py   interpretation → validation → generation → report consumption
@@ -40,7 +40,8 @@ each request gets its own `Interpreter`.
 Setup reads `config/deployments/localhost/provider.toml` relative to the application's
 working directory. The top-level `PROVIDER_CONFIG_PATH` in `provider.py` selects
 that path; there is no configuration-path argument. Configuration stays outside
-the wheel, together with the checkpoint substitutes in its checkpoints/ directory.
+the wheel. Synthetic model data stays outside the wheel in `models/`; each JSON
+describes its role and contains fixed candidates rather than learned weights.
 Checkpoint paths in the TOML are relative to that deployment document.
 Different deployments can select different scientific settings and
 model constructors without changing the SDK.

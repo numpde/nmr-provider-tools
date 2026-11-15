@@ -1,6 +1,6 @@
 """Verify checkpoint bytes and let the model load through the same open file.
 
-Provider assembly supplies the path; this example uses packaged JSON substitutes.
+Provider assembly supplies the path; this example uses external JSON model-data substitutes.
 Whoever maintains that file must leave its contents unchanged during verification
 and loading. Holding it open does not prevent another process from rewriting it.
 """

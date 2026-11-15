@@ -1,0 +1,7 @@
+{
+  "description": "Synthetic HF model data for this example. The fake model selects from these fixed SMILES candidates; this file contains no learned weights or training state. Loading and digest verification stand in for loading a real model checkpoint.",
+  "candidates": [
+    "CCO",
+    "COC"
+  ]
+}
